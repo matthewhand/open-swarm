@@ -504,20 +504,27 @@ def blueprint_webpage(request, blueprint_name):
     logger.debug(f"Rendering blueprint webpage for: '{blueprint_name}'")
     context = {
         "blueprint_name": blueprint_name,
-        "dark_mode": request.session.get('dark_mode', True)
+        "dark_mode": request.session.get('dark_mode', True),
+        "is_chatbot": False
     }
     return render(request, "simple_blueprint_page.html", context)
 
 @csrf_exempt
 def chatbot_view(request):
     logger.debug("Rendering chatbot web UI")
-    context = {"dark_mode": request.session.get('dark_mode', True)}
+    context = {
+        "dark_mode": request.session.get('dark_mode', True),
+        "is_chatbot": True
+    }
     return render(request, "rest_mode/chatbot.html", context)
 
 @csrf_exempt
 def messenger(request):
     logger.debug("Rendering messenger web UI")
-    context = {"dark_mode": request.session.get('dark_mode', True)}
+    context = {
+        "dark_mode": request.session.get('dark_mode', True),
+        "is_chatbot": False
+    }
     return render(request, "rest_mode/messenger.html", context)
 
 DEFAULT_CONFIG = {

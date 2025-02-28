@@ -4,35 +4,45 @@ async function fetchBlueprints() {
     return data.data.filter(model => model.object === 'model');
 }
 
-function populateBlueprintList(blueprints) {
-    const list = document.getElementById('blueprintList');
-    list.innerHTML = '';
-    blueprints.forEach(bp => {
-        const li = document.createElement('li');
-        li.textContent = bp.title;
-        li.dataset.blueprintId = bp.id;
-        li.addEventListener('click', () => switchBlueprint(bp.id));
-        list.appendChild(li);
-    });
+function populateBlueprintDropdown(blueprints) {
+    const dropdown = document.getElementById('blueprintDropdown');
+    if (dropdown) {
+        dropdown.innerHTML = '<option value="">Select a Blueprint</option>';
+        blueprints.forEach(bp => {
+            const option = document.createElement('option');
+            option.value = bp.id;
+            option.textContent = bp.title;
+            dropdown.appendChild(option);
+        });
+    }
 }
 
 let currentBlueprint = null;
+let currentMode = 'default';
 function switchBlueprint(blueprintId) {
     currentBlueprint = blueprintId;
     document.getElementById('messageHistory').innerHTML = '';
-    document.getElementById('blueprintTitle').textContent = blueprintId;
-    console.log(`Switched to blueprint: ${blueprintId}`);
+    document.getElementById('blueprintTitle').textContent = blueprintId || 'No Blueprint Selected';
+    console.log(`Switched to blueprint: ${blueprintId}, mode: ${currentMode}`);
+}
+
+function setMode(mode) {
+    currentMode = mode;
+    console.log(`Mode set to: ${mode}`);
 }
 
 async function handleSubmit(event) {
     event.preventDefault();
     const input = document.getElementById('userInput');
     const message = input.value.trim();
-    if (!message || !currentBlueprint) return;
+    if (!message || !currentBlueprint) {
+        console.log('No message or blueprint selected');
+        return;
+    }
 
     input.value = '';
     const history = document.getElementById('messageHistory');
-    history.innerHTML += `<div class="user-message">${message}</div>`;
+    history.innerHTML += `<div class="user-message">${message} (Mode: ${currentMode})</div>`;
 
     try {
         const response = await fetch('/v1/chat/completions/', {
@@ -43,7 +53,8 @@ async function handleSubmit(event) {
             },
             body: JSON.stringify({
                 model: currentBlueprint,
-                messages: [{ role: 'user', content: message }]
+                messages: [{ role: 'user', content: message }],
+                context_variables: { mode: currentMode }
             })
         });
         const data = await response.json();
@@ -56,10 +67,15 @@ async function handleSubmit(event) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     const blueprints = await fetchBlueprints();
-    populateBlueprintList(blueprints);
+    if (document.querySelector('.chatbot-input-container')) {
+        populateBlueprintDropdown(blueprints);
+        document.querySelectorAll('.mode-button').forEach(button => {
+            button.addEventListener('click', () => setMode(button.dataset.mode));
+        });
+    }
     if (blueprints.length > 0) switchBlueprint(blueprints[0].id);
 
-    document.getElementById('sendButton').addEventListener('click', handleSubmit);
+    document.getElementById('sendButton')?.addEventListener('click', handleSubmit);
     document.getElementById('userInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSubmit(e);
     });

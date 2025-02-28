@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     {% include 'rest_mode/components/header.html' %}
-    <link rel="stylesheet" href="{% static 'rest_mode/css/chatgpt.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/chatbot.css' %}">
     <script>
         window.STATIC_URLS = {
             layoutSidebarLeftExpand: "{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}",
@@ -14,8 +14,8 @@
 <body>
     {% include 'rest_mode/components/top_bar.html' %}
     {% include 'rest_mode/components/settings_dialog.html' %}
-    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="chatgpt-layout">
-        <div class="side-panes blueprint-pane" id="blueprintPane">
+    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="chatbot-layout">
+        <div class="side-panes chat-history-pane" id="chatHistoryPane">
             {% include 'rest_mode/components/chat_sidebar.html' %}
         </div>
         <div class="vertical-divider" id="divider-left"></div>

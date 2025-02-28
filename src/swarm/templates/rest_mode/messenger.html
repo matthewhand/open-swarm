@@ -15,14 +15,20 @@
     {% include 'rest_mode/components/top_bar.html' %}
     {% include 'rest_mode/components/settings_dialog.html' %}
     <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="messenger-layout">
-        <div class="side-panes channel-pane" id="channelPane">
-            <div class="channel-header">
-                <button class="input-button" id="toggleSidebar" aria-label="Toggle Sidebar">
+        <div class="side-panes chat-history-pane" id="channelPane">
+            <div class="chat-history-header">
+                <button class="input-button chat-history-button" id="toggleSidebar" aria-label="Toggle Sidebar">
                     <img src="{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}" alt="Collapse Sidebar">
+                </button>
+                <button class="input-button upload-button" id="settingsToggleButton" aria-label="Toggle Settings">
+                    <img src="{% static 'contrib/tabler-icons/settings.svg' %}" alt="Settings">
+                </button>
+                <button class="input-button search-button" title="Search" aria-label="Search Channels">
+                    <img src="{% static 'contrib/tabler-icons/search.svg' %}" alt="Search">
                 </button>
             </div>
             <h3>Channels</h3>
-            <ul id="channelList" class="channel-list"></ul>
+            <ul id="channelList" class="chat-history-list"></ul>
         </div>
         <div class="vertical-divider" id="divider-left"></div>
         <div class="main-pane">

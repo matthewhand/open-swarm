@@ -1,0 +1,71 @@
+.chatbot-input-container {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    background: #2F2F2F;
+    border-radius: 10px;
+    margin: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.chatbot-input {
+    width: 100%;
+    padding: 12px 15px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    background: #3F3F3F;
+    color: #D3D3D3;
+    margin-bottom: 8px;
+    outline: none;
+}
+.chatbot-input::placeholder {
+    color: #A0A0A0;
+}
+.input-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.blueprint-dropdown {
+    padding: 8px;
+    border-radius: 5px;
+    background: #3F3F3F;
+    color: #D3D3D3;
+    border: none;
+    margin-right: 5px;
+    max-width: 150px;
+}
+.mode-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: #A0A0A0;
+    transition: color 0.2s;
+}
+.mode-button img {
+    width: 20px;
+    height: 20px;
+    filter: invert(70%) sepia(10%) hue-rotate(180deg);
+}
+.mode-button:hover {
+    color: #D3D3D3;
+}
+.mode-button:hover img {
+    filter: invert(90%) sepia(20%) hue-rotate(180deg);
+}
+@media (max-width: 600px) {
+    .input-actions {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .blueprint-dropdown {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    .mode-button {
+        padding: 5px;
+    }
+}
