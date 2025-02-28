@@ -1,34 +1,9 @@
-async function fetchBlueprints() {
-    const response = await fetch('/v1/models/');
-    const data = await response.json();
-    return data.data.filter(model => model.object === 'model');
-}
-
-function populateBlueprintList(blueprints) {
-    const list = document.getElementById('blueprintList');
-    list.innerHTML = '';
-    blueprints.forEach(bp => {
-        const li = document.createElement('li');
-        li.textContent = bp.title;
-        li.dataset.blueprintId = bp.id;
-        li.addEventListener('click', () => switchBlueprint(bp.id));
-        list.appendChild(li);
-    });
-}
-
-let currentBlueprint = null;
-function switchBlueprint(blueprintId) {
-    currentBlueprint = blueprintId;
-    document.getElementById('messageHistory').innerHTML = '';
-    document.getElementById('blueprintTitle').textContent = blueprintId;
-    console.log(`Switched to blueprint: ${blueprintId}`);
-}
-
 async function handleSubmit(event) {
     event.preventDefault();
     const input = document.getElementById('userInput');
     const message = input.value.trim();
-    if (!message || !currentBlueprint) return;
+    const blueprintName = document.getElementById('blueprintTitle').textContent;
+    if (!message) return;
 
     input.value = '';
     const history = document.getElementById('messageHistory');
@@ -42,7 +17,7 @@ async function handleSubmit(event) {
                 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
             },
             body: JSON.stringify({
-                model: currentBlueprint,
+                model: blueprintName,
                 messages: [{ role: 'user', content: message }]
             })
         });
@@ -54,11 +29,7 @@ async function handleSubmit(event) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const blueprints = await fetchBlueprints();
-    populateBlueprintList(blueprints);
-    if (blueprints.length > 0) switchBlueprint(blueprints[0].id);
-
+document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sendButton').addEventListener('click', handleSubmit);
     document.getElementById('userInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSubmit(e);

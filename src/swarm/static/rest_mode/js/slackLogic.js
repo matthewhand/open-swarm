@@ -4,24 +4,24 @@ async function fetchBlueprints() {
     return data.data.filter(model => model.object === 'model');
 }
 
-function populateBlueprintList(blueprints) {
-    const list = document.getElementById('blueprintList');
+function populateChannelList(blueprints) {
+    const list = document.getElementById('channelList');
     list.innerHTML = '';
     blueprints.forEach(bp => {
         const li = document.createElement('li');
-        li.textContent = bp.title;
+        li.textContent = `# ${bp.title}`;
         li.dataset.blueprintId = bp.id;
-        li.addEventListener('click', () => switchBlueprint(bp.id));
+        li.addEventListener('click', () => switchChannel(bp.id));
         list.appendChild(li);
     });
 }
 
 let currentBlueprint = null;
-function switchBlueprint(blueprintId) {
+function switchChannel(blueprintId) {
     currentBlueprint = blueprintId;
     document.getElementById('messageHistory').innerHTML = '';
     document.getElementById('blueprintTitle').textContent = blueprintId;
-    console.log(`Switched to blueprint: ${blueprintId}`);
+    console.log(`Switched to channel: ${blueprintId}`);
 }
 
 async function handleSubmit(event) {
@@ -56,8 +56,8 @@ async function handleSubmit(event) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     const blueprints = await fetchBlueprints();
-    populateBlueprintList(blueprints);
-    if (blueprints.length > 0) switchBlueprint(blueprints[0].id);
+    populateChannelList(blueprints);
+    if (blueprints.length > 0) switchChannel(blueprints[0].id);
 
     document.getElementById('sendButton').addEventListener('click', handleSubmit);
     document.getElementById('userInput').addEventListener('keypress', (e) => {

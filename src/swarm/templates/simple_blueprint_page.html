@@ -3,103 +3,22 @@
 <html lang="en">
 <head>
     {% include 'rest_mode/components/header.html' %}
-    
-    <title>Interactive Chat Interface</title>
-    <!-- Include CSRF token in a meta tag -->
+    <title>{{ blueprint_name }} Chat</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
     <link rel="stylesheet" href="{% static 'rest_mode/css/style.css' %}">
-    
-    <script>
-        // Define a global object to hold static URLs
-        window.STATIC_URLS = {
-            layoutSidebarLeftExpand: "{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}",
-            layoutSidebarLeftCollapse: "{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}",
-            layoutSidebarRightExpand: "{% static 'contrib/tabler-icons/layout-sidebar-right-expand.svg' %}",
-            layoutSidebarRightCollapse: "{% static 'contrib/tabler-icons/layout-sidebar-right-collapse.svg' %}",
-            trashIcon: "{% static 'rest_mode/svg/trash.svg' %}"
-            // Add other static URLs as needed
-        };
-    </script>
 </head>
 <body>
-
-    <!-- Main Layout -->
     <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="minimal-layout">
-
-        <!-- Main Content Pane -->
         <div class="main-pane">
-            <!-- Blueprint Name and Dropdown -->
-            <div class="blueprint-container">
-                <h2 id="blueprintTitle" class="blueprint-title hidden"></h2>
-                
-                <!-- Blueprint Metadata -->
-                <div id="blueprintMetadata" class="blueprint-metadata">
-                    <h2>Loading...</h2>
-                    <p>Please wait, fetching blueprint metadata...</p>
-                </div>
-
-                <!-- Blueprint Dropdown (Hidden by Default) -->
-                <select id="blueprintDropdown" class="blueprint-dropdown hidden">
-                    <!-- Options will be populated dynamically -->
-                </select>
-
-                <!-- Blueprint Dialog -->
-                <div id="blueprintDialog" class="blueprint-dialog hidden">
-                    <!-- Blueprint options will be injected dynamically -->
-                </div>
-            </div>
-
-            <!-- Persistent User Message -->
-            <div id="firstUserMessage" class="persistent-message hidden">
-                <!-- Persistent message content will be injected dynamically -->
-            </div>
-
-            <!-- Message History -->
+            <h2 id="blueprintTitle">{{ blueprint_name }}</h2>
             <div id="messageHistory" class="message-container"></div>
-
-            <!-- Loading Indicator -->
-            <div id="loadingIndicator" class="loading-indicator hidden">
-                <p>Loading...</p>
-            </div>
-
-            <!-- Send Container -->
             <div class="send-container">
                 <input type="text" id="userInput" class="rounded-input" placeholder="Type your message here...">
-                <button class="half-cut-button" id="submitButton" onclick="handleSubmit()" aria-label="Send Message">Send</button>
+                <button class="half-cut-button" id="sendButton">Send</button>
             </div>
         </div>
-        
-        <!-- Raw and Debug Panes -->
-        <div class="raw-debug-container">
-            <!-- Debug Pane -->
-            <div class="debug-pane" id="debugPane">
-                <h2>Debug Information</h2>
-                <pre id="debugContent"></pre>
-            </div>
-
-            <!-- Raw Messages Pane -->
-            <div class="raw-messages-pane hidden" id="rawMessagesPane">
-                <h2>Raw Messages</h2>
-                <pre id="rawMessagesContent"></pre>
-            </div>
-        </div>
-        
-        <!-- Toast Notifications -->
-        <div id="toastContainer"></div>
     </div>
-
-    <!-- Scripts -->
-    <script type="module" src="{% static 'rest_mode/js/modules/messageProcessor.js' %}"></script>
-    <script type="module" src="{% static 'contrib/markedjs/marked.min.js' %}"></script> <!-- credit to https://cdn.jsdelivr.net/npm/marked/marked.min.js -->
-
-    <!-- Inline Module Script to Initialize Blueprints -->
-    <script type="module">
-        import { initializeBlueprints } from "{% static 'rest_mode/js/modules/blueprintManager.js' %}";
-
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeBlueprints();
-        });
-    </script>
-
+    <script type="module" src="{% static 'contrib/markedjs/marked.min.js' %}"></script>
+    <script type="module" src="{% static 'rest_mode/js/simpleLogic.js' %}" defer></script>
 </body>
 </html>

@@ -1,34 +1,53 @@
 async function fetchBlueprints() {
-    const response = await fetch('/v1/models/');
-    const data = await response.json();
-    return data.data.filter(model => model.object === 'model');
+    console.log('Fetching blueprints from /v1/models/');
+    try {
+        const response = await fetch('/v1/models/');
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const data = await response.json();
+        console.log('Raw response data:', data);
+        const blueprints = data.data.filter(model => model.object === 'model');
+        console.log('Filtered blueprints:', blueprints);
+        return blueprints;
+    } catch (error) {
+        console.error('Error fetching blueprints:', error);
+        return [];
+    }
 }
 
-function populateBlueprintList(blueprints) {
-    const list = document.getElementById('blueprintList');
+function populateChannelList(blueprints) {
+    console.log('Populating channel list with blueprints:', blueprints);
+    const list = document.getElementById('channelList');
+    if (!list) {
+        console.error('Channel list element not found!');
+        return;
+    }
     list.innerHTML = '';
     blueprints.forEach(bp => {
         const li = document.createElement('li');
-        li.textContent = bp.title;
+        li.textContent = `# ${bp.title}`;
         li.dataset.blueprintId = bp.id;
-        li.addEventListener('click', () => switchBlueprint(bp.id));
+        li.addEventListener('click', () => switchChannel(bp.id));
         list.appendChild(li);
     });
+    console.log('Channel list updated:', list.innerHTML);
 }
 
 let currentBlueprint = null;
-function switchBlueprint(blueprintId) {
+function switchChannel(blueprintId) {
     currentBlueprint = blueprintId;
     document.getElementById('messageHistory').innerHTML = '';
     document.getElementById('blueprintTitle').textContent = blueprintId;
-    console.log(`Switched to blueprint: ${blueprintId}`);
+    console.log(`Switched to channel: ${blueprintId}`);
 }
 
 async function handleSubmit(event) {
     event.preventDefault();
     const input = document.getElementById('userInput');
     const message = input.value.trim();
-    if (!message || !currentBlueprint) return;
+    if (!message || !currentBlueprint) {
+        console.log('No message or blueprint selected, skipping submission');
+        return;
+    }
 
     input.value = '';
     const history = document.getElementById('messageHistory');
@@ -50,14 +69,20 @@ async function handleSubmit(event) {
         history.innerHTML += `<div class="assistant-message">${data.choices[0].message.content}</div>`;
         history.scrollTop = history.scrollHeight;
     } catch (error) {
+        console.error('Error submitting message:', error);
         history.innerHTML += `<div class="error-message">Error: ${error.message}</div>`;
     }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM fully loaded, initializing Messenger');
     const blueprints = await fetchBlueprints();
-    populateBlueprintList(blueprints);
-    if (blueprints.length > 0) switchBlueprint(blueprints[0].id);
+    populateChannelList(blueprints);
+    if (blueprints.length > 0) {
+        switchChannel(blueprints[0].id);
+    } else {
+        console.log('No blueprints available to display');
+    }
 
     document.getElementById('sendButton').addEventListener('click', handleSubmit);
     document.getElementById('userInput').addEventListener('keypress', (e) => {

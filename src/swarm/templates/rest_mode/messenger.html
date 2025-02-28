@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     {% include 'rest_mode/components/header.html' %}
-    <link rel="stylesheet" href="{% static 'rest_mode/css/chatgpt.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/messenger.css' %}">
     <script>
         window.STATIC_URLS = {
             layoutSidebarLeftExpand: "{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}",
@@ -14,9 +14,15 @@
 <body>
     {% include 'rest_mode/components/top_bar.html' %}
     {% include 'rest_mode/components/settings_dialog.html' %}
-    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="chatgpt-layout">
-        <div class="side-panes blueprint-pane" id="blueprintPane">
-            {% include 'rest_mode/components/chat_sidebar.html' %}
+    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="messenger-layout">
+        <div class="side-panes channel-pane" id="channelPane">
+            <div class="channel-header">
+                <button class="input-button" id="toggleSidebar" aria-label="Toggle Sidebar">
+                    <img src="{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}" alt="Collapse Sidebar">
+                </button>
+            </div>
+            <h3>Channels</h3>
+            <ul id="channelList" class="channel-list"></ul>
         </div>
         <div class="vertical-divider" id="divider-left"></div>
         <div class="main-pane">
@@ -25,7 +31,6 @@
         <div id="toastContainer"></div>
     </div>
     <script type="module" src="{% static 'contrib/markedjs/marked.min.js' %}"></script>
-    <script type="module" src="{% static 'rest_mode/js/main.js' %}"></script>
-    <script type="module" src="{% static 'rest_mode/js/chatLogic.js' %}" defer></script>
+    <script type="module" src="{% static 'rest_mode/js/messengerLogic.js' %}" defer></script>
 </body>
 </html>

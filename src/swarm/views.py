@@ -109,7 +109,6 @@ except ValueError as e:
 # -----------------------------------------------------------------------------
 def serialize_swarm_response(response: Any, model_name: str, context_variables: Dict[str, Any]) -> Dict[str, Any]:
     logger.debug(f"Serializing Swarm response, type: {type(response)}, model: {model_name}")
-
     if hasattr(response, 'messages'):
         messages = response.messages
         logger.debug(f"Extracted messages from Response object: {json.dumps(messages, indent=2)}")
@@ -187,7 +186,6 @@ def serialize_swarm_response(response: Any, model_name: str, context_variables: 
 
     logger.debug(f"Final formatted_messages: {json.dumps(formatted_messages, indent=2)}")
 
-    # Improved token counting
     prompt_tokens = 0
     completion_tokens = 0
     total_tokens = 0
@@ -256,12 +254,10 @@ def get_blueprint_instance(model: str, context_vars: dict) -> Any:
         if model == "default":
             class DummyBlueprint(BlueprintBase):
                 metadata = {"title": "Dummy Blueprint", "env_vars": []}
-
                 def create_agents(self) -> dict:
                     DummyAgent = type("DummyAgent", (), {"name": "DummyAgent", "mcp_servers": {}, "functions": [], "nemo_guardrails_config": ""})
                     self.starting_agent = DummyAgent
                     return {"DummyAgent": DummyAgent}
-
                 def run_with_context(self, messages, context_variables) -> dict:
                     return {
                         "response": {"message": "Dummy response"},
@@ -388,39 +384,31 @@ def run_conversation(blueprint_instance: Any, messages_extended: List[dict], con
 def chat_completions(request):
     if request.method != "POST":
         return Response({"error": "Method not allowed. Use POST."}, status=405)
-
     logger.info(f"Authenticated User: {request.user}")
-
     parse_result = parse_chat_request(request)
     if isinstance(parse_result, Response):
         return parse_result
-
     body, model, messages, context_vars, conversation_id, tool_call_id = parse_result
-
     llm_cfg = config.get("llm", {})
     if model in llm_cfg and llm_cfg[model].get("passthrough"):
         model_type = "llm"
     else:
         model_type = "blueprint"
     logger.info(f"Identified model type: {model_type} for model: {model}")
-
     blueprint_instance_response = get_blueprint_instance(model, context_vars)
     if isinstance(blueprint_instance_response, Response):
         return blueprint_instance_response
     blueprint_instance = blueprint_instance_response
-
     messages_extended = load_conversation_history(conversation_id, messages, tool_call_id)
     try:
         response_obj, updated_context = run_conversation(blueprint_instance, messages_extended, context_vars)
     except Exception as e:
         logger.error(f"Error during execution: {e}", exc_info=True)
         return Response({"error": f"Error during execution: {str(e)}"}, status=500)
-
     serialized = serialize_swarm_response(response_obj, model, updated_context)
     if conversation_id:
         serialized["conversation_id"] = conversation_id
         store_conversation_history(conversation_id, messages_extended, response_obj)
-
     return Response(serialized, status=200)
 
 @extend_schema(
@@ -453,7 +441,6 @@ def chat_completions(request):
 def list_models(request):
     if request.method != "GET":
         return JsonResponse({"error": "Method not allowed. Use GET."}, status=405)
-
     try:
         global blueprints_metadata, config
         allowed = os.getenv("SWARM_BLUEPRINTS")
@@ -495,6 +482,16 @@ def django_chat_webpage(request, blueprint_name):
     })
 
 @csrf_exempt
+def index(request):
+    logger.debug("Rendering index page")
+    context = {
+        "dark_mode": request.session.get('dark_mode', True),
+        "enable_admin": os.getenv("ENABLE_ADMIN", "false").lower() in ("true", "1", "t"),
+        "blueprints": blueprints_metadata.keys()
+    }
+    return render(request, "index.html", context)
+
+@csrf_exempt
 def blueprint_webpage(request, blueprint_name):
     logger.debug(f"Received request for blueprint webpage: '{blueprint_name}'")
     if blueprint_name not in blueprints_metadata:
@@ -512,10 +509,16 @@ def blueprint_webpage(request, blueprint_name):
     return render(request, "simple_blueprint_page.html", context)
 
 @csrf_exempt
-def chatbot(request):
+def chatbot_view(request):
     logger.debug("Rendering chatbot web UI")
     context = {"dark_mode": request.session.get('dark_mode', True)}
     return render(request, "rest_mode/chatbot.html", context)
+
+@csrf_exempt
+def messenger(request):
+    logger.debug("Rendering messenger web UI")
+    context = {"dark_mode": request.session.get('dark_mode', True)}
+    return render(request, "rest_mode/messenger.html", context)
 
 DEFAULT_CONFIG = {
     "llm": {
