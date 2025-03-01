@@ -32,7 +32,6 @@ export async function loadLLMConfig() {
         updateLLMSettingsPane(llmConfig);
     } catch (error) {
         console.error("Error loading LLM config:", error);
-
         showToast("⚠️ LLM settings could not be loaded. Please check the server.", "warning");
     }
 }
@@ -94,15 +93,12 @@ function initializeLLMModeToggles() {
         const toggle = document.getElementById(`toggle-${mode}`);
         if (toggle && mode !== 'default') {
             toggle.addEventListener('click', (event) => {
-                // Prevent the event from triggering the collapsible toggle
                 event.stopPropagation();
-
                 const isOn = toggle.dataset.state === 'on';
                 toggle.dataset.state = isOn ? 'off' : 'on';
                 toggle.querySelector('img').src = isOn
                     ? '/static/rest_mode/svg/toggle_off.svg'
                     : '/static/rest_mode/svg/toggle_on.svg';
-
                 showToast(`${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode ${isOn ? 'disabled' : 'enabled'}`);
             });
         }
@@ -130,7 +126,5 @@ function initializeCollapsibleSections() {
  */
 document.addEventListener('DOMContentLoaded', () => {
     debugLog("Settings page initialized.");
-
-    // Load LLM configuration
     loadLLMConfig();
 });

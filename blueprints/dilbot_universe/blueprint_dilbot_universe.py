@@ -2,11 +2,9 @@ import logging
 import random
 import json
 from typing import Dict, Any, List
-
 from swarm.types import Agent
 from swarm.extensions.blueprint import BlueprintBase
 
-# Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 if not logger.handlers:
@@ -16,10 +14,6 @@ if not logger.handlers:
     logger.addHandler(stream_handler)
 
 class DilbotUniverseBlueprint(BlueprintBase):
-    """
-    A gamified Dilbot Universe with multi-agent SDLC routines, using instructions from a Django DB.
-    Features Good, Evil, and Neutral agents with a 9-step process and comedic decision-making.
-    """
     @property
     def metadata(self) -> Dict[str, Any]:
         return {
@@ -38,17 +32,11 @@ class DilbotUniverseBlueprint(BlueprintBase):
         }
 
     def __init__(self, config: dict, **kwargs):
-        """
-        Initialize the blueprint, set up the DB with sample data, and create agents.
-        """
         config.setdefault("llm", {"default": {"dummy": "value"}})
         super().__init__(config=config, **kwargs)
         self._ensure_sample_data()
 
     def _ensure_sample_data(self) -> None:
-        """
-        Populate the AgentInstruction table with sample data if empty.
-        """
         from blueprints.dilbot_universe.models import AgentInstruction
         if AgentInstruction.objects.count() == 0:
             logger.info("No agent instructions found. Loading sample data...")
@@ -125,9 +113,6 @@ class DilbotUniverseBlueprint(BlueprintBase):
             logger.info("Agent instructions already exist. Skipping sample data loading.")
 
     def get_agent_config(self, agent_name: str) -> Dict[str, Any]:
-        """
-        Fetch the full configuration for a given agent from the Django DB.
-        """
         from blueprints.dilbot_universe.models import AgentInstruction
         try:
             instruction = AgentInstruction.objects.get(agent_name=agent_name)
@@ -148,7 +133,6 @@ class DilbotUniverseBlueprint(BlueprintBase):
                 "nemo_guardrails_config": None
             }
 
-    # Finalization Functions
     def build_product(self) -> str:
         logger.info("build_product() => user wins.")
         return (
@@ -165,7 +149,6 @@ class DilbotUniverseBlueprint(BlueprintBase):
             "Reasoning: Why build when you can break with style?"
         )
 
-    # Handoff Functions
     def dilbot_pass_neutral(self) -> Agent:
         return self.swarm.agents["Waldo"]
 
@@ -200,12 +183,7 @@ class DilbotUniverseBlueprint(BlueprintBase):
         return self.swarm.agents["Dogbot"]
 
     def create_agents(self) -> Dict[str, Agent]:
-        """
-        Create a team of Good, Evil, and Neutral agents with full config from the DB.
-        """
         agents = {}
-
-        # Helper to create an agent with DB config
         def create_agent(name: str, functions: List) -> Agent:
             config = self.get_agent_config(name)
             return Agent(
@@ -218,26 +196,19 @@ class DilbotUniverseBlueprint(BlueprintBase):
                 nemo_guardrails_config=config["nemo_guardrails_config"]
             )
 
-        # Good Agents
         agents["Dilbot"] = create_agent("Dilbot", [self.build_product, self.dilbot_pass_neutral])
         agents["Alisa"] = create_agent("Alisa", [self.build_product, self.alisa_pass_neutral])
         agents["Carola"] = create_agent("Carola", [self.build_product, self.carola_pass_neutral])
-
-        # Evil Agents
         agents["PointyBoss"] = create_agent("PointyBoss", [self.sabotage_project, self.pointy_boss_pass_neutral])
         agents["Dogbot"] = create_agent("Dogbot", [self.sabotage_project, self.dogbot_pass_neutral])
-
-        # Neutral Agents
         agents["Waldo"] = create_agent("Waldo", [self.waldo_pass_good, self.waldo_pass_evil])
         agents["Asoka"] = create_agent("Asoka", [self.asoka_pass_good, self.asoka_pass_evil])
         agents["Ratbot"] = create_agent("Ratbot", [self.ratbot_pass_good, self.ratbot_pass_evil])
 
-        # Set a random neutral agent as the starting point
         neutral_agents = ["Waldo", "Asoka", "Ratbot"]
         start_name = random.choice(neutral_agents)
         self.set_starting_agent(agents[start_name])
         logger.info(f"Agents created. Starting agent: {start_name}")
-
         return agents
 
 if __name__ == "__main__":

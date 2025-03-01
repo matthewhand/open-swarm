@@ -18,7 +18,7 @@ class MCPClient:
     Manages connections and interactions with MCP servers using the MCP Python SDK.
     """
 
-    def __init__(self, server_config: Dict[str, Any], timeout: int = 30):
+    def __init__(self, server_config: Dict[str, Any], timeout: int = 15):
         """
         Initialize the MCPClient with server configuration.
 

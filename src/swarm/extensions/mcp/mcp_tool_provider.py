@@ -14,7 +14,7 @@ from swarm.settings import DEBUG
 from swarm.types import Tool, Agent
 from swarm.extensions.mcp.mcp_client import MCPClient
 
-from .cache_utils import get_cache  # <-- Import the cache helper
+from .cache_utils import get_cache
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
@@ -32,21 +32,22 @@ class MCPToolProvider:
     them into `Tool` instances that can be utilized by agents within the Open-Swarm framework.
     """
 
-    def __init__(self, server_name: str, server_config: Dict[str, Any]):
+    def __init__(self, server_name: str, server_config: Dict[str, Any], timeout: int = 15):
         """
-        Initialize an MCPToolProvider instance.
+        Initialize an MCPToolProvider instance with a configurable timeout.
 
         Args:
             server_name (str): The name of the MCP server.
             server_config (dict): Configuration dictionary for the specific server.
+            timeout (int): Timeout in seconds for MCP operations (default 15, overridden by caller if provided).
         """
         self.server_name = server_name
         self.client = MCPClient(
             server_config=server_config,
-            timeout=server_config.get("timeout", 30),
+            timeout=timeout,  # Use the timeout passed from swarm/core.py
         )
-        self.cache = get_cache()  # <-- Initialize cache using the helper
-        logger.debug(f"Initialized MCPToolProvider for server '{self.server_name}'.")
+        self.cache = get_cache()
+        logger.debug(f"Initialized MCPToolProvider for server '{self.server_name}' with timeout {timeout}s.")
 
     async def discover_tools(self, agent: Agent) -> List[Tool]:
         """
@@ -67,8 +68,6 @@ class MCPToolProvider:
 
         if cached_tools:
             logger.debug(f"Retrieved tools for server '{self.server_name}' from cache.")
-
-            # ✅ Ensure `func` is properly assigned from cache
             tools = []
             for tool_data in cached_tools:
                 tool_name = tool_data["name"]
@@ -76,20 +75,15 @@ class MCPToolProvider:
                     name=tool_name,
                     description=tool_data["description"],
                     input_schema=tool_data.get("input_schema", {}),
-                    func=self._create_tool_callable(tool_name), 
+                    func=self._create_tool_callable(tool_name),
                 )
                 tools.append(tool)
-
             return tools
 
-        logger.debug(
-            f"Starting tool discovery from MCP server '{self.server_name}' for agent '{agent.name}'."
-        )
+        logger.debug(f"Starting tool discovery from MCP server '{self.server_name}' for agent '{agent.name}'.")
         try:
             tools = await self.client.list_tools()
-            logger.debug(
-                f"Discovered tools from MCP server '{self.server_name}': {[tool.name for tool in tools]}"
-            )
+            logger.debug(f"Discovered tools from MCP server '{self.server_name}': {[tool.name for tool in tools]}")
 
             # Serialize tools for caching
             serialized_tools = [
@@ -100,21 +94,16 @@ class MCPToolProvider:
                 }
                 for tool in tools
             ]
-            
-            # Cache the tools (will be a no-op if using DummyCache)
+
+            # Cache the tools for 1 hour (3600 seconds)
             self.cache.set(cache_key, serialized_tools, 3600)
             logger.debug(f"Cached tools for MCP server '{self.server_name}'.")
 
             return tools
 
         except Exception as e:
-            logger.error(
-                f"Failed to discover tools from MCP server '{self.server_name}': {e}",
-                exc_info=True,
-            )
-            raise RuntimeError(
-                f"Tool discovery failed for MCP server '{self.server_name}': {e}"
-            ) from e
+            logger.error(f"Failed to discover tools from MCP server '{self.server_name}': {e}", exc_info=True)
+            raise RuntimeError(f"Tool discovery failed for MCP server '{self.server_name}': {e}") from e
 
     def _create_tool_callable(self, tool_name: str):
         """

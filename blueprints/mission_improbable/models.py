@@ -1,20 +1,15 @@
 from django.db import models
 
 class AgentInstruction(models.Model):
-    agent_name = models.CharField(max_length=50, unique=True, help_text="Unique name (e.g., 'NexusCore').")
-    instruction_text = models.TextField(help_text="Instructions for the agent.")
-    model = models.CharField(max_length=50, default="default", help_text="LLM model.")
-    env_vars = models.TextField(blank=True, null=True, help_text="JSON env variables.")
-    mcp_servers = models.TextField(blank=True, null=True, help_text="JSON MCP servers.")
-    nemo_guardrails_config = models.CharField(max_length=50, blank=True, null=True, help_text="NeMo Guardrails config.")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        app_label = "blueprints_mission_improbable"
-        db_table = "swarm_agent_instruction_mission_improbable"
-        verbose_name = "Agent Instruction"
-        verbose_name_plural = "Agent Instructions"
+    agent_name = models.CharField(max_length=100, unique=True)
+    instruction_text = models.TextField()
+    model = models.CharField(max_length=100, default="default")
+    env_vars = models.TextField(blank=True, null=True)
+    mcp_servers = models.TextField(blank=True, null=True)
+    nemo_guardrails_config = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self):
-        return f"{self.agent_name} Instruction"
+        return self.agent_name
+
+    class Meta:
+        app_label = 'blueprints.mission_improbable'

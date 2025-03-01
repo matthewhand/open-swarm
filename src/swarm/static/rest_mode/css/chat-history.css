@@ -1,37 +1,41 @@
 /* Chat History Component Styles */
 .chat-history-pane {
     background-color: var(--bg-chat-history-pane);
-    padding: 0; /* Remove padding to allow flex layout */
+    padding: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
-    height: 100%; /* Ensure the pane takes full height of its container */
-    overflow: hidden; /* Prevent content overflow */
-    /* Ensure pane fills available space */
+    height: 100%;
+    overflow: hidden;
     flex: 0 1 auto;
+    border-top-left-radius: 0 !important;
 }
 
 /* Chat History Header */
 .chat-history-header {
     display: block;
     align-items: center;
-    justify-content: space-between; /* Distribute space between button groups */
+    justify-content: space-between;
     padding: 10px 15px;
     background-color: var(--bg-chat-history-header);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
-    z-index: 10; /* Ensure it stays above other content */
-}
-
-.new-chat-button {
-    margin-left: auto; /* Push the button to the right */
+    z-index: 10;
 }
 
 .chat-history-header > div {
     display: flex;
     align-items: center;
+    justify-content: flex-start; /* Align buttons to the left */
     gap: 10px; /* Space between buttons */
+    flex-wrap: nowrap; /* Prevent wrapping */
+    width: 100%; /* Ensure full width for horizontal layout */
+}
+
+.new-chat-button {
+    margin-left: auto;
+    font-size: 1rem;
 }
 
 /* Style for Header Buttons */
@@ -47,14 +51,14 @@
 }
 
 .chat-history-header .input-button:hover {
-    background-color: rgba(0, 0, 0, 0.05); /* Light hover background */
-    transform: scale(1.05); /* Slight scale on hover */
+    background-color: rgba(0, 0, 0, 0.2);
+    transform: scale(1.05);
 }
 
 .chat-history-header .input-button .icon {
     width: 20px;
     height: 20px;
-    filter: var(--icon-filter); /* Apply filter based on theme */
+    filter: var(--icon-filter);
     transition: filter 0.3s ease;
 }
 
@@ -63,47 +67,43 @@
     list-style: none;
     padding: 10px 15px;
     margin: 0;
-    overflow-y: auto; /* Make the list scrollable */
-    flex: 1; /* Take up remaining space */
-    flex-grow: 1; /* Take up remaining space */
+    overflow-y: auto;
+    flex: 1;
 }
 
 /* Chat History Items */
 .chat-history-item {
     position: relative;
-    padding: 5px 8px; /* Reduced padding for compactness */
-    margin-bottom: 5px; /* Reduced margin for compactness */
-    /* Removed border to eliminate border lines */
+    padding: 5px 8px;
+    margin-bottom: 5px;
     border: none;
-    /* Set background to match the pane by default */
-    /* background-color: var(--bg-chat-history-pane); */
-    /* transition: background-color var(--transition-duration), box-shadow var(--transition-duration); */
+    font-size: 0.9rem;
+    font-weight: normal;
+    transition: background-color var(--transition-duration);
 }
 
 .chat-history-item:hover {
-    background-color: rgba(0, 0, 0, 0.05); /* Light highlight on hover */
-    cursor: pointer; /* Indicate clickable */
+    background-color: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
 }
 
 /* Details and Summaries */
 .chat-history-pane details {
-    padding: 5px 8px; /* Reduced padding */
+    padding: 5px 8px;
     cursor: pointer;
     transition: background-color var(--transition-duration);
-    background-color: var(--bg-chat-history-pane); /* Match pane background when collapsed */
+    background-color: var(--bg-chat-history-pane);
 }
 
 .chat-history-pane details[open] {
-    background-color: var(--bg-message-other); /* Different background when expanded */
+    background-color: var(--bg-message-other);
 }
 
 .chat-history-pane summary {
-    font-weight: bold;
-    font-size: 1.1rem;
+    font-weight: normal;
+    font-size: 0.95rem;
     cursor: pointer;
-    /* Remove default list styling */
     list-style: none;
-    /* Ensure the summary occupies full width for better click area */
     display: block;
     position: relative;
 }
@@ -119,7 +119,7 @@
 
 /* Custom Indicator (Down/Up Arrow) */
 .chat-history-pane summary::after {
-    content: '▼'; /* Down arrow */
+    content: '▼';
     position: absolute;
     right: 0;
     top: 50%;
@@ -130,17 +130,17 @@
 }
 
 .chat-history-pane details[open] summary::after {
-    content: '▲'; /* Up arrow when open */
+    content: '▲';
 }
 
 /* Default State: Hide Details Content */
 .chat-history-pane details:not([open]) > *:not(summary) {
-    display: none; /* Hide all children except <summary> */
+    display: none;
 }
 
 /* Open State: Show Details Content */
 .chat-history-pane details[open] > *:not(summary) {
-    display: block; /* Reveal all children except <summary> */
+    display: block;
 }
 
 .chat-history-pane details {
@@ -152,7 +152,7 @@
 .chat-history-pane p {
     margin: 10px 0 0;
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 /* Chat Item Time and Tools */
@@ -164,46 +164,44 @@
 /* Updated: Chat Item Tools */
 .chat-item-tools {
     display: flex;
-    /* Removed justify-content: space-between; */
     align-items: center;
-    gap: 10px; /* Space between tags and delete button */
+    gap: 10px;
     margin-top: 5px;
 }
 
 /* Updated: Container for Tag Buttons and Delete Button */
 .chat-item-tags {
     display: flex;
-    gap: 8px; /* Space between individual tag buttons */
-    width: 100%; /* Allow to take full width */
-    align-items: center; /* Vertically center items */
+    gap: 8px;
+    width: 100%;
+    align-items: center;
 }
 
 /* New Addition: Push Delete Button to the Right */
 .chat-item-tags .delete-chat-btn {
-    margin-left: auto; /* Pushes the delete button to the far right */
+    margin-left: auto;
 }
 
 /* Style for Each Tag Button */
 .tag-button {
-    background-color: #e0e0e0; /* Light gray background */
+    background-color: #e0e0e0;
     border: none;
-    border-radius: 999px; /* Fully rounded */
+    border-radius: 999px;
     padding: 4px 12px;
     font-size: 0.85rem;
     cursor: pointer;
     transition: background-color 0.3s, transform 0.2s;
-    color: #333; /* Text color */
+    color: #333;
 }
 
 .tag-button:hover {
-    background-color: #c0c0c0; /* Darker gray on hover */
-    transform: translateY(-2px); /* Slight lift on hover */
+    background-color: #c0c0c0;
+    transform: translateY(-2px);
 }
 
 /* Style for Add Tag Button */
 .add-tag-btn {
-    background-color: #d0d0d0; /* Slightly different color for add button */
-    /* Additional styles if needed */
+    background-color: #d0d0d0;
 }
 
 /* Ensure the delete button remains on the right */
@@ -219,15 +217,13 @@
 }
 
 .toolbar-btn.delete-chat-btn .trash-icon {
-    /* width: 20px; */
-    /* height: 20px; */
-    filter: var(--icon-filter); /* Apply filter based on theme */
+    filter: var(--icon-filter);
     transition: filter 0.3s ease;
 }
 
 .toolbar-btn.delete-chat-btn:hover {
     opacity: 1;
-    transform: scale(1.1); /* Slight zoom on hover */
+    transform: scale(1.1);
 }
 
 /* Read More Link */
@@ -245,31 +241,28 @@
     }
 
     .side-panes {
-        flex-direction: column; /* Stack panes vertically */
+        flex-direction: column;
         max-width: 100%;
         gap: 10px;
     }
 
-    /* Adjust tag buttons and delete button for smaller screens */
     .chat-item-tags {
-        flex-wrap: wrap; /* Allow tags to wrap to the next line if necessary */
+        flex-wrap: wrap;
     }
 
     .chat-item-tools {
-        flex-direction: column; /* Stack tag buttons and delete button vertically */
+        flex-direction: column;
         align-items: flex-start;
     }
 
     .toolbar-btn.delete-chat-btn {
-        margin-top: 5px; /* Add space above the delete button */
+        margin-top: 5px;
     }
 
-    /* Adjust custom indicator size for smaller screens */
     .chat-history-pane summary::after {
         font-size: 0.7rem;
     }
 
-    /* Adjust header button sizes for better fit on small screens */
     .chat-history-header .input-button {
         padding: 6px;
     }
@@ -286,8 +279,8 @@
     --border-color: #888888;
     --text-secondary: #555555;
     --bg-message-other: #999999;
-    --icon-color: #007bff; /* Primary theme color for icons */
+    --icon-color: #007bff;
     --button-primary: #007bff;
     --transition-duration: 0.3s;
-    --icon-filter: none; /* Default, not used in Option A */
+    --icon-filter: none;
 }

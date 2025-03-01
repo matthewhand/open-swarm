@@ -1,5 +1,3 @@
-# src/swarm/core.py
-
 """
 Swarm Core Module
 
@@ -34,6 +32,7 @@ from .types import (
     Function,
     Response,
     Result,
+    Tool,
 )
 from .extensions.config.config_loader import load_llm_config
 from .extensions.mcp.mcp_tool_provider import MCPToolProvider
@@ -58,6 +57,7 @@ def serialize_datetime(obj):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} is not serializable")
 
+
 def filter_duplicate_system_messages(messages):
     """
     Ensures only one system message exists in the conversation history.
@@ -75,15 +75,17 @@ def filter_duplicate_system_messages(messages):
 
     return filtered_messages
 
+
 def filter_messages(messages):
     """
-    Filter messages to exclude those with null content 
+    Filter messages to exclude those with null content
     """
     filtered_messages = []
     for message in messages:
         if message.get('content') is not None:
             filtered_messages.append(message)
     return filtered_messages
+
 
 def update_null_content(messages):
     """
@@ -94,20 +96,10 @@ def update_null_content(messages):
             message['content'] = ""
     return messages
 
+
 def truncate_message_history(messages: List[dict], model: str, max_tokens: Optional[int] = None) -> List[dict]:
     """
     Truncates the conversation message history to ensure the total token count does not exceed the maximum context size.
-    
-    The maximum context size is determined from the LLM configuration key "max_context" or a global setting specified by the
-    "MAX_OUTPUT" environment variable (default is 2048 tokens).
-    
-    Args:
-        messages (List[dict]): The list of conversation messages.
-        model (str): The model name used to select the appropriate token encoding.
-        max_tokens (Optional[int]): The maximum allowed tokens. If not provided, defaults to the value from MAX_OUTPUT or 2048.
-    
-    Returns:
-        List[dict]: The truncated message list.
     """
     import tiktoken
     from typing import List, Optional
@@ -115,28 +107,27 @@ def truncate_message_history(messages: List[dict], model: str, max_tokens: Optio
         encoding = tiktoken.encoding_for_model(model)
     except Exception:
         encoding = tiktoken.get_encoding("cl100k_base")
-    
+
     if max_tokens is None:
         env_max = os.getenv("MAX_OUTPUT")
         if env_max:
             max_tokens = int(env_max)
         else:
             max_tokens = 2048
-    
+
     total_tokens = sum(len(encoding.encode(msg.get("content", ""))) for msg in messages)
     while total_tokens > max_tokens and messages:
         removed = messages.pop(0)
         total_tokens -= len(encoding.encode(removed.get("content", "")))
     return messages
 
-# Define a custom message class that provides default values and a dump method.
+
 class ChatMessage(SimpleNamespace):
     def __init__(self, **kwargs):
         defaults = {
             "role": "assistant",
             "content": "",
             "sender": "assistant",
-            # Only set defaults if they are missing; if the model returns a value, keep it.
             "function_call": kwargs.get("function_call", None),
             "tool_calls": kwargs.get("tool_calls", [])
         }
@@ -144,24 +135,19 @@ class ChatMessage(SimpleNamespace):
             if key not in kwargs or kwargs[key] is None:
                 kwargs[key] = default
         super().__init__(**kwargs)
-    
+
     def model_dump_json(self):
         d = self.__dict__.copy()
-        # Remove empty tool_calls to avoid API validation errors.
         if "tool_calls" in d and not d["tool_calls"]:
             del d["tool_calls"]
         return json.dumps(d)
+
 
 class Swarm:
     def __init__(self, client=None, config: Optional[dict] = None):
         """
         Initialize the Swarm with an optional custom OpenAI client and preloaded configuration.
-
-        Args:
-            client: Custom OpenAI client instance.
-            config (Optional[dict]): Preloaded configuration dictionary.
         """
-        # Fetch the selected LLM from the environment variable 'LLM', defaulting to 'default'
         self.model = os.getenv("DEFAULT_LLM", "default")
         logger.debug(f"Initialized Swarm with model: {self.model}")
 
@@ -169,7 +155,7 @@ class Swarm:
         self.tool_choice = "auto"
         self.parallel_tool_calls = False
         self.agents: Dict[str, Agent] = {}
-        self.mcp_tool_providers: Dict[str, MCPToolProvider] = {}  # Cache for MCPToolProvider instances
+        self.mcp_tool_providers: Dict[str, MCPToolProvider] = {}
         self.config = config or {}
         try:
             self.current_llm_config = load_llm_config(self.config, self.model)
@@ -197,25 +183,11 @@ class Swarm:
         self.client = client
 
         logger.info("Swarm initialized successfully.")
-        
+
     def register_agent_functions_with_nemo(self, agent: Agent) -> None:
         """
-        Registers the agent's functions as actions with the runtime.
-        Should be invoked just prior to calling nemo generate().
+        Registers the agent's functions as actions with the runtime for NeMo Guardrails.
         """
-        if not getattr(agent, "nemo_guardrails_instance", None):
-            if getattr(agent, "nemo_guardrails_config", None):
-                config_path = f"nemo_guardrails/{agent.nemo_guardrails_config}/config.yml"
-                try:
-                    from nemoguardrails.guardrails import Guardrails
-                    agent.nemo_guardrails_instance = Guardrails.from_yaml(config_path)
-                    logger.debug("Initialized NeMo Guardrails instance from config.")
-                except Exception as e:
-                    logger.error(f"Error initializing NeMo Guardrails instance: {e}")
-                    return
-            else:
-                logger.debug("No NeMo Guardrails instance or config for agent, skipping function registration.")
-                return
         if not getattr(agent, "nemo_guardrails_instance", None):
             if getattr(agent, "nemo_guardrails_config", None):
                 config_path = f"nemo_guardrails/{agent.nemo_guardrails_config}/config.yml"
@@ -245,7 +217,7 @@ class Swarm:
 
     async def discover_and_merge_agent_tools(self, agent: Agent, debug: bool = False) -> List[AgentFunction]:
         """
-        Discover and merge tools for the given agent from assigned MCP servers.
+        Discover and merge tools for the given agent from assigned MCP servers in parallel using MCPToolProvider.
 
         Args:
             agent (Agent): The agent for which to discover and merge tools.
@@ -258,26 +230,27 @@ class Swarm:
             logger.debug(f"Agent '{agent.name}' has no assigned MCP servers.")
             return agent.functions
 
-        discovered_tools = []
+        # Base timeout of 10 seconds, scaled by number of MCP servers
+        base_timeout = 10
+        total_timeout = base_timeout * len(agent.mcp_servers)
+        logger.debug(f"Setting discovery timeout to {total_timeout} seconds for {len(agent.mcp_servers)} MCP servers.")
 
-        for server_name in agent.mcp_servers:
+        async def discover_tools_from_server(server_name):
             logger.debug(f"Looking up MCP server '{server_name}' for agent '{agent.name}'.")
-
             server_config = self.config.get("mcpServers", {}).get(server_name)
             if not server_config:
                 logger.warning(f"MCP server '{server_name}' not found in configuration.")
-                continue
+                return []
 
             if server_name not in self.mcp_tool_providers:
                 try:
-                    tool_provider = MCPToolProvider(server_name, server_config)
+                    # Pass the scaled timeout to MCPToolProvider
+                    tool_provider = MCPToolProvider(server_name, server_config, timeout=total_timeout)
                     self.mcp_tool_providers[server_name] = tool_provider
-                    logger.debug(f"Initialized MCPToolProvider for server '{server_name}'.")
+                    logger.debug(f"Initialized MCPToolProvider for server '{server_name}' with timeout {total_timeout}s.")
                 except Exception as e:
-                    logger.error(f"Failed to initialize MCPToolProvider for server '{server_name}': {e}", exc_info=True)
-                    if debug:
-                        logger.debug(f"[DEBUG] Exception during MCPToolProvider initialization for server '{server_name}': {e}")
-                    continue
+                    logger.error(f"Failed to initialize MCPToolProvider for server '{server_name}': {e}")
+                    return []
             else:
                 tool_provider = self.mcp_tool_providers[server_name]
                 logger.debug(f"Using cached MCPToolProvider for server '{server_name}'.")
@@ -285,22 +258,33 @@ class Swarm:
             try:
                 tools = await tool_provider.discover_tools(agent)
                 if tools:
-                    logger.debug(f"Discovered {len(tools)} tools from server '{server_name}' for agent '{agent.name}': {[tool.name for tool in tools if hasattr(tool, 'name')]}")
-                    discovered_tools.extend(tools)
+                    logger.debug(f"Discovered {len(tools)} tools from server '{server_name}': {[tool.name for tool in tools if hasattr(tool, 'name')]}")
                 else:
-                    logger.warning(f"No tools discovered from server '{server_name}' for agent '{agent.name}'.")
+                    logger.debug(f"No tools discovered from server '{server_name}'.")
+                return tools
             except Exception as e:
-                logger.error(f"Error discovering tools for server '{server_name}': {e}", exc_info=True)
-                if debug:
-                    logger.debug(f"[DEBUG] Exception during tool discovery for server '{server_name}': {e}")
+                logger.error(f"Error discovering tools from server '{server_name}': {e}")
+                return []
+
+        # Run discovery in parallel for all servers
+        tasks = [discover_tools_from_server(server_name) for server_name in agent.mcp_servers]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Flatten results, filtering out exceptions
+        discovered_tools = []
+        for result in results:
+            if isinstance(result, list):
+                discovered_tools.extend(result)
+            else:
+                logger.debug(f"Skipping result due to exception: {result}")
 
         all_functions = agent.functions + discovered_tools
         logger.debug(f"Total functions for agent '{agent.name}': {len(all_functions)} (Existing: {len(agent.functions)}, Discovered: {len(discovered_tools)})")
         if debug:
-            logger.debug(f"[DEBUG] Existing functions: {[func.name for func in agent.functions if hasattr(func, 'name')]}")
+            logger.debug(f"[DEBUG] Existing functions: {[getattr(func, 'name', getattr(func, '__name__', 'unnamed')) for func in agent.functions]}")
             logger.debug(f"[DEBUG] Discovered tools: {[tool.name for tool in discovered_tools if hasattr(tool, 'name')]}")
-            logger.debug(f"[DEBUG] Combined functions: {[func.name for func in all_functions if hasattr(func, 'name')]}")
-        
+            logger.debug(f"[DEBUG] Combined functions: {[getattr(func, 'name', getattr(func, '__name__', 'unnamed')) for func in all_functions]}")
+
         return all_functions
 
     def get_chat_completion(
@@ -343,7 +327,7 @@ class Swarm:
         instructions = (agent.instructions(context_variables) if callable(agent.instructions) else agent.instructions)
 
         messages = [{"role": "system", "content": instructions}]
-        
+
         seen_message_ids = set()
         for msg in history:
             msg_id = msg.get("id", hash(json.dumps(msg, sort_keys=True, default=serialize_datetime)))
@@ -363,19 +347,16 @@ class Swarm:
             "stream": stream,
         }
 
-        # Only add tools if they exist
         if tools:
             create_params["tools"] = tools
-            create_params["tool_choice"] = agent.tool_choice or "auto"  # Only included when tools exist
+            create_params["tool_choice"] = agent.tool_choice or "auto"
 
-        # Ensure response_format is passed when specified
         if hasattr(agent, "response_format") and agent.response_format:
             create_params["response_format"] = agent.response_format
 
         if "temperature" in new_llm_config:
             create_params["temperature"] = new_llm_config["temperature"]
 
-        # Ensure `response_format` is passed if agent specifies it
         if agent.response_format:
             create_params["response_format"] = agent.response_format
 
@@ -387,21 +368,15 @@ class Swarm:
         try:
             if agent.nemo_guardrails_instance and messages[-1].get('content'):
                 self.register_agent_functions_with_nemo(agent)
-
                 options = GenerationOptions(
-                    llm_params={
-                        "temperature": 0.5,
-                        # "model_name": "gpt-4o",  
-                        # "base_url": "https://api.openai.com/v1",
-                    },
+                    llm_params={"temperature": 0.5},
                     llm_output=True,
                     output_vars=True,
-                    return_context=True  
+                    return_context=True
                 )
-
                 logger.debug(f"🔹 Using NeMo Guardrails for agent: {agent.name}")
                 response = agent.nemo_guardrails_instance.generate(messages=update_null_content(messages), options=options)
-                logger.debug(f"[DEBUG] Chat completion reesponse: {response}")
+                logger.debug(f"[DEBUG] Chat completion response: {response}")
                 return response
             else:
                 logger.debug(f"🔹 Using OpenAI Completion for agent: {agent.name}")
@@ -411,49 +386,28 @@ class Swarm:
             raise
 
     def get_chat_completion_message(self, **kwargs):
-        # Call the get_chat_completion method with kwargs
         completion = self.get_chat_completion(**kwargs)
-
-        # Log the completion object for debugging
         logger.debug(f"Completion object: {completion}")
-
-        # Check if choices exists and has at least one element
         if hasattr(completion, 'choices') and len(completion.choices) > 0:
-            # Check if the first choice has a message attribute
             if hasattr(completion.choices[0], 'message'):
                 return completion.choices[0].message
-
-        # If any of the checks fail, treat the entire completion object as the message
         logger.debug(f"Treating entire completion object as message: {completion}")
         return ChatMessage(content=json.dumps(completion.get("content")))
 
     def handle_function_result(self, result, debug) -> Result:
         """
         Process the result returned by an agent function.
-
-        Args:
-            result: The raw result returned by the agent function.
-            debug (bool): Debug flag for verbose output.
-
-        Returns:
-            Result: The processed result object.
         """
         match result:
             case Result() as result_obj:
                 return result_obj
             case Agent() as agent:
-                return Result(
-                    value=json.dumps({"assistant": agent.name}),
-                    agent=agent,
-                )
+                return Result(value=json.dumps({"assistant": agent.name}), agent=agent)
             case _:
                 try:
                     return Result(value=str(result))
                 except Exception as e:
-                    error_message = (
-                        f"Failed to cast response to string: {result}. "
-                        f"Make sure agent functions return a string or Result object. Error: {str(e)}"
-                    )
+                    error_message = f"Failed to cast response to string: {result}. Error: {str(e)}"
                     logger.debug(error_message)
                     raise TypeError(error_message)
 
@@ -466,17 +420,14 @@ class Swarm:
     ) -> Response:
         """
         Handles tool calls, executing functions and processing results.
-
-        Args:
-            tool_calls (List[ChatCompletionMessageToolCall]): The list of tool calls to process.
-            functions (List[AgentFunction]): The list of available functions (tools).
-            context_variables (dict): Shared context variables for tools.
-            debug (bool): Whether to enable debug logging.
-
-        Returns:
-            Response: A Response object with tool results.
         """
-        function_map = {f.__name__: f for f in functions}
+        function_map = {}
+        for f in functions:
+            fname = getattr(f, "name", getattr(f, "__name__", None))
+            if fname is None:
+                logger.warning(f"Function {f} has no 'name' or '__name__' attribute; skipping.")
+                continue
+            function_map[fname] = f
         partial_response = Response(messages=[], agent=None, context_variables={})
 
         for tool_call in tool_calls:
@@ -524,7 +475,6 @@ class Swarm:
                         partial_response.agent = result.agent
                         context_variables["active_agent_name"] = new_agent_name
                         logger.debug(f"🔄 Active agent updated to: {new_agent_name}")
-
                         new_agent = self.agents[new_agent_name]
                         new_agent.functions = asyncio.run(self.discover_and_merge_agent_tools(new_agent, debug=debug))
                         logger.debug(f"✅ Reloaded tools for new agent: {new_agent_name}")
@@ -553,18 +503,6 @@ class Swarm:
     ):
         """
         Generator to run the conversation with streaming responses.
-
-        Args:
-            agent (Agent): The agent to run.
-            messages (List[Dict[str, Any]]): Initial messages in the conversation.
-            context_variables (dict, optional): Context variables for the conversation.
-            model_override (Optional[str], optional): Model override if any.
-            debug (bool): Whether to enable debug logging.
-            max_turns (int): Maximum number of turns to execute.
-            execute_tools (bool): Whether to execute tools.
-
-        Yields:
-            dict: Chunks of the response.
         """
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
@@ -700,7 +638,6 @@ class Swarm:
             turn_count += 1
 
             try:
-
                 message = self.get_chat_completion_message(
                     agent=active_agent,
                     history=history,
@@ -756,22 +693,20 @@ class Swarm:
     def validate_message_sequence(self, messages):
         """
         Ensures the correct order of 'tool' messages in the conversation history.
-        'tool' messages MUST follow an 'assistant' message with a matching 'tool_calls' ID.
         """
-        valid_tool_call_ids = set()  # Track tool calls expected from assistant messages
+        valid_tool_call_ids = set()
         validated_messages = []
 
         for msg in messages:
             if msg["role"] == "assistant" and "tool_calls" in msg:
                 for tool_call in msg["tool_calls"]:
-                    valid_tool_call_ids.add(tool_call["id"])  # Track expected tool_call_id
+                    valid_tool_call_ids.add(tool_call["id"])
 
             elif msg["role"] == "tool":
                 if msg.get("tool_call_id") not in valid_tool_call_ids:
                     print(f"⚠️ WARNING: Orphaned tool message detected! Removing: {msg}")
-                    continue  # 🚨 Skip invalid tool message that has no valid preceding assistant call
-
-                valid_tool_call_ids.remove(msg["tool_call_id"])  # Mark it as handled
+                    continue
+                valid_tool_call_ids.remove(msg["tool_call_id"])
 
             validated_messages.append(msg)
 
@@ -782,20 +717,16 @@ class Swarm:
         Repairs the message sequence by ensuring every assistant message with tool_calls
         is followed by its corresponding tool messages, and removing orphaned tool messages.
         """
-
-        # 1) Filter out multiple system messages so there's only one
         filtered = []
         system_found = False
         for msg in messages:
             if msg["role"] == "system":
                 if system_found:
-                    # Skip subsequent system messages
                     continue
                 system_found = True
             filtered.append(msg)
         messages = filtered
 
-        # 2) Build a map of tool_call_ids that we expect, from assistant messages
         valid_tool_call_ids = set()
         for msg in messages:
             if msg["role"] == "assistant" and msg.get("tool_calls"):
@@ -803,65 +734,40 @@ class Swarm:
                     if tc.get("id"):
                         valid_tool_call_ids.add(tc["id"])
 
-        # 3) We'll re-construct the message list, ensuring we remove orphaned 'tool' messages
         repaired = []
         for msg in messages:
             if msg["role"] == "tool":
                 tc_id = msg.get("tool_call_id")
                 if not tc_id or tc_id not in valid_tool_call_ids:
-                    # Orphaned: remove it
                     if debug:
-                        logger.warning(
-                            f"Removing orphaned tool message: {msg} — no preceding assistant tool_calls with id={tc_id}"
-                        )
+                        logger.warning(f"Removing orphaned tool message: {msg}")
                     continue
-                else:
-                    # It's valid, but let's confirm it appears after the assistant that declared it
-                    # We'll keep it for now, but might reorder if needed:
-                    repaired.append(msg)
+                repaired.append(msg)
             else:
-                # e.g. user, system, assistant
                 repaired.append(msg)
 
-        # 4) We must also ensure the 'tool' messages appear **after** the assistant that declared them.
-        #    We'll do a final pass to reorder if needed. One simple approach is:
-        #    - For each assistant message that declares tool_calls, we look ahead for any matching 'tool' and move them
-        #      immediately after the assistant.
         final_sequence: List[Dict[str, Any]] = []
         i = 0
         while i < len(repaired):
             msg = repaired[i]
-
             if msg["role"] == "assistant" and msg.get("tool_calls"):
-                # Move any matching 'tool' messages right after it
                 tool_call_ids = [tc["id"] for tc in msg["tool_calls"] if "id" in tc]
                 final_sequence.append(msg)
-
-                # Collect any subsequent tools matching those IDs:
                 j = i + 1
                 to_remove_indexes = []
                 found_tools_for_ids = []
-
                 while j < len(repaired):
                     next_msg = repaired[j]
                     if next_msg["role"] == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
                         found_tools_for_ids.append(next_msg)
                         to_remove_indexes.append(j)
                     j += 1
-
-                # Insert them immediately after the assistant
                 for tmsg in found_tools_for_ids:
                     final_sequence.append(tmsg)
-
-                # Now skip them in the outer loop by marking them removed
-                if to_remove_indexes:
-                    # Mark them so we skip them in final iteration
-                    for idx in reversed(to_remove_indexes):
-                        repaired.pop(idx)
+                for idx in reversed(to_remove_indexes):
+                    repaired.pop(idx)
             else:
-                # Not an assistant with tool_calls
                 final_sequence.append(msg)
-
             i += 1
 
         if debug:

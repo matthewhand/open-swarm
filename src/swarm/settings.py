@@ -73,8 +73,29 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'swarm',
     'swarm.extensions.blueprint.modes.rest_mode',
-    'blueprints.university',  # Fixed to dot notation for module path
+    'blueprints.university',
 ]
+
+def append_blueprint_apps():
+    """Dynamically append valid blueprint apps to INSTALLED_APPS with normalized labels."""
+    if not os.path.exists(BLUEPRINTS_DIR):
+        logger.warning(f"Blueprint directory {BLUEPRINTS_DIR} does not exist.")
+        return
+    for blueprint_name in os.listdir(BLUEPRINTS_DIR):
+        app_path = os.path.join(BLUEPRINTS_DIR, blueprint_name)
+        blueprint_file = os.path.join(app_path, f'blueprint_{blueprint_name}.py')
+        if os.path.isdir(app_path) and os.path.exists(blueprint_file):
+            # Normalize app label: replace hyphens with underscores
+            normalized_name = blueprint_name.replace('-', '_')
+            app_label = f"blueprints.{normalized_name}"
+            if app_label not in INSTALLED_APPS:
+                logger.debug(f"Adding {app_label} to INSTALLED_APPS")
+                INSTALLED_APPS.append(app_label)
+        else:
+            logger.debug(f"Skipping {blueprint_name}: no valid blueprint file found.")
+
+# Append blueprints at settings load time
+append_blueprint_apps()
 
 MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',

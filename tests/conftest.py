@@ -1,22 +1,27 @@
 import os
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-os.environ.setdefault("ENABLE_API_AUTH", "false")
-import uuid
 import pytest
+import django
 from django.conf import settings
-from django.core.management import call_command
-from django.test.utils import override_settings
+from swarm.settings import append_blueprint_apps, BLUEPRINTS_DIR
+import logging
 
-# Set up a unique test database for each test suite run.
-os.environ["UNIT_TESTING"] = "true"
-os.environ["SQLITE_DB_PATH"] = f"./swarm-django-{uuid.uuid4().hex}.db"
-os.environ["DJANGO_DATABASE"] = "sqlite"
+logger = logging.getLogger(__name__)
 
-@pytest.fixture(autouse=True, scope="session")
-def migrate_db(django_db_setup, django_db_blocker):
-    # Reorder INSTALLED_APPS so that 'swarm' comes first.
-    new_apps = sorted(settings.INSTALLED_APPS, key=lambda app: 0 if app == "swarm" else 1)
-    # with django_db_blocker.unblock():
-            # call_command("migrate", interactive=False)
-            # call_command("migrate", "swarm", interactive=False)
-            # call_command("migrate", "blueprints_university", interactive=False)
+def pytest_configure():
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'swarm.settings'
+    os.environ['SWARM_BLUEPRINTS'] = 'university'  # Force university blueprint
+    logger.info(f"Set SWARM_BLUEPRINTS to: {os.environ['SWARM_BLUEPRINTS']}")
+    if not settings.configured:
+        django.setup()
+    append_blueprint_apps()
+    logger.info(f"INSTALLED_APPS after append: {settings.INSTALLED_APPS}")
+
+@pytest.fixture(scope='session', autouse=True)
+def django_db_setup(django_db_setup, django_db_blocker):
+    from swarm.extensions.blueprint import discover_blueprints
+    all_blueprints = discover_blueprints([str(BLUEPRINTS_DIR)])
+    logger.info(f"Discovered blueprints: {list(all_blueprints.keys())}")
+    assert 'university' in all_blueprints, f"University blueprint not found in {BLUEPRINTS_DIR}"
+    assert 'blueprints.university' in settings.INSTALLED_APPS, "University blueprint not in INSTALLED_APPS"
+    with django_db_blocker.unblock():
+        yield

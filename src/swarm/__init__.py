@@ -1,4 +1,3 @@
-from .core import Swarm
-from .types import Agent, Response
+default_app_config = 'swarm.apps.SwarmConfig'
 
-__all__ = ["Swarm", "Agent", "Response"]
+from .core import Swarm

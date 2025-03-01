@@ -1,32 +1,22 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block head %}
-<link rel="stylesheet" type="text/css" href="{% static 'css/custom.css' %}">
-{% endblock %}
-
-{% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card login-card">
-                <div class="login-header text-center">
-                    <h3>Log In - django_chat (open-swarm edition)</h3>
-                </div>
-                <div class="login-body">
-                    <form method="post">
-                        {% csrf_token %}
-                        {{ form.as_p }}
-                        <div class="text-center">
-                            <button type="submit" class="btn btn-primary btn-block">Log In</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="login-footer">
-                    <p>Don't have an account? <a href="{% url 'account_signup' %}">Sign up here</a>.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+</head>
+<body>
+    <h1>Login</h1>
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+    <form method="post" action="{% url 'custom_login' %}?next={{ request.GET.next }}">
+        {% csrf_token %}
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+        <button type="submit">Login</button>
+    </form>
+    <p>Hint: Use "testuser" with password "testpass" for testing.</p>
+</body>
+</html>

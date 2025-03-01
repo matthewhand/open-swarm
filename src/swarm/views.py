@@ -1,14 +1,15 @@
 """
-REST Mode Views for Open Swarm MCP.
+Views for Open Swarm MCP Core.
 
-This module defines asynchronous views to handle chat completions and model listings,
-aligning with OpenAI's Chat Completions API.
+This module defines core views for:
+- REST API endpoints for chat completions and model listings (OpenAI-compatible).
+- Generic blueprint webpage rendering.
 
 Endpoints:
     - POST /v1/chat/completions: Handles chat completion requests.
     - GET /v1/models: Lists available blueprints as models.
-    - GET /django_chat/: Lists conversations for the logged-in user.
-    - POST /django_chat/start/: Starts a new conversation.
+    - GET /<blueprint_name>/: Renders a simple blueprint webpage for agent queries.
+    - GET/POST /accounts/login/: Custom login page for authentication.
 """
 import json
 import uuid
@@ -19,10 +20,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 
 # Django & DRF imports
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from drf_spectacular.utils import extend_schema
@@ -50,6 +53,14 @@ from swarm.extensions.blueprint.blueprint_utils import filter_blueprints
 from .settings import DJANGO_DATABASE
 from .models import ChatMessage
 from .serializers import ChatMessageSerializer
+
+# Blueprint-specific imports (lazy-loaded)
+try:
+    from blueprints.chatbot.views import chatbot_view, create_chat, delete_chat
+    from blueprints.messenger.views import messenger
+    from blueprints.django_chat.views import django_chat
+except ImportError as e:
+    logger.debug(f"Optional blueprint imports not available: {e}")
 
 # -----------------------------------------------------------------------------
 # Initialization
@@ -79,19 +90,8 @@ except Exception as e:
     logger.critical(f"Failed to load configuration from {CONFIG_PATH}: {e}")
     raise e
 
-BLUEPRINTS_DIR = Path('/app/blueprints')
-try:
-    all_blueprints = discover_blueprints([str(BLUEPRINTS_DIR)])
-    if allowed_blueprints := os.getenv("SWARM_BLUEPRINTS"):
-        blueprints_metadata = filter_blueprints(all_blueprints, allowed_blueprints)
-        logger.info(f"Filtered blueprints using SWARM_BLUEPRINTS: {allowed_blueprints.split(',')}")
-    else:
-        blueprints_metadata = all_blueprints
-    redacted_blueprints_metadata = redact_sensitive_data(blueprints_metadata)
-    logger.debug(f"Discovered blueprints metadata: {redacted_blueprints_metadata}")
-except Exception as e:
-    logger.error(f"Error discovering blueprints: {e}", exc_info=True)
-    raise e
+# Blueprints will be registered in apps.py; initialize empty dict here
+blueprints_metadata = {}
 
 try:
     llm_config = load_llm_config(config)
@@ -108,6 +108,7 @@ except ValueError as e:
 # Helper Functions
 # -----------------------------------------------------------------------------
 def serialize_swarm_response(response: Any, model_name: str, context_variables: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize a blueprint response into an OpenAI-compatible chat completion format."""
     logger.debug(f"Serializing Swarm response, type: {type(response)}, model: {model_name}")
     if hasattr(response, 'messages'):
         messages = response.messages
@@ -123,6 +124,7 @@ def serialize_swarm_response(response: Any, model_name: str, context_variables: 
         messages = []
 
     def remove_functions(obj: Any) -> Any:
+        """Recursively remove callable attributes from an object for serialization."""
         if isinstance(obj, dict):
             return {k: remove_functions(v) for k, v in obj.items() if k != "functions" and not callable(v)}
         elif hasattr(obj, "__dict__"):
@@ -216,6 +218,7 @@ def serialize_swarm_response(response: Any, model_name: str, context_variables: 
     }
 
 def parse_chat_request(request: Any) -> Any:
+    """Parse incoming chat completion request body into components."""
     try:
         body = json.loads(request.body)
         model = body.get("model", "default")
@@ -249,6 +252,7 @@ def parse_chat_request(request: Any) -> Any:
         return Response({"error": "Invalid JSON payload."}, status=400)
 
 def get_blueprint_instance(model: str, context_vars: dict) -> Any:
+    """Instantiate a blueprint instance based on the requested model."""
     blueprint_meta = blueprints_metadata.get(model)
     if not blueprint_meta:
         if model == "default":
@@ -285,6 +289,7 @@ def get_blueprint_instance(model: str, context_vars: dict) -> Any:
         return Response({"error": f"Error initializing blueprint: {str(e)}"}, status=500)
 
 def load_conversation_history(conversation_id: Optional[str], messages: List[dict], tool_call_id: Optional[str] = None) -> List[dict]:
+    """Load past messages for a conversation from Redis or database."""
     if not conversation_id:
         logger.warning("⚠️ No conversation_id provided, returning only new messages.")
         return messages
@@ -325,6 +330,7 @@ def load_conversation_history(conversation_id: Optional[str], messages: List[dic
     return formatted_past_messages + messages
 
 def store_conversation_history(conversation_id, full_history, response_obj=None):
+    """Store conversation history in the database and optionally Redis."""
     try:
         chat, created = ChatConversation.objects.get_or_create(conversation_id=conversation_id)
         if created:
@@ -338,7 +344,7 @@ def store_conversation_history(conversation_id, full_history, response_obj=None)
             if not msg.get("content") and not msg.get("tool_calls"):
                 logger.warning(f"⚠️ Skipping empty message in conversation {conversation_id}")
                 continue
-            role = msg.get("role", "unknown")
+            role = msg.get("role", "anonymous")  # Default to "anonymous" if no role
             content = msg.get("content", "")
             serialized_content = content if content.strip() else json.dumps(msg.get("tool_calls", {}))
             if serialized_content not in stored_messages:
@@ -368,6 +374,7 @@ def store_conversation_history(conversation_id, full_history, response_obj=None)
         return False
 
 def run_conversation(blueprint_instance: Any, messages_extended: List[dict], context_vars: dict) -> Tuple[Any, dict]:
+    """Run a conversation with a blueprint instance and return response and updated context."""
     result = blueprint_instance.run_with_context(messages_extended, context_vars)
     response_obj = result["response"]
     updated_context = result["context_variables"]
@@ -382,6 +389,7 @@ def run_conversation(blueprint_instance: Any, messages_extended: List[dict], con
 @authentication_classes([EnvOrTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def chat_completions(request):
+    """Handle chat completion requests via POST, returning OpenAI-compatible responses."""
     if request.method != "POST":
         return Response({"error": "Method not allowed. Use POST."}, status=405)
     logger.info(f"Authenticated User: {request.user}")
@@ -439,6 +447,7 @@ def chat_completions(request):
 @permission_classes([AllowAny])
 @authentication_classes([])
 def list_models(request):
+    """List available blueprints as models in an OpenAI-compatible format."""
     if request.method != "GET":
         return JsonResponse({"error": "Method not allowed. Use GET."}, status=405)
     try:
@@ -475,14 +484,8 @@ def list_models(request):
         return JsonResponse({"error": "Internal Server Error"}, status=500)
 
 @csrf_exempt
-def django_chat_webpage(request, blueprint_name):
-    return render(request, 'django_chat_webpage.html', {
-        'conversation_id': request.GET.get("conversation_id"),
-        'blueprint_name': blueprint_name
-    })
-
-@csrf_exempt
 def index(request):
+    """Render the main index page with blueprint options."""
     logger.debug("Rendering index page")
     context = {
         "dark_mode": request.session.get('dark_mode', True),
@@ -493,6 +496,7 @@ def index(request):
 
 @csrf_exempt
 def blueprint_webpage(request, blueprint_name):
+    """Render a simple webpage for querying agents of a specific blueprint."""
     logger.debug(f"Received request for blueprint webpage: '{blueprint_name}'")
     if blueprint_name not in blueprints_metadata:
         logger.warning(f"Blueprint '{blueprint_name}' not found.")
@@ -501,7 +505,7 @@ def blueprint_webpage(request, blueprint_name):
             f"<h1>Blueprint '{blueprint_name}' not found.</h1><p>Available blueprints:</p><ul>{available_blueprints}</ul>",
             status=404,
         )
-    logger.debug(f"Rendering blueprint webpage for: '{blueprint_name}'")
+    logger.debug(f"Rendering simple blueprint webpage for: '{blueprint_name}'")
     context = {
         "blueprint_name": blueprint_name,
         "dark_mode": request.session.get('dark_mode', True),
@@ -510,22 +514,31 @@ def blueprint_webpage(request, blueprint_name):
     return render(request, "simple_blueprint_page.html", context)
 
 @csrf_exempt
-def chatbot_view(request):
-    logger.debug("Rendering chatbot web UI")
-    context = {
-        "dark_mode": request.session.get('dark_mode', True),
-        "is_chatbot": True
-    }
-    return render(request, "rest_mode/chatbot.html", context)
-
-@csrf_exempt
-def messenger(request):
-    logger.debug("Rendering messenger web UI")
-    context = {
-        "dark_mode": request.session.get('dark_mode', True),
-        "is_chatbot": False
-    }
-    return render(request, "rest_mode/messenger.html", context)
+def custom_login(request):
+    """Handle custom login at /accounts/login/, redirecting to 'next' URL on success."""
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            next_url = request.GET.get("next", "/chatbot/")
+            return redirect(next_url)
+        else:
+            # If ENABLE_API_AUTH is false, auto-login as testuser
+            enable_auth = os.getenv("ENABLE_API_AUTH", "false").lower() in ("true", "1", "t")
+            if not enable_auth:
+                try:
+                    user = User.objects.get(username="testuser")
+                    if user.check_password("testpass"):
+                        login(request, user)
+                        next_url = request.GET.get("next", "/chatbot/")
+                        logger.info(f"Auto-logged in as testuser since ENABLE_API_AUTH is false")
+                        return redirect(next_url)
+                except User.DoesNotExist:
+                    pass  # Fall through to error if testuser doesn't exist
+            return render(request, "account/login.html", {"error": "Invalid credentials"})
+    return render(request, "account/login.html")
 
 DEFAULT_CONFIG = {
     "llm": {
@@ -540,6 +553,7 @@ DEFAULT_CONFIG = {
 }
 
 def serve_swarm_config(request):
+    """Serve the swarm configuration file as JSON."""
     config_path = Path(settings.BASE_DIR) / "swarm_config.json"
     try:
         with open(config_path, 'r') as f:
@@ -553,6 +567,7 @@ def serve_swarm_config(request):
         return JsonResponse({"error": "Invalid JSON format in configuration file."}, status=500)
 
 class ChatMessageViewSet(ModelViewSet):
+    """API viewset for managing chat messages."""
     authentication_classes = []
     permission_classes = [AllowAny]
     queryset = ChatMessage.objects.all()

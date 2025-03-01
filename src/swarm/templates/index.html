@@ -18,7 +18,7 @@
         </div>
     {% endif %}
     <div class="mt-4">
-        <form method="post" action="{% url 'django_chat_start' %}">
+        <form method="post" action="{% url 'chatbot:create_chat' %}">
             {% csrf_token %}
             <button type="submit" class="btn btn-primary">Start New Conversation</button>
         </form>

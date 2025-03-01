@@ -14,7 +14,6 @@
 
 body {
     font-family: Arial, sans-serif;
-    /* line-height: 1.6; */
     border-style: solid;
     border-width: 0 0 0 0;
     background-color: var(--bg-primary);
@@ -22,19 +21,17 @@ body {
     margin: 0 0 0 0;
     color: var(--text-primary);
     height: 100vh;
-    /* display: flex; */
     justify-content: center;
     align-items: center;
     transition: background-color var(--transition-duration), color var(--transition-duration);
-    /* overflow-x: visible; */
-    /* overflow-y: visible; */
+    overflow-x: visible;
+    overflow-y: visible;
 }
-
 
 /* Sidebar Reveal Buttons */
 .sidebar-reveal-btn {
     position: absolute;
-    top: 20px;
+    top: 10px; /* Adjusted from 20px */
     z-index: 1000;
     background-color: var(--button-primary);
     color: #fff;
@@ -48,6 +45,20 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    opacity: 0.7; /* Dimmed by default */
+}
+
+.sidebar-reveal-btn:hover {
+    opacity: 1; /* Fully visible on hover */
+}
+
+.sidebar-reveal-btn + .sidebar-reveal-btn {
+    top: 60px; /* Reduced gap between buttons */
+    opacity: 0.7;
+}
+
+.sidebar-reveal-btn:hover + .sidebar-reveal-btn {
+    opacity: 1;
 }
 
 /* Toast Container */
@@ -63,13 +74,83 @@ body {
 
 /* Logo Styling */
 .chat-logo {
-    width: 90px; /* Fixed size */
+    width: 90px;
     height: 90px;
     display: block;
-    margin: 0 auto; /* Center the logo */
+    margin: 0 auto;
 }
 
 .logo-container {
-    text-align: center; /* Center the container */
-    margin: 20px auto; /* Add vertical spacing */
+    text-align: center;
+    margin: 20px auto;
+}
+
+/* Form Container Adjustments */
+.form-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+/* Input and Submit Button Row */
+.send-container {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    margin-bottom: 5px;
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    padding: 0; /* Remove extra padding causing gap */
+}
+
+/* Input Field Styling */
+.rounded-input {
+    flex-grow: 1;
+    border: none;
+    border-radius: 0;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 18px;
+    margin: 0;
+    width: 100%;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+    padding: 10px 15px; /* Ensure padding is consistent */
+}
+
+/* Submit Button Styling */
+.half-cut-button {
+    padding: 0 20px;
+    background-color: #707070;
+    color: white;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: auto;
+    transition: background-color 0.3s ease;
+    margin: 0;
+}
+
+.send-container .rounded-input {
+    border-radius: 20px 0 0 20px;
+}
+
+.send-container .half-cut-button {
+    border-radius: 0 20px 20px 0;
+}
+
+.half-cut-button:hover {
+    background-color: #505050;
 }

@@ -1,8 +1,7 @@
 import os
 import logging
-import traceback
+import json
 from typing import Dict, Any, List
-
 from swarm.types import Agent
 from swarm.extensions.blueprint import BlueprintBase
 
@@ -13,17 +12,15 @@ if not logger.handlers:
     formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
+
 class MIMBlueprint(BlueprintBase):
-    """Mission: Improbable - A cheeky team on a mission, led by JimFlimsy with support from CinnamonToast and RollinFumble."""
     @property
     def metadata(self) -> Dict[str, Any]:
         return {
             "title": "Mission: Improbable",
             "description": "A cheeky team on a mission: led by JimFlimsy with daring support from CinnamonToast and RollinFumble.",
             "cli_name": "mission",
-            "required_mcp_servers": [
-                "memory", "filesystem", "mcp-shell", "brave-search", "rag-docs"
-            ],
+            "required_mcp_servers": ["memory", "filesystem", "mcp-shell", "brave-search", "rag-docs"],
             "env_vars": ["BRAVE_API_KEY", "QDRANT_URL", "QDRANT_API_KEY", "ALLOWED_PATH"],
             "django_modules": {
                 "models": "blueprints.mission_improbable.models",
@@ -152,5 +149,6 @@ class MIMBlueprint(BlueprintBase):
         self.set_starting_agent(agents["JimFlimsy"])
         logger.info("Agents created: JimFlimsy, CinnamonToast, RollinFumble.")
         return agents
+
 if __name__ == "__main__":
     MIMBlueprint.main()

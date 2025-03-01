@@ -1,14 +1,12 @@
-
-
 .chat-history-pane {
-    flex: 0 0 33%; /* Fixed width at 33%, cannot grow or shrink */
+    flex: 0 0 33%;
     background-color: var(--bg-chat-history-pane);
     padding: 15px;
-    overflow-y: auto; /* Vertical scrolling for contents */
+    overflow-y: auto;
 }
 
 .main-pane {
-    flex: 1; /* Take up remaining space */
+    flex: 1;
     background-color: var(--bg-primary);
     padding: 20px;
     overflow: hidden;
@@ -19,14 +17,14 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%; /* Full width */
+    width: 100%;
     height: 80%;
     background-color: var(--bg-container);
     border-bottom: 1px solid var(--border-color);
-    align-items: center; /* Center items vertically */
+    align-items: center;
     padding: 0 10px;
     z-index: 1000;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     visibility: hidden;
 }
 
@@ -34,19 +32,19 @@
 .top-bar-left {
     display: flex;
     align-items: center;
-    gap: 10px; /* Spacing between items */
+    gap: 10px;
 }
 
 /* Blueprint Metadata Centered */
 .blueprint-metadata {
-    flex: 1; /* Take remaining space */
+    flex: 1;
     text-align: center;
     font-size: 0.85rem;
 }
 
 /* Right Section: Settings Button */
 .top-bar-right {
-    margin-left: auto; /* Push to the far right */
+    margin-left: auto;
     display: flex;
     align-items: center;
 }
@@ -55,52 +53,49 @@
 .top-bar-btn {
     background: none;
     border: none;
-    display: flex; /* Flexbox for icon and label */
+    display: flex;
     align-items: center;
-    gap: 5px; /* Spacing between icon and label */
-    padding: 5px 10px; /* Padding for clickable area */
+    gap: 5px;
+    padding: 5px 10px;
     font-size: 0.85rem;
     cursor: pointer;
     color: var(--text-color);
-    text-decoration: none; /* No underline */
-    white-space: nowrap; /* Prevent wrapping */
-    flex-shrink: 0; /* Prevent shrinking */
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .top-bar-btn img {
-    width: 24px; /* Icon size */
+    width: 24px;
     height: 24px;
-    flex-shrink: 0; /* Prevent icon shrinking */
+    flex-shrink: 0;
 }
 
 .top-bar-btn:hover {
-    background-color: var(--button-hover-bg); /* Add hover effect */
+    background-color: var(--button-hover-bg);
 }
 
 .top-bar-btn .btn-label {
-    display: inline-block; /* Ensure text remains inline */
-    white-space: nowrap; /* Prevent wrapping */
-    visibility: visible; /* Ensure text is visible */
+    display: inline-block;
+    white-space: nowrap;
+    visibility: visible;
 }
 
 /* Main Chat Pane */
 .main-pane {
     flex: 1;
-    display: flex; /* Flex container for messages and input */
+    display: flex;
     flex-direction: column;
-    overflow: hidden; /* Prevent overflow issues */
-    /* padding: 10px; */
+    overflow: hidden;
     box-sizing: border-box;
 }
-
 
 /* Message Input Area */
 .message-input-container {
     display: flex;
     align-items: center;
-    gap: 10px; /* Gap between buttons */
-    /* padding: 10px; */
+    gap: 10px;
     background-color: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
     position: absolute;
@@ -113,24 +108,56 @@
     width: 10px;
     cursor: col-resize;
     background-color: var(--border-color);
-    opacity: 0; /* Fully transparent */
+    opacity: 0;
     transition: opacity 0.2s ease, background-color 0.2s ease;
 }
 
 .vertical-divider:hover {
-    opacity: 1; /* Fully visible on hover */
+    opacity: 1;
     background-color: var(--button-hover-bg);
 }
 
+/* Sidebar Reveal Buttons */
+.sidebar-reveal-btn {
+    position: absolute;
+    top: 10px; /* Adjusted to be higher */
+    z-index: 1000;
+    background-color: var(--button-primary);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    transition: background-color var(--transition-duration) ease;
+    font-size: 1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6; /* Dimmed */
+}
+
+.sidebar-reveal-btn:hover {
+    opacity: 1; /* Fully visible on hover */
+}
+
+.sidebar-reveal-btn + .sidebar-reveal-btn {
+    top: 60px; /* Reduced gap */
+    opacity: 0.6;
+}
+
+.sidebar-reveal-btn:hover + .sidebar-reveal-btn {
+    opacity: 1;
+}
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
-
     .message-input-container {
-        flex-direction: column; /* Stack inputs vertically on small screens */
-        gap: 5px; /* Reduce spacing */
+        flex-direction: column;
+        gap: 5px;
     }
 }
+
 .hidden {
     display: none !important;
 }

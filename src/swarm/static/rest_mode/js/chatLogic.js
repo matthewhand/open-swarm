@@ -6,15 +6,13 @@ async function fetchBlueprints() {
 
 function populateBlueprintDropdown(blueprints) {
     const dropdown = document.getElementById('blueprintDropdown');
-    if (dropdown) {
-        dropdown.innerHTML = '<option value="">Select a Blueprint</option>';
-        blueprints.forEach(bp => {
-            const option = document.createElement('option');
-            option.value = bp.id;
-            option.textContent = bp.title;
-            dropdown.appendChild(option);
-        });
-    }
+    dropdown.innerHTML = '<option value="">Select a Blueprint</option>';
+    blueprints.forEach(bp => {
+        const option = document.createElement('option');
+        option.value = bp.id;
+        option.textContent = bp.title;
+        dropdown.appendChild(option);
+    });
 }
 
 let currentBlueprint = null;
@@ -67,14 +65,13 @@ async function handleSubmit(event) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     const blueprints = await fetchBlueprints();
-    if (document.querySelector('.chatbot-input-container')) {
-        populateBlueprintDropdown(blueprints);
-        document.querySelectorAll('.mode-button').forEach(button => {
-            button.addEventListener('click', () => setMode(button.dataset.mode));
-        });
-    }
+    populateBlueprintDropdown(blueprints);
     if (blueprints.length > 0) switchBlueprint(blueprints[0].id);
 
+    document.getElementById('blueprintDropdown').addEventListener('change', (e) => switchBlueprint(e.target.value));
+    document.querySelectorAll('.mode-button').forEach(button => {
+        button.addEventListener('click', () => setMode(button.dataset.mode));
+    });
     document.getElementById('sendButton')?.addEventListener('click', handleSubmit);
     document.getElementById('userInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSubmit(e);

@@ -79,6 +79,24 @@
     }
   },
   "mcpServers": {
+    "wcgw": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/rusiaaman/wcgw",
+        "wcgw_mcp"
+      ]
+    },
+    "mcp-hfspace": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@llmindset/mcp-hfspace",
+        "shuttleai/shuttle-jaguar",
+        "styletts2/styletts2",
+        "Qwen/QVQ-72B-preview"
+      ]
+    },
     "mcp-npx-fetch": {
       "command": "npx",
       "args": [
@@ -186,14 +204,6 @@
         "SQLITE_DB_PATH": "${SQLITE_DB_PATH}"
       }
     },
-    "sqlite-uvx": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-sqlite",
-        "--db-path",
-        "/tmp/test.db"
-      ]
-    },
     "mcp-flowise": {
       "command": "uvx",
       "args": [
@@ -216,7 +226,7 @@
       "args": [
         "--from",
         "git+https://github.com/matthewhand/mcp-openapi-proxy",
-        "mcp-flowise"
+        "mcp-openapi-proxy"
       ],
       "env": {
         "DEBUG": "true",

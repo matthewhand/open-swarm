@@ -69,3 +69,6 @@
         padding: 5px;
     }
 }
+.chat-history-pane {
+    border-top-left-radius: 0 !important;
+}

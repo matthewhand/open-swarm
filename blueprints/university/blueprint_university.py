@@ -6,29 +6,34 @@ and Canvas metadata integration, with graceful failure for all operations.
 """
 
 import os
+import sys
 import logging
 import json
 import jmespath
 from typing import Dict, Any, List, Tuple, Optional
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    stream_handler = logging.StreamHandler(sys.stderr)
+    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
+# Initialize Django if running as a standalone script
+if __name__ == "__main__":
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
+    import django
+    django.setup()
+
 from swarm.types import Agent
 from swarm.extensions.blueprint.blueprint_base import BlueprintBase as Blueprint
-
-# Import model_queries for live DB access
 from blueprints.university.model_queries import (
     search_courses, search_students, search_teaching_units, search_topics,
     search_learning_objectives, search_subtopics, search_enrollments,
     search_assessment_items, extended_comprehensive_search, comprehensive_search
 )
 from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-if not logger.handlers:
-    stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
 
 class UniversitySupportBlueprint(Blueprint):
     @property
@@ -39,7 +44,9 @@ class UniversitySupportBlueprint(Blueprint):
             "description": "A multi-agent system for university support, using LLM-driven responses, SQLite tools, and Canvas metadata with graceful failure.",
             "required_mcp_servers": ["sqlite"],
             "cli_name": "uni",
-            "env_vars": ["SQLITE_DB_PATH", "SUPPORT_EMAIL"]
+            "env_vars": ["SQLITE_DB_PATH", "SUPPORT_EMAIL"],
+            "urls_module": "blueprints.university.urls",
+            "url_prefix": "v1/university/"
         }
 
     def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
@@ -285,7 +292,7 @@ class UniversitySupportBlueprint(Blueprint):
             "with their name (slackUser.userName) if available at the start of your response. Use all available content below "
             "to provide comprehensive answers. For queries about 'learning objectives' or 'objectives', include the specific "
             "learning objectives listed below. If any section lacks content, leverage the other sections to ensure a helpful "
-            "response.  Avoid using contractions in your responses for a professional tone.  Respond using full words without contractions. "
+            "response. Avoid using contractions in your responses for a professional tone. Respond using full words without contractions. "
             "For example, use \"do not\" instead of \"don't\", \"cannot\" instead of \"can't\", and \"will not\" instead of \"won't\"."
         )
         logger.debug("Base instructions defined")
@@ -383,7 +390,29 @@ class UniversitySupportBlueprint(Blueprint):
 if __name__ == "__main__":
     logger.debug("Starting main execution")
     try:
-        UniversitySupportBlueprint.main()
+        # Ensure stderr logging for CLI visibility
+        config_path = sys.argv[sys.argv.index('--config') + 1] if '--config' in sys.argv else "./swarm_config.json"
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Config file not found at {config_path}")
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        blueprint = UniversitySupportBlueprint(config=config)
+        # Run in non-interactive mode if instruction provided
+        if '--instruction' in sys.argv:
+            instruction = sys.argv[sys.argv.index('--instruction') + 1]
+            result = blueprint.non_interactive_mode(instruction)
+            # Handle varying run() return formats, including None
+            if result is None:
+                response = [{"role": "assistant", "content": "No response generated due to configuration error"}]
+            else:
+                response = result.get("response", result.get("messages", [{"role": "assistant", "content": "No response generated"}]))
+            print(json.dumps(response, indent=2))
+            logger.info("Execution completed. Exiting.")
+        else:
+            blueprint.interactive_mode()
         logger.info("Blueprint execution completed")
+        sys.exit(0)
     except Exception as e:
         logger.error(f"Main execution failed: {str(e)}", exc_info=True)
+        print(f"Error: Failed to initialize blueprint: {str(e)}", file=sys.stderr)
+        sys.exit(1)

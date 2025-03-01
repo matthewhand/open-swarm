@@ -6,25 +6,25 @@ import os
 from swarm.auth import EnvOrTokenAuthentication
 
 # Base viewset to handle dynamic permission based on ENABLE_API_AUTH
-from rest_framework.permissions import IsAuthenticated, AllowAny
 class UniversityBaseViewSet(ModelViewSet):
     authentication_classes = [EnvOrTokenAuthentication]
     permission_classes = [AllowAny]
 
     def initial(self, request, *args, **kwargs):
-        # Force authentication early to trigger errors if token is invalid.
-        self.perform_authentication(request)
-        if not request.user or not request.user.is_authenticated:
-            from rest_framework.exceptions import AuthenticationFailed
-            raise AuthenticationFailed("Invalid token.")
+        # Only enforce authentication if ENABLE_API_AUTH is enabled
+        enable_auth = os.getenv("ENABLE_API_AUTH", "false").lower() in ("true", "1", "t")
+        if enable_auth:
+            self.perform_authentication(request)
+            if not request.user or not request.user.is_authenticated:
+                from rest_framework.exceptions import AuthenticationFailed
+                raise AuthenticationFailed("Invalid token.")
         super().initial(request, *args, **kwargs)
 
     def get_permissions(self):
         enable_auth = os.getenv("ENABLE_API_AUTH", "false").lower() in ("true", "1", "t")
         if enable_auth:
             return [IsAuthenticated()]
-        else:
-            return [AllowAny()]
+        return [AllowAny()]
 
 # Import models from the university blueprint
 from blueprints.university.models import (

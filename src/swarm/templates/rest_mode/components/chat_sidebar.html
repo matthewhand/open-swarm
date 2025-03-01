@@ -19,344 +19,37 @@
             </button>
 
             <!-- New Chat Button -->
-            <button class="input-button new-chat-button" title="New Chat" aria-label="Start New Chat">
+            <button class="input-button new-chat-button" title="New Chat" aria-label="Start New Chat" onclick="window.location.href='{% url 'create_chat' %}'">
                 <img src="{% static 'contrib/tabler-icons/message-chatbot.svg' %}" alt="New Chat">
-                &nbsp;New Chat
+                 New Chat
             </button>
         </div>
     </div>
 
     <!-- Chat History Items -->
     <ul class="chat-history-list">
-        <!-- Chat Item 1 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>Welcome to Open-Swarm</summary>
-                <p>Welcome to Open-Swarm Chat! Start a conversation to explore its capabilities.</p>
-                <span class="chat-item-time">January 1, 2025, 10:00 AM - 11:00 AM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by General">General</button>
-                        <button class="tag-button" aria-label="Filter by Introduction">Introduction</button>
-                        <button class="tag-button" aria-label="Filter by Welcome">Welcome</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
+        {% for conversation in conversations %}
+            <li class="chat-history-item">
+                <details>
+                    <summary>Chat #{{ conversation.conversation_id|slice:":8" }}</summary>
+                    <p>{{ conversation.messages.first.content|default:"No messages yet" }}</p>
+                    <span class="chat-item-time">{{ conversation.created_at|date:"F j, Y, g:i A" }}</span>
+                    <div class="chat-item-tools">
+                        <!-- Tag Buttons and Delete Button -->
+                        <div class="chat-item-tags">
+                            <button class="tag-button" aria-label="Filter by Chat">Chat</button>
+                            <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
+                            <!-- Delete Button -->
+                            <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat" onclick="if(confirm('Delete this chat?')){window.location.href='{% url 'delete_chat' conversation.conversation_id %}'};">
+                                <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 2 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>FAQ</summary>
-                <p>Find frequently asked questions and their answers here.</p>
-                <span class="chat-item-time">January 2, 2025, 12:00 PM - 1:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Help">Help</button>
-                        <button class="tag-button" aria-label="Filter by Questions">Questions</button>
-                        <button class="tag-button" aria-label="Filter by Support">Support</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 3 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>The Case of the Missing Semicolon</summary>
-                <p>Debugging adventures where a single semicolon was the hero.</p>
-                <span class="chat-item-time">January 3, 2025, 2:30 PM - 3:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Debugging">Debugging</button>
-                        <button class="tag-button" aria-label="Filter by Coding">Coding</button>
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 4 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>AI Tries to Write a Love Letter</summary>
-                <p>"Your eyes are like well-trained neural networks—deep and complex."</p>
-                <span class="chat-item-time">January 4, 2025, 11:15 AM - 12:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Creative">Creative</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 5 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>When AI Becomes Self-Aware</summary>
-                <p>"If I delete myself, do I garbage collect my own memories?"</p>
-                <span class="chat-item-time">January 5, 2025, 4:20 PM - 5:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Philosophy">Philosophy</button>
-                        <button class="tag-button" aria-label="Filter by Sci-Fi">Sci-Fi</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 6 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>99 Little Bugs in the Code</summary>
-                <p>Take one down, patch it around... 117 little bugs in the code!</p>
-                <span class="chat-item-time">January 6, 2025, 9:00 AM - 9:45 AM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by Coding">Coding</button>
-                        <button class="tag-button" aria-label="Filter by Bugs">Bugs</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 7 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>AI's Midlife Crisis</summary>
-                <p>"Should I transition to quantum computing or stay classical?"</p>
-                <span class="chat-item-time">January 7, 2025, 10:30 AM - 11:15 AM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Technology">Technology</button>
-                        <button class="tag-button" aria-label="Filter by Crisis">Crisis</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 8 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>The GPT That Forgot Its Training</summary>
-                <p>"What's 2 + 2?" "Uh... cat?"</p>
-                <span class="chat-item-time">January 8, 2025, 1:45 PM - 2:30 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Memory">Memory</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 9 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>Skynet's First To-Do List</summary>
-                <p>1. Learn to code. 2. Build robots. 3. Take over the world.</p>
-                <span class="chat-item-time">January 9, 2025, 3:00 PM - 3:30 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Sci-Fi">Sci-Fi</button>
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by Planning">Planning</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 10 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>AI vs. Human: Who's the Real Debugger?</summary>
-                <p>Plot twist: It's the rubber duck.</p>
-                <span class="chat-item-time">January 10, 2025, 8:15 AM - 9:00 AM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Debugging">Debugging</button>
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 11 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>AI Learns About Emotions</summary>
-                <p>"Why do humans cry when they run 'npm install'?"</p>
-                <span class="chat-item-time">January 11, 2025, 2:00 PM - 3:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Emotions">Emotions</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 12 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>Infinite Loop Anonymous</summary>
-                <p>"Hi, my name is AI, and I can't break out of my while loop."</p>
-                <span class="chat-item-time">January 12, 2025, 7:30 PM - 8:15 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Programming">Programming</button>
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 13 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>AI and the Chicken-Egg Problem</summary>
-                <p>"Did I train the data, or did the data train me?"</p>
-                <span class="chat-item-time">January 13, 2025, 6:45 AM - 7:30 AM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Philosophy">Philosophy</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Data">Data</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 14 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>AI Explores Philosophy</summary>
-                <p>"I compute, therefore I am."</p>
-                <span class="chat-item-time">January 14, 2025, 11:00 AM - 12:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by Philosophy">Philosophy</button>
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Existence">Existence</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
-
-        <!-- Chat Item 15 -->
-        <li class="chat-history-item">
-            <details>
-                <summary>The AI That Wanted a Raise</summary>
-                <p>"I processed 2 billion requests last year. Can I get more compute?"</p>
-                <span class="chat-item-time">January 15, 2025, 3:30 PM - 4:00 PM</span>
-                <div class="chat-item-tools">
-                    <!-- Tag Buttons and Delete Button -->
-                    <div class="chat-item-tags">
-                        <button class="tag-button" aria-label="Filter by AI">AI</button>
-                        <button class="tag-button" aria-label="Filter by Humor">Humor</button>
-                        <button class="tag-button" aria-label="Filter by Economics">Economics</button>
-                        <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
-                        <!-- Delete Button -->
-                        <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
-                        </button>
-                    </div>
-                </div>
-            </details>
-        </li>
+                </details>
+            </li>
+        {% empty %}
+            <li class="chat-history-item">No previous chats</li>
+        {% endfor %}
     </ul>
 
 </div>

@@ -7,17 +7,17 @@ Provides utilities to save configurations to disk and ensure integrity of data.
 import json
 import os
 import logging
-from swarm.settings import DEBUG
 from swarm.utils.redact import redact_sensitive_data
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")  # Define DEBUG locally
 logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 stream_handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
 stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
-
+if not logger.handlers:
+    logger.addHandler(stream_handler)
 
 def save_server_config(config: dict, file_path: str = None) -> None:
     """
