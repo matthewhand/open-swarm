@@ -16,7 +16,6 @@ from swarm.extensions.mcp.mcp_client import MCPClient
 
 from .cache_utils import get_cache
 
-# Initialize logger for this module
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 stream_handler = logging.StreamHandler()
@@ -28,9 +27,16 @@ if not logger.handlers:
 
 class MCPToolProvider:
     """
-    MCPToolProvider is responsible for discovering tools from an MCP server and converting
-    them into `Tool` instances that can be utilized by agents within the Open-Swarm framework.
+    Singleton MCPToolProvider to discover tools from an MCP server and convert them into `Tool` instances.
     """
+    _instances: Dict[str, "MCPToolProvider"] = {}
+
+    @classmethod
+    def get_instance(cls, server_name: str, server_config: Dict[str, Any], timeout: int = 15) -> "MCPToolProvider":
+        """Get or create a singleton instance for the given server name."""
+        if server_name not in cls._instances:
+            cls._instances[server_name] = cls(server_name, server_config, timeout)
+        return cls._instances[server_name]
 
     def __init__(self, server_name: str, server_config: Dict[str, Any], timeout: int = 15):
         """
@@ -41,11 +47,10 @@ class MCPToolProvider:
             server_config (dict): Configuration dictionary for the specific server.
             timeout (int): Timeout in seconds for MCP operations (default 15, overridden by caller if provided).
         """
+        if server_name in self._instances:
+            raise ValueError(f"MCPToolProvider for '{server_name}' already initialized. Use get_instance().")
         self.server_name = server_name
-        self.client = MCPClient(
-            server_config=server_config,
-            timeout=timeout,  # Use the timeout passed from swarm/core.py
-        )
+        self.client = MCPClient(server_config=server_config, timeout=timeout)
         self.cache = get_cache()
         logger.debug(f"Initialized MCPToolProvider for server '{self.server_name}' with timeout {timeout}s.")
 
@@ -116,22 +121,12 @@ class MCPToolProvider:
             Callable: An async callable function for the tool.
         """
         async def dynamic_tool_func(**kwargs) -> Any:
-            """
-            Executes the tool with the provided arguments.
-
-            Args:
-                kwargs (dict): Arguments for the tool execution.
-
-            Returns:
-                Any: The result of executing the tool.
-            """
             try:
                 logger.info(f"Executing tool '{tool_name}' with arguments: {kwargs}")
                 tool_callable = self.client._create_tool_callable(tool_name)
                 result = await tool_callable(**kwargs)
                 logger.info(f"Tool '{tool_name}' executed successfully: {result}")
                 return result
-
             except Exception as e:
                 logger.error(f"Error executing tool '{tool_name}': {e}")
                 raise RuntimeError(f"Tool execution failed: {e}") from e

@@ -109,7 +109,8 @@
       "args": [
         "-y",
         "@cablate/mcp-doc-forge"
-      ]
+      ],
+      "node_version": "18.16.0"
     },
     "youtube-transcript": {
       "command": "uvx",
@@ -247,7 +248,8 @@
         "OPENAI_API_KEY": "${OPENAI_API_KEY}",
         "QDRANT_URL": "${QDRANT_URL}",
         "QDRANT_API_KEY": "${QDRANT_API_KEY}"
-      }
+      },
+      "node_version": "18.16.0"
     },
     "mcp-installer": {
       "command": "npx",

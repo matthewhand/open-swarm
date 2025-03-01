@@ -5,7 +5,6 @@ Handles the initialization of the Swarm, agent management, and orchestration
 of conversations between agents and MCP servers.
 """
 
-# Standard library imports
 import os
 import copy
 import datetime
@@ -18,11 +17,9 @@ from typing import List, Optional, Dict, Any
 from types import SimpleNamespace
 from nemoguardrails.rails.llm.options import GenerationOptions
 
-# Package/library imports
 import asyncio
 from openai import OpenAI
 
-# Local imports
 from .util import function_to_json, merge_chunk
 from .types import (
     Agent,
@@ -41,7 +38,6 @@ from .utils.redact import redact_sensitive_data
 
 __CTX_VARS_NAME__ = "context_variables"
 
-# Initialize logger for this module
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 stream_handler = logging.StreamHandler()
@@ -50,6 +46,8 @@ stream_handler.setFormatter(formatter)
 if not logger.handlers:
     logger.addHandler(stream_handler)
 
+# Locks for discovery to prevent redundant calls
+_discovery_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 def serialize_datetime(obj):
     """Convert datetime objects to ISO format for JSON serialization."""
@@ -59,27 +57,18 @@ def serialize_datetime(obj):
 
 
 def filter_duplicate_system_messages(messages):
-    """
-    Ensures only one system message exists in the conversation history.
-    Prioritizes the system message assigned by the agent configuration.
-    """
     filtered_messages = []
-    system_message_found = False  # Track if we've already added a system message
-
+    system_message_found = False
     for message in messages:
         if message["role"] == "system":
             if system_message_found:
-                continue  # Skip additional system messages
-            system_message_found = True  # Mark that we've added one system message
+                continue
+            system_message_found = True
         filtered_messages.append(message)
-
     return filtered_messages
 
 
 def filter_messages(messages):
-    """
-    Filter messages to exclude those with null content
-    """
     filtered_messages = []
     for message in messages:
         if message.get('content') is not None:
@@ -88,9 +77,6 @@ def filter_messages(messages):
 
 
 def update_null_content(messages):
-    """
-    Update messages with null content to an empty string.
-    """
     for message in messages:
         if message.get('content') is None:
             message['content'] = ""
@@ -98,11 +84,7 @@ def update_null_content(messages):
 
 
 def truncate_message_history(messages: List[dict], model: str, max_tokens: Optional[int] = None) -> List[dict]:
-    """
-    Truncates the conversation message history to ensure the total token count does not exceed the maximum context size.
-    """
     import tiktoken
-    from typing import List, Optional
     try:
         encoding = tiktoken.encoding_for_model(model)
     except Exception:
@@ -110,10 +92,7 @@ def truncate_message_history(messages: List[dict], model: str, max_tokens: Optio
 
     if max_tokens is None:
         env_max = os.getenv("MAX_OUTPUT")
-        if env_max:
-            max_tokens = int(env_max)
-        else:
-            max_tokens = 2048
+        max_tokens = int(env_max) if env_max else 2048
 
     total_tokens = sum(len(encoding.encode(msg.get("content", ""))) for msg in messages)
     while total_tokens > max_tokens and messages:
@@ -145,9 +124,6 @@ class ChatMessage(SimpleNamespace):
 
 class Swarm:
     def __init__(self, client=None, config: Optional[dict] = None):
-        """
-        Initialize the Swarm with an optional custom OpenAI client and preloaded configuration.
-        """
         self.model = os.getenv("DEFAULT_LLM", "default")
         logger.debug(f"Initialized Swarm with model: {self.model}")
 
@@ -155,7 +131,6 @@ class Swarm:
         self.tool_choice = "auto"
         self.parallel_tool_calls = False
         self.agents: Dict[str, Agent] = {}
-        self.mcp_tool_providers: Dict[str, MCPToolProvider] = {}
         self.config = config or {}
         try:
             self.current_llm_config = load_llm_config(self.config, self.model)
@@ -185,9 +160,6 @@ class Swarm:
         logger.info("Swarm initialized successfully.")
 
     def register_agent_functions_with_nemo(self, agent: Agent) -> None:
-        """
-        Registers the agent's functions as actions with the runtime for NeMo Guardrails.
-        """
         if not getattr(agent, "nemo_guardrails_instance", None):
             if getattr(agent, "nemo_guardrails_config", None):
                 config_path = f"nemo_guardrails/{agent.nemo_guardrails_config}/config.yml"
@@ -216,61 +188,37 @@ class Swarm:
                 logger.error(f"Error registering function '{action_name}': {e}")
 
     async def discover_and_merge_agent_tools(self, agent: Agent, debug: bool = False) -> List[AgentFunction]:
-        """
-        Discover and merge tools for the given agent from assigned MCP servers in parallel using MCPToolProvider.
-
-        Args:
-            agent (Agent): The agent for which to discover and merge tools.
-            debug (bool): Whether to enable additional debug logging.
-
-        Returns:
-            List[AgentFunction]: Combined list of agent's existing functions and newly discovered tools.
-        """
         if not agent.mcp_servers:
             logger.debug(f"Agent '{agent.name}' has no assigned MCP servers.")
             return agent.functions
 
-        # Base timeout of 10 seconds, scaled by number of MCP servers
         base_timeout = 10
-        total_timeout = base_timeout * len(agent.mcp_servers)
+        total_timeout = min(20, base_timeout * len(agent.mcp_servers))
         logger.debug(f"Setting discovery timeout to {total_timeout} seconds for {len(agent.mcp_servers)} MCP servers.")
 
         async def discover_tools_from_server(server_name):
-            logger.debug(f"Looking up MCP server '{server_name}' for agent '{agent.name}'.")
-            server_config = self.config.get("mcpServers", {}).get(server_name)
-            if not server_config:
-                logger.warning(f"MCP server '{server_name}' not found in configuration.")
-                return []
-
-            if server_name not in self.mcp_tool_providers:
-                try:
-                    # Pass the scaled timeout to MCPToolProvider
-                    tool_provider = MCPToolProvider(server_name, server_config, timeout=total_timeout)
-                    self.mcp_tool_providers[server_name] = tool_provider
-                    logger.debug(f"Initialized MCPToolProvider for server '{server_name}' with timeout {total_timeout}s.")
-                except Exception as e:
-                    logger.error(f"Failed to initialize MCPToolProvider for server '{server_name}': {e}")
+            async with _discovery_locks[server_name]:
+                logger.debug(f"Discovering tools for MCP server '{server_name}' for agent '{agent.name}'.")
+                server_config = self.config.get("mcpServers", {}).get(server_name)
+                if not server_config:
+                    logger.warning(f"MCP server '{server_name}' not found in configuration.")
                     return []
-            else:
-                tool_provider = self.mcp_tool_providers[server_name]
-                logger.debug(f"Using cached MCPToolProvider for server '{server_name}'.")
 
-            try:
-                tools = await tool_provider.discover_tools(agent)
-                if tools:
-                    logger.debug(f"Discovered {len(tools)} tools from server '{server_name}': {[tool.name for tool in tools if hasattr(tool, 'name')]}")
-                else:
-                    logger.debug(f"No tools discovered from server '{server_name}'.")
-                return tools
-            except Exception as e:
-                logger.error(f"Error discovering tools from server '{server_name}': {e}")
-                return []
+                try:
+                    tool_provider = MCPToolProvider.get_instance(server_name, server_config, total_timeout)
+                    tools = await tool_provider.discover_tools(agent)
+                    if tools:
+                        logger.debug(f"Discovered {len(tools)} tools from server '{server_name}': {[tool.name for tool in tools if hasattr(tool, 'name')]}")
+                    else:
+                        logger.debug(f"No tools discovered from server '{server_name}'.")
+                    return tools
+                except Exception as e:
+                    logger.error(f"Error discovering tools from server '{server_name}': {e}")
+                    return []
 
-        # Run discovery in parallel for all servers
         tasks = [discover_tools_from_server(server_name) for server_name in agent.mcp_servers]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Flatten results, filtering out exceptions
         discovered_tools = []
         for result in results:
             if isinstance(result, list):
@@ -338,8 +286,17 @@ class Swarm:
 
         messages = filter_duplicate_system_messages(messages)
 
-        serialized_functions = [function_to_json(f) for f in agent.functions]
-        tools = [func_dict for func_dict in serialized_functions]
+        # Truncate tool descriptions to 1024 characters to fit OpenAI API limit
+        serialized_functions = []
+        for f in agent.functions:
+            func_dict = function_to_json(f)
+            if 'description' in func_dict['function']:
+                original_desc = func_dict['function']['description']
+                if len(original_desc) > 1024:
+                    func_dict['function']['description'] = original_desc[:1024]
+                    logger.debug(f"Truncated description for tool '{func_dict['function']['name']}': {len(original_desc)} -> 1024 characters")
+            serialized_functions.append(func_dict)
+        tools = serialized_functions
 
         create_params = {
             "model": model_override or new_llm_config.get("model"),
@@ -395,9 +352,6 @@ class Swarm:
         return ChatMessage(content=json.dumps(completion.get("content")))
 
     def handle_function_result(self, result, debug) -> Result:
-        """
-        Process the result returned by an agent function.
-        """
         match result:
             case Result() as result_obj:
                 return result_obj
@@ -418,9 +372,6 @@ class Swarm:
         context_variables: dict,
         debug: bool,
     ) -> Response:
-        """
-        Handles tool calls, executing functions and processing results.
-        """
         function_map = {}
         for f in functions:
             fname = getattr(f, "name", getattr(f, "__name__", None))
@@ -501,9 +452,6 @@ class Swarm:
         max_turns: int = float("inf"),
         execute_tools: bool = True,
     ):
-        """
-        Generator to run the conversation with streaming responses.
-        """
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
         history = copy.deepcopy(messages)
@@ -611,9 +559,6 @@ class Swarm:
         max_turns: int = float("inf"),
         execute_tools: bool = True,
     ) -> Response:
-        """
-        Runs the conversation synchronously.
-        """
         all_functions = asyncio.run(self.discover_and_merge_agent_tools(agent, debug=debug))
         agent.functions = all_functions
         if stream:
@@ -691,9 +636,6 @@ class Swarm:
         )
 
     def validate_message_sequence(self, messages):
-        """
-        Ensures the correct order of 'tool' messages in the conversation history.
-        """
         valid_tool_call_ids = set()
         validated_messages = []
 
@@ -713,10 +655,6 @@ class Swarm:
         return validated_messages
 
     def repair_message_payload(self, messages: List[Dict[str, Any]], debug: bool = False) -> List[Dict[str, Any]]:
-        """
-        Repairs the message sequence by ensuring every assistant message with tool_calls
-        is followed by its corresponding tool messages, and removing orphaned tool messages.
-        """
         filtered = []
         system_found = False
         for msg in messages:
