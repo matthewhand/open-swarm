@@ -30,5 +30,5 @@ async def test_run_with_context():
     blueprint.swarm = FakeSwarm(dummy_agent)
     messages = [{"role": "user", "content": "Hello"}]
     context = {"foo": "bar"}
-    result = await blueprint.run_with_context(messages, context)
+    result = await blueprint.run_with_context_async(messages, context)
     assert "Test Completed" in result["response"].messages[-1]["content"]
