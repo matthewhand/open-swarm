@@ -2,8 +2,9 @@ import os
 import pytest
 import subprocess
 import tempfile
+import asyncio
 from django.test import Client
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from blueprints.university.blueprint_university import UniversitySupportBlueprint
 from blueprints.chatbot.blueprint_chatbot import ChatbotBlueprint
 from blueprints.messenger.blueprint_messenger import MessengerBlueprint
@@ -33,29 +34,8 @@ def bypass_auth():
     yield
     UniversityBaseViewSet.initial = original_initial
 
-# Mock BlueprintBase.__init__ to simplify CLI testing
-@pytest.fixture
-def mock_blueprint_init():
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-    original_init = BlueprintBase.__init__
-    def mock_init(self, config, **kwargs):
-        self.config = config
-        self.swarm = type('Swarm', (), {
-            'agents': {},
-            'run': lambda *a, **kw: {"response": {"messages": [], "agent": None}}
-        })()
-        self.context_variables = {}
-        self.starting_agent = None
-        if self._is_create_agents_overridden():
-            self.swarm.agents = self.create_agents()
-            self.starting_agent = list(self.swarm.agents.values())[0] if self.swarm.agents else None
-    BlueprintBase.__init__ = mock_init
-    yield
-    BlueprintBase.__init__ = original_init
-
 @pytest.fixture(scope="module", autouse=True)
 def setup_blueprint_urls(bypass_auth):
-    # Register URLs for all blueprints under test
     for blueprint_cls in [UniversitySupportBlueprint, ChatbotBlueprint, MessengerBlueprint, DjangoChatBlueprint]:
         blueprint = blueprint_cls(config={"llm": {"default": {"provider": "openai", "model": "gpt-4o", "base_url": "https://api.openai.com/v1", "api_key": "dummy"}}})
         blueprint.register_blueprint_urls()
@@ -63,84 +43,88 @@ def setup_blueprint_urls(bypass_auth):
 
 @pytest.fixture
 def temp_db():
-    """Create a temporary SQLite database file."""
     fd, path = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
     yield path
     if os.path.exists(path):
         os.remove(path)
 
-def run_cli(blueprint_path, args, temp_db_path):
-    """Helper to run CLI commands with proper setup."""
+async def run_cli_async(blueprint_path, args, temp_db_path):
     env = BASE_ENV.copy()
     env["SQLITE_DB_PATH"] = temp_db_path
     cmd = ["python", blueprint_path] + args
-    result = subprocess.run(
-        cmd,
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
         env=env,
         cwd=os.path.abspath("."),
-        capture_output=True,
-        text=True,
-        input="exit\n" if "--instruction" not in args else None  # Provide input only for interactive mode
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE if "--instruction" not in args else None
     )
-    return result
+    input_data = "exit\n".encode() if "--instruction" not in args else None
+    stdout, stderr = await process.communicate(input=input_data)
+    return subprocess.CompletedProcess(cmd, process.returncode, stdout.decode(), stderr.decode())
 
-@pytest.mark.django_db
-def test_non_interactive_mode_university(temp_db, mock_blueprint_init):
-    """Test non-interactive mode for UniversitySupportBlueprint with --instruction."""
+@pytest.mark.asyncio
+async def test_non_interactive_mode_university(temp_db):
     blueprint_path = "blueprints/university/blueprint_university.py"
     instruction = "List all courses"
     args = ["--config", CONFIG_PATH, "--instruction", instruction]
-    result = run_cli(blueprint_path, args, temp_db)
+    
+    # Mock the OpenAI API call directly
+    with patch('openai.resources.chat.completions.AsyncCompletions.create') as mock_create:
+        mock_create.return_value = Mock(
+            choices=[Mock(message={"role": "assistant", "content": "Course list"})]
+        )
+        result = await run_cli_async(blueprint_path, args, temp_db)
+    
     output = result.stdout
     assert result.returncode == 0, f"Non-interactive mode failed: output={output}, stderr={result.stderr}"
     assert "University Support System Non-Interactive Mode" in output, f"Mode header missing: {output}"
     assert "Execution completed. Exiting." in output, f"Exit message missing: {output}"
 
-@pytest.mark.django_db
-def test_interactive_mode_university(temp_db, mock_blueprint_init):
-    """Sanity check for interactive mode in UniversitySupportBlueprint."""
+@pytest.mark.asyncio
+async def test_interactive_mode_university(temp_db):
     blueprint_path = "blueprints/university/blueprint_university.py"
     args = ["--config", CONFIG_PATH]
-    result = run_cli(blueprint_path, args, temp_db)
+    result = await run_cli_async(blueprint_path, args, temp_db)
     output = result.stdout
     assert result.returncode == 0, f"Interactive mode failed: output={output}, stderr={result.stderr}"
     assert "University Support System Interactive Mode" in output, f"Mode header missing: {output}"
     assert "Exiting interactive mode." in output, f"Exit message missing: {output}"
 
-def test_http_only_chatbot(temp_db):
-    """Test that ChatbotBlueprint rejects CLI execution."""
+@pytest.mark.asyncio
+async def test_http_only_chatbot(temp_db):
     blueprint_path = "blueprints/chatbot/blueprint_chatbot.py"
     args = ["--config", CONFIG_PATH]
-    result = run_cli(blueprint_path, args, temp_db)
-    output = result.stderr  # Check stderr since message is printed there
+    result = await run_cli_async(blueprint_path, args, temp_db)
+    output = result.stderr
     assert result.returncode == 1, f"Chatbot CLI execution should fail: output={output}"
     assert "This blueprint is designed for HTTP use only" in output, f"HTTP-only message missing: {output}"
     assert "/chatbot/" in output, f"URL missing: {output}"
 
-def test_http_only_messenger(temp_db):
-    """Test that MessengerBlueprint rejects CLI execution."""
+@pytest.mark.asyncio
+async def test_http_only_messenger(temp_db):
     blueprint_path = "blueprints/messenger/blueprint_messenger.py"
     args = ["--config", CONFIG_PATH]
-    result = run_cli(blueprint_path, args, temp_db)
-    output = result.stderr  # Check stderr since message is printed there
+    result = await run_cli_async(blueprint_path, args, temp_db)
+    output = result.stderr
     assert result.returncode == 1, f"Messenger CLI execution should fail: output={output}"
     assert "This blueprint is designed for HTTP use only" in output, f"HTTP-only message missing: {output}"
     assert "/messenger/" in output, f"URL missing: {output}"
 
-def test_http_only_django_chat(temp_db):
-    """Test that DjangoChatBlueprint rejects CLI execution."""
+@pytest.mark.asyncio
+async def test_http_only_django_chat(temp_db):
     blueprint_path = "blueprints/django_chat/blueprint_django_chat.py"
     args = ["--config", CONFIG_PATH]
-    result = run_cli(blueprint_path, args, temp_db)
-    output = result.stderr  # Check stderr since message is printed there
+    result = await run_cli_async(blueprint_path, args, temp_db)
+    output = result.stderr
     assert result.returncode == 1, f"Django Chat CLI execution should fail: output={output}"
     assert "This blueprint is designed for HTTP use only" in output, f"HTTP-only message missing: {output}"
     assert "/django_chat/" in output, f"URL missing: {output}"
 
 @pytest.mark.django_db
 def test_http_endpoints_accessible():
-    """Test that HTTP endpoints for blueprints are accessible."""
     client = Client()
     endpoints = [
         "/chatbot/",
