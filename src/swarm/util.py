@@ -41,7 +41,7 @@ def merge_chunk(final_response: dict, delta: dict) -> None:
 
     tool_calls = delta.get("tool_calls")
     if tool_calls and len(tool_calls) > 0:
-        index = tool_calls[0].pop("index")
+        index = tool_calls[0].pop("index", 0)
         if "tool_calls" not in final_response:
             final_response["tool_calls"] = {}
         if index not in final_response["tool_calls"]:
@@ -95,7 +95,7 @@ def function_to_json(func, truncate_desc: bool = False) -> dict:
         parameters = {}
         required = []
         for param in signature.parameters.values():
-            ann = param.annotation if param.annotation != inspect._empty else str
+            ann = param.annotation if param.annotation != inspect.Parameter.empty else str
             param_type = type_map.get(ann, "string")
             parameters[param.name] = {"type": param_type}
             if param.default == inspect.Parameter.empty:
@@ -108,7 +108,7 @@ def function_to_json(func, truncate_desc: bool = False) -> dict:
     # Truncate description if requested
     if truncate_desc and len(description) > 1024:
         description = description[:1024]
-        logger.debug(f"Truncated description for '{name}': {len(description)} -> 1024 characters")
+        # logger.debug(f"Truncated description for '{name}': {len(description)} -> 1024 characters")
 
     return {
         "type": "function",
