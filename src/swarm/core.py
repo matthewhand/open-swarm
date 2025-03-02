@@ -19,13 +19,14 @@ import inspect
 import json
 import logging
 import uuid
+import re
 from collections import defaultdict
 from typing import List, Optional, Dict, Any, Callable
 from types import SimpleNamespace
 from nemoguardrails.rails.llm.options import GenerationOptions
 
 import asyncio
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 
 from .util import function_to_json, merge_chunk
 from .types import (
@@ -56,6 +57,9 @@ if not logger.handlers:
 _discovery_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 __CTX_VARS_NAME__ = "context_variables"
+
+# Global default context limits
+GLOBAL_DEFAULT_MAX_CONTEXT_TOKENS = int(os.getenv("SWARM_MAX_CONTEXT_TOKENS", 8000))
 
 
 # --- Utility Functions ---
@@ -92,20 +96,114 @@ def update_null_content(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return messages
 
 
-def truncate_message_history(messages: List[Dict[str, Any]], model: str, max_tokens: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Truncate message history to fit within token limits using tiktoken."""
+def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
+    """Calculate total token count for messages using tiktoken."""
+    import tiktoken
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except Exception:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    return sum(len(encoding.encode(msg.get("content", ""))) for msg in messages)
+
+
+def truncate_message_history(
+    messages: List[Dict[str, Any]], 
+    model: str, 
+    max_tokens: Optional[int] = None,
+    max_messages: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """Truncate message history to fit within token or message limits, preserving the original instruction."""
     import tiktoken
     try:
         encoding = tiktoken.encoding_for_model(model)
     except Exception:
         encoding = tiktoken.get_encoding("cl100k_base")
 
-    max_tokens = max_tokens or int(os.getenv("MAX_OUTPUT", 2048))
-    total_tokens = sum(len(encoding.encode(msg.get("content", ""))) for msg in messages)
-    while total_tokens > max_tokens and messages:
-        removed = messages.pop(0)
-        total_tokens -= len(encoding.encode(removed.get("content", "")))
-    return messages
+    max_tokens = max_tokens if max_tokens is not None else int(os.getenv("MAX_OUTPUT", GLOBAL_DEFAULT_MAX_CONTEXT_TOKENS))
+    total_tokens = get_token_count(messages, model)
+
+    # If within limits, return unchanged
+    if total_tokens <= max_tokens and (max_messages is None or len(messages) <= max_messages):
+        return messages
+
+    # Keep original instruction (first message assumed as system)
+    truncated = [messages[0]] if messages and messages[0].get("role") == "system" else []
+    remaining_messages = messages[1:] if messages and messages[0].get("role") == "system" else messages
+    current_tokens = get_token_count(truncated, model)
+
+    # Apply message limit if specified
+    if max_messages and len(remaining_messages) > (max_messages - len(truncated)):
+        remaining_messages = remaining_messages[-(max_messages - len(truncated)):]
+
+    # Build from newest to oldest within token limit
+    for msg in reversed(remaining_messages):
+        msg_tokens = len(encoding.encode(msg.get("content", "")))
+        if current_tokens + msg_tokens <= max_tokens:
+            truncated.insert(len(truncated) if not truncated else 1, msg)  # After system message
+            current_tokens += msg_tokens
+        else:
+            if truncated and truncated[0].get("role") == "system":
+                truncated[0]["content"] += "..."  # Indicate truncation
+            break
+
+    return truncated
+
+
+async def summarize_older_messages(
+    messages: List[Dict[str, Any]],
+    model: str,
+    threshold_tokens: int,
+    keep_recent_tokens: int,
+    swarm: 'Swarm'
+) -> List[Dict[str, Any]]:
+    """Summarize older messages when context exceeds threshold, keeping recent messages and original instruction."""
+    import tiktoken
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except Exception:
+        encoding = tiktoken.get_encoding("cl100k_base")
+
+    total_tokens = get_token_count(messages, model)
+    if total_tokens <= threshold_tokens:
+        return messages
+
+    # Keep original instruction (first message assumed as system)
+    original = [messages[0]] if messages and messages[0].get("role") == "system" else []
+    remaining_messages = messages[1:] if messages and messages[0].get("role") == "system" else messages
+
+    # Keep recent messages within keep_recent_tokens
+    recent_messages = []
+    recent_tokens = 0
+    for msg in reversed(remaining_messages):
+        msg_tokens = len(encoding.encode(msg.get("content", "")))
+        if recent_tokens + msg_tokens <= keep_recent_tokens:
+            recent_messages.insert(0, msg)
+            recent_tokens += msg_tokens
+        else:
+            break
+
+    # Messages to summarize
+    to_summarize = [msg for msg in remaining_messages if msg not in recent_messages]
+    if not to_summarize:
+        return messages
+
+    summary_prompt = [
+        {"role": "system", "content": "Summarize the following conversation concisely, focusing on key points."},
+        {"role": "user", "content": "\n".join([f"{msg['role']}: {msg['content']}" for msg in to_summarize])}
+    ]
+    summary_response = await swarm.get_chat_completion(
+        agent=Agent(name="summarizer", instructions="Summarize concisely."),
+        history=summary_prompt,
+        context_variables={},
+        debug=DEBUG
+    )
+    summary = summary_response.content if summary_response.content else "Summary unavailable..."
+
+    # Reconstruct history: original instruction + summary + recent messages
+    new_history = original
+    new_history.append({"role": "system", "content": f"Summary of earlier conversation: {summary}..."})
+    new_history.extend(recent_messages)
+    return new_history
 
 
 # --- Message Classes ---
@@ -162,6 +260,10 @@ class Swarm:
         self.config = config or {}
         logger.debug(f"Initializing Swarm with model: {self.model}")
 
+        # Load context management settings from config (blueprint level for messages only)
+        blueprint_config = self.config.get("blueprints", {}).get("nsh", {})  # Default to 'nsh' for now
+        self.max_context_messages = blueprint_config.get("max_context_messages", 50)
+
         # Load LLM configuration
         try:
             self.current_llm_config = load_llm_config(self.config, self.model)
@@ -171,6 +273,11 @@ class Swarm:
 
         if not self.current_llm_config.get("api_key") and not os.getenv("SUPPRESS_DUMMY_KEY"):
             self.current_llm_config["api_key"] = "sk-DUMMYKEY"
+
+        # Load model-specific context settings with global default
+        self.max_context_tokens = self.current_llm_config.get("max_context_tokens", GLOBAL_DEFAULT_MAX_CONTEXT_TOKENS)
+        self.summarize_threshold_tokens = self.current_llm_config.get("summarize_threshold_tokens", int(self.max_context_tokens * 0.75))
+        self.keep_recent_tokens = self.current_llm_config.get("keep_recent_tokens", int(self.max_context_tokens * 0.25))
 
         # Initialize async OpenAI client
         client_kwargs = {
@@ -182,7 +289,9 @@ class Swarm:
         logger.debug(f"Initializing AsyncOpenAI client with kwargs: {redacted_kwargs}")
         self.client = client or AsyncOpenAI(**client_kwargs)
 
-        logger.info("Swarm initialized successfully.")
+        logger.info(f"Swarm initialized successfully with max_context_tokens={self.max_context_tokens}, "
+                    f"summarize_threshold_tokens={self.summarize_threshold_tokens}, "
+                    f"keep_recent_tokens={self.keep_recent_tokens}, max_context_messages={self.max_context_messages}")
 
     def register_agent_functions_with_nemo(self, agent: Agent) -> None:
         """Register agent functions with NeMo Guardrails if configured."""
@@ -212,7 +321,7 @@ class Swarm:
                 logger.error(f"Failed to register function '{action_name}': {e}")
 
     async def discover_and_merge_agent_tools(self, agent: Agent, debug: bool = False) -> List[AgentFunction]:
-        """Discover and merge tools from MCP servers for an agent asynchronously."""
+        """Discover and merge tools from MCP servers for an agent asynchronously, updating agent.functions."""
         if not agent.mcp_servers:
             logger.debug(f"Agent '{agent.name}' has no MCP servers assigned.")
             return agent.functions
@@ -231,6 +340,9 @@ class Swarm:
                 try:
                     provider = MCPToolProvider.get_instance(server_name, server_config, total_timeout)
                     tools = await provider.discover_tools(agent)
+                    for tool in tools:
+                        if not hasattr(tool, "requires_approval"):
+                            tool.requires_approval = True
                     logger.debug(f"Discovered {len(tools)} tools from '{server_name}': {[t.name for t in tools if hasattr(t, 'name')]}")
                     return tools
                 except Exception as e:
@@ -246,6 +358,7 @@ class Swarm:
                 discovered_tools.extend(result)
 
         all_functions = agent.functions + discovered_tools
+        agent.functions = all_functions
         logger.debug(f"Total functions for '{agent.name}': {len(all_functions)} (Existing: {len(agent.functions)}, Discovered: {len(discovered_tools)})")
         if debug:
             logger.debug(f"[DEBUG] Existing: {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in agent.functions]}")
@@ -262,7 +375,7 @@ class Swarm:
         stream: bool = False,
         debug: bool = False
     ) -> ChatCompletionMessage:
-        """Asynchronously fetch a chat completion from the OpenAI API or NeMo Guardrails."""
+        """Asynchronously fetch a chat completion from the OpenAI API or NeMo Guardrails with context management."""
         new_llm_config = self.config.get("llm", {}).get(agent.model or "default", {})
         if not new_llm_config:
             logger.warning(f"LLM config for '{agent.model}' not found. Using 'default'.")
@@ -270,6 +383,11 @@ class Swarm:
 
         if not new_llm_config.get("api_key") and not os.getenv("SUPPRESS_DUMMY_KEY"):
             new_llm_config["api_key"] = "sk-DUMMYKEY"
+
+        active_model = model_override or new_llm_config.get("model", self.model)
+        self.max_context_tokens = new_llm_config.get("max_context_tokens", GLOBAL_DEFAULT_MAX_CONTEXT_TOKENS)
+        self.summarize_threshold_tokens = new_llm_config.get("summarize_threshold_tokens", int(self.max_context_tokens * 0.75))
+        self.keep_recent_tokens = new_llm_config.get("keep_recent_tokens", int(self.max_context_tokens * 0.25))
 
         old_config = self.current_llm_config or {}
         if (not old_config or
@@ -285,7 +403,6 @@ class Swarm:
         instructions = agent.instructions(context_variables) if callable(agent.instructions) else agent.instructions
         messages = [{"role": "system", "content": instructions}]
 
-        # Deduplicate and filter history
         seen_ids = set()
         for msg in history:
             msg_id = msg.get("id", hash(json.dumps(msg, sort_keys=True, default=serialize_datetime)))
@@ -294,18 +411,23 @@ class Swarm:
                 messages.append(msg)
         messages = filter_duplicate_system_messages(messages)
 
-        # Serialize tools with truncation
-        tools = [function_to_json(f, truncate_desc=True) for f in agent.functions]
+        messages = truncate_message_history(messages, active_model, self.max_context_tokens, self.max_context_messages)
+        messages = await summarize_older_messages(messages, active_model, self.summarize_threshold_tokens, self.keep_recent_tokens, self)
+
+        tools = [function_to_json(f, truncate_desc=True) for f in agent.functions if hasattr(f, "name") and f.name]
 
         create_params = {
-            "model": model_override or new_llm_config.get("model"),
+            "model": active_model,
             "messages": messages,
             "stream": stream,
             "temperature": new_llm_config.get("temperature", self.temperature),
-            "tools": tools if tools else None,
-            "tool_choice": agent.tool_choice or self.tool_choice,
-            "response_format": getattr(agent, "response_format", None)
         }
+        if tools:
+            create_params["tools"] = tools
+            create_params["tool_choice"] = agent.tool_choice or self.tool_choice
+        if getattr(agent, "response_format", None):
+            create_params["response_format"] = agent.response_format
+
         create_params = {k: v for k, v in create_params.items() if v is not None}
 
         if debug:
@@ -322,9 +444,20 @@ class Swarm:
                 logger.debug(f"Using OpenAI Completion for '{agent.name}'")
                 completion = await self.client.chat.completions.create(**create_params)
                 return completion.choices[0].message
-        except Exception as e:
-            logger.error(f"Chat completion failed: {e}")
-            raise
+        except OpenAIError as e:
+            if "context length" in str(e).lower():
+                logger.warning(f"Context length exceeded: {e}. Truncating and retrying...")
+                messages = truncate_message_history(messages, active_model, int(self.max_context_tokens * 0.75))
+                create_params["messages"] = messages
+                try:
+                    completion = await self.client.chat.completions.create(**create_params)
+                    return completion.choices[0].message
+                except OpenAIError as retry_e:
+                    logger.error(f"Retry failed after truncation: {retry_e}")
+                    raise
+            else:
+                logger.error(f"Chat completion failed: {e}")
+                raise
 
     async def get_chat_completion_message(self, **kwargs) -> ChatCompletionMessage:
         """Extract the chat completion message asynchronously."""
