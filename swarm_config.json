@@ -109,8 +109,7 @@
       "args": [
         "-y",
         "@cablate/mcp-doc-forge"
-      ],
-      "node_version": "18.16.0"
+      ]
     },
     "youtube-transcript": {
       "command": "uvx",
