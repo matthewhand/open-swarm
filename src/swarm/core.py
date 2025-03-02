@@ -1,8 +1,15 @@
 """
 Swarm Core Module
 
-Handles the initialization of the Swarm, agent management, and orchestration
-of conversations between agents and MCP servers.
+This module encapsulates the core functionality of the Swarm framework, orchestrating agent interactions,
+tool discovery, and message handling with a focus on performance and extensibility. It manages the lifecycle
+of agent-driven conversations, integrating with MCP servers and LLM clients asynchronously for seamless,
+non-blocking execution.
+
+Key Components:
+- Swarm: Central class for agent management and conversation orchestration.
+- Tool Discovery: Asynchronous integration with MCP servers for dynamic tool loading.
+- Message Processing: Robust handling of chat completions, tool calls, and context variables.
 """
 
 import os
@@ -13,12 +20,12 @@ import json
 import logging
 import uuid
 from collections import defaultdict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 from types import SimpleNamespace
 from nemoguardrails.rails.llm.options import GenerationOptions
 
 import asyncio
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from .util import function_to_json, merge_chunk
 from .types import (
@@ -36,64 +43,64 @@ from .extensions.mcp.mcp_tool_provider import MCPToolProvider
 from .settings import DEBUG
 from .utils.redact import redact_sensitive_data
 
-__CTX_VARS_NAME__ = "context_variables"
-
+# Configure logging for detailed diagnostics and traceability
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
-stream_handler = logging.StreamHandler()
-formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
-stream_handler.setFormatter(formatter)
 if not logger.handlers:
+    stream_handler = logging.StreamHandler()
+    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
+    stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
 # Locks for discovery to prevent redundant calls
 _discovery_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
+__CTX_VARS_NAME__ = "context_variables"
+
+
+# --- Utility Functions ---
 def serialize_datetime(obj):
     """Convert datetime objects to ISO format for JSON serialization."""
     if isinstance(obj, datetime.datetime):
         return obj.isoformat()
-    raise TypeError(f"Type {type(obj)} is not serializable")
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
-def filter_duplicate_system_messages(messages):
-    filtered_messages = []
-    system_message_found = False
-    for message in messages:
-        if message["role"] == "system":
-            if system_message_found:
+def filter_duplicate_system_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Remove duplicate system messages, keeping only the first occurrence."""
+    filtered = []
+    system_found = False
+    for msg in messages:
+        if msg["role"] == "system":
+            if system_found:
                 continue
-            system_message_found = True
-        filtered_messages.append(message)
-    return filtered_messages
+            system_found = True
+        filtered.append(msg)
+    return filtered
 
 
-def filter_messages(messages):
-    filtered_messages = []
-    for message in messages:
-        if message.get('content') is not None:
-            filtered_messages.append(message)
-    return filtered_messages
+def filter_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filter out messages with no content."""
+    return [msg for msg in messages if msg.get('content') is not None]
 
 
-def update_null_content(messages):
-    for message in messages:
-        if message.get('content') is None:
-            message['content'] = ""
+def update_null_content(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Replace null content with empty strings in messages."""
+    for msg in messages:
+        if msg.get('content') is None:
+            msg['content'] = ""
     return messages
 
 
-def truncate_message_history(messages: List[dict], model: str, max_tokens: Optional[int] = None) -> List[dict]:
+def truncate_message_history(messages: List[Dict[str, Any]], model: str, max_tokens: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Truncate message history to fit within token limits using tiktoken."""
     import tiktoken
     try:
         encoding = tiktoken.encoding_for_model(model)
     except Exception:
         encoding = tiktoken.get_encoding("cl100k_base")
 
-    if max_tokens is None:
-        env_max = os.getenv("MAX_OUTPUT")
-        max_tokens = int(env_max) if env_max else 2048
-
+    max_tokens = max_tokens or int(os.getenv("MAX_OUTPUT", 2048))
     total_tokens = sum(len(encoding.encode(msg.get("content", ""))) for msg in messages)
     while total_tokens > max_tokens and messages:
         removed = messages.pop(0)
@@ -101,7 +108,9 @@ def truncate_message_history(messages: List[dict], model: str, max_tokens: Optio
     return messages
 
 
+# --- Message Classes ---
 class ChatMessage(SimpleNamespace):
+    """A lightweight message object for chat completions."""
     def __init__(self, **kwargs):
         defaults = {
             "role": "assistant",
@@ -110,110 +119,122 @@ class ChatMessage(SimpleNamespace):
             "function_call": kwargs.get("function_call", None),
             "tool_calls": kwargs.get("tool_calls", [])
         }
-        for key, default in defaults.items():
-            if key not in kwargs or kwargs[key] is None:
-                kwargs[key] = default
-        super().__init__(**kwargs)
+        super().__init__(**(defaults | kwargs))
 
-    def model_dump_json(self):
+    def model_dump_json(self) -> str:
+        """Serialize the message to JSON, omitting empty tool_calls."""
         d = self.__dict__.copy()
         if "tool_calls" in d and not d["tool_calls"]:
             del d["tool_calls"]
         return json.dumps(d)
 
 
+# --- Swarm Class ---
 class Swarm:
-    def __init__(self, client=None, config: Optional[dict] = None):
-        self.model = os.getenv("DEFAULT_LLM", "default")
-        logger.debug(f"Initialized Swarm with model: {self.model}")
+    """
+    Core class for managing agents, tools, and conversations in the Swarm framework.
 
+    This class orchestrates interactions between agents, MCP servers, and the LLM client,
+    providing async methods for chat completions, tool execution, and message handling.
+    It ensures efficient, non-blocking operation with robust error handling and caching.
+
+    Attributes:
+        model (str): Default LLM model identifier.
+        client (AsyncOpenAI): Async client for OpenAI API interactions.
+        agents (Dict[str, Agent]): Registry of available agents.
+        config (dict): Swarm configuration dictionary.
+        current_llm_config (dict): Active LLM configuration.
+    """
+
+    def __init__(self, client=None, config: Optional[dict] = None):
+        """
+        Initialize the Swarm with an optional client and configuration.
+
+        Args:
+            client (AsyncOpenAI, optional): Pre-existing OpenAI client instance.
+            config (dict, optional): Configuration dictionary for LLM and MCP settings.
+        """
+        self.model = os.getenv("DEFAULT_LLM", "default")
         self.temperature = 0.7
         self.tool_choice = "auto"
         self.parallel_tool_calls = False
         self.agents: Dict[str, Agent] = {}
         self.config = config or {}
+        logger.debug(f"Initializing Swarm with model: {self.model}")
+
+        # Load LLM configuration
         try:
             self.current_llm_config = load_llm_config(self.config, self.model)
         except ValueError:
-            logger.warning(f"LLM config for model '{self.model}' not found. Falling back to 'default'.")
+            logger.warning(f"LLM config for '{self.model}' not found. Using 'default'.")
             self.current_llm_config = load_llm_config(self.config, "default")
 
-        if not self.current_llm_config.get("api_key"):
-            if not os.getenv("SUPPRESS_DUMMY_KEY"):
-                self.current_llm_config["api_key"] = "sk-DUMMYKEY"
-            else:
-                logger.debug("SUPPRESS_DUMMY_KEY is set; leaving API key empty.")
+        if not self.current_llm_config.get("api_key") and not os.getenv("SUPPRESS_DUMMY_KEY"):
+            self.current_llm_config["api_key"] = "sk-DUMMYKEY"
 
-        if not client:
-            client_kwargs = {}
-            if "api_key" in self.current_llm_config:
-                client_kwargs["api_key"] = self.current_llm_config["api_key"]
-            if "base_url" in self.current_llm_config:
-                client_kwargs["base_url"] = self.current_llm_config["base_url"]
-
-            redacted_kwargs = redact_sensitive_data(client_kwargs, sensitive_keys=["api_key"])
-            logger.debug(f"Initializing OpenAI client with kwargs: {redacted_kwargs}")
-
-            client = OpenAI(**client_kwargs)
-        self.client = client
+        # Initialize async OpenAI client
+        client_kwargs = {
+            "api_key": self.current_llm_config.get("api_key"),
+            "base_url": self.current_llm_config.get("base_url")
+        }
+        client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+        redacted_kwargs = redact_sensitive_data(client_kwargs, sensitive_keys=["api_key"])
+        logger.debug(f"Initializing AsyncOpenAI client with kwargs: {redacted_kwargs}")
+        self.client = client or AsyncOpenAI(**client_kwargs)
 
         logger.info("Swarm initialized successfully.")
 
     def register_agent_functions_with_nemo(self, agent: Agent) -> None:
-        if not getattr(agent, "nemo_guardrails_instance", None):
-            if getattr(agent, "nemo_guardrails_config", None):
-                config_path = f"nemo_guardrails/{agent.nemo_guardrails_config}/config.yml"
-                try:
-                    from nemoguardrails.guardrails import Guardrails
-                    agent.nemo_guardrails_instance = Guardrails.from_yaml(config_path)
-                    logger.debug("Initialized NeMo Guardrails instance from config.")
-                except Exception as e:
-                    logger.error(f"Error initializing NeMo Guardrails instance: {e}")
-                    return
-            else:
-                logger.debug("No NeMo Guardrails instance or config for agent, skipping function registration.")
+        """Register agent functions with NeMo Guardrails if configured."""
+        if not getattr(agent, "nemo_guardrails_instance", None) and getattr(agent, "nemo_guardrails_config", None):
+            config_path = f"nemo_guardrails/{agent.nemo_guardrails_config}/config.yml"
+            try:
+                from nemoguardrails.guardrails import Guardrails
+                agent.nemo_guardrails_instance = Guardrails.from_yaml(config_path)
+                logger.debug(f"Initialized NeMo Guardrails for agent '{agent.name}'.")
+            except Exception as e:
+                logger.error(f"Failed to initialize NeMo Guardrails: {e}")
                 return
-        if not agent.functions:
-            logger.debug("Agent has no functions to register.")
+
+        if not agent.functions or not getattr(agent, "nemo_guardrails_instance", None):
+            logger.debug(f"No functions or NeMo instance for agent '{agent.name}'. Skipping registration.")
             return
+
         for func in agent.functions:
             action_name = getattr(func, '__name__', None) or getattr(func, '__qualname__', None)
             if not action_name:
-                logger.warning("Skipping function registration: function has no name attribute")
+                logger.warning(f"Skipping function registration for agent '{agent.name}': no name attribute.")
                 continue
             try:
                 agent.nemo_guardrails_instance.runtime.register_action(func, name=action_name)
-                logger.debug(f"Successfully registered function '{action_name}' as action.")
+                logger.debug(f"Registered function '{action_name}' with NeMo Guardrails.")
             except Exception as e:
-                logger.error(f"Error registering function '{action_name}': {e}")
+                logger.error(f"Failed to register function '{action_name}': {e}")
 
     async def discover_and_merge_agent_tools(self, agent: Agent, debug: bool = False) -> List[AgentFunction]:
+        """Discover and merge tools from MCP servers for an agent asynchronously."""
         if not agent.mcp_servers:
-            logger.debug(f"Agent '{agent.name}' has no assigned MCP servers.")
+            logger.debug(f"Agent '{agent.name}' has no MCP servers assigned.")
             return agent.functions
 
         base_timeout = 10
         total_timeout = min(20, base_timeout * len(agent.mcp_servers))
-        logger.debug(f"Setting discovery timeout to {total_timeout} seconds for {len(agent.mcp_servers)} MCP servers.")
+        logger.debug(f"Discovery timeout set to {total_timeout}s for {len(agent.mcp_servers)} servers.")
 
-        async def discover_tools_from_server(server_name):
+        async def discover_tools_from_server(server_name: str) -> List[Tool]:
             async with _discovery_locks[server_name]:
-                logger.debug(f"Discovering tools for MCP server '{server_name}' for agent '{agent.name}'.")
-                server_config = self.config.get("mcpServers", {}).get(server_name)
+                logger.debug(f"Discovering tools from MCP server '{server_name}' for agent '{agent.name}'.")
+                server_config = self.config.get("mcpServers", {}).get(server_name, {})
                 if not server_config:
-                    logger.warning(f"MCP server '{server_name}' not found in configuration.")
+                    logger.warning(f"MCP server '{server_name}' not in config.")
                     return []
-
                 try:
-                    tool_provider = MCPToolProvider.get_instance(server_name, server_config, total_timeout)
-                    tools = await tool_provider.discover_tools(agent)
-                    if tools:
-                        logger.debug(f"Discovered {len(tools)} tools from server '{server_name}': {[tool.name for tool in tools if hasattr(tool, 'name')]}")
-                    else:
-                        logger.debug(f"No tools discovered from server '{server_name}'.")
+                    provider = MCPToolProvider.get_instance(server_name, server_config, total_timeout)
+                    tools = await provider.discover_tools(agent)
+                    logger.debug(f"Discovered {len(tools)} tools from '{server_name}': {[t.name for t in tools if hasattr(t, 'name')]}")
                     return tools
                 except Exception as e:
-                    logger.error(f"Error discovering tools from server '{server_name}': {e}")
+                    logger.error(f"Failed to discover tools from '{server_name}': {e}")
                     return []
 
         tasks = [discover_tools_from_server(server_name) for server_name in agent.mcp_servers]
@@ -223,135 +244,98 @@ class Swarm:
         for result in results:
             if isinstance(result, list):
                 discovered_tools.extend(result)
-            else:
-                logger.debug(f"Skipping result due to exception: {result}")
 
         all_functions = agent.functions + discovered_tools
-        logger.debug(f"Total functions for agent '{agent.name}': {len(all_functions)} (Existing: {len(agent.functions)}, Discovered: {len(discovered_tools)})")
+        logger.debug(f"Total functions for '{agent.name}': {len(all_functions)} (Existing: {len(agent.functions)}, Discovered: {len(discovered_tools)})")
         if debug:
-            logger.debug(f"[DEBUG] Existing functions: {[getattr(func, 'name', getattr(func, '__name__', 'unnamed')) for func in agent.functions]}")
-            logger.debug(f"[DEBUG] Discovered tools: {[tool.name for tool in discovered_tools if hasattr(tool, 'name')]}")
-            logger.debug(f"[DEBUG] Combined functions: {[getattr(func, 'name', getattr(func, '__name__', 'unnamed')) for func in all_functions]}")
-
+            logger.debug(f"[DEBUG] Existing: {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in agent.functions]}")
+            logger.debug(f"[DEBUG] Discovered: {[t.name for t in discovered_tools if hasattr(t, 'name')]}")
+            logger.debug(f"[DEBUG] Combined: {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in all_functions]}")
         return all_functions
 
-    def get_chat_completion(
+    async def get_chat_completion(
         self,
         agent: Agent,
         history: List[Dict[str, Any]],
         context_variables: dict,
-        model_override: Optional[str],
-        stream: bool,
-        debug: bool,
+        model_override: Optional[str] = None,
+        stream: bool = False,
+        debug: bool = False
     ) -> ChatCompletionMessage:
-        """Prepare and send a chat completion request to the OpenAI API."""
-        new_llm_config = self.config.get("llm", {}).get(agent.model or "default")
-        if new_llm_config is None:
-            logger.warning(f"LLM config for model '{agent.model}' not found. Falling back to 'default'.")
+        """Asynchronously fetch a chat completion from the OpenAI API or NeMo Guardrails."""
+        new_llm_config = self.config.get("llm", {}).get(agent.model or "default", {})
+        if not new_llm_config:
+            logger.warning(f"LLM config for '{agent.model}' not found. Using 'default'.")
             new_llm_config = self.config.get("llm", {}).get("default", {})
 
-        if not new_llm_config.get("api_key"):
-            if not os.getenv("SUPPRESS_DUMMY_KEY"):
-                new_llm_config["api_key"] = "sk-DUMMYKEY"
-            else:
-                logger.debug("SUPPRESS_DUMMY_KEY is set; leaving API key empty.")
+        if not new_llm_config.get("api_key") and not os.getenv("SUPPRESS_DUMMY_KEY"):
+            new_llm_config["api_key"] = "sk-DUMMYKEY"
 
-        old_llm_config = self.current_llm_config.copy() if self.current_llm_config else {}
-        if not self.current_llm_config or \
-           old_llm_config.get("base_url") != new_llm_config.get("base_url") or \
-           old_llm_config.get("api_key") != new_llm_config.get("api_key"):
-            client_kwargs = {}
-            if "api_key" in new_llm_config:
-                client_kwargs["api_key"] = new_llm_config["api_key"]
-            if "base_url" in new_llm_config:
-                client_kwargs["base_url"] = new_llm_config["base_url"]
+        old_config = self.current_llm_config or {}
+        if (not old_config or
+            old_config.get("base_url") != new_llm_config.get("base_url") or
+            old_config.get("api_key") != new_llm_config.get("api_key")):
+            client_kwargs = {k: v for k, v in {"api_key": new_llm_config.get("api_key"), "base_url": new_llm_config.get("base_url")}.items() if v}
             redacted_kwargs = redact_sensitive_data(client_kwargs, sensitive_keys=["api_key"])
-            logger.debug(f"Reinitializing OpenAI client with kwargs: {redacted_kwargs}")
-            self.client = OpenAI(**client_kwargs)
+            logger.debug(f"Reinitializing AsyncOpenAI client: {redacted_kwargs}")
+            self.client = AsyncOpenAI(**client_kwargs)
         self.current_llm_config = new_llm_config.copy()
 
         context_variables = defaultdict(str, context_variables)
-
-        instructions = (agent.instructions(context_variables) if callable(agent.instructions) else agent.instructions)
-
+        instructions = agent.instructions(context_variables) if callable(agent.instructions) else agent.instructions
         messages = [{"role": "system", "content": instructions}]
 
-        seen_message_ids = set()
+        # Deduplicate and filter history
+        seen_ids = set()
         for msg in history:
             msg_id = msg.get("id", hash(json.dumps(msg, sort_keys=True, default=serialize_datetime)))
-            if msg_id in seen_message_ids:
-                continue
-            seen_message_ids.add(msg_id)
-            messages.append(msg)
-
+            if msg_id not in seen_ids:
+                seen_ids.add(msg_id)
+                messages.append(msg)
         messages = filter_duplicate_system_messages(messages)
 
-        # Truncate tool descriptions to 1024 characters to fit OpenAI API limit
-        serialized_functions = []
-        for f in agent.functions:
-            func_dict = function_to_json(f)
-            if 'description' in func_dict['function']:
-                original_desc = func_dict['function']['description']
-                if len(original_desc) > 1024:
-                    func_dict['function']['description'] = original_desc[:1024]
-                    logger.debug(f"Truncated description for tool '{func_dict['function']['name']}': {len(original_desc)} -> 1024 characters")
-            serialized_functions.append(func_dict)
-        tools = serialized_functions
+        # Serialize tools with truncation
+        tools = [function_to_json(f, truncate_desc=True) for f in agent.functions]
 
         create_params = {
             "model": model_override or new_llm_config.get("model"),
             "messages": messages,
             "stream": stream,
+            "temperature": new_llm_config.get("temperature", self.temperature),
+            "tools": tools if tools else None,
+            "tool_choice": agent.tool_choice or self.tool_choice,
+            "response_format": getattr(agent, "response_format", None)
         }
+        create_params = {k: v for k, v in create_params.items() if v is not None}
 
-        if tools:
-            create_params["tools"] = tools
-            create_params["tool_choice"] = agent.tool_choice or "auto"
-
-        if hasattr(agent, "response_format") and agent.response_format:
-            create_params["response_format"] = agent.response_format
-
-        if "temperature" in new_llm_config:
-            create_params["temperature"] = new_llm_config["temperature"]
-
-        if agent.response_format:
-            create_params["response_format"] = agent.response_format
-
-        try:
+        if debug:
             logger.debug(f"[DEBUG] Chat completion payload: {json.dumps(create_params, indent=2, default=serialize_datetime)}")
-        except Exception as e:
-            logger.error(f"⚠️ Failed to serialize chat completion payload: {e}")
 
         try:
             if agent.nemo_guardrails_instance and messages[-1].get('content'):
                 self.register_agent_functions_with_nemo(agent)
-                options = GenerationOptions(
-                    llm_params={"temperature": 0.5},
-                    llm_output=True,
-                    output_vars=True,
-                    return_context=True
-                )
-                logger.debug(f"🔹 Using NeMo Guardrails for agent: {agent.name}")
+                options = GenerationOptions(llm_params={"temperature": 0.5}, llm_output=True, output_vars=True, return_context=True)
+                logger.debug(f"Using NeMo Guardrails for '{agent.name}'")
                 response = agent.nemo_guardrails_instance.generate(messages=update_null_content(messages), options=options)
-                logger.debug(f"[DEBUG] Chat completion response: {response}")
                 return response
             else:
-                logger.debug(f"🔹 Using OpenAI Completion for agent: {agent.name}")
-                return self.client.chat.completions.create(**json.loads(json.dumps(create_params, default=serialize_datetime)))
+                logger.debug(f"Using OpenAI Completion for '{agent.name}'")
+                completion = await self.client.chat.completions.create(**create_params)
+                return completion.choices[0].message
         except Exception as e:
-            logger.debug(f"Error in chat completion request: {e}")
+            logger.error(f"Chat completion failed: {e}")
             raise
 
-    def get_chat_completion_message(self, **kwargs):
-        completion = self.get_chat_completion(**kwargs)
-        logger.debug(f"Completion object: {completion}")
-        if hasattr(completion, 'choices') and len(completion.choices) > 0:
-            if hasattr(completion.choices[0], 'message'):
-                return completion.choices[0].message
-        logger.debug(f"Treating entire completion object as message: {completion}")
-        return ChatMessage(content=json.dumps(completion.get("content")))
+    async def get_chat_completion_message(self, **kwargs) -> ChatCompletionMessage:
+        """Extract the chat completion message asynchronously."""
+        completion = await self.get_chat_completion(**kwargs)
+        if isinstance(completion, ChatCompletionMessage):
+            return completion
+        logger.debug(f"Unexpected completion type: {type(completion)}. Treating as message: {completion}")
+        return ChatMessage(content=str(completion))
 
-    def handle_function_result(self, result, debug) -> Result:
+    def handle_function_result(self, result: Any, debug: bool) -> Result:
+        """Convert function results into a standardized Result object."""
         match result:
             case Result() as result_obj:
                 return result_obj
@@ -361,24 +345,18 @@ class Swarm:
                 try:
                     return Result(value=str(result))
                 except Exception as e:
-                    error_message = f"Failed to cast response to string: {result}. Error: {str(e)}"
-                    logger.debug(error_message)
-                    raise TypeError(error_message)
+                    logger.error(f"Failed to cast result to string: {e}")
+                    raise TypeError(f"Cannot cast result to string: {result}. Error: {e}")
 
-    def handle_tool_calls(
+    async def handle_tool_calls(
         self,
         tool_calls: List[ChatCompletionMessageToolCall],
         functions: List[AgentFunction],
         context_variables: dict,
-        debug: bool,
+        debug: bool
     ) -> Response:
-        function_map = {}
-        for f in functions:
-            fname = getattr(f, "name", getattr(f, "__name__", None))
-            if fname is None:
-                logger.warning(f"Function {f} has no 'name' or '__name__' attribute; skipping.")
-                continue
-            function_map[fname] = f
+        """Handle tool calls asynchronously, executing functions and updating context."""
+        function_map = {getattr(f, "name", getattr(f, "__name__", "unnamed")): f for f in functions if getattr(f, "name", getattr(f, "__name__", None))}
         partial_response = Response(messages=[], agent=None, context_variables={})
 
         for tool_call in tool_calls:
@@ -386,63 +364,46 @@ class Swarm:
             tool_call_id = tool_call.id
 
             if name not in function_map:
-                error_msg = f"Tool {name} not found in function map."
-                logger.error(error_msg)
+                logger.error(f"Tool '{name}' not found in function map.")
                 partial_response.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "tool_name": name,
-                    "content": f"Error: {error_msg}",
+                    "role": "tool", "tool_call_id": tool_call_id, "tool_name": name,
+                    "content": f"Error: Tool {name} not found."
                 })
                 continue
 
             func = function_map[name]
             args = json.loads(tool_call.function.arguments)
-
             if __CTX_VARS_NAME__ in func.__code__.co_varnames:
                 args[__CTX_VARS_NAME__] = context_variables
 
             try:
                 if getattr(func, "dynamic", False):
-                    raw_result = asyncio.run(func(**args))
+                    raw_result = await func(**args)
                 else:
                     raw_result = func(**args)
                     if inspect.iscoroutine(raw_result):
-                        logger.debug("Awaiting coroutine from static tool.")
-                        raw_result = asyncio.run(raw_result)
+                        raw_result = await raw_result
 
                 result = self.handle_function_result(raw_result, debug)
                 partial_response.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "tool_name": name,
-                    "content": json.dumps(result.value),
+                    "role": "tool", "tool_call_id": tool_call_id, "tool_name": name,
+                    "content": json.dumps(result.value)
                 })
                 partial_response.context_variables.update(result.context_variables)
-
                 if result.agent:
-                    new_agent_name = result.agent.name
-                    if new_agent_name and new_agent_name in self.agents:
-                        partial_response.agent = result.agent
-                        context_variables["active_agent_name"] = new_agent_name
-                        logger.debug(f"🔄 Active agent updated to: {new_agent_name}")
-                        new_agent = self.agents[new_agent_name]
-                        new_agent.functions = asyncio.run(self.discover_and_merge_agent_tools(new_agent, debug=debug))
-                        logger.debug(f"✅ Reloaded tools for new agent: {new_agent_name}")
-
+                    partial_response.agent = result.agent
+                    context_variables["active_agent_name"] = result.agent.name
+                    logger.debug(f"Switched to agent '{result.agent.name}'.")
             except Exception as e:
-                error_msg = f"Error executing tool {name}: {str(e)}"
-                logger.error(error_msg)
+                logger.error(f"Error executing tool '{name}': {e}")
                 partial_response.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "tool_name": name,
-                    "content": f"Error: {error_msg}",
+                    "role": "tool", "tool_call_id": tool_call_id, "tool_name": name,
+                    "content": f"Error: {str(e)}"
                 })
 
         return partial_response
 
-    def run_and_stream(
+    async def run_and_stream(
         self,
         agent: Agent,
         messages: List[Dict[str, Any]],
@@ -450,105 +411,52 @@ class Swarm:
         model_override: Optional[str] = None,
         debug: bool = False,
         max_turns: int = float("inf"),
-        execute_tools: bool = True,
+        execute_tools: bool = True
     ):
+        """Run the swarm with streaming output, handling agent transitions asynchronously."""
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
         history = copy.deepcopy(messages)
         init_len = len(messages)
 
         context_variables["active_agent_name"] = active_agent.name
-        if debug:
-            logger.debug(f"Initial active_agent_name set to: {active_agent.name}")
+        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
 
-        all_functions = asyncio.run(self.discover_and_merge_agent_tools(agent, debug=debug))
-        active_agent.functions = all_functions
+        turn = 0
+        while turn < max_turns:
+            turn += 1
+            message = ChatMessage(sender=active_agent.name)
 
-        while len(history) - init_len < max_turns:
-            message = {
-                "content": "",
-                "sender": active_agent.name,
-                "role": "assistant",
-                "function_call": None,
-                "tool_calls": defaultdict(lambda: {"function": {"arguments": "", "name": ""}, "id": "", "type": ""}),
-            }
-
-            try:
-                completion = self.get_chat_completion(
-                    agent=active_agent,
-                    history=history,
-                    context_variables=context_variables,
-                    model_override=model_override,
-                    stream=True,
-                    debug=debug,
-                )
-            except Exception as e:
-                logger.error(f"Failed to get chat completion: {e}")
-                if debug:
-                    logger.debug(f"[DEBUG] Exception during get_chat_completion: {e}")
-                break
+            completion = await self.get_chat_completion(
+                agent=active_agent, history=history, context_variables=context_variables,
+                model_override=model_override, stream=True, debug=debug
+            )
 
             yield {"delim": "start"}
-            for chunk in completion:
-                try:
-                    delta = chunk.choices[0].delta
-                except Exception as e:
-                    logger.debug(f"[ERROR] Failed to process chunk: {e}")
-                    continue
-
-                if delta.get("role") == "assistant":
-                    message["role"] = "assistant"
-                if "sender" not in message:
-                    message["sender"] = active_agent.name
-                yield delta
-
+            async for chunk in completion:
+                delta = chunk.choices[0].delta
                 merge_chunk(message, delta)
+                yield delta
             yield {"delim": "end"}
 
-            message["tool_calls"] = list(message.get("tool_calls", {}).values())
-            if not message["tool_calls"]:
-                message["tool_calls"] = None
-            logger.debug(f"Received completion: {message}")
-            history.append(message)
+            message.tool_calls = list(message.tool_calls.values()) or None
+            history.append(json.loads(message.model_dump_json()))
 
-            if not message["tool_calls"] or not execute_tools:
-                logger.debug("No tool calls or tool execution disabled. Ending turn.")
+            if not message.tool_calls or not execute_tools:
                 break
 
-            tool_calls = []
-            for tool_call in message["tool_calls"]:
-                function = Function(
-                    arguments=tool_call["function"]["arguments"],
-                    name=tool_call["function"]["name"],
-                )
-                tool_call_object = ChatCompletionMessageToolCall(
-                    id=tool_call["id"],
-                    function=function,
-                    type=tool_call["type"]
-                )
-                tool_calls.append(tool_call_object)
-
-            partial_response = self.handle_tool_calls(
-                tool_calls, active_agent.functions, context_variables, debug
-            )
+            tool_calls = [ChatCompletionMessageToolCall(id=tc["id"], function=Function(**tc["function"]), type=tc["type"]) for tc in message.tool_calls]
+            partial_response = await self.handle_tool_calls(tool_calls, active_agent.functions, context_variables, debug)
             history.extend(partial_response.messages)
             context_variables.update(partial_response.context_variables)
 
             if partial_response.agent:
                 active_agent = partial_response.agent
-                context_variables["active_agent_name"] = active_agent.name
-                if debug:
-                    logger.debug(f"Active agent switched to: {active_agent.name}")
+                active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
 
-        yield {
-            "response": Response(
-                messages=history[init_len:],
-                agent=active_agent,
-                context_variables=context_variables,
-            )
-        }
+        yield {"response": Response(messages=history[init_len:], agent=active_agent, context_variables=context_variables)}
 
-    def run(
+    async def run(
         self,
         agent: Agent,
         messages: List[Dict[str, Any]],
@@ -557,161 +465,75 @@ class Swarm:
         stream: bool = False,
         debug: bool = False,
         max_turns: int = float("inf"),
-        execute_tools: bool = True,
+        execute_tools: bool = True
     ) -> Response:
-        all_functions = asyncio.run(self.discover_and_merge_agent_tools(agent, debug=debug))
-        agent.functions = all_functions
+        """Run the swarm asynchronously, returning a response or streaming generator."""
         if stream:
             return self.run_and_stream(
-                agent=agent,
-                messages=messages,
-                context_variables=context_variables,
-                model_override=model_override,
-                debug=debug,
-                max_turns=max_turns,
-                execute_tools=execute_tools,
+                agent=agent, messages=messages, context_variables=context_variables,
+                model_override=model_override, debug=debug, max_turns=max_turns, execute_tools=execute_tools
             )
+
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
         history = copy.deepcopy(messages)
         init_len = len(messages)
 
         context_variables["active_agent_name"] = active_agent.name
+        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
 
-        turn_count = 0
-        while turn_count < max_turns and active_agent:
-            turn_count += 1
-
-            try:
-                message = self.get_chat_completion_message(
-                    agent=active_agent,
-                    history=history,
-                    context_variables=context_variables,
-                    model_override=model_override,
-                    stream=stream,
-                    debug=debug,
-                )
-            except Exception as e:
-                logger.error(f"Failed to extract message from completion: {e}")
-                break
-
+        turn = 0
+        while turn < max_turns:
+            turn += 1
+            message = await self.get_chat_completion_message(
+                agent=active_agent, history=history, context_variables=context_variables,
+                model_override=model_override, stream=False, debug=debug
+            )
             message.sender = active_agent.name
-
-            raw_content = message.content or ""
-            has_tool_calls = bool(message.tool_calls) or (message.function_call is not None)
-
-            if debug:
-                logger.debug(
-                    f"[DEBUG] Received message from {message.sender}, raw_content={raw_content!r}, has_tool_calls={has_tool_calls}"
-                )
-
             history.append(json.loads(message.model_dump_json()))
 
-            if has_tool_calls and execute_tools:
-                partial_response = self.handle_tool_calls(
-                    message.tool_calls, active_agent.functions, context_variables, debug
-                )
+            if message.tool_calls and execute_tools:
+                partial_response = await self.handle_tool_calls(message.tool_calls, active_agent.functions, context_variables, debug)
                 history.extend(partial_response.messages)
                 context_variables.update(partial_response.context_variables)
-
                 if partial_response.agent:
                     active_agent = partial_response.agent
-                    context_variables["active_agent_name"] = active_agent.name
-                    logger.debug(f"Switched active agent to: {active_agent.name}")
-                continue
-
-            if raw_content.strip():
-                break
-            else:
-                logger.debug("Empty assistant message with no tool calls. Ending.")
-                break
-
-        final_messages = history[init_len:]
-
-        return Response(
-            id=f"response-{uuid.uuid4()}",
-            messages=final_messages,
-            agent=active_agent,
-            context_variables=context_variables,
-        )
-
-    def validate_message_sequence(self, messages):
-        valid_tool_call_ids = set()
-        validated_messages = []
-
-        for msg in messages:
-            if msg["role"] == "assistant" and "tool_calls" in msg:
-                for tool_call in msg["tool_calls"]:
-                    valid_tool_call_ids.add(tool_call["id"])
-
-            elif msg["role"] == "tool":
-                if msg.get("tool_call_id") not in valid_tool_call_ids:
-                    print(f"⚠️ WARNING: Orphaned tool message detected! Removing: {msg}")
+                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
                     continue
-                valid_tool_call_ids.remove(msg["tool_call_id"])
+            break
 
-            validated_messages.append(msg)
+        return Response(id=f"response-{uuid.uuid4()}", messages=history[init_len:], agent=active_agent, context_variables=context_variables)
 
-        return validated_messages
+    def validate_message_sequence(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Validate and filter message sequence for consistency."""
+        valid_tool_call_ids = {tc["id"] for msg in messages if msg["role"] == "assistant" and "tool_calls" in msg for tc in msg["tool_calls"]}
+        return [msg for msg in messages if msg["role"] != "tool" or msg.get("tool_call_id") in valid_tool_call_ids]
 
     def repair_message_payload(self, messages: List[Dict[str, Any]], debug: bool = False) -> List[Dict[str, Any]]:
-        filtered = []
-        system_found = False
-        for msg in messages:
-            if msg["role"] == "system":
-                if system_found:
-                    continue
-                system_found = True
-            filtered.append(msg)
-        messages = filtered
+        """Repair message payload by deduplicating and reordering."""
+        messages = filter_duplicate_system_messages(messages)
+        valid_tool_call_ids = {tc["id"] for msg in messages if msg["role"] == "assistant" and "tool_calls" in msg for tc in msg["tool_calls"]}
+        repaired = [msg for msg in messages if msg["role"] != "tool" or msg.get("tool_call_id") in valid_tool_call_ids]
 
-        valid_tool_call_ids = set()
-        for msg in messages:
-            if msg["role"] == "assistant" and msg.get("tool_calls"):
-                for tc in msg["tool_calls"]:
-                    if tc.get("id"):
-                        valid_tool_call_ids.add(tc["id"])
-
-        repaired = []
-        for msg in messages:
-            if msg["role"] == "tool":
-                tc_id = msg.get("tool_call_id")
-                if not tc_id or tc_id not in valid_tool_call_ids:
-                    if debug:
-                        logger.warning(f"Removing orphaned tool message: {msg}")
-                    continue
-                repaired.append(msg)
-            else:
-                repaired.append(msg)
-
-        final_sequence: List[Dict[str, Any]] = []
+        final_sequence = []
         i = 0
         while i < len(repaired):
             msg = repaired[i]
-            if msg["role"] == "assistant" and msg.get("tool_calls"):
-                tool_call_ids = [tc["id"] for tc in msg["tool_calls"] if "id" in tc]
+            if msg["role"] == "assistant" and "tool_calls" in msg:
+                tool_call_ids = [tc["id"] for tc in msg["tool_calls"]]
                 final_sequence.append(msg)
                 j = i + 1
-                to_remove_indexes = []
-                found_tools_for_ids = []
+                tool_msgs = []
                 while j < len(repaired):
-                    next_msg = repaired[j]
-                    if next_msg["role"] == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
-                        found_tools_for_ids.append(next_msg)
-                        to_remove_indexes.append(j)
-                    j += 1
-                for tmsg in found_tools_for_ids:
-                    final_sequence.append(tmsg)
-                for idx in reversed(to_remove_indexes):
-                    repaired.pop(idx)
+                    if repaired[j]["role"] == "tool" and repaired[j].get("tool_call_id") in tool_call_ids:
+                        tool_msgs.append(repaired.pop(j))
+                    else:
+                        j += 1
+                final_sequence.extend(tool_msgs)
             else:
                 final_sequence.append(msg)
             i += 1
 
         if debug:
-            try:
-                logger.debug("[DEBUG] Repaired message payload:\n" + json.dumps(final_sequence, indent=2, default=str))
-            except Exception as e:
-                logger.error(f"⚠️ Debug JSON serialization failed: {e}")
-
+            logger.debug(f"[DEBUG] Repaired payload: {json.dumps(final_sequence, indent=2, default=str)}")
         return final_sequence
