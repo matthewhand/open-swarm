@@ -6,16 +6,26 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Disable CORS in Django for development purposes, allowing all origins.
-CORS_ALLOW_ALL_ORIGINS = True
-
-# SECURITY WARNING: don't run with debug turned on in production!
+# Move logging setup to the top to capture all logs
+logger = logging.getLogger()  # Root logger to catch all
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
+CLI_MODE = bool(os.getenv("SWARM_CLI") or 'pytest' in sys.argv[0])
 
-logging.basicConfig(level=(logging.DEBUG if DEBUG else logging.INFO), format='%(levelname)s:%(message)s')
+# Define a filter to suppress warnings in CLI mode unless debug is enabled
+class CLIFilter(logging.Filter):
+    def filter(self, record):
+        if CLI_MODE and not DEBUG and record.levelno <= logging.WARNING:
+            return False  # Suppress INFO/WARNING logs in CLI mode unless debug is on
+        return True
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG if DEBUG else logging.INFO,
+    format='[{asctime}] {levelname} {name}: {message}',
+    style='{',
+    handlers=[logging.StreamHandler(sys.stderr)]  # Default to stderr
+)
+logger.handlers[0].addFilter(CLIFilter())  # Apply filter to root logger
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 CUSTOM_BASE_DIR = os.getenv("SWARM_BASE_DIR")
@@ -38,6 +48,11 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.append(str(BASE_DIR))
 sys.path.append(str(BASE_DIR / 'src/swarm/'))
 logger.debug(f"System path updated: {sys.path}")
+
+# Suppress deprecation warnings in CLI mode unless debug is enabled
+if CLI_MODE and not DEBUG:
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("API_AUTH_KEY", 'django-insecure-your-secret-key')
@@ -198,7 +213,7 @@ LOGGING = {
         'verbose': {'format': '[{asctime}] {levelname} {name}: {message}', 'style': '{'},
     },
     'handlers': {
-        'console': {'class': 'logging.StreamHandler', 'formatter': 'verbose'},
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'verbose', 'filters': ['cli_filter']},
         'file_rest_mode': {
             'level': 'DEBUG',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -214,6 +229,12 @@ LOGGING = {
             'maxBytes': 5 * 1024 * 1024,
             'backupCount': 5,
             'formatter': 'verbose',
+        },
+    },
+    'filters': {
+        'cli_filter': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: not (CLI_MODE and not DEBUG and record.levelno <= logging.WARNING)
         },
     },
     'loggers': {
@@ -246,7 +267,7 @@ REST_FRAMEWORK = {
 }
 
 # Discover blueprint settings
-if not os.getenv("SWARM_CLI"):
+if not CLI_MODE:
     config_path = BASE_DIR / "swarm_config.json"
     if config_path.exists():
         try:
