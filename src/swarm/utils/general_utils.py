@@ -1,13 +1,17 @@
+"""
+General-purpose utility functions for the Swarm framework.
+"""
+
 import os
 import logging
 import jmespath
 import json
+import datetime
 from typing import Optional
 from swarm.utils.logger_setup import setup_logger
 
 # Initialize logger for this module
 logger = setup_logger(__name__)
-
 
 def find_project_root(current_path: str, marker: str = ".git") -> str:
     """
@@ -31,7 +35,6 @@ def find_project_root(current_path: str, marker: str = ".git") -> str:
             break
         current_path = new_path
     raise FileNotFoundError(f"Project root with marker '{marker}' not found.")
-
 
 def color_text(text: str, color: str = "white") -> str:
     """
@@ -57,15 +60,12 @@ def color_text(text: str, color: str = "white") -> str:
     color_code = colors.get(color.lower(), colors["white"])
     return f"{color_code}{text}{reset}"
 
-
-
 def extract_chat_id(payload: dict) -> str:
     """
     Extracts `conversation_id` from the last assistant's tool call.
-    
-    Extracts the **JSON string** from `function.arguments`
-    **Parses JSON inline** instead of double querying
-    Returns only `conversation_id`
+
+    Extracts the JSON string from `function.arguments`, parses it inline,
+    and returns only `conversation_id`.
     """
     try:
         path_expr = os.getenv("STATEFUL_CHAT_ID_PATH", "").strip()
@@ -106,3 +106,9 @@ def extract_chat_id(payload: dict) -> str:
     except Exception as e:
         logger.error(f"Error extracting chat ID with JMESPath: {e}", exc_info=True)
         return ""
+
+def serialize_datetime(obj):
+    """Serialize datetime objects to ISO format for JSON compatibility."""
+    if isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")

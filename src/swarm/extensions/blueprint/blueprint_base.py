@@ -174,6 +174,13 @@ class BlueprintBase(ABC):
             self.swarm.agents.update(agents)
             self.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
             logger.debug(f"Agents registered: {list(agents.keys())}")
+            if self.starting_agent:
+                try:
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(self._discover_tools_for_agent(self.starting_agent))
+                    logger.debug(f"Proactively scheduled MCP tool discovery for starting agent: {self.starting_agent.name}")
+                except RuntimeError:
+                    logger.warning("No running event loop available for proactive tool discovery.")
         else:
             logger.debug("create_agents() not overridden; no agents registered.")
 
@@ -253,13 +260,18 @@ class BlueprintBase(ABC):
         logger.debug(f"Running with active agent: {active_agent.name}")
         self.spinner.start(f"Generating response from {active_agent.name}")
         try:
-            response = await self.swarm.run(
-                agent=active_agent,
-                messages=messages,
-                context_variables=self.context_variables,
-                stream=False,
-                debug=self.debug,
-            )
+            prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
+            try:
+                response = await self.swarm.run(
+                    agent=active_agent,
+                    messages=messages,
+                    context_variables=self.context_variables,
+                    stream=False,
+                    debug=self.debug,
+                )
+            finally:
+                if prev_openai_api_key is not None:
+                    os.environ["OPENAI_API_KEY"] = prev_openai_api_key
         finally:
             self.spinner.stop()
 
@@ -302,7 +314,12 @@ class BlueprintBase(ABC):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)
+        prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
+        try:
+            done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)
+        finally:
+            if prev_openai_api_key is not None:
+                os.environ["OPENAI_API_KEY"] = prev_openai_api_key
         raw_content = done_check.choices[0].message["content"].strip().upper()
         logger.debug(f"Done check response: {raw_content}")
         return raw_content.startswith("YES")
@@ -318,7 +335,12 @@ class BlueprintBase(ABC):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        summary_response = self.swarm.run_llm(messages=prompt, max_tokens=30, temperature=0.3)
+        prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
+        try:
+            summary_response = self.swarm.run_llm(messages=prompt, max_tokens=30, temperature=0.3)
+        finally:
+            if prev_openai_api_key is not None:
+                os.environ["OPENAI_API_KEY"] = prev_openai_api_key
         new_goal = summary_response.choices[0].message["content"].strip()
         logger.debug(f"Updated user goal from LLM: {new_goal}")
         self.context_variables["user_goal"] = new_goal

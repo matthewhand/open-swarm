@@ -20,11 +20,14 @@ if not logger.handlers:
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-# Initialize Django if running as a standalone script
-if __name__ == "__main__":
+# Initialize Django only if not already configured
+if __name__ == "__main__" and not os.environ.get('DJANGO_SETTINGS_MODULE'):
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-    import django
-    django.setup()
+    try:
+        import django
+        django.setup()
+    except Exception as e:
+        logger.warning(f"Django setup failed: {e}. Proceeding without Django context.")
 
 from swarm.types import Agent
 from swarm.extensions.blueprint.blueprint_base import BlueprintBase as Blueprint
@@ -33,7 +36,12 @@ from blueprints.university.model_queries import (
     search_learning_objectives, search_subtopics, search_enrollments,
     search_assessment_items, extended_comprehensive_search, comprehensive_search
 )
-from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
+
+try:
+    from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
+except ImportError:
+    logger.warning("Django models unavailable—running without database access.")
+    Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
 
 class UniversitySupportBlueprint(Blueprint):
     @property
@@ -63,15 +71,6 @@ class UniversitySupportBlueprint(Blueprint):
             context_variables["channel_id"] = channel_id
             context_variables["user_name"] = user_name
             logger.debug(f"Set context variables: channel_id={channel_id}, user_name={user_name}")
-
-            # Check if running in unit test mode
-            if os.getenv("UNIT_TESTING") == "true":
-                logger.debug("Running in unit test mode; returning mock response")
-                mock_response = {
-                    "messages": messages + [{"role": "assistant", "content": "Course list", "sender": "TriageAgent"}],
-                    "agent": None
-                }
-                return {"response": mock_response, "context_variables": context_variables}
 
             result = super().run_with_context(messages, context_variables)
             logger.debug(f"run_with_context completed successfully, result type: {type(result)}")
@@ -145,8 +144,11 @@ class UniversitySupportBlueprint(Blueprint):
                 units = search_teaching_units(None)
                 if not units or not isinstance(units, list):
                     logger.debug("No units with NULL channel_id, falling back to all units")
-                    units = TeachingUnit.objects.all().values("code", "name", "channel_id", "teaching_prompt", "id")
-                    units = list(units)
+                    if TeachingUnit and hasattr(TeachingUnit, 'objects'):
+                        units = TeachingUnit.objects.all().values("code", "name", "channel_id", "teaching_prompt", "id")
+                        units = list(units)
+                    else:
+                        units = []
 
             all_prompts = []
             teaching_unit_ids = []
@@ -186,8 +188,11 @@ class UniversitySupportBlueprint(Blueprint):
                 teaching_units = search_teaching_units(None)
                 if not teaching_units or not isinstance(teaching_units, list):
                     logger.debug("No units with NULL channel_id, falling back to all units")
-                    teaching_units = TeachingUnit.objects.all().values("code", "name", "channel_id", "teaching_prompt", "id")
-                    teaching_units = list(teaching_units)
+                    if TeachingUnit and hasattr(TeachingUnit, 'objects'):
+                        teaching_units = TeachingUnit.objects.all().values("code", "name", "channel_id", "teaching_prompt", "id")
+                        teaching_units = list(teaching_units)
+                    else:
+                        teaching_units = []
 
             all_prompts = []
             for teaching_unit in teaching_units:
@@ -198,31 +203,40 @@ class UniversitySupportBlueprint(Blueprint):
                 logger.debug(f"Processing teaching unit ID: {teaching_unit_id}")
 
                 # Courses
-                related_courses = Course.objects.filter(teaching_units__id=teaching_unit_id)
-                courses_prompts = [
-                    f"- **Course: {course.name}**: {course.teaching_prompt}"
-                    for course in related_courses if hasattr(course, "teaching_prompt") and course.teaching_prompt
-                ]
-                all_prompts.extend(courses_prompts)
-                logger.debug(f"Courses for unit {teaching_unit_id}: {len(courses_prompts)} found")
+                if Course and hasattr(Course, 'objects'):
+                    related_courses = Course.objects.filter(teaching_units__id=teaching_unit_id)
+                    courses_prompts = [
+                        f"- **Course: {course.name}**: {course.teaching_prompt}"
+                        for course in related_courses if hasattr(course, "teaching_prompt") and course.teaching_prompt
+                    ]
+                    all_prompts.extend(courses_prompts)
+                    logger.debug(f"Courses for unit {teaching_unit_id}: {len(courses_prompts)} found")
+                else:
+                    logger.debug("Course model unavailable—skipping course prompts")
 
                 # Topics
-                related_topics = Topic.objects.filter(teaching_unit__id=teaching_unit_id)
-                topics_prompts = [
-                    f"- **Topic: {topic.name}**: {topic.teaching_prompt}"
-                    for topic in related_topics if hasattr(topic, "teaching_prompt") and topic.teaching_prompt
-                ]
-                all_prompts.extend(topics_prompts)
-                logger.debug(f"Topics for unit {teaching_unit_id}: {len(topics_prompts)} found")
+                if Topic and hasattr(Topic, 'objects'):
+                    related_topics = Topic.objects.filter(teaching_unit__id=teaching_unit_id)
+                    topics_prompts = [
+                        f"- **Topic: {topic.name}**: {topic.teaching_prompt}"
+                        for topic in related_topics if hasattr(topic, "teaching_prompt") and topic.teaching_prompt
+                    ]
+                    all_prompts.extend(topics_prompts)
+                    logger.debug(f"Topics for unit {teaching_unit_id}: {len(topics_prompts)} found")
+                else:
+                    logger.debug("Topic model unavailable—skipping topic prompts")
 
                 # Subtopics
-                related_subtopics = Subtopic.objects.filter(topic__in=related_topics)
-                subtopics_prompts = [
-                    f"  - **Subtopic: {subtopic.name}**: {subtopic.teaching_prompt}"
-                    for subtopic in related_subtopics if hasattr(subtopic, "teaching_prompt") and subtopic.teaching_prompt
-                ]
-                all_prompts.extend(subtopics_prompts)
-                logger.debug(f"Subtopics for unit {teaching_unit_id}: {len(subtopics_prompts)} found")
+                if Subtopic and hasattr(Subtopic, 'objects') and Topic:
+                    related_subtopics = Subtopic.objects.filter(topic__in=related_topics)
+                    subtopics_prompts = [
+                        f"  - **Subtopic: {subtopic.name}**: {subtopic.teaching_prompt}"
+                        for subtopic in related_subtopics if hasattr(subtopic, "teaching_prompt") and subtopic.teaching_prompt
+                    ]
+                    all_prompts.extend(subtopics_prompts)
+                    logger.debug(f"Subtopics for unit {teaching_unit_id}: {len(subtopics_prompts)} found")
+                else:
+                    logger.debug("Subtopic model unavailable—skipping subtopic prompts")
 
             if not all_prompts:
                 logger.warning("No related prompts constructed across all units")
@@ -249,8 +263,11 @@ class UniversitySupportBlueprint(Blueprint):
                 units = search_teaching_units(None)
                 if not units or not isinstance(units, list):
                     logger.debug("No units with NULL channel_id, falling back to all units")
-                    units = TeachingUnit.objects.all().values("code", "name", "channel_id", "teaching_prompt", "id")
-                    units = list(units)
+                    if TeachingUnit and hasattr(TeachingUnit, 'objects'):
+                        units = TeachingUnit.objects.all().values("code", "name", "channel_id", "teaching_prompt", "id")
+                        units = list(units)
+                    else:
+                        units = []
 
             teaching_unit_ids = [unit.get("id") for unit in units if isinstance(unit, dict) and "id" in unit]
             logger.debug(f"Extracted teaching unit IDs: {teaching_unit_ids}")
@@ -258,12 +275,16 @@ class UniversitySupportBlueprint(Blueprint):
                 logger.warning("No valid teaching unit IDs found")
                 return "No learning objectives found."
 
-            related_topics = Topic.objects.filter(teaching_unit__id__in=teaching_unit_ids)
-            related_learning_objectives = LearningObjective.objects.filter(topic__in=related_topics)
-            learning_objectives_text = [
-                f"  - **Learning Objective:** {objective.description}"
-                for objective in related_learning_objectives if hasattr(objective, "description")
-            ]
+            if LearningObjective and Topic and hasattr(LearningObjective, 'objects') and hasattr(Topic, 'objects'):
+                related_topics = Topic.objects.filter(teaching_unit__id__in=teaching_unit_ids)
+                related_learning_objectives = LearningObjective.objects.filter(topic__in=related_topics)
+                learning_objectives_text = [
+                    f"  - **Learning Objective:** {objective.description}"
+                    for objective in related_learning_objectives if hasattr(objective, "description")
+                ]
+            else:
+                logger.debug("LearningObjective or Topic model unavailable—returning empty objectives")
+                learning_objectives_text = []
 
             if not learning_objectives_text:
                 logger.warning("No learning objectives constructed")
@@ -311,7 +332,9 @@ class UniversitySupportBlueprint(Blueprint):
             "from the message history. For complex queries (over 50 words), urgent queries (contains 'urgent'), or requests "
             f"for human help ('help' or 'complex issue'), respond with 'Contact {support_email}'. For general academic "
             "queries (courses, schedules), delegate to SupportAgent by calling handoff_to_support(). For detailed "
-            "learning/assessment queries beyond objectives, delegate to LearningAgent by calling handoff_to_learning()."
+            "learning/assessment queries beyond objectives, delegate to LearningAgent by calling handoff_to_learning(). "
+            "When asked to list your functions or tools, respond with: 'My functions are: handoff_to_support, "
+            "handoff_to_learning, search_courses, search_teaching_units'."
         )
         agents["TriageAgent"] = Agent(
             name="TriageAgent",
@@ -335,7 +358,7 @@ class UniversitySupportBlueprint(Blueprint):
 
         support_instructions = (
             "You are SupportAgent, handling general university support. Answer queries about courses, schedules, enrollments, "
-            "and student info using SQLite tools. If data is unavailable, say 'I couldn’t access the latest info, but here’s "
+            "and student info using SQLite tools. If data is unavailable, say 'I could not access the latest info, but here is "
             "some advice...' and use the provided content below. For detailed learning/assessment queries, delegate to "
             "LearningAgent by calling handoff_to_learning(). For queries requiring coordination, delegate to TriageAgent "
             "by calling handoff_to_triage()."
@@ -399,29 +422,8 @@ class UniversitySupportBlueprint(Blueprint):
 if __name__ == "__main__":
     logger.debug("Starting main execution")
     try:
-        # Ensure stderr logging for CLI visibility
-        config_path = sys.argv[sys.argv.index('--config') + 1] if '--config' in sys.argv else "./swarm_config.json"
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found at {config_path}")
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-        blueprint = UniversitySupportBlueprint(config=config)
-        # Run in non-interactive mode if instruction provided
-        if '--instruction' in sys.argv:
-            instruction = sys.argv[sys.argv.index('--instruction') + 1]
-            result = blueprint.non_interactive_mode(instruction)
-            # Handle varying run() return formats, including None
-            if result is None:
-                response = [{"role": "assistant", "content": "No response generated due to configuration error"}]
-            else:
-                response = result.get("response", result.get("messages", [{"role": "assistant", "content": "No response generated"}]))
-            print(json.dumps(response, indent=2))
-            logger.info("Execution completed. Exiting.")
-        else:
-            blueprint.interactive_mode()
+        UniversitySupportBlueprint.main()
         logger.info("Blueprint execution completed")
-        sys.exit(0)
     except Exception as e:
         logger.error(f"Main execution failed: {str(e)}", exc_info=True)
-        print(f"Error: Failed to initialize blueprint: {str(e)}", file=sys.stderr)
-        sys.exit(1)
+
