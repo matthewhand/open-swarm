@@ -67,7 +67,7 @@ else:
     BLUEPRINTS_DIR = Path(os.path.expanduser("~/.swarm/blueprints"))
 swarm_blueprints_env = os.getenv("SWARM_BLUEPRINTS", "").strip()
 SWARM_BLUEPRINTS = [name.strip() for name in swarm_blueprints_env.split(',') if name.strip()] if swarm_blueprints_env else []
-logger.info(f"Discovered SWARM_BLUEPRINTS env: {SWARM_BLUEPRINTS}")
+logger.debug(f"Discovered SWARM_BLUEPRINTS env: {SWARM_BLUEPRINTS}")
 
 ALLOWED_HOSTS = ['*']  # Adjust as needed in production
 
@@ -169,8 +169,8 @@ elif DJANGO_DATABASE == "sqlite":
 else:
     raise ValueError(f"Invalid value for DJANGO_DATABASE: {DJANGO_DATABASE}. Must be 'sqlite' or 'postgres'.")
 
-if os.getenv("STATEFUL_CHAT_ID_PATH") and DJANGO_DATABASE != "postgres":
-    logger.warning("⚠️ Stateful chat enabled with SQLite. Consider 'postgres' for scalability.")
+#if os.getenv("STATEFUL_CHAT_ID_PATH") and DJANGO_DATABASE != "postgres":
+#    logger.warning("⚠️ Stateful chat enabled with SQLite. Consider 'postgres' for scalability.")
 
 @receiver(connection_created)
 def set_sqlite_optimizations(sender, connection, **kwargs):
@@ -281,7 +281,7 @@ if not CLI_MODE:
                     continue
                 bp_settings_path = Path(blueprint_conf["path"]) / "settings.py"
                 if bp_settings_path.exists():
-                    logger.info(f"Loading static settings for blueprint: {blueprint_name}")
+                    logger.debug(f"Loading static settings for blueprint: {blueprint_name}")
                     with open(bp_settings_path, "r") as f:
                         code = compile(f.read(), str(bp_settings_path), "exec")
                         exec(code, globals())
