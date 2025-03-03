@@ -285,10 +285,6 @@
     }
   },
   "blueprints": {
-    "suggestion": {
-      "path": "/app/blueprints/suggestion",
-      "api": true
-    },
     "university": {
       "path": "/app/blueprints/university",
       "api": true
