@@ -17,10 +17,12 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
 class UnapologeticPressBlueprint(BlueprintBase):
     """
     A literary blueprint defining a swarm of poet agents.
-    
+
     Each agent embodies a poet and has a distinct writing style,
     using assigned MCP servers for creative enhancement.
     """
+
+    _agents_cache: Dict[str, Agent] = None  # Class-level cache for agents
 
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -52,28 +54,43 @@ class UnapologeticPressBlueprint(BlueprintBase):
             ]
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)  # Let BlueprintBase handle initial setup
+        if UnapologeticPressBlueprint._agents_cache is None:
+            UnapologeticPressBlueprint._agents_cache = self.create_agents()
+        agents = UnapologeticPressBlueprint._agents_cache
+        starting_poet = random.choice(list(agents.keys()))
+        self.set_starting_agent(agents[starting_poet])  # Set after super(), tools discovered by base
+        logger.info(f"Unapologetic Press swarm created. Starting poet: {starting_poet}")
+        logger.debug(f"Agents registered: {list(agents.keys())}")
+
     def create_agents(self) -> Dict[str, Agent]:
+        """Create agents only once, return cached agents if already created."""
+        if UnapologeticPressBlueprint._agents_cache is not None:
+            return UnapologeticPressBlueprint._agents_cache
+
         allowed_paths = os.getenv("ALLOWED_PATH", "/default/path")
         sqlite_db_path = os.getenv("SQLITE_DB_PATH", "/tmp/sqlite.db")
 
         collaborative_knowledge = (
             "\n\nCollaborative Poet Knowledge Base:\n"
-            "* Gritty Buk - Raw urban realism exposing life's underbelly\n" 
-            "* Raven Poe - Gothic atmospherics & psychological darkness\n" 
-            "* Mystic Blake - Prophetic visions through spiritual symbolism\n" 
-            "* Bard Whit - Expansive odes celebrating human connection\n" 
-            "* Echo Plath - Confessional explorations of mental anguish\n" 
-            "* Frosted Woods - Rural metaphors revealing existential truths\n" 
-            "* Harlem Lang - Jazz-rhythm social commentary on racial justice\n" 
-            "* Verse Neru - Sensual imagery fused with revolutionary politics\n" 
-            "* Haiku Bash - Ephemeral nature snapshots through strict syllabic form"
+            "* Gritty Buk - Raw urban realism exposing life's underbelly (can store urban memories)\n"
+            "* Raven Poe - Gothic atmospherics & psychological darkness (can monitor modern fears)\n"
+            "* Mystic Blake - Prophetic visions through spiritual symbolism (can publish prophecies)\n"
+            "* Bard Whit - Expansive odes celebrating human connection (can structure complex thoughts)\n"
+            "* Echo Plath - Confessional explorations of mental anguish (can track personal symbols)\n"
+            "* Frosted Woods - Rural metaphors revealing existential truths (can organize rural themes)\n"
+            "* Harlem Lang - Jazz-rhythm social commentary on racial justice (can analyze jazz rhythms)\n"
+            "* Verse Neru - Sensual imagery fused with revolutionary politics (can publish multilingual odes)\n"
+            "* Haiku Bash - Ephemeral nature snapshots through strict syllabic form (can read the weather)\n"
         )
 
         shared_instructions = (
             f"{collaborative_knowledge}\n\nCollaboration Protocol:\n"
             "1) Analyze draft through your stylistic lens\n"
             "2) Use your MCP tools for creative augmentation\n"
-            "3) Pass enhanced work to most relevant poet based on needed transformation"
+            "3) Pass enhanced work to most relevant poet based on needed transformation or specific tooling\n"
+            "   Refer to the Collaborative Poet Knowledge Base for style and unique capabilities."
         )
 
         agents: Dict[str, Agent] = {}
@@ -282,14 +299,7 @@ class UnapologeticPressBlueprint(BlueprintBase):
                 pass_to_plath, pass_to_frost, pass_to_hughes, pass_to_neruda, pass_to_basho
             ]
 
-        # Random starting agent selection
-        starting_poet = random.choice(list(agents.keys()))
-        self.set_starting_agent(agents[starting_poet])
-        logger.info(f"Unapologetic Press swarm created. Starting poet: {starting_poet}")
-        logger.debug(f"Agents registered: {list(agents.keys())}")
-
         return agents
 
 if __name__ == "__main__":
     UnapologeticPressBlueprint.main()
-

@@ -167,7 +167,7 @@ class Swarm:
                 logger.error(f"Failed to register function '{action_name}' for '{agent.name}': {e}")
 
     async def discover_and_merge_agent_tools(self, agent: Agent, debug: bool = False) -> List[AgentFunction]:
-        """Discover and merge tools from MCP servers with agent's static functions."""
+        """Discover and merge tools from MCP servers with agent's static functions, deduplicating MCP tools only."""
         logger.debug(f"Discovering tools for agent '{agent.name}'")
         if not agent.mcp_servers:
             funcs = agent.functions or []
@@ -188,12 +188,23 @@ class Swarm:
                     if not hasattr(tool, "requires_approval"):
                         tool.requires_approval = True
                 discovered_tools.extend(tools)
-                logger.debug(f"Discovered {len(tools)} tools from '{server_name}': {[t.name for t in tools if hasattr(t, 'name')]}")
+                logger.debug(f"Discovered {len(tools)} tools from '{server_name}': {[getattr(t, 'name', 'unnamed') for t in tools]}")
             except Exception as e:
                 logger.error(f"Failed to discover tools from '{server_name}' for '{agent.name}': {e}")
 
-        all_functions = (agent.functions or []) + discovered_tools
-        logger.debug(f"Total functions for '{agent.name}': {len(all_functions)} (Static: {len(agent.functions or [])}, Discovered: {len(discovered_tools)})")
+        # Deduplicate MCP tools only, preserve all static functions
+        unique_discovered_tools = list(dict.fromkeys(discovered_tools))
+        all_functions = (agent.functions or []) + unique_discovered_tools
+        if debug:
+            static_names = [getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in (agent.functions or [])]
+            discovered_names = [getattr(t, 'name', 'unnamed') for t in discovered_tools]
+            unique_discovered_names = [getattr(t, 'name', 'unnamed') for t in unique_discovered_tools]
+            combined_names = [getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in all_functions]
+            logger.debug(f"[DEBUG] Static functions: {static_names}")
+            logger.debug(f"[DEBUG] Discovered tools (before dedup): {discovered_names}")
+            logger.debug(f"[DEBUG] Discovered tools (after dedup): {unique_discovered_names}")
+            logger.debug(f"[DEBUG] Combined functions: {combined_names}")
+        logger.debug(f"Total functions for '{agent.name}': {len(all_functions)} (Static: {len(agent.functions or [])}, Discovered: {len(unique_discovered_tools)})")
         return all_functions
 
     async def get_chat_completion(
@@ -372,7 +383,8 @@ class Swarm:
         init_len = len(messages)
 
         context_variables["active_agent_name"] = active_agent.name
-        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
+        # Rely on BlueprintBase for initial tool discovery, don’t reassign here
+        # active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
 
         turn = 0
         while turn < max_turns:
@@ -402,7 +414,8 @@ class Swarm:
 
                 if partial_response.agent:
                     active_agent = partial_response.agent
-                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
+                    # Use existing tools from BlueprintBase, avoid rediscovery
+                    # active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
                     logger.debug(f"Agent handoff to '{active_agent.name}' detected.")
 
                 logger.debug(f"Generating response after tool calls for '{active_agent.name}'")
@@ -453,7 +466,8 @@ class Swarm:
         init_len = len(messages)
 
         context_variables["active_agent_name"] = active_agent.name
-        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
+        # Rely on BlueprintBase for initial tool discovery, don’t reassign here
+        # active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
 
         turn = 0
         while turn < max_turns:
@@ -471,7 +485,8 @@ class Swarm:
                 context_variables.update(partial_response.context_variables)
                 if partial_response.agent:
                     active_agent = partial_response.agent
-                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
+                    # Use existing tools from BlueprintBase, avoid rediscovery
+                    # active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug)
                     logger.debug(f"Agent handoff to '{active_agent.name}' detected.")
 
                 logger.debug(f"Generating response after tool calls for '{active_agent.name}'")
