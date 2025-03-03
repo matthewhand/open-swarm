@@ -36,7 +36,8 @@
     "litellm": {
       "provider": "openai",
       "model": "${LITELLM_MODEL}",
-      "base_url": "${LITELLM_URL}"
+      "base_url": "${LITELLM_URL}",
+      "api_key": "${LITELLM_API_KEY}"
     },
     "deepseek-r1-distill-llama-70b": {
       "provider": "openai",
