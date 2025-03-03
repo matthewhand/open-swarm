@@ -11,7 +11,7 @@ Key Features:
 - Auto-completion of multi-step tasks via lightweight LLM checks, configurable via environment variables.
 - Dynamic user goal updates based on conversation analysis, with configurable frequency and prompts.
 - Stateless agent handoffs tracked via context variables with optimized transitions.
-- Synchronous interactive mode with logging and stderr redirection to file (default) or console (--debug).
+- Synchronous interactive mode with logging, stderr redirection, and optional CLI spinners.
 - Django integration for URL, view, and model registration.
 """
 
@@ -22,6 +22,8 @@ import os
 import importlib.util
 import uuid
 import sys
+import threading
+import time
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -40,6 +42,47 @@ import argparse
 
 # Logger setup will be handled in main() to capture all logs
 logger = logging.getLogger(__name__)
+
+class Spinner:
+    """A simple spinner for CLI feedback, shown only in supported terminals during interactive mode."""
+    SPINNER_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    
+    def __init__(self, interactive: bool):
+        self.interactive = interactive
+        self.term = os.environ.get("TERM", "dumb")
+        self.enabled = interactive and self.term not in ["vt100", "dumb"]
+        self.running = False
+        self.thread = None
+        self.status = ""
+        self.index = 0
+
+    def start(self, status: str = "Processing"):
+        """Start the spinner with a status message."""
+        if not self.enabled or self.running:
+            return
+        self.status = status
+        self.running = True
+        self.thread = threading.Thread(target=self._spin, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        """Stop the spinner and erase the line."""
+        if not self.enabled or not self.running:
+            return
+        self.running = False
+        self.thread.join()
+        # Erase the line with spaces and return to start
+        sys.stdout.write(f"\r{' ' * (len(self.status) + 5)}\r")
+        sys.stdout.flush()
+
+    def _spin(self):
+        """Spin the animation until stopped."""
+        while self.running:
+            char = self.SPINNER_CHARS[self.index % len(self.SPINNER_CHARS)]
+            sys.stdout.write(f"\r{char} {self.status}")
+            sys.stdout.flush()
+            self.index += 1
+            time.sleep(0.1)
 
 class BlueprintBase(ABC):
     def __init__(
@@ -107,6 +150,7 @@ class BlueprintBase(ABC):
         self.context_variables: Dict[str, Any] = {"user_goal": ""}
         self.starting_agent = None
         self._discovered_tools: Dict[str, List[Any]] = {}
+        self.spinner = Spinner(interactive=not kwargs.get('non_interactive', False))
 
         required_env_vars = set(self.metadata.get('env_vars', []))
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -149,6 +193,7 @@ class BlueprintBase(ABC):
     async def _discover_tools_for_agent(self, agent: Any) -> None:
         if agent.name not in self._discovered_tools:
             logger.debug(f"Discovering tools for agent: {agent.name}")
+            self.spinner.start(f"Discovering MCP tools for {agent.name}")
             try:
                 tools = await self.swarm.discover_and_merge_agent_tools(agent)
                 valid_tools = [tool for tool in tools if hasattr(tool, 'name') and isinstance(tool.name, str)]
@@ -158,6 +203,8 @@ class BlueprintBase(ABC):
             except Exception as e:
                 logger.error(f"Failed to discover tools for agent '{agent.name}': {e}")
                 self._discovered_tools[agent.name] = []
+            finally:
+                self.spinner.stop()
 
     def set_starting_agent(self, agent: Any) -> None:
         logger.debug(f"Setting starting agent to: {agent.name}")
@@ -204,13 +251,17 @@ class BlueprintBase(ABC):
             }
 
         logger.debug(f"Running with active agent: {active_agent.name}")
-        response = await self.swarm.run(
-            agent=active_agent,
-            messages=messages,
-            context_variables=self.context_variables,
-            stream=False,
-            debug=True,
-        )
+        self.spinner.start(f"Generating response from {active_agent.name}")
+        try:
+            response = await self.swarm.run(
+                agent=active_agent,
+                messages=messages,
+                context_variables=self.context_variables,
+                stream=False,
+                debug=self.debug,
+            )
+        finally:
+            self.spinner.stop()
 
         if not hasattr(response, 'messages'):
             logger.error("Response does not have 'messages' attribute.")
@@ -273,7 +324,7 @@ class BlueprintBase(ABC):
         self.context_variables["user_goal"] = new_goal
 
     def interactive_mode(self, stream: bool = False) -> None:
-        """Interactive CLI mode with logging configured in main()."""
+        """Interactive CLI mode with logging and optional spinners configured in main()."""
         logger.debug("Starting interactive mode.")
         if not self.starting_agent:
             logger.error("Starting agent is not set. Ensure set_starting_agent is called.")
@@ -611,7 +662,8 @@ class BlueprintBase(ABC):
             update_user_goal=args.update_user_goal,
             update_user_goal_frequency=args.update_user_goal_frequency,
             log_file_path=log_file_path,
-            debug=args.debug
+            debug=args.debug,
+            non_interactive=bool(args.instruction)
         )
         try:
             if args.instruction:
