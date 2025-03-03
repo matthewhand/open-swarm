@@ -32,13 +32,13 @@ class MCPToolProvider:
     _instances: Dict[str, "MCPToolProvider"] = {}
 
     @classmethod
-    def get_instance(cls, server_name: str, server_config: Dict[str, Any], timeout: int = 15) -> "MCPToolProvider":
+    def get_instance(cls, server_name: str, server_config: Dict[str, Any], timeout: int = 15, debug: bool = False) -> "MCPToolProvider":
         """Get or create a singleton instance for the given server name."""
         if server_name not in cls._instances:
-            cls._instances[server_name] = cls(server_name, server_config, timeout)
+            cls._instances[server_name] = cls(server_name, server_config, timeout, debug)
         return cls._instances[server_name]
 
-    def __init__(self, server_name: str, server_config: Dict[str, Any], timeout: int = 15):
+    def __init__(self, server_name: str, server_config: Dict[str, Any], timeout: int = 15, debug: bool = False):
         """
         Initialize an MCPToolProvider instance with a configurable timeout.
 
@@ -46,11 +46,12 @@ class MCPToolProvider:
             server_name (str): The name of the MCP server.
             server_config (dict): Configuration dictionary for the specific server.
             timeout (int): Timeout in seconds for MCP operations (default 15, overridden by caller if provided).
+            debug (bool): If True, MCP server stderr goes to stderr; otherwise, to log file.
         """
         if server_name in self._instances:
             raise ValueError(f"MCPToolProvider for '{server_name}' already initialized. Use get_instance().")
         self.server_name = server_name
-        self.client = MCPClient(server_config=server_config, timeout=timeout)
+        self.client = MCPClient(server_config=server_config, timeout=timeout, debug=debug)
         self.cache = get_cache()
         logger.debug(f"Initialized MCPToolProvider for server '{self.server_name}' with timeout {timeout}s.")
 

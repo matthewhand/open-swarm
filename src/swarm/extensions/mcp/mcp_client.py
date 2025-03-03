@@ -2,6 +2,7 @@
 MCP Client Module
 
 Manages connections and interactions with MCP servers using the MCP Python SDK.
+Redirects MCP server stderr to log files unless debug mode is enabled.
 """
 
 import asyncio
@@ -12,7 +13,6 @@ from typing import Any, Dict, List, Callable
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from swarm.types import Tool
-
 from .cache_utils import get_cache
 
 logger = logging.getLogger(__name__)
@@ -23,24 +23,26 @@ class MCPClient:
     Manages connections and interactions with MCP servers using the MCP Python SDK.
     """
 
-    def __init__(self, server_config: Dict[str, Any], timeout: int = 15):
+    def __init__(self, server_config: Dict[str, Any], timeout: int = 15, debug: bool = False):
         """
         Initialize the MCPClient with server configuration.
 
         Args:
             server_config (dict): Configuration dictionary for the MCP server.
             timeout (int): Timeout for operations in seconds.
+            debug (bool): If True, MCP server stderr goes to console; otherwise, to log file.
         """
         self.command = server_config.get("command", "npx")
         self.args = server_config.get("args", [])
         self.env = {**os.environ.copy(), **server_config.get("env", {})}
         self.timeout = timeout
+        self.debug = debug
         self._tool_cache: Dict[str, Tool] = {}
 
         # Initialize cache using the helper
         self.cache = get_cache()
 
-        logger.info(f"Initialized MCPClient with command={self.command}, args={self.args}")
+        logger.info(f"Initialized MCPClient with command={self.command}, args={self.args}, debug={debug}")
 
     async def list_tools(self) -> List[Tool]:
         """
@@ -49,6 +51,8 @@ class MCPClient:
         Returns:
             List[Tool]: A list of discovered tools with schemas.
         """
+        logger.debug(f"Entering list_tools for command={self.command}, args={self.args}")
+        
         # Attempt to retrieve tools from cache
         args_string = "_".join(self.args)
         cache_key = f"mcp_tools_{self.command}_{args_string}"
@@ -66,14 +70,18 @@ class MCPClient:
                     func=self._create_tool_callable(tool_name),
                 )
                 tools.append(tool)
+            logger.debug(f"Returning {len(tools)} cached tools")
             return tools
 
         server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
+        logger.debug("Opening stdio_client connection")
         async with stdio_client(server_params) as (read, write):
+            logger.debug("Opening ClientSession")
             async with ClientSession(read, write) as session:
                 try:
                     logger.info("Requesting tool list from MCP server...")
                     tools_response = await asyncio.wait_for(session.list_tools(), timeout=self.timeout)
+                    logger.debug("Tool list received from MCP server")
 
                     serialized_tools = [
                         {
@@ -83,7 +91,7 @@ class MCPClient:
                         }
                         for tool in tools_response.tools
                     ]
-                    
+
                     self.cache.set(cache_key, serialized_tools, 3600)
                     logger.debug(f"Cached {len(serialized_tools)} tools.")
 
@@ -100,22 +108,28 @@ class MCPClient:
                         tools.append(cached_tool)
                         logger.debug(f"Discovered tool: {tool.name} with schema: {input_schema}")
 
+                    logger.debug(f"Returning {len(tools)} tools from MCP server")
                     return tools
 
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout after {self.timeout}s waiting for tool list")
+                    raise RuntimeError("Tool list request timed out")
                 except Exception as e:
                     logger.error(f"Error listing tools: {e}")
-                    raise RuntimeError("Failed to list tools.") from e
+                    raise RuntimeError("Failed to list tools") from e
 
     def _create_tool_callable(self, tool_name: str) -> Callable[..., Any]:
         """
         Dynamically create a callable function for the specified tool.
         """
         async def dynamic_tool_func(**kwargs) -> Any:
+            logger.debug(f"Creating tool callable for '{tool_name}'")
             server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
             async with stdio_client(server_params) as (read, write):
                 async with ClientSession(read, write) as session:
                     try:
-                        await session.initialize()
+                        logger.debug(f"Initializing session for tool '{tool_name}'")
+                        await asyncio.wait_for(session.initialize(), timeout=self.timeout)
                         if tool_name in self._tool_cache:
                             tool = self._tool_cache[tool_name]
                             self._validate_input_schema(tool.input_schema, kwargs)
@@ -123,6 +137,9 @@ class MCPClient:
                         result = await asyncio.wait_for(session.call_tool(tool_name, kwargs), timeout=self.timeout)
                         logger.info(f"Tool '{tool_name}' executed successfully: {result}")
                         return result
+                    except asyncio.TimeoutError:
+                        logger.error(f"Timeout after {self.timeout}s executing tool '{tool_name}'")
+                        raise RuntimeError(f"Tool '{tool_name}' execution timed out")
                     except Exception as e:
                         logger.error(f"Failed to execute tool '{tool_name}': {e}")
                         raise RuntimeError(f"Tool execution failed: {e}") from e

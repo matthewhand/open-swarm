@@ -11,7 +11,7 @@ Key Features:
 - Auto-completion of multi-step tasks via lightweight LLM checks, configurable via environment variables.
 - Dynamic user goal updates based on conversation analysis, with configurable frequency and prompts.
 - Stateless agent handoffs tracked via context variables with optimized transitions.
-- Synchronous interactive mode with logging to file (default) or stderr (--debug), synchronous non-interactive mode.
+- Synchronous interactive mode with logging and stderr redirection to file (default) or console (--debug).
 - Django integration for URL, view, and model registration.
 """
 
@@ -21,10 +21,10 @@ import logging
 import os
 import importlib.util
 import uuid
+import sys
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 from pathlib import Path
-import sys
 
 try:
     from nemoguardrails import LLMRails, RailsConfig  # type: ignore
@@ -101,7 +101,7 @@ class BlueprintBase(ABC):
                         django_settings.INSTALLED_APPS.append(app)
                 logger.debug("Merged blueprint local settings INSTALLED_APPS into Django settings.")
 
-        self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config)
+        self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
 
         self.context_variables: Dict[str, Any] = {"user_goal": ""}
@@ -564,8 +564,8 @@ class BlueprintBase(ABC):
         parser.add_argument("--update-user-goal", action="store_true", help="Enable dynamic user goal updates via LLM analysis")
         parser.add_argument("--update-user-goal-frequency", type=int, default=5, help="Number of messages between goal updates")
         parser.add_argument("--instruction", type=str, help="Single instruction for non-interactive mode execution")
-        parser.add_argument("--log-file-path", type=str, help="Path to log file for interactive mode (default: ~/.swarm/logs/<blueprint_name>.log)")
-        parser.add_argument("--debug", action="store_true", help="Print debug logs to stderr instead of file in interactive mode")
+        parser.add_argument("--log-file-path", type=str, help="Path to log file (default: ~/.swarm/logs/<blueprint_name>.log)")
+        parser.add_argument("--debug", action="store_true", help="Print debug logs and stderr to console")
         args = parser.parse_args()
 
         # Configure logging early to capture all logs before imports
@@ -578,40 +578,52 @@ class BlueprintBase(ABC):
             logger_instance.handlers.clear()
         root_logger.handlers.clear()  # Clear root logger handlers too
 
+        # Set up logging and stderr redirection
+        log_file_path = args.log_file_path or str(Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log")
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+        
         if args.instruction:
-            # Non-interactive mode: keep stderr logging
-            handler = logging.StreamHandler(sys.stderr)
+            # Non-interactive mode: keep stderr to console unless redirected elsewhere
+            handler = logging.StreamHandler(sys.stdout if args.debug else open(log_file_path, 'a'))
             root_logger.handlers.append(handler)
+            if not args.debug:
+                sys.stderr = open(log_file_path, 'a')
+                logger.info(f"Redirected stderr to {log_file_path}")
         else:
-            # Interactive mode: configure logging based on --debug
-            if args.debug:
-                handler = logging.StreamHandler(sys.stderr)
-                root_logger.info("Debug mode enabled; logging to stderr")
-            else:
-                log_file_path = args.log_file_path or str(Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log")
-                os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-                handler = logging.FileHandler(log_file_path)
-                root_logger.info(f"Logging configured to file: {log_file_path}")
+            # Interactive mode: redirect stderr to file unless debug is enabled
+            handler = logging.StreamHandler(sys.stderr if args.debug else open(log_file_path, 'a'))
             root_logger.handlers.append(handler)
+            if not args.debug:
+                sys.stderr = open(log_file_path, 'a')
+                logger.info(f"Redirected stderr to {log_file_path}")
+            else:
+                logger.info("Debug mode enabled; stderr remains on console")
 
         # Set formatter for the handler
         formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
         handler.setFormatter(formatter)
 
-        logger.debug(f"Launching blueprint with config: {args.config}, auto_complete_task={args.auto_complete_task}, update_user_goal={args.update_user_goal}, update_user_goal_frequency={args.update_user_goal_frequency}, instruction={args.instruction}, log_file_path={args.log_file_path}, debug={args.debug}")
+        logger.debug(f"Launching blueprint with config: {args.config}, auto_complete_task={args.auto_complete_task}, update_user_goal={args.update_user_goal}, update_user_goal_frequency={args.update_user_goal_frequency}, instruction={args.instruction}, log_file_path={log_file_path}, debug={args.debug}")
         config = load_server_config(args.config)
         blueprint = cls(
             config=config,
             auto_complete_task=args.auto_complete_task,
             update_user_goal=args.update_user_goal,
             update_user_goal_frequency=args.update_user_goal_frequency,
-            log_file_path=args.log_file_path,
+            log_file_path=log_file_path,
             debug=args.debug
         )
-        if args.instruction:
-            blueprint.non_interactive_mode(args.instruction)
-        else:
-            blueprint.interactive_mode()
+        try:
+            if args.instruction:
+                blueprint.non_interactive_mode(args.instruction)
+            else:
+                blueprint.interactive_mode()
+        finally:
+            # Ensure stderr is restored on exit (optional, for cleanup)
+            if not args.debug:
+                sys.stderr.close()
+                sys.stderr = sys.__stderr__
+                logger.debug("Restored stderr to console")
         logger.info("Blueprint execution completed")
 
 if __name__ == "__main__":

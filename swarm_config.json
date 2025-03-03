@@ -292,9 +292,6 @@
     "university": {
       "path": "/app/blueprints/university",
       "api": true
-    },
-    "echocraft": {
-      "path": "/app/blueprints/echocraft"
     }
   }
 }
