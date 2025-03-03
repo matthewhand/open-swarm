@@ -38,7 +38,7 @@ from .settings import DEBUG
 from .utils.redact import redact_sensitive_data
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+logger.setLevel(logging.DEBUG)  # Always debug for visibility
 if not logger.handlers:
     stream_handler = logging.StreamHandler()
     formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
@@ -85,54 +85,44 @@ def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
         content = message.get("content", "")
         if isinstance(content, str):
             total_tokens += len(encoding.encode(content))
-        # Only add structural tokens for real models, not dummy
         if model != "dummy-model":
-            total_tokens += 4  # Estimate for role and structure
-        if "tool_calls" in message:
+            total_tokens += 4
+        if "tool_calls" in message and message["tool_calls"] is not None:
             for tool_call in message["tool_calls"]:
                 total_tokens += len(encoding.encode(json.dumps(tool_call)))
     logger.debug(f"Total token count: {total_tokens}")
     return total_tokens
 
 def truncate_message_history(messages: List[Dict[str, Any]], model: str, max_tokens: Optional[int] = None, max_messages: Optional[int] = None) -> List[Dict[str, Any]]:
-    """
-    Truncate message history to fit within token and message limits.
-    Defaults to MAX_OUTPUT env var or 8000 for max_tokens, and 50 for max_messages if not provided.
-    Removes messages from the beginning until within limits.
-    """
     if not messages:
         logger.debug("No messages to truncate.")
         return messages
 
-    # Set defaults if arguments are not provided
     max_tokens = max_tokens if max_tokens is not None else int(os.getenv("MAX_OUTPUT", GLOBAL_DEFAULT_MAX_CONTEXT_TOKENS))
     max_messages = max_messages if max_messages is not None else 50
 
-    # Separate system messages
     system_messages = [msg for msg in messages if msg.get("role") == "system"]
     non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
 
     current_token_count = get_token_count(non_system_messages, model)
+    logger.debug(f"Initial check: {len(non_system_messages)} messages, {current_token_count} tokens vs max {max_tokens}, {max_messages}")
     if len(non_system_messages) <= max_messages and current_token_count <= max_tokens:
-        logger.debug(f"Message history within limits: {len(non_system_messages)} messages, {current_token_count} tokens")
+        logger.debug("Message history within limits—no truncation needed.")
         return system_messages + non_system_messages
 
-    # Truncate non-system messages from the beginning
     truncated = non_system_messages[:]
-    while len(truncated) > 0 and (get_token_count(truncated, model) > max_tokens or len(truncated) > max_messages):
+    while len(truncated) > max_messages or get_token_count(truncated, model) > max_tokens:
+        if len(truncated) == 0:
+            break
+        truncated.pop(0)  # Remove oldest until within both limits
         token_count = get_token_count(truncated, model)
-        if token_count > max_tokens:
-            truncated.pop(0)
-        elif len(truncated) > max_messages:
-            truncated = truncated[-max_messages:]
-        # Recheck conditions after each removal
-        token_count = get_token_count(truncated, model)
+        logger.debug(f"Truncated to {len(truncated)} messages, {token_count} tokens")
         if token_count <= max_tokens and len(truncated) <= max_messages:
             break
 
     final_messages = system_messages + truncated
     final_token_count = get_token_count(final_messages, model)
-    logger.debug(f"Truncated to {len(final_messages)} messages with {final_token_count} tokens")
+    logger.debug(f"Final truncated to {len(final_messages)} messages with {final_token_count} tokens")
     return final_messages
 
 class ChatMessage(SimpleNamespace):
@@ -172,12 +162,19 @@ class Swarm:
 
         try:
             self.current_llm_config = load_llm_config(self.config, self.model)
+            if os.getenv("OPENAI_API_KEY"):
+                self.current_llm_config["api_key"] = os.getenv("OPENAI_API_KEY")
+                logger.debug(f"Overriding API key from OPENAI_API_KEY env var: {redact_sensitive_data(self.current_llm_config['api_key'])}")
         except ValueError:
             logger.warning(f"LLM config for '{self.model}' not found. Using 'default'.")
             self.current_llm_config = load_llm_config(self.config, "default")
+            if os.getenv("OPENAI_API_KEY"):
+                self.current_llm_config["api_key"] = os.getenv("OPENAI_API_KEY")
+                logger.debug(f"Overriding default API key from OPENAI_API_KEY env var: {redact_sensitive_data(self.current_llm_config['api_key'])}")
 
         if not self.current_llm_config.get("api_key") and not os.getenv("SUPPRESS_DUMMY_KEY"):
             self.current_llm_config["api_key"] = "sk-DUMMYKEY"
+            logger.debug("No API key found—using dummy key")
 
         client_kwargs = {
             "api_key": self.current_llm_config.get("api_key"),
@@ -217,9 +214,12 @@ class Swarm:
                 logger.error(f"Failed to register function '{action_name}': {e}")
 
     async def discover_and_merge_agent_tools(self, agent: Agent, debug: bool = False) -> List[AgentFunction]:
+        logger.debug(f"Discovering tools for agent '{agent.name}'")
         if not agent.mcp_servers:
             logger.debug(f"Agent '{agent.name}' has no assigned MCP servers.")
-            return agent.functions or []
+            funcs = agent.functions or []
+            logger.debug(f"Returning static functions: {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in funcs]}")
+            return funcs
 
         discovered_tools = []
         for server_name in agent.mcp_servers:
@@ -261,24 +261,15 @@ class Swarm:
     ) -> ChatCompletionMessage:
         logger.debug(f"Entering get_chat_completion for agent '{agent.name}'")
         
-        new_llm_config = self.config.get("llm", {}).get(agent.model or "default", {})
-        if not new_llm_config:
-            logger.warning(f"LLM config for '{agent.model}' not found. Using 'default'.")
-            new_llm_config = self.config.get("llm", {}).get("default", {})
-
-        if not new_llm_config.get("api_key") and not os.getenv("SUPPRESS_DUMMY_KEY"):
-            new_llm_config["api_key"] = "sk-DUMMYKEY"
-
-        active_model = model_override or new_llm_config.get("model", self.model)
-        old_config = self.current_llm_config or {}
-        if (not old_config or
-            old_config.get("base_url") != new_llm_config.get("base_url") or
-            old_config.get("api_key") != new_llm_config.get("api_key")):
-            client_kwargs = {k: v for k, v in {"api_key": new_llm_config.get("api_key"), "base_url": new_llm_config.get("base_url")}.items() if v}
-            redacted_kwargs = redact_sensitive_data(client_kwargs, sensitive_keys=["api_key"])
-            logger.debug(f"Reinitializing AsyncOpenAI client: {redacted_kwargs}")
-            self.client = AsyncOpenAI(**client_kwargs)
-        self.current_llm_config = new_llm_config.copy()
+        active_model = model_override or self.current_llm_config.get("model", self.model)
+        # Use the initialized API key instead of re-fetching config
+        client_kwargs = {
+            "api_key": self.current_llm_config.get("api_key"),
+            "base_url": self.current_llm_config.get("base_url")
+        }
+        client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+        redacted_kwargs = redact_sensitive_data(client_kwargs, sensitive_keys=["api_key"])
+        logger.debug(f"Using AsyncOpenAI client with kwargs: {redacted_kwargs}")
 
         context_variables = defaultdict(str, context_variables)
         instructions = agent.instructions(context_variables) if callable(agent.instructions) else agent.instructions
@@ -294,13 +285,15 @@ class Swarm:
         messages = truncate_message_history(messages, active_model, self.max_context_tokens, self.max_context_messages)
 
         tools = [function_to_json(f, truncate_desc=True) for f in agent.functions]
+        logger.debug(f"Raw tools list for '{agent.name}': {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in agent.functions]}")
+        logger.debug(f"Serialized tools for LLM: {json.dumps(tools, default=str)}")
         logger.debug(f"Tools provided to LLM for '{agent.name}': {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in agent.functions]}")
 
         create_params = {
             "model": active_model,
             "messages": messages,
             "stream": stream,
-            "temperature": new_llm_config.get("temperature", self.temperature),
+            "temperature": self.current_llm_config.get("temperature", self.temperature),
         }
         if tools:
             create_params["tools"] = tools
@@ -310,8 +303,7 @@ class Swarm:
 
         create_params = {k: v for k, v in create_params.items() if v is not None}
 
-        if debug:
-            logger.debug(f"[DEBUG] Chat completion payload: {json.dumps(create_params, indent=2, default=serialize_datetime)}")
+        logger.debug(f"Chat completion payload: {json.dumps(create_params, indent=2, default=serialize_datetime)}")
 
         try:
             if agent.nemo_guardrails_instance and messages[-1].get('content'):
@@ -382,7 +374,6 @@ class Swarm:
                 args[__CTX_VARS_NAME__] = context_variables
 
             try:
-                # Always await to handle both sync and async functions safely
                 raw_result = func(**args)
                 if inspect.isawaitable(raw_result):
                     logger.debug(f"Awaiting result for tool '{name}'")
@@ -427,7 +418,7 @@ class Swarm:
         init_len = len(messages)
 
         context_variables["active_agent_name"] = active_agent.name
-        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
+        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=True)
 
         turn = 0
         while turn < max_turns:
@@ -436,7 +427,7 @@ class Swarm:
 
             completion = await self.get_chat_completion(
                 agent=active_agent, history=history, context_variables=context_variables,
-                model_override=model_override, stream=True, debug=debug
+                model_override=model_override, stream=True, debug=True
             )
 
             yield {"delim": "start"}
@@ -451,19 +442,19 @@ class Swarm:
 
             if message.tool_calls and execute_tools:
                 tool_calls = [ChatCompletionMessageToolCall(id=tc["id"], function=Function(**tc["function"]), type=tc["type"]) for tc in message.tool_calls]
-                partial_response = await self.handle_tool_calls(tool_calls, active_agent.functions, context_variables, debug)
+                partial_response = await self.handle_tool_calls(tool_calls, active_agent.functions, context_variables, debug=True)
                 history.extend(partial_response.messages)
                 context_variables.update(partial_response.context_variables)
 
                 if partial_response.agent:
                     active_agent = partial_response.agent
-                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
+                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=True)
                     logger.debug(f"Agent handoff to '{active_agent.name}' detected. Continuing with new agent.")
                 
                 logger.debug(f"Generating LLM response after tool calls for '{active_agent.name}'")
                 completion = await self.get_chat_completion(
                     agent=active_agent, history=history, context_variables=context_variables,
-                    model_override=model_override, stream=True, debug=debug
+                    model_override=model_override, stream=True, debug=True
                 )
                 message = ChatMessage(sender=active_agent.name)
                 yield {"delim": "start"}
@@ -498,7 +489,7 @@ class Swarm:
         if stream:
             return self.run_and_stream(
                 agent=agent, messages=messages, context_variables=context_variables,
-                model_override=model_override, debug=debug, max_turns=max_turns, execute_tools=execute_tools
+                model_override=model_override, debug=True, max_turns=max_turns, execute_tools=execute_tools
             )
 
         active_agent = agent
@@ -507,31 +498,32 @@ class Swarm:
         init_len = len(messages)
 
         context_variables["active_agent_name"] = active_agent.name
-        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
+        logger.debug(f"Initial agent functions before merge: {[getattr(f, 'name', getattr(f, '__name__', 'unnamed')) for f in (active_agent.functions or [])]}")
+        active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=True)
 
         turn = 0
         while turn < max_turns:
             turn += 1
             message = await self.get_chat_completion_message(
                 agent=active_agent, history=history, context_variables=context_variables,
-                model_override=model_override, stream=False, debug=debug
+                model_override=model_override, stream=False, debug=True
             )
             message.sender = active_agent.name
             history.append(json.loads(message.model_dump_json()))
 
             if message.tool_calls and execute_tools:
-                partial_response = await self.handle_tool_calls(message.tool_calls, active_agent.functions, context_variables, debug)
+                partial_response = await self.handle_tool_calls(message.tool_calls, active_agent.functions, context_variables, debug=True)
                 history.extend(partial_response.messages)
                 context_variables.update(partial_response.context_variables)
                 if partial_response.agent:
                     active_agent = partial_response.agent
-                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=debug)
+                    active_agent.functions = await self.discover_and_merge_agent_tools(active_agent, debug=True)
                     logger.debug(f"Agent handoff to '{active_agent.name}' detected. Continuing with new agent.")
                 
                 logger.debug(f"Generating LLM response after tool calls for '{active_agent.name}'")
                 message = await self.get_chat_completion_message(
                     agent=active_agent, history=history, context_variables=context_variables,
-                    model_override=model_override, stream=False, debug=debug
+                    model_override=model_override, stream=False, debug=True
                 )
                 message.sender = active_agent.name
                 history.append(json.loads(message.model_dump_json()))
