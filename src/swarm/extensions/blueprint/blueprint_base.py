@@ -123,12 +123,19 @@ class BlueprintBase(ABC):
                 self.local_settings = None
 
             if hasattr(self, "local_settings") and self.local_settings and hasattr(self.local_settings, "INSTALLED_APPS"):
-                from django.conf import settings as django_settings
-                blueprint_apps = getattr(self.local_settings, "INSTALLED_APPS")
-                for app in blueprint_apps:
-                    if app not in django_settings.INSTALLED_APPS:
-                        django_settings.INSTALLED_APPS.append(app)
-                logger.debug("Merged blueprint local settings INSTALLED_APPS into Django settings.")
+                try:
+                    from django.apps import apps
+                    if not apps.ready:
+                        logger.debug("Django apps are not ready; skipping merging INSTALLED_APPS.")
+                    else:
+                        from django.conf import settings as django_settings
+                        blueprint_apps = getattr(self.local_settings, "INSTALLED_APPS")
+                        for app in blueprint_apps:
+                            if app not in django_settings.INSTALLED_APPS:
+                                django_settings.INSTALLED_APPS.append(app)
+                        logger.debug("Merged blueprint local settings INSTALLED_APPS into Django settings.")
+                except Exception as e:
+                    logger.error(f"Error merging INSTALLED_APPS: {e}")
 
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
@@ -163,7 +170,14 @@ class BlueprintBase(ABC):
 
         # Discover tools for starting agent after it’s set and context_variables exists
         if self.starting_agent:
-            asyncio.run(self._discover_tools_for_agent(self.starting_agent))
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop and loop.is_running():
+                asyncio.create_task(self._discover_tools_for_agent(self.starting_agent))
+            else:
+                asyncio.run(self._discover_tools_for_agent(self.starting_agent))
             logger.debug(f"Completed proactive MCP tool discovery for starting agent: {self.starting_agent.name}")
         else:
             logger.debug("No starting agent set initially; subclass may set it later.")
@@ -204,7 +218,14 @@ class BlueprintBase(ABC):
         self.context_variables["active_agent_name"] = agent.name
         # Discover tools if not already cached
         if agent.name not in self._discovered_tools:
-            asyncio.run(self._discover_tools_for_agent(agent))
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop and loop.is_running():
+                asyncio.create_task(self._discover_tools_for_agent(agent))
+            else:
+                asyncio.run(self._discover_tools_for_agent(agent))
 
     async def determine_active_agent(self) -> Any:
         active_agent_name = self.context_variables.get("active_agent_name")

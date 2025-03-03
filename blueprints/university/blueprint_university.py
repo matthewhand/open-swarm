@@ -20,14 +20,14 @@ if not logger.handlers:
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-# Initialize Django only if not already configured
-if __name__ == "__main__" and not os.environ.get('DJANGO_SETTINGS_MODULE'):
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-    try:
-        import django
+try:
+    import django
+    from django.apps import apps
+    if not os.environ.get('DJANGO_SETTINGS_MODULE') or not apps.ready:
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
         django.setup()
-    except Exception as e:
-        logger.warning(f"Django setup failed: {e}. Proceeding without Django context.")
+except Exception as e:
+    logger.warning(f"Django setup failed: {e}. Proceeding without Django context.")
 
 from swarm.types import Agent
 from swarm.extensions.blueprint.blueprint_base import BlueprintBase as Blueprint
@@ -39,9 +39,19 @@ from blueprints.university.model_queries import (
 
 try:
     from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
-except ImportError:
-    logger.warning("Django models unavailable—running without database access.")
-    Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
+except Exception as e:
+    from django.core.exceptions import AppRegistryNotReady
+    if isinstance(e, AppRegistryNotReady):
+        import django
+        django.setup()
+        try:
+            from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
+        except Exception as e2:
+            logger.warning("Django models unavailable after setup—running without database access.")
+            Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
+    else:
+        logger.warning("Django models unavailable—running without database access.")
+        Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
 
 class UniversitySupportBlueprint(Blueprint):
     @property
