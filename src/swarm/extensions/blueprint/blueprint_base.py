@@ -112,7 +112,8 @@ class BlueprintBase(ABC):
         logger.debug("Environment variables loaded from .env.")
 
         self.config = config
-        self.skip_django_registration = skip_django_registration
+        self.skip_django_registration = skip_django_registration or not os.environ.get("DJANGO_SETTINGS_MODULE")
+        self._urls_registered = False
 
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
@@ -161,14 +162,14 @@ class BlueprintBase(ABC):
         else:
             logger.debug("No starting agent set initially; subclass may set it later.")
 
-        # Defer URL and settings registration to Django’s app ready signal
+        # Defer Django registration to ensure proper initialization
         if not self.skip_django_registration:
             self.register_django_components()
 
     def register_django_components(self):
         """Register Django components (settings, URLs) after app initialization."""
         if not apps.ready:
-            logger.debug("Django apps not ready yet; deferring registration.")
+            logger.debug("Django apps not ready yet; registration will occur via apps.py.")
             return
 
         try:
@@ -838,6 +839,7 @@ class BlueprintBase(ABC):
         self._register_module("views_module", "views")
 
     def register_blueprint_urls(self) -> None:
+        """Register blueprint URLs after ensuring Django is fully initialized."""
         if self.skip_django_registration:
             logger.debug("Skipping URL registration due to CLI mode.")
             return
@@ -857,10 +859,15 @@ class BlueprintBase(ABC):
         try:
             from django.urls import include, path
             from importlib import import_module
-            core_urls = import_module("swarm.urls")
 
+            # Wait for Django to be fully ready
+            while not apps.ready:
+                logger.debug("Waiting for Django apps to be ready before registering URLs...")
+                time.sleep(0.1)
+
+            core_urls = import_module("swarm.urls")
             if not hasattr(core_urls, "urlpatterns"):
-                logger.warning("swarm.urls has no urlpatterns yet; skipping URL registration until fully initialized.")
+                logger.error("swarm.urls has no urlpatterns attribute after Django boot.")
                 return
 
             m = import_module(module_path)
@@ -873,6 +880,7 @@ class BlueprintBase(ABC):
 
             app_name = self.metadata.get("cli_name", "blueprint")
 
+            # Check for duplicates
             for pattern in core_urls.urlpatterns:
                 if hasattr(pattern, 'url_patterns') and str(pattern.pattern) == url_prefix:
                     logger.debug(f"URL prefix '{url_prefix}' already registered in core URLs.")
