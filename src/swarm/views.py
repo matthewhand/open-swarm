@@ -50,7 +50,7 @@ from swarm.utils.redact import redact_sensitive_data
 from swarm.utils.general_utils import extract_chat_id
 from swarm.extensions.blueprint.blueprint_utils import filter_blueprints
 
-from .settings import DJANGO_DATABASE
+from .settings import DJANGO_DATABASE, BLUEPRINTS_DIR  # Add BLUEPRINTS_DIR
 from .models import ChatMessage
 from .serializers import ChatMessageSerializer
 
@@ -441,32 +441,20 @@ def chat_completions(request):
             }
         }
     },
-    summary="Lists discovered blueprint folders as models."
+    summary="Lists LLMs, config-defined blueprints, and discovered blueprints as models."
 )
 @csrf_exempt
 @api_view(["GET"])
 @permission_classes([AllowAny])
 @authentication_classes([])
 def list_models(request):
-    """List available blueprints as models in an OpenAI-compatible format."""
+    """List available LLMs, config-defined blueprints, and discovered blueprints in an OpenAI-compatible format."""
     if request.method != "GET":
         return JsonResponse({"error": "Method not allowed. Use GET."}, status=405)
     try:
         global blueprints_metadata, config
-        allowed = os.getenv("SWARM_BLUEPRINTS")
-        if allowed and allowed.strip():
-            blueprints_metadata_local = filter_blueprints(blueprints_metadata, allowed)
-        else:
-            blueprints_metadata_local = blueprints_metadata
-        data = [
-            {
-                "id": key,
-                "object": "model",
-                "title": meta.get("title", "No title"),
-                "description": meta.get("description", "No description"),
-            }
-            for key, meta in blueprints_metadata_local.items()
-        ]
+        
+        # LLMs from config
         llm_config = config.get("llm", {})
         llm_data = [
             {
@@ -477,7 +465,43 @@ def list_models(request):
             }
             for key, conf in llm_config.items() if conf.get("passthrough")
         ]
-        data.extend(llm_data)
+        
+        # Blueprints from swarm_config.json
+        config_blueprints = config.get("blueprints", {})
+        config_bp_data = [
+            {
+                "id": key,
+                "object": "blueprint",
+                "title": bp.get("title", key),
+                "description": bp.get("description", f"Blueprint {key} from swarm_config.json")
+            }
+            for key, bp in config_blueprints.items()
+        ]
+        
+        # Discovered blueprints from blueprints/
+        allowed = os.getenv("SWARM_BLUEPRINTS")
+        if allowed and allowed.strip():
+            blueprints_metadata_local = filter_blueprints(blueprints_metadata, allowed)
+        else:
+            blueprints_metadata_local = discover_blueprints([BLUEPRINTS_DIR])  # Dynamic discovery
+        discovered_bp_data = [
+            {
+                "id": key,
+                "object": "blueprint",
+                "title": meta.get("title", key),
+                "description": meta.get("description", f"Discovered blueprint {key}")
+            }
+            for key, meta in blueprints_metadata_local.items()
+        ]
+        
+        # Merge all, config blueprints override discovered if ID clashes
+        data = llm_data + config_bp_data
+        seen_ids = {m["id"] for m in data}
+        for bp in discovered_bp_data:
+            if bp["id"] not in seen_ids:
+                data.append(bp)
+                seen_ids.add(bp["id"])
+        
         logger.debug(f"Returning models: {data}")
         return JsonResponse({"object": "list", "data": data}, status=200)
     except Exception as e:
