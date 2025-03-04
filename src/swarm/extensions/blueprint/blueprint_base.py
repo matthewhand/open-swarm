@@ -25,6 +25,9 @@ try:
 except ImportError:
     LLMRails, RailsConfig = None, None
 
+from django.apps import apps
+from django.core.signals import setting_changed
+from django.dispatch import receiver
 from swarm.core import Swarm
 from swarm.extensions.config.config_loader import load_server_config
 from swarm.settings import DEBUG
@@ -34,9 +37,8 @@ import argparse
 
 logger = logging.getLogger(__name__)
 
-# Dummy get_token_count function (replace with actual implementation)
 def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
-    """Placeholder for token counting logic—replace with your actual implementation."""
+    """Placeholder for token counting logic—replace with actual implementation."""
     return sum(len(msg.get("content", "")) // 4 for msg in messages)  # Rough estimate: 4 chars ≈ 1 token
 
 class Spinner:
@@ -101,7 +103,6 @@ class BlueprintBase(ABC):
         if not hasattr(self, 'metadata') or not isinstance(self.metadata, dict):
             raise AssertionError("Blueprint metadata must be defined and must be a dictionary.")
 
-        # Truncation settings from metadata or defaults
         self.truncation_mode = self.metadata.get("truncation_mode", "preserve_pairs")
         self.max_context_tokens = self.metadata.get("max_context_tokens", 8000)
         self.max_context_messages = self.metadata.get("max_context_messages", 50)
@@ -112,41 +113,6 @@ class BlueprintBase(ABC):
 
         self.config = config
         self.skip_django_registration = skip_django_registration
-
-        if not skip_django_registration:
-            try:
-                module_spec = importlib.util.find_spec(self.__class__.__module__)
-                if module_spec and module_spec.origin:
-                    blueprint_dir = os.path.dirname(module_spec.origin)
-                    local_settings_path = os.path.join(blueprint_dir, "settings.py")
-                    if os.path.isfile(local_settings_path):
-                        spec_local = importlib.util.spec_from_file_location(f"{self.__class__.__name__}.local_settings", local_settings_path)
-                        local_settings = importlib.util.module_from_spec(spec_local)
-                        spec_local.loader.exec_module(local_settings)
-                        self.local_settings = local_settings
-                        logger.debug(f"Loaded local settings from {local_settings_path}")
-                    else:
-                        self.local_settings = None
-                else:
-                    self.local_settings = None
-            except Exception as e:
-                logger.error(f"Failed to load local settings: {e}")
-                self.local_settings = None
-
-            if hasattr(self, "local_settings") and self.local_settings and hasattr(self.local_settings, "INSTALLED_APPS"):
-                try:
-                    from django.apps import apps
-                    if not apps.ready:
-                        logger.debug("Django apps are not ready; skipping merging INSTALLED_APPS.")
-                    else:
-                        from django.conf import settings as django_settings
-                        blueprint_apps = getattr(self.local_settings, "INSTALLED_APPS")
-                        for app in blueprint_apps:
-                            if app not in django_settings.INSTALLED_APPS:
-                                django_settings.INSTALLED_APPS.append(app)
-                        logger.debug("Merged blueprint local settings INSTALLED_APPS into Django settings.")
-                except Exception as e:
-                    logger.error(f"Error merging INSTALLED_APPS: {e}")
 
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
@@ -195,6 +161,54 @@ class BlueprintBase(ABC):
         else:
             logger.debug("No starting agent set initially; subclass may set it later.")
 
+        # Defer URL and settings registration to Django’s app ready signal
+        if not self.skip_django_registration:
+            self.register_django_components()
+
+    def register_django_components(self):
+        """Register Django components (settings, URLs) after app initialization."""
+        if not apps.ready:
+            logger.debug("Django apps not ready yet; deferring registration.")
+            return
+
+        try:
+            module_spec = importlib.util.find_spec(self.__class__.__module__)
+            if module_spec and module_spec.origin:
+                blueprint_dir = os.path.dirname(module_spec.origin)
+                local_settings_path = os.path.join(blueprint_dir, "settings.py")
+                if os.path.isfile(local_settings_path):
+                    spec_local = importlib.util.spec_from_file_location(f"{self.__class__.__name__}.local_settings", local_settings_path)
+                    local_settings = importlib.util.module_from_spec(spec_local)
+                    spec_local.loader.exec_module(local_settings)
+                    self.local_settings = local_settings
+                    logger.debug(f"Loaded local settings from {local_settings_path}")
+                else:
+                    self.local_settings = None
+            else:
+                self.local_settings = None
+        except Exception as e:
+            logger.error(f"Failed to load local settings: {e}")
+            self.local_settings = None
+
+        if hasattr(self, "local_settings") and self.local_settings and hasattr(self.local_settings, "INSTALLED_APPS"):
+            try:
+                from django.conf import settings as django_settings
+                blueprint_apps = getattr(self.local_settings, "INSTALLED_APPS")
+                for app in blueprint_apps:
+                    if app not in django_settings.INSTALLED_APPS:
+                        django_settings.INSTALLED_APPS.append(app)
+                logger.debug("Merged blueprint local settings INSTALLED_APPS into Django settings.")
+            except Exception as e:
+                logger.error(f"Error merging INSTALLED_APPS: {e}")
+
+        self.register_blueprint_urls()
+
+    @receiver(setting_changed)
+    def on_settings_changed(self, **kwargs):
+        """Re-register components if settings change."""
+        if not self.skip_django_registration:
+            self.register_django_components()
+
     def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
         """
         Truncate message history based on the configured mode, ensuring tool responses are not orphaned.
@@ -214,9 +228,6 @@ class BlueprintBase(ABC):
             return self._truncate_preserve_pairs(messages, model)
 
     def _truncate_preserve_pairs(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """
-        Truncate message history to fit within token and message limits, preserving assistant-tool message pairs.
-        """
         system_messages = [msg for msg in messages if msg.get("role") == "system"]
         non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
 
@@ -847,6 +858,10 @@ class BlueprintBase(ABC):
             from django.urls import include, path
             from importlib import import_module
             core_urls = import_module("swarm.urls")
+
+            if not hasattr(core_urls, "urlpatterns"):
+                logger.warning("swarm.urls has no urlpatterns yet; skipping URL registration until fully initialized.")
+                return
 
             m = import_module(module_path)
             if not hasattr(m, "urlpatterns"):
