@@ -190,3 +190,4 @@ openapi.yaml
 
 *.db
 *.db-shm
+logs/*

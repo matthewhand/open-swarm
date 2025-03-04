@@ -24,6 +24,7 @@ async def test_run_with_context():
     class FakeSwarm:
         def __init__(self, agent):
             self.agents = {agent.name: agent}
+            self.current_llm_config = {"model": "default"}
         async def run(self, agent, messages, context_variables, stream, debug):
             return FakeResponse(messages + [{"role": "assistant", "content": "Test Completed", "sender": agent.name}], agent)
 

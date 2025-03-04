@@ -1,10 +1,10 @@
-# src/swarm/extensions/blueprint/blueprint_base.py
 """
 Swarm Blueprint Base Module (Sync Interactive Mode)
 
 This module defines the foundational `BlueprintBase` abstract class with a synchronous interactive_mode(),
 retaining advanced features from the latest async version. It manages agents, tools, resources, and conversational
-context with lazy discovery, task auto-completion, and dynamic goal updates.
+context with lazy discovery, task auto-completion, dynamic goal updates, and configurable message truncation that
+preserves assistant-tool message pairs.
 """
 
 import asyncio
@@ -33,6 +33,11 @@ from dotenv import load_dotenv
 import argparse
 
 logger = logging.getLogger(__name__)
+
+# Dummy get_token_count function (replace with actual implementation)
+def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
+    """Placeholder for token counting logic—replace with your actual implementation."""
+    return sum(len(msg.get("content", "")) // 4 for msg in messages)  # Rough estimate: 4 chars ≈ 1 token
 
 class Spinner:
     SPINNER_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -95,6 +100,12 @@ class BlueprintBase(ABC):
         logger.debug(f"Initializing BlueprintBase with config: {redact_sensitive_data(config)}")
         if not hasattr(self, 'metadata') or not isinstance(self.metadata, dict):
             raise AssertionError("Blueprint metadata must be defined and must be a dictionary.")
+
+        # Truncation settings from metadata or defaults
+        self.truncation_mode = self.metadata.get("truncation_mode", "preserve_pairs")
+        self.max_context_tokens = self.metadata.get("max_context_tokens", 8000)
+        self.max_context_messages = self.metadata.get("max_context_messages", 50)
+        logger.debug(f"Truncation settings: mode={self.truncation_mode}, max_tokens={self.max_context_tokens}, max_messages={self.max_context_messages}")
 
         load_dotenv()
         logger.debug("Environment variables loaded from .env.")
@@ -184,6 +195,220 @@ class BlueprintBase(ABC):
         else:
             logger.debug("No starting agent set initially; subclass may set it later.")
 
+    def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+        """
+        Truncate message history based on the configured mode, ensuring tool responses are not orphaned.
+        """
+        if not messages:
+            logger.debug("No messages to truncate.")
+            return messages
+
+        if self.truncation_mode == "preserve_pairs":
+            return self._truncate_preserve_pairs(messages, model)
+        elif self.truncation_mode == "strict_token_limit":
+            return self._truncate_strict_token(messages, model)
+        elif self.truncation_mode == "recent_only":
+            return self._truncate_recent_only(messages, model)
+        else:
+            logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; falling back to 'preserve_pairs'")
+            return self._truncate_preserve_pairs(messages, model)
+
+    def _truncate_preserve_pairs(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+        """
+        Truncate message history to fit within token and message limits, preserving assistant-tool message pairs.
+        """
+        system_messages = [msg for msg in messages if msg.get("role") == "system"]
+        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+
+        current_token_count = get_token_count(non_system_messages, model)
+        if len(non_system_messages) <= self.max_context_messages and current_token_count <= self.max_context_tokens:
+            logger.debug(f"Message history within limits: {len(non_system_messages)} messages, {current_token_count} tokens")
+            return system_messages + non_system_messages
+
+        message_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_messages]
+        total_tokens = sum(tokens for _, tokens in message_tokens)
+        truncated = []
+        i = len(message_tokens) - 1
+
+        while i >= 0 and (len(truncated) < self.max_context_messages and total_tokens <= self.max_context_tokens):
+            msg, tokens = message_tokens[i]
+            if msg.get("role") == "tool":
+                tool_call_id = msg.get("tool_call_id")
+                assistant_idx = i - 1
+                assistant_found = False
+                while assistant_idx >= 0:
+                    prev_msg, prev_tokens = message_tokens[assistant_idx]
+                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                        for tc in prev_msg["tool_calls"]:
+                            if tc["id"] == tool_call_id:
+                                if total_tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
+                                    truncated.insert(0, prev_msg)
+                                    truncated.insert(1, msg)
+                                    total_tokens += tokens + prev_tokens
+                                assistant_found = True
+                                break
+                    if assistant_found:
+                        break
+                    assistant_idx -= 1
+                if not assistant_found:
+                    logger.debug(f"Skipping orphaned tool message with tool_call_id '{tool_call_id}'")
+            elif msg.get("role") == "assistant" and "tool_calls" in msg:
+                tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+                tool_msgs = []
+                j = i + 1
+                while j < len(message_tokens):
+                    next_msg, next_tokens = message_tokens[j]
+                    if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
+                        tool_msgs.append((next_msg, next_tokens))
+                        tool_call_ids.remove(next_msg["tool_call_id"])
+                    else:
+                        break
+                    j += 1
+                pair_tokens = tokens + sum(t for _, t in tool_msgs)
+                pair_len = 1 + len(tool_msgs)
+                if total_tokens + pair_tokens <= self.max_context_tokens and len(truncated) + pair_len <= self.max_context_messages:
+                    truncated.insert(0, msg)
+                    for tool_msg, _ in tool_msgs:
+                        truncated.insert(1, tool_msg)
+                    total_tokens += pair_tokens
+                else:
+                    logger.debug(f"Skipping assistant-tool pair due to token/message limits")
+            else:
+                if total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
+                    truncated.insert(0, msg)
+                    total_tokens += tokens
+            i -= 1
+
+        final_messages = system_messages + truncated
+        logger.debug(f"Truncated to {len(final_messages)} messages with {total_tokens} tokens using preserve_pairs")
+        return final_messages
+
+    def _truncate_strict_token(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+        """
+        Truncate message history based on token limit, ensuring no orphaned tool messages.
+        """
+        system_messages = [msg for msg in messages if msg.get("role") == "system"]
+        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+
+        message_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_messages]
+        total_tokens = 0
+        truncated = []
+        i = len(message_tokens) - 1
+
+        while i >= 0 and len(truncated) < self.max_context_messages:
+            msg, tokens = message_tokens[i]
+            if msg.get("role") == "tool":
+                tool_call_id = msg.get("tool_call_id")
+                assistant_idx = i - 1
+                assistant_found = False
+                while assistant_idx >= 0:
+                    prev_msg, prev_tokens = message_tokens[assistant_idx]
+                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                        for tc in prev_msg["tool_calls"]:
+                            if tc["id"] == tool_call_id:
+                                if total_tokens + tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
+                                    truncated.insert(0, prev_msg)
+                                    truncated.insert(1, msg)
+                                    total_tokens += tokens + prev_tokens
+                                assistant_found = True
+                                break
+                    if assistant_found:
+                        break
+                    assistant_idx -= 1
+                if not assistant_found:
+                    logger.debug(f"Skipping orphaned tool message with tool_call_id '{tool_call_id}' in strict_token_limit")
+            elif msg.get("role") == "assistant" and "tool_calls" in msg:
+                tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+                tool_msgs = []
+                j = i + 1
+                while j < len(message_tokens):
+                    next_msg, next_tokens = message_tokens[j]
+                    if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
+                        tool_msgs.append((next_msg, next_tokens))
+                        tool_call_ids.remove(next_msg["tool_call_id"])
+                    else:
+                        break
+                    j += 1
+                pair_tokens = tokens + sum(t for _, t in tool_msgs)
+                pair_len = 1 + len(tool_msgs)
+                if total_tokens + pair_tokens <= self.max_context_tokens and len(truncated) + pair_len <= self.max_context_messages:
+                    truncated.insert(0, msg)
+                    for tool_msg, _ in tool_msgs:
+                        truncated.insert(1, tool_msg)
+                    total_tokens += pair_tokens
+                else:
+                    logger.debug(f"Skipping assistant-tool pair due to token limits in strict_token_limit")
+            else:
+                if total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
+                    truncated.insert(0, msg)
+                    total_tokens += tokens
+            i -= 1
+
+        final_messages = system_messages + truncated
+        logger.debug(f"Truncated to {len(final_messages)} messages with {total_tokens} tokens using strict_token_limit")
+        return final_messages
+
+    def _truncate_recent_only(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+        """
+        Keep recent messages up to the limit, ensuring no orphaned tool messages.
+        """
+        system_messages = [msg for msg in messages if msg.get("role") == "system"]
+        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+
+        message_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_messages]
+        truncated = []
+        i = len(message_tokens) - 1
+
+        while i >= 0 and len(truncated) < self.max_context_messages:
+            msg, tokens = message_tokens[i]
+            if msg.get("role") == "tool":
+                tool_call_id = msg.get("tool_call_id")
+                assistant_idx = i - 1
+                assistant_found = False
+                while assistant_idx >= 0:
+                    prev_msg, prev_tokens = message_tokens[assistant_idx]
+                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                        for tc in prev_msg["tool_calls"]:
+                            if tc["id"] == tool_call_id:
+                                if len(truncated) + 2 <= self.max_context_messages:
+                                    truncated.insert(0, prev_msg)
+                                    truncated.insert(1, msg)
+                                assistant_found = True
+                                break
+                    if assistant_found:
+                        break
+                    assistant_idx -= 1
+                if not assistant_found:
+                    logger.debug(f"Skipping orphaned tool message with tool_call_id '{tool_call_id}' in recent_only")
+            elif msg.get("role") == "assistant" and "tool_calls" in msg:
+                tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+                tool_msgs = []
+                j = i + 1
+                while j < len(message_tokens):
+                    next_msg, next_tokens = message_tokens[j]
+                    if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
+                        tool_msgs.append((next_msg, next_tokens))
+                        tool_call_ids.remove(next_msg["tool_call_id"])
+                    else:
+                        break
+                    j += 1
+                pair_len = 1 + len(tool_msgs)
+                if len(truncated) + pair_len <= self.max_context_messages:
+                    truncated.insert(0, msg)
+                    for tool_msg, _ in tool_msgs:
+                        truncated.insert(1, tool_msg)
+                else:
+                    logger.debug(f"Skipping assistant-tool pair due to message limit in recent_only")
+            else:
+                if len(truncated) < self.max_context_messages:
+                    truncated.insert(0, msg)
+            i -= 1
+
+        final_messages = system_messages + truncated
+        total_tokens = get_token_count(final_messages, model)
+        logger.debug(f"Truncated to {len(final_messages)} messages with {total_tokens} tokens using recent_only")
+        return final_messages
+
     def _is_create_agents_overridden(self) -> bool:
         base_method = BlueprintBase.create_agents
         subclass_method = self.__class__.create_agents
@@ -219,7 +444,6 @@ class BlueprintBase(ABC):
             self.spinner.start(f"Discovering MCP resources for {agent.name}")
             try:
                 resources = await self.swarm.discover_and_merge_agent_resources(agent)
-                # Assuming resources are dicts with a 'name' field; adjust validation as needed
                 valid_resources = [res for res in resources if isinstance(res, dict) and 'name' in res]
                 agent.resources = (agent.resources or []) + valid_resources
                 self._discovered_resources[agent.name] = valid_resources
@@ -281,6 +505,10 @@ class BlueprintBase(ABC):
         self.context_variables.update(context_variables)
         logger.debug(f"Context variables before execution: {self.context_variables}")
 
+        active_agent = await self.determine_active_agent()
+        model = self.swarm.current_llm_config.get("model", "default") if active_agent else "default"
+        truncated_messages = self.truncate_message_history(messages, model)
+
         if not self.swarm.agents:
             logger.debug("No agents defined; returning default response.")
             return {
@@ -288,7 +516,6 @@ class BlueprintBase(ABC):
                 "context_variables": self.context_variables
             }
 
-        active_agent = await self.determine_active_agent()
         if not active_agent:
             logger.debug("No active agent available; returning default response.")
             return {
@@ -303,7 +530,7 @@ class BlueprintBase(ABC):
             try:
                 response = await self.swarm.run(
                     agent=active_agent,
-                    messages=messages,
+                    messages=truncated_messages,
                     context_variables=self.context_variables,
                     stream=False,
                     debug=self.debug,
@@ -610,7 +837,7 @@ class BlueprintBase(ABC):
             logger.debug("DJANGO_SETTINGS_MODULE not set; skipping URL registration.")
             return
 
-        module_path = self.metadata.get("django_modules", {}).get("urls")  # Updated to use django_modules
+        module_path = self.metadata.get("django_modules", {}).get("urls")
         url_prefix = self.metadata.get("url_prefix", "")
         if not module_path:
             logger.debug("No urls module specified in django_modules; skipping URL registration.")
@@ -618,9 +845,10 @@ class BlueprintBase(ABC):
 
         try:
             from django.urls import include, path
-            import swarm.urls as core_urls
+            from importlib import import_module
+            core_urls = import_module("swarm.urls")
 
-            m = importlib.import_module(module_path)
+            m = import_module(module_path)
             if not hasattr(m, "urlpatterns"):
                 logger.debug(f"No urlpatterns found in {module_path}")
                 return

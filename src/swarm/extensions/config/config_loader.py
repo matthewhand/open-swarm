@@ -128,21 +128,27 @@ def load_server_config(file_path: Optional[str] = None) -> dict:
     """
     from pathlib import Path
     if file_path is None or not Path(file_path).exists():
-         from swarm.settings import BASE_DIR
-         current_dir = os.getcwd()
-         candidate_paths = [
-             str(Path(BASE_DIR) / "swarm_config.json"),
-             str(Path(os.path.expanduser("~")) / ".swarm" / "swarm_config.json"),
-             str(Path(current_dir) / "swarm_config.json")
-         ]
-         for candidate in candidate_paths:
-             if Path(candidate).exists():
-                 file_path = candidate
-                 logger.info(f"Using alternative configuration file: {file_path}")
-                 break
-         if file_path is None or not Path(file_path).exists():
-             logger.error("No configuration file found in candidate paths: " + ", ".join(candidate_paths))
-             raise FileNotFoundError("No configuration file found in candidate paths.")
+        from swarm.settings import BASE_DIR
+        current_dir = os.getcwd()
+        # Force load from project root if available
+        root_config = Path(current_dir) / "swarm_config.json"
+        if root_config.exists():
+            file_path = str(root_config)
+            logger.info(f"Forcing load of swarm_config.json from project root: {file_path}")
+        else:
+            candidate_paths = [
+                str(Path(BASE_DIR) / "swarm_config.json"),
+                str(Path(os.path.expanduser("~")) / ".swarm" / "swarm_config.json"),
+                str(Path(current_dir) / "swarm_config.json")
+            ]
+            for candidate in candidate_paths:
+                if Path(candidate).exists():
+                    file_path = candidate
+                    logger.info(f"Using alternative configuration file: {file_path}")
+                    break
+            if file_path is None or not Path(file_path).exists():
+                logger.error("No configuration file found in candidate paths: " + ", ".join(candidate_paths))
+                raise FileNotFoundError("No configuration file found in candidate paths.")
 
     logger.debug(f"Attempting to load configuration from {file_path}")
 
@@ -260,7 +266,7 @@ def validate_api_keys(config: Dict[str, Any], selected_llm: str = "default") -> 
     Validates the presence of API keys for the selected LLM profile—because security matters.
 
     Args:
-        config (Dict[str, Any]): The configuration dictionary to validate.
+        config (Dict[str, Any]): The configuration dictionary to validate
         selected_llm (str): The selected LLM profile—defaults to "default" for the classics.
 
     Returns:
@@ -353,7 +359,7 @@ def load_llm_config(config: Optional[Dict[str, Any]] = None, llm_name: Optional[
         Dict[str, Any]: The configuration dictionary for the specified LLM, polished and ready.
 
     Raises:
-        ValueError: If the LLM config’s nowhere to be found or the global config’s AWOL.
+        ValueError: If the global config’s AWOL and no config provided.
     """
     if config is None:
         config = globals().get("config")
@@ -370,9 +376,16 @@ def load_llm_config(config: Optional[Dict[str, Any]] = None, llm_name: Optional[
     resolved_config = resolve_placeholders(config)
     llm_config = resolved_config.get("llm", {}).get(llm_name)
     if not llm_config:
-        error_message = f"LLM configuration for '{llm_name}' not found in the config—where’d it go?"
-        logger.error(error_message)
-        raise ValueError(error_message)
+        logger.warning(f"LLM configuration for '{llm_name}' not found in the config—falling back to dynamic default.")
+        llm_config = {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "base_url": os.getenv("LLM_ENDPOINT", "https://api.openai.com/v1"),
+            "api_key": os.getenv("OPENAI_API_KEY", "${OPENAI_API_KEY}")
+        }
+        # Re-resolve placeholders in the default config, since api_key might contain one
+        llm_config = resolve_placeholders(llm_config)
+        logger.debug(f"Generated default LLM config for '{llm_name}': {redact_sensitive_data(llm_config)}")
 
     logger.debug(f"Loaded LLM configuration for '{llm_name}': {redact_sensitive_data(llm_config)}")
     return llm_config
@@ -425,4 +438,3 @@ def load_and_validate_llm(config: Dict[str, Any], llm_name: Optional[str] = None
 
     logger.debug(f"LLM configuration for '{llm_name}' is valid and loaded—ready to rock!")
     return llm_config
-

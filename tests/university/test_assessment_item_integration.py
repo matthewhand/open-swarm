@@ -10,6 +10,7 @@ from blueprints.university.blueprint_university import UniversitySupportBlueprin
 
 class AssessmentItemIntegrationTests(TestCase):
     def setUp(self):
+        os.environ["SWARM_BLUEPRINTS"] = "university"  # Limit to university blueprint
         # Ensure API authentication is disabled
         self.env_patch = patch.dict(os.environ, {"ENABLE_API_AUTH": "false", "API_AUTH_TOKEN": ""}, clear=False)
         self.env_patch.start()
@@ -55,6 +56,7 @@ class AssessmentItemIntegrationTests(TestCase):
     def tearDown(self):
         self.auth_patch.stop()
         self.env_patch.stop()
+        os.environ.pop("SWARM_BLUEPRINTS", None)
         if os.path.exists(os.environ["SQLITE_DB_PATH"]):
             os.remove(os.environ["SQLITE_DB_PATH"])
 

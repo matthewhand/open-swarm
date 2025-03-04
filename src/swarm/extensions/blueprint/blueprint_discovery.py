@@ -8,6 +8,7 @@ It identifies classes derived from BlueprintBase as valid blueprints and extract
 import importlib.util
 import inspect
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Any
 from swarm.settings import DEBUG
@@ -15,7 +16,6 @@ from swarm.settings import DEBUG
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 
-# Import BlueprintBase with proper error handling
 try:
     from .blueprint_base import BlueprintBase
 except ImportError as e:
@@ -35,6 +35,9 @@ def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
     """
     blueprints = {}
     logger.info("Starting blueprint discovery.")
+    swarm_blueprints = os.getenv("SWARM_BLUEPRINTS", "").split(",")
+    if swarm_blueprints and swarm_blueprints[0]:
+        logger.debug(f"Filtering blueprints to: {swarm_blueprints}")
 
     for directory in directories:
         logger.debug(f"Searching for blueprints in: {directory}")
@@ -47,13 +50,15 @@ def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
         for blueprint_file in dir_path.rglob("blueprint_*.py"):
             module_name = blueprint_file.stem
             blueprint_name = module_name.replace("blueprint_", "")
+            if swarm_blueprints and swarm_blueprints[0] and blueprint_name not in swarm_blueprints:
+                logger.debug(f"Skipping blueprint '{blueprint_name}' not in SWARM_BLUEPRINTS")
+                continue
             module_path = str(blueprint_file.parent)
 
             logger.debug(f"Found blueprint file: {blueprint_file}")
             logger.debug(f"Module name: {module_name}, Blueprint name: {blueprint_name}, Module path: {module_path}")
 
             try:
-                # Dynamically import the blueprint module
                 spec = importlib.util.spec_from_file_location(module_name, str(blueprint_file))
                 if spec is None or spec.loader is None:
                     logger.error(f"Cannot load module spec for blueprint file: {blueprint_file}. Skipping.")
@@ -62,14 +67,12 @@ def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
                 spec.loader.exec_module(module)
                 logger.debug(f"Successfully imported module: {module_name}")
 
-                # Identify classes inheriting from BlueprintBase
                 for name, obj in inspect.getmembers(module, inspect.isclass):
                     if not issubclass(obj, BlueprintBase) or obj is BlueprintBase:
                         continue
 
                     logger.debug(f"Discovered blueprint class: {name}")
 
-                    # Retrieve metadata without instantiating the class
                     try:
                         metadata = obj.metadata
                         if callable(metadata):
@@ -85,7 +88,6 @@ def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
                             logger.error(f"Metadata for blueprint '{blueprint_name}' is not a dictionary.")
                             raise ValueError(f"Metadata for blueprint '{blueprint_name}' is invalid or inaccessible.")
 
-                        # Ensure required metadata fields are present
                         if "title" not in metadata or "description" not in metadata:
                             logger.error(f"Required metadata fields (title, description) are missing for blueprint '{blueprint_name}'.")
                             raise ValueError(f"Metadata for blueprint '{blueprint_name}' is invalid or inaccessible.")
@@ -94,7 +96,6 @@ def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
                         logger.error(f"Error retrieving metadata for blueprint '{blueprint_name}': {e}")
                         continue
 
-                    # Add blueprint with metadata
                     blueprints[blueprint_name] = {
                         "blueprint_class": obj,
                         "title": metadata["title"],

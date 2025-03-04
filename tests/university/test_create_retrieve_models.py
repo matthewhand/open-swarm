@@ -8,6 +8,7 @@ from unittest.mock import patch
 os.environ["UNIT_TESTING"] = "true"
 os.environ["SQLITE_DB_PATH"] = f"/tmp/test_db_{os.urandom(8).hex()}.sqlite3"
 os.environ["ENABLE_API_AUTH"] = "false"
+os.environ["SWARM_BLUEPRINTS"] = "university"  # Limit to university blueprint
 
 # Patch UniversityBaseViewSet.initial to skip authentication enforcement
 @pytest.fixture(scope="module")
@@ -37,6 +38,7 @@ def setup_blueprint_urls(bypass_auth):
     blueprint = UniversitySupportBlueprint(config=dummy_config)
     blueprint.register_blueprint_urls()
     yield
+    os.environ.pop("SWARM_BLUEPRINTS", None)
     if os.path.exists(os.environ["SQLITE_DB_PATH"]):
         os.remove(os.environ["SQLITE_DB_PATH"])
 

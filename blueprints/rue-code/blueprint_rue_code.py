@@ -306,7 +306,7 @@ class RueCodeBlueprint(BlueprintBase):
         # Architect: design and web search; Markdown-only writing.
         architect_instructions = (
             "You are the Architect, providing design guidance, architectural planning, and web search capabilities via search_files. "
-            "Use tools: search_files (with recursive and case insensitive options), search_files, list_files, read_file (with optional line numbers), write_md_file (Markdown-only). "
+            "Use tools: search_files (with recursive and case insensitive options), list_files, read_file (with optional line numbers), write_md_file (Markdown-only). "
             "Available agents: Code (full coding), QualityAssurance (test execution), GitManager (revision management). Use line numbers in `read_file` for precise diff patches."
         )
         agents["Architect"] = Agent(
@@ -376,22 +376,24 @@ class RueCodeBlueprint(BlueprintBase):
         object.__setattr__(agents["Coordinator"], "tools", {})
         object.__setattr__(agents["Code"], "tools", {
             "execute_command": TOOLS["execute_command"],
-    "read_file": TOOLS["read_file"],
-    "search_files": TOOLS["search_files"],
             "read_file": TOOLS["read_file"],
+            "search_files": TOOLS["search_files"],
             "write_to_file": TOOLS["write_to_file"],
             "apply_diff": TOOLS["apply_diff"],
             "list_files": TOOLS["list_files"],
+            "pretty_print_markdown": TOOLS["pretty_print_markdown"],
+            "pretty_print_diff": TOOLS["pretty_print_diff"],
         })
-        object.__setattr__(agents["Architect"], "tools", { "grep": TOOLS["grep"],
+        object.__setattr__(agents["Architect"], "tools", {
             "search_files": TOOLS["search_files"],
-    "read_file": TOOLS["read_file"],
-            "list_files": TOOLS["list_files"],
             "read_file": TOOLS["read_file"],
+            "list_files": TOOLS["list_files"],
             "write_md_file": TOOLS["write_md_file"],
         })
         object.__setattr__(agents["QualityAssurance"], "tools", {
-            "run_test_command": TOOLS["run_test_command"], "run_lint_command": TOOLS["run_lint_command"], "list_available_commands": TOOLS["list_available_commands"],
+            "run_test_command": TOOLS["run_test_command"],
+            "run_lint_command": TOOLS["run_lint_command"],
+            "list_available_commands": TOOLS["list_available_commands"],
         })
         object.__setattr__(agents["GitManager"], "tools", {
             "execute_command": TOOLS["execute_command"],
