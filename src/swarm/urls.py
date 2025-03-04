@@ -58,8 +58,7 @@ if ENABLE_WEBUI:
         path('favicon.ico', favicon, name='favicon'),
         path('config/swarm_config.json', views.serve_swarm_config, name='serve_swarm_config'),
         path('accounts/login/', views.custom_login, name='custom_login'),
-        # Comment out to avoid overriding blueprint URLs
-        # path('<str:blueprint_name>/', views.blueprint_webpage, name='blueprint_webpage'),
+        path('<str:blueprint_name>/', views.blueprint_webpage, name='blueprint_webpage'),
     ]
     # Manual inclusion moved to register_blueprint_urls()
     webui_urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
