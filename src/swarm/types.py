@@ -1,3 +1,4 @@
+# src/swarm/types.py
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
@@ -19,18 +20,19 @@ class Agent(BaseModel):
     model: str = "default"
     instructions: Union[str, Callable[[], str]] = "You are a helpful agent."
     functions: List[AgentFunction] = []
+    resources: List[Dict[str, Any]] = []  # New attribute for static and MCP-discovered resources
     tool_choice: str = None
-    #parallel_tool_calls: bool = True
+    # parallel_tool_calls: bool = True  # Commented out as in your version
     parallel_tool_calls: bool = False
     mcp_servers: Optional[List[str]] = None  # List of MCP server names
     env_vars: Optional[Dict[str, str]] = None  # Environment variables required
-    response_format: Optional[Dict[str, Any]] = None # Structured Output
+    response_format: Optional[Dict[str, Any]] = None  # Structured Output
     nemo_guardrails_config: Optional[str] = None  # Config directory name (string)
     nemo_guardrails_instance: Optional[LLMRails] = None  # The actual LLMRails instance (object)
 
 class Response(BaseModel):
     id: Optional[str] = None  # id needed for REST
-    messages: List = []
+    messages: List = []  # Adjusted to allow any list (flexible for messages)
     agent: Optional[Agent] = None
     context_variables: dict = {}
 
@@ -41,7 +43,6 @@ class Response(BaseModel):
             import uuid
             self.id = f"response-{uuid.uuid4()}"
 
-
 class Result(BaseModel):
     """
     Encapsulates the possible return values for an agent function.
@@ -51,7 +52,6 @@ class Result(BaseModel):
         agent (Agent): The agent instance, if applicable.
         context_variables (dict): A dictionary of context variables.
     """
-
     value: str = ""
     agent: Optional[Agent] = None
     context_variables: dict = {}

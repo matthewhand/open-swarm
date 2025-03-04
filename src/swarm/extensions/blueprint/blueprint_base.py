@@ -1,9 +1,10 @@
+# src/swarm/extensions/blueprint/blueprint_base.py
 """
 Swarm Blueprint Base Module (Sync Interactive Mode)
 
 This module defines the foundational `BlueprintBase` abstract class with a synchronous interactive_mode(),
-retaining advanced features from the latest async version. It manages agents, tools, and conversational
-context with lazy tool discovery, task auto-completion, and dynamic goal updates.
+retaining advanced features from the latest async version. It manages agents, tools, resources, and conversational
+context with lazy discovery, task auto-completion, and dynamic goal updates.
 """
 
 import asyncio
@@ -34,7 +35,6 @@ import argparse
 logger = logging.getLogger(__name__)
 
 class Spinner:
-    """A simple spinner for CLI feedback, shown only in supported terminals during interactive mode."""
     SPINNER_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
     def __init__(self, interactive: bool):
@@ -140,15 +140,16 @@ class BlueprintBase(ABC):
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
 
-        self.context_variables: Dict[str, Any] = {"user_goal": ""}  # Initialize context_variables here
+        self.context_variables: Dict[str, Any] = {"user_goal": ""}
         self.starting_agent = None
-        self._discovered_tools: Dict[str, List[Any]] = {}  # Cache MCP tools per agent
+        self._discovered_tools: Dict[str, List[Any]] = {}
+        self._discovered_resources: Dict[str, List[Any]] = {}
         self.spinner = Spinner(interactive=not kwargs.get('non_interactive', False))
 
         required_env_vars = set(self.metadata.get('env_vars', []))
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
         if missing_vars:
-            logger.warning(f"Missing optional environment variables for {self.metadata.get('title', 'this blueprint')}: {', '.join(missing_vars)}. Some functionality may be limited.")
+            logger.warning(f"Missing optional environment variables for {self.metadata.get('title', 'this blueprint')}: {', '.join(missing_vars)}.")
 
         self.required_mcp_servers = self.metadata.get('required_mcp_servers', [])
         logger.debug(f"Required MCP servers: {self.required_mcp_servers}")
@@ -168,7 +169,6 @@ class BlueprintBase(ABC):
             self.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
             logger.debug(f"Agents registered: {list(agents.keys())}")
 
-        # Discover tools for starting agent after it’s set and context_variables exists
         if self.starting_agent:
             try:
                 loop = asyncio.get_running_loop()
@@ -176,9 +176,11 @@ class BlueprintBase(ABC):
                 loop = None
             if loop and loop.is_running():
                 asyncio.create_task(self._discover_tools_for_agent(self.starting_agent))
+                asyncio.create_task(self._discover_resources_for_agent(self.starting_agent))
             else:
                 asyncio.run(self._discover_tools_for_agent(self.starting_agent))
-            logger.debug(f"Completed proactive MCP tool discovery for starting agent: {self.starting_agent.name}")
+                asyncio.run(self._discover_resources_for_agent(self.starting_agent))
+            logger.debug(f"Completed proactive MCP tool and resource discovery for starting agent: {self.starting_agent.name}")
         else:
             logger.debug("No starting agent set initially; subclass may set it later.")
 
@@ -202,9 +204,8 @@ class BlueprintBase(ABC):
             try:
                 tools = await self.swarm.discover_and_merge_agent_tools(agent)
                 valid_tools = [tool for tool in tools if hasattr(tool, 'name') and isinstance(tool.name, str)]
-                # Append MCP tools to existing functions, preserving static ones
                 agent.functions = (agent.functions or []) + valid_tools
-                self._discovered_tools[agent.name] = valid_tools  # Cache MCP tools
+                self._discovered_tools[agent.name] = valid_tools
                 logger.debug(f"Discovered {len(valid_tools)} valid tools for agent '{agent.name}': {[tool.name for tool in valid_tools]}")
             except Exception as e:
                 logger.error(f"Failed to discover tools for agent '{agent.name}': {e}")
@@ -212,11 +213,27 @@ class BlueprintBase(ABC):
             finally:
                 self.spinner.stop()
 
+    async def _discover_resources_for_agent(self, agent: Any) -> None:
+        if agent.name not in self._discovered_resources:
+            logger.debug(f"Discovering resources for agent: {agent.name}")
+            self.spinner.start(f"Discovering MCP resources for {agent.name}")
+            try:
+                resources = await self.swarm.discover_and_merge_agent_resources(agent)
+                # Assuming resources are dicts with a 'name' field; adjust validation as needed
+                valid_resources = [res for res in resources if isinstance(res, dict) and 'name' in res]
+                agent.resources = (agent.resources or []) + valid_resources
+                self._discovered_resources[agent.name] = valid_resources
+                logger.debug(f"Discovered {len(valid_resources)} valid resources for agent '{agent.name}': {[res['name'] for res in valid_resources]}")
+            except Exception as e:
+                logger.error(f"Failed to discover resources for agent '{agent.name}': {e}")
+                self._discovered_resources[agent.name] = []
+            finally:
+                self.spinner.stop()
+
     def set_starting_agent(self, agent: Any) -> None:
         logger.debug(f"Setting starting agent to: {agent.name}")
         self.starting_agent = agent
         self.context_variables["active_agent_name"] = agent.name
-        # Discover tools if not already cached
         if agent.name not in self._discovered_tools:
             try:
                 loop = asyncio.get_running_loop()
@@ -226,6 +243,15 @@ class BlueprintBase(ABC):
                 asyncio.create_task(self._discover_tools_for_agent(agent))
             else:
                 asyncio.run(self._discover_tools_for_agent(agent))
+        if agent.name not in self._discovered_resources:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop and loop.is_running():
+                asyncio.create_task(self._discover_resources_for_agent(agent))
+            else:
+                asyncio.run(self._discover_resources_for_agent(agent))
 
     async def determine_active_agent(self) -> Any:
         active_agent_name = self.context_variables.get("active_agent_name")
@@ -233,11 +259,15 @@ class BlueprintBase(ABC):
             agent = self.swarm.agents[active_agent_name]
             if active_agent_name not in self._discovered_tools:
                 await self._discover_tools_for_agent(agent)
+            if active_agent_name not in self._discovered_resources:
+                await self._discover_resources_for_agent(agent)
             logger.debug(f"Active agent determined: {active_agent_name}")
             return agent
         elif self.starting_agent:
             if self.starting_agent.name not in self._discovered_tools:
                 await self._discover_tools_for_agent(self.starting_agent)
+            if self.starting_agent.name not in self._discovered_resources:
+                await self._discover_resources_for_agent(self.starting_agent)
             self.context_variables["active_agent_name"] = self.starting_agent.name
             logger.debug(f"No active agent set; defaulting to starting agent: {self.starting_agent.name}")
             return self.starting_agent
@@ -293,9 +323,11 @@ class BlueprintBase(ABC):
             self.context_variables["active_agent_name"] = new_agent_name
             if new_agent_name not in self._discovered_tools:
                 asyncio.create_task(self._discover_tools_for_agent(response.agent))
-                logger.debug(f"Started background tool discovery for new agent: {new_agent_name}")
-            else:
-                logger.debug(f"Reusing cached tools for agent: {new_agent_name}")
+            if new_agent_name not in self._discovered_resources:
+                asyncio.create_task(self._discover_resources_for_agent(response.agent))
+            logger.debug(f"Started background tool and resource discovery for new agent: {new_agent_name}")
+        else:
+            logger.debug(f"Reusing cached tools and resources for agent: {active_agent.name}")
 
         return {"response": response, "context_variables": self.context_variables}
 
@@ -304,6 +336,8 @@ class BlueprintBase(ABC):
             self.context_variables["active_agent_name"] = agent_name
             if agent_name not in self._discovered_tools:
                 asyncio.run(self._discover_tools_for_agent(self.swarm.agents[agent_name]))
+            if agent_name not in self._discovered_resources:
+                asyncio.run(self._discover_resources_for_agent(self.swarm.agents[agent_name]))
             logger.debug(f"Active agent set to: {agent_name}")
         else:
             logger.error(f"Agent '{agent_name}' not found. Cannot set as active agent.")
@@ -355,7 +389,6 @@ class BlueprintBase(ABC):
         self.context_variables["user_goal"] = new_goal
 
     def interactive_mode(self, stream: bool = False) -> None:
-        """Interactive CLI mode with logging and optional spinners configured in main()."""
         logger.debug("Starting interactive mode.")
         if not self.starting_agent:
             logger.error("Starting agent is not set. Ensure set_starting_agent is called.")
@@ -426,7 +459,6 @@ class BlueprintBase(ABC):
                 print("\033[93m[System]\033[0m: Task is complete.")
 
     def non_interactive_mode(self, instruction: str, stream: bool = False) -> None:
-        """Non-interactive CLI mode, keeping logs on stdout/stderr for API/container compatibility."""
         logger.debug(f"Starting non-interactive mode with instruction: {instruction}")
         if not self.swarm:
             logger.error("Swarm instance is not initialized.")
@@ -470,13 +502,14 @@ class BlueprintBase(ABC):
                     if response_messages:
                         print(response_messages[-1]["content"])
                 messages.extend(response_messages)
-                conversation_summary = " ".join([msg["content"] for msg in messages[-4:] if msg.get("content")])
+                conversation_summary = " ".join(
+                    [msg["content"] for msg in messages[-4:] if msg.get("content")]
+                )
                 last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
             print("\033[93m[System]\033[0m: Task is complete.")
         print("Execution completed. Exiting.")
 
     async def non_interactive_mode_async(self, instruction: str, stream: bool = False) -> None:
-        """Async version of non-interactive mode, used internally."""
         if not self.swarm:
             logger.error("Swarm instance is not initialized.")
             raise ValueError("Swarm instance is not initialized.")
@@ -513,13 +546,14 @@ class BlueprintBase(ABC):
                     if response_messages:
                         print(response_messages[-1]["content"])
                 messages.extend(response_messages)
-                conversation_summary = " ".join([msg["content"] for msg in messages[-4:] if msg.get("content")])
+                conversation_summary = " ".join(
+                    [msg["content"] for msg in messages[-4:] if msg.get("content")]
+                )
                 last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
             print("\033[93m[System]\033[0m: Task is complete.")
         print("Execution completed. Exiting.")
 
     def _process_and_print_streaming_response(self, response):
-        """Process and display streaming responses from the Swarm."""
         content = ""
         last_sender = ""
         for chunk in response:
@@ -543,7 +577,6 @@ class BlueprintBase(ABC):
                 return chunk["response"]
 
     def _register_module(self, module_key: str, module_description: str) -> None:
-        """Register a blueprint module (e.g., models, views) if specified in metadata."""
         module_path = self.metadata.get(module_key)
         if module_path:
             try:
@@ -555,21 +588,18 @@ class BlueprintBase(ABC):
             logger.debug(f"No blueprint {module_description} to register.")
 
     def register_blueprint_models(self) -> None:
-        """Register blueprint-specific models if defined in metadata."""
         if self.skip_django_registration:
             logger.debug("Skipping model registration due to CLI mode.")
             return
         self._register_module("models_module", "models")
 
     def register_blueprint_views(self) -> None:
-        """Register blueprint-specific views if defined in metadata."""
         if self.skip_django_registration:
             logger.debug("Skipping view registration due to CLI mode.")
             return
         self._register_module("views_module", "views")
 
     def register_blueprint_urls(self) -> None:
-        """Register blueprint-specific URLs with a configurable prefix."""
         if self.skip_django_registration:
             logger.debug("Skipping URL registration due to CLI mode.")
             return
@@ -580,10 +610,10 @@ class BlueprintBase(ABC):
             logger.debug("DJANGO_SETTINGS_MODULE not set; skipping URL registration.")
             return
 
-        module_path = self.metadata.get("urls_module")
+        module_path = self.metadata.get("django_modules", {}).get("urls")  # Updated to use django_modules
         url_prefix = self.metadata.get("url_prefix", "")
         if not module_path:
-            logger.debug("No urls_module specified in metadata; skipping URL registration.")
+            logger.debug("No urls module specified in django_modules; skipping URL registration.")
             return
 
         try:
@@ -620,7 +650,6 @@ class BlueprintBase(ABC):
             logger.error(f"Unexpected error registering blueprint URLs: {e}", exc_info=True)
 
     def _pretty_print_response(self, messages) -> None:
-        """Pretty print the messages returned by the Swarm."""
         for message in messages:
             if message["role"] != "assistant":
                 continue
@@ -639,7 +668,6 @@ class BlueprintBase(ABC):
 
     @classmethod
     def main(cls):
-        """Main entry point for running a blueprint in CLI mode."""
         parser = argparse.ArgumentParser(description=f"Launch the {cls.__name__} blueprint with configurable options.")
         parser.add_argument("--config", type=str, default="./swarm_config.json", help="Path to the configuration file")
         parser.add_argument("--auto-complete-task", action="store_true", help="Enable multi-step auto-completion with LLM validation")
@@ -650,29 +678,24 @@ class BlueprintBase(ABC):
         parser.add_argument("--debug", action="store_true", help="Print debug logs and stderr to console")
         args = parser.parse_args()
 
-        # Configure logging early to capture all logs before imports
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 
-        # Clear handlers from all existing loggers to prevent duplicates
         for logger_name in logging.root.manager.loggerDict:
             logger_instance = logging.getLogger(logger_name)
             logger_instance.handlers.clear()
-        root_logger.handlers.clear()  # Clear root logger handlers too
+        root_logger.handlers.clear()
 
-        # Set up logging and stderr redirection
         log_file_path = args.log_file_path or str(Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log")
         os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
         if args.instruction:
-            # Non-interactive mode: keep stderr to console unless redirected elsewhere
             handler = logging.StreamHandler(sys.stdout if args.debug else open(log_file_path, 'a'))
             root_logger.handlers.append(handler)
             if not args.debug:
                 sys.stderr = open(log_file_path, 'a')
                 logger.info(f"Redirected stderr to {log_file_path}")
         else:
-            # Interactive mode: redirect stderr to file unless debug is enabled
             handler = logging.StreamHandler(sys.stderr if args.debug else open(log_file_path, 'a'))
             root_logger.handlers.append(handler)
             if not args.debug:
@@ -681,7 +704,6 @@ class BlueprintBase(ABC):
             else:
                 logger.info("Debug mode enabled; stderr remains on console")
 
-        # Set formatter for the handler
         formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
         handler.setFormatter(formatter)
 

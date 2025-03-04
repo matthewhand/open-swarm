@@ -283,6 +283,12 @@
       "env": {
         "ALLOWED_PATH": "${ALLOWED_PATH}"
       }
+    },
+    "mcp-llms-txt": {
+      "command": "uvx",
+      "args": [
+        "--from","git+https://github.com/SecretiveShell/MCP-llms-txt","mcp-llms-txt"
+      ]
     }
   },
   "blueprints": {

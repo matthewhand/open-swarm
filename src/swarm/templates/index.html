@@ -18,10 +18,18 @@
         </div>
     {% endif %}
     <div class="mt-4">
-        <form method="post" action="{% url 'chatbot:create_chat' %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-primary">Start New Conversation</button>
-        </form>
+        {% if blueprints %}
+            {% with first_blueprint=blueprints|first %}
+                <form method="post" action="{% url first_blueprint|add:':create_chat' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">Start New Conversation</button>
+                </form>
+            {% endwith %}
+        {% else %}
+            <div class="alert alert-warning" role="alert">
+                No blueprints available to start a conversation.
+            </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

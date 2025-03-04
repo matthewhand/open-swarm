@@ -56,14 +56,18 @@ except Exception as e:
 class UniversitySupportBlueprint(Blueprint):
     @property
     def metadata(self) -> Dict[str, Any]:
-        logger.debug("Fetching metadata")
         return {
             "title": "University Support System",
             "description": "A multi-agent system for university support, using LLM-driven responses, SQLite tools, and Canvas metadata with graceful failure.",
             "required_mcp_servers": ["sqlite"],
             "cli_name": "uni",
             "env_vars": ["SQLITE_DB_PATH", "SUPPORT_EMAIL"],
-            "urls_module": "blueprints.university.urls",
+            "django_modules": {
+                "models": "blueprints.university.models",
+                "views": "blueprints.university.views",
+                "urls": "blueprints.university.urls",
+                "serializers": "blueprints.university.serializers"
+            },
             "url_prefix": "v1/university/"
         }
 
@@ -436,4 +440,3 @@ if __name__ == "__main__":
         logger.info("Blueprint execution completed")
     except Exception as e:
         logger.error(f"Main execution failed: {str(e)}", exc_info=True)
-

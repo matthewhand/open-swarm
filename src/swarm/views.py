@@ -56,11 +56,12 @@ from .serializers import ChatMessageSerializer
 
 # Blueprint-specific imports (lazy-loaded)
 try:
-    from blueprints.chatbot.views import chatbot_view, create_chat, delete_chat
+    # from blueprints.chatbot.views import chatbot_view, create_chat, delete_chat
     from blueprints.messenger.views import messenger
     from blueprints.django_chat.views import django_chat
 except ImportError as e:
-    logger.debug(f"Optional blueprint imports not available: {e}")
+    # logger.debug(f"Optional blueprint imports not available: {e}")
+    pass
 
 # -----------------------------------------------------------------------------
 # Initialization
