@@ -1,10 +1,10 @@
 """
 Swarm Blueprint Base Module (Sync Interactive Mode)
 
-This module defines the foundational `BlueprintBase` abstract class with a synchronous interactive_mode(),
-retaining advanced features from the latest async version. It manages agents, tools, resources, and conversational
-context with lazy discovery, task auto-completion, dynamic goal updates, and configurable message truncation that
-preserves assistant-tool message pairs.
+This module provides the `BlueprintBase` abstract class with a synchronous `interactive_mode()`.
+It retains advanced features like agent management, lazy tool/resource discovery, task auto-completion,
+goal updates, and configurable message truncation that preserves assistant-tool pairs, optimized for
+reliable Django integration and CLI usage.
 """
 
 import asyncio
@@ -15,7 +15,7 @@ import importlib.util
 import uuid
 import sys
 import threading
-import time
+import time  # Added import
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -25,9 +25,6 @@ try:
 except ImportError:
     LLMRails, RailsConfig = None, None
 
-from django.apps import apps
-from django.core.signals import setting_changed
-from django.dispatch import receiver
 from swarm.core import Swarm
 from swarm.extensions.config.config_loader import load_server_config
 from swarm.settings import DEBUG
@@ -38,10 +35,11 @@ import argparse
 logger = logging.getLogger(__name__)
 
 def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
-    """Placeholder for token counting logic—replace with actual implementation."""
-    return sum(len(msg.get("content", "")) // 4 for msg in messages)  # Rough estimate: 4 chars ≈ 1 token
+    """Estimate token count for messages (placeholder—replace with actual implementation)."""
+    return sum(len(msg.get("content", "")) // 4 for msg in messages)  # Rough: 4 chars ≈ 1 token
 
 class Spinner:
+    """Simple terminal spinner for interactive feedback."""
     SPINNER_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
     def __init__(self, interactive: bool):
@@ -75,9 +73,11 @@ class Spinner:
             sys.stdout.write(f"\r{char} {self.status}")
             sys.stdout.flush()
             self.index += 1
-            time.sleep(0.1)
+            time.sleep(0.1)  # Now works with time imported
 
 class BlueprintBase(ABC):
+    """Base class for Swarm blueprints with sync interactive mode and Django integration."""
+
     def __init__(
         self,
         config: dict,
@@ -92,28 +92,28 @@ class BlueprintBase(ABC):
     ):
         self.auto_complete_task = auto_complete_task
         self.update_user_goal = update_user_goal
-        self.update_user_goal_frequency = update_user_goal_frequency
+        self.update_user_goal_frequency = max(1, update_user_goal_frequency)
         self.last_goal_update_count = 0
         self.record_chat = record_chat
         self.conversation_id = str(uuid.uuid4()) if record_chat else None
         self.log_file_path = log_file_path
         self.debug = debug
+        self._urls_registered = False
 
-        logger.debug(f"Initializing BlueprintBase with config: {redact_sensitive_data(config)}")
+        logger.debug(f"Initializing {self.__class__.__name__} with config: {redact_sensitive_data(config)}")
         if not hasattr(self, 'metadata') or not isinstance(self.metadata, dict):
             raise AssertionError("Blueprint metadata must be defined and must be a dictionary.")
 
         self.truncation_mode = self.metadata.get("truncation_mode", "preserve_pairs")
-        self.max_context_tokens = self.metadata.get("max_context_tokens", 8000)
-        self.max_context_messages = self.metadata.get("max_context_messages", 50)
+        self.max_context_tokens = max(1, self.metadata.get("max_context_tokens", 8000))
+        self.max_context_messages = max(1, self.metadata.get("max_context_messages", 50))
         logger.debug(f"Truncation settings: mode={self.truncation_mode}, max_tokens={self.max_context_tokens}, max_messages={self.max_context_messages}")
 
         load_dotenv()
-        logger.debug("Environment variables loaded from .env.")
+        logger.debug("Loaded environment variables from .env.")
 
         self.config = config
         self.skip_django_registration = skip_django_registration or not os.environ.get("DJANGO_SETTINGS_MODULE")
-        self._urls_registered = False
 
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
@@ -127,149 +127,160 @@ class BlueprintBase(ABC):
         required_env_vars = set(self.metadata.get('env_vars', []))
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
         if missing_vars:
-            logger.warning(f"Missing optional environment variables for {self.metadata.get('title', 'this blueprint')}: {', '.join(missing_vars)}.")
+            logger.warning(f"Missing environment variables for {self.metadata.get('title', 'this blueprint')}: {', '.join(missing_vars)}")
 
         self.required_mcp_servers = self.metadata.get('required_mcp_servers', [])
         logger.debug(f"Required MCP servers: {self.required_mcp_servers}")
 
         if self._is_create_agents_overridden():
-            agents = self.create_agents()
-            for agent_name, agent in agents.items():
-                if LLMRails and getattr(agent, "nemo_guardrails_config", None):
-                    guardrails_path = os.path.join("nemo_guardrails", agent.nemo_guardrails_config)
-                    try:
-                        rails_config = RailsConfig.from_path(guardrails_path)
-                        agent.nemo_guardrails_instance = LLMRails(rails_config)
-                        logger.debug(f"✅ Loaded NeMo Guardrails for agent: {agent.name}")
-                    except Exception as e:
-                        logger.warning(f"Could not load NeMo Guardrails for agent {agent.name}: {e}")
-            self.swarm.agents.update(agents)
-            self.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
-            logger.debug(f"Agents registered: {list(agents.keys())}")
+            self._initialize_agents()
+
+        if not self.skip_django_registration:
+            self._register_django_components()
+
+    def _initialize_agents(self):
+        """Initialize agents if create_agents is overridden."""
+        agents = self.create_agents()
+        for agent_name, agent in agents.items():
+            if LLMRails and getattr(agent, "nemo_guardrails_config", None):
+                guardrails_path = os.path.join("nemo_guardrails", agent.nemo_guardrails_config)
+                try:
+                    rails_config = RailsConfig.from_path(guardrails_path)
+                    agent.nemo_guardrails_instance = LLMRails(rails_config)
+                    logger.debug(f"Loaded NeMo Guardrails for agent: {agent.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to load NeMo Guardrails for agent {agent.name}: {e}")
+        self.swarm.agents.update(agents)
+        self.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
+        logger.debug(f"Registered agents: {list(agents.keys())}")
 
         if self.starting_agent:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop and loop.is_running():
-                asyncio.create_task(self._discover_tools_for_agent(self.starting_agent))
-                asyncio.create_task(self._discover_resources_for_agent(self.starting_agent))
-            else:
-                asyncio.run(self._discover_tools_for_agent(self.starting_agent))
-                asyncio.run(self._discover_resources_for_agent(self.starting_agent))
-            logger.debug(f"Completed proactive MCP tool and resource discovery for starting agent: {self.starting_agent.name}")
+            self._discover_initial_agent_assets(self.starting_agent)
         else:
-            logger.debug("No starting agent set initially; subclass may set it later.")
+            logger.debug("No starting agent set; subclass may assign later.")
 
-        # Defer Django registration to ensure proper initialization
-        if not self.skip_django_registration:
-            self.register_django_components()
-
-    def register_django_components(self):
-        """Register Django components (settings, URLs) after app initialization."""
-        if not apps.ready:
-            logger.debug("Django apps not ready yet; registration will occur via apps.py.")
-            return
-
+    def _discover_initial_agent_assets(self, agent):
+        """Perform initial tool and resource discovery for the starting agent."""
         try:
-            module_spec = importlib.util.find_spec(self.__class__.__module__)
-            if module_spec and module_spec.origin:
-                blueprint_dir = os.path.dirname(module_spec.origin)
-                local_settings_path = os.path.join(blueprint_dir, "settings.py")
-                if os.path.isfile(local_settings_path):
-                    spec_local = importlib.util.spec_from_file_location(f"{self.__class__.__name__}.local_settings", local_settings_path)
-                    local_settings = importlib.util.module_from_spec(spec_local)
-                    spec_local.loader.exec_module(local_settings)
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop and loop.is_running():
+            asyncio.create_task(self._discover_tools_for_agent(agent))
+            asyncio.create_task(self._discover_resources_for_agent(agent))
+        else:
+            asyncio.run(self._discover_tools_for_agent(agent))
+            asyncio.run(self._discover_resources_for_agent(agent))
+        logger.debug(f"Completed initial tool/resource discovery for agent: {agent.name}")
+
+    def _register_django_components(self):
+        """Register Django settings and URLs if applicable."""
+        try:
+            from django.apps import apps
+            if not apps.ready:
+                logger.debug("Django apps not ready; deferring registration to apps.py.")
+                return
+
+            self._load_local_settings()
+            self._merge_installed_apps()
+            self.register_blueprint_urls()
+        except ImportError:
+            logger.debug("Django not available; skipping component registration.")
+        except Exception as e:
+            logger.error(f"Failed to register Django components: {e}", exc_info=True)
+
+    def _load_local_settings(self):
+        """Load local settings from the blueprint directory if present."""
+        module_spec = importlib.util.find_spec(self.__class__.__module__)
+        if module_spec and module_spec.origin:
+            blueprint_dir = os.path.dirname(module_spec.origin)
+            local_settings_path = os.path.join(blueprint_dir, "settings.py")
+            if os.path.isfile(local_settings_path):
+                try:
+                    spec = importlib.util.spec_from_file_location(f"{self.__class__.__name__}.settings", local_settings_path)
+                    local_settings = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(local_settings)
                     self.local_settings = local_settings
                     logger.debug(f"Loaded local settings from {local_settings_path}")
-                else:
+                except Exception as e:
+                    logger.error(f"Failed to load local settings from {local_settings_path}: {e}")
                     self.local_settings = None
             else:
                 self.local_settings = None
-        except Exception as e:
-            logger.error(f"Failed to load local settings: {e}")
+        else:
             self.local_settings = None
 
+    def _merge_installed_apps(self):
+        """Merge blueprint's INSTALLED_APPS into Django settings."""
         if hasattr(self, "local_settings") and self.local_settings and hasattr(self.local_settings, "INSTALLED_APPS"):
             try:
-                from django.conf import settings as django_settings
+                from django.conf import settings
                 blueprint_apps = getattr(self.local_settings, "INSTALLED_APPS")
                 for app in blueprint_apps:
-                    if app not in django_settings.INSTALLED_APPS:
-                        django_settings.INSTALLED_APPS.append(app)
-                logger.debug("Merged blueprint local settings INSTALLED_APPS into Django settings.")
+                    if app not in settings.INSTALLED_APPS:
+                        settings.INSTALLED_APPS.append(app)
+                logger.debug("Merged blueprint INSTALLED_APPS into Django settings.")
             except Exception as e:
                 logger.error(f"Error merging INSTALLED_APPS: {e}")
 
-        self.register_blueprint_urls()
-
-    @receiver(setting_changed)
-    def on_settings_changed(self, **kwargs):
-        """Re-register components if settings change."""
-        if not self.skip_django_registration:
-            self.register_django_components()
-
     def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """
-        Truncate message history based on the configured mode, ensuring tool responses are not orphaned.
-        """
+        """Truncate message history based on configured mode, preserving tool responses."""
         if not messages:
             logger.debug("No messages to truncate.")
             return messages
 
-        if self.truncation_mode == "preserve_pairs":
-            return self._truncate_preserve_pairs(messages, model)
-        elif self.truncation_mode == "strict_token_limit":
-            return self._truncate_strict_token(messages, model)
-        elif self.truncation_mode == "recent_only":
-            return self._truncate_recent_only(messages, model)
-        else:
-            logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; falling back to 'preserve_pairs'")
-            return self._truncate_preserve_pairs(messages, model)
+        truncation_methods = {
+            "preserve_pairs": self._truncate_preserve_pairs,
+            "strict_token_limit": self._truncate_strict_token,
+            "recent_only": self._truncate_recent_only
+        }
+        method = truncation_methods.get(self.truncation_mode, self._truncate_preserve_pairs)
+        if self.truncation_mode not in truncation_methods:
+            logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; using 'preserve_pairs'")
+        return method(messages, model)
 
     def _truncate_preserve_pairs(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        system_messages = [msg for msg in messages if msg.get("role") == "system"]
-        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+        """Truncate while preserving assistant-tool message pairs within token/message limits."""
+        system_msgs = [msg for msg in messages if msg.get("role") == "system"]
+        non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
 
-        current_token_count = get_token_count(non_system_messages, model)
-        if len(non_system_messages) <= self.max_context_messages and current_token_count <= self.max_context_tokens:
-            logger.debug(f"Message history within limits: {len(non_system_messages)} messages, {current_token_count} tokens")
-            return system_messages + non_system_messages
+        current_tokens = get_token_count(non_system_msgs, model)
+        if len(non_system_msgs) <= self.max_context_messages and current_tokens <= self.max_context_tokens:
+            logger.debug(f"History within limits: {len(non_system_msgs)} messages, {current_tokens} tokens")
+            return system_msgs + non_system_msgs
 
-        message_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_messages]
-        total_tokens = sum(tokens for _, tokens in message_tokens)
+        msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
+        total_tokens = 0
         truncated = []
-        i = len(message_tokens) - 1
+        i = len(msg_tokens) - 1
 
-        while i >= 0 and (len(truncated) < self.max_context_messages and total_tokens <= self.max_context_tokens):
-            msg, tokens = message_tokens[i]
-            if msg.get("role") == "tool":
-                tool_call_id = msg.get("tool_call_id")
+        while i >= 0 and len(truncated) < self.max_context_messages:
+            msg, tokens = msg_tokens[i]
+            if msg.get("role") == "tool" and "tool_call_id" in msg:
+                tool_call_id = msg["tool_call_id"]
                 assistant_idx = i - 1
-                assistant_found = False
+                pair_found = False
                 while assistant_idx >= 0:
-                    prev_msg, prev_tokens = message_tokens[assistant_idx]
+                    prev_msg, prev_tokens = msg_tokens[assistant_idx]
                     if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
                         for tc in prev_msg["tool_calls"]:
-                            if tc["id"] == tool_call_id:
-                                if total_tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
-                                    truncated.insert(0, prev_msg)
-                                    truncated.insert(1, msg)
-                                    total_tokens += tokens + prev_tokens
-                                assistant_found = True
+                            if tc["id"] == tool_call_id and total_tokens + tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
+                                truncated.insert(0, prev_msg)
+                                truncated.insert(1, msg)
+                                total_tokens += tokens + prev_tokens
+                                pair_found = True
                                 break
-                    if assistant_found:
+                    if pair_found:
                         break
                     assistant_idx -= 1
-                if not assistant_found:
-                    logger.debug(f"Skipping orphaned tool message with tool_call_id '{tool_call_id}'")
+                if not pair_found:
+                    logger.debug(f"Skipping orphaned tool message (tool_call_id: {tool_call_id})")
             elif msg.get("role") == "assistant" and "tool_calls" in msg:
                 tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
                 tool_msgs = []
                 j = i + 1
-                while j < len(message_tokens):
-                    next_msg, next_tokens = message_tokens[j]
+                while j < len(msg_tokens) and tool_call_ids:
+                    next_msg, next_tokens = msg_tokens[j]
                     if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
                         tool_msgs.append((next_msg, next_tokens))
                         tool_call_ids.remove(next_msg["tool_call_id"])
@@ -283,58 +294,50 @@ class BlueprintBase(ABC):
                     for tool_msg, _ in tool_msgs:
                         truncated.insert(1, tool_msg)
                     total_tokens += pair_tokens
-                else:
-                    logger.debug(f"Skipping assistant-tool pair due to token/message limits")
-            else:
-                if total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
-                    truncated.insert(0, msg)
-                    total_tokens += tokens
+            elif total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
+                truncated.insert(0, msg)
+                total_tokens += tokens
             i -= 1
 
-        final_messages = system_messages + truncated
-        logger.debug(f"Truncated to {len(final_messages)} messages with {total_tokens} tokens using preserve_pairs")
+        final_messages = system_msgs + truncated
+        logger.debug(f"Truncated to {len(final_messages)} messages, {total_tokens} tokens (preserve_pairs)")
         return final_messages
 
     def _truncate_strict_token(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """
-        Truncate message history based on token limit, ensuring no orphaned tool messages.
-        """
-        system_messages = [msg for msg in messages if msg.get("role") == "system"]
-        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+        """Truncate strictly by token limit, preserving tool pairs."""
+        system_msgs = [msg for msg in messages if msg.get("role") == "system"]
+        non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
 
-        message_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_messages]
+        msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
         total_tokens = 0
         truncated = []
-        i = len(message_tokens) - 1
+        i = len(msg_tokens) - 1
 
         while i >= 0 and len(truncated) < self.max_context_messages:
-            msg, tokens = message_tokens[i]
-            if msg.get("role") == "tool":
-                tool_call_id = msg.get("tool_call_id")
+            msg, tokens = msg_tokens[i]
+            if msg.get("role") == "tool" and "tool_call_id" in msg:
+                tool_call_id = msg["tool_call_id"]
                 assistant_idx = i - 1
-                assistant_found = False
+                pair_found = False
                 while assistant_idx >= 0:
-                    prev_msg, prev_tokens = message_tokens[assistant_idx]
+                    prev_msg, prev_tokens = msg_tokens[assistant_idx]
                     if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
                         for tc in prev_msg["tool_calls"]:
-                            if tc["id"] == tool_call_id:
-                                if total_tokens + tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
-                                    truncated.insert(0, prev_msg)
-                                    truncated.insert(1, msg)
-                                    total_tokens += tokens + prev_tokens
-                                assistant_found = True
+                            if tc["id"] == tool_call_id and total_tokens + tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
+                                truncated.insert(0, prev_msg)
+                                truncated.insert(1, msg)
+                                total_tokens += tokens + prev_tokens
+                                pair_found = True
                                 break
-                    if assistant_found:
+                    if pair_found:
                         break
                     assistant_idx -= 1
-                if not assistant_found:
-                    logger.debug(f"Skipping orphaned tool message with tool_call_id '{tool_call_id}' in strict_token_limit")
             elif msg.get("role") == "assistant" and "tool_calls" in msg:
                 tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
                 tool_msgs = []
                 j = i + 1
-                while j < len(message_tokens):
-                    next_msg, next_tokens = message_tokens[j]
+                while j < len(msg_tokens) and tool_call_ids:
+                    next_msg, next_tokens = msg_tokens[j]
                     if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
                         tool_msgs.append((next_msg, next_tokens))
                         tool_call_ids.remove(next_msg["tool_call_id"])
@@ -348,58 +351,50 @@ class BlueprintBase(ABC):
                     for tool_msg, _ in tool_msgs:
                         truncated.insert(1, tool_msg)
                     total_tokens += pair_tokens
-                else:
-                    logger.debug(f"Skipping assistant-tool pair due to token limits in strict_token_limit")
-            else:
-                if total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
-                    truncated.insert(0, msg)
-                    total_tokens += tokens
+            elif total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
+                truncated.insert(0, msg)
+                total_tokens += tokens
             i -= 1
 
-        final_messages = system_messages + truncated
-        logger.debug(f"Truncated to {len(final_messages)} messages with {total_tokens} tokens using strict_token_limit")
+        final_messages = system_msgs + truncated
+        logger.debug(f"Truncated to {len(final_messages)} messages, {total_tokens} tokens (strict_token_limit)")
         return final_messages
 
     def _truncate_recent_only(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """
-        Keep recent messages up to the limit, ensuring no orphaned tool messages.
-        """
-        system_messages = [msg for msg in messages if msg.get("role") == "system"]
-        non_system_messages = [msg for msg in messages if msg.get("role") != "system"]
+        """Keep recent messages, preserving tool pairs within message limit."""
+        system_msgs = [msg for msg in messages if msg.get("role") == "system"]
+        non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
 
-        message_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_messages]
+        msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
         truncated = []
-        i = len(message_tokens) - 1
+        i = len(msg_tokens) - 1
 
         while i >= 0 and len(truncated) < self.max_context_messages:
-            msg, tokens = message_tokens[i]
-            if msg.get("role") == "tool":
-                tool_call_id = msg.get("tool_call_id")
+            msg, _ = msg_tokens[i]
+            if msg.get("role") == "tool" and "tool_call_id" in msg:
+                tool_call_id = msg["tool_call_id"]
                 assistant_idx = i - 1
-                assistant_found = False
+                pair_found = False
                 while assistant_idx >= 0:
-                    prev_msg, prev_tokens = message_tokens[assistant_idx]
+                    prev_msg, _ = msg_tokens[assistant_idx]
                     if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
                         for tc in prev_msg["tool_calls"]:
-                            if tc["id"] == tool_call_id:
-                                if len(truncated) + 2 <= self.max_context_messages:
-                                    truncated.insert(0, prev_msg)
-                                    truncated.insert(1, msg)
-                                assistant_found = True
+                            if tc["id"] == tool_call_id and len(truncated) + 2 <= self.max_context_messages:
+                                truncated.insert(0, prev_msg)
+                                truncated.insert(1, msg)
+                                pair_found = True
                                 break
-                    if assistant_found:
+                    if pair_found:
                         break
                     assistant_idx -= 1
-                if not assistant_found:
-                    logger.debug(f"Skipping orphaned tool message with tool_call_id '{tool_call_id}' in recent_only")
             elif msg.get("role") == "assistant" and "tool_calls" in msg:
                 tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
                 tool_msgs = []
                 j = i + 1
-                while j < len(message_tokens):
-                    next_msg, next_tokens = message_tokens[j]
+                while j < len(msg_tokens) and tool_call_ids:
+                    next_msg, _ = msg_tokens[j]
                     if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
-                        tool_msgs.append((next_msg, next_tokens))
+                        tool_msgs.append(next_msg)
                         tool_call_ids.remove(next_msg["tool_call_id"])
                     else:
                         break
@@ -407,34 +402,33 @@ class BlueprintBase(ABC):
                 pair_len = 1 + len(tool_msgs)
                 if len(truncated) + pair_len <= self.max_context_messages:
                     truncated.insert(0, msg)
-                    for tool_msg, _ in tool_msgs:
+                    for tool_msg in tool_msgs:
                         truncated.insert(1, tool_msg)
-                else:
-                    logger.debug(f"Skipping assistant-tool pair due to message limit in recent_only")
-            else:
-                if len(truncated) < self.max_context_messages:
-                    truncated.insert(0, msg)
+            elif len(truncated) < self.max_context_messages:
+                truncated.insert(0, msg)
             i -= 1
 
-        final_messages = system_messages + truncated
+        final_messages = system_msgs + truncated
         total_tokens = get_token_count(final_messages, model)
-        logger.debug(f"Truncated to {len(final_messages)} messages with {total_tokens} tokens using recent_only")
+        logger.debug(f"Truncated to {len(final_messages)} messages, {total_tokens} tokens (recent_only)")
         return final_messages
 
     def _is_create_agents_overridden(self) -> bool:
-        base_method = BlueprintBase.create_agents
-        subclass_method = self.__class__.create_agents
-        return subclass_method is not base_method
+        """Check if create_agents is overridden in subclass."""
+        return self.__class__.create_agents is not BlueprintBase.create_agents
 
     @property
     @abstractmethod
     def metadata(self) -> Dict[str, Any]:
+        """Metadata property to be implemented by subclasses."""
         raise NotImplementedError
 
     def create_agents(self) -> Dict[str, Any]:
+        """Default agent creation; override in subclasses."""
         return {}
 
     async def _discover_tools_for_agent(self, agent: Any) -> None:
+        """Discover and assign tools for an agent."""
         if agent.name not in self._discovered_tools:
             logger.debug(f"Discovering tools for agent: {agent.name}")
             self.spinner.start(f"Discovering MCP tools for {agent.name}")
@@ -443,14 +437,15 @@ class BlueprintBase(ABC):
                 valid_tools = [tool for tool in tools if hasattr(tool, 'name') and isinstance(tool.name, str)]
                 agent.functions = (agent.functions or []) + valid_tools
                 self._discovered_tools[agent.name] = valid_tools
-                logger.debug(f"Discovered {len(valid_tools)} valid tools for agent '{agent.name}': {[tool.name for tool in valid_tools]}")
+                logger.debug(f"Discovered {len(valid_tools)} tools for '{agent.name}': {[t.name for t in valid_tools]}")
             except Exception as e:
-                logger.error(f"Failed to discover tools for agent '{agent.name}': {e}")
+                logger.error(f"Failed to discover tools for '{agent.name}': {e}")
                 self._discovered_tools[agent.name] = []
             finally:
                 self.spinner.stop()
 
     async def _discover_resources_for_agent(self, agent: Any) -> None:
+        """Discover and assign resources for an agent."""
         if agent.name not in self._discovered_resources:
             logger.debug(f"Discovering resources for agent: {agent.name}")
             self.spinner.start(f"Discovering MCP resources for {agent.name}")
@@ -459,37 +454,22 @@ class BlueprintBase(ABC):
                 valid_resources = [res for res in resources if isinstance(res, dict) and 'name' in res]
                 agent.resources = (agent.resources or []) + valid_resources
                 self._discovered_resources[agent.name] = valid_resources
-                logger.debug(f"Discovered {len(valid_resources)} valid resources for agent '{agent.name}': {[res['name'] for res in valid_resources]}")
+                logger.debug(f"Discovered {len(valid_resources)} resources for '{agent.name}': {[r['name'] for r in valid_resources]}")
             except Exception as e:
-                logger.error(f"Failed to discover resources for agent '{agent.name}': {e}")
+                logger.error(f"Failed to discover resources for '{agent.name}': {e}")
                 self._discovered_resources[agent.name] = []
             finally:
                 self.spinner.stop()
 
     def set_starting_agent(self, agent: Any) -> None:
+        """Set the starting agent and trigger initial discovery."""
         logger.debug(f"Setting starting agent to: {agent.name}")
         self.starting_agent = agent
         self.context_variables["active_agent_name"] = agent.name
-        if agent.name not in self._discovered_tools:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop and loop.is_running():
-                asyncio.create_task(self._discover_tools_for_agent(agent))
-            else:
-                asyncio.run(self._discover_tools_for_agent(agent))
-        if agent.name not in self._discovered_resources:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop and loop.is_running():
-                asyncio.create_task(self._discover_resources_for_agent(agent))
-            else:
-                asyncio.run(self._discover_resources_for_agent(agent))
+        self._discover_initial_agent_assets(agent)
 
     async def determine_active_agent(self) -> Any:
+        """Determine the currently active agent, defaulting to starting agent if unset."""
         active_agent_name = self.context_variables.get("active_agent_name")
         if active_agent_name and active_agent_name in self.swarm.agents:
             agent = self.swarm.agents[active_agent_name]
@@ -497,7 +477,7 @@ class BlueprintBase(ABC):
                 await self._discover_tools_for_agent(agent)
             if active_agent_name not in self._discovered_resources:
                 await self._discover_resources_for_agent(agent)
-            logger.debug(f"Active agent determined: {active_agent_name}")
+            logger.debug(f"Active agent: {active_agent_name}")
             return agent
         elif self.starting_agent:
             if self.starting_agent.name not in self._discovered_tools:
@@ -505,17 +485,19 @@ class BlueprintBase(ABC):
             if self.starting_agent.name not in self._discovered_resources:
                 await self._discover_resources_for_agent(self.starting_agent)
             self.context_variables["active_agent_name"] = self.starting_agent.name
-            logger.debug(f"No active agent set; defaulting to starting agent: {self.starting_agent.name}")
+            logger.debug(f"Defaulting to starting agent: {self.starting_agent.name}")
             return self.starting_agent
-        logger.debug("No active or starting agent available; returning None")
+        logger.debug("No active or starting agent available.")
         return None
 
     def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
+        """Synchronous wrapper for running with context."""
         return asyncio.run(self.run_with_context_async(messages, context_variables))
 
     async def run_with_context_async(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
+        """Run the blueprint with given messages and context asynchronously."""
         self.context_variables.update(context_variables)
-        logger.debug(f"Context variables before execution: {self.context_variables}")
+        logger.debug(f"Context variables: {self.context_variables}")
 
         active_agent = await self.determine_active_agent()
         model = self.swarm.current_llm_config.get("model", "default") if active_agent else "default"
@@ -523,19 +505,12 @@ class BlueprintBase(ABC):
 
         if not self.swarm.agents:
             logger.debug("No agents defined; returning default response.")
-            return {
-                "response": {"messages": [{"role": "assistant", "content": "No agents available in this blueprint."}]},
-                "context_variables": self.context_variables
-            }
-
+            return {"response": {"messages": [{"role": "assistant", "content": "No agents available."}]}, "context_variables": self.context_variables}
         if not active_agent:
-            logger.debug("No active agent available; returning default response.")
-            return {
-                "response": {"messages": [{"role": "assistant", "content": "No active agent available."}]},
-                "context_variables": self.context_variables
-            }
+            logger.debug("No active agent; returning default response.")
+            return {"response": {"messages": [{"role": "assistant", "content": "No active agent available."}]}, "context_variables": self.context_variables}
 
-        logger.debug(f"Running with active agent: {active_agent.name}")
+        logger.debug(f"Running with agent: {active_agent.name}")
         self.spinner.start(f"Generating response from {active_agent.name}")
         try:
             prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
@@ -550,95 +525,95 @@ class BlueprintBase(ABC):
             finally:
                 if prev_openai_api_key is not None:
                     os.environ["OPENAI_API_KEY"] = prev_openai_api_key
+        except Exception as e:
+            logger.error(f"Run failed: {e}", exc_info=True)
+            response = {"messages": [{"role": "assistant", "content": "An error occurred during processing."}]}
         finally:
             self.spinner.stop()
 
         if not hasattr(response, 'messages'):
-            logger.error("Response does not have 'messages' attribute.")
+            logger.error("Response lacks 'messages' attribute.")
             response.messages = []
 
-        if response.agent and response.agent.name != active_agent.name:
+        if hasattr(response, 'agent') and response.agent and response.agent.name != active_agent.name:
             new_agent_name = response.agent.name
             self.context_variables["active_agent_name"] = new_agent_name
-            if new_agent_name not in self._discovered_tools:
-                asyncio.create_task(self._discover_tools_for_agent(response.agent))
-            if new_agent_name not in self._discovered_resources:
-                asyncio.create_task(self._discover_resources_for_agent(response.agent))
-            logger.debug(f"Started background tool and resource discovery for new agent: {new_agent_name}")
+            asyncio.create_task(self._discover_tools_for_agent(response.agent))
+            asyncio.create_task(self._discover_resources_for_agent(response.agent))
+            logger.debug(f"Switched to new agent: {new_agent_name}")
         else:
-            logger.debug(f"Reusing cached tools and resources for agent: {active_agent.name}")
+            logger.debug(f"Continuing with agent: {active_agent.name}")
 
         return {"response": response, "context_variables": self.context_variables}
 
     def set_active_agent(self, agent_name: str) -> None:
+        """Set the active agent by name."""
         if agent_name in self.swarm.agents:
             self.context_variables["active_agent_name"] = agent_name
-            if agent_name not in self._discovered_tools:
-                asyncio.run(self._discover_tools_for_agent(self.swarm.agents[agent_name]))
-            if agent_name not in self._discovered_resources:
-                asyncio.run(self._discover_resources_for_agent(self.swarm.agents[agent_name]))
+            agent = self.swarm.agents[agent_name]
+            if agent.name not in self._discovered_tools:
+                asyncio.run(self._discover_tools_for_agent(agent))
+            if agent.name not in self._discovered_resources:
+                asyncio.run(self._discover_resources_for_agent(agent))
             logger.debug(f"Active agent set to: {agent_name}")
         else:
-            logger.error(f"Agent '{agent_name}' not found. Cannot set as active agent.")
+            logger.error(f"Agent '{agent_name}' not found.")
             raise ValueError(f"Agent '{agent_name}' not found.")
 
     def _is_task_done(self, user_goal: str, conversation_summary: str, last_assistant_message: str) -> bool:
-        default_system_prompt = "You are a completion checker. Respond with ONLY 'YES' or 'NO' (no extra words)."
-        system_prompt = os.getenv("TASK_DONE_PROMPT", default_system_prompt)
-        default_user_prompt = "User's goal: {user_goal}\nConversation summary: {conversation_summary}\nLast assistant message: {last_assistant_message}\nIs the task fully complete? Answer only YES or NO."
-        user_prompt_template = os.getenv("TASK_DONE_USER_PROMPT", default_user_prompt)
-        user_prompt = user_prompt_template.format(
-            user_goal=user_goal,
-            conversation_summary=conversation_summary,
-            last_assistant_message=last_assistant_message
-        )
-        check_prompt = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        """Check if the task is complete using LLM validation."""
+        system_prompt = os.getenv("TASK_DONE_PROMPT", "You are a completion checker. Respond with ONLY 'YES' or 'NO'.")
+        user_prompt = os.getenv(
+            "TASK_DONE_USER_PROMPT",
+            "User's goal: {user_goal}\nConversation summary: {conversation_summary}\nLast assistant message: {last_assistant_message}\nIs the task fully complete? Answer only YES or NO."
+        ).format(user_goal=user_goal, conversation_summary=conversation_summary, last_assistant_message=last_assistant_message)
+        check_prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
         try:
             done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)
+            result = done_check.choices[0].message["content"].strip().upper().startswith("YES")
+            logger.debug(f"Task completion check: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Task completion check failed: {e}")
+            return False
         finally:
             if prev_openai_api_key is not None:
                 os.environ["OPENAI_API_KEY"] = prev_openai_api_key
-        raw_content = done_check.choices[0].message["content"].strip().upper()
-        logger.debug(f"Done check response: {raw_content}")
-        return raw_content.startswith("YES")
 
     def _update_user_goal(self, messages: List[Dict[str, str]]) -> None:
-        default_system_prompt = "You are an assistant that summarizes the user's primary objective based on the conversation so far. Provide a concise, one-sentence summary capturing the user's goal."
-        system_prompt = os.getenv("UPDATE_GOAL_PROMPT", default_system_prompt)
-        default_user_prompt = "Summarize the user's goal based on this conversation:\n{conversation}"
-        user_prompt_template = os.getenv("UPDATE_GOAL_USER_PROMPT", default_user_prompt)
-        conversation_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
-        user_prompt = user_prompt_template.format(conversation=conversation_text)
-        prompt = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        """Update user goal based on conversation history."""
+        system_prompt = os.getenv(
+            "UPDATE_GOAL_PROMPT",
+            "You are an assistant that summarizes the user's primary objective. Provide a concise, one-sentence summary."
+        )
+        user_prompt = os.getenv(
+            "UPDATE_GOAL_USER_PROMPT",
+            "Summarize the user's goal based on this conversation:\n{conversation}"
+        ).format(conversation="\n".join(f"{m['role']}: {m['content']}" for m in messages))
+        prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
         try:
             summary_response = self.swarm.run_llm(messages=prompt, max_tokens=30, temperature=0.3)
+            new_goal = summary_response.choices[0].message["content"].strip()
+            self.context_variables["user_goal"] = new_goal
+            logger.debug(f"Updated user goal: {new_goal}")
+        except Exception as e:
+            logger.error(f"Goal update failed: {e}")
         finally:
             if prev_openai_api_key is not None:
                 os.environ["OPENAI_API_KEY"] = prev_openai_api_key
-        new_goal = summary_response.choices[0].message["content"].strip()
-        logger.debug(f"Updated user goal from LLM: {new_goal}")
-        self.context_variables["user_goal"] = new_goal
 
     def interactive_mode(self, stream: bool = False) -> None:
+        """Run the blueprint in interactive mode."""
         logger.debug("Starting interactive mode.")
-        if not self.starting_agent:
-            logger.error("Starting agent is not set. Ensure set_starting_agent is called.")
-            raise ValueError("Starting agent is not set.")
-        if not self.swarm:
-            logger.error("Swarm instance is not initialized.")
-            raise ValueError("Swarm instance is not initialized.")
+        if not self.starting_agent or not self.swarm:
+            logger.error("Starting agent or Swarm not initialized.")
+            raise ValueError("Starting agent and Swarm must be initialized.")
 
         print("Blueprint Interactive Mode 🐝")
         messages: List[Dict[str, str]] = []
-        first_user_input = True
+        first_input = True
         message_count = 0
 
         while True:
@@ -648,19 +623,15 @@ class BlueprintBase(ABC):
                 print("Exiting interactive mode.")
                 break
 
-            if first_user_input:
+            if first_input:
                 self.context_variables["user_goal"] = user_input
-                first_user_input = False
+                first_input = False
 
             messages.append({"role": "user", "content": user_input})
             message_count += 1
 
-            result = self.run_with_context(messages, self.context_variables or {})
-            if "error" in result:
-                print(f"Error: {result['error']}")
-                continue
+            result = self.run_with_context(messages, self.context_variables)
             swarm_response = result["response"]
-
             response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
 
             if stream:
@@ -675,45 +646,39 @@ class BlueprintBase(ABC):
                 self.last_goal_update_count = message_count
 
             if self.auto_complete_task:
-                conversation_summary = " ".join(
-                    [msg["content"] for msg in messages[-4:] if msg.get("content")]
-                )
-                last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-                while not self._is_task_done(self.context_variables.get("user_goal", ""), conversation_summary, last_assistant):
-                    result2 = self.run_with_context(messages, self.context_variables or {})
-                    if "error" in result2:
-                        print(f"Error: {result2['error']}")
-                        break
-                    swarm_response = result2["response"]
-                    response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-                    if stream:
-                        self._process_and_print_streaming_response(swarm_response)
-                    else:
-                        self._pretty_print_response(response_messages)
-                    messages.extend(response_messages)
-                    conversation_summary = " ".join(
-                        [msg["content"] for msg in messages[-4:] if msg.get("content")]
-                    )
-                    last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-                print("\033[93m[System]\033[0m: Task is complete.")
+                self._auto_complete_task(messages, stream)
+
+    def _auto_complete_task(self, messages: List[Dict[str, str]], stream: bool):
+        """Auto-complete the task if enabled."""
+        conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
+        last_assistant = next((msg["content"] for msg in reversed(messages) if msg["role"] == "assistant" and msg.get("content")), "")
+        while not self._is_task_done(self.context_variables.get("user_goal", ""), conversation_summary, last_assistant):
+            result = self.run_with_context(messages, self.context_variables)
+            swarm_response = result["response"]
+            response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
+            if stream:
+                self._process_and_print_streaming_response(swarm_response)
+            else:
+                self._pretty_print_response(response_messages)
+            messages.extend(response_messages)
+            conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
+            last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
+        print("\033[93m[System]\033[0m: Task completed.")
 
     def non_interactive_mode(self, instruction: str, stream: bool = False) -> None:
+        """Run the blueprint in non-interactive mode."""
         logger.debug(f"Starting non-interactive mode with instruction: {instruction}")
         if not self.swarm:
-            logger.error("Swarm instance is not initialized.")
-            raise ValueError("Swarm instance is not initialized.")
+            logger.error("Swarm instance not initialized.")
+            raise ValueError("Swarm instance not initialized.")
 
         print(f"{self.metadata.get('title', 'Blueprint')} Non-Interactive Mode 🐝")
         messages = [{"role": "user", "content": instruction}]
         self.context_variables["user_goal"] = instruction
         self.context_variables["active_agent_name"] = self.starting_agent.name if self.starting_agent else "Unknown"
 
-        result = self.run_with_context(messages, self.context_variables or {})
-        if "error" in result:
-            print(f"Error: {result['error']}")
-            return
+        result = self.run_with_context(messages, self.context_variables)
         swarm_response = result["response"]
-
         response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
 
         if stream:
@@ -725,42 +690,23 @@ class BlueprintBase(ABC):
 
         if self.auto_complete_task and self.swarm.agents:
             messages.extend(response_messages)
-            conversation_summary = " ".join([msg["content"] for msg in messages[-4:] if msg.get("content")])
-            last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-            while not self._is_task_done(self.context_variables.get("user_goal", ""), conversation_summary, last_assistant):
-                result2 = self.run_with_context(messages, self.context_variables or {})
-                if "error" in result2:
-                    print(f"Error: {result2['error']}")
-                    break
-                swarm_response = result2["response"]
-                response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-                if stream:
-                    self._process_and_print_streaming_response(swarm_response)
-                else:
-                    self._pretty_print_response(response_messages)
-                    if response_messages:
-                        print(response_messages[-1]["content"])
-                messages.extend(response_messages)
-                conversation_summary = " ".join(
-                    [msg["content"] for msg in messages[-4:] if msg.get("content")]
-                )
-                last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-            print("\033[93m[System]\033[0m: Task is complete.")
-        print("Execution completed. Exiting.")
+            self._auto_complete_task(messages, stream)
+        print("Execution completed.")
 
     async def non_interactive_mode_async(self, instruction: str, stream: bool = False) -> None:
+        """Async version of non-interactive mode."""
+        logger.debug(f"Starting async non-interactive mode with instruction: {instruction}")
         if not self.swarm:
-            logger.error("Swarm instance is not initialized.")
-            raise ValueError("Swarm instance is not initialized.")
+            logger.error("Swarm instance not initialized.")
+            raise ValueError("Swarm instance not initialized.")
 
         print(f"{self.metadata.get('title', 'Blueprint')} Non-Interactive Mode 🐝")
         messages = [{"role": "user", "content": instruction}]
         self.context_variables["user_goal"] = instruction
         self.context_variables["active_agent_name"] = self.starting_agent.name if self.starting_agent else "Unknown"
 
-        result = await self.run_with_context_async(messages, self.context_variables or {})
+        result = await self.run_with_context_async(messages, self.context_variables)
         swarm_response = result["response"]
-
         response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
 
         if stream:
@@ -772,11 +718,11 @@ class BlueprintBase(ABC):
 
         if self.auto_complete_task and self.swarm.agents:
             messages.extend(response_messages)
-            conversation_summary = " ".join([msg["content"] for msg in messages[-4:] if msg.get("content")])
+            conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
             last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
             while not self._is_task_done(self.context_variables.get("user_goal", ""), conversation_summary, last_assistant):
-                result2 = await self.run_with_context_async(messages, self.context_variables or {})
-                swarm_response = result2["response"]
+                result = await self.run_with_context_async(messages, self.context_variables)
+                swarm_response = result["response"]
                 response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
                 if stream:
                     self._process_and_print_streaming_response(swarm_response)
@@ -785,14 +731,13 @@ class BlueprintBase(ABC):
                     if response_messages:
                         print(response_messages[-1]["content"])
                 messages.extend(response_messages)
-                conversation_summary = " ".join(
-                    [msg["content"] for msg in messages[-4:] if msg.get("content")]
-                )
+                conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
                 last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-            print("\033[93m[System]\033[0m: Task is complete.")
-        print("Execution completed. Exiting.")
+            print("\033[93m[System]\033[0m: Task completed.")
+        print("Execution completed.")
 
     def _process_and_print_streaming_response(self, response):
+        """Process and print streaming response chunks."""
         content = ""
         last_sender = ""
         for chunk in response:
@@ -800,14 +745,14 @@ class BlueprintBase(ABC):
                 last_sender = chunk["sender"]
             if "content" in chunk and chunk["content"] is not None:
                 if not content and last_sender:
-                    print(f"\033[94m{last_sender}:\033[0m", end=" ", flush=True)
+                    print(f"\033[94m{last_sender}:\033[0m ", end="", flush=True)
                     last_sender = ""
                 print(chunk["content"], end="", flush=True)
                 content += chunk["content"]
-            if "tool_calls" in chunk and chunk["tool_calls"] is not None:
+            if "tool_calls" in chunk and chunk["tool_calls"]:
                 for tool_call in chunk["tool_calls"]:
-                    tool_function = tool_call["function"]
-                    name = getattr(tool_function, "name", None) or tool_function.get("__name__", "Unnamed Tool")
+                    func = tool_call["function"]
+                    name = getattr(func, "name", func.get("__name__", "Unnamed Tool"))
                     print(f"\033[94m{last_sender}: \033[95m{name}\033[0m()")
             if "delim" in chunk and chunk["delim"] == "end" and content:
                 print()
@@ -815,36 +760,10 @@ class BlueprintBase(ABC):
             if "response" in chunk:
                 return chunk["response"]
 
-    def _register_module(self, module_key: str, module_description: str) -> None:
-        module_path = self.metadata.get(module_key)
-        if module_path:
-            try:
-                importlib.import_module(module_path)
-                logger.debug(f"Registered blueprint {module_description} from module: {module_path}")
-            except ImportError as e:
-                logger.error(f"Failed to register blueprint {module_description} from {module_path}: {e}")
-        else:
-            logger.debug(f"No blueprint {module_description} to register.")
-
-    def register_blueprint_models(self) -> None:
-        if self.skip_django_registration:
-            logger.debug("Skipping model registration due to CLI mode.")
-            return
-        self._register_module("models_module", "models")
-
-    def register_blueprint_views(self) -> None:
-        if self.skip_django_registration:
-            logger.debug("Skipping view registration due to CLI mode.")
-            return
-        self._register_module("views_module", "views")
-
     def register_blueprint_urls(self) -> None:
-        """Register blueprint URLs after ensuring Django is fully initialized."""
-        if self.skip_django_registration:
-            logger.debug("Skipping URL registration due to CLI mode.")
-            return
-        if getattr(self, "_urls_registered", False):
-            logger.debug("Blueprint URLs already registered. Skipping.")
+        """Register blueprint URLs with Django."""
+        if self.skip_django_registration or getattr(self, "_urls_registered", False):
+            logger.debug("Skipping URL registration: CLI mode or already registered.")
             return
         if not os.environ.get("DJANGO_SETTINGS_MODULE"):
             logger.debug("DJANGO_SETTINGS_MODULE not set; skipping URL registration.")
@@ -853,119 +772,101 @@ class BlueprintBase(ABC):
         module_path = self.metadata.get("django_modules", {}).get("urls")
         url_prefix = self.metadata.get("url_prefix", "")
         if not module_path:
-            logger.debug("No urls module specified in django_modules; skipping URL registration.")
+            logger.debug("No URLs module specified in metadata; skipping.")
             return
 
         try:
             from django.urls import include, path
             from importlib import import_module
 
-            # Wait for Django to be fully ready
-            while not apps.ready:
-                logger.debug("Waiting for Django apps to be ready before registering URLs...")
-                time.sleep(0.1)
-
             core_urls = import_module("swarm.urls")
             if not hasattr(core_urls, "urlpatterns"):
-                logger.error("swarm.urls has no urlpatterns attribute after Django boot.")
+                logger.error("swarm.urls has no urlpatterns attribute.")
                 return
 
-            m = import_module(module_path)
-            if not hasattr(m, "urlpatterns"):
+            urls_module = import_module(module_path)
+            if not hasattr(urls_module, "urlpatterns"):
                 logger.debug(f"No urlpatterns found in {module_path}")
                 return
 
             if url_prefix and not url_prefix.endswith('/'):
                 url_prefix += '/'
-
             app_name = self.metadata.get("cli_name", "blueprint")
 
-            # Check for duplicates
             for pattern in core_urls.urlpatterns:
                 if hasattr(pattern, 'url_patterns') and str(pattern.pattern) == url_prefix:
-                    logger.debug(f"URL prefix '{url_prefix}' already registered in core URLs.")
+                    logger.debug(f"URL prefix '{url_prefix}' already registered.")
                     self._urls_registered = True
                     return
 
-            core_urls.urlpatterns.append(
-                path(url_prefix, include((module_path, app_name)))
-            )
-            logger.debug(f"Registered blueprint URLs from {module_path} with prefix '{url_prefix}' and app_name '{app_name}'")
+            core_urls.urlpatterns.append(path(url_prefix, include((module_path, app_name))))
+            logger.info(f"Registered URLs from {module_path} at '{url_prefix}' (app_name: {app_name})")
             self._urls_registered = True
 
             from django.urls import clear_url_caches
             clear_url_caches()
         except ImportError as e:
-            logger.error(f"Failed to register blueprint URLs from {module_path}: {e}")
+            logger.error(f"Failed to register URLs from {module_path}: {e}")
         except Exception as e:
-            logger.error(f"Unexpected error registering blueprint URLs: {e}", exc_info=True)
+            logger.error(f"Unexpected error registering URLs: {e}", exc_info=True)
 
     def _pretty_print_response(self, messages) -> None:
-        for message in messages:
-            if message["role"] != "assistant":
+        """Format and print assistant responses."""
+        for msg in messages:
+            if msg["role"] != "assistant":
                 continue
-            sender = message.get("sender", "Assistant")
-            print(f"\033[94m{sender}\033[0m:", end=" ")
-            if message.get("content"):
-                print(message["content"])
-            tool_calls = message.get("tool_calls") or []
-            if len(tool_calls) > 1:
-                print()
-            for tool_call in tool_calls:
-                f = tool_call["function"]
-                name = f["name"]
-                arg_str = json.dumps(json.loads(f["arguments"])).replace(":", "=")
-                print(f"\033[95m{name}\033[0m({arg_str[1:-1]})")
+            sender = msg.get("sender", "Assistant")
+            print(f"\033[94m{sender}\033[0m: ", end="")
+            if msg.get("content"):
+                print(msg["content"])
+            if tool_calls := msg.get("tool_calls", []):
+                if len(tool_calls) > 1:
+                    print()
+                for tc in tool_calls:
+                    f = tc["function"]
+                    name = f["name"]
+                    args = json.dumps(json.loads(f["arguments"])).replace(":", "=")
+                    print(f"\033[95m{name}\033[0m({args[1:-1]})")
 
     @classmethod
     def main(cls):
-        parser = argparse.ArgumentParser(description=f"Launch the {cls.__name__} blueprint with configurable options.")
-        parser.add_argument("--config", type=str, default="./swarm_config.json", help="Path to the configuration file")
-        parser.add_argument("--auto-complete-task", action="store_true", help="Enable multi-step auto-completion with LLM validation")
-        parser.add_argument("--update-user-goal", action="store_true", help="Enable dynamic user goal updates via LLM analysis")
-        parser.add_argument("--update-user-goal-frequency", type=int, default=5, help="Number of messages between goal updates")
-        parser.add_argument("--instruction", type=str, help="Single instruction for non-interactive mode execution")
-        parser.add_argument("--log-file-path", type=str, help="Path to log file (default: ~/.swarm/logs/<blueprint_name>.log)")
-        parser.add_argument("--debug", action="store_true", help="Print debug logs and stderr to console")
+        """Entry point for running the blueprint standalone."""
+        parser = argparse.ArgumentParser(description=f"Run the {cls.__name__} blueprint.")
+        parser.add_argument("--config", default="./swarm_config.json", help="Configuration file path")
+        parser.add_argument("--auto-complete-task", action="store_true", help="Enable task auto-completion")
+        parser.add_argument("--update-user-goal", action="store_true", help="Enable dynamic goal updates")
+        parser.add_argument("--update-user-goal-frequency", type=int, default=5, help="Messages between goal updates")
+        parser.add_argument("--instruction", help="Instruction for non-interactive mode")
+        parser.add_argument("--log-file-path", help="Log file path (default: ~/.swarm/logs/<blueprint>.log)")
+        parser.add_argument("--debug", action="store_true", help="Enable debug logging to console")
         args = parser.parse_args()
 
         root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
-
-        for logger_name in logging.root.manager.loggerDict:
-            logger_instance = logging.getLogger(logger_name)
-            logger_instance.handlers.clear()
+        root_logger.setLevel(logging.DEBUG if args.debug or DEBUG else logging.INFO)
         root_logger.handlers.clear()
+        for logger_name in logging.root.manager.loggerDict:
+            logging.getLogger(logger_name).handlers.clear()
 
-        log_file_path = args.log_file_path or str(Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log")
-        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+        log_file = args.log_file_path or str(Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log")
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        handler = logging.StreamHandler(sys.stdout if args.debug else open(log_file, 'a'))
+        handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s"))
+        root_logger.addHandler(handler)
 
-        if args.instruction:
-            handler = logging.StreamHandler(sys.stdout if args.debug else open(log_file_path, 'a'))
-            root_logger.handlers.append(handler)
-            if not args.debug:
-                sys.stderr = open(log_file_path, 'a')
-                logger.info(f"Redirected stderr to {log_file_path}")
-        else:
-            handler = logging.StreamHandler(sys.stderr if args.debug else open(log_file_path, 'a'))
-            root_logger.handlers.append(handler)
-            if not args.debug:
-                sys.stderr = open(log_file_path, 'a')
-                logger.info(f"Redirected stderr to {log_file_path}")
-            else:
-                logger.info("Debug mode enabled; stderr remains on console")
+        if not args.debug and not sys.stderr.isatty():
+            sys.stderr = open(log_file, 'a')
+            logger.info(f"Redirected stderr to {log_file}")
 
-        formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
-        handler.setFormatter(formatter)
-
-        logger.debug(f"Launching blueprint with config: {args.config}, auto_complete_task={args.auto_complete_task}, update_user_goal={args.update_user_goal}, update_user_goal_frequency={args.update_user_goal_frequency}, instruction={args.instruction}, log_file_path={log_file_path}, debug={args.debug}")
+        logger.debug(f"Launching with: config={args.config}, auto_complete={args.auto_complete_task}, "
+                     f"update_goal={args.update_user_goal}, freq={args.update_user_goal_frequency}, "
+                     f"instruction={args.instruction}, log={log_file}, debug={args.debug}")
         config = load_server_config(args.config)
         blueprint = cls(
             config=config,
             auto_complete_task=args.auto_complete_task,
             update_user_goal=args.update_user_goal,
             update_user_goal_frequency=args.update_user_goal_frequency,
-            log_file_path=log_file_path,
+            log_file_path=log_file,
             debug=args.debug,
             non_interactive=bool(args.instruction)
         )
@@ -975,11 +876,11 @@ class BlueprintBase(ABC):
             else:
                 blueprint.interactive_mode()
         finally:
-            if not args.debug:
+            if not args.debug and not sys.stderr.isatty():
                 sys.stderr.close()
                 sys.stderr = sys.__stderr__
                 logger.debug("Restored stderr to console")
-        logger.info("Blueprint execution completed")
+        logger.info("Execution completed.")
 
 if __name__ == "__main__":
     BlueprintBase.main()
