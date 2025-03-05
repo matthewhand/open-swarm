@@ -22,7 +22,10 @@ import uuid
 from collections import defaultdict
 from typing import List, Optional, Dict, Any, Callable
 from types import SimpleNamespace
-from nemoguardrails.rails.llm.options import GenerationOptions
+try:
+    from nemoguardrails.rails.llm.options import GenerationOptions
+except ImportError:
+    GenerationOptions = None
 
 import asyncio
 from openai import AsyncOpenAI, OpenAIError

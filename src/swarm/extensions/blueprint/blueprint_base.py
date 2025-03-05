@@ -21,7 +21,10 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 try:
-    from nemoguardrails import LLMRails, RailsConfig  # type: ignore
+    try:
+        from nemoguardrails import LLMRails, RailsConfig  # type: ignore
+    except ImportError:
+        LLMRails, RailsConfig = None, None
 except ImportError:
     LLMRails, RailsConfig = None, None
 

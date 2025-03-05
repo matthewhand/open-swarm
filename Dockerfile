@@ -25,7 +25,7 @@ RUN pip install --upgrade pip setuptools wheel
 # Install BLIS with generic architecture support
 ENV BLIS_ARCH="generic"
 #RUN pip install --no-cache-dir --no-binary=blis blis==1.2.0
-RUN pip install --no-cache-dir --no-dependencies nemoguardrails
+# RUN pip install --no-cache-dir --no-dependencies nemoguardrails
 
 # Install the project along with its dependencies using Hatchling (as set in pyproject.toml)
 RUN pip install .

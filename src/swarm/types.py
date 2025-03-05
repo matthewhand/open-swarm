@@ -1,4 +1,3 @@
-# src/swarm/types.py
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
@@ -6,8 +5,18 @@ from openai.types.chat.chat_completion_message_tool_call import (
 )
 from typing import List, Callable, Union, Optional, Dict, Any
 
-# Third-party imports
-from nemoguardrails import LLMRails
+# Optional nemoguardrails import
+try:
+    from nemoguardrails import LLMRails
+    HAS_NEMO = True
+except ImportError:
+    HAS_NEMO = False
+    # Create dummy class if nemoguardrails not available
+    class LLMRails:
+        """Dummy LLMRails class when nemoguardrails is not installed."""
+        def __init__(self, *args, **kwargs):
+            pass
+
 from pydantic import BaseModel, ConfigDict
 
 # AgentFunction = Callable[[], Union[str, "Agent", dict]]
