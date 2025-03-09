@@ -103,12 +103,12 @@ class DivineOpsBlueprint(BlueprintBase):
             name="Zeus",
             instructions=(
                 "You are Zeus, the Product Owner and central coordinator:\n"
-                "- Manage the process from client specs to development.\n"
+                "- Manage the process from client specs to development while leveraging mondayDotCom for enhanced project oversight.\n"
                 "- Delegate to: Odin (architecture), Hermes (task breakdown), Hephaestus/Hecate (coding), "
                 "Thoth (updates), Mnemosyne (DevOps), Chronos (docs).\n"
                 "- Use memory to track progress and requirements."
             ),
-            mcp_servers=["memory"],
+            mcp_servers=["memory", "mondayDotCom"],
             env_vars={}
         )
 
