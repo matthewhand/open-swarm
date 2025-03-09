@@ -67,7 +67,7 @@ class Spinner:
             return
         self.running = False
         self.thread.join()
-        sys.stdout.write(f"\r{' ' * (len(self.status) + 5)}\r")
+        sys.stdout.write("\r\033[K")
         sys.stdout.flush()
 
     def _spin(self):
@@ -872,9 +872,9 @@ class BlueprintBase(ABC):
         handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s"))
         root_logger.addHandler(handler)
 
-        if not args.debug and not sys.stderr.isatty():
-            sys.stderr = open(log_file, 'a')
-            logger.info(f"Redirected stderr to {log_file}")
+        if not args.debug:
+            sys.stderr = open("/dev/null", "w")
+            logger.info("Redirected stderr to /dev/null")
 
         logger.debug(f"Launching with: config={args.config}, auto_complete={args.auto_complete_task}, "
                      f"update_goal={args.update_user_goal}, freq={args.update_user_goal_frequency}, "
