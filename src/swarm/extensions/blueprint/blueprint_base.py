@@ -536,7 +536,13 @@ class BlueprintBase(ABC):
 
         if not hasattr(response, 'messages'):
             logger.error("Response lacks 'messages' attribute.")
-            response.messages = []
+            if isinstance(response, dict):
+                response["messages"] = []
+            else:
+                try:
+                    response.messages = []
+                except AttributeError:
+                    logger.error("Unable to set 'messages' on response. It's neither a dict nor an object with 'messages'.")
 
         if hasattr(response, 'agent') and response.agent and response.agent.name != active_agent.name:
             new_agent_name = response.agent.name
