@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
     """Estimate token count for messages (placeholder—replace with actual implementation)."""
-    return sum(len(msg.get("content", "")) // 4 for msg in messages)  # Rough: 4 chars ≈ 1 token
+    return sum(len(msg.get("content") or "") // 4 for msg in messages)  # Rough: 4 chars ≈ 1 token
 
 class Spinner:
     """Simple terminal spinner for interactive feedback."""
@@ -240,7 +240,11 @@ class BlueprintBase(ABC):
         method = truncation_methods.get(self.truncation_mode, self._truncate_preserve_pairs)
         if self.truncation_mode not in truncation_methods:
             logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; using 'preserve_pairs'")
-        return method(messages, model)
+        try:
+            return method(messages, model)
+        except Exception as e:
+            logger.error(f"Error during message truncation: {e}")
+            return messages
 
     def _truncate_preserve_pairs(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
         """Truncate while preserving assistant-tool message pairs within token/message limits."""
@@ -821,6 +825,9 @@ class BlueprintBase(ABC):
 
     def _pretty_print_response(self, messages) -> None:
         """Format and print assistant responses."""
+        import sys
+        sys.stdout.write("\r" + " " * (len(self.spinner.status) + 5) + "\r")
+        sys.stdout.flush()
         for msg in messages:
             if msg["role"] != "assistant":
                 continue
@@ -829,13 +836,16 @@ class BlueprintBase(ABC):
             if msg.get("content"):
                 print(msg["content"])
             if tool_calls := msg.get("tool_calls", []):
-                if len(tool_calls) > 1:
-                    print()
+                print("\033[92mFunction Calls:\033[0m")
                 for tc in tool_calls:
                     f = tc["function"]
                     name = f["name"]
-                    args = json.dumps(json.loads(f["arguments"])).replace(":", "=")
-                    print(f"\033[95m{name}\033[0m({args[1:-1]})")
+                    try:
+                        args_obj = json.loads(f["arguments"])
+                        args_str = ", ".join(f"{k}={v}" for k, v in args_obj.items())
+                    except Exception:
+                        args_str = f["arguments"]
+                    print(f"\033[95m{name}\033[0m({args_str})")
 
     @classmethod
     def main(cls):

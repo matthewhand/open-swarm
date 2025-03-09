@@ -435,8 +435,12 @@ class Swarm:
                 prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
                 try:
                     completion = await self.client.chat.completions.create(**create_params)
-                    logger.debug(f"OpenAI completion received for '{agent.name}': {completion.choices[0].message.content[:50]}...")
-                    return completion.choices[0].message
+                    if completion.choices and len(completion.choices) > 0 and completion.choices[0].message and "content" in completion.choices[0].message:
+                        log_msg = completion.choices[0].message.content[:50]
+                    else:
+                        log_msg = "No valid message content"
+                    logger.debug(f"OpenAI completion received for '{agent.name}': {log_msg}...")
+                    return completion.choices[0].message if completion.choices and len(completion.choices) > 0 and completion.choices[0].message else None
                 finally:
                     if prev_openai_api_key is not None:
                         os.environ["OPENAI_API_KEY"] = prev_openai_api_key
