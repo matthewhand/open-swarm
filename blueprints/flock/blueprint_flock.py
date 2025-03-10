@@ -86,93 +86,168 @@ class FlockBlueprint(BlueprintBase):
     @property
     def metadata(self) -> Dict[str, Any]:
         return {
-            "title": "Flock: CLI Automation Blueprint",
+            "title": "Gaggle: CLI Automation Blueprint",
             "description": (
                 "A blueprint for automating CLI tasks with custom colored output and spinner. "
-                "Includes agents for orchestration (Coordinator), command execution (Runner), "
-                "and logging (Logger)."
+                "Includes agents for orchestration (Gandor), command execution (Goslin), "
+                "and logging (Honkir)."
             ),
             "required_mcp_servers": [],
             "env_vars": []
         }
 
+    @property
+    def prompt(self) -> str:
+        agent = self.context_variables.get("active_agent_name", "Gandor")
+        if agent == "Gandor":
+            return "\033[94m( O)>\033[0m "
+        elif agent == "Goslin":
+            return "\033[94m(O,O)\033[0m "
+        elif agent == "Honkir":
+            return "\033[94m(◕ω◕)く\033[0m "
+        else:
+            return "\033[94m( O)>\033[0m "
+
     def create_agents(self) -> Dict[str, Agent]:
         agents: Dict[str, Agent] = {}
 
-        coordinator_instructions = (
-            "You are the Coordinator for Flock, responsible for directing CLI automation tasks. "
-            "Delegate command execution to the Runner and let the Logger handle output monitoring."
+        gandor_instructions = (
+            "You are Gandor, the Coordinator for Gaggle, responsible for directing CLI automation tasks. "
+            "Delegate command execution to Goslin and let Honkir handle output monitoring."
         )
-        agents["Coordinator"] = Agent(
-            name="Coordinator",
-            instructions=coordinator_instructions,
+        agents["Gandor"] = Agent(
+            name="Gandor",
+            instructions=gandor_instructions,
             mcp_servers=[],
             env_vars={}
         )
 
-        runner_instructions = (
-            "You are the Runner for Flock. Execute shell commands using tools like execute_command, "
+        goslin_instructions = (
+            "You are Goslin, the Runner for Gaggle. Execute shell commands using tools like execute_command, "
             "read file contents with read_file, and write data with write_file."
         )
-        agents["Runner"] = Agent(
-            name="Runner",
-            instructions=runner_instructions,
+        agents["Goslin"] = Agent(
+            name="Goslin",
+            instructions=goslin_instructions,
             mcp_servers=[],
             env_vars={}
         )
 
-        logger_instructions = (
-            "You are the Logger for Flock. Your role is to monitor outputs and log system feedback. "
+        honkir_instructions = (
+            "You are Honkir, the Logger for Gaggle. Your role is to monitor outputs and log system feedback. "
             "You can also trigger commands if needed."
         )
-        agents["Logger"] = Agent(
-            name="Logger",
-            instructions=logger_instructions,
+        agents["Honkir"] = Agent(
+            name="Honkir",
+            instructions=honkir_instructions,
+            mcp_servers=[],
+            env_vars={}
+        )
+        # Insert additional agents.
+        chirpy_instructions = (
+            "You are Chirpy, an auxiliary agent for Gaggle. Provide quick suggestions and assist with secondary tasks."
+        )
+        agents["Chirpy"] = Agent(
+            name="Chirpy",
+            instructions=chirpy_instructions,
+            mcp_servers=[],
+            env_vars={}
+        )
+        peeper_instructions = (
+            "You are Peeper, an additional agent for Gaggle. Review outputs and offer extra insights when required."
+        )
+        agents["Peeper"] = Agent(
+            name="Peeper",
+            instructions=peeper_instructions,
+            mcp_servers=[],
+            env_vars={}
+        )
+        chirpy_instructions = (
+            "You are Chirpy, an auxiliary agent for Gaggle. Provide quick suggestions and assist with secondary tasks."
+        )
+        agents["Chirpy"] = Agent(
+            name="Chirpy",
+            instructions=chirpy_instructions,
+            mcp_servers=[],
+            env_vars={}
+        )
+        peeper_instructions = (
+            "You are Peeper, an additional agent for Gaggle. Review outputs and offer extra insights when required."
+        )
+        agents["Peeper"] = Agent(
+            name="Peeper",
+            instructions=peeper_instructions,
+            mcp_servers=[],
+            env_vars={}
+        )
+        # Insert additional agents: Chirpy and Peeper.
+        chirpy_instructions = (
+            "You are Chirpy, an auxiliary agent for Gaggle. Provide quick suggestions and assist with secondary tasks."
+        )
+        agents["Chirpy"] = Agent(
+            name="Chirpy",
+            instructions=chirpy_instructions,
+            mcp_servers=[],
+            env_vars={}
+        )
+        peeper_instructions = (
+            "You are Peeper, an additional agent for Gaggle. Review outputs and offer extra insights when required."
+        )
+        agents["Peeper"] = Agent(
+            name="Peeper",
+            instructions=peeper_instructions,
             mcp_servers=[],
             env_vars={}
         )
 
-        # Define a common handoff function so agents can return control to the Coordinator.
-        def handoff_to_coordinator() -> Agent:
-            return agents["Coordinator"]
-
-        object.__setattr__(agents["Coordinator"], "functions", [handoff_to_coordinator])
-        object.__setattr__(agents["Runner"], "functions", [handoff_to_coordinator])
-        object.__setattr__(agents["Logger"], "functions", [handoff_to_coordinator])
+        # Define a handoff function that returns the agent for a given target.
+        def handoff_to(target: str):
+            def _handoff() -> Agent:
+                return agents[target]
+            _handoff.__name__ = f"handoff_to_{target}"
+            return _handoff
+        
+        # For the starting agent (Gandor): assign one handoff function for each of the other agents.
+        object.__setattr__(agents["Gandor"], "functions", [
+            handoff_to("Goslin"),
+            handoff_to("Honkir"),
+            handoff_to("Chirpy"),
+            handoff_to("Peeper")
+        ])
+        
+        # For each non‐starting agent: assign a single handoff function that returns Gandor.
+        object.__setattr__(agents["Goslin"], "functions", [handoff_to("Gandor")])
+        object.__setattr__(agents["Honkir"], "functions", [handoff_to("Gandor")])
+        object.__setattr__(agents["Chirpy"], "functions", [handoff_to("Gandor")])
+        object.__setattr__(agents["Peeper"], "functions", [handoff_to("Gandor")])
 
         # Assign toolsets to agents.
-        object.__setattr__(agents["Coordinator"], "tools", {})
-        object.__setattr__(agents["Runner"], "tools", {
+        object.__setattr__(agents["Gandor"], "tools", {})
+        object.__setattr__(agents["Goslin"], "tools", {
             "execute_command": execute_command,
             "read_file": read_file,
             "write_file": write_file
         })
-        object.__setattr__(agents["Logger"], "tools", {
-            "execute_command": execute_command  # Logger can trigger commands if necessary.
+        object.__setattr__(agents["Honkir"], "tools", {
+            "execute_command": execute_command  # Honkir can trigger commands if necessary.
         })
 
-        self.set_starting_agent(agents["Coordinator"])
+        self.set_starting_agent(agents["Gandor"])
         logger.debug(f"Agents registered: {list(agents.keys())}")
         return agents
 
-    def spinner(self, message: str = "Automating the CLI...") -> None:
+    def spinner(self, message: str = "Automating the CLI...", error: bool = False) -> None:
         """
-        Overrides the default spinner to display a custom spinner with a different color.
+        Overrides the default spinner to display a fixed prompt for the starting agent.
+        In normal operation, display "( O )>" in blue; if an error occurs, display "( @ )>" in blue.
         """
-        spin_symbols = ["◐", "◓", "◑", "◒"]
-        color_code = "\033[94m"  # Blue for spinner
+        color_code = "\033[94m"
         reset_code = "\033[0m"
-
-        # Display the starting message.
-        print(f"{color_code}{message}{reset_code}")
-        for _ in range(8):
-            for symbol in spin_symbols:
-                sys.stdout.write(f"\r{color_code}{symbol} {message}{reset_code}")
-                sys.stdout.flush()
-                time.sleep(0.2)
-        # Clear spinner on completion.
-        sys.stdout.write("\r")
-        sys.stdout.flush()
+        if error:
+            prompt_str = f"{color_code}( @ )>{reset_code}"
+        else:
+            prompt_str = f"{color_code}( O )>{reset_code}"
+        print(f"{prompt_str} {message}")
 
     def render_output(self, text: str, color: str = "green") -> None:
         """
@@ -193,7 +268,6 @@ class FlockBlueprint(BlueprintBase):
         reset_code = "\033[0m"
         color_code = colors.get(color.lower(), "\033[92m")
         print(f"{color_code}{text}{reset_code}")
-
 
 if __name__ == "__main__":
     FlockBlueprint.main()

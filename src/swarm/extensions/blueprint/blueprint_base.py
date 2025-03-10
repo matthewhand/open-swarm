@@ -617,6 +617,10 @@ class BlueprintBase(ABC):
             if prev_openai_api_key is not None:
                 os.environ["OPENAI_API_KEY"] = prev_openai_api_key
 
+    @property
+    def prompt(self) -> str:
+        return "\033[90mUser\033[0m: "
+
     def interactive_mode(self, stream: bool = False) -> None:
         """Run the blueprint in interactive mode."""
         logger.debug("Starting interactive mode.")
@@ -630,8 +634,7 @@ class BlueprintBase(ABC):
         message_count = 0
 
         while True:
-            print("\033[90mUser\033[0m: ", end="", flush=True)
-            user_input = input().strip()
+            user_input = input(self.prompt).strip()
             if user_input.lower() in {"exit", "quit"}:
                 print("Exiting interactive mode.")
                 break
