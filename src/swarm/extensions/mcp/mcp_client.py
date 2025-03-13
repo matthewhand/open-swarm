@@ -9,9 +9,11 @@ import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Callable
+from contextlib import contextmanager
+import sys, os
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import ClientSession, StdioServerParameters  # type: ignore
+from mcp.client.stdio import stdio_client  # type: ignore
 from swarm.types import Tool
 from .cache_utils import get_cache
 
@@ -42,7 +44,21 @@ class MCPClient:
         # Initialize cache using the helper
         self.cache = get_cache()
 
-        logger.info(f"Initialized MCPClient with command={self.command}, args={self.args}, debug={debug}")
+        logger.info(f"Initialized MCPClient with command={self.command}, args={self.args}, debug={self.debug}")
+        
+    @contextmanager
+    def _redirect_stderr(self):
+        import sys, os
+        if not self.debug:
+            old_stderr = sys.stderr
+            sys.stderr = open(os.devnull, "w")
+            try:
+                yield
+            finally:
+                sys.stderr.close()
+                sys.stderr = old_stderr
+        else:
+            yield
 
     async def list_tools(self) -> List[Tool]:
         """
@@ -118,6 +134,18 @@ class MCPClient:
                     logger.error(f"Error listing tools: {e}")
                     raise RuntimeError("Failed to list tools") from e
 
+    async def _do_list_resources(self) -> Any:
+        server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
+        logger.debug("Opening stdio_client connection for resources")
+        async with stdio_client(server_params) as (read, write):
+            logger.debug("Opening ClientSession for resources")
+            async with ClientSession(read, write) as session:
+                logger.info("Requesting resource list from MCP server...")
+                with self._redirect_stderr():
+                    resources_response = await asyncio.wait_for(session.list_resources(), timeout=self.timeout)
+                logger.debug("Resource list received from MCP server")
+                return resources_response
+
     def _create_tool_callable(self, tool_name: str) -> Callable[..., Any]:
         """
         Dynamically create a callable function for the specified tool.
@@ -144,7 +172,6 @@ class MCPClient:
                         logger.error(f"Failed to execute tool '{tool_name}': {e}")
                         raise RuntimeError(f"Tool execution failed: {e}") from e
 
-        dynamic_tool_func.dynamic = True
         return dynamic_tool_func
 
     def _validate_input_schema(self, schema: Dict[str, Any], kwargs: Dict[str, Any]):
@@ -161,3 +188,9 @@ class MCPClient:
                 raise ValueError(f"Missing required parameter: '{param}'")
 
         logger.debug(f"Validated input against schema: {schema} with arguments: {kwargs}")
+    
+    async def list_resources(self) -> Any:
+        """
+        Discover resources from the MCP server using the internal method with enforced timeout.
+        """
+        return await asyncio.wait_for(self._do_list_resources(), timeout=self.timeout)
