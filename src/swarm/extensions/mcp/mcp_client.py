@@ -10,7 +10,7 @@ import logging
 import os
 from typing import Any, Dict, List, Callable
 from contextlib import contextmanager
-import sys, os
+import sys
 
 from mcp import ClientSession, StdioServerParameters  # type: ignore
 from mcp.client.stdio import stdio_client  # type: ignore
@@ -45,7 +45,7 @@ class MCPClient:
         self.cache = get_cache()
 
         logger.info(f"Initialized MCPClient with command={self.command}, args={self.args}, debug={self.debug}")
-        
+
     @contextmanager
     def _redirect_stderr(self):
         import sys, os
@@ -68,7 +68,7 @@ class MCPClient:
             List[Tool]: A list of discovered tools with schemas.
         """
         logger.debug(f"Entering list_tools for command={self.command}, args={self.args}")
-        
+
         # Attempt to retrieve tools from cache
         args_string = "_".join(self.args)
         cache_key = f"mcp_tools_{self.command}_{args_string}"
@@ -142,6 +142,9 @@ class MCPClient:
             async with ClientSession(read, write) as session:
                 logger.info("Requesting resource list from MCP server...")
                 with self._redirect_stderr():
+                    # Ensure we initialize the session before listing resources
+                    logger.debug("Initializing session before listing resources")
+                    await asyncio.wait_for(session.initialize(), timeout=self.timeout)
                     resources_response = await asyncio.wait_for(session.list_resources(), timeout=self.timeout)
                 logger.debug("Resource list received from MCP server")
                 return resources_response
@@ -188,7 +191,7 @@ class MCPClient:
                 raise ValueError(f"Missing required parameter: '{param}'")
 
         logger.debug(f"Validated input against schema: {schema} with arguments: {kwargs}")
-    
+
     async def list_resources(self) -> Any:
         """
         Discover resources from the MCP server using the internal method with enforced timeout.

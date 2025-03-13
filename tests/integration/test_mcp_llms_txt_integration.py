@@ -31,7 +31,7 @@ class Timeout:
 
 @pytest.mark.asyncio
 async def test_mcp_raw_jsonrpc():
-    """Test MCP server integration with raw JSON-RPC commands with a hard 60-second timeout."""
+    """Test MCP server integration with raw JSON-RPC commands with a 60-second timeout."""
     async def run_test():
         import shutil
         if not shutil.which("uvx"):
@@ -52,8 +52,10 @@ async def test_mcp_raw_jsonrpc():
             try:
                 async with stdio_client(server_params) as (read, write):
                     async with ClientSession(read, write) as session:
+                        logger.debug("Requesting resource list from MCP server...")
                         resources_response = await session.list_resources()
                         resources = getattr(resources_response, "resources", None)
+                        logger.debug(f"Resources received: {resources}")
                         assert resources is not None, "Expected 'resources' in response"
                         assert isinstance(resources, list), "'resources' should be a list"
                         assert len(resources) > 0, "Expected at least one resource"
@@ -62,6 +64,5 @@ async def test_mcp_raw_jsonrpc():
         except FileNotFoundError as e:
             pytest.skip(f"uvx command not available: {e}")
 
-    # Combine both asyncio.wait_for and a SIGALRM based hard timeout to cover synchronous hangs.
     with Timeout(60, "Test timed out (hard timeout via SIGALRM)"):
         await asyncio.wait_for(run_test(), timeout=60)
