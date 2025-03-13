@@ -105,7 +105,7 @@ class GaggleBlueprint(BlueprintBase):
         elif agent == "Honkir":
             return "\033[94m(◕ω◕)く\033[0m "
         else:
-            return "\033[94m( O)>\033[0m "
+            return "\033[94m(O )>\033[0m "
 
     def create_agents(self) -> Dict[str, Agent]:
         agents: Dict[str, Agent] = {}
