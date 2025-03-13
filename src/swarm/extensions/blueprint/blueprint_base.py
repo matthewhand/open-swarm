@@ -618,6 +618,14 @@ class BlueprintBase(ABC):
                 os.environ["OPENAI_API_KEY"] = prev_openai_api_key
 
     @property
+    def task_completed(self, outcome: str) -> None:
+        """
+        Function available to the starting agent in non-interactive mode.
+        Prints the outcome of the instructed task and auto-prompts "continue".
+        """
+        print(outcome)
+        print("continue")
+    
     def prompt(self) -> str:
         return "\033[90mUser\033[0m: "
 
@@ -634,6 +642,8 @@ class BlueprintBase(ABC):
         message_count = 0
 
         while True:
+            self.spinner.stop()
+
             user_input = input(self.prompt).strip()
             if user_input.lower() in {"exit", "quit"}:
                 print("Exiting interactive mode.")

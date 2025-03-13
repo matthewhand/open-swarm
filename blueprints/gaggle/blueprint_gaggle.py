@@ -20,6 +20,39 @@ from typing import Dict, Any
 from swarm.extensions.blueprint import BlueprintBase
 from swarm.types import Agent
 
+import threading, time
+class GaggleSpinner:
+    def __init__(self):
+        self.running = False
+        self.thread = None
+        self.status = ""
+    def start(self, status: str = "Automating the CLI..."):
+        if self.running:
+            return
+        self.running = True
+        self.status = status
+        def spinner_thread():
+            spin_symbols = ["<(^_^)>", "<(~_~)>", "<(O_O)>", "<(>_<)>"]
+            index = 0
+            while self.running:
+                symbol = spin_symbols[index % len(spin_symbols)]
+                sys.stdout.write(f"\r\033[92m{symbol}\033[0m {self.status}")
+                sys.stdout.flush()
+                index += 1
+                time.sleep(0.2)
+        import threading
+        th = threading.Thread(target=spinner_thread, daemon=True)
+        th.start()
+        self.thread = th
+    def stop(self):
+        if not self.running:
+            return
+        self.running = False
+        if self.thread:
+            self.thread.join()
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+
 # Configure logging for our blueprint.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -77,11 +110,14 @@ class GaggleBlueprint(BlueprintBase):
     Gaggle: CLI Automation Blueprint
 
     Characters:
-      - Harvey Birdman: LegalLimp & PaperPusher
-      - Foghorn Leghorn: NoiseBoss & StrutLord
-      - Daffy Duck: ChaosDuck & QuackFixer
-      - Big Bird: FluffTank & HugMonger
+      - Harvey Birdman: PaperPusher
+      - Foghorn Leghorn: NoiseBoss
+      - Daffy Duck: ChaosDuck
+      - Big Bird: HugMonger
     """
+    def __init__(self, config: dict, **kwargs):
+       super().__init__(config, **kwargs)
+       self.spinner = GaggleSpinner()
 
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -177,28 +213,6 @@ class GaggleBlueprint(BlueprintBase):
         logger.debug(f"Agents registered: {list(agents.keys())}")
         return agents
 
-    def spinner(self, message: str = "Automating the CLI...", error: bool = False) -> None:
-        """
-        Displays an animated bird-head spinner.
-        In normal operation, cycles through bird-face symbols; if error, displays a fixed error face.
-        """
-        color_code = "\033[94m"
-        reset_code = "\033[0m"
-        if error:
-            prompt_str = f"{color_code}( @ )>{reset_code}"
-            print(f"{prompt_str} {message}")
-        else:
-            spin_symbols = ["( ◉ )>", "( ◕ )>", "( ◔ )>", "( ◡ )>"]
-            start_time = time.time()
-            duration = 3  # animate for 3 seconds
-            for symbol in itertools.cycle(spin_symbols):
-                sys.stdout.write(f"\r{color_code}{symbol}{reset_code} {message}")
-                sys.stdout.flush()
-                time.sleep(0.2)
-                if time.time() - start_time > duration:
-                    break
-            sys.stdout.write("\r" + " " * (len(message)+20) + "\r")
-            sys.stdout.flush()
 
     def render_output(self, text: str, color: str = "green") -> None:
         colors = {

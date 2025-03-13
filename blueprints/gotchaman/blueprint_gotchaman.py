@@ -40,15 +40,20 @@ class GotchamanSpinner:
         self.status = ""
         self.error_mode = False
 
-    def start(self, status: str = "Automating the CLI..."):
+    def start(self, status: str = "Automating the CLI...", agent_prompt: str = "", blueprint=None):
         """
-        Start spinning with the given status message.
+        Start spinning with the given status message, agent prompt, and blueprint.
         """
         if self.running:
+            self.status = status
+            self.agent_prompt = agent_prompt
+            self.blueprint = blueprint
             return
         self.running = True
         self.status = status
         self.error_mode = False
+        self.agent_prompt = agent_prompt
+        self.blueprint = blueprint
         self.thread = None
         self.thread = self._spawn_thread()
 
@@ -69,11 +74,24 @@ class GotchamanSpinner:
 
         def spinner_thread():
             import time
-            spin_symbols = ["( ◉ )>", "( ◕ )>", "( ◔ )>", "( ◡ )>"]
+            import re
+            ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+            spinner_frames = ["◉", "◕", "◔", "◡"]
             index = 0
             while self.running:
-                symbol = spin_symbols[index % len(spin_symbols)]
-                sys.stdout.write(f"\r\033[94m{symbol}\033[0m {self.status}")
+                if hasattr(self, 'blueprint') and callable(self.blueprint.prompt):
+                    agent_prompt_str = ansi_escape.sub('', self.blueprint.prompt()).strip()
+                elif hasattr(self, 'agent_prompt') and self.agent_prompt:
+                    agent_prompt_str = ansi_escape.sub('', self.agent_prompt).strip()
+                else:
+                    agent_prompt_str = ""
+                if agent_prompt_str and agent_prompt_str.startswith('(') and len(agent_prompt_str) >= 3:
+                    animated_eye = spinner_frames[index % len(spinner_frames)]
+                    new_prompt = f"({animated_eye}{agent_prompt_str[2:]}"
+                else:
+                    new_prompt = agent_prompt_str if agent_prompt_str else ""
+                output = f"\r\033[94m{new_prompt}\033[0m {self.status}"
+                sys.stdout.write(output)
                 sys.stdout.flush()
                 index += 1
                 time.sleep(0.2)
@@ -258,7 +276,7 @@ class GotchamanBlueprint(BlueprintBase):
         if error:
             self.spinner.set_error(message)
         else:
-            self.spinner.start(message)
+            self.spinner.start(message, self.prompt())
 
     def render_output(self, text: str, color: str = "green") -> None:
         colors = {
