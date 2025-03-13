@@ -79,8 +79,8 @@ class GotchamanSpinner:
             spinner_frames = ["◉", "◕", "◔", "◡"]
             index = 0
             while self.running:
-                if hasattr(self, 'blueprint') and callable(self.blueprint.prompt):
-                    agent_prompt_str = ansi_escape.sub('', self.blueprint.prompt()).strip()
+                if hasattr(self, 'blueprint') and self.blueprint.prompt:
+                    agent_prompt_str = ansi_escape.sub('', self.blueprint.prompt).strip()
                 elif hasattr(self, 'agent_prompt') and self.agent_prompt:
                     agent_prompt_str = ansi_escape.sub('', self.agent_prompt).strip()
                 else:
@@ -88,13 +88,16 @@ class GotchamanSpinner:
                 if agent_prompt_str and agent_prompt_str.startswith('(') and len(agent_prompt_str) >= 3:
                     animated_eye = spinner_frames[index % len(spinner_frames)]
                     new_prompt = f"({animated_eye}{agent_prompt_str[2:]}"
+                elif not agent_prompt_str:
+                    spin_symbols = ["( ◉ )>", "( ◕ )>", "( ◔ )>", "( ◡ )>"]
+                    new_prompt = spin_symbols[index % len(spin_symbols)]
                 else:
-                    new_prompt = agent_prompt_str if agent_prompt_str else ""
+                    new_prompt = agent_prompt_str
                 output = f"\r\033[94m{new_prompt}\033[0m {self.status}"
                 sys.stdout.write(output)
                 sys.stdout.flush()
                 index += 1
-                time.sleep(0.2)
+                time.sleep(0.5)
 
         th = threading.Thread(target=spinner_thread, daemon=True)
         th.start()

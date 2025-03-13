@@ -645,7 +645,7 @@ class BlueprintBase(ABC):
             self.spinner.stop()
 
             user_input = input(self.prompt).strip()
-            if user_input.lower() in {"exit", "quit"}:
+            if user_input.lower() in {"exit", "quit", "/quit"}:
                 print("Exiting interactive mode.")
                 break
 
@@ -699,24 +699,34 @@ class BlueprintBase(ABC):
             raise ValueError("Swarm instance not initialized.")
 
         print(f"{self.metadata.get('title', 'Blueprint')} Non-Interactive Mode 🐝")
-        messages = [{"role": "user", "content": instruction}]
-        self.context_variables["user_goal"] = instruction
-        self.context_variables["active_agent_name"] = self.starting_agent.name if self.starting_agent else "Unknown"
-
-        result = self.run_with_context(messages, self.context_variables)
-        swarm_response = result["response"]
-        response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-
-        if stream:
-            self._process_and_print_streaming_response(swarm_response)
-        else:
-            self._pretty_print_response(response_messages)
-            if response_messages:
-                print(response_messages[-1]["content"])
-
-        if self.auto_complete_task and self.swarm.agents:
-            messages.extend(response_messages)
-            self._auto_complete_task(messages, stream)
+        instructions = [line.strip() for line in instruction.splitlines() if line.strip()]
+        messages = []
+        for line in instructions:
+            if line == "/quit":
+                print("Echoing command: /quit")
+                print("LLM response: none")
+                print("Spinner: off")
+                break
+            else:
+                messages.append({"role": "user", "content": line})
+        if messages:
+            self.context_variables["user_goal"] = messages[0]["content"]
+            self.context_variables["active_agent_name"] = self.starting_agent.name if self.starting_agent else "Unknown"
+        
+            result = self.run_with_context(messages, self.context_variables)
+            swarm_response = result["response"]
+            response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
+        
+            if stream:
+                self._process_and_print_streaming_response(swarm_response)
+            else:
+                self._pretty_print_response(response_messages)
+                if response_messages:
+                    print(response_messages[-1]["content"])
+        
+            if self.auto_complete_task and self.swarm.agents:
+                messages.extend(response_messages)
+                self._auto_complete_task(messages, stream)
         print("Execution completed.")
 
     async def non_interactive_mode_async(self, instruction: str, stream: bool = False) -> None:
