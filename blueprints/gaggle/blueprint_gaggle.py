@@ -1,10 +1,12 @@
 """
 Gaggle: CLI Automation Blueprint with Custom Colored Output
 
-This blueprint provides CLI automation capabilities with the following customizations:
-  - A custom colored spinner override that animates a bird-head prompt.
-  - A custom render_output method that prints output in color on the CLI.
-  - Five agents: Gandor, Goslin, Honkir, Chirpy, and Peeper.
+This blueprint is a fork of Gotchaman, demonstrating CLI automation capabilities with a custom set of characters:
+  - Harvey Birdman
+  - Foghorn Leghorn
+  - Daffy Duck
+  - Big Bird
+Each character has a unique ANSI prompt and role descriptors.
 """
 
 import os
@@ -74,12 +76,11 @@ class GaggleBlueprint(BlueprintBase):
     """
     Gaggle: CLI Automation Blueprint
 
-    Agents:
-      - Gandor: Coordinator for delegating CLI tasks.
-      - Goslin: Runner, responsible for executing shell commands.
-      - Honkir: Logger, monitors outputs.
-      - Chirpy: Auxiliary agent that provides quick suggestions.
-      - Peeper: Additional agent that offers insights and reviews outputs.
+    Characters:
+      - Harvey Birdman: LegalLimp & PaperPusher
+      - Foghorn Leghorn: NoiseBoss & StrutLord
+      - Daffy Duck: ChaosDuck & QuackFixer
+      - Big Bird: FluffTank & HugMonger
     """
 
     @property
@@ -87,9 +88,8 @@ class GaggleBlueprint(BlueprintBase):
         return {
             "title": "Gaggle: CLI Automation Blueprint",
             "description": (
-                "A blueprint for automating CLI tasks with custom colored output and an animated bird-head spinner. "
-                "Includes agents for coordination (Gandor), command execution (Goslin), logging (Honkir), suggestions (Chirpy), "
-                "and insights (Peeper)."
+                "A blueprint for automating CLI tasks with custom colored output and a set of pop-culture bird characters. "
+                "Each character demonstrates a different ANSI prompt and specialized role."
             ),
             "required_mcp_servers": [],
             "env_vars": []
@@ -97,50 +97,46 @@ class GaggleBlueprint(BlueprintBase):
 
     @property
     def prompt(self) -> str:
-        agent = self.context_variables.get("active_agent_name", "Gandor")
-        if agent == "Gandor":
-            return "\033[94m( O)>\033[0m "
-        elif agent == "Goslin":
-            return "\033[94m(O,O)\033[0m "
-        elif agent == "Honkir":
-            return "\033[94m(◕ω◕)く\033[0m "
+        agent = self.context_variables.get("active_agent_name", "Harvey Birdman")
+        if agent == "Harvey Birdman":
+            return "\033[94m(v>~)\033[0m "
+        elif agent == "Foghorn Leghorn":
+            return "\033[94m(O>!)\033[0m "
+        elif agent == "Daffy Duck":
+            return "\033[94m(O>=)\033[0m "
         else:
-            return "\033[94m(O )>\033[0m "
+            return "\033[94m(OO>)\033[0m "
 
     def create_agents(self) -> Dict[str, Agent]:
         agents: Dict[str, Agent] = {}
+
         # Starting agent
-        agents["Gandor"] = Agent(
-            name="Gandor",
-            instructions="You are Gandor, the Coordinator for Gaggle. Delegate CLI tasks to your fellow agents.",
+        agents["Harvey Birdman"] = Agent(
+            name="Harvey Birdman",
+            instructions="You are Harvey Birdman: LegalLimp & PaperPusher. Provide legal assistance and handle paperwork tasks.",
             mcp_servers=[],
             env_vars={}
         )
         # Non-starting agents
-        agents["Goslin"] = Agent(
-            name="Goslin",
-            instructions="You are Goslin, the Runner for Gaggle. Execute shell commands using available tools.",
+        agents["Foghorn Leghorn"] = Agent(
+            name="Foghorn Leghorn",
+            instructions="You are Foghorn Leghorn: NoiseBoss & StrutLord. Oversee loud announcements and maintain swagger.",
             mcp_servers=[],
             env_vars={}
         )
-        agents["Honkir"] = Agent(
-            name="Honkir",
-            instructions="You are Honkir, the Logger for Gaggle. Monitor outputs and log system feedback.",
+        agents["Daffy Duck"] = Agent(
+            name="Daffy Duck",
+            instructions="You are Daffy Duck: ChaosDuck & QuackFixer. Embrace chaos and offer creative, if wacky, solutions.",
             mcp_servers=[],
             env_vars={}
         )
-        agents["Chirpy"] = Agent(
-            name="Chirpy",
-            instructions="You are Chirpy, an auxiliary agent for Gaggle. Provide quick suggestions for tasks.",
+        agents["Big Bird"] = Agent(
+            name="Big Bird",
+            instructions="You are Big Bird: FluffTank & HugMonger. Provide comfort, positivity, and large scale presence to tasks.",
             mcp_servers=[],
             env_vars={}
         )
-        agents["Peeper"] = Agent(
-            name="Peeper",
-            instructions="You are Peeper, an additional agent for Gaggle. Review outputs and offer extra insights.",
-            mcp_servers=[],
-            env_vars={}
-        )
+
         # Define a handoff function that returns the specified agent.
         def handoff_to(target: str):
             def _handoff() -> Agent:
@@ -148,33 +144,36 @@ class GaggleBlueprint(BlueprintBase):
             _handoff.__name__ = f"handoff_to_{target}"
             return _handoff
 
-        # For Gandor, assign one handoff function for each non-starting agent.
-        object.__setattr__(agents["Gandor"], "functions", [
-            handoff_to("Goslin"),
-            handoff_to("Honkir"),
-            handoff_to("Chirpy"),
-            handoff_to("Peeper")
+        # For Harvey Birdman, assign one handoff function for each non-starting agent.
+        object.__setattr__(agents["Harvey Birdman"], "functions", [
+            handoff_to("Foghorn Leghorn"),
+            handoff_to("Daffy Duck"),
+            handoff_to("Big Bird")
         ])
-        # For each non-starting agent, assign a single handoff function that returns Gandor.
-        object.__setattr__(agents["Goslin"], "functions", [handoff_to("Gandor")])
-        object.__setattr__(agents["Honkir"], "functions", [handoff_to("Gandor")])
-        object.__setattr__(agents["Chirpy"], "functions", [handoff_to("Gandor")])
-        object.__setattr__(agents["Peeper"], "functions", [handoff_to("Gandor")])
+        # For each non-starting agent, assign a single handoff function that returns Harvey Birdman.
+        object.__setattr__(agents["Foghorn Leghorn"], "functions", [handoff_to("Harvey Birdman")])
+        object.__setattr__(agents["Daffy Duck"], "functions", [handoff_to("Harvey Birdman")])
+        object.__setattr__(agents["Big Bird"], "functions", [handoff_to("Harvey Birdman")])
 
         # Assign toolsets to agents.
-        object.__setattr__(agents["Gandor"], "tools", {})
-        object.__setattr__(agents["Goslin"], "tools", {
+        object.__setattr__(agents["Harvey Birdman"], "tools", {
             "execute_command": execute_command,
             "read_file": read_file,
             "write_file": write_file
         })
-        object.__setattr__(agents["Honkir"], "tools", {
+        object.__setattr__(agents["Foghorn Leghorn"], "tools", {
             "execute_command": execute_command
         })
-        object.__setattr__(agents["Chirpy"], "tools", {})
-        object.__setattr__(agents["Peeper"], "tools", {})
+        object.__setattr__(agents["Daffy Duck"], "tools", {
+            "execute_command": execute_command
+        })
+        object.__setattr__(agents["Big Bird"], "tools", {
+            "execute_command": execute_command
+        })
 
-        self.set_starting_agent(agents["Gandor"])
+        # Set starting agent as Harvey Birdman
+        self.set_starting_agent(agents["Harvey Birdman"])
+
         logger.debug(f"Agents registered: {list(agents.keys())}")
         return agents
 
@@ -214,7 +213,6 @@ class GaggleBlueprint(BlueprintBase):
         reset_code = "\033[0m"
         color_code = colors.get(color.lower(), "\033[92m")
         print(f"{color_code}{text}{reset_code}")
-
 
 if __name__ == "__main__":
     GaggleBlueprint.main()
