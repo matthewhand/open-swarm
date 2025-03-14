@@ -172,7 +172,7 @@ class GotchamanBlueprint(BlueprintBase):
     def __init__(self, config: dict, **kwargs):
         super().__init__(config, **kwargs)
         # Override the built-in spinner with our custom spinner
-        self.spinner = GotchamanSpinner()
+        self._spinner = GotchamanSpinner()  # Changed from self.spinner to self._spinner
 
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -202,37 +202,43 @@ class GotchamanBlueprint(BlueprintBase):
             return "\033[94m(O)^)\033[0m "
 
     def create_agents(self) -> Dict[str, Agent]:
+        MCP_SERVERS = [
+            "mcp-shell", "mcp-doc-forge", "mcp-server-web", "mcp-server-file",
+            "mcp-server-db", "mcp-server-api", "mcp-server-search", "mcp-server-monitor"
+        ]
+        import random
+        
         agents: Dict[str, Agent] = {}
         # Starting agent
         agents["Ken"] = Agent(
             name="Ken",
             instructions="You are Ken, the Coordinator for Gotchaman. Delegate CLI tasks to your fellow agents.",
-            mcp_servers=["memory", "mcp-shell"],
+            mcp_servers=[random.choice(MCP_SERVERS)],
             env_vars={}
         )
         # Non-starting agents
         agents["Joe"] = Agent(
             name="Joe",
             instructions="You are Joe, the Runner for Gotchaman. Execute shell commands using available tools.",
-            mcp_servers=["filesystem", "mcp-npx-fetch"],
+            mcp_servers=[random.choice(MCP_SERVERS)],
             env_vars={}
         )
         agents["Jun"] = Agent(
             name="Jun",
             instructions="You are Jun, the Logger for Gotchaman. Monitor outputs and log system feedback.",
-            mcp_servers=["memory", "sqlite"],
+            mcp_servers=[random.choice(MCP_SERVERS)],
             env_vars={}
         )
         agents["Jinpei"] = Agent(
             name="Jinpei",
             instructions="You are Jinpei, an auxiliary agent for Gotchaman. Provide quick suggestions for tasks.",
-            mcp_servers=["duckduckgo-search", "mcp-doc-forge"],
+            mcp_servers=[random.choice(MCP_SERVERS)],
             env_vars={}
         )
         agents["Ryu"] = Agent(
             name="Ryu",
             instructions="You are Ryu, an additional agent for Gotchaman. Review outputs and offer extra insights.",
-            mcp_servers=["brave-search", "mcp-server-reddit"],
+            mcp_servers=[random.choice(MCP_SERVERS)],
             env_vars={}
         )
 
@@ -272,14 +278,14 @@ class GotchamanBlueprint(BlueprintBase):
     def spinner(self, message: str = "Automating the CLI...", error: bool = False) -> None:
         """
         Retained for backward compatibility if code references spinner() directly.
-        This method defers to the custom GotchamanSpinner instance in self.spinner.
+        This method defers to the custom GotchamanSpinner instance in self._spinner.
         """
-        if not self.spinner or not isinstance(self.spinner, GotchamanSpinner):
+        if not self._spinner or not isinstance(self._spinner, GotchamanSpinner):
             return
         if error:
-            self.spinner.set_error(message)
+            self._spinner.set_error(message)
         else:
-            self.spinner.start(message, self.prompt())
+            self._spinner.start(message, self.prompt, self)
 
     def render_output(self, text: str, color: str = "green") -> None:
         colors = {
