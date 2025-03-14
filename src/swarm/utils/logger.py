@@ -2,6 +2,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+# DEBUG = False
+
 # Fallback for when Django settings are not configured
 DEFAULT_LOGS_DIR = Path.cwd() / "logs"
 DEFAULT_LOGS_DIR.mkdir(parents=True, exist_ok=True)
