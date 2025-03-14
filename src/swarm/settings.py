@@ -289,7 +289,7 @@ if not CLI_MODE:
                         code = compile(f.read(), str(bp_settings_path), "exec")
                         exec(code, globals())
                 else:
-                    logger.warning(f"Settings file not found for blueprint '{blueprint_name}' at {bp_settings_path}")
+                    logger.debug(f"Settings file not found for blueprint '{blueprint_name}' at {bp_settings_path}")
         except Exception as e:
             logger.error(f"Error loading blueprint config from swarm_config.json: {e}", exc_info=True)
     else:

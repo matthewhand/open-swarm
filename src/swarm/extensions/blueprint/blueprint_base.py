@@ -456,7 +456,8 @@ class BlueprintBase(ABC):
                 valid_tools = [tool for tool in tools if hasattr(tool, 'name') and isinstance(tool.name, str)]
                 agent.functions = (agent.functions or []) + valid_tools
                 self._discovered_tools[agent.name] = valid_tools
-                logger.debug(f"Discovered {len(valid_tools)} tools for '{agent.name}': {[t.name for t in valid_tools]}")
+                logger.debug(f"Discovered {len(valid_tools)} tools for '{agent.name}': " +
+                             f"{[getattr(t, 'name', getattr(t, '__name__', '<unknown>')) for t in valid_tools]}")
             except Exception as e:
                 logger.error(f"Failed to discover tools for '{agent.name}': {e}")
                 self._discovered_tools[agent.name] = []
@@ -560,11 +561,17 @@ class BlueprintBase(ABC):
                 except AttributeError:
                     logger.error("Unable to set 'messages' on response. It's neither a dict nor an object with 'messages'.")
 
-        if hasattr(response, 'agent') and response.agent and response.agent.name != active_agent.name:
-            new_agent_name = response.agent.name
+        # Safely extract the response agent, whether response is an object or dict
+        response_agent = None
+        if not isinstance(response, dict):
+            response_agent = getattr(response, "agent", None)  # type: ignore
+        else:
+            response_agent = response.get("agent")
+        if response_agent and getattr(response_agent, "name", None) and response_agent.name != active_agent.name:
+            new_agent_name = response_agent.name
             self.context_variables["active_agent_name"] = new_agent_name
-            asyncio.create_task(self._discover_tools_for_agent(response.agent))
-            asyncio.create_task(self._discover_resources_for_agent(response.agent))
+            asyncio.create_task(self._discover_tools_for_agent(response_agent))
+            asyncio.create_task(self._discover_resources_for_agent(response_agent))
             logger.debug(f"Switched to new agent: {new_agent_name}")
         else:
             logger.debug(f"Continuing with agent: {active_agent.name}")
@@ -596,7 +603,7 @@ class BlueprintBase(ABC):
         prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
         try:
             if hasattr(self.swarm, "run_llm"):
-                done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)
+                done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)  # type: ignore
                 result = done_check.choices[0].message["content"].strip().upper().startswith("YES")
                 logger.debug(f"Task completion check: {result}")
                 return result
@@ -641,8 +648,9 @@ class BlueprintBase(ABC):
         print(outcome)
         print("continue")
     
+    @property
     def prompt(self) -> str:
-        return "\033[90mUser\033[0m: "
+        return getattr(self, "custom_user_prompt", "User: ")  # Note the space after colon
 
     def interactive_mode(self, stream: bool = False) -> None:
         """Run the blueprint in interactive mode."""
@@ -941,3 +949,4 @@ class BlueprintBase(ABC):
 
 if __name__ == "__main__":
     BlueprintBase.main()
+
