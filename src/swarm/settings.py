@@ -97,6 +97,9 @@ def append_blueprint_apps():
         logger.warning(f"Blueprint directory {BLUEPRINTS_DIR} does not exist.")
         return
     for blueprint_name in os.listdir(BLUEPRINTS_DIR):
+        if SWARM_BLUEPRINTS and blueprint_name not in SWARM_BLUEPRINTS:
+            logger.debug(f"Skipping {blueprint_name}: not in allowed SWARM_BLUEPRINTS list.")
+            continue
         app_path = os.path.join(BLUEPRINTS_DIR, blueprint_name)
         blueprint_file = os.path.join(app_path, f'blueprint_{blueprint_name}.py')
         if os.path.isdir(app_path) and os.path.exists(blueprint_file):
