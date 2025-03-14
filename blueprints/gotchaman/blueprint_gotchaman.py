@@ -29,86 +29,38 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
 
 
 class GotchamanSpinner:
-    """
-    A custom spinner object that overrides the parent's built-in spinner usage.
-    Instead of the default spinner characters, this will animate various bird-face symbols.
-    """
-
     def __init__(self):
         self.running = False
         self.thread = None
         self.status = ""
-        self.error_mode = False
 
-    def start(self, status: str = "Automating the CLI...", agent_prompt: str = "", blueprint=None):
-        """
-        Start spinning with the given status message, agent prompt, and blueprint.
-        """
+    def start(self, status: str = "Automating the CLI..."):
         if self.running:
-            self.status = status
-            self.agent_prompt = agent_prompt
-            self.blueprint = blueprint
             return
         self.running = True
         self.status = status
-        self.error_mode = False
-        self.agent_prompt = agent_prompt
-        self.blueprint = blueprint
-        self.thread = None
-        self.thread = self._spawn_thread()
+        def spinner_thread():
+            spin_symbols = ["(●>)", "(○>)", "(◐>)", "(◑>)"]
+            index = 0
+            while self.running:
+                symbol = spin_symbols[index % len(spin_symbols)]
+                sys.stdout.write(f"\r\033[94m{symbol}\033[0m {self.status}")
+                sys.stdout.flush()
+                index += 1
+                time.sleep(0.2)
+        import threading
+        th = threading.Thread(target=spinner_thread, daemon=True)
+        th.start()
+        self.thread = th
 
     def stop(self):
-        """
-        Stop spinning.
-        """
         if not self.running:
             return
         self.running = False
-        if self.thread is not None:
+        if self.thread:
             self.thread.join()
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
-
-    def _spawn_thread(self):
-        import threading
-
-        def spinner_thread():
-            import time
-            import re
-            ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-            spinner_frames = ["◉", "◕", "◔", "◡"]
-            index = 0
-            while self.running:
-                if hasattr(self, 'blueprint') and self.blueprint.prompt:
-                    agent_prompt_str = ansi_escape.sub('', self.blueprint.prompt).strip()
-                elif hasattr(self, 'agent_prompt') and self.agent_prompt:
-                    agent_prompt_str = ansi_escape.sub('', self.agent_prompt).strip()
-                else:
-                    agent_prompt_str = ""
-                if agent_prompt_str and agent_prompt_str.startswith('(') and len(agent_prompt_str) >= 3:
-                    animated_eye = spinner_frames[index % len(spinner_frames)]
-                    new_prompt = f"({animated_eye}{agent_prompt_str[2:]}"
-                elif not agent_prompt_str:
-                    spin_symbols = ["( ◉ )>", "( ◕ )>", "( ◔ )>", "( ◡ )>"]
-                    new_prompt = spin_symbols[index % len(spin_symbols)]
-                else:
-                    new_prompt = agent_prompt_str
-                output = f"\r\033[94m{new_prompt}\033[0m {self.status}"
-                sys.stdout.write(output)
-                sys.stdout.flush()
-                index += 1
-                time.sleep(0.5)
-
-        th = threading.Thread(target=spinner_thread, daemon=True)
-        th.start()
-        return th
-
-    def set_error(self, status: str = "Error occurred"):
-        """
-        Change spinner to a fixed error display.
-        """
-        self.error_mode = True
-        self.status = status
 
 
 def execute_command(command: str) -> None:
@@ -171,8 +123,7 @@ class GotchamanBlueprint(BlueprintBase):
 
     def __init__(self, config: dict, **kwargs):
         super().__init__(config, **kwargs)
-        # Override the built-in spinner with our custom spinner
-        self._spinner = GotchamanSpinner()  # Changed from self.spinner to self._spinner
+        self._gotchaman_spinner = GotchamanSpinner()
 
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -275,17 +226,16 @@ class GotchamanBlueprint(BlueprintBase):
         logger.debug(f"Agents registered: {list(agents.keys())}")
         return agents
 
-    def spinner(self, message: str = "Automating the CLI...", error: bool = False) -> None:
+    def spinner_method(self, message: str = "Automating the CLI...", error: bool = False) -> None:
         """
-        Retained for backward compatibility if code references spinner() directly.
-        This method defers to the custom GotchamanSpinner instance in self._spinner.
+        Compatibility method for direct spinner references using the custom spinner.
         """
-        if not self._spinner or not isinstance(self._spinner, GotchamanSpinner):
+        if not hasattr(self, "_gotchaman_spinner") or not isinstance(self._gotchaman_spinner, GotchamanSpinner):
             return
         if error:
-            self._spinner.set_error(message)
+            self._gotchaman_spinner.stop()
         else:
-            self._spinner.start(message, self.prompt, self)
+            self._gotchaman_spinner.start(message)
 
     def render_output(self, text: str, color: str = "green") -> None:
         colors = {

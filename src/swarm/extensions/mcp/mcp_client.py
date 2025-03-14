@@ -197,3 +197,32 @@ class MCPClient:
         Discover resources from the MCP server using the internal method with enforced timeout.
         """
         return await asyncio.wait_for(self._do_list_resources(), timeout=self.timeout)
+
+    async def get_resource(self, resource_uri: str) -> Any:
+        """
+        Retrieve a specific resource from the MCP server.
+        
+        Args:
+            resource_uri (str): The URI of the resource to retrieve.
+        
+        Returns:
+            Any: The resource retrieval response.
+        """
+        server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
+        logger.debug("Opening stdio_client connection for resource retrieval")
+        async with stdio_client(server_params) as (read, write):
+            logger.debug("Opening ClientSession for resource retrieval")
+            async with ClientSession(read, write) as session:
+                try:
+                    logger.debug(f"Initializing session for resource retrieval of {resource_uri}")
+                    await asyncio.wait_for(session.initialize(), timeout=self.timeout)
+                    logger.info(f"Retrieving resource '{resource_uri}' from MCP server")
+                    response = await asyncio.wait_for(session.read_resource(resource_uri), timeout=self.timeout)
+                    logger.info(f"Resource '{resource_uri}' retrieved successfully")
+                    return response
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout retrieving resource '{resource_uri}' after {self.timeout}s")
+                    raise RuntimeError(f"Resource '{resource_uri}' retrieval timed out")
+                except Exception as e:
+                    logger.error(f"Failed to retrieve resource '{resource_uri}': {e}")
+                    raise RuntimeError(f"Resource retrieval failed: {e}") from e

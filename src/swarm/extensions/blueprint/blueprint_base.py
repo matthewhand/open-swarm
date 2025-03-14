@@ -36,7 +36,8 @@ from dotenv import load_dotenv
 import argparse
 
 logger = logging.getLogger(__name__)
-
+def get_agent_name(agent: Any) -> str:
+   return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
 def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
     """Estimate token count for messages (placeholder—replace with actual implementation)."""
     return sum(len(msg.get("content") or "") // 4 for msg in messages)  # Rough: 4 chars ≈ 1 token
@@ -448,36 +449,38 @@ class BlueprintBase(ABC):
 
     async def _discover_tools_for_agent(self, agent: Any) -> None:
         """Discover and assign tools for an agent."""
-        if agent.name not in self._discovered_tools:
-            logger.debug(f"Discovering tools for agent: {agent.name}")
-            self.spinner.start(f"Discovering MCP tools for {agent.name}")
+        agent_id = get_agent_name(agent)
+        if agent_id not in self._discovered_tools:
+            logger.debug(f"Discovering tools for agent: {agent_id}")
+            self.spinner.start(f"Discovering MCP tools for {agent_id}")
             try:
                 tools = await self.swarm.discover_and_merge_agent_tools(agent)
-                valid_tools = [tool for tool in tools if hasattr(tool, 'name') and isinstance(tool.name, str)]
+                valid_tools = [tool for tool in tools if get_agent_name(tool) != "<unknown>"]
                 agent.functions = (agent.functions or []) + valid_tools
-                self._discovered_tools[agent.name] = valid_tools
-                logger.debug(f"Discovered {len(valid_tools)} tools for '{agent.name}': " +
-                             f"{[getattr(t, 'name', getattr(t, '__name__', '<unknown>')) for t in valid_tools]}")
+                self._discovered_tools[agent_id] = valid_tools
+                logger.debug(f"Discovered {len(valid_tools)} tools for '{agent_id}': " +
+                             f"{[get_agent_name(t) for t in valid_tools]}")
             except Exception as e:
-                logger.error(f"Failed to discover tools for '{agent.name}': {e}")
-                self._discovered_tools[agent.name] = []
+                logger.error(f"Failed to discover tools for '{agent_id}': {e}")
+                self._discovered_tools[agent_id] = []
             finally:
                 self.spinner.stop()
 
     async def _discover_resources_for_agent(self, agent: Any) -> None:
         """Discover and assign resources for an agent."""
-        if agent.name not in self._discovered_resources:
-            logger.debug(f"Discovering resources for agent: {agent.name}")
-            self.spinner.start(f"Discovering MCP resources for {agent.name}")
+        agent_id = get_agent_name(agent)
+        if agent_id not in self._discovered_resources:
+            logger.debug(f"Discovering resources for agent: {agent_id}")
+            self.spinner.start(f"Discovering MCP resources for {agent_id}")
             try:
                 resources = await self.swarm.discover_and_merge_agent_resources(agent)
                 valid_resources = [res for res in resources if isinstance(res, dict) and 'name' in res]
                 agent.resources = (agent.resources or []) + valid_resources
-                self._discovered_resources[agent.name] = valid_resources
-                logger.debug(f"Discovered {len(valid_resources)} resources for '{agent.name}': {[r['name'] for r in valid_resources]}")
+                self._discovered_resources[agent_id] = valid_resources
+                logger.debug(f"Discovered {len(valid_resources)} resources for '{agent_id}': {[r['name'] for r in valid_resources]}")
             except Exception as e:
-                logger.error(f"Failed to discover resources for '{agent.name}': {e}")
-                self._discovered_resources[agent.name] = []
+                logger.error(f"Failed to discover resources for '{agent_id}': {e}")
+                self._discovered_resources[agent_id] = []
             finally:
                 self.spinner.stop()
 
@@ -567,8 +570,8 @@ class BlueprintBase(ABC):
             response_agent = getattr(response, "agent", None)  # type: ignore
         else:
             response_agent = response.get("agent")
-        if response_agent and getattr(response_agent, "name", None) and response_agent.name != active_agent.name:
-            new_agent_name = response_agent.name
+        if response_agent and getattr(response_agent, "name", None) and get_agent_name(response_agent) != active_agent.name:
+            new_agent_name = get_agent_name(response_agent)
             self.context_variables["active_agent_name"] = new_agent_name
             asyncio.create_task(self._discover_tools_for_agent(response_agent))
             asyncio.create_task(self._discover_resources_for_agent(response_agent))
@@ -602,8 +605,9 @@ class BlueprintBase(ABC):
         check_prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
         try:
-            if hasattr(self.swarm, "run_llm"):
-                done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)  # type: ignore
+            run_llm = getattr(self.swarm, "run_llm", None)
+            if callable(run_llm):
+                done_check = run_llm(messages=check_prompt, max_tokens=1, temperature=0)  # type: ignore
                 result = done_check.choices[0].message["content"].strip().upper().startswith("YES")
                 logger.debug(f"Task completion check: {result}")
                 return result
@@ -630,10 +634,18 @@ class BlueprintBase(ABC):
         prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
         try:
-            summary_response = self.swarm.run_llm(messages=prompt, max_tokens=30, temperature=0.3)
-            new_goal = summary_response.choices[0].message["content"].strip()
-            self.context_variables["user_goal"] = new_goal
-            logger.debug(f"Updated user goal: {new_goal}")
+            run_llm = getattr(self.swarm, "run_llm", None)
+            if callable(run_llm):
+                summary_response = run_llm(messages=prompt, max_tokens=30, temperature=0.3)
+                choices = getattr(summary_response, "choices", None)
+                if not choices:
+                    logger.error("LLM response does not contain choices for goal update")
+                else:
+                    new_goal = choices[0].message["content"].strip()
+                    self.context_variables["user_goal"] = new_goal
+                    logger.debug(f"Updated user goal: {new_goal}")
+            else:
+                logger.error("Swarm does not implement run_llm. Cannot update goal.")
         except Exception as e:
             logger.error(f"Goal update failed: {e}")
         finally:
