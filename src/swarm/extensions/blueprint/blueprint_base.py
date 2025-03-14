@@ -66,7 +66,8 @@ class Spinner:
         if not self.enabled or not self.running:
             return
         self.running = False
-        self.thread.join()
+        if self.thread is not None:
+            self.thread.join()
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
 
@@ -146,13 +147,20 @@ class BlueprintBase(ABC):
         agents = self.create_agents()
         for agent_name, agent in agents.items():
             if LLMRails and getattr(agent, "nemo_guardrails_config", None):
-                guardrails_path = os.path.join("nemo_guardrails", agent.nemo_guardrails_config)
-                try:
-                    rails_config = RailsConfig.from_path(guardrails_path)
-                    agent.nemo_guardrails_instance = LLMRails(rails_config)
-                    logger.debug(f"Loaded NeMo Guardrails for agent: {agent.name}")
-                except Exception as e:
-                    logger.warning(f"Failed to load NeMo Guardrails for agent {agent.name}: {e}")
+                # Ensure nemo_guardrails_config is a non-empty string before joining
+                if agent.nemo_guardrails_config:
+                    guardrails_path = os.path.join("nemo_guardrails", agent.nemo_guardrails_config)
+                    try:
+                        if RailsConfig:
+                            rails_config = RailsConfig.from_path(guardrails_path)
+                            agent.nemo_guardrails_instance = LLMRails(rails_config)
+                            logger.debug(f"Loaded NeMo Guardrails for agent: {agent.name}")
+                        else:
+                            logger.debug("RailsConfig is not available; skipping NeMo Guardrails for agent.")
+                    except Exception as e:
+                        logger.warning(f"Failed to load NeMo Guardrails for agent {agent.name}: {e}")
+                else:
+                    logger.debug(f"Agent {agent.name} has no valid nemo_guardrails_config; skipping guardrails loading.")
         self.swarm.agents.update(agents)
         self.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
         logger.debug(f"Registered agents: {list(agents.keys())}")
@@ -201,9 +209,13 @@ class BlueprintBase(ABC):
             if os.path.isfile(local_settings_path):
                 try:
                     spec = importlib.util.spec_from_file_location(f"{self.__class__.__name__}.settings", local_settings_path)
-                    local_settings = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(local_settings)
-                    self.local_settings = local_settings
+                    if spec is None or spec.loader is None:
+                        logger.error(f"Failed to obtain module spec for local settings at {local_settings_path}")
+                        self.local_settings = None
+                    else:
+                        local_settings = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(local_settings)
+                        self.local_settings = local_settings
                     logger.debug(f"Loaded local settings from {local_settings_path}")
                 except Exception as e:
                     logger.error(f"Failed to load local settings from {local_settings_path}: {e}")
@@ -583,10 +595,14 @@ class BlueprintBase(ABC):
         check_prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
         try:
-            done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)
-            result = done_check.choices[0].message["content"].strip().upper().startswith("YES")
-            logger.debug(f"Task completion check: {result}")
-            return result
+            if hasattr(self.swarm, "run_llm"):
+                done_check = self.swarm.run_llm(messages=check_prompt, max_tokens=1, temperature=0)
+                result = done_check.choices[0].message["content"].strip().upper().startswith("YES")
+                logger.debug(f"Task completion check: {result}")
+                return result
+            else:
+                logger.error("Swarm does not implement run_llm. Cannot check task completion.")
+                return False
         except Exception as e:
             logger.error(f"Task completion check failed: {e}")
             return False
@@ -617,7 +633,6 @@ class BlueprintBase(ABC):
             if prev_openai_api_key is not None:
                 os.environ["OPENAI_API_KEY"] = prev_openai_api_key
 
-    @property
     def task_completed(self, outcome: str) -> None:
         """
         Function available to the starting agent in non-interactive mode.
