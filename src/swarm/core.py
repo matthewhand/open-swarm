@@ -793,13 +793,28 @@ class Swarm:
         i = 0
         while i < len(repaired):
             msg = repaired[i]
-            if msg.get("role") == "assistant" and "tool_calls" in msg:
-                tool_call_ids = [tc["id"] for tc in msg["tool_calls"] if isinstance(tc, dict) and "id" in tc]
+            if msg.get("role") == "tool":
+                tool_call_id = msg.get("tool_call_id")
+                if not final_sequence or final_sequence[-1].get("role") != "assistant" or \
+                   not any(tc.get("id") == tool_call_id for tc in final_sequence[-1].get("tool_calls", [])):
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{"id": tool_call_id, "name": msg.get("tool_name", "unnamed_tool")}]
+                    }
+                    final_sequence.append(assistant_msg)
+                final_sequence.append(msg)
+            elif msg.get("role") == "assistant" and "tool_calls" in msg:
+                tool_call_ids = [tc.get("id") for tc in msg["tool_calls"] if isinstance(tc, dict) and "id" in tc]
                 final_sequence.append(msg)
                 j = i + 1
                 tool_msgs = []
                 while j < len(repaired):
-                    if repaired[j].get("role") == "tool" and repaired[j].get("tool_call_id") in tool_call_ids:
+                    if repaired[j].get("role") == "tool":
+                        t_id = repaired[j].get("tool_call_id")
+                        if t_id not in tool_call_ids:
+                            msg["tool_calls"].append({"id": t_id, "name": repaired[j].get("tool_name", "unnamed_tool")})
+                            tool_call_ids.append(t_id)
                         tool_msgs.append(repaired.pop(j))
                     else:
                         j += 1
