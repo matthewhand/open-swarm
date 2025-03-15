@@ -95,6 +95,11 @@ class MCPClient:
             logger.debug("Opening ClientSession")
             async with ClientSession(read, write) as session:
                 try:
+                    logger.info("Initializing session for tool discovery")
+                    await asyncio.wait_for(session.initialize(), timeout=self.timeout)
+                    logger.info("Initializing session for tool discovery")
+                    await asyncio.wait_for(session.initialize(), timeout=self.timeout)
+                    logger.info("Capabilities initialized. Entering tool discovery.")
                     logger.info("Requesting tool list from MCP server...")
                     tools_response = await asyncio.wait_for(session.list_tools(), timeout=self.timeout)
                     logger.debug("Tool list received from MCP server")
