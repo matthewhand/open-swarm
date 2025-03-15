@@ -134,8 +134,8 @@ class GotchamanBlueprint(BlueprintBase):
                 "Includes agents for coordination (Ken), command execution (Joe), logging (Jun), suggestions (Jinpei), "
                 "and insights (Ryu)."
             ),
-            "required_mcp_servers": [],
-            "env_vars": []
+            "required_mcp_servers": ["slack", "mondayDotCom", "basic-memory", "mcp-npx-fetch"],
+            "env_vars": ["SLACK_API_KEY", "MONDAY_API_KEY"]
         }
 
     @property
@@ -161,35 +161,35 @@ class GotchamanBlueprint(BlueprintBase):
         
         agents: Dict[str, Agent] = {}
         # Starting agent
+        # Explicit agent assignments with defined MCP servers and environment variables
         agents["Ken"] = Agent(
             name="Ken",
-            instructions="You are Ken, the Coordinator for Gotchaman. Delegate CLI tasks to your fellow agents.",
-            mcp_servers=[random.choice(MCP_SERVERS)],
+            instructions="You are Ken, the Coordinator for Gotchaman. Your team: Joe (Runner), Jun (Logger), Jinpei (Advisor), and Ryu (Reviewer). Delegate tasks accordingly.",
+            mcp_servers=["basic-memory"],
             env_vars={}
         )
-        # Non-starting agents
         agents["Joe"] = Agent(
             name="Joe",
-            instructions="You are Joe, the Runner for Gotchaman. Execute shell commands using available tools.",
-            mcp_servers=[random.choice(MCP_SERVERS)],
-            env_vars={}
+            instructions="You are Joe, the Runner. Your MCP server: slack. Use it to execute shell commands.",
+            mcp_servers=["slack"],
+            env_vars={"SLACK_API_KEY": os.getenv("SLACK_API_KEY", "")}
         )
         agents["Jun"] = Agent(
             name="Jun",
-            instructions="You are Jun, the Logger for Gotchaman. Monitor outputs and log system feedback.",
-            mcp_servers=[random.choice(MCP_SERVERS)],
-            env_vars={}
+            instructions="You are Jun, the Logger. Your MCP server: mondayDotCom. Monitor outputs and log feedback.",
+            mcp_servers=["mondayDotCom"],
+            env_vars={"MONDAY_API_KEY": os.getenv("MONDAY_API_KEY", "")}
         )
         agents["Jinpei"] = Agent(
             name="Jinpei",
-            instructions="You are Jinpei, an auxiliary agent for Gotchaman. Provide quick suggestions for tasks.",
-            mcp_servers=[random.choice(MCP_SERVERS)],
+            instructions="You are Jinpei, the Advisor. Your MCP server: mcp-npx-fetch. Provide quick task suggestions.",
+            mcp_servers=["mcp-npx-fetch"],
             env_vars={}
         )
         agents["Ryu"] = Agent(
             name="Ryu",
-            instructions="You are Ryu, an additional agent for Gotchaman. Review outputs and offer extra insights.",
-            mcp_servers=[random.choice(MCP_SERVERS)],
+            instructions="You are Ryu, the Reviewer. Your MCP server: basic-memory. Review outputs and offer insights.",
+            mcp_servers=["basic-memory"],
             env_vars={}
         )
 

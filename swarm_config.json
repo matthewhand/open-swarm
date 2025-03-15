@@ -80,6 +80,24 @@
     }
   },
   "mcpServers": {
+    "basic-memory": {
+      "command": "uvx",
+      "args": [
+        "basic-memory",
+        "mcp"
+      ]
+    },
+    "mcp-miro": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "github:evalstate/mcp-miro"
+      ],
+      "env": {
+        "MIRO-OAUTH-KEY": "${MIRO-OAUTH-KEY}"
+      }
+    },
+
     "mondayDotCom": {
       "command": "npx",
       "args": ["-y","mcp-graphql",
@@ -232,20 +250,49 @@
         "FLOWISE_CHATFLOW_DESCRIPTIONS": ""
       }
     },
-    "fly": {
+    "glama": {
+        "command": "uvx",
+        "args": ["mcp-openapi-proxy"],
+        "env": {
+            "OPENAPI_SPEC_URL": "https://glama.ai/api/mcp/openapi.json"
+        }
+    },
+    "getzep": {
+        "command": "uvx",
+        "args": ["mcp-openapi-proxy"],
+        "env": {
+            "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/matthewhand/mcp-openapi-proxy/refs/heads/main/examples/getzep.swagger.json",
+            "TOOL_WHITELIST": "/sessions",
+            "API_KEY": "${GETZEP_API_KEY}",
+            "API_AUTH_TYPE": "Api-Key",
+            "TOOL_NAME_PREFIX": "zep_"
+        }
+    },
+    "slack": {
+        "command": "uvx",
+        "args": ["mcp-openapi-proxy"],
+        "env": {
+            "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/slackapi/slack-api-specs/master/web-api/slack_web_openapi_v2.json",
+            "TOOL_WHITELIST": "/chat,/bots,/conversations,/reminders,/files,/users",
+            "API_KEY": "${SLACK_API_KEY}",
+            "STRIP_PARAM": "token"
+        }
+    },
+    "render": {
+        "command": "uvx",
+        "args": ["mcp-openapi-proxy"],
+        "env": {
+            "OPENAPI_SPEC_URL": "https://api-docs.render.com/openapi/6140fb3daeae351056086186",
+            "TOOL_WHITELIST": "/services,/maintenance",
+            "API_KEY": "${RENDER_API_KEY}"
+        }
+    },
+    "flyio": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/matthewhand/mcp-openapi-proxy",
-        "mcp-openapi-proxy"
-      ],
+      "args": ["mcp-openapi-proxy"],
       "env": {
-        "DEBUG": "true",
-        "OPENAPI_LOGFILE_PATH": "/tmp/debug-mcp-openapi-proxy.log",
-        "OPENAPI_SPEC_URL": "https://machines-api-spec.fly.dev/swagger/doc.json",
-        "SERVER_URL_OVERRIDE": "https://api.machines.dev",
-        "TOOL_WHITELIST": "/machines/list,/machines/start,/machines/status",
-        "API_AUTH_BEARER": "${FLY_API_TOKEN}"
+          "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/abhiaagarwal/peristera/refs/heads/main/fly-machines-gen/fixed_spec.json",
+          "API_KEY": "${FLY_API_KEY}"
       }
     },
     "rag-docs": {

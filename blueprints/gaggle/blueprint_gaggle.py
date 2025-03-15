@@ -127,8 +127,8 @@ class GaggleBlueprint(BlueprintBase):
                 "A blueprint for automating CLI tasks with custom colored output and a set of pop-culture bird characters. "
                 "Each character demonstrates a different ANSI prompt and specialized role."
             ),
-            "required_mcp_servers": [],
-            "env_vars": []
+            "required_mcp_servers": ["mondayDotCom", "basic-memory", "mcp-doc-forge", "getzep"],
+            "env_vars": ["MONDAY_API_KEY", "GETZEP_API_KEY"]
         }
 
     @property
