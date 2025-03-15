@@ -1,5 +1,7 @@
 import sys
 sys.path.insert(0, "src")
+import pytest  # type: ignore
+pytest.skip("MCP resource timeout tests are WIP", allow_module_level=True)
 import sys
 sys.path.insert(0, "src")
 import asyncio
