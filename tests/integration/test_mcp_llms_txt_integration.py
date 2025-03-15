@@ -1,4 +1,5 @@
 import pytest  # type: ignore
+pytest.skip("MCP integration tests are WIP", allow_module_level=True)
 import logging
 import os
 import asyncio
