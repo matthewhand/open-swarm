@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Swarm Blueprint Base Module (Sync Interactive Mode)
 
@@ -7,6 +8,8 @@ goal updates, and configurable message truncation that preserves assistant-tool 
 reliable Django integration and CLI usage.
 """
 
+def get_agent_name(agent: Any) -> str:
+    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
 import asyncio
 import json
 import logging
@@ -18,7 +21,20 @@ import threading
 import time  # Added import
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
+
+def get_agent_name(agent: "Any") -> str:
+    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
 from pathlib import Path
+from typing import Any
+
+def get_agent_name(agent: Any) -> str:
+    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
+from typing import Any
+
+def get_agent_name(agent: Any) -> str:
+    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
+def get_agent_name(agent: Any) -> str:
+    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
 
 try:
     try:
@@ -37,11 +53,6 @@ from dotenv import load_dotenv
 import argparse
 
 logger = logging.getLogger(__name__)
-def get_agent_name(agent: Any) -> str:
-   return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
-def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
-    """Estimate token count for messages (placeholder—replace with actual implementation)."""
-    return sum(len(msg.get("content") or "") // 4 for msg in messages)  # Rough: 4 chars ≈ 1 token
 
 class Spinner:
     """Simple terminal spinner for interactive feedback."""
@@ -139,7 +150,8 @@ class BlueprintBase(ABC):
         logger.debug(f"Required MCP servers: {self.required_mcp_servers}")
 
         if self._is_create_agents_overridden():
-            self._initialize_agents()
+            from swarm.extensions.blueprint import agent_utils
+            agent_utils.initialize_agents(self)
 
         if not self.skip_django_registration:
             self._register_django_components()
@@ -241,21 +253,20 @@ class BlueprintBase(ABC):
                 logger.error(f"Error merging INSTALLED_APPS: {e}")
 
     def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """Truncate message history based on configured mode, preserving tool responses."""
+        """Truncate message history based on configured mode using external utilities."""
         if not messages:
             logger.debug("No messages to truncate.")
             return messages
-
-        truncation_methods = {
-            "preserve_pairs": self._truncate_preserve_pairs,
-            "strict_token_limit": self._truncate_strict_token,
-            "recent_only": self._truncate_recent_only
-        }
-        method = truncation_methods.get(self.truncation_mode, self._truncate_preserve_pairs)
-        if self.truncation_mode not in truncation_methods:
-            logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; using 'preserve_pairs'")
+        from swarm.extensions.blueprint.message_utils import truncate_preserve_pairs, truncate_strict_token, truncate_recent_only
         try:
-            return method(messages, model)
+            if self.truncation_mode == "recent_only":
+                return truncate_recent_only(messages, model, self.max_context_messages)
+            elif self.truncation_mode == "strict_token_limit":
+                return truncate_strict_token(messages, model, self.max_context_tokens, self.max_context_messages)
+            else:
+                if self.truncation_mode != "preserve_pairs":
+                    logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; using 'preserve_pairs'")
+                return truncate_preserve_pairs(messages, model, self.max_context_tokens, self.max_context_messages)
         except Exception as e:
             logger.error(f"Error during message truncation: {e}")
             return messages

@@ -108,3 +108,161 @@ def validate_message_sequence(messages: List[Dict[str, Any]]) -> List[Dict[str, 
         if isinstance(tc, dict) and "id" in tc
     }
     return [msg for msg in messages if msg.get("role") != "tool" or msg.get("tool_call_id") in valid_tool_call_ids]
+
+def get_token_count(messages: List[Dict[str, Any]], model: str) -> int:
+    """Estimate token count for messages (placeholder—replace with actual implementation)."""
+    return sum(len(msg.get("content") or "") // 4 for msg in messages)
+
+def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_context_tokens: int, max_context_messages: int) -> List[Dict[str, Any]]:
+    system_msgs = [msg for msg in messages if msg.get("role") == "system"]
+    non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
+    current_tokens = get_token_count(non_system_msgs, model)
+    if len(non_system_msgs) <= max_context_messages and current_tokens <= max_context_tokens:
+        return system_msgs + non_system_msgs
+    msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
+    total_tokens = 0
+    truncated = []
+    i = len(msg_tokens) - 1
+    while i >= 0 and len(truncated) < max_context_messages:
+        msg, tokens = msg_tokens[i]
+        if msg.get("role") == "tool" and "tool_call_id" in msg:
+            tool_call_id = msg["tool_call_id"]
+            assistant_idx = i - 1
+            pair_found = False
+            while assistant_idx >= 0:
+                prev_msg, prev_tokens = msg_tokens[assistant_idx]
+                if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                    for tc in prev_msg["tool_calls"]:
+                        if tc["id"] == tool_call_id and total_tokens + tokens + prev_tokens <= max_context_tokens and len(truncated) + 2 <= max_context_messages:
+                            truncated.insert(0, prev_msg)
+                            truncated.insert(1, msg)
+                            total_tokens += tokens + prev_tokens
+                            pair_found = True
+                            break
+                if pair_found:
+                    break
+                assistant_idx -= 1
+        elif msg.get("role") == "assistant" and "tool_calls" in msg:
+            tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+            tool_msgs = []
+            j = i + 1
+            while j < len(msg_tokens) and tool_call_ids:
+                next_msg, next_tokens = msg_tokens[j]
+                if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
+                    tool_msgs.append((next_msg, next_tokens))
+                    tool_call_ids.remove(next_msg["tool_call_id"])
+                else:
+                    break
+                j += 1
+            pair_tokens = tokens + sum(t for _, t in tool_msgs)
+            pair_len = 1 + len(tool_msgs)
+            if total_tokens + pair_tokens <= max_context_tokens and len(truncated) + pair_len <= max_context_messages:
+                truncated.insert(0, msg)
+                for tool_msg, _ in tool_msgs:
+                    truncated.insert(1, tool_msg)
+                total_tokens += pair_tokens
+        elif total_tokens + tokens <= max_context_tokens and len(truncated) < max_context_messages:
+            truncated.insert(0, msg)
+            total_tokens += tokens
+        i -= 1
+    final_messages = system_msgs + truncated
+    return final_messages
+
+def truncate_strict_token(messages: List[Dict[str, Any]], model: str, max_context_tokens: int, max_context_messages: int) -> List[Dict[str, Any]]:
+    system_msgs = [msg for msg in messages if msg.get("role") == "system"]
+    non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
+    msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
+    total_tokens = 0
+    truncated = []
+    i = len(msg_tokens) - 1
+    while i >= 0 and len(truncated) < max_context_messages:
+        msg, tokens = msg_tokens[i]
+        if msg.get("role") == "tool" and "tool_call_id" in msg:
+            tool_call_id = msg["tool_call_id"]
+            assistant_idx = i - 1
+            pair_found = False
+            while assistant_idx >= 0:
+                prev_msg, prev_tokens = msg_tokens[assistant_idx]
+                if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                    for tc in prev_msg["tool_calls"]:
+                        if tc["id"] == tool_call_id and total_tokens + tokens + prev_tokens <= max_context_tokens and len(truncated) + 2 <= max_context_messages:
+                            truncated.insert(0, prev_msg)
+                            truncated.insert(1, msg)
+                            total_tokens += tokens + prev_tokens
+                            pair_found = True
+                            break
+                if pair_found:
+                    break
+                assistant_idx -= 1
+        elif msg.get("role") == "assistant" and "tool_calls" in msg:
+            tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+            tool_msgs = []
+            j = i + 1
+            while j < len(msg_tokens) and tool_call_ids:
+                next_msg, next_tokens = msg_tokens[j]
+                if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
+                    tool_msgs.append((next_msg, next_tokens))
+                    tool_call_ids.remove(next_msg["tool_call_id"])
+                else:
+                    break
+                j += 1
+            pair_tokens = tokens + sum(t for _, t in tool_msgs)
+            pair_len = 1 + len(tool_msgs)
+            if total_tokens + pair_tokens <= max_context_tokens and len(truncated) + pair_len <= max_context_messages:
+                truncated.insert(0, msg)
+                for tool_msg, _ in tool_msgs:
+                    truncated.insert(1, tool_msg)
+                total_tokens += pair_tokens
+        elif total_tokens + tokens <= max_context_tokens and len(truncated) < max_context_messages:
+            truncated.insert(0, msg)
+            total_tokens += tokens
+        i -= 1
+    final_messages = system_msgs + truncated
+    return final_messages
+
+def truncate_recent_only(messages: List[Dict[str, Any]], model: str, max_context_messages: int) -> List[Dict[str, Any]]:
+    system_msgs = [msg for msg in messages if msg.get("role") == "system"]
+    non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
+    msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
+    truncated = []
+    i = len(msg_tokens) - 1
+    while i >= 0 and len(truncated) < max_context_messages:
+        msg, _ = msg_tokens[i]
+        if msg.get("role") == "tool" and "tool_call_id" in msg:
+            tool_call_id = msg["tool_call_id"]
+            assistant_idx = i - 1
+            pair_found = False
+            while assistant_idx >= 0:
+                prev_msg, _ = msg_tokens[assistant_idx]
+                if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                    for tc in prev_msg["tool_calls"]:
+                        if tc["id"] == tool_call_id and len(truncated) + 2 <= max_context_messages:
+                            truncated.insert(0, prev_msg)
+                            truncated.insert(1, msg)
+                            pair_found = True
+                            break
+                if pair_found:
+                    break
+                assistant_idx -= 1
+        elif msg.get("role") == "assistant" and "tool_calls" in msg:
+            tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+            tool_msgs = []
+            j = i + 1
+            while j < len(msg_tokens) and tool_call_ids:
+                next_msg, _ = msg_tokens[j]
+                if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
+                    tool_msgs.append(next_msg)
+                    tool_call_ids.remove(next_msg["tool_call_id"])
+                else:
+                    break
+                j += 1
+            pair_len = 1 + len(tool_msgs)
+            if len(truncated) + pair_len <= max_context_messages:
+                truncated.insert(0, msg)
+                for tool_msg in tool_msgs:
+                    truncated.insert(1, tool_msg)
+        elif len(truncated) < max_context_messages:
+            truncated.insert(0, msg)
+        i -= 1
+    final_messages = system_msgs + truncated
+    return final_messages
