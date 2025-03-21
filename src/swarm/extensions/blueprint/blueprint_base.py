@@ -525,6 +525,7 @@ class BlueprintBase(ABC):
         active_agent = await self.determine_active_agent()
         model = self.swarm.current_llm_config.get("model", "default") if active_agent else "default"
         truncated_messages = self.truncate_message_history(messages, model)
+        truncated_messages = self.swarm.repair_message_payload(truncated_messages, debug=self.debug)
 
         if not self.swarm.agents:
             logger.debug("No agents defined; returning default response.")
