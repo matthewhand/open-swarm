@@ -19,6 +19,9 @@ import os
 import logging
 from typing import Dict, Any
 
+from rich.markdown import Markdown
+from rich.console import Console
+
 from swarm.extensions.blueprint import BlueprintBase
 from swarm.types import Agent
 
@@ -77,6 +80,22 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
                 "SQLITE_DB_PATH",
             ],
         }
+
+    def render_markdown(self, content: str):
+        """Render the given markdown content using Rich."""
+        console = Console()
+        md = Markdown(content)
+        console.print(md)
+    
+    def _pretty_print_response(self, messages: list) -> None:
+        """Override response printing to render assistant messages as markdown."""
+        for msg in messages:
+            if msg.get("role") == "assistant" and msg.get("content"):
+                # Render markdown for assistant messages
+                self.render_markdown(msg["content"])
+            else:
+                # Print other messages normally
+                print(f'{msg.get("role", "unknown")}: {msg.get("content", "")}')
 
     def create_agents(self) -> Dict[str, Agent]:
         """
@@ -303,7 +322,6 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
 
         logger.debug(f"Agents registered: {list(agents.keys())}")
         return agents
-
 
 if __name__ == "__main__":
     NebuchaShellzzarBlueprint.main()
