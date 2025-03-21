@@ -32,6 +32,7 @@ from swarm.core import Swarm
 from swarm.extensions.config.config_loader import load_server_config
 from swarm.settings import DEBUG
 from swarm.utils.redact import redact_sensitive_data
+from swarm.extensions.blueprint.message_utils import repair_message_payload, validate_message_sequence
 from dotenv import load_dotenv
 import argparse
 
@@ -525,7 +526,8 @@ class BlueprintBase(ABC):
         active_agent = await self.determine_active_agent()
         model = self.swarm.current_llm_config.get("model", "default") if active_agent else "default"
         truncated_messages = self.truncate_message_history(messages, model)
-        truncated_messages = self.swarm.repair_message_payload(truncated_messages, debug=self.debug)
+        truncated_messages = validate_message_sequence(truncated_messages)
+        truncated_messages = repair_message_payload(truncated_messages, debug=self.debug)
 
         if not self.swarm.agents:
             logger.debug("No agents defined; returning default response.")
@@ -664,51 +666,10 @@ class BlueprintBase(ABC):
     @property
     def prompt(self) -> str:
         return getattr(self, "custom_user_prompt", "User: ")  # Note the space after colon
-
+    
     def interactive_mode(self, stream: bool = False) -> None:
-        """Run the blueprint in interactive mode."""
-        logger.debug("Starting interactive mode.")
-        if not self.starting_agent or not self.swarm:
-            logger.error("Starting agent or Swarm not initialized.")
-            raise ValueError("Starting agent and Swarm must be initialized.")
-
-        print("Blueprint Interactive Mode 🐝")
-        messages: List[Dict[str, str]] = []
-        first_input = True
-        message_count = 0
-
-        while True:
-            self.spinner.stop()
-
-            user_input = input(self.prompt).strip()
-            if user_input.lower() in {"exit", "quit", "/quit"}:
-                print("Exiting interactive mode.")
-                break
-
-            if first_input:
-                self.context_variables["user_goal"] = user_input
-                first_input = False
-
-            messages.append({"role": "user", "content": user_input})
-            message_count += 1
-
-            result = self.run_with_context(messages, self.context_variables)
-            swarm_response = result["response"]
-            response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-
-            if stream:
-                self._process_and_print_streaming_response(swarm_response)
-            else:
-                self._pretty_print_response(response_messages)
-
-            messages.extend(response_messages)
-
-            if self.update_user_goal and (message_count - self.last_goal_update_count) >= self.update_user_goal_frequency:
-                self._update_user_goal(messages)
-                self.last_goal_update_count = message_count
-
-            if self.auto_complete_task:
-                self._auto_complete_task(messages, stream)
+        from .interactive_mode import run_interactive_mode
+        run_interactive_mode(self, stream)
 
     def _auto_complete_task(self, messages: List[Dict[str, str]], stream: bool):
         """Auto-complete the task if enabled."""
