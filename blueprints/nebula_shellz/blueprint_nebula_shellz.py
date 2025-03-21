@@ -91,10 +91,10 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
         """Override response printing to render assistant messages as markdown."""
         for msg in messages:
             if msg.get("role") == "assistant" and msg.get("content"):
-                # Render markdown for assistant messages
+                sender = msg.get("sender", "Assistant")
+                print(f"\033[94m{sender}\033[0m:")
                 self.render_markdown(msg["content"])
             else:
-                # Print other messages normally
                 print(f'{msg.get("role", "unknown")}: {msg.get("content", "")}')
 
     def create_agents(self) -> Dict[str, Agent]:
