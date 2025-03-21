@@ -325,7 +325,8 @@ class Swarm:
                 discovered_resources.extend(resources)
                 logger.debug(f"Discovered {len(resources)} resources from '{server_name}': {[r.get('name', 'unnamed') for r in resources]}")
             except Exception as e:
-                logger.error(f"Failed to discover resources from '{server_name}' for '{agent.name}': {e}")
+                logger.error(f"Failed to discover resources from '{server_name}' for '{agent.name}': {e}", exc_info=True)
+                continue
 
         # Deduplicate MCP resources by 'uri', preserving static resources
         unique_discovered_resources = list({r['uri']: r for r in discovered_resources if 'uri' in r}.values())
@@ -793,35 +794,43 @@ class Swarm:
         i = 0
         while i < len(repaired):
             msg = repaired[i]
-            if msg.get("role") == "tool":
-                tool_call_id = msg.get("tool_call_id")
-                if not final_sequence or final_sequence[-1].get("role") != "assistant" or \
-                   not any(tc.get("id") == tool_call_id for tc in final_sequence[-1].get("tool_calls", [])):
-                    assistant_msg = {
-                        "role": "assistant",
-                        "content": "",
-                        "tool_calls": [{"id": tool_call_id, "name": msg.get("tool_name", "unnamed_tool")}]
-                    }
-                    final_sequence.append(assistant_msg)
-                final_sequence.append(msg)
-            elif msg.get("role") == "assistant" and "tool_calls" in msg:
+            if msg.get("role") == "assistant" and "tool_calls" in msg and msg["tool_calls"]:
+                # Extract tool_call ids from the assistant message
                 tool_call_ids = [tc.get("id") for tc in msg["tool_calls"] if isinstance(tc, dict) and "id" in tc]
                 final_sequence.append(msg)
                 j = i + 1
-                tool_msgs = []
-                while j < len(repaired):
-                    if repaired[j].get("role") == "tool":
-                        t_id = repaired[j].get("tool_call_id")
-                        if t_id not in tool_call_ids:
-                            msg["tool_calls"].append({"id": t_id, "name": repaired[j].get("tool_name", "unnamed_tool")})
-                            tool_call_ids.append(t_id)
-                        tool_msgs.append(repaired.pop(j))
-                    else:
-                        j += 1
-                final_sequence.extend(tool_msgs)
+                missing_ids = set(tool_call_ids)
+                # Scan following messages for tool responses
+                while j < len(repaired) and repaired[j].get("role") == "tool":
+                    t_id = repaired[j].get("tool_call_id")
+                    if t_id in missing_ids:
+                        missing_ids.remove(t_id)
+                    final_sequence.append(repaired[j])
+                    j += 1
+                # For any tool_call id without a corresponding tool message, insert a dummy tool response
+                for missing_id in missing_ids:
+                    dummy_tool = {
+                        "role": "tool",
+                        "tool_call_id": missing_id,
+                        "tool_name": "dummy_response",
+                        "content": ""
+                    }
+                    final_sequence.append(dummy_tool)
+                i = j
+            elif msg.get("role") == "tool":
+                # If a tool message appears without a preceding assistant message with tool_calls, create a dummy assistant entry
+                tool_call_id = msg.get("tool_call_id")
+                dummy_assistant = {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"id": tool_call_id, "name": msg.get("tool_name", "unnamed_tool")}]
+                }
+                final_sequence.append(dummy_assistant)
+                final_sequence.append(msg)
+                i += 1
             else:
                 final_sequence.append(msg)
-            i += 1
+                i += 1
         if debug:
             logger.debug(f"Repaired payload: {json.dumps(final_sequence, indent=2, default=str)}")
         return final_sequence
