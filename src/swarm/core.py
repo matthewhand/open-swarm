@@ -100,10 +100,7 @@ class ChatMessage(SimpleNamespace):
             d["function_call"] = self.function_call
         if hasattr(self, "tool_calls") and self.tool_calls is not None:
             d["tool_calls"] = [tc.model_dump() if hasattr(tc, "model_dump") else tc for tc in self.tool_calls]
-        serialized = json.dumps(d)
-        if self.debug:
-            logger.debug(f"Serialized message for '{self.sender}': {serialized}")
-        return serialized
+        return json.dumps(d)
 
 
 _discovery_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
