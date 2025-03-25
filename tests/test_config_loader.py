@@ -1,4 +1,5 @@
 import pytest
+import json
 from unittest.mock import patch, mock_open
 from swarm.extensions.config.config_loader import (
     resolve_placeholders,
@@ -67,11 +68,26 @@ def test_load_server_config_with_placeholders(mock_getenv):
 #         load_server_config()
 
 def test_load_server_config_default_path():
-    with patch("builtins.open", mock_open(read_data='{"key": "value"}')) as mock_file:
+    mock_config = {
+        "llm_providers": {
+            "default": {
+                "provider": "mock",
+                "api_key": "test_key"
+            }
+        },
+        "mcpServers": {
+            "example": {
+                "command": "node",
+                "args": ["server.js"]
+            }
+        }
+    }
+    with patch("builtins.open", mock_open(read_data=json.dumps(mock_config))) as mock_file:
         with patch("os.path.exists", return_value=True):
             with patch("swarm.settings.BASE_DIR", "/tmp"):
                 config = load_server_config()
-                assert config["key"] == "value"
+                assert config["llm_providers"]["default"]["provider"] == "mock"
+                assert config["mcpServers"]["example"]["command"] == "node"
     """Test loading configuration from the default path."""
     config = load_server_config()
     assert config["key"] == "value"
