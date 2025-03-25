@@ -68,7 +68,6 @@ def test_load_server_config_with_placeholders(mock_getenv):
 
 @patch("os.getcwd", return_value="/mock/path")
 @patch("builtins.open", mock_open(read_data='{"key": "value"}'))
-@pytest.mark.skip(reason="Disabled test_load_server_config_default_path")
 def test_load_server_config_default_path(mock_getcwd):
     """Test loading configuration from the default path."""
     config = load_server_config()
