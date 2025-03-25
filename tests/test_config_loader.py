@@ -66,11 +66,12 @@ def test_load_server_config_with_placeholders(mock_getenv):
 #     with pytest.raises(ValueError, match="Environment variable 'MISSING_API_KEY' is not set but is required."):
 #         load_server_config()
 
-@patch("swarm.settings.BASE_DIR", new="/tmp")
-@patch("os.path.exists", side_effect=lambda path: "swarm_config.json" in path)
-@patch("builtins.open", mock_open(read_data='{"key": "value"}'))
-@patch("os.getcwd", return_value="/mock/path")
-def test_load_server_config_default_path(mock_getcwd, mock_open, mock_exists, mock_base_dir):
+def test_load_server_config_default_path():
+    with patch("builtins.open", mock_open(read_data='{"key": "value"}')) as mock_file:
+        with patch("os.path.exists", return_value=True):
+            with patch("swarm.settings.BASE_DIR", "/tmp"):
+                config = load_server_config()
+                assert config["key"] == "value"
     """Test loading configuration from the default path."""
     config = load_server_config()
     assert config["key"] == "value"
