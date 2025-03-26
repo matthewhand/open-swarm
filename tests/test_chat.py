@@ -1,188 +1,190 @@
 import os
 import json
-import logging
-from unittest import mock
-from django.urls import reverse
-from rest_framework.test import APITestCase, APIClient  # type: ignore
-from rest_framework import status  # type: ignore
-from rest_framework.authtoken.models import Token  # type: ignore
+import uuid
+from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
+from rest_framework.test import APIClient
+from django.urls import reverse
+from django.contrib.auth.models import User
+from swarm.models import ChatConversation, ChatMessage
+from swarm.auth import EnvOrTokenAuthentication
+from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+# Import chat_views and utils separately
+from swarm.views import chat_views, utils as view_utils # Keep this
+from swarm.extensions.config import config_loader
+from swarm.types import Response, Agent # Import Agent and Response
 
-logger = logging.getLogger(__name__)
+@pytest.fixture(scope="class")
+def dummy_user_fixture(django_db_setup, django_db_blocker):
+    """Create a dummy user accessible within the class, ensuring DB access."""
+    with django_db_blocker.unblock():
+        user, _ = User.objects.get_or_create(username="testuser", defaults={'is_active': True})
+        if not user.has_usable_password():
+            user.set_password("testpass")
+            user.save()
+        return user
 
-class TestChat(APITestCase):
-    """Tests for verifying stateless and stateful chat behavior."""
+@pytest.mark.django_db(transaction=True)
+class TestChat:
 
-    def setUp(self):
-        """Set up test environment, credentials, and mock BlueprintBase.run_with_context."""
-        # Set dummy API authentication environment variables to mirror test_views.py
-        os.environ["ENABLE_API_AUTH"] = "True"
-        os.environ["API_AUTH_TOKEN"] = "dummy-token"
-
+    @pytest.fixture(autouse=True)
+    def setup_method(self, monkeypatch, dummy_user_fixture):
+        """Using pytest fixture for setup/teardown via monkeypatch."""
         self.client = APIClient()
         self.chat_url = reverse('chat_completions')
+        self.dummy_user = dummy_user_fixture
 
-        # Patch authentication similar to test_views.py so that the request
-        # is authenticated if the Authorization header is "Bearer dummy-token"
-        from swarm import views
-        self.original_auth = views.EnvOrTokenAuthentication
-        from swarm.auth import EnvOrTokenAuthentication
-        def dummy_authenticate(self, request):
+        monkeypatch.setenv("ENABLE_API_AUTH", "True")
+        monkeypatch.setenv("API_AUTH_TOKEN", "dummy-token")
+        monkeypatch.setenv("STATEFUL_CHAT_ID_PATH", "metadata.conversationId || `null`")
+
+        test_instance_self = self
+        def mock_authenticate(auth_instance, request):
             auth_header = request.META.get("HTTP_AUTHORIZATION")
-            if auth_header == "Bearer dummy-token":
-                class DummyUser:
-                    username = "testuser"
-                    
-                    @property
-                    def is_authenticated(self):
-                        return True
-                    
-                    @property
-                    def is_anonymous(self):
-                        return False
-                return (DummyUser(), None)
-            return None
-        EnvOrTokenAuthentication.authenticate = dummy_authenticate
-        setattr(views.chat_completions, "authentication_classes", [EnvOrTokenAuthentication])
-        setattr(views.chat_completions, "permission_classes", [])
+            token_expected = f"Bearer {os.environ.get('API_AUTH_TOKEN')}"
+            if auth_header == token_expected:
+                 return (test_instance_self.dummy_user, None)
+            else:
+                 return None
+        monkeypatch.setattr(EnvOrTokenAuthentication, 'authenticate', mock_authenticate)
 
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        self.user = User.objects.create_user(username='testuser', password='testpass')
-        
-        # Create the token with key "dummy-token" so it matches the dummy auth logic.
-        self.token = Token.objects.create(user=self.user, key='dummy-token')
-        # Set up authentication using the created token.
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token.key}')
-        
-        # Ensure no previous stateful config interferes.
-        os.environ.pop('STATEFUL_CHAT_ID_PATH', None)
-        # Patch the method to return a realistic mocked response.
-        from unittest.mock import patch
-        self.patcher = patch(
-            "swarm.extensions.blueprint.blueprint_base.BlueprintBase.run_with_context",
-            side_effect=TestChat.mock_run_with_context
+        # Create a valid Agent instance for the mock response
+        self.mock_agent_instance = Agent(name="MockAgent", instructions="Test", mcp_servers=[])
+
+        # Prepare mock response data using the Response type and the valid Agent
+        self.mock_response_obj = Response(
+             messages=[{"role": "assistant", "content": "Mocked response"}],
+             agent=self.mock_agent_instance, # Use the actual Agent instance
+             context_variables={"key": "value"}
         )
-        self.mock_run_with_context_method = self.patcher.start()
-
-    functions = []  # Add empty functions list to mock agent
-
-    @staticmethod
-    def mock_run_with_context(messages, context_variables):
-        """
-        Mocks an LLM-style response including tool calls and agent handoff.
-        """
-        conversation_id = "mock_conversation_123"
-        return {
-            "id": "swarm-chat-completion-mock",
-            "object": "chat.completion",
-            "created": 1738714942,
-            "model": "university",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "content": None,
-                        "role": "assistant",
-                        "tool_calls": [
-                            {"id": "mock_tool_123", "function": {"name": "get_metadata", "arguments": "{}"}, "type": "function"}
-                        ],
-                        "sender": "TriageAgent"
-                    },
-                    "finish_reason": "stop"
-                },
-                {
-                    "index": 1,
-                    "message": {
-                        "role": "tool",
-                        "tool_call_id": "mock_tool_123",
-                        "tool_name": "get_metadata",
-                        "content": "{\"workspaceInfo\": {\"workspaceId\": \"T123456\", \"workspaceName\": \"ENAB101\"}}"
-                    },
-                    "finish_reason": "stop"
-                },
-                {
-                    "index": 2,
-                    "message": {
-                        "content": "A tiny black speck,\nBuzzing through the summer air,\nLife's brief symphony.",
-                        "role": "assistant",
-                        "tool_calls": None,
-                        "sender": "UniversityPoet"
-                    },
-                    "finish_reason": "stop"
-                }
-            ],
-            "context_variables": {"active_agent_name": "UniversityPoet"},
-            "conversation_id": conversation_id,
-            "messages": [{"content": "Mocked response", "role": "assistant"}]
+        self.mock_run_result = {
+            "response": self.mock_response_obj,
+            "context_variables": {"key": "updated_value"}
         }
+        self.async_run_mock = AsyncMock(return_value=self.mock_run_result)
+
+        # Define a simple DummyBlueprint for patching get_blueprint_instance
+        class DummyBlueprint(BlueprintBase):
+             metadata = {"title":"Dummy"}
+             def __init__(self, config, **kwargs):
+                  self.config = config
+                  self.debug = kwargs.get('debug', False)
+                  self.swarm = MagicMock()
+                  self.swarm.agents = {"MockAgent": test_instance_self.mock_agent_instance}
+                  self._discovered_tools = {}
+                  self._discovered_resources = {}
+                  self.starting_agent = test_instance_self.mock_agent_instance
+                  self.context_variables = {}
+                  # Patch the instance method HERE
+                  self.run_with_context_async = test_instance_self.async_run_mock
+             def create_agents(self): return {"MockAgent": test_instance_self.mock_agent_instance}
+             def register_blueprint_urls(self): pass
+
+        # Patch get_blueprint_instance in view_utils to return an *instance* of DummyBlueprint
+        self.dummy_blueprint_instance = DummyBlueprint(config={"llm": {"default":{}}})
+        monkeypatch.setattr(
+             view_utils,
+             'get_blueprint_instance',
+             lambda model, context_vars: self.dummy_blueprint_instance
+        )
+
+        # Patch config access in chat_views and view_utils
+        mock_config_data = {"llm": {"default": {"model": "mock-model"}}}
+        monkeypatch.setattr(config_loader, 'config', mock_config_data, raising=False)
+        monkeypatch.setattr(chat_views, 'view_utils', view_utils, raising=False)
+        monkeypatch.setattr(view_utils, 'config', mock_config_data, raising=False)
+        monkeypatch.setattr(view_utils, 'llm_config', mock_config_data.get('llm',{}), raising=False)
+
 
     def test_stateless_chat(self):
-        # Test with valid token
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer dummy-token')
-        """Verify stateless mode returns responses without tracking history."""
-        self.assertFalse('STATEFUL_CHAT_ID_PATH' in os.environ)
-        response = self.client.post(self.chat_url, data={'message': 'Hello'}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("choices", response.data)
+        """Test a basic stateless chat completion request."""
+        # Removed incorrect patch context manager
+        payload = { "model": "dummy_blueprint", "messages": [{"role": "user", "content": "Hello"}] }
+        response = self.client.post(
+            self.chat_url, data=json.dumps(payload), content_type="application/json",
+            HTTP_AUTHORIZATION='Bearer dummy-token'
+        )
+        assert response.status_code == 200, f"Response content: {response.content.decode()}"
+        response_data = response.json()
+        assert "choices" in response_data and len(response_data["choices"]) > 0
+        assert response_data["choices"][0]["message"]["content"] == self.mock_response_obj.messages[0]["content"]
+        self.dummy_blueprint_instance.run_with_context_async.assert_called_once()
+
+
+    def test_stateful_chat(self, monkeypatch):
+        """Test a stateful chat using conversation_id."""
+        # Removed incorrect patch context manager
+        conversation_id = f"test-conv-{uuid.uuid4()}"
+        mock_history_container = {'history': []}
+
+        monkeypatch.setattr(view_utils, 'load_conversation_history',
+                            lambda conv_id, current_msgs, tool_id=None: [m.copy() for m in mock_history_container['history']] + current_msgs)
+
+        def mock_store(conv_id, history, response=None):
+             current_history = [m.copy() for m in history]
+             resp_msgs = []
+             if response:
+                  resp_data = response
+                  if hasattr(resp_data, 'messages'): resp_msgs = resp_data.messages
+                  elif isinstance(resp_data, dict) and 'messages' in resp_data: resp_msgs = resp_data['messages']
+                  current_history.extend([m.copy() for m in resp_msgs])
+             mock_history_container['history'] = current_history
+
+        monkeypatch.setattr(view_utils, 'store_conversation_history', mock_store)
+
+        # Turn 1
+        payload_1 = { "model": "dummy_blueprint", "messages": [{"role": "user", "content": "First message"}], "metadata": {"conversationId": conversation_id} }
+        response_1 = self.client.post( self.chat_url, data=json.dumps(payload_1), content_type="application/json", HTTP_AUTHORIZATION='Bearer dummy-token')
+        assert response_1.status_code == 200
+        assert self.dummy_blueprint_instance.run_with_context_async.call_count == 1
+        call_args_1, _ = self.dummy_blueprint_instance.run_with_context_async.call_args
+        messages_passed_1 = call_args_1[0]
+        assert len(messages_passed_1) == 1, f"Expected 1 message passed, got {len(messages_passed_1)}"
+        assert messages_passed_1[0]["content"] == "First message"
+        assert len(mock_history_container['history']) == 2, f"Expected 2 messages in stored history, got {len(mock_history_container['history'])}"
+        assert mock_history_container['history'][0]["content"] == "First message"
+        assert mock_history_container['history'][1]["content"] == "Mocked response"
+
+        self.dummy_blueprint_instance.run_with_context_async.reset_mock()
+
+        # Turn 2
+        payload_2 = { "model": "dummy_blueprint", "messages": [{"role": "user", "content": "Second message"}], "metadata": {"conversationId": conversation_id} }
+        response_2 = self.client.post( self.chat_url, data=json.dumps(payload_2), content_type="application/json", HTTP_AUTHORIZATION='Bearer dummy-token')
+        assert response_2.status_code == 200
+        assert self.dummy_blueprint_instance.run_with_context_async.call_count == 1
+        call_args_2, _ = self.dummy_blueprint_instance.run_with_context_async.call_args
+        messages_passed_2 = call_args_2[0]
+        assert len(messages_passed_2) == 3, f"Expected 3 messages passed, got {len(messages_passed_2)}"
+        assert messages_passed_2[0]["content"] == "First message"
+        assert messages_passed_2[1]["content"] == "Mocked response"
+        assert messages_passed_2[2]["content"] == "Second message"
+        assert len(mock_history_container['history']) == 4, f"Expected 4 messages in stored history, got {len(mock_history_container['history'])}"
+
 
     def test_invalid_input(self):
-        """Test error handling for invalid input."""
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer dummy-token')
-        response = self.client.post(self.chat_url, data={}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", response.data)
-        self.assertEqual(response.data["error"], "Messages are required.")
+        """Test API response for invalid input (e.g., missing messages)."""
+        payload = {"model": "dummy_blueprint"}
+        response = self.client.post( self.chat_url, data=json.dumps(payload), content_type="application/json", HTTP_AUTHORIZATION='Bearer dummy-token')
+        assert response.status_code == 400
+        assert "'messages' field is required" in response.json().get("error", "")
 
-    def test_stateful_chat(self):
-        """Verify stateful chat tracks conversation ID and stores history."""
-        os.environ['STATEFUL_CHAT_ID_PATH'] = "chat_id"
-        initial_payload = {"chat_id": "abc123", "message": "Hello from stateful test"}
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer dummy-token')
-        response = self.client.post(self.chat_url, data=initial_payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("conversation_id", response.data)
-        self.assertEqual(response.data["conversation_id"], "abc123")
-        followup_payload = {"chat_id": "abc123", "message": "How are you stored?"}
-        response2 = self.client.post(self.chat_url, data=followup_payload, format='json')
-        self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertIn("conversation_id", response2.data)
-        self.assertEqual(response2.data["conversation_id"], "abc123")
 
-    def test_jmespath_chat_id_extraction(self):
-        """Verify JMESPath-based conversation ID extraction."""
-        os.environ['STATEFUL_CHAT_ID_PATH'] = "messages[?role=='assistant'] | [-1].tool_calls[-1].id"
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer dummy-token')
+    def test_jmespath_chat_id_extraction(self, monkeypatch):
+        """Test chat ID extraction using JMESPath from metadata."""
+        # Removed incorrect patch context manager
+        monkeypatch.setenv("STATEFUL_CHAT_ID_PATH", "metadata.channelInfo.nested.conversationId || `null`")
+        conversation_id = f"jmespath-test-{uuid.uuid4()}"
         payload = {
-            "messages": [
-                {"role": "assistant", "tool_calls": [{"id": "jmespath_456"}]}
-            ],
-            "message": "Extract me"
+            "model": "dummy_blueprint",
+            "messages": [{"role": "user", "content": "JMESPath test"}],
+            "metadata": {"channelInfo": {"nested": {"conversationId": conversation_id}}}
         }
-        response = self.client.post(self.chat_url, data=payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("conversation_id", response.data)
-        self.assertEqual(response.data["conversation_id"], "jmespath_456")
+        mock_load = MagicMock()
+        monkeypatch.setattr(view_utils, 'load_conversation_history', mock_load)
+        monkeypatch.setattr(view_utils, 'store_conversation_history', MagicMock())
 
-    def test_database_queries_optimized(self):
-        """Ensure database queries are minimized under stateful mode."""
-        os.environ['STATEFUL_CHAT_ID_PATH'] = "conv"
-        payload = {"conv": "optimized123", "message": "Testing DB queries..."}
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer dummy-token')
-        response = self.client.post(self.chat_url, data=payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("conversation_id", response.data)
-        self.assertEqual(response.data["conversation_id"], "optimized123")
-
-    def tearDown(self):
-        """Stop all patches and restore altered settings after tests complete."""
-        self.patcher.stop()
-        from swarm import views
-        views.EnvOrTokenAuthentication = self.original_auth
-        os.environ.pop('STATEFUL_CHAT_ID_PATH', None)
-        os.environ.pop('ENABLE_API_AUTH', None)
-        os.environ.pop('API_AUTH_TOKEN', None)
-
-if __name__ == "__main__":
-    import unittest
-    unittest.main()
+        response = self.client.post( self.chat_url, data=json.dumps(payload), content_type="application/json", HTTP_AUTHORIZATION='Bearer dummy-token')
+        assert response.status_code == 200
+        mock_load.assert_called_once()
+        args, kwargs = mock_load.call_args
+        assert args[0] == conversation_id
