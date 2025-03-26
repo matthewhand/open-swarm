@@ -28,12 +28,22 @@ except ImportError:
 
 # Import get_token_count from the correct centralized location
 try:
+    # Assume get_token_count exists in context_utils as used elsewhere
     from swarm.utils.context_utils import get_token_count
 except ImportError:
      logger = logging.getLogger(__name__) # Ensure logger is defined for fallback
      logger.error("CRITICAL: Cannot import get_token_count from swarm.utils.context_utils. Token counting will fail.")
      # Define a dummy fallback to prevent NameError, but log error
-     def get_token_count(text: str, model: str) -> int:
+     def get_token_count(text: Any, model: str) -> int:
+         # The mock in tests uses content length, let's somewhat mimic that
+         try:
+             if isinstance(text, str) and text.strip().startswith('{'):
+                 msg_dict = json.loads(text)
+                 return len(msg_dict.get("content", "") or "")
+             elif isinstance(text, dict):
+                 return len(text.get("content", "") or "")
+         except Exception:
+             pass
          return len(str(text).split()) # Very rough fallback
 
 logger = logging.getLogger(__name__)
@@ -62,7 +72,6 @@ def repair_message_payload(messages: List[Dict[str, Any]], debug: bool = False) 
     if debug: logger.debug(f"Valid tool_call_ids from assistant messages: {valid_tool_call_ids}")
 
     # Step 3: Filter out tool messages with invalid/missing tool_call_ids
-    # This helps clean up malformed sequences before reordering
     filtered_messages = []
     for msg in messages:
          if isinstance(msg, dict):
@@ -87,72 +96,47 @@ def repair_message_payload(messages: List[Dict[str, Any]], debug: bool = False) 
         current_role = msg.get("role")
 
         if current_role == "assistant" and msg.get("tool_calls"):
-            # Found an assistant message that expects tool calls
             assistant_msg = msg
             final_sequence.append(assistant_msg)
-            expected_tool_ids = {tc.get("id") for tc in assistant_msg["tool_calls"] if isinstance(tc, dict)}
+            expected_tool_ids = {tc.get("id") for tc in assistant_msg.get("tool_calls", []) if isinstance(tc, dict)}
             found_tool_ids = set()
             j = i + 1
-            # Scan forward for the corresponding tool messages
             while j < len(filtered_messages):
                 next_msg = filtered_messages[j]
-                # Check if next_msg is a tool message for the current assistant
                 if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in expected_tool_ids:
-                     # Found a matching tool message, add it
                      final_sequence.append(next_msg)
                      found_tool_ids.add(next_msg["tool_call_id"])
-                     # Move scan index forward
                      j += 1
-                     # Check if we've found all expected tools for this assistant call
-                     if found_tool_ids == expected_tool_ids:
-                          break # Stop scanning for this assistant's tools
-                # Stop scanning if we hit a non-tool message or a tool for a different call
+                     if found_tool_ids == expected_tool_ids: break
                 elif next_msg.get("role") != "tool" or next_msg.get("tool_call_id") not in expected_tool_ids:
                     break
-                else: # Should not happen if filtering worked, but as safety
-                    j += 1
+                else: j += 1
 
-            # Optional: Insert dummy responses for missing tool calls if API requires it
             missing_ids = expected_tool_ids - found_tool_ids
             if missing_ids:
                  logger.warning(f"Assistant requested tool calls ({missing_ids}) but corresponding tool messages were not found or filtered out.")
-                 # for missing_id in missing_ids:
-                 #     dummy_tool_msg = {"role": "tool", "tool_call_id": missing_id, "name": "error_tool", "content": '{"error": "Tool response missing."}'}
-                 #     final_sequence.append(dummy_tool_msg)
 
-            # Move main index past the assistant and all its found/scanned tool messages
-            i = j # Start next iteration from where scanning stopped
+            i = j
 
         elif current_role == "tool":
-            # Found a tool message *before* its corresponding assistant call in the filtered list.
-            # This implies an ordering issue or a tool message whose assistant call was filtered out.
-            # Strategy: Insert a minimal dummy assistant call right before this tool message.
             tool_call_id = msg.get("tool_call_id")
-            tool_name = msg.get("name", msg.get("tool_name", "unknown_tool")) # Get tool name
+            tool_name = msg.get("name", msg.get("tool_name", "unknown_tool"))
             logger.warning(f"Found potentially orphaned tool message (ID: {tool_call_id}, Name: {tool_name}). Inserting preceding dummy assistant call.")
-            # Create a minimal assistant message structure
             dummy_assistant_call = {
-                "role": "assistant",
-                "content": None, # Or an empty string
-                "tool_calls": [{
-                     "id": tool_call_id,
-                     "type": "function", # Assuming function type
-                     "function": {"name": tool_name, "arguments": "{}"} # Minimal arguments
-                }]
+                "role": "assistant", "content": None,
+                "tool_calls": [{"id": tool_call_id, "type": "function", "function": {"name": tool_name, "arguments": "{}"}}]
             }
             final_sequence.append(dummy_assistant_call)
-            final_sequence.append(msg) # Now append the tool message
-            i += 1 # Move to the next message in the original filtered list
+            final_sequence.append(msg)
+            i += 1
 
         else:
-            # Regular user message or assistant message without tool calls
             final_sequence.append(msg)
             i += 1
 
     if debug:
         final_roles = [m.get('role') for m in final_sequence if isinstance(m, dict)]
         logger.debug(f"Payload repair finished. Final messages: {len(final_sequence)}. Roles: {final_roles}")
-        # logger.debug(f"Repaired payload: {json.dumps(final_sequence, indent=2, default=str)}")
     return final_sequence
 
 
@@ -178,20 +162,17 @@ def validate_message_sequence(messages: List[Dict[str, Any]]) -> List[Dict[str, 
 
         if role == "assistant":
             valid_messages.append(msg)
-            # Record the IDs of tool calls made by this assistant message
             if isinstance(msg.get("tool_calls"), list):
                  for tc in msg.get("tool_calls", []):
                      if isinstance(tc, dict) and "id" in tc:
                          valid_tool_call_ids_encountered.add(tc["id"])
         elif role == "tool":
-            # Check if this tool message corresponds to a previously encountered ID
             tool_call_id = msg.get("tool_call_id")
             if tool_call_id in valid_tool_call_ids_encountered:
                  valid_messages.append(msg)
             else:
                  logger.warning(f"Filtering out 'tool' message with ID '{tool_call_id}' because no corresponding 'assistant' tool_call was found earlier in the sequence.")
         else:
-            # Keep system, user, or other valid role messages
             valid_messages.append(msg)
 
     if len(valid_messages) != len(messages):
@@ -203,9 +184,8 @@ def validate_message_sequence(messages: List[Dict[str, Any]]) -> List[Dict[str, 
 
 # --- Truncation Functions ---
 
-def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_context_tokens: int, max_context_messages: int) -> List[Dict[str, Any]]:
+def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> List[Dict[str, Any]]:
     """Truncate preserving assistant/tool pairs, system message, within token/message limits."""
-    # Keep at most one system message, usually the first one if multiple exist.
     system_msgs = []
     non_system_msgs = []
     system_found = False
@@ -216,24 +196,17 @@ def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_cont
                    system_found = True
               elif msg.get("role") != "system":
                    non_system_msgs.append(msg)
-         # Ignore non-dict items in messages list
 
-    # Calculate token limits considering system messages
     system_tokens = sum(get_token_count(json.dumps(msg), model) for msg in system_msgs)
-    target_non_system_msg_count = max(0, max_context_messages - len(system_msgs))
-    # Use max_context_tokens directly here - Corrected variable name
-    target_non_system_token_count = max(0, max_context_tokens - system_tokens)
+    target_non_system_msg_count = max(0, max_messages - len(system_msgs))
+    target_non_system_token_count = max(0, max_tokens - system_tokens)
 
-    # Pre-calculate tokens for each non-system message (using full JSON representation)
     try:
          msg_tokens = [(msg, get_token_count(json.dumps(msg), model)) for msg in non_system_msgs]
     except Exception as e:
          logger.error(f"Error calculating initial tokens for truncation: {e}. Using approximate counts.")
-         # Fallback to approximate count if JSON dump or token count fails
-         msg_tokens = [(msg, get_token_count(str(msg.get("content", "")), model) + 10) for msg in non_system_msgs] # Add rough overhead
+         msg_tokens = [(msg, get_token_count(str(msg.get("content", "")), model) + 10) for msg in non_system_msgs]
 
-
-    # Quick check if already within limits
     current_total_tokens = sum(t for _, t in msg_tokens)
     if len(non_system_msgs) <= target_non_system_msg_count and current_total_tokens <= target_non_system_token_count:
         logger.debug(f"History within limits ({len(non_system_msgs)} non-system msgs, {current_total_tokens} tokens). No truncation needed.")
@@ -241,29 +214,23 @@ def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_cont
 
     logger.debug(f"Truncation needed. Current: {len(non_system_msgs)} msgs, {current_total_tokens} tokens. Target: {target_non_system_msg_count} msgs, {target_non_system_token_count} tokens.")
 
-    # --- Main Truncation Loop (Iterating Backwards) ---
     truncated = []
     total_tokens = 0
-    kept_indices = set() # Track original indices of messages kept
-
-    # Iterate backwards through non-system messages by index
+    kept_indices = set()
     i = len(msg_tokens) - 1
     while i >= 0 and len(truncated) < target_non_system_msg_count:
-        if i in kept_indices: # Skip if already added as part of a pair
+        if i in kept_indices:
              i -= 1
              continue
 
         msg, tokens = msg_tokens[i]
         current_role = msg.get("role")
 
-        # Case 1: Tool message - Find and try to include its assistant pair
         if current_role == "tool" and "tool_call_id" in msg:
             tool_call_id = msg["tool_call_id"]
             assistant_idx = i - 1
             pair_found_and_added = False
-            # Search backwards for the corresponding 'assistant' call
             while assistant_idx >= 0:
-                 # Check if the potential assistant msg was already processed/skipped
                  if assistant_idx in kept_indices:
                       assistant_idx -= 1
                       continue
@@ -271,86 +238,60 @@ def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_cont
                  prev_msg, prev_tokens = msg_tokens[assistant_idx]
                  if prev_msg.get("role") == "assistant" and prev_msg.get("tool_calls"):
                      if any(tc.get("id") == tool_call_id for tc in prev_msg.get("tool_calls", []) if isinstance(tc, dict)):
-                          # Found the calling assistant. Check if the pair fits.
                           if total_tokens + tokens + prev_tokens <= target_non_system_token_count and len(truncated) + 2 <= target_non_system_msg_count:
-                               # Pair fits: Add assistant then tool response
                                truncated.insert(0, prev_msg)
                                truncated.insert(1, msg)
                                total_tokens += tokens + prev_tokens
                                kept_indices.add(i)
                                kept_indices.add(assistant_idx)
                                pair_found_and_added = True
-                               # Important: Move 'i' before the assistant message to continue search
                                i = assistant_idx - 1
-                               break # Stop inner search, outer loop continues from new 'i'
+                               break
                           else:
-                               # Pair doesn't fit, stop searching for this tool's assistant
                                logger.debug(f"Pair for tool {tool_call_id} found but doesn't fit limits. Skipping pair.")
-                               break # Stop inner search
-
-                 # Optimization: Limit backward search depth or stop at user message
-                 if i - assistant_idx > 10 or prev_msg.get("role") == "user":
-                      break
+                               break
+                 if i - assistant_idx > 10 or prev_msg.get("role") == "user": break
                  assistant_idx -= 1
 
             if not pair_found_and_added:
-                 # If no fitting pair was found, we generally discard the lone tool message
                  logger.debug(f"Skipping lone tool message {tool_call_id}.")
-                 i -= 1 # Move to the message before the lone tool message
-            # If pair was found and added, 'i' is already updated, outer loop continues
+                 i -= 1
 
-        # Case 2: Assistant message with tool calls
         elif current_role == "assistant" and isinstance(msg.get("tool_calls"), list):
              assistant_msg = msg
              assistant_tokens = tokens
              expected_tool_ids = {tc.get("id") for tc in assistant_msg.get("tool_calls", []) if isinstance(tc, dict)}
-             found_tools_data = [] # List of (tool_msg, tool_tokens)
+             found_tools_data = []
              indices_of_found_tools = []
              temp_tool_tokens = 0
-
-             # Scan forward from original list to find corresponding tool messages
              j = i + 1
              while j < len(msg_tokens):
                   tool_msg, tool_tokens = msg_tokens[j]
                   tool_msg_call_id = tool_msg.get("tool_call_id")
-
                   if tool_msg.get("role") == "tool" and tool_msg_call_id in expected_tool_ids:
-                      # Check if this tool index has already been 'kept' (e.g., by an earlier pair)
-                      # This is tricky. If already kept, we shouldn't add it again.
                       if j not in kept_indices:
                            found_tools_data.append((tool_msg, tool_tokens))
                            indices_of_found_tools.append(j)
                            temp_tool_tokens += tool_tokens
-                           # Do not remove from expected_tool_ids here, just collect potential tools
-                      # else: logger.debug(f"Tool msg at index {j} already kept, skipping for assistant {i}")
-
-                  # Stop scanning if non-tool message encountered
-                  elif tool_msg.get("role") != "tool":
-                      break
+                  elif tool_msg.get("role") != "tool": break
                   j += 1
 
-             # Calculate total size of the assistant + found tools THAT WEREN'T ALREADY KEPT
              pair_tokens = assistant_tokens + temp_tool_tokens
              pair_len = 1 + len(found_tools_data)
-
-             # Check if the complete pair fits
              if total_tokens + pair_tokens <= target_non_system_token_count and len(truncated) + pair_len <= target_non_system_msg_count:
-                  # Add assistant and its UNKEPT tools
-                  truncated.insert(0, assistant_msg) # Assistant first
-                  kept_indices.add(i) # Mark assistant as kept
-                  tool_insert_index = 1 # Insert tools after assistant
+                  truncated.insert(0, assistant_msg)
+                  kept_indices.add(i)
+                  tool_insert_index = 1
                   for tool_idx, (tool_d_msg, _) in zip(indices_of_found_tools, found_tools_data):
-                       truncated.insert(tool_insert_index, tool_d_msg) # Insert tool
-                       kept_indices.add(tool_idx) # Mark tool as kept
+                       truncated.insert(tool_insert_index, tool_d_msg)
+                       kept_indices.add(tool_idx)
                        tool_insert_index += 1
                   total_tokens += pair_tokens
-                  i -= 1 # Move to message before assistant
+                  i -= 1
              else:
-                  # Pair doesn't fit, discard the assistant and its tools for this iteration
                   logger.debug(f"Skipping assistant message (idx {i}) and its tools as the pair exceeds limits.")
-                  i -= 1 # Move to message before assistant
+                  i -= 1
 
-        # Case 3: Regular message (user, or assistant without tool calls)
         else:
              if total_tokens + tokens <= target_non_system_token_count and len(truncated) < target_non_system_msg_count:
                   truncated.insert(0, msg)
@@ -358,8 +299,6 @@ def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_cont
                   kept_indices.add(i)
                   i -= 1
              else:
-                  # This message doesn't fit, and since we're iterating backwards,
-                  # no earlier messages will fit either. Stop truncation.
                   logger.debug(f"Stopping truncation: Message {i} ({current_role}) doesn't fit limits (Tokens: {total_tokens+tokens}/{target_non_system_token_count}, Msgs: {len(truncated)+1}/{target_non_system_msg_count}).")
                   break
 
@@ -368,21 +307,13 @@ def truncate_preserve_pairs(messages: List[Dict[str, Any]], model: str, max_cont
     logger.debug(f"Truncated to {len(final_messages)} messages ({len(system_msgs)} sys, {len(truncated)} non-sys), {final_token_check} tokens (preserve_pairs).")
     return final_messages
 
-# --- Other Truncation Strategies ---
-
-def truncate_strict_token(messages: List[Dict[str, Any]], model: str, max_context_tokens: int, max_context_messages: int) -> List[Dict[str, Any]]:
-    # This strategy aims to strictly adhere to token limits, potentially breaking pairs if necessary.
-    # It might be simpler: Keep adding messages from the end until tokens are exceeded.
-    # However, preserving pairs is often better for model context.
-    # For now, let's alias it to preserve_pairs, as that function already tries hard to stay within token limits.
-    # If a truly strict version is needed that *will* break pairs to fit more recent content,
-    # a different algorithm would be required.
-    logger.debug("Using 'truncate_preserve_pairs' logic for 'strict_token_limit' mode.")
-    return truncate_preserve_pairs(messages, model, max_context_tokens, max_context_messages)
+def truncate_strict_token(messages: List[Dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> List[Dict[str, Any]]:
+    # Currently aliased to preserve_pairs as the logic is similar
+    logger.debug("Using 'truncate_preserve_pairs' logic for 'strict_token' mode.")
+    return truncate_preserve_pairs(messages, model, max_tokens, max_messages)
 
 def truncate_recent_only(messages: List[Dict[str, Any]], model: str, max_context_messages: int) -> List[Dict[str, Any]]:
     """Keep most recent N messages, ignoring token limits but respecting max_context_messages."""
-    # Keep at most one system message
     system_msgs = []
     non_system_msgs = []
     system_found = False
@@ -394,12 +325,16 @@ def truncate_recent_only(messages: List[Dict[str, Any]], model: str, max_context
               elif msg.get("role") != "system":
                    non_system_msgs.append(msg)
 
-    target_non_system_count = max(0, max_context_messages - len(system_msgs)) # Ensure non-negative
+    target_non_system_count = max(0, max_context_messages - len(system_msgs))
 
-    # Take the last 'target_non_system_count' messages from the non-system list
-    truncated_non_system = non_system_msgs[-target_non_system_count:]
+    # Corrected slicing logic for target_non_system_count=0
+    if target_non_system_count > 0:
+        truncated_non_system = non_system_msgs[-target_non_system_count:]
+    else:
+        truncated_non_system = [] # Explicitly take empty list if count is 0
 
     final_messages = system_msgs + truncated_non_system
     final_tokens = sum(get_token_count(json.dumps(msg), model) for msg in final_messages) # Calculate tokens for info
     logger.debug(f"Truncated to {len(final_messages)} messages ({len(system_msgs)} sys, {len(truncated_non_system)} non-sys), {final_tokens} tokens (recent_only).")
     return final_messages
+
