@@ -2,28 +2,22 @@ import pytest
 import os
 import sys
 import types
-from django.test import Client, override_settings
+from django.test import Client, override_settings # Need override_settings for ROOT_URLCONF
 from django.urls import path, include, clear_url_caches, set_urlconf
 from django.conf import settings
+# from django.core.management import call_command # Not needed
 
 # Set environment variables BEFORE Django setup
 os.environ["UNIT_TESTING"] = "true"
-os.environ["SQLITE_DB_PATH"] = f"/tmp/test_db_{os.urandom(8).hex()}.sqlite3"
 os.environ["ENABLE_API_AUTH"] = "false"
-os.environ["SWARM_BLUEPRINTS"] = "university"
+os.environ["SWARM_BLUEPRINTS"] = "university" # Required by conftest/settings
 
-# Define the required INSTALLED_APPS for these tests
-try:
-    from swarm.settings import INSTALLED_APPS as BASE_INSTALLED_APPS_LIST
-    BASE_INSTALLED_APPS = tuple(BASE_INSTALLED_APPS_LIST) if isinstance(BASE_INSTALLED_APPS_LIST, list) else BASE_INSTALLED_APPS_LIST
-    BASE_INSTALLED_APPS = tuple(app for app in BASE_INSTALLED_APPS if app != 'blueprints.university')
-except (ImportError, AttributeError):
-    BASE_INSTALLED_APPS = (
-        'django.contrib.admin','django.contrib.auth','django.contrib.contenttypes',
-        'django.contrib.sessions','django.contrib.messages','django.contrib.staticfiles',
-        'rest_framework','rest_framework.authtoken','drf_spectacular','swarm.apps.SwarmConfig',
-    )
-UNIVERSITY_TEST_APPS = BASE_INSTALLED_APPS + ('blueprints.university',)
+# Ensure Django is setup (conftest should handle this)
+if not settings.configured:
+     import django
+     django.setup()
+
+# No INSTALLED_APPS override needed
 
 # Create a dynamic module for the test URLconf
 test_urlconf_name = __name__ + '.temp_urls_create_retrieve'
@@ -43,15 +37,15 @@ except Exception as e:
     print(f"ERROR creating temp URLconf: {e}")
     test_urlconf_name = settings.ROOT_URLCONF
 
-# Define the override settings decorator common to all tests
+# Define the override settings decorator common to all tests in this module
+# Only override ROOT_URLCONF
 override_decorator = override_settings(
-    ROOT_URLCONF=test_urlconf_name,
-    INSTALLED_APPS=UNIVERSITY_TEST_APPS
+    ROOT_URLCONF=test_urlconf_name
+    # INSTALLED_APPS=... # REMOVED
 )
 
 # Use database marker for the module
 pytestmark = pytest.mark.django_db(transaction=True)
-
 
 @pytest.fixture(scope="function", autouse=True)
 def bypass_auth():
@@ -64,24 +58,29 @@ def bypass_auth():
     UniversityBaseViewSet.initial = original_initial
 
 @pytest.fixture(scope="module", autouse=True)
-def manage_db_file_module():
-    # Ensure URLconf is properly set for the module fixture
-    original_urlconf = settings.ROOT_URLCONF
+def manage_test_environment_module():
+    """Set up URLconf once for the module."""
+    original_urlconf = getattr(settings, 'ROOT_URLCONF', None) # Store original safely
+    # Set the URLconf *before* tests run, override_decorator will handle it per-test too
     set_urlconf(test_urlconf_name)
     clear_url_caches()
     print(f"Module Setup: Set URLConf to {test_urlconf_name}")
-    yield
+
+    # Migrations should be handled by pytest-django now
+
+    yield # Tests run here
+
     # Teardown
-    db_path = os.environ.get("SQLITE_DB_PATH")
-    if db_path and os.path.exists(db_path):
-        try: os.remove(db_path)
-        except OSError as e: print(f"Warning: Could not remove test database {db_path}: {e}")
-    set_urlconf(original_urlconf)
+    if original_urlconf:
+        set_urlconf(original_urlconf)
+    else:
+        set_urlconf(None)
     clear_url_caches()
     if test_urlconf_name in sys.modules: del sys.modules[test_urlconf_name]
     print(f"Module Teardown: Cleaned up URLConf {test_urlconf_name}")
 
-# Apply override_settings to each test function individually
+
+# Apply override_settings (which only overrides ROOT_URLCONF now)
 @override_decorator
 def test_create_and_retrieve_teaching_unit(client):
     data = { "code": "TU001", "name": "Test Teaching Unit", "teaching_prompt": "Prompt text" }
@@ -94,10 +93,12 @@ def test_create_and_retrieve_teaching_unit(client):
 
 @override_decorator
 def test_create_and_retrieve_topic(client):
+    # Need TeachingUnit first
     tu_data = {"code": "TU002", "name": "For Topic", "teaching_prompt": "TP"}
-    response = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
-    assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"
-    tu_id = response.json()["id"]
+    res_tu = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
+    assert res_tu.status_code == 201, f"Prereq TU failed: {res_tu.content.decode()}"
+    tu_id = res_tu.json()["id"]
+
     data = { "teaching_unit": tu_id, "name": "Test Topic", "teaching_prompt": "Topic prompt" }
     response = client.post("/v1/university/topics/", data, content_type="application/json")
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"
@@ -108,14 +109,16 @@ def test_create_and_retrieve_topic(client):
 
 @override_decorator
 def test_create_and_retrieve_learning_objective(client):
+    # Need TeachingUnit and Topic first
     tu_data = {"code": "TU003", "name": "For LO", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    tu_id = res.json()["id"]
+    res_tu = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
+    assert res_tu.status_code == 201, f"Prereq TU failed: {res_tu.content.decode()}"
+    tu_id = res_tu.json()["id"]
     topic_data = {"teaching_unit": tu_id, "name": "Topic for LO", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/topics/", topic_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    topic_id = res.json()["id"]
+    res_topic = client.post("/v1/university/topics/", topic_data, content_type="application/json")
+    assert res_topic.status_code == 201, f"Prereq Topic failed: {res_topic.content.decode()}"
+    topic_id = res_topic.json()["id"]
+
     data = {"topic": topic_id, "description": "Objective description"}
     response = client.post("/v1/university/learning-objectives/", data, content_type="application/json")
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"
@@ -126,14 +129,16 @@ def test_create_and_retrieve_learning_objective(client):
 
 @override_decorator
 def test_create_and_retrieve_subtopic(client):
+     # Need TeachingUnit and Topic first
     tu_data = {"code": "TU004", "name": "For Subtopic", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    tu_id = res.json()["id"]
+    res_tu = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
+    assert res_tu.status_code == 201, f"Prereq TU failed: {res_tu.content.decode()}"
+    tu_id = res_tu.json()["id"]
     topic_data = {"teaching_unit": tu_id, "name": "Topic for Subtopic", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/topics/", topic_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    topic_id = res.json()["id"]
+    res_topic = client.post("/v1/university/topics/", topic_data, content_type="application/json")
+    assert res_topic.status_code == 201, f"Prereq Topic failed: {res_topic.content.decode()}"
+    topic_id = res_topic.json()["id"]
+
     data = {"topic": topic_id, "name": "Test Subtopic", "teaching_prompt": "Subtopic prompt"}
     response = client.post("/v1/university/subtopics/", data, content_type="application/json")
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"
@@ -144,10 +149,12 @@ def test_create_and_retrieve_subtopic(client):
 
 @override_decorator
 def test_create_and_retrieve_course(client):
+     # Need TeachingUnit first
     tu_data = {"code": "TU005", "name": "For Course", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    tu_id = res.json()["id"]
+    res_tu = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
+    assert res_tu.status_code == 201, f"Prereq TU failed: {res_tu.content.decode()}"
+    tu_id = res_tu.json()["id"]
+
     data = { "name": "Test Course", "code": "TC001", "coordinator": "Coordinator Name", "teaching_prompt": "Course prompt", "teaching_units": [tu_id] }
     response = client.post("/v1/university/courses/", data, content_type="application/json")
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"
@@ -168,14 +175,16 @@ def test_create_and_retrieve_student(client):
 
 @override_decorator
 def test_create_and_retrieve_enrollment(client):
+    # Need TeachingUnit and Student first
     tu_data = {"code": "TU006", "name": "For Enrollment", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    tu_id = res.json()["id"]
+    res_tu = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
+    assert res_tu.status_code == 201, f"Prereq TU failed: {res_tu.content.decode()}"
+    tu_id = res_tu.json()["id"]
     student_data = {"name": "Enrollment Student", "gpa": "3.75", "status": "active"}
-    res = client.post("/v1/university/students/", student_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    student_id = res.json()["id"]
+    res_student = client.post("/v1/university/students/", student_data, content_type="application/json")
+    assert res_student.status_code == 201, f"Prereq Student failed: {res_student.content.decode()}"
+    student_id = res_student.json()["id"]
+
     data = {"student": student_id, "teaching_unit": tu_id, "status": "enrolled"}
     response = client.post("/v1/university/enrollments/", data, content_type="application/json")
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"
@@ -187,18 +196,20 @@ def test_create_and_retrieve_enrollment(client):
 
 @override_decorator
 def test_create_and_retrieve_assessment_item(client):
+     # Need TeachingUnit, Student, Enrollment first
     tu_data = {"code": "TU007", "name": "For Assessment", "teaching_prompt": "TP"}
-    res = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    tu_id = res.json()["id"]
+    res_tu = client.post("/v1/university/teaching-units/", tu_data, content_type="application/json")
+    assert res_tu.status_code == 201, f"Prereq TU failed: {res_tu.content.decode()}"
+    tu_id = res_tu.json()["id"]
     student_data = {"name": "Assessment Student", "gpa": "4.00", "status": "active"}
-    res = client.post("/v1/university/students/", student_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    student_id = res.json()["id"]
+    res_student = client.post("/v1/university/students/", student_data, content_type="application/json")
+    assert res_student.status_code == 201, f"Prereq Student failed: {res_student.content.decode()}"
+    student_id = res_student.json()["id"]
     enrollment_data = {"student": student_id, "teaching_unit": tu_id, "status": "enrolled"}
-    res = client.post("/v1/university/enrollments/", enrollment_data, content_type="application/json")
-    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.content.decode()}"
-    enrollment_id = res.json()["id"]
+    res_enroll = client.post("/v1/university/enrollments/", enrollment_data, content_type="application/json")
+    assert res_enroll.status_code == 201, f"Prereq Enrollment failed: {res_enroll.content.decode()}"
+    enrollment_id = res_enroll.json()["id"]
+
     data = { "enrollment": enrollment_id, "title": "Test Assessment", "status": "pending", "due_date": "2025-12-31T23:59:59Z", "weight": "20.00" }
     response = client.post("/v1/university/assessment-items/", data, content_type="application/json")
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.content.decode()}"

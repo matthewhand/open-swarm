@@ -44,16 +44,20 @@ INSTALLED_APPS = [
 if TESTING:
     # Add specific apps needed for testing
     # We know 'university' is needed based on SWARM_BLUEPRINTS in conftest
-    _test_apps_to_add = ['blueprints.university']
+    _test_apps_to_add = ['blueprints.university'] # Hardcoding for University tests specifically
     for app in _test_apps_to_add:
         if app not in INSTALLED_APPS:
-            INSTALLED_APPS.append(app)
+            # Use insert for potentially better ordering if it matters, otherwise append is fine
+            INSTALLED_APPS.insert(0, app) # Or INSTALLED_APPS.append(app)
             logging.info(f"Settings [TESTING]: Added '{app}' to INSTALLED_APPS.")
-    # Set SWARM_BLUEPRINTS env var here if needed by other parts of the code during test setup
-    # os.environ['SWARM_BLUEPRINTS'] = 'university' # Might not be needed if app is hardcoded
+    # Ensure SWARM_BLUEPRINTS is set if your conftest or other logic relies on it
+    # Note: Setting it here might be redundant if conftest sets it too.
+    if 'SWARM_BLUEPRINTS' not in os.environ:
+         os.environ['SWARM_BLUEPRINTS'] = 'university'
+         logging.info(f"Settings [TESTING]: Set SWARM_BLUEPRINTS='university'")
+
 else:
     # --- Dynamic App Loading for Production/Development ---
-    # (Keep your original dynamic loading logic here for non-test runs)
     _INITIAL_BLUEPRINT_APPS = []
     _swarm_blueprints_env = os.getenv('SWARM_BLUEPRINTS')
     _log_source = "Not Set"
@@ -80,6 +84,10 @@ else:
               INSTALLED_APPS.append(app)
               logging.info(f"Settings [{_log_source}]: Added '{app}' to INSTALLED_APPS.")
 # --- End App Loading Logic ---
+
+# Ensure INSTALLED_APPS is a list for compatibility
+if isinstance(INSTALLED_APPS, tuple):
+    INSTALLED_APPS = list(INSTALLED_APPS)
 
 logging.info(f"Settings: Final INSTALLED_APPS = {INSTALLED_APPS}")
 

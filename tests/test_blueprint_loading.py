@@ -20,7 +20,7 @@ class TestBlueprintLoading:
 
     @pytest.fixture(autouse=True)
     def setup_test_env(self, settings, monkeypatch):
-        pass
+        pass # Setup skipped
 
     def test_blueprint_loading(self, settings):
-        pass
+        pass # Test skipped

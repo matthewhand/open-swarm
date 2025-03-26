@@ -32,32 +32,28 @@ def pytest_configure():
 @pytest.fixture(scope='session', autouse=True)
 def django_db_setup_fixture(django_db_setup, django_db_blocker):
     """
-    Ensures DB setup runs correctly. App verification is less critical now
-    as settings.py handles adding the app during testing.
+    Ensures DB setup runs correctly. App verification happens here.
     """
     logger.info("django_db_setup_fixture: Running fixture.")
 
-    # Optional: Verify blueprint discovery still works if needed
-    # try:
-    #     from swarm.extensions.blueprint import discover_blueprints
-    #     bp_dir_path = Path(BLUEPRINTS_DIR) if isinstance(BLUEPRINTS_DIR, str) else BLUEPRINTS_DIR
-    #     all_blueprints = discover_blueprints([str(bp_dir_path)])
-    #     logger.info(f"django_db_setup_fixture: Discovered blueprints: {list(all_blueprints.keys())}")
-    #     required_blueprint = os.environ.get('SWARM_BLUEPRINTS', 'university')
-    #     assert required_blueprint in all_blueprints, f"{required_blueprint} blueprint not found in {BLUEPRINTS_DIR}"
-    # except Exception as e:
-    #     logger.warning(f"django_db_setup_fixture: Blueprint discovery check failed (non-fatal): {e}")
-
-    # Check the actual Django app path in INSTALLED_APPS (still useful)
+    # Check the actual Django app path in INSTALLED_APPS
+    # This ensures settings.py logic worked BEFORE the db setup happens
     required_blueprint = os.environ.get('SWARM_BLUEPRINTS', 'university')
     expected_app_path = f'blueprints.{required_blueprint}'
     assert expected_app_path in settings.INSTALLED_APPS, \
         f"{expected_app_path} blueprint app not in INSTALLED_APPS: {settings.INSTALLED_APPS}"
 
-    logger.info(f"django_db_setup_fixture: App '{expected_app_path}' found in INSTALLED_APPS. Unblocking DB.")
-    with django_db_blocker.unblock():
-        yield # Let the tests run
+    logger.info(f"django_db_setup_fixture: App '{expected_app_path}' found in INSTALLED_APPS. Letting DB setup proceed.")
+    # django_db_setup will handle migrations based on the already configured settings
+    yield
     logger.info("django_db_setup_fixture: Fixture teardown complete.")
 
 # Add Path import if not already present globally
 from pathlib import Path
+
+# Provide the client fixture
+@pytest.fixture
+def client():
+    """Provides a Django test client."""
+    from django.test.client import Client
+    return Client()
