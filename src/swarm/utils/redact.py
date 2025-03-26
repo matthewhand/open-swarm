@@ -1,62 +1,68 @@
 """
-Utility for redacting sensitive data from logs or outputs.
-
-This module provides a function to redact sensitive keys in dictionaries or lists
-for logging purposes, with support for partial reveals.
+Utilities for redacting sensitive data.
 """
 
-import os
-from typing import Any, List
+import re
+from typing import Union, Dict, List, Optional
+import logging
 
-def redact_sensitive_data(data: Any, sensitive_keys: List[str] = None, mask: str = "****", reveal_chars: int = 4) -> Any:
+logger = logging.getLogger(__name__)
+
+DEFAULT_SENSITIVE_KEYS = ["secret", "password", "api_key", "apikey", "token", "access_token", "client_secret"]
+
+def redact_sensitive_data(
+    data: Union[str, Dict, List],
+    sensitive_keys: Optional[List[str]] = None,
+    reveal_chars: int = 4,
+    mask: str = "[REDACTED]"
+) -> Union[str, Dict, List]:
     """
-    Redacts sensitive keys in a dictionary or list for logging purposes, with partial reveal.
+    Recursively redact sensitive information from dictionaries or lists based on keys.
+    Applies partial redaction to string values associated with sensitive keys.
+    Does NOT redact standalone strings.
 
     Args:
-        data (Any): The data to process (dictionary, list, or other types).
-        sensitive_keys (List[str]): List of keys to redact. Defaults to case-insensitive "api_key" and "token".
-        mask (str): Mask to replace the middle part with.
-        reveal_chars (int): Number of characters to reveal at the start and end of sensitive values.
+        data: Input data to redact (dict or list). Other types returned as is.
+        sensitive_keys: List of dictionary keys to treat as sensitive. Defaults to common keys.
+        reveal_chars: Number of initial/trailing characters to reveal (0 means full redaction).
+        mask: String used for redaction in the middle or for full redaction of strings.
 
     Returns:
-        Any: Data with sensitive keys redacted with partial reveal.
+        Redacted data structure of the same type as input.
     """
-    if sensitive_keys is None:
-        sensitive_keys = ["api_key", "token"]
-
-    def partially_redact(value: str) -> str:
-        """Helper function to partially redact sensitive strings."""
-        if len(value) <= reveal_chars * 2:
-            return mask
-        return f"{value[:reveal_chars]}{mask}{value[-reveal_chars:]}"
-
-    def is_sensitive_key(key: str) -> bool:
-        """Helper function to check if a key is sensitive (case-insensitive)."""
-        return any(sensitive_key.lower() == key.lower() for sensitive_key in sensitive_keys)
-
-    def is_sensitive_value(value: str, key: str) -> bool:
-        """Helper function to check if a value matches the environment variable corresponding to the key."""
-        env_var_name = key.upper().replace('_', '')
-        return value == os.getenv(env_var_name)
+    keys_to_redact = sensitive_keys if sensitive_keys is not None else DEFAULT_SENSITIVE_KEYS
+    keys_to_redact_lower = {key.lower() for key in keys_to_redact}
 
     if isinstance(data, dict):
-        new_dict = {}
+        redacted_dict = {}
         for key, value in data.items():
-            if isinstance(value, dict) or isinstance(value, list):
-                new_dict[key] = redact_sensitive_data(value, sensitive_keys, mask, reveal_chars)
-            elif isinstance(value, str):
-                if is_sensitive_key(key):
-                    new_dict[key] = partially_redact(value)
+            if isinstance(key, str) and key.lower() in keys_to_redact_lower:
+                if isinstance(value, str):
+                    val_len = len(value)
+                    if reveal_chars > 0 and val_len > reveal_chars * 2:
+                        redacted_dict[key] = f"{value[:reveal_chars]}{mask}{value[-reveal_chars:]}"
+                    elif val_len > 0:
+                         # Use the provided mask string directly for full redaction
+                         redacted_dict[key] = mask
+                    else:
+                         redacted_dict[key] = "" # Redact empty string as empty
                 else:
-                    new_dict[key] = value
+                    # Use specific placeholder for non-strings
+                    redacted_dict[key] = "[REDACTED NON-STRING]"
             else:
-                new_dict[key] = value
-        return new_dict
+                # Recursively redact nested structures if key is not sensitive
+                redacted_dict[key] = redact_sensitive_data(value, keys_to_redact, reveal_chars, mask)
+        return redacted_dict
+
     elif isinstance(data, list):
-        return [redact_sensitive_data(item, sensitive_keys, mask, reveal_chars) for item in data]
-    elif isinstance(data, str):
-        for env_var_name, env_var_value in os.environ.items():
-            if data == env_var_value:
-                return partially_redact(data)
-        return data
+        # Recursively redact items in a list ONLY if they are dicts or lists themselves.
+        processed_list = []
+        for item in data:
+            if isinstance(item, (dict, list)):
+                processed_list.append(redact_sensitive_data(item, keys_to_redact, reveal_chars, mask))
+            else:
+                processed_list.append(item) # Keep non-dict/list items (like strings) unchanged
+        return processed_list
+
+    # Return data unchanged if it's not a dict or list (including standalone strings)
     return data
