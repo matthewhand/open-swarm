@@ -5,6 +5,8 @@ Swarm Blueprint Base Module (Sync Interactive Mode)
 import asyncio
 import json
 import logging
+from src.swarm.utils.message_sequence import repair_message_payload, validate_message_sequence
+from src.swarm.utils.context_utils import truncate_message_history, get_token_count
 import os
 import uuid
 import sys
@@ -17,10 +19,6 @@ from swarm.extensions.config.config_loader import load_server_config
 from swarm.settings import DEBUG
 from swarm.utils.redact import redact_sensitive_data
 from swarm.utils.context_utils import get_token_count, truncate_message_history
-from swarm.extensions.blueprint.message_utils import (
-    repair_message_payload,
-    validate_message_sequence,
-)
 from swarm.extensions.blueprint.agent_utils import (
     get_agent_name,
     discover_tools_for_agent,
