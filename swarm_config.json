@@ -4,13 +4,15 @@
       "provider": "openai",
       "model": "gpt-4o",
       "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}"
+      "api_key": "${OPENAI_API_KEY}",
+      "max_tokens": "32000"
     },
     "reason": {
       "provider": "openai",
       "model": "o3-mini",
       "base_url": "https://api.openai.com/v1",
       "api_key": "${OPENAI_API_KEY}",
+      "max_tokens": "200000",
       "reasoning_effort": "high"
     },
     "classify": {
