@@ -9,9 +9,9 @@ Agents:
   5) Cypher: Database operations (SQLite).
   6) Tank: Software installations & package deployments.
 
-Dropped 'Sentinel' for simplicity. Oracle handles both searching & doc retrieval, 
-while Morpheus tracks system memory/logs. This blueprint focuses on end-to-end 
-sysadmin tasks, from file ops and shell commands to DB ops, installations, and 
+Dropped 'Sentinel' for simplicity. Oracle handles both searching & doc retrieval,
+while Morpheus tracks system memory/logs. This blueprint focuses on end-to-end
+sysadmin tasks, from file ops and shell commands to DB ops, installations, and
 info retrieval.
 """
 
@@ -19,13 +19,9 @@ import os
 import logging
 from typing import Dict, Any
 
-from rich.markdown import Markdown
-from rich.console import Console
-
 from swarm.extensions.blueprint import BlueprintBase
 from swarm.types import Agent
 
-# Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
@@ -34,29 +30,16 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-
 class NebuchaShellzzarBlueprint(BlueprintBase):
-    """
-    NebuchaShellzzarBlueprint for system administration tasks.
+    """NebuchaShellzzarBlueprint for system administration tasks."""
 
-    This version is streamlined to 6 agents:
-      - Morpheus: Central coordinator with memory tracking.
-      - Trinity: Handles filesystem operations.
-      - Neo: Executes shell commands securely.
-      - Oracle: Manages search queries and doc retrieval (Brave + rag-docs).
-      - Cypher: Performs database tasks in SQLite.
-      - Tank: Oversees software/package installation & deployment.
-    """
+    def __init__(self, *args, **kwargs):
+        """Initialize with markdown enabled by default for CLI use."""
+        kwargs['use_markdown'] = kwargs.get('use_markdown', True)
+        super().__init__(*args, **kwargs)
 
     @property
     def metadata(self) -> Dict[str, Any]:
-        """
-        Returns blueprint metadata:
-          - Title
-          - Description
-          - Required MCP servers
-          - Environment variables
-        """
         return {
             "title": "RootMatrix: Streamlined Sysadmin Blueprint",
             "description": (
@@ -81,37 +64,13 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             ],
         }
 
-    def render_markdown(self, content: str):
-        """Render the given markdown content using Rich."""
-        console = Console()
-        md = Markdown(content)
-        console.print(md)
-    
-    def _pretty_print_response(self, messages: list) -> None:
-        """Override response printing to render assistant messages as markdown."""
-        for msg in messages:
-            if msg.get("role") == "assistant" and msg.get("content"):
-                sender = msg.get("sender", "Assistant")
-                print(f"\033[94m{sender}\033[0m:")
-                self.render_markdown(msg["content"])
-            else:
-                print(f'{msg.get("role", "unknown")}: {msg.get("content", "")}')
-
     def create_agents(self) -> Dict[str, Agent]:
-        """
-        Creates and returns 6 agents for RootMatrix.
-        Each agent has more detailed instructions about their role.
-        """
-        # Retrieve environment variables
         allowed_paths = os.getenv("ALLOWED_PATH", "/default/path")
         brave_api_key = os.getenv("BRAVE_API_KEY", "default-brave-key")
         sqlite_db_path = os.getenv("SQLITE_DB_PATH", "/tmp/sqlite.db")
 
         agents: Dict[str, Agent] = {}
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # MORPHEUS (Starting Agent, Memory + Triage)
-        # ─────────────────────────────────────────────────────────────────────────
         morpheus_instructions = (
             "You are Morpheus, the central coordinator and memory manager for this sysadmin environment.\n\n"
             "1) **Delegation & Coordination**:\n"
@@ -140,9 +99,6 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             env_vars={},
         )
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # TRINITY (Filesystem)
-        # ─────────────────────────────────────────────────────────────────────────
         trinity_instructions = (
             "You are Trinity, the specialist for filesystem operations.\n\n"
             "1) **Scope**:\n"
@@ -165,9 +121,6 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             env_vars={"ALLOWED_PATH": allowed_paths},
         )
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # NEO (Shell Commands)
-        # ─────────────────────────────────────────────────────────────────────────
         neo_instructions = (
             "You are Neo, the agent responsible for executing shell commands.\n\n"
             "1) **Scope**:\n"
@@ -193,9 +146,6 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             mcp_servers=["mcp-shell"],
         )
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # ORACLE (Search & Doc Retrieval)
-        # ─────────────────────────────────────────────────────────────────────────
         oracle_instructions = (
             "You are Oracle, the agent responsible for obtaining information from external resources.\n\n"
             "1) **Scope**:\n"
@@ -223,9 +173,6 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             env_vars={"BRAVE_API_KEY": brave_api_key},
         )
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # CYPHER (Database Ops)
-        # ─────────────────────────────────────────────────────────────────────────
         cypher_instructions = (
             "You are Cypher, the agent in charge of handling structured data and database operations.\n\n"
             "1) **Database Scope**:\n"
@@ -251,9 +198,6 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             env_vars={"SQLITE_DB_PATH": sqlite_db_path},
         )
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # TANK (Installations & Deployments)
-        # ─────────────────────────────────────────────────────────────────────────
         tank_instructions = (
             "You are Tank, the agent responsible for software installations, package deployments, and environment setup.\n\n"
             "1) **Scope**:\n"
@@ -277,34 +221,24 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             mcp_servers=["mcp-installer"],
         )
 
-        # ─────────────────────────────────────────────────────────────────────────
-        # Handoff Functions
-        # ─────────────────────────────────────────────────────────────────────────
         def handoff_to_trinity():
-            """Delegate tasks to Trinity (Filesystem)."""
             return agents["Trinity"]
 
         def handoff_to_neo():
-            """Delegate tasks to Neo (Shell Commands)."""
             return agents["Neo"]
 
         def handoff_to_oracle():
-            """Delegate tasks to Oracle (Search & Documentation)."""
             return agents["Oracle"]
 
         def handoff_to_cypher():
-            """Delegate tasks to Cypher (Database Operations)."""
             return agents["Cypher"]
 
         def handoff_to_tank():
-            """Delegate tasks to Tank (Installations & Deployments)."""
             return agents["Tank"]
 
         def handoff_back_to_morpheus():
-            """Return control to Morpheus (Memory & Coordination)."""
             return agents["Morpheus"]
 
-        # Morpheus can hand off to any agent:
         agents["Morpheus"].functions = [
             handoff_to_trinity,
             handoff_to_neo,
@@ -313,13 +247,10 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
             handoff_to_tank,
         ]
 
-        # Each assistant returns control to Morpheus:
         for name in ["Trinity", "Neo", "Oracle", "Cypher", "Tank"]:
             agents[name].functions = [handoff_back_to_morpheus]
 
-        # Set Morpheus as the starting agent
         self.set_starting_agent(agents["Morpheus"])
-
         logger.debug(f"Agents registered: {list(agents.keys())}")
         return agents
 
