@@ -1,96 +1,40 @@
-from __future__ import annotations
 """
 Swarm Blueprint Base Module (Sync Interactive Mode)
-
-This module provides the `BlueprintBase` abstract class with a synchronous `interactive_mode()`.
-It retains advanced features like agent management, lazy tool/resource discovery, task auto-completion,
-goal updates, and configurable message truncation that preserves assistant-tool pairs, optimized for
-reliable Django integration and CLI usage.
 """
 
-def get_agent_name(agent: Any) -> str:
-    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
 import asyncio
 import json
 import logging
 import os
-import importlib.util
 import uuid
 import sys
-import threading
-import time  # Added import
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 
-def get_agent_name(agent: "Any") -> str:
-    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
 from pathlib import Path
-from typing import Any
-
-def get_agent_name(agent: Any) -> str:
-    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
-from typing import Any
-
-def get_agent_name(agent: Any) -> str:
-    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
-def get_agent_name(agent: Any) -> str:
-    return getattr(agent, "name", getattr(agent, "__name__", "<unknown>"))
-
-try:
-    try:
-        from nemoguardrails import LLMRails, RailsConfig  # type: ignore
-    except ImportError:
-        LLMRails, RailsConfig = None, None
-except ImportError:
-    LLMRails, RailsConfig = None, None
-
 from swarm.core import Swarm
 from swarm.extensions.config.config_loader import load_server_config
 from swarm.settings import DEBUG
 from swarm.utils.redact import redact_sensitive_data
-from swarm.extensions.blueprint.message_utils import repair_message_payload, validate_message_sequence
+from swarm.utils.context_utils import get_token_count, truncate_message_history
+from swarm.extensions.blueprint.message_utils import (
+    repair_message_payload,
+    validate_message_sequence,
+)
+from swarm.extensions.blueprint.agent_utils import (
+    get_agent_name,
+    discover_tools_for_agent,
+    discover_resources_for_agent,
+    initialize_agents
+)
+from swarm.extensions.blueprint.django_utils import register_django_components
+from swarm.extensions.blueprint.spinner import Spinner
+from swarm.extensions.blueprint.output_utils import pretty_print_response
 from dotenv import load_dotenv
 import argparse
+from swarm.types import Agent, Response
 
 logger = logging.getLogger(__name__)
-
-class Spinner:
-    """Simple terminal spinner for interactive feedback."""
-    SPINNER_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-
-    def __init__(self, interactive: bool):
-        self.interactive = interactive
-        self.term = os.environ.get("TERM", "dumb")
-        self.enabled = interactive and self.term not in ["vt100", "dumb"]
-        self.running = False
-        self.thread = None
-        self.status = ""
-        self.index = 0
-
-    def start(self, status: str = "Processing"):
-        if not self.enabled or self.running:
-            return
-        self.status = status
-        self.running = True
-        self.thread = threading.Thread(target=self._spin, daemon=True)
-        self.thread.start()
-
-    def stop(self):
-        if not self.enabled or not self.running:
-            return
-        self.running = False
-        if self.thread is not None:
-            self.thread.join()
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
-
-    def _spin(self):
-        while self.running:
-            char = self.SPINNER_CHARS[self.index % len(self.SPINNER_CHARS)]
-            sys.stdout.write(f"\r{char} {self.status}")
-            sys.stdout.flush()
-            self.index += 1
-            time.sleep(0.1)  # Now works with time imported
 
 class BlueprintBase(ABC):
     """Base class for Swarm blueprints with sync interactive mode and Django integration."""
@@ -105,6 +49,7 @@ class BlueprintBase(ABC):
         record_chat: bool = False,
         log_file_path: Optional[str] = None,
         debug: bool = False,
+        use_markdown: bool = False,
         **kwargs
     ):
         self.auto_complete_task = auto_complete_task
@@ -114,14 +59,17 @@ class BlueprintBase(ABC):
         self.record_chat = record_chat
         self.conversation_id = str(uuid.uuid4()) if record_chat else None
         self.log_file_path = log_file_path
-        self.debug = debug
+        self.debug = debug or DEBUG
+        self.use_markdown = use_markdown
         self._urls_registered = False
 
+        if self.use_markdown:
+            logger.debug("Markdown rendering enabled (if rich is available).")
         logger.debug(f"Initializing {self.__class__.__name__} with config: {redact_sensitive_data(config)}")
         if not hasattr(self, 'metadata') or not isinstance(self.metadata, dict):
-            raise AssertionError("Blueprint metadata must be defined and must be a dictionary.")
+            raise AssertionError(f"{self.__class__.__name__} must define a 'metadata' property returning a dictionary.")
 
-        self.truncation_mode = self.metadata.get("truncation_mode", "preserve_pairs")
+        self.truncation_mode = os.getenv("SWARM_TRUNCATION_MODE", "pairs").lower()
         self.max_context_tokens = max(1, self.metadata.get("max_context_tokens", 8000))
         self.max_context_messages = max(1, self.metadata.get("max_context_messages", 50))
         logger.debug(f"Truncation settings: mode={self.truncation_mode}, max_tokens={self.max_context_tokens}, max_messages={self.max_context_messages}")
@@ -131,7 +79,6 @@ class BlueprintBase(ABC):
 
         self.config = config
         self.skip_django_registration = skip_django_registration or not os.environ.get("DJANGO_SETTINGS_MODULE")
-
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
 
@@ -144,794 +91,474 @@ class BlueprintBase(ABC):
         required_env_vars = set(self.metadata.get('env_vars', []))
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
         if missing_vars:
-            logger.warning(f"Missing environment variables for {self.metadata.get('title', 'this blueprint')}: {', '.join(missing_vars)}")
+            logger.warning(f"Missing environment variables for {self.metadata.get('title', self.__class__.__name__)}: {', '.join(missing_vars)}")
 
         self.required_mcp_servers = self.metadata.get('required_mcp_servers', [])
         logger.debug(f"Required MCP servers: {self.required_mcp_servers}")
 
         if self._is_create_agents_overridden():
-            from swarm.extensions.blueprint import agent_utils
-            agent_utils.initialize_agents(self)
-
-        if not self.skip_django_registration:
-            self._register_django_components()
-
-    def _initialize_agents(self):
-        """Initialize agents if create_agents is overridden."""
-        agents = self.create_agents()
-        for agent_name, agent in agents.items():
-            if LLMRails and getattr(agent, "nemo_guardrails_config", None):
-                # Ensure nemo_guardrails_config is a non-empty string before joining
-                if agent.nemo_guardrails_config:
-                    guardrails_path = os.path.join("nemo_guardrails", agent.nemo_guardrails_config)
-                    try:
-                        if RailsConfig:
-                            rails_config = RailsConfig.from_path(guardrails_path)
-                            agent.nemo_guardrails_instance = LLMRails(rails_config)
-                            logger.debug(f"Loaded NeMo Guardrails for agent: {agent.name}")
-                        else:
-                            logger.debug("RailsConfig is not available; skipping NeMo Guardrails for agent.")
-                    except Exception as e:
-                        logger.warning(f"Failed to load NeMo Guardrails for agent {agent.name}: {e}")
-                else:
-                    logger.debug(f"Agent {agent.name} has no valid nemo_guardrails_config; skipping guardrails loading.")
-        self.swarm.agents.update(agents)
-        self.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
-        logger.debug(f"Registered agents: {list(agents.keys())}")
-
-        if self.starting_agent:
-            self._discover_initial_agent_assets(self.starting_agent)
-        else:
-            logger.debug("No starting agent set; subclass may assign later.")
-
-    def _discover_initial_agent_assets(self, agent):
-        """Perform initial tool and resource discovery for the starting agent."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop and loop.is_running():
-            asyncio.create_task(self._discover_tools_for_agent(agent))
-            asyncio.create_task(self._discover_resources_for_agent(agent))
-        else:
-            asyncio.run(self._discover_tools_for_agent(agent))
-            asyncio.run(self._discover_resources_for_agent(agent))
-        logger.debug(f"Completed initial tool/resource discovery for agent: {agent.name}")
-
-    def _register_django_components(self):
-        """Register Django settings and URLs if applicable."""
-        try:
-            from django.apps import apps
-            if not apps.ready:
-                logger.debug("Django apps not ready; deferring registration to apps.py.")
-                return
-
-            self._load_local_settings()
-            self._merge_installed_apps()
-            self.register_blueprint_urls()
-        except ImportError:
-            logger.debug("Django not available; skipping component registration.")
-        except Exception as e:
-            logger.error(f"Failed to register Django components: {e}", exc_info=True)
-
-    def _load_local_settings(self):
-        """Load local settings from the blueprint directory if present."""
-        module_spec = importlib.util.find_spec(self.__class__.__module__)
-        if module_spec and module_spec.origin:
-            blueprint_dir = os.path.dirname(module_spec.origin)
-            local_settings_path = os.path.join(blueprint_dir, "settings.py")
-            if os.path.isfile(local_settings_path):
-                try:
-                    spec = importlib.util.spec_from_file_location(f"{self.__class__.__name__}.settings", local_settings_path)
-                    if spec is None or spec.loader is None:
-                        logger.error(f"Failed to obtain module spec for local settings at {local_settings_path}")
-                        self.local_settings = None
-                    else:
-                        local_settings = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(local_settings)
-                        self.local_settings = local_settings
-                    logger.debug(f"Loaded local settings from {local_settings_path}")
-                except Exception as e:
-                    logger.error(f"Failed to load local settings from {local_settings_path}: {e}")
-                    self.local_settings = None
-            else:
-                self.local_settings = None
-        else:
-            self.local_settings = None
-
-    def _merge_installed_apps(self):
-        """Merge blueprint's INSTALLED_APPS into Django settings."""
-        if hasattr(self, "local_settings") and self.local_settings and hasattr(self.local_settings, "INSTALLED_APPS"):
-            try:
-                from django.conf import settings
-                blueprint_apps = getattr(self.local_settings, "INSTALLED_APPS")
-                for app in blueprint_apps:
-                    if app not in settings.INSTALLED_APPS:
-                        settings.INSTALLED_APPS.append(app)
-                logger.debug("Merged blueprint INSTALLED_APPS into Django settings.")
-            except Exception as e:
-                logger.error(f"Error merging INSTALLED_APPS: {e}")
-
-    def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """Truncate message history based on configured mode using external utilities."""
-        if not messages:
-            logger.debug("No messages to truncate.")
-            return messages
-        from swarm.extensions.blueprint.message_utils import truncate_preserve_pairs, truncate_strict_token, truncate_recent_only
-        try:
-            if self.truncation_mode == "recent_only":
-                return truncate_recent_only(messages, model, self.max_context_messages)
-            elif self.truncation_mode == "strict_token_limit":
-                return truncate_strict_token(messages, model, self.max_context_tokens, self.max_context_messages)
-            else:
-                if self.truncation_mode != "preserve_pairs":
-                    logger.warning(f"Unknown truncation mode '{self.truncation_mode}'; using 'preserve_pairs'")
-                return truncate_preserve_pairs(messages, model, self.max_context_tokens, self.max_context_messages)
-        except Exception as e:
-            logger.error(f"Error during message truncation: {e}")
-            return messages
-
-    def _truncate_preserve_pairs(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """Truncate while preserving assistant-tool message pairs within token/message limits."""
-        system_msgs = [msg for msg in messages if msg.get("role") == "system"]
-        non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
-
-        current_tokens = get_token_count(non_system_msgs, model)
-        if len(non_system_msgs) <= self.max_context_messages and current_tokens <= self.max_context_tokens:
-            logger.debug(f"History within limits: {len(non_system_msgs)} messages, {current_tokens} tokens")
-            return system_msgs + non_system_msgs
-
-        msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
-        total_tokens = 0
-        truncated = []
-        i = len(msg_tokens) - 1
-
-        while i >= 0 and len(truncated) < self.max_context_messages:
-            msg, tokens = msg_tokens[i]
-            if msg.get("role") == "tool" and "tool_call_id" in msg:
-                tool_call_id = msg["tool_call_id"]
-                assistant_idx = i - 1
-                pair_found = False
-                while assistant_idx >= 0:
-                    prev_msg, prev_tokens = msg_tokens[assistant_idx]
-                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
-                        for tc in prev_msg["tool_calls"]:
-                            if tc["id"] == tool_call_id and total_tokens + tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
-                                truncated.insert(0, prev_msg)
-                                truncated.insert(1, msg)
-                                total_tokens += tokens + prev_tokens
-                                pair_found = True
-                                break
-                    if pair_found:
-                        break
-                    assistant_idx -= 1
-                if not pair_found:
-                    logger.debug(f"Skipping orphaned tool message (tool_call_id: {tool_call_id})")
-            elif msg.get("role") == "assistant" and "tool_calls" in msg:
-                tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
-                tool_msgs = []
-                j = i + 1
-                while j < len(msg_tokens) and tool_call_ids:
-                    next_msg, next_tokens = msg_tokens[j]
-                    if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
-                        tool_msgs.append((next_msg, next_tokens))
-                        tool_call_ids.remove(next_msg["tool_call_id"])
-                    else:
-                        break
-                    j += 1
-                pair_tokens = tokens + sum(t for _, t in tool_msgs)
-                pair_len = 1 + len(tool_msgs)
-                if total_tokens + pair_tokens <= self.max_context_tokens and len(truncated) + pair_len <= self.max_context_messages:
-                    truncated.insert(0, msg)
-                    for tool_msg, _ in tool_msgs:
-                        truncated.insert(1, tool_msg)
-                    total_tokens += pair_tokens
-            elif total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
-                truncated.insert(0, msg)
-                total_tokens += tokens
-            i -= 1
-
-        final_messages = system_msgs + truncated
-        logger.debug(f"Truncated to {len(final_messages)} messages, {total_tokens} tokens (preserve_pairs)")
-        return final_messages
-
-    def _truncate_strict_token(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """Truncate strictly by token limit, preserving tool pairs."""
-        system_msgs = [msg for msg in messages if msg.get("role") == "system"]
-        non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
-
-        msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
-        total_tokens = 0
-        truncated = []
-        i = len(msg_tokens) - 1
-
-        while i >= 0 and len(truncated) < self.max_context_messages:
-            msg, tokens = msg_tokens[i]
-            if msg.get("role") == "tool" and "tool_call_id" in msg:
-                tool_call_id = msg["tool_call_id"]
-                assistant_idx = i - 1
-                pair_found = False
-                while assistant_idx >= 0:
-                    prev_msg, prev_tokens = msg_tokens[assistant_idx]
-                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
-                        for tc in prev_msg["tool_calls"]:
-                            if tc["id"] == tool_call_id and total_tokens + tokens + prev_tokens <= self.max_context_tokens and len(truncated) + 2 <= self.max_context_messages:
-                                truncated.insert(0, prev_msg)
-                                truncated.insert(1, msg)
-                                total_tokens += tokens + prev_tokens
-                                pair_found = True
-                                break
-                    if pair_found:
-                        break
-                    assistant_idx -= 1
-            elif msg.get("role") == "assistant" and "tool_calls" in msg:
-                tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
-                tool_msgs = []
-                j = i + 1
-                while j < len(msg_tokens) and tool_call_ids:
-                    next_msg, next_tokens = msg_tokens[j]
-                    if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
-                        tool_msgs.append((next_msg, next_tokens))
-                        tool_call_ids.remove(next_msg["tool_call_id"])
-                    else:
-                        break
-                    j += 1
-                pair_tokens = tokens + sum(t for _, t in tool_msgs)
-                pair_len = 1 + len(tool_msgs)
-                if total_tokens + pair_tokens <= self.max_context_tokens and len(truncated) + pair_len <= self.max_context_messages:
-                    truncated.insert(0, msg)
-                    for tool_msg, _ in tool_msgs:
-                        truncated.insert(1, tool_msg)
-                    total_tokens += pair_tokens
-            elif total_tokens + tokens <= self.max_context_tokens and len(truncated) < self.max_context_messages:
-                truncated.insert(0, msg)
-                total_tokens += tokens
-            i -= 1
-
-        final_messages = system_msgs + truncated
-        logger.debug(f"Truncated to {len(final_messages)} messages, {total_tokens} tokens (strict_token_limit)")
-        return final_messages
-
-    def _truncate_recent_only(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
-        """Keep recent messages, preserving tool pairs within message limit."""
-        system_msgs = [msg for msg in messages if msg.get("role") == "system"]
-        non_system_msgs = [msg for msg in messages if msg.get("role") != "system"]
-
-        msg_tokens = [(msg, get_token_count([msg], model)) for msg in non_system_msgs]
-        truncated = []
-        i = len(msg_tokens) - 1
-
-        while i >= 0 and len(truncated) < self.max_context_messages:
-            msg, _ = msg_tokens[i]
-            if msg.get("role") == "tool" and "tool_call_id" in msg:
-                tool_call_id = msg["tool_call_id"]
-                assistant_idx = i - 1
-                pair_found = False
-                while assistant_idx >= 0:
-                    prev_msg, _ = msg_tokens[assistant_idx]
-                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
-                        for tc in prev_msg["tool_calls"]:
-                            if tc["id"] == tool_call_id and len(truncated) + 2 <= self.max_context_messages:
-                                truncated.insert(0, prev_msg)
-                                truncated.insert(1, msg)
-                                pair_found = True
-                                break
-                    if pair_found:
-                        break
-                    assistant_idx -= 1
-            elif msg.get("role") == "assistant" and "tool_calls" in msg:
-                tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
-                tool_msgs = []
-                j = i + 1
-                while j < len(msg_tokens) and tool_call_ids:
-                    next_msg, _ = msg_tokens[j]
-                    if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") in tool_call_ids:
-                        tool_msgs.append(next_msg)
-                        tool_call_ids.remove(next_msg["tool_call_id"])
-                    else:
-                        break
-                    j += 1
-                pair_len = 1 + len(tool_msgs)
-                if len(truncated) + pair_len <= self.max_context_messages:
-                    truncated.insert(0, msg)
-                    for tool_msg in tool_msgs:
-                        truncated.insert(1, tool_msg)
-            elif len(truncated) < self.max_context_messages:
-                truncated.insert(0, msg)
-            i -= 1
-
-        final_messages = system_msgs + truncated
-        total_tokens = get_token_count(final_messages, model)
-        logger.debug(f"Truncated to {len(final_messages)} messages, {total_tokens} tokens (recent_only)")
-        return final_messages
+            initialize_agents(self)
+        register_django_components(self)
 
     def _is_create_agents_overridden(self) -> bool:
-        """Check if create_agents is overridden in subclass."""
+        """Check if the 'create_agents' method is overridden in the subclass."""
         return self.__class__.create_agents is not BlueprintBase.create_agents
+
+    def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+        """Truncate message history using the centralized utility."""
+        return truncate_message_history(messages, model, self.max_context_tokens, self.max_context_messages)
 
     @property
     @abstractmethod
     def metadata(self) -> Dict[str, Any]:
-        """Metadata property to be implemented by subclasses."""
+        """Abstract property for blueprint metadata."""
         raise NotImplementedError
 
-    def create_agents(self) -> Dict[str, Any]:
-        """Default agent creation; override in subclasses."""
+    def create_agents(self) -> Dict[str, Agent]:
+        """Default agent creation method."""
         return {}
 
-    async def _discover_tools_for_agent(self, agent: Any) -> None:
-        """Discover and assign tools for an agent."""
-        agent_id = get_agent_name(agent)
-        if agent_id not in self._discovered_tools:
-            logger.debug(f"Discovering tools for agent: {agent_id}")
-            self.spinner.start(f"Discovering MCP tools for {agent_id}")
-            try:
-                tools = await self.swarm.discover_and_merge_agent_tools(agent)
-                valid_tools = [tool for tool in tools if get_agent_name(tool) != "<unknown>"]
-                agent.functions = (agent.functions or []) + valid_tools
-                self._discovered_tools[agent_id] = valid_tools
-                logger.debug(f"Discovered {len(valid_tools)} tools for '{agent_id}': " +
-                             f"{[get_agent_name(t) for t in valid_tools]}")
-            except Exception as e:
-                logger.error(f"Failed to discover tools for '{agent_id}': {e}")
-                self._discovered_tools[agent_id] = []
-            finally:
-                self.spinner.stop()
-
-    async def _discover_resources_for_agent(self, agent: Any) -> None:
-        """Discover and assign resources for an agent."""
-        agent_id = get_agent_name(agent)
-        if agent_id not in self._discovered_resources:
-            logger.debug(f"Discovering resources for agent: {agent_id}")
-            self.spinner.start(f"Discovering MCP resources for {agent_id}")
-            try:
-                resources = await self.swarm.discover_and_merge_agent_resources(agent)
-                valid_resources = [res for res in resources if isinstance(res, dict) and 'name' in res]
-                agent.resources = (agent.resources or []) + valid_resources
-                self._discovered_resources[agent_id] = valid_resources
-                logger.debug(f"Discovered {len(valid_resources)} resources for '{agent_id}': {[r['name'] for r in valid_resources]}")
-            except Exception as e:
-                logger.error(f"Failed to discover resources for '{agent_id}': {e}")
-                self._discovered_resources[agent_id] = []
-            finally:
-                self.spinner.stop()
-
-    def set_starting_agent(self, agent: Any) -> None:
-        """Set the starting agent and trigger initial discovery."""
-        logger.debug(f"Setting starting agent to: {agent.name}")
+    def set_starting_agent(self, agent: Agent) -> None:
+        """Set the starting agent and trigger initial asset discovery."""
+        agent_name = get_agent_name(agent)
+        logger.debug(f"Setting starting agent to: {agent_name}")
         self.starting_agent = agent
-        self.context_variables["active_agent_name"] = agent.name
-        self._discover_initial_agent_assets(agent)
+        self.context_variables["active_agent_name"] = agent_name
 
-    async def determine_active_agent(self) -> Any:
-        """Determine the currently active agent, defaulting to starting agent if unset."""
+        try:
+            loop = asyncio.get_event_loop()
+            is_running = loop.is_running()
+        except RuntimeError:
+            loop = None
+            is_running = False
+
+        # Corrected calls: Pass only agent and config
+        if loop and is_running:
+            logger.debug(f"Scheduling async asset discovery for starting agent {agent_name}.")
+            asyncio.ensure_future(discover_tools_for_agent(agent, self.swarm.config))
+            asyncio.ensure_future(discover_resources_for_agent(agent, self.swarm.config))
+        else:
+            logger.debug(f"Running sync asset discovery for starting agent {agent_name}.")
+            try:
+                asyncio.run(discover_tools_for_agent(agent, self.swarm.config))
+                asyncio.run(discover_resources_for_agent(agent, self.swarm.config))
+            except RuntimeError as e:
+                 if "cannot be called from a running event loop" in str(e): logger.error("Nested asyncio.run detected during sync discovery.")
+                 else: raise e
+
+    async def determine_active_agent(self) -> Optional[Agent]:
+        """Determine the currently active agent."""
         active_agent_name = self.context_variables.get("active_agent_name")
-        if active_agent_name and active_agent_name in self.swarm.agents:
-            agent = self.swarm.agents[active_agent_name]
-            if active_agent_name not in self._discovered_tools:
-                await self._discover_tools_for_agent(agent)
-            if active_agent_name not in self._discovered_resources:
-                await self._discover_resources_for_agent(agent)
-            logger.debug(f"Active agent: {active_agent_name}")
-            return agent
-        elif self.starting_agent:
-            if self.starting_agent.name not in self._discovered_tools:
-                await self._discover_tools_for_agent(self.starting_agent)
-            if self.starting_agent.name not in self._discovered_resources:
-                await self._discover_resources_for_agent(self.starting_agent)
-            self.context_variables["active_agent_name"] = self.starting_agent.name
-            logger.debug(f"Defaulting to starting agent: {self.starting_agent.name}")
-            return self.starting_agent
-        logger.debug("No active or starting agent available.")
-        return None
+        agent_to_use = None
 
+        if active_agent_name and active_agent_name in self.swarm.agents:
+             agent_to_use = self.swarm.agents[active_agent_name]
+             logger.debug(f"Determined active agent from context: {active_agent_name}")
+        elif self.starting_agent:
+             agent_to_use = self.starting_agent
+             active_agent_name = get_agent_name(agent_to_use)
+             if self.context_variables.get("active_agent_name") != active_agent_name:
+                  self.context_variables["active_agent_name"] = active_agent_name
+                  logger.debug(f"Falling back to starting agent: {active_agent_name} and updating context.")
+             else:
+                  logger.debug(f"Using starting agent: {active_agent_name}")
+        else:
+             logger.error("Cannot determine active agent: No agent name in context and no starting agent set.")
+             return None
+
+        agent_name_cache_key = get_agent_name(agent_to_use)
+        # Corrected calls: Pass only agent and config
+        if agent_name_cache_key not in self._discovered_tools:
+             logger.debug(f"Cache miss for tools of agent {agent_name_cache_key}. Discovering...")
+             discovered_tools = await discover_tools_for_agent(agent_to_use, self.swarm.config)
+             self._discovered_tools[agent_name_cache_key] = discovered_tools
+
+        if agent_name_cache_key not in self._discovered_resources:
+             logger.debug(f"Cache miss for resources of agent {agent_name_cache_key}. Discovering...")
+             discovered_resources = await discover_resources_for_agent(agent_to_use, self.swarm.config)
+             self._discovered_resources[agent_name_cache_key] = discovered_resources
+
+        return agent_to_use
+
+    # --- Core Execution Logic ---
     def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
-        """Synchronous wrapper for running with context."""
+        """Synchronous wrapper for the async execution logic."""
         return asyncio.run(self.run_with_context_async(messages, context_variables))
 
     async def run_with_context_async(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
-        """Run the blueprint with given messages and context asynchronously."""
+        """Asynchronously run the blueprint's logic."""
         self.context_variables.update(context_variables)
-        logger.debug(f"Context variables: {self.context_variables}")
+        logger.debug(f"Context variables updated: {self.context_variables}")
 
         active_agent = await self.determine_active_agent()
-        model = self.swarm.current_llm_config.get("model", "default") if active_agent else "default"
+        if not active_agent:
+            logger.error("No active agent could be determined. Cannot proceed.")
+            return {"response": Response(messages=[{"role": "assistant", "content": "Error: No active agent available."}], agent=None, context_variables=self.context_variables), "context_variables": self.context_variables}
+
+        model = getattr(active_agent, 'model', None) or self.swarm.current_llm_config.get("model", "default")
+        logger.debug(f"Using model: {model} for agent {get_agent_name(active_agent)}")
+
         truncated_messages = self.truncate_message_history(messages, model)
-        truncated_messages = validate_message_sequence(truncated_messages)
-        truncated_messages = repair_message_payload(truncated_messages, debug=self.debug)
+        validated_messages = validate_message_sequence(truncated_messages)
+        repaired_messages = repair_message_payload(validated_messages, debug=self.debug)
 
         if not self.swarm.agents:
-            logger.debug("No agents defined; returning default response.")
-            return {"response": {"messages": [{"role": "assistant", "content": "No agents available."}]}, "context_variables": self.context_variables}
-        if not active_agent:
-            logger.debug("No active agent; returning default response.")
-            return {"response": {"messages": [{"role": "assistant", "content": "No active agent available."}]}, "context_variables": self.context_variables}
+            logger.warning("No agents registered; returning default response.")
+            return {"response": Response(messages=[{"role": "assistant", "content": "No agents available in Swarm."}], agent=None, context_variables=self.context_variables), "context_variables": self.context_variables}
 
-        logger.debug(f"Running with agent: {active_agent.name}")
-        self.spinner.start(f"Generating response from {active_agent.name}")
+        logger.debug(f"Running Swarm core with agent: {get_agent_name(active_agent)}")
+        self.spinner.start(f"Generating response from {get_agent_name(active_agent)}")
+        response_obj = None
         try:
-            prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
-            try:
-                response = await self.swarm.run(
-                    agent=active_agent,
-                    messages=truncated_messages,
-                    context_variables=self.context_variables,
-                    stream=False,
-                    debug=self.debug,
-                )
-            finally:
-                if prev_openai_api_key is not None:
-                    os.environ["OPENAI_API_KEY"] = prev_openai_api_key
+            response_obj = await self.swarm.run(
+                 agent=active_agent, messages=repaired_messages, context_variables=self.context_variables,
+                 stream=False, debug=self.debug,
+            )
         except Exception as e:
-            logger.error(f"Run failed: {e}", exc_info=True)
-            response = {"messages": [{"role": "assistant", "content": "An error occurred during processing."}]}
+            logger.error(f"Swarm run failed: {e}", exc_info=True)
+            response_obj = Response(messages=[{"role": "assistant", "content": f"An error occurred: {str(e)}"}], agent=active_agent, context_variables=self.context_variables)
         finally:
             self.spinner.stop()
 
-        if not hasattr(response, 'messages'):
-            logger.error("Response lacks 'messages' attribute.")
-            if isinstance(response, dict):
-                response["messages"] = []
-            else:
-                try:
-                    response.messages = []
-                except AttributeError:
-                    logger.error("Unable to set 'messages' on response. It's neither a dict nor an object with 'messages'.")
+        final_agent = active_agent
+        updated_context = self.context_variables.copy()
 
-        # Safely extract the response agent, whether response is an object or dict
-        response_agent = None
-        if not isinstance(response, dict):
-            response_agent = getattr(response, "agent", None)  # type: ignore
+        if response_obj:
+             if hasattr(response_obj, 'agent') and response_obj.agent and get_agent_name(response_obj.agent) != get_agent_name(active_agent):
+                 final_agent = response_obj.agent
+                 new_agent_name = get_agent_name(final_agent)
+                 updated_context["active_agent_name"] = new_agent_name
+                 logger.debug(f"Agent handoff occurred. New active agent: {new_agent_name}")
+                 # Corrected calls: Pass only agent and config
+                 asyncio.ensure_future(discover_tools_for_agent(final_agent, self.swarm.config))
+                 asyncio.ensure_future(discover_resources_for_agent(final_agent, self.swarm.config))
+             if hasattr(response_obj, 'context_variables'):
+                  updated_context.update(response_obj.context_variables)
         else:
-            response_agent = response.get("agent")
-        if response_agent and getattr(response_agent, "name", None) and get_agent_name(response_agent) != active_agent.name:
-            new_agent_name = get_agent_name(response_agent)
-            self.context_variables["active_agent_name"] = new_agent_name
-            asyncio.create_task(self._discover_tools_for_agent(response_agent))
-            asyncio.create_task(self._discover_resources_for_agent(response_agent))
-            logger.debug(f"Switched to new agent: {new_agent_name}")
-        else:
-            logger.debug(f"Continuing with agent: {active_agent.name}")
+            logger.error("Swarm run returned None or invalid response structure.")
+            response_obj = Response(messages=[{"role": "assistant", "content": "Error processing the request."}], agent=active_agent, context_variables=updated_context)
 
-        return {"response": response, "context_variables": self.context_variables}
+        return {"response": response_obj, "context_variables": updated_context}
 
     def set_active_agent(self, agent_name: str) -> None:
-        """Set the active agent by name."""
+        """Explicitly set the active agent by name and trigger asset discovery."""
         if agent_name in self.swarm.agents:
             self.context_variables["active_agent_name"] = agent_name
             agent = self.swarm.agents[agent_name]
-            if agent.name not in self._discovered_tools:
-                asyncio.run(self._discover_tools_for_agent(agent))
-            if agent.name not in self._discovered_resources:
-                asyncio.run(self._discover_resources_for_agent(agent))
-            logger.debug(f"Active agent set to: {agent_name}")
+            logger.debug(f"Explicitly setting active agent to: {agent_name}")
+            # Corrected calls: Pass only agent and config
+            if agent_name not in self._discovered_tools:
+                 logger.debug(f"Discovering tools for explicitly set agent {agent_name}.")
+                 try: asyncio.run(discover_tools_for_agent(agent, self.swarm.config))
+                 except RuntimeError as e:
+                      if "cannot be called from a running event loop" in str(e): logger.error("Cannot run sync discovery from within an async context (set_active_agent).")
+                      else: raise e
+            if agent_name not in self._discovered_resources:
+                 logger.debug(f"Discovering resources for explicitly set agent {agent_name}.")
+                 try: asyncio.run(discover_resources_for_agent(agent, self.swarm.config))
+                 except RuntimeError as e:
+                       if "cannot be called from a running event loop" in str(e): logger.error("Cannot run sync discovery from within an async context (set_active_agent).")
+                       else: raise e
         else:
-            logger.error(f"Agent '{agent_name}' not found.")
-            raise ValueError(f"Agent '{agent_name}' not found.")
+            logger.error(f"Attempted to set active agent to '{agent_name}', but agent not found.")
 
-    def _is_task_done(self, user_goal: str, conversation_summary: str, last_assistant_message: str) -> bool:
-        """Check if the task is complete using LLM validation."""
+    # --- Task Completion & Goal Update Logic ---
+    async def _is_task_done_async(self, user_goal: str, conversation_summary: str, last_assistant_message: str) -> bool:
+        """Check if the task defined by user_goal is complete using an LLM call."""
+        if not user_goal:
+             logger.warning("Cannot check task completion: user_goal is empty.")
+             return False
+
         system_prompt = os.getenv("TASK_DONE_PROMPT", "You are a completion checker. Respond with ONLY 'YES' or 'NO'.")
         user_prompt = os.getenv(
             "TASK_DONE_USER_PROMPT",
             "User's goal: {user_goal}\nConversation summary: {conversation_summary}\nLast assistant message: {last_assistant_message}\nIs the task fully complete? Answer only YES or NO."
         ).format(user_goal=user_goal, conversation_summary=conversation_summary, last_assistant_message=last_assistant_message)
-        check_prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
-        prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
-        try:
-            run_llm = getattr(self.swarm, "run_llm", None)
-            if callable(run_llm):
-                done_check = run_llm(messages=check_prompt, max_tokens=1, temperature=0)  # type: ignore
-                result = done_check.choices[0].message["content"].strip().upper().startswith("YES")
-                logger.debug(f"Task completion check: {result}")
-                return result
-            else:
-                logger.error("Swarm does not implement run_llm. Cannot check task completion.")
-                return False
-        except Exception as e:
-            logger.error(f"Task completion check failed: {e}")
-            return False
-        finally:
-            if prev_openai_api_key is not None:
-                os.environ["OPENAI_API_KEY"] = prev_openai_api_key
 
-    def _update_user_goal(self, messages: List[Dict[str, str]]) -> None:
-        """Update user goal based on conversation history."""
+        check_prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+        client = self.swarm.client
+        model_to_use = self.swarm.current_llm_config.get("model", self.swarm.model)
+
+        try:
+            response = await client.chat.completions.create(
+                model=model_to_use, messages=check_prompt, max_tokens=5, temperature=0
+            )
+            if response.choices:
+                 result_content = response.choices[0].message.content.strip().upper()
+                 is_done = result_content.startswith("YES")
+                 logger.debug(f"Task completion check (Goal: '{user_goal}', LLM Raw: '{result_content}'): {is_done}")
+                 return is_done
+            else:
+                 logger.warning("LLM response for task completion check had no choices.")
+                 return False
+        except Exception as e:
+            logger.error(f"Task completion check LLM call failed: {e}", exc_info=True)
+            return False
+
+    async def _update_user_goal_async(self, messages: List[Dict[str, str]]) -> None:
+        """Update the 'user_goal' in context_variables based on conversation history using an LLM call."""
+        if not messages:
+            logger.debug("Cannot update goal: No messages provided.")
+            return
+
         system_prompt = os.getenv(
             "UPDATE_GOAL_PROMPT",
-            "You are an assistant that summarizes the user's primary objective. Provide a concise, one-sentence summary."
+            "You are an assistant that summarizes the user's primary objective from the conversation. Provide a concise, one-sentence summary."
         )
+        conversation_text = "\n".join(f"{m['role']}: {m.get('content', '')}" for m in messages if m.get('content') or m.get('tool_calls'))
+        if not conversation_text:
+             logger.debug("Cannot update goal: No content in messages.")
+             return
+
         user_prompt = os.getenv(
             "UPDATE_GOAL_USER_PROMPT",
-            "Summarize the user's goal based on this conversation:\n{conversation}"
-        ).format(conversation="\n".join(f"{m['role']}: {m['content']}" for m in messages))
+            "Summarize the user's main goal based on this conversation:\n{conversation}"
+        ).format(conversation=conversation_text)
+
         prompt = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
-        prev_openai_api_key = os.environ.pop("OPENAI_API_KEY", None)
+        client = self.swarm.client
+        model_to_use = self.swarm.current_llm_config.get("model", self.swarm.model)
+
         try:
-            run_llm = getattr(self.swarm, "run_llm", None)
-            if callable(run_llm):
-                summary_response = run_llm(messages=prompt, max_tokens=30, temperature=0.3)
-                choices = getattr(summary_response, "choices", None)
-                if not choices:
-                    logger.error("LLM response does not contain choices for goal update")
-                else:
-                    new_goal = choices[0].message["content"].strip()
-                    self.context_variables["user_goal"] = new_goal
-                    logger.debug(f"Updated user goal: {new_goal}")
+            response = await client.chat.completions.create(
+                model=model_to_use, messages=prompt, max_tokens=60, temperature=0.3
+            )
+            if response.choices:
+                 new_goal = response.choices[0].message.content.strip()
+                 if new_goal:
+                      self.context_variables["user_goal"] = new_goal
+                      logger.debug(f"Updated user goal via LLM: {new_goal}")
+                 else:
+                      logger.warning("LLM goal update returned empty response.")
             else:
-                logger.error("Swarm does not implement run_llm. Cannot update goal.")
+                 logger.warning("LLM response for goal update had no choices.")
         except Exception as e:
-            logger.error(f"Goal update failed: {e}")
-        finally:
-            if prev_openai_api_key is not None:
-                os.environ["OPENAI_API_KEY"] = prev_openai_api_key
+            logger.error(f"User goal update LLM call failed: {e}", exc_info=True)
 
     def task_completed(self, outcome: str) -> None:
-        """
-        Function available to the starting agent in non-interactive mode.
-        Prints the outcome of the instructed task and auto-prompts "continue".
-        """
-        print(outcome)
+        """Placeholder method potentially used by agents to signal task completion."""
+        print(f"Task Outcome: {outcome}")
         print("continue")
-    
+
     @property
     def prompt(self) -> str:
-        return getattr(self, "custom_user_prompt", "User: ")  # Note the space after colon
-    
+        """Return the custom prompt string, potentially from the active agent."""
+        active_agent = self.swarm.agents.get(self.context_variables.get("active_agent_name"))
+        return getattr(active_agent, 'prompt', getattr(self, "custom_user_prompt", "User: "))
+
+    # --- Interactive & Non-Interactive Modes ---
     def interactive_mode(self, stream: bool = False) -> None:
+        """Run the blueprint in interactive command-line mode."""
         from .interactive_mode import run_interactive_mode
         run_interactive_mode(self, stream)
 
-    def _auto_complete_task(self, messages: List[Dict[str, str]], stream: bool):
-        """Auto-complete the task if enabled."""
-        conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
-        last_assistant = next((msg["content"] for msg in reversed(messages) if msg["role"] == "assistant" and msg.get("content")), "")
-        while not self._is_task_done(self.context_variables.get("user_goal", ""), conversation_summary, last_assistant):
-            result = self.run_with_context(messages, self.context_variables)
-            swarm_response = result["response"]
-            response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-            if stream:
-                self._process_and_print_streaming_response(swarm_response)
-            else:
-                self._pretty_print_response(response_messages)
-            messages.extend(response_messages)
-            conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
-            last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-        print("\033[93m[System]\033[0m: Task completed.")
-
     def non_interactive_mode(self, instruction: str, stream: bool = False) -> None:
-        """Run the blueprint in non-interactive mode."""
-        logger.debug(f"Starting non-interactive mode with instruction: {instruction}")
-        if not self.swarm:
-            logger.error("Swarm instance not initialized.")
-            raise ValueError("Swarm instance not initialized.")
-
-        print(f"{self.metadata.get('title', 'Blueprint')} Non-Interactive Mode 🐝")
-        instructions = [line.strip() for line in instruction.splitlines() if line.strip()]
-        messages = []
-        for line in instructions:
-            if line == "/quit":
-                print("Echoing command: /quit")
-                print("LLM response: none")
-                print("Spinner: off")
-                break
-            else:
-                messages.append({"role": "user", "content": line})
-        if messages:
-            self.context_variables["user_goal"] = messages[0]["content"]
-            self.context_variables["active_agent_name"] = self.starting_agent.name if self.starting_agent else "Unknown"
-        
-            result = self.run_with_context(messages, self.context_variables)
-            swarm_response = result["response"]
-            response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-        
-            if stream:
-                self._process_and_print_streaming_response(swarm_response)
-            else:
-                self._pretty_print_response(response_messages)
-                if response_messages:
-                    print(response_messages[-1]["content"])
-        
-            if self.auto_complete_task and self.swarm.agents:
-                messages.extend(response_messages)
-                self._auto_complete_task(messages, stream)
-        print("Execution completed.")
+        """Run the blueprint non-interactively with a single instruction."""
+        logger.debug(f"Starting non-interactive mode with instruction: {instruction}, stream={stream}")
+        try:
+             asyncio.run(self.non_interactive_mode_async(instruction, stream=stream))
+        except RuntimeError as e:
+             if "cannot be called from a running event loop" in str(e):
+                  logger.error("Cannot start non_interactive_mode with asyncio.run from an existing event loop.")
+             else: raise e
 
     async def non_interactive_mode_async(self, instruction: str, stream: bool = False) -> None:
-        """Async version of non-interactive mode."""
-        logger.debug(f"Starting async non-interactive mode with instruction: {instruction}")
+        """Asynchronously run the blueprint non-interactively."""
+        logger.debug(f"Starting async non-interactive mode with instruction: {instruction}, stream={stream}")
         if not self.swarm:
             logger.error("Swarm instance not initialized.")
-            raise ValueError("Swarm instance not initialized.")
+            print("Error: Swarm framework not ready.")
+            return
 
-        print(f"{self.metadata.get('title', 'Blueprint')} Non-Interactive Mode 🐝")
-        messages = [{"role": "user", "content": instruction}]
+        print(f"--- {self.metadata.get('title', 'Blueprint')} Non-Interactive Mode ---")
+        instructions = [line.strip() for line in instruction.splitlines() if line.strip()]
+        if not instructions:
+             print("No valid instruction provided.")
+             return
+        messages = [{"role": "user", "content": line} for line in instructions]
+
+        if not self.starting_agent:
+             if self.swarm.agents:
+                 first_agent_name = next(iter(self.swarm.agents.keys()))
+                 logger.warning(f"No starting agent explicitly set. Defaulting to first agent: {first_agent_name}")
+                 self.set_starting_agent(self.swarm.agents[first_agent_name])
+             else:
+                 logger.error("No starting agent set and no agents defined.")
+                 print("Error: No agent available to handle the instruction.")
+                 return
+
         self.context_variables["user_goal"] = instruction
-        self.context_variables["active_agent_name"] = self.starting_agent.name if self.starting_agent else "Unknown"
-
-        result = await self.run_with_context_async(messages, self.context_variables)
-        swarm_response = result["response"]
-        response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
+        self.context_variables["active_agent_name"] = get_agent_name(self.starting_agent)
 
         if stream:
-            self._process_and_print_streaming_response(swarm_response)
+            logger.debug("Running non-interactive in streaming mode.")
+            response_generator = self.swarm.run(
+                 agent=self.starting_agent, messages=messages, context_variables=self.context_variables,
+                 stream=True, debug=self.debug,
+            )
+            final_response_data = await self._process_and_print_streaming_response_async(response_generator)
+            if self.auto_complete_task:
+                 logger.warning("Auto-completion is not fully supported with streaming in non-interactive mode.")
         else:
+            logger.debug("Running non-interactive in non-streaming mode.")
+            result = await self.run_with_context_async(messages, self.context_variables)
+            swarm_response = result.get("response")
+            self.context_variables = result.get("context_variables", self.context_variables)
+
+            response_messages = []
+            if hasattr(swarm_response, 'messages'): response_messages = swarm_response.messages
+            elif isinstance(swarm_response, dict) and 'messages' in swarm_response: response_messages = swarm_response.get('messages', [])
+
             self._pretty_print_response(response_messages)
-            if response_messages:
-                print(response_messages[-1]["content"])
+            if self.auto_complete_task and self.swarm.agents:
+                logger.debug("Starting auto-completion task.")
+                current_history = messages + response_messages
+                await self._auto_complete_task_async(current_history, stream=False)
 
-        if self.auto_complete_task and self.swarm.agents:
-            messages.extend(response_messages)
-            conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
-            last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-            while not self._is_task_done(self.context_variables.get("user_goal", ""), conversation_summary, last_assistant):
-                result = await self.run_with_context_async(messages, self.context_variables)
-                swarm_response = result["response"]
-                response_messages = swarm_response["messages"] if isinstance(swarm_response, dict) else swarm_response.messages
-                if stream:
-                    self._process_and_print_streaming_response(swarm_response)
-                else:
-                    self._pretty_print_response(response_messages)
-                    if response_messages:
-                        print(response_messages[-1]["content"])
-                messages.extend(response_messages)
-                conversation_summary = " ".join(msg["content"] for msg in messages[-4:] if msg.get("content"))
-                last_assistant = next((msg["content"] for msg in reversed(response_messages) if msg["role"] == "assistant" and msg.get("content")), "")
-            print("\033[93m[System]\033[0m: Task completed.")
-        print("Execution completed.")
+        print("--- Execution Completed ---")
 
-    def _process_and_print_streaming_response(self, response):
-        """Process and print streaming response chunks."""
+    async def _process_and_print_streaming_response_async(self, response_generator):
+        """Async helper to process and print streaming response chunks."""
         content = ""
-        last_sender = ""
-        for chunk in response:
-            if "sender" in chunk:
-                last_sender = chunk["sender"]
-            if "content" in chunk and chunk["content"] is not None:
-                if not content and last_sender:
-                    print(f"\033[94m{last_sender}:\033[0m ", end="", flush=True)
-                    last_sender = ""
-                print(chunk["content"], end="", flush=True)
-                content += chunk["content"]
-            if "tool_calls" in chunk and chunk["tool_calls"]:
-                for tool_call in chunk["tool_calls"]:
-                    func = tool_call["function"]
-                    name = getattr(func, "name", func.get("__name__", "Unnamed Tool"))
-                    print(f"\033[94m{last_sender}: \033[95m{name}\033[0m()")
-            if "delim" in chunk and chunk["delim"] == "end" and content:
-                print()
-                content = ""
-            if "response" in chunk:
-                return chunk["response"]
-
-    def register_blueprint_urls(self) -> None:
-        """Register blueprint URLs with Django."""
-        if self.skip_django_registration or getattr(self, "_urls_registered", False):
-            logger.debug("Skipping URL registration: CLI mode or already registered.")
-            return
-        if not os.environ.get("DJANGO_SETTINGS_MODULE"):
-            logger.debug("DJANGO_SETTINGS_MODULE not set; skipping URL registration.")
-            return
-
-        module_path = self.metadata.get("django_modules", {}).get("urls")
-        url_prefix = self.metadata.get("url_prefix", "")
-        if not module_path:
-            logger.debug("No URLs module specified in metadata; skipping.")
-            return
-
+        last_sender = self.context_variables.get("active_agent_name", "Assistant")
+        final_response_chunk_data = None
         try:
-            from django.urls import include, path
-            from importlib import import_module
-
-            core_urls = import_module("swarm.urls")
-            if not hasattr(core_urls, "urlpatterns"):
-                logger.error("swarm.urls has no urlpatterns attribute.")
-                return
-
-            urls_module = import_module(module_path)
-            if not hasattr(urls_module, "urlpatterns"):
-                logger.debug(f"No urlpatterns found in {module_path}")
-                return
-
-            if url_prefix and not url_prefix.endswith('/'):
-                url_prefix += '/'
-            app_name = self.metadata.get("cli_name", "blueprint")
-
-            for pattern in core_urls.urlpatterns:
-                if hasattr(pattern, 'url_patterns') and str(pattern.pattern) == url_prefix:
-                    logger.debug(f"URL prefix '{url_prefix}' already registered.")
-                    self._urls_registered = True
-                    return
-
-            core_urls.urlpatterns.append(path(url_prefix, include((module_path, app_name))))
-            logger.info(f"Registered URLs from {module_path} at '{url_prefix}' (app_name: {app_name})")
-            self._urls_registered = True
-
-            from django.urls import clear_url_caches
-            clear_url_caches()
-        except ImportError as e:
-            logger.error(f"Failed to register URLs from {module_path}: {e}")
+            async for chunk in response_generator:
+                if isinstance(chunk, dict) and "delim" in chunk:
+                    if chunk["delim"] == "start" and not content:
+                        print(f"\033[94m{last_sender}\033[0m: ", end="", flush=True)
+                    elif chunk["delim"] == "end" and content:
+                        print()
+                        content = ""
+                elif hasattr(chunk, 'choices') and chunk.choices:
+                     delta = chunk.choices[0].delta
+                     if delta and delta.content:
+                          print(delta.content, end="", flush=True)
+                          content += delta.content
+                elif isinstance(chunk, dict) and "response" in chunk:
+                     final_response_chunk_data = chunk["response"]
+                     if hasattr(final_response_chunk_data, 'agent'):
+                          last_sender = get_agent_name(final_response_chunk_data.agent)
+                     if hasattr(final_response_chunk_data, 'context_variables'):
+                          self.context_variables.update(final_response_chunk_data.context_variables)
+                     logger.debug("Received final aggregated response chunk in stream.")
+                elif isinstance(chunk, dict) and "error" in chunk:
+                    logger.error(f"Error received during stream: {chunk['error']}")
+                    print(f"\n[Stream Error: {chunk['error']}]")
         except Exception as e:
-            logger.error(f"Unexpected error registering URLs: {e}", exc_info=True)
+            logger.error(f"Error processing stream: {e}", exc_info=True)
+            print("\n[Error during streaming output]")
+        finally:
+            if content: print()
+        return final_response_chunk_data
 
-    def _pretty_print_response(self, messages) -> None:
-        """Format and print assistant responses."""
-        import sys
-        sys.stdout.write("\r" + " " * (len(self.spinner.status) + 5) + "\r")
-        sys.stdout.flush()
-        for msg in messages:
-            if msg["role"] != "assistant":
-                continue
-            sender = msg.get("sender", "Assistant")
-            print(f"\033[94m{sender}\033[0m: ", end="")
-            if msg.get("content"):
-                print(msg["content"])
-            if tool_calls := msg.get("tool_calls", []):
-                print("\033[92mFunction Calls:\033[0m")
-                for tc in tool_calls:
-                    f = tc["function"]
-                    name = f["name"]
-                    try:
-                        args_obj = json.loads(f["arguments"])
-                        args_str = ", ".join(f"{k}={v}" for k, v in args_obj.items())
-                    except Exception:
-                        args_str = f["arguments"]
-                    print(f"\033[95m{name}\033[0m({args_str})")
+    async def _auto_complete_task_async(self, current_history: List[Dict[str, str]], stream: bool) -> None:
+        """Async helper for task auto-completion loop (non-streaming)."""
+        max_auto_turns = 10
+        auto_turn = 0
+        while auto_turn < max_auto_turns:
+            auto_turn += 1
+            logger.debug(f"Auto-completion Turn: {auto_turn}/{max_auto_turns}")
+            conversation_summary = " ".join(m.get("content", "") for m in current_history[-4:] if m.get("content"))
+            last_assistant_msg = next((m.get("content", "") for m in reversed(current_history) if m.get("role") == "assistant" and m.get("content")), "")
+            user_goal = self.context_variables.get("user_goal", "")
 
+            # Call the renamed async method
+            if await self._is_task_done_async(user_goal, conversation_summary, last_assistant_msg):
+                print("\033[93m[System]\033[0m: Task detected as complete.")
+                break
+
+            logger.debug("Task not complete, running next auto-completion turn.")
+            result = await self.run_with_context_async(current_history, self.context_variables)
+            swarm_response = result.get("response")
+            self.context_variables = result.get("context_variables", self.context_variables)
+
+            new_messages = []
+            if hasattr(swarm_response, 'messages'): new_messages = swarm_response.messages
+            elif isinstance(swarm_response, dict) and 'messages' in swarm_response: new_messages = swarm_response.get('messages', [])
+
+            if not new_messages:
+                 logger.warning("Auto-completion turn yielded no new messages. Stopping.")
+                 break
+
+            self._pretty_print_response(new_messages)
+            current_history.extend(new_messages)
+
+        if auto_turn >= max_auto_turns:
+             logger.warning("Auto-completion reached maximum turns limit.")
+             print("\033[93m[System]\033[0m: Reached max auto-completion turns.")
+
+    def _auto_complete_task(self, messages: List[Dict[str, str]], stream: bool) -> None:
+        """Synchronous wrapper for task auto-completion."""
+        if stream:
+             logger.warning("Auto-completion skipped because streaming is enabled.")
+             return
+        logger.debug("Starting synchronous auto-completion task.")
+        try:
+             asyncio.run(self._auto_complete_task_async(messages, stream=False))
+        except RuntimeError as e:
+             if "cannot be called from a running event loop" in str(e):
+                  logger.error("Cannot start _auto_complete_task with asyncio.run from an existing event loop.")
+             else: raise e
+
+    # --- Class Method for Entry Point ---
     @classmethod
     def main(cls):
-        """Entry point for running the blueprint standalone."""
         parser = argparse.ArgumentParser(description=f"Run the {cls.__name__} blueprint.")
-        parser.add_argument("--config", default="./swarm_config.json", help="Configuration file path")
-        parser.add_argument("--auto-complete-task", action="store_true", help="Enable task auto-completion")
-        parser.add_argument("--update-user-goal", action="store_true", help="Enable dynamic goal updates")
-        parser.add_argument("--update-user-goal-frequency", type=int, default=5, help="Messages between goal updates")
-        parser.add_argument("--instruction", help="Instruction for non-interactive mode")
-        parser.add_argument("--log-file-path", help="Log file path (default: ~/.swarm/logs/<blueprint>.log)")
-        parser.add_argument("--debug", action="store_true", help="Enable debug logging to console")
+        parser.add_argument("--config", default="./swarm_config.json", help="Path to the swarm_config.json file.")
+        parser.add_argument("--instruction", help="Single instruction for non-interactive mode.")
+        parser.add_argument("--stream", action="store_true", help="Enable streaming output in non-interactive mode.")
+        parser.add_argument("--auto-complete-task", action="store_true", help="Enable task auto-completion in non-interactive mode.")
+        parser.add_argument("--update-user-goal", action="store_true", help="Enable dynamic goal updates using LLM.")
+        parser.add_argument("--update-user-goal-frequency", type=int, default=5, help="Frequency (in messages) for updating user goal.")
+        parser.add_argument("--log-file-path", help="Path for logging output (default: ~/.swarm/logs/<blueprint_name>.log).")
+        parser.add_argument("--debug", action="store_true", help="Enable debug logging to console instead of file.")
+        parser.add_argument("--use-markdown", action="store_true", help="Enable markdown rendering for assistant responses.")
         args = parser.parse_args()
 
         root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG if args.debug or DEBUG else logging.INFO)
-        root_logger.handlers.clear()
-        for logger_name in logging.root.manager.loggerDict:
-            logging.getLogger(logger_name).handlers.clear()
+        log_level = logging.DEBUG if args.debug or DEBUG else logging.INFO
+        root_logger.setLevel(log_level)
 
-        log_file = args.log_file_path or str(Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log")
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        handler = logging.StreamHandler(sys.stdout if args.debug else open(log_file, 'a'))
-        handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s"))
-        root_logger.addHandler(handler)
+        if root_logger.hasHandlers(): root_logger.handlers.clear()
 
-        if not args.debug:
-            sys.stderr = open("/dev/null", "w")
-            logger.info("Redirected stderr to /dev/null")
-
-        logger.debug(f"Launching with: config={args.config}, auto_complete={args.auto_complete_task}, "
-                     f"update_goal={args.update_user_goal}, freq={args.update_user_goal_frequency}, "
-                     f"instruction={args.instruction}, log={log_file}, debug={args.debug}")
-        config = load_server_config(args.config)
-        blueprint = cls(
-            config=config,
-            auto_complete_task=args.auto_complete_task,
-            update_user_goal=args.update_user_goal,
-            update_user_goal_frequency=args.update_user_goal_frequency,
-            log_file_path=log_file,
-            debug=args.debug,
-            non_interactive=bool(args.instruction)
+        log_formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
+        log_handler = logging.StreamHandler(sys.stdout) if args.debug else logging.FileHandler(
+            Path(args.log_file_path or Path.home() / ".swarm" / "logs" / f"{cls.__name__.lower()}.log").resolve(), mode='a'
         )
+        log_handler.setFormatter(log_formatter)
+        root_logger.addHandler(log_handler)
+        logger.info(f"Logging initialized. Level: {logging.getLevelName(log_level)}. Destination: {getattr(log_handler, 'baseFilename', 'console')}")
+
+        original_stderr = sys.stderr
+        dev_null = None
+        if not args.debug:
+            try:
+                dev_null = open(os.devnull, "w")
+                sys.stderr = dev_null
+                logger.info(f"Redirected stderr to {os.devnull}")
+            except OSError as e: logger.warning(f"Could not redirect stderr: {e}")
+
         try:
+            config_data = load_server_config(args.config)
+            blueprint_instance = cls(
+                config=config_data, auto_complete_task=args.auto_complete_task, update_user_goal=args.update_user_goal,
+                update_user_goal_frequency=args.update_user_goal_frequency, log_file_path=str(getattr(log_handler, 'baseFilename', None)),
+                debug=args.debug, use_markdown=args.use_markdown, non_interactive=bool(args.instruction)
+            )
             if args.instruction:
-                blueprint.non_interactive_mode(args.instruction)
+                 asyncio.run(blueprint_instance.non_interactive_mode_async(args.instruction, stream=args.stream))
             else:
-                blueprint.interactive_mode()
+                blueprint_instance.interactive_mode(stream=args.stream)
+        except Exception as e:
+             logger.critical(f"Blueprint execution failed: {e}", exc_info=True)
+             print(f"Critical Error: {e}", file=original_stderr)
         finally:
-            if not args.debug and not sys.stderr.isatty():
-                sys.stderr.close()
-                sys.stderr = sys.__stderr__
-                logger.debug("Restored stderr to console")
-        logger.info("Execution completed.")
+             if not args.debug and dev_null is not None:
+                 sys.stderr = original_stderr
+                 dev_null.close()
+                 logger.debug("Restored stderr.")
+             logger.info("Blueprint execution finished.")
 
 if __name__ == "__main__":
     BlueprintBase.main()
-
