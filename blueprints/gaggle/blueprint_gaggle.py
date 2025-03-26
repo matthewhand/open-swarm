@@ -1,7 +1,8 @@
 """
 Gaggle: CLI Automation Blueprint with Custom Colored Output
 
-This blueprint is a fork of Gotchaman, demonstrating CLI automation capabilities with a custom set of characters:
+This blueprint is a fork of Gotchaman, demonstrating CLI automation capabilities with a custom set of characters
+:
   - Harvey Birdman
   - Foghorn Leghorn
   - Daffy Duck
@@ -55,7 +56,7 @@ class GaggleSpinner:
 
 # Configure logging for our blueprint.
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG) # Keep this commented unless needed
 if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
     stream_handler = logging.StreamHandler()
     formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
@@ -140,7 +141,7 @@ class GaggleBlueprint(BlueprintBase):
             return "\033[94m(O>!)\033[0m "
         elif agent == "Daffy Duck":
             return "\033[94m(O>=)\033[0m "
-        else:
+        else: # Assuming Big Bird or default
             return "\033[94m(OO>)\033[0m "
 
     def create_agents(self) -> Dict[str, Agent]:
@@ -229,14 +230,7 @@ class GaggleBlueprint(BlueprintBase):
         color_code = colors.get(color.lower(), "\033[92m")
         print(f"{color_code}{text}{reset_code}")
 
-def interactive_mode(self):
-    """Interactive mode for GaggleBlueprint that stops the spinner and displays a response."""
-    self.spinner.start("Automating the CLI...")
-    import time
-    time.sleep(2)  # simulate processing delay
-    self.spinner.stop()
-    self.render_output("CLI automation completed successfully!", "green")
-
+    # This definition overwrites the one above it. Keeping the more detailed one.
     def interactive_mode(self):
         """Run interactive mode for GaggleBlueprint: clear screen, stop spinner, and render a response."""
         import sys, time
