@@ -1,55 +1,45 @@
 """
-Agent utilities for blueprint initialization and discovery.
+Agent utility functions for Swarm blueprints
 """
 
-import asyncio
 import logging
 import os
-from swarm.extensions.blueprint.common_utils import get_agent_name
+from typing import Dict, List, Any, Callable, Optional
+import asyncio
+from swarm.types import Agent
 
 logger = logging.getLogger(__name__)
 
-def initialize_agents(blueprint):
-    """
-    Initialize agents if create_agents is overridden and update blueprint's agents.
-    """
+def get_agent_name(agent: Agent) -> str:
+    """Extract an agent's name, defaulting to its class name if not explicitly set."""
+    return getattr(agent, 'name', agent.__class__.__name__)
+
+async def discover_tools_for_agent(agent: Agent, blueprint: Any) -> List[Any]:
+    """Asynchronously discover tools available for an agent within a blueprint."""
+    return getattr(blueprint, '_discovered_tools', {}).get(get_agent_name(agent), [])
+
+async def discover_resources_for_agent(agent: Agent, blueprint: Any) -> List[Any]:
+    """Asynchronously discover resources available for an agent within a blueprint."""
+    return getattr(blueprint, '_discovered_resources', {}).get(get_agent_name(agent), [])
+
+def initialize_agents(blueprint: Any) -> None:
+    """Initialize agents defined in the blueprint's create_agents method."""
+    if not callable(getattr(blueprint, 'create_agents', None)):
+         logger.error(f"Blueprint {blueprint.__class__.__name__} has no callable create_agents method.")
+         return
+
     agents = blueprint.create_agents()
-    for agent_name, agent in agents.items():
-        if hasattr(agent, "nemo_guardrails_config") and agent.nemo_guardrails_config:
-            guardrails_path = os.path.join("nemo_guardrails", agent.nemo_guardrails_config)
-            try:
-                from nemoguardrails import LLMRails, RailsConfig  # type: ignore
-                if RailsConfig:
-                    rails_config = RailsConfig.from_path(guardrails_path)
-                    agent.nemo_guardrails_instance = LLMRails(rails_config)
-                    logger.debug(f"Loaded NeMo Guardrails for agent: {get_agent_name(agent)}")
-                else:
-                    logger.debug("RailsConfig is not available; skipping NeMo Guardrails for agent.")
-            except Exception as e:
-                logger.warning(f"Failed to load NeMo Guardrails for agent {get_agent_name(agent)}: {e}")
-    blueprint.swarm.agents.update(agents)
-    blueprint.starting_agent = agents.get("default") or (next(iter(agents.values())) if agents else None)
-    logger.debug(f"Registered agents: {list(agents.keys())}")
+    if not isinstance(agents, dict):
+        logger.error(f"Blueprint {blueprint.__class__.__name__}.create_agents must return a dict, got {type(agents)}")
+        return
 
-    if blueprint.starting_agent:
-        discover_initial_agent_assets(blueprint, blueprint.starting_agent)
+    if hasattr(blueprint, 'swarm') and hasattr(blueprint.swarm, 'agents'):
+        blueprint.swarm.agents.update(agents)
     else:
-        logger.debug("No starting agent set; subclass may assign later.")
+        logger.error("Blueprint or its swarm instance lacks an 'agents' attribute to update.")
+        return
 
-def discover_initial_agent_assets(blueprint, agent):
-    """
-    Perform initial tool and resource discovery for the given agent.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        asyncio.create_task(blueprint._discover_tools_for_agent(agent))
-        asyncio.create_task(blueprint._discover_resources_for_agent(agent))
-    else:
-        asyncio.run(blueprint._discover_tools_for_agent(agent))
-        asyncio.run(blueprint._discover_resources_for_agent(agent))
-    logger.debug(f"Completed initial tool/resource discovery for agent: {get_agent_name(agent)}")
-
-__all__ = ["initialize_agents", "discover_initial_agent_assets"]
+    if not blueprint.starting_agent and agents:
+        first_agent_name = next(iter(agents.keys()))
+        blueprint.starting_agent = agents[first_agent_name]
+        logger.debug(f"Set default starting agent: {first_agent_name}")
