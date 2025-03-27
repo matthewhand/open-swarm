@@ -78,7 +78,7 @@ async def test_run_with_context():
         assert isinstance(result, dict)
         response_obj_result = result.get("response")
         assert isinstance(response_obj_result, Response)
-        assert response_obj_result.messages[0]["content"] == "Fake response"
+        assert response_obj_result.messages[0].content == "Fake response"
         final_context = result.get("context_variables", {})
         assert final_context.get("initial_ctx") == "value"
         assert final_context.get("active_agent_name") == "agent1"

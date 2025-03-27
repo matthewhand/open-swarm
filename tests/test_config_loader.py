@@ -1,166 +1,380 @@
-import pytest  # type: ignore
-import json
+import pytest
 import os
-from unittest.mock import patch, mock_open, MagicMock
-from io import StringIO
+import json
 from pathlib import Path
+from unittest.mock import patch, MagicMock, mock_open
 
-# Import functions expected to be in config_loader
+# Import necessary functions from the config_loader module
 from swarm.extensions.config.config_loader import (
-    resolve_placeholders,
     load_server_config,
-    are_required_mcp_servers_configured, # Should be available now
-    load_llm_config,
+    resolve_placeholders,
     process_config,
-    validate_api_keys # Should be available now
+    load_llm_config,
+    get_llm_model,
+    get_server_params,
+    list_mcp_servers
 )
-# Import save_server_config carefully
-try: from swarm.extensions.config.config_loader import save_server_config
+
+# Define a base directory for tests if BASE_DIR isn't properly imported/set
+try:
+    from swarm.settings import BASE_DIR
 except ImportError:
-     try: from swarm.extensions.config.server_config import save_server_config
-     except ImportError:
-          def save_server_config(*args, **kwargs): print("Warning: save_server_config dummy used.")
+    BASE_DIR = Path(__file__).resolve().parent.parent # Adjust if needed
 
-try: from swarm.settings import BASE_DIR
-except ImportError: BASE_DIR = '/tmp/mock_base_dir'
+
+# --- Mocks and Test Data ---
+
+MOCK_VALID_CONFIG_CONTENT = """
+{
+  "llm": {
+    "default": {
+      "provider": "openai",
+      "model": "gpt-4",
+      "api_key": "sk-default_key",
+      "base_url": null
+    },
+    "gpt35": {
+      "provider": "openai",
+      "model": "gpt-3.5-turbo",
+      "api_key": "${OPENAI_API_KEY_GPT35}",
+      "base_url": "${OPENAI_BASE_URL}"
+    },
+    "dummy_required": {
+      "provider": "dummy",
+      "model": "dummy-model",
+      "api_key": null,
+      "api_key_required": true
+    },
+    "dummy_not_required": {
+        "provider": "dummy",
+        "model": "dummy-nr-model",
+        "api_key": null,
+        "api_key_required": false
+    }
+  },
+  "mcpServers": {
+    "server1": {
+      "command": "python",
+      "args": ["server1.py"],
+      "env": { "VAR1": "value1", "API_KEY": "${MCP_API_KEY}" }
+    },
+    "server2_disabled": {
+      "command": "node",
+      "args": ["server2.js"],
+      "disabled": true
+    }
+  },
+  "requiredMcpServers": ["server1"]
+}
+"""
+
+MOCK_INVALID_JSON_CONTENT = "{ invalid json"
+
+MOCK_EXTERNAL_MCP_CONFIG_CONTENT = """
+{
+  "mcpServers": {
+    "external_server": {
+        "command": "java",
+        "args": ["-jar", "external.jar"],
+        "env": {"JAVA_OPTS": "-Xmx512m"}
+    },
+    "server1": {
+        "command": "overridden_python",
+        "args": ["overridden_server1.py"]
+    }
+  }
+}
+"""
+
+
+# --- Helper Functions ---
+
+@pytest.fixture(autouse=True)
+def clear_env_vars(monkeypatch):
+    """Clears relevant env vars before each test."""
+    vars_to_clear = [
+        "DEFAULT_LLM", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DUMMY_API_KEY",
+        "OPENAI_API_KEY_GPT35", "OPENAI_BASE_URL", "MCP_API_KEY",
+        "SUPPRESS_DUMMY_KEY", "DISABLE_MCP_MERGE",
+        "SWARM_DEBUG", "DEFAULT_LLM_PROVIDER", "DEFAULT_LLM_MODEL"
+    ]
+    for var in vars_to_clear:
+        monkeypatch.delenv(var, raising=False)
 
 @pytest.fixture
-def mock_env():
-    env_vars = { "TEST_VAR": "test_value", "OPENAI_API_KEY": "sk-openai-key", "MOCK_API_KEY": "mock-key-123", "REQUIRED_KEY": "env-key-value", "MISSING_PROFILE_BASE_URL": "http://fallback.url", "DEFAULT_LLM_PROVIDER": "fallback_provider", "DEFAULT_LLM_MODEL": "fallback_model", "NEEDS_ENV_API_KEY": "needs-env-key-from-env" }
-    with patch.dict("os.environ", env_vars, clear=True): yield os.environ
+def mock_config_file(tmp_path):
+    """Creates a temporary mock config file."""
+    p = tmp_path / "swarm_config.json"
+    p.write_text(MOCK_VALID_CONFIG_CONTENT, encoding='utf-8')
+    return p
 
 @pytest.fixture
-def valid_config_raw():
-    return { "llm": { "default": {"provider": "mock", "api_key": "${TEST_VAR}", "model": "default-model"}, "openai": {"provider": "openai", "api_key": "${OPENAI_API_KEY}", "model": "gpt-4"}, "local": {"provider": "ollama", "model": "llama3", "api_key": None, "api_key_required": False}, "needs_env": {"provider": "custom", "api_key": "${MISSING_KEY}", "api_key_required": True} }, "mcpServers": { "example": {"env": {"EXAMPLE_KEY": "value"}}, "needs_key": {"env": {"REQUIRED_KEY": "${REQUIRED_KEY}"}} }, "key": "value" }
+def mock_external_mcp_file(tmp_path, monkeypatch):
+    """Creates a mock external MCP config file."""
+    if os.name == "nt":
+        appdata = tmp_path / "AppData" / "Roaming"
+        monkeypatch.setenv("APPDATA", str(appdata))
+        external_dir = appdata / "Claude"
+    else:
+        home = tmp_path / "home" / "user"
+        monkeypatch.setattr(Path, 'home', lambda: home)
+        external_dir = home / ".vscode-server" / "data" / "User" / "globalStorage" / "rooveterinaryinc.roo-cline" / "settings"
+    external_dir.mkdir(parents=True, exist_ok=True)
+    external_file = external_dir / ("claude_desktop_config.json" if os.name == "nt" else "cline_mcp_settings.json")
+    external_file.write_text(MOCK_EXTERNAL_MCP_CONFIG_CONTENT, encoding='utf-8')
+    return external_file
 
-@pytest.fixture
-def valid_config_resolved(mock_env, valid_config_raw): return resolve_placeholders(valid_config_raw)
+# --- Test Cases ---
 
-# --- Tests ---
-def test_resolve_placeholders_simple(mock_env):
-    assert resolve_placeholders("${TEST_VAR}") == "test_value"
-    assert resolve_placeholders("http://${TEST_VAR}:8080") == "http://test_value:8080"
+# 1. resolve_placeholders (Unchanged)
+def test_resolve_placeholders_simple(monkeypatch):
+    monkeypatch.setenv("MY_VAR", "my_value")
+    data = {"key": "Hello ${MY_VAR}!"}
+    resolved = resolve_placeholders(data)
+    assert resolved == {"key": "Hello my_value!"}
 
-def test_resolve_placeholders_missing(mock_env, caplog):
-    # Test case where placeholder is the entire string
-    result = resolve_placeholders("${MISSING_VAR_XYZ}")
-    assert result is None # Expect None for unresolved placeholder-only string
-    # assert "Env var 'MISSING_VAR_XYZ' not set" in caplog.text # Removed caplog assertion
+def test_resolve_placeholders_missing_var_full_string(monkeypatch):
+    data = {"key": "${MISSING_VAR}"}
+    resolved = resolve_placeholders(data)
+    assert resolved == {"key": None}
 
-    # Test case where placeholder is part of a larger string
-    result_mixed = resolve_placeholders("prefix-${MISSING_VAR_XYZ}-suffix")
-    assert result_mixed == "prefix--suffix" # Expect empty string replacement
-    # assert "Env var 'MISSING_VAR_XYZ' not set" in caplog.text # Removed caplog assertion
-    # assert "contained unresolved placeholders" in caplog.text # Removed caplog assertion
+def test_resolve_placeholders_missing_var_partial_string(monkeypatch):
+    data = {"key": "Value: ${MISSING_VAR}"}
+    resolved = resolve_placeholders(data)
+    assert resolved == {"key": "Value: "}
 
-def test_load_server_config_loads_and_processes(mock_env, valid_config_raw):
-    mock_data = json.dumps(valid_config_raw)
-    with patch("pathlib.Path.is_file", return_value=True), patch("pathlib.Path.read_text", return_value=mock_data), patch("swarm.extensions.config.config_loader.process_config", side_effect=process_config) as mock_process:
-        config = load_server_config("dummy/swarm_config.json")
-        mock_process.assert_called_once_with(valid_config_raw)
-        assert config["llm"]["openai"]["api_key"] == "sk-openai-key"
-        assert config["mcpServers"]["needs_key"]["env"]["REQUIRED_KEY"] == "env-key-value"
+def test_resolve_placeholders_nested(monkeypatch):
+    monkeypatch.setenv("NESTED_VAL", "nested")
+    monkeypatch.setenv("LIST_VAL", "item2")
+    data = {
+        "level1": {"key": "${NESTED_VAL}"},
+        "list": ["item1", "${LIST_VAL}", {"inner": "${NESTED_VAL}"}]
+    }
+    resolved = resolve_placeholders(data)
+    assert resolved == {
+        "level1": {"key": "nested"},
+        "list": ["item1", "item2", {"inner": "nested"}]
+    }
 
-def test_load_server_config_file_not_found():
-    with patch("pathlib.Path.is_file", return_value=False), patch("swarm.settings.BASE_DIR", "/tmp/nonexistent"):
-        with pytest.raises(FileNotFoundError): load_server_config()
+def test_resolve_placeholders_non_string():
+    data = {"int": 123, "bool": True, "null": None, "list": [1, False]}
+    resolved = resolve_placeholders(data)
+    assert resolved == data
 
-def test_load_server_config_invalid_json():
-     invalid_json_data = '{"llm":{'
-     with patch("pathlib.Path.is_file", return_value=True), patch("pathlib.Path.read_text", return_value=invalid_json_data):
-         with pytest.raises(ValueError, match="Invalid JSON"): load_server_config("dummy.json")
 
-def test_are_required_mcp_servers_configured(valid_config_resolved):
-    # This function should now be importable and testable
-    assert are_required_mcp_servers_configured(["example"], valid_config_resolved) == (True, [])
-    assert are_required_mcp_servers_configured(["example", "nonexistent"], valid_config_resolved) == (False, ["nonexistent"])
+# 2. load_server_config
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.read_text")
+def test_load_server_config_success(mock_read_text, mock_is_file, tmp_path, monkeypatch):
+    # --- FIX: Use list for side_effect ---
+    # The generator `next(...)` stops on the first True, so is_file is called only once.
+    mock_is_file.side_effect = [True]
+    mock_read_text.return_value = MOCK_VALID_CONFIG_CONTENT
+    monkeypatch.setenv("MCP_API_KEY", "mcp_test_key")
 
-# --- Test load_llm_config (including API key logic) ---
-def test_load_llm_config_specific_llm(valid_config_resolved):
-    llm_config = load_llm_config(valid_config_resolved, llm_name="openai")
-    assert llm_config == valid_config_resolved["llm"]["openai"]
+    # Mock cwd, BASE_DIR, home to control search order
+    monkeypatch.setattr(Path, 'cwd', lambda: tmp_path)
+    monkeypatch.setattr("swarm.extensions.config.config_loader.BASE_DIR", tmp_path / "nonexistent_base")
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path / "nonexistent_home")
 
-@patch.dict("os.environ", {"DEFAULT_LLM": "openai"})
-def test_load_llm_config_uses_env_default(valid_config_resolved, mock_env):
-    llm_config = load_llm_config(valid_config_resolved)
-    assert llm_config == valid_config_resolved["llm"]["openai"]
+    loaded_config = load_server_config() # Should find it in cwd
 
-def test_load_llm_config_fallback_behavior(mock_env):
-     config_missing_llm = {"llm": {"other": {"model": "other-model"}}}
-     # Set DEFAULT_LLM to a profile not in config_missing_llm
-     with patch.dict("os.environ", {"DEFAULT_LLM": "missing_profile"}):
-          # The function should generate fallback using other env vars
-          llm_config = load_llm_config(config_missing_llm)
-          assert llm_config["provider"] == mock_env["DEFAULT_LLM_PROVIDER"]
-          assert llm_config["model"] == mock_env["DEFAULT_LLM_MODEL"]
-          # It should pick up OPENAI_API_KEY if MISSING_PROFILE_API_KEY isn't set
-          assert llm_config["api_key"] == mock_env["OPENAI_API_KEY"]
-          assert llm_config["base_url"] == mock_env["MISSING_PROFILE_BASE_URL"]
+    assert loaded_config is not None
+    assert loaded_config["llm"]["default"]["model"] == "gpt-4"
+    assert loaded_config["mcpServers"]["server1"]["env"]["API_KEY"] == "mcp_test_key"
+    mock_read_text.assert_called_once_with(encoding='utf-8')
+    # Assert is_file was called once (because next() stops iteration)
+    mock_is_file.assert_called_once()
 
-def test_load_llm_config_raises_on_missing_required_key(valid_config_raw, monkeypatch):
-     # Ensure relevant env vars are *not* set
-     monkeypatch.delenv("MISSING_KEY", raising=False)
-     monkeypatch.delenv("NEEDS_ENV_API_KEY", raising=False)
-     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-     # The config has api_key: "${MISSING_KEY}" which resolves to None
-     # Since it's required, and no env vars are found, it should raise
-     with pytest.raises(ValueError, match="Required API key for LLM profile 'needs_env' is missing or empty."):
-          load_llm_config(valid_config_raw, llm_name="needs_env")
 
-def test_load_llm_config_finds_key_in_env_when_missing_in_config(valid_config_raw, mock_env, caplog, monkeypatch):
-    # Delete the direct placeholder var to force resolution to None
-    monkeypatch.delenv("MISSING_KEY", raising=False)
-    # Make sure the specific env var *is* present (from mock_env)
-    assert "NEEDS_ENV_API_KEY" in os.environ
-    # Load the config for 'needs_env'
-    loaded_config = load_llm_config(valid_config_raw, llm_name="needs_env")
-    # Assert the key was found from the specific env var
-    assert loaded_config["api_key"] == mock_env["NEEDS_ENV_API_KEY"]
-    # assert "using env var 'NEEDS_ENV_API_KEY'" in caplog.text # Removed caplog assertion
+@patch("pathlib.Path.is_file", return_value=False) # Mock all paths don't exist
+def test_load_server_config_not_found(mock_is_file, monkeypatch):
+    monkeypatch.setattr(Path, 'home', lambda: Path("/nonexistent/home"))
+    monkeypatch.setattr("swarm.extensions.config.config_loader.BASE_DIR", Path("/nonexistent/base"))
+    monkeypatch.setattr(Path, 'cwd', lambda: Path("/nonexistent/cwd"))
+    with pytest.raises(FileNotFoundError):
+        load_server_config()
+    # is_file should have been called 3 times (cwd, BASE_DIR, home)
+    assert mock_is_file.call_count == 3
 
-def test_load_llm_config_not_required(valid_config_resolved):
-     llm_config = load_llm_config(valid_config_resolved, llm_name="local")
-     assert llm_config["api_key"] is None # Should be None after resolution
-     assert llm_config.get("api_key_required") is False
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.read_text")
+def test_load_server_config_invalid_json(mock_read_text, mock_is_file, tmp_path, monkeypatch):
+    # --- FIX: Use list for side_effect ---
+    mock_is_file.side_effect = [True] # Found in cwd
+    mock_read_text.return_value = MOCK_INVALID_JSON_CONTENT
 
-# --- Test process_config (Merge Logic) ---
-def test_process_config_merge(monkeypatch, valid_config_raw):
-    main_config = valid_config_raw
-    external_config = {"mcpServers": {"server2": {"setting": "external"}, "example": {"setting": "external-override"}}}
-    external_path = Path.home() / ".vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/cline_mcp_settings.json"
-    original_exists = os.path.exists; original_open = open
-    def fake_exists(path): return str(path) == str(external_path) or original_exists(path)
-    def fake_open(path, mode='r', *args, **kwargs):
-        if str(path) == str(external_path): return StringIO(json.dumps(external_config))
-        return original_open(path, mode, *args, **kwargs)
-    monkeypatch.setattr(os.path, "exists", fake_exists)
-    monkeypatch.setattr("builtins.open", fake_open)
-    monkeypatch.setattr(os, "name", "posix")
-    monkeypatch.setenv("DISABLE_MCP_MERGE", "false")
-    # Set env vars expected by placeholders in valid_config_raw
-    monkeypatch.setenv("TEST_VAR", "resolved_test")
-    monkeypatch.setenv("OPENAI_API_KEY", "resolved_openai")
-    monkeypatch.setenv("REQUIRED_KEY", "resolved_req")
-    # Set var for MISSING_KEY placeholder
-    monkeypatch.setenv("MISSING_KEY", "resolved_missing")
+    # Mock cwd, BASE_DIR, home
+    monkeypatch.setattr(Path, 'cwd', lambda: tmp_path)
+    monkeypatch.setattr("swarm.extensions.config.config_loader.BASE_DIR", tmp_path / "nonexistent_base")
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path / "nonexistent_home")
 
-    merged_config = process_config(main_config)
-    # External 'server2' added, 'example' NOT overridden from external
-    expected_mcp = { "example": {"env": {"EXAMPLE_KEY": "value"}}, "needs_key": {"env": {"REQUIRED_KEY": "resolved_req"}}, "server2": {"setting": "external"} }
-    assert merged_config.get("mcpServers") == expected_mcp
-    # Check placeholder resolution happened correctly
-    assert merged_config["llm"]["needs_env"]["api_key"] == "resolved_missing"
+    with pytest.raises(ValueError, match="Invalid JSON"):
+        load_server_config()
+    # Assert is_file was called once
+    mock_is_file.assert_called_once()
 
-def test_process_config_merge_disabled(monkeypatch, valid_config_raw):
-    main_config = valid_config_raw
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.read_text")
+def test_load_server_config_specific_path(mock_read_text, mock_is_file):
+    specific_path = "/custom/path/config.json"
+    # --- FIX: Use list for side_effect ---
+    # This scenario checks the specific path first.
+    mock_is_file.side_effect = [True]
+    mock_read_text.return_value = MOCK_VALID_CONFIG_CONTENT
+
+    config = load_server_config(file_path=specific_path)
+    assert config is not None
+    assert config["llm"]["default"]["model"] == "gpt-4"
+    # Assert is_file was called once (for the specific path)
+    mock_is_file.assert_called_once()
+    mock_read_text.assert_called_once_with(encoding='utf-8')
+
+
+# 3. process_config (includes MCP merge logic) (Unchanged)
+def test_process_config_no_merge(monkeypatch):
     monkeypatch.setenv("DISABLE_MCP_MERGE", "true")
-    # Set env vars expected by placeholders
-    monkeypatch.setenv("TEST_VAR", "resolved_test"); monkeypatch.setenv("OPENAI_API_KEY", "resolved_openai")
-    monkeypatch.setenv("REQUIRED_KEY", "resolved_req"); monkeypatch.setenv("MISSING_KEY", "resolved_missing")
+    raw_config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    processed = process_config(raw_config.copy())
+    assert "external_server" not in processed.get("mcpServers", {})
+    assert processed["mcpServers"]["server1"]["command"] == "python"
 
-    processed_config = process_config(main_config)
-    # Expect only servers from main_config after placeholder resolution
-    expected_mcp = { "example": {"env": {"EXAMPLE_KEY": "value"}}, "needs_key": {"env": {"REQUIRED_KEY": "resolved_req"}} }
-    assert processed_config.get("mcpServers") == expected_mcp
-    # Check placeholder resolution
-    assert processed_config["llm"]["needs_env"]["api_key"] == "resolved_missing"
+@patch("os.path.exists", return_value=True)
+@patch("builtins.open", new_callable=mock_open, read_data=MOCK_EXTERNAL_MCP_CONFIG_CONTENT)
+def test_process_config_with_merge(mock_file_open, mock_exists, monkeypatch, mock_external_mcp_file):
+    monkeypatch.delenv("DISABLE_MCP_MERGE", raising=False)
+    mock_exists.return_value = True
+    raw_config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    processed = process_config(raw_config.copy())
+    assert "external_server" in processed.get("mcpServers", {})
+    assert processed["mcpServers"]["external_server"]["command"] == "java"
+    assert processed["mcpServers"]["server1"]["command"] == "python"
+    assert "server2_disabled" in processed["mcpServers"]
+
+
+# 4. load_llm_config (Unchanged)
+def test_load_llm_config_default(monkeypatch):
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config)
+    assert llm_config["model"] == "gpt-4"
+    assert llm_config["api_key"] == "sk-default_key"
+    assert llm_config["_log_key_source"] == "config file ('default') (resolved)"
+
+def test_load_llm_config_specific_name(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY_GPT35", "env_gpt35_key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://env.openai.com")
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config, llm_name="gpt35")
+    assert llm_config["model"] == "gpt-3.5-turbo"
+    assert llm_config["api_key"] == "env_gpt35_key"
+    assert llm_config["base_url"] == "http://env.openai.com"
+    assert llm_config["_log_key_source"] == "config file ('gpt35') (resolved)"
+
+def test_load_llm_config_env_override_specific(monkeypatch):
+    monkeypatch.setenv("DUMMY_API_KEY", "env_dummy_specific_key")
+    monkeypatch.setenv("OPENAI_API_KEY", "env_openai_fallback_key")
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config, llm_name="dummy_required")
+    assert llm_config["model"] == "dummy-model"
+    assert llm_config["api_key"] == "env_dummy_specific_key"
+    assert llm_config["_log_key_source"] == "env var 'DUMMY_API_KEY'"
+
+def test_load_llm_config_env_override_fallback(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "env_openai_fallback_key")
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config, llm_name="default")
+    assert llm_config["model"] == "gpt-4"
+    assert llm_config["api_key"] == "env_openai_fallback_key"
+    assert llm_config["_log_key_source"] == "env var 'OPENAI_API_KEY'"
+
+def test_load_llm_config_dummy_key_applied(monkeypatch):
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config, llm_name="dummy_required")
+    assert llm_config["api_key"] == "sk-DUMMYKEY"
+    assert llm_config["_log_key_source"] == "dummy key"
+
+def test_load_llm_config_dummy_key_suppressed(monkeypatch):
+    monkeypatch.setenv("SUPPRESS_DUMMY_KEY", "true")
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    with pytest.raises(ValueError, match="Required API key.*missing"):
+         load_llm_config(config, llm_name="dummy_required")
+
+def test_load_llm_config_not_required_no_key(monkeypatch):
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config, llm_name="dummy_not_required")
+    assert llm_config["api_key"] is None
+    assert llm_config["_log_key_source"] == "Not Required/Not Found"
+
+def test_load_llm_config_profile_not_found_fallback(monkeypatch):
+    monkeypatch.setenv("DEFAULT_LLM_PROVIDER", "fallback_provider")
+    monkeypatch.setenv("DEFAULT_LLM_MODEL", "fallback_model")
+    monkeypatch.setenv("FALLBACK_PROVIDER_API_KEY", "fallback_key_from_env")
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    llm_config = load_llm_config(config, llm_name="nonexistent_profile")
+    assert llm_config["provider"] == "fallback_provider"
+    assert llm_config["model"] == "fallback_model"
+    assert llm_config["api_key"] == "fallback_key_from_env"
+    assert llm_config["_log_key_source"] == "env var 'FALLBACK_PROVIDER_API_KEY'"
+
+# 5. get_llm_model (Unchanged)
+def test_get_llm_model_success():
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    model = get_llm_model(config, llm_name="default")
+    assert model == "gpt-4"
+
+def test_get_llm_model_not_found(monkeypatch):
+    config = {"llm": {}}
+    model = get_llm_model(config, llm_name="missing")
+    assert model == "gpt-4o"
+
+# 6. are_required_mcp_servers_configured <-- Function/Test Removed
+
+# 7. get_server_params (Unchanged)
+def test_get_server_params_success(monkeypatch):
+    monkeypatch.setenv("MCP_API_KEY", "mcp_key_123")
+    monkeypatch.setenv("OTHER_ENV", "system_value")
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    resolved_config = resolve_placeholders(config)
+    server_config = resolved_config["mcpServers"]["server1"]
+    params = get_server_params(server_config, "server1")
+    assert params is not None
+    assert params["command"] == "python"
+    assert params["args"] == ["server1.py"]
+    assert params["env"]["VAR1"] == "value1"
+    assert params["env"]["API_KEY"] == "mcp_key_123"
+    assert params["env"]["OTHER_ENV"] == "system_value"
+    assert "PWD" in params["env"] or "Path" in params["env"]
+
+def test_get_server_params_missing_command():
+    server_config = {"args": [], "env": {}}
+    params = get_server_params(server_config, "test_server")
+    assert params is None
+
+def test_get_server_params_invalid_args():
+    server_config = {"command": "cmd", "args": "not_a_list"}
+    params = get_server_params(server_config, "test_server")
+    assert params is None
+
+def test_get_server_params_invalid_env():
+    server_config = {"command": "cmd", "env": "not_a_dict"}
+    params = get_server_params(server_config, "test_server")
+    assert params is None
+
+def test_get_server_params_env_value_is_none(monkeypatch):
+    server_config = {"command": "cmd", "env": {"KEY_NULL": None, "KEY_STR": "value"}}
+    params = get_server_params(server_config, "test_server")
+    assert params is not None
+    assert "KEY_NULL" not in params["env"]
+    assert params["env"]["KEY_STR"] == "value"
+
+# 8. list_mcp_servers (Unchanged)
+def test_list_mcp_servers():
+    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
+    server_list = list_mcp_servers(config)
+    assert sorted(server_list) == sorted(["server1", "server2_disabled"])
+
+def test_list_mcp_servers_no_servers():
+    config = {"llm": {}}
+    server_list = list_mcp_servers(config)
+    assert server_list == []
+
