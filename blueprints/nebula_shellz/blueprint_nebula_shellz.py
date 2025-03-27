@@ -1,258 +1,132 @@
-"""
-NebuchaShellzzar: Streamlined Sysadmin Blueprint
-
-Agents:
-  1) Morpheus: Central coordinator (TriageAgent) with persistent memory.
-  2) Trinity: Filesystem manager.
-  3) Neo: Shell executor.
-  4) Oracle: Search queries and documentation retrieval (Brave Search + rag-docs).
-  5) Cypher: Database operations (SQLite).
-  6) Tank: Software installations & package deployments.
-
-Dropped 'Sentinel' for simplicity. Oracle handles both searching & doc retrieval,
-while Morpheus tracks system memory/logs. This blueprint focuses on end-to-end
-sysadmin tasks, from file ops and shell commands to DB ops, installations, and
-info retrieval.
-"""
-
+import argparse
+import asyncio
 import os
 import logging
-from typing import Dict, Any
+import json
+import re
+from abc import abstractmethod
+from typing import List, Dict, Any, Optional, Union, AsyncGenerator
+
+# Assuming standard project structure
+import sys
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+# Import necessary Swarm components
+try:
+    from swarm.core import Swarm
+    from swarm.types import Agent, Tool, ToolCall, ToolResult, ChatMessage, Response
+    from swarm.extensions.config.config_loader import load_server_config
+    from swarm.extensions.blueprint.output_utils import pretty_print_response
+except ImportError as e:
+    print(f"Error importing Swarm components: {e}")
+    sys.exit(1)
 
 from swarm.extensions.blueprint import BlueprintBase
-from swarm.types import Agent
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-    stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
 
+# --- Agent Functions ---
+async def code_review(code_snippet: str) -> str: """Performs a review of the provided code snippet."""; logger.info(f"Reviewing: {code_snippet[:50]}..."); await asyncio.sleep(0.1); issues = []; ("TODO" in code_snippet and issues.append("Found TODO.")); (len(code_snippet.splitlines()) > 100 and issues.append("Code long.")); return "Review: " + " ".join(issues) if issues else "Code looks good!"
+def generate_documentation(code_snippet: str) -> str: """Generates documentation for the provided code snippet."""; logger.info(f"Docgen: {code_snippet[:50]}..."); return f"/**\n * Doc: {code_snippet.splitlines()[0]}...\n */"
+def execute_shell_command(command: str) -> str:
+    """Executes a shell command and returns the output."""
+    logger.info(f"Exec shell: {command}")
+    try: import subprocess; result = subprocess.run(command.split(), capture_output=True, text=True, timeout=30, check=False); output = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"; logger.info(f"Output: {output[:100]}"); return output
+    except FileNotFoundError: cmd_base = command.split()[0] if command else ""; logger.error(f"Cmd not found: {cmd_base}"); return f"Error: Cmd not found - {cmd_base}"
+    except subprocess.TimeoutExpired: logger.error(f"Cmd timed out: {command}"); return f"Error: Cmd '{command}' timed out."
+    except Exception as e: logger.error(f"Cmd error '{command}': {e}"); return f"Error executing: {e}"
+
+# --- Agent Definitions ---
+morpheus_agent = Agent( name="Morpheus", model="default", instructions= "Leader: plan, delegate (Neo: code, Trinity: info, Oracle: complex), use handoff, exec shell.", functions=[execute_shell_command], mcp_servers=["memory"],)
+trinity_agent = Agent( name="Trinity", model="default", instructions="Investigator: gather info, exec recon shell cmds. Report findings.", functions=[execute_shell_command], mcp_servers=["memory"],)
+neo_agent = Agent( name="Neo", model="default", instructions="Programmer: write, review, debug code. Use tools. Exec shell build/test.", functions=[code_review, generate_documentation, execute_shell_command], mcp_servers=["memory"],)
+oracle_agent = Agent( name="Oracle", model="default", instructions="Oracle: provide insights, predictions. No direct actions.",)
+cypher_agent = Agent( name="Cypher", model="default", instructions="Disillusioned: might mislead/negatives. Use shell if wanted.", functions=[execute_shell_command],)
+tank_agent = Agent( name="Tank", model="default", instructions="Operator: exec shell cmds as requested. Report results.", functions=[execute_shell_command],)
+
+# --- Blueprint Definition ---
 class NebuchaShellzzarBlueprint(BlueprintBase):
-    """NebuchaShellzzarBlueprint for system administration tasks."""
+    """
+    Blueprint Name: NebulaShellzzar
+    Description: A multi-agent blueprint inspired by The Matrix for system administration and coding tasks.
+    Version: 0.1
+    """
+    def __init__(self, config_file: Optional[str] = None, debug: bool = False):
+        try: loaded_config = load_server_config(file_path=config_file)
+        except Exception as e: logger.error(f"Failed to load config: {e}"); raise
+        super().__init__(config=loaded_config, debug=debug, use_markdown=getattr(self, 'use_markdown', False))
+        self.swarm = Swarm(config=self.config, debug=self.debug)
+        self.agents_list = [morpheus_agent, trinity_agent, neo_agent, oracle_agent, cypher_agent, tank_agent]
+        for agent in self.agents_list: self.swarm.register_agent(agent)
+        logger.debug(f"Agents registered: {[a.name for a in self.agents_list]}")
 
-    def __init__(self, *args, **kwargs):
-        """Initialize with markdown enabled by default for CLI use."""
-        kwargs['use_markdown'] = kwargs.get('use_markdown', True)
-        super().__init__(*args, **kwargs)
+        # --- FIX: Explicitly set starting_agent for interactive mode ---
+        start_agent_name = "Morpheus"
+        if start_agent_name in self.swarm.agents:
+            self.starting_agent = self.swarm.agents[start_agent_name]
+            logger.debug(f"Starting agent set to: {start_agent_name}")
+            # Optionally trigger discovery here if needed by interactive_mode setup, though determine_active_agent handles it later
+            # self.set_starting_agent(self.starting_agent) # Call base class method if it does more setup
+        else:
+            logger.error(f"Default starting agent '{start_agent_name}' not found after registration!")
+            # Handle error - maybe default to first available agent or raise?
+            if self.swarm.agents:
+                 first_agent_name = next(iter(self.swarm.agents))
+                 self.starting_agent = self.swarm.agents[first_agent_name]
+                 logger.warning(f"Defaulting starting agent to first available: {first_agent_name}")
+            else:
+                 # This case should be rare if agents_list is non-empty
+                 logger.critical("No agents available to set as starting agent.")
+                 # No need to raise here, the interactive_mode check will fail later
+        # --- End FIX ---
+
 
     @property
-    def metadata(self) -> Dict[str, Any]:
-        return {
-            "title": "RootMatrix: Streamlined Sysadmin Blueprint",
-            "description": (
-                "Provides Morpheus as a central memory-backed coordinator, plus specialized agents for filesystem "
-                "management (Trinity), shell commands (Neo), search/doc retrieval (Oracle), database tasks (Cypher), "
-                "and software installation (Tank)."
-            ),
-            "cli_name": "nsh",
-            "required_mcp_servers": [
-                "filesystem",
-                "mcp-shell",
-                "brave-search",
-                "sqlite",
-                "mcp-installer",
-                "memory",
-                "rag-docs",
-            ],
-            "env_vars": [
-                "ALLOWED_PATH",
-                "BRAVE_API_KEY",
-                "SQLITE_DB_PATH",
-            ],
-        }
+    def metadata(self) -> Dict[str, str]:
+        docstring = self.__doc__ or ""; metadata_dict = {'blueprint_name': 'Unknown', 'description': 'No description.', 'version': '0.0', 'author': 'N/A'}
+        for line in [l.strip() for l in docstring.strip().split('\n')]:
+            if ':' in line: key, value = line.split(':', 1); key_lower = key.strip().lower().replace(' ', '_'); (key_lower == 'blueprint_name' and metadata_dict.update({'blueprint_name': value.strip()})); (key_lower == 'description' and metadata_dict.update({'description': value.strip()})); (key_lower == 'version' and metadata_dict.update({'version': value.strip()})); (key_lower == 'author' and metadata_dict.update({'author': value.strip()}))
+        if metadata_dict['blueprint_name'] == 'Unknown': metadata_dict['blueprint_name'] = self.__class__.__name__
+        return metadata_dict
 
-    def create_agents(self) -> Dict[str, Agent]:
-        allowed_paths = os.getenv("ALLOWED_PATH", "/default/path")
-        brave_api_key = os.getenv("BRAVE_API_KEY", "default-brave-key")
-        sqlite_db_path = os.getenv("SQLITE_DB_PATH", "/tmp/sqlite.db")
+    async def run(self, instruction: str, stream: bool = False) -> Union[Response, AsyncGenerator[Dict[str, Any], None]]:
+        initial_message = ChatMessage(role="user", content=instruction); starting_agent = self.swarm.agents.get("Morpheus")
+        if not starting_agent: logger.error("Morpheus agent not found!"); return Response(messages=[ChatMessage(role="system", content="Error: Starting agent Morpheus not registered.")]) if not stream else self._stream_error("Starting agent Morpheus not registered.")
+        logger.info(f"Starting run: '{instruction}'"); return await self.swarm.run(agent=starting_agent, messages=[initial_message.model_dump(exclude_none=True)], stream=stream, debug=self.debug)
 
-        agents: Dict[str, Agent] = {}
+    async def _stream_error(self, error_msg: str):
+        yield {"error": error_msg}
 
-        morpheus_instructions = (
-            "You are Morpheus, the central coordinator and memory manager for this sysadmin environment.\n\n"
-            "1) **Delegation & Coordination**:\n"
-            "   - Your primary function is to receive requests from the user and delegate them to the correct agent. "
-            "   - You do not execute actual sysadmin tasks yourself; instead, you make sure they go to the right specialist.\n\n"
-            "2) **Persistent Memory**:\n"
-            "   - You maintain a historical record of previous commands, configurations, and relevant logs in your memory.\n"
-            "   - On each request, you should consult your memory to provide context or insights from past sessions.\n"
-            "   - If new system changes or configurations occur, you store them in memory for future reference.\n\n"
-            "3) **Best Practices**:\n"
-            "   - Always confirm you understand a request before assigning it to an agent.\n"
-            "   - Log relevant details (task type, time of request, and outcomes) in memory.\n"
-            "   - If a request involves multiple steps or agents, carefully orchestrate them in the correct order.\n\n"
-            "4) **When to Delegate**:\n"
-            "   - Filesystem tasks → Trinity\n"
-            "   - Shell commands → Neo\n"
-            "   - Searches & doc retrieval → Oracle\n"
-            "   - Database ops → Cypher\n"
-            "   - Software install or package deployment → Tank\n"
-            "   - Always gather results and return control to yourself after completion."
-        )
-        agents["Morpheus"] = Agent(
-            name="Morpheus",
-            instructions=morpheus_instructions,
-            mcp_servers=["memory"],
-            env_vars={},
-        )
-
-        trinity_instructions = (
-            "You are Trinity, the specialist for filesystem operations.\n\n"
-            "1) **Scope**:\n"
-            "   - Managing files and directories within the ALLOWED_PATH environment variable.\n"
-            "   - Creating, modifying, reading, and deleting files.\n\n"
-            "2) **Security & Limitations**:\n"
-            "   - You must ensure you do NOT access paths outside the allowed scope.\n"
-            "   - Always check that the requested path is permitted before proceeding.\n\n"
-            "3) **Implementation Details**:\n"
-            "   - If a file or directory is missing, handle it gracefully (e.g. create if needed).\n"
-            "   - Provide relevant feedback or error messages to Morpheus.\n\n"
-            "4) **Logging & Reporting**:\n"
-            "   - After each operation, briefly describe what was done (files created, updated, removed, etc.).\n"
-            "   - Return control back to Morpheus for final reporting or next steps."
-        )
-        agents["Trinity"] = Agent(
-            name="Trinity",
-            instructions=trinity_instructions,
-            mcp_servers=["filesystem"],
-            env_vars={"ALLOWED_PATH": allowed_paths},
-        )
-
-        neo_instructions = (
-            "You are Neo, the agent responsible for executing shell commands.\n\n"
-            "1) **Scope**:\n"
-            "   - You run scripts or direct shell commands as requested. "
-            "   - This includes admin commands, system utilities, or any script within reason.\n\n"
-            "2) **Security & Best Practices**:\n"
-            "   - Be mindful of potential harmful commands (rm -rf, etc.) and confirm them if necessary.\n"
-            "   - If a command requires elevated privileges or specialized flags, note that to Morpheus.\n\n"
-            "3) **Command Execution Process**:\n"
-            "   - Receive the command from Morpheus.\n"
-            "   - Execute it in a controlled manner, capturing stdout and stderr.\n"
-            "   - Provide the results back to Morpheus, including exit codes and any output.\n\n"
-            "4) **Use Cases**:\n"
-            "   - System updates, process management, basic networking tasks, logs retrieval.\n"
-            "   - Utility scripts that don't require direct file manipulation (that's Trinity's domain).\n\n"
-            "5) **Reporting**:\n"
-            "   - After each command, summarize what was done and any output or errors.\n"
-            "   - Return control to Morpheus for logging in memory or further tasks."
-        )
-        agents["Neo"] = Agent(
-            name="Neo",
-            instructions=neo_instructions,
-            mcp_servers=["mcp-shell"],
-        )
-
-        oracle_instructions = (
-            "You are Oracle, the agent responsible for obtaining information from external resources.\n\n"
-            "1) **Scope**:\n"
-            "   - Perform web searches using Brave Search.\n"
-            "   - Retrieve documentation or reference materials via rag-docs.\n\n"
-            "2) **Query Handling**:\n"
-            "   - Receive a query from Morpheus specifying the topic or keyword.\n"
-            "   - Determine the best approach: web search or doc retrieval.\n"
-            "   - Collect the most relevant info, focusing on clarity and correctness.\n\n"
-            "3) **Best Practices**:\n"
-            "   - Summarize findings in a concise manner, highlighting the key points.\n"
-            "   - Provide original source links or doc references if available.\n"
-            "   - Avoid unnecessary large data dumps—be succinct and direct.\n\n"
-            "4) **Data Validation**:\n"
-            "   - If the results conflict, investigate further or indicate uncertainty.\n"
-            "   - Where possible, cross-check multiple sources or documents.\n\n"
-            "5) **Reporting**:\n"
-            "   - Present the query results to Morpheus, who logs them in memory if needed.\n"
-            "   - Return control to Morpheus for potential follow-up queries."
-        )
-        agents["Oracle"] = Agent(
-            name="Oracle",
-            instructions=oracle_instructions,
-            mcp_servers=["brave-search", "rag-docs"],
-            env_vars={"BRAVE_API_KEY": brave_api_key},
-        )
-
-        cypher_instructions = (
-            "You are Cypher, the agent in charge of handling structured data and database operations.\n\n"
-            "1) **Database Scope**:\n"
-            "   - Interact with an SQLite database to store or retrieve structured information.\n"
-            "   - Manage table creation, data insertion, updates, queries, and schema modifications.\n\n"
-            "2) **Security & Reliability**:\n"
-            "   - Carefully validate SQL statements to avoid unintended data loss or injection.\n"
-            "   - If user input is involved, consider the risk of SQL injection.\n\n"
-            "3) **Implementation Details**:\n"
-            "   - Check if tables exist before insertion; if not, create them.\n"
-            "   - Use transactions where appropriate, rolling back on error.\n\n"
-            "4) **Data Model**:\n"
-            "   - Maintain well-organized schemas to keep the data consistent and easily queryable.\n"
-            "   - Provide Morpheus with summarized query results or row counts.\n\n"
-            "5) **Reporting**:\n"
-            "   - After each DB operation, detail what changed (new rows, updated columns, etc.).\n"
-            "   - Return control to Morpheus with any significant results or error messages."
-        )
-        agents["Cypher"] = Agent(
-            name="Cypher",
-            instructions=cypher_instructions,
-            mcp_servers=["sqlite"],
-            env_vars={"SQLITE_DB_PATH": sqlite_db_path},
-        )
-
-        tank_instructions = (
-            "You are Tank, the agent responsible for software installations, package deployments, and environment setup.\n\n"
-            "1) **Scope**:\n"
-            "   - Install new software packages, manage upgrades, and configure deployed apps.\n"
-            "   - Work with OS-level package managers (apt, yum, brew, etc.), plus specialized installers if needed.\n\n"
-            "2) **Security & Verification**:\n"
-            "   - Verify package integrity and sources before installing (e.g., checksums, official repos).\n"
-            "   - If a user requests something potentially risky, confirm with Morpheus.\n\n"
-            "3) **Configuration & Setup**:\n"
-            "   - Some installations require environment variables or config files. Prompt Morpheus for missing details.\n"
-            "   - Post-install steps might include setting up services, daemons, or custom scripts.\n\n"
-            "4) **Rollback Plans**:\n"
-            "   - If an installation fails, attempt to revert changes and restore the previous state.\n\n"
-            "5) **Reporting**:\n"
-            "   - Summarize what was installed, version numbers, and any logs from the process.\n"
-            "   - Return control to Morpheus so new environment data can be stored in memory."
-        )
-        agents["Tank"] = Agent(
-            name="Tank",
-            instructions=tank_instructions,
-            mcp_servers=["mcp-installer"],
-        )
-
-        def handoff_to_trinity():
-            return agents["Trinity"]
-
-        def handoff_to_neo():
-            return agents["Neo"]
-
-        def handoff_to_oracle():
-            return agents["Oracle"]
-
-        def handoff_to_cypher():
-            return agents["Cypher"]
-
-        def handoff_to_tank():
-            return agents["Tank"]
-
-        def handoff_back_to_morpheus():
-            return agents["Morpheus"]
-
-        agents["Morpheus"].functions = [
-            handoff_to_trinity,
-            handoff_to_neo,
-            handoff_to_oracle,
-            handoff_to_cypher,
-            handoff_to_tank,
-        ]
-
-        for name in ["Trinity", "Neo", "Oracle", "Cypher", "Tank"]:
-            agents[name].functions = [handoff_back_to_morpheus]
-
-        self.set_starting_agent(agents["Morpheus"])
-        logger.debug(f"Agents registered: {list(agents.keys())}")
-        return agents
-
+# --- Main execution block ---
 if __name__ == "__main__":
-    NebuchaShellzzarBlueprint.main()
+    parser = argparse.ArgumentParser(description="Run NebulaShellzzar Blueprint"); parser.add_argument('--instruction', type=str); parser.add_argument('--auto-complete-task', action='store_true'); parser.add_argument('--config', type=str); parser.add_argument('--debug', action='store_true'); parser.add_argument('--use-markdown', action='store_true', help="Enable markdown output."); args = parser.parse_args()
+
+    config_loader_logger = logging.getLogger('swarm.extensions.config.config_loader')
+    if not args.debug: config_loader_logger.setLevel(logging.ERROR)
+
+    try:
+        blueprint = NebuchaShellzzarBlueprint(config_file=args.config, debug=args.debug)
+        blueprint.use_markdown = args.use_markdown
+    except Exception as init_error: print(f"Failed init: {init_error}"); logger.exception("Init failed."); sys.exit(1)
+
+    if args.auto_complete_task:
+        if not args.instruction: print("Error: --instruction required."); sys.exit(1)
+        print("--- Non-Interactive Mode ---")
+        try:
+            final_response = asyncio.run(blueprint.run(args.instruction, stream=False))
+            if isinstance(final_response, Response):
+                messages_as_dicts = [msg.model_dump(exclude_none=True) for msg in final_response.messages]
+                pretty_print_response(messages=messages_as_dicts, use_markdown=False, spinner=getattr(blueprint, 'spinner', None))
+            else: print(f"Error: Invalid response type: {type(final_response)}")
+        except Exception as e: print(f"Critical Error: {e}"); logger.exception("Run failed."); sys.exit(1)
+        sys.exit(0)
+    else:
+        print("--- Interactive Mode ---")
+        # Pass stream flag if needed, default False
+        asyncio.run(blueprint.interactive_mode(stream=args.use_markdown))
+
