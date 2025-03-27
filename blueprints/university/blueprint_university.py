@@ -11,14 +11,21 @@ import logging
 import json
 import jmespath
 from typing import Dict, Any, List, Tuple, Optional
+import asyncio
+
+# --- Apply nest_asyncio patch ---
+import nest_asyncio
+nest_asyncio.apply()
+# ---------------------------------
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# Configure logger if needed
 if not logger.handlers:
     stream_handler = logging.StreamHandler(sys.stderr)
     formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s")
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
+    # logger.setLevel(logging.DEBUG)
 
 try:
     import django
@@ -29,38 +36,33 @@ try:
 except Exception as e:
     logger.warning(f"Django setup failed: {e}. Proceeding without Django context.")
 
-from swarm.types import Agent
+from swarm.types import Agent, Response, ChatMessage
 from swarm.extensions.blueprint.blueprint_base import BlueprintBase as Blueprint
-# Ensure model_queries functions are correctly imported
+from asgiref.sync import sync_to_async # Import sync_to_async here as well
+
+# Ensure model_queries functions are correctly imported (async versions)
 from blueprints.university.model_queries import (
     search_courses, search_students, search_teaching_units, search_topics,
     search_learning_objectives, search_subtopics, search_enrollments,
     search_assessment_items, extended_comprehensive_search, comprehensive_search
 )
 
-# Attempt to import models with error handling for Django setup issues
+# Attempt to import models
 try:
     from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
+    MODELS_AVAILABLE = True
 except Exception as e:
-    # Catch potential Django AppRegistryNotReady error
     from django.core.exceptions import AppRegistryNotReady
     if isinstance(e, AppRegistryNotReady):
-        logger.warning("Django AppRegistryNotReady caught. Attempting django.setup() again.")
-        try:
-            import django
-            django.setup()
-            # Retry import after setup
-            from blueprints.university.models import Topic, LearningObjective, Subtopic, Course, TeachingUnit
-        except Exception as e2:
-            logger.error(f"Django models still unavailable after retry: {e2}. Running without database access.")
-            Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
+        logger.warning("Django AppRegistryNotReady caught during model import. Setup might be incomplete.")
     else:
         logger.error(f"Failed to import Django models: {e}. Running without database access.")
-        Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
+    Topic = LearningObjective = Subtopic = Course = TeachingUnit = None
+    MODELS_AVAILABLE = False
+
 
 class UniversitySupportBlueprint(Blueprint):
     def register_blueprint_urls(self):
-        # Placeholder: Implement Django URL registration if needed by this blueprint
         logger.debug("UniversitySupportBlueprint: register_blueprint_urls called (no-op)")
         pass
 
@@ -69,9 +71,9 @@ class UniversitySupportBlueprint(Blueprint):
         return {
             "title": "University Support System",
             "description": "A multi-agent system for university support, using LLM-driven responses, SQLite tools, and Canvas metadata with graceful failure.",
-            "required_mcp_servers": ["sqlite"], # Assuming sqlite is handled via Django ORM
+            "required_mcp_servers": [],
             "cli_name": "uni",
-            "env_vars": ["SQLITE_DB_PATH", "SUPPORT_EMAIL"], # SQLITE_DB_PATH might be implicit via Django settings
+            "env_vars": ["SUPPORT_EMAIL"],
             "django_modules": {
                 "models": "blueprints.university.models",
                 "views": "blueprints.university.views",
@@ -81,308 +83,251 @@ class UniversitySupportBlueprint(Blueprint):
             "url_prefix": "v1/university/"
         }
 
-    def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
-        # Ensure context variables are updated before calling super() or running logic
-        logger.debug(f"Running UniversitySupportBlueprint with context. Messages: {len(messages)}, Context keys: {list(context_variables.keys())}")
-        try:
-            if not isinstance(messages, list):
-                logger.error(f"Invalid messages type: {type(messages)}. Expected list.")
-                raise ValueError("Messages must be a list")
-            if not isinstance(context_variables, dict):
-                logger.error(f"Invalid context_variables type: {type(context_variables)}. Expected dict.")
-                raise ValueError("context_variables must be a dictionary")
-
-            # Extract metadata and update context *before* potentially calling super().run_with_context
-            channel_id, user_name = self.extract_metadata(context_variables, messages)
-            context_variables["channel_id"] = channel_id
-            context_variables["user_name"] = user_name
-            logger.debug(f"Updated context variables: channel_id={channel_id}, user_name={user_name}")
-
-            # Now call the parent class's run_with_context, passing the updated context
-            result = super().run_with_context(messages, context_variables)
-            logger.debug(f"super().run_with_context completed successfully, result type: {type(result)}")
-            return result
-        except Exception as e:
-            logger.error(f"Failed in UniversitySupportBlueprint run_with_context: {str(e)}", exc_info=True)
-            # Return a structured error response
-            return {"error": f"Failed to process request: {str(e)}"}
-
     def extract_metadata(self, context_variables: dict, messages: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
-        """Extract channel_id and user_name with robust fallback."""
-        logger.debug(f"Extracting metadata. Context: {json.dumps(context_variables, indent=2) if context_variables else 'None'}")
+        logger.debug(f"Extracting metadata. Context keys: {list(context_variables.keys()) if context_variables else 'None'}")
         channel_id: Optional[str] = None
         user_name: Optional[str] = None
-
         try:
             payload = context_variables or {}
-            # Attempt to extract from top-level context first
-            channel_id = jmespath.search("metadata.channelInfo.channelId", payload)
-            user_name = jmespath.search("metadata.userInfo.userName", payload)
-            logger.debug(f"JMESPath search results: channel_id={channel_id}, user_name={user_name}")
-
-            # Fallback to searching messages if not found in context
-            if (channel_id is None or user_name is None) and messages and isinstance(messages, list):
-                logger.debug("Metadata not fully found in context, searching messages...")
-                for message in reversed(messages): # Search recent messages first
-                    if not isinstance(message, dict): continue
-
-                    # Example: Check tool calls for specific arguments
-                    if message.get("role") == "assistant" and "tool_calls" in message:
-                        for tool_call in message.get("tool_calls", []):
-                            if not isinstance(tool_call, dict) or tool_call.get("type") != "function": continue
-                            func_name = tool_call.get("function", {}).get("name")
-                            try:
-                                args = json.loads(tool_call["function"].get("arguments", "{}"))
-                                if channel_id is None and func_name == "get_learning_objectives": # Example function name
-                                    channel_id = args.get("channelId", channel_id)
-                                    if channel_id: logger.debug(f"Extracted channel_id from tool call: {channel_id}")
-                                if user_name is None and func_name == "get_student_metadata": # Example function name
-                                    user_name = args.get("username", user_name)
-                                    if user_name: logger.debug(f"Extracted user_name from tool call: {user_name}")
-                            except (json.JSONDecodeError, KeyError, TypeError) as e:
-                                logger.warning(f"Failed to parse args or extract metadata from tool call ({func_name}): {e}")
-                    # Stop searching if both found
-                    if channel_id is not None and user_name is not None:
-                        break
-
-            logger.debug(f"Final extracted metadata: channel_id={channel_id}, user_name={user_name}")
-            return channel_id, user_name
+            channel_id = jmespath.search("metadata.channelInfo.channelId", payload) or jmespath.search("channel_id", payload)
+            user_name = jmespath.search("metadata.userInfo.userName", payload) or jmespath.search("user_name", payload)
+            logger.debug(f"Initial metadata extraction: channel_id={channel_id}, user_name={user_name}")
+            # Add fallback logic if needed
         except Exception as e:
             logger.error(f"Metadata extraction failed unexpectedly: {str(e)}", exc_info=True)
-            return None, None # Return None on error
+        logger.debug(f"Final extracted metadata: channel_id={channel_id}, user_name={user_name}")
+        return channel_id, user_name
 
-    def get_teaching_prompt(self, channel_id: Optional[str]) -> str:
-        """Retrieve teaching prompt for units, handling potential None channel_id."""
-        logger.debug(f"Fetching teaching prompt for channel_id: {channel_id}")
+    async def get_teaching_prompt(self, channel_id: Optional[str]) -> str:
+        logger.debug(f"Async fetching teaching prompt for channel_id: {channel_id}")
         prompt_parts = []
         try:
-            # Ensure channel_id is str or None
             if not isinstance(channel_id, (str, type(None))):
                 logger.warning(f"Invalid channel_id type: {type(channel_id)}. Using None.")
                 channel_id = None
 
-            # Use the imported search function
-            units = search_teaching_units(channel_id=channel_id) # Pass explicitly
-            logger.debug(f"Search results for channel_id '{channel_id}': {len(units)} units")
-
-            if not units: # If no units found for the specific channel_id, try with None
-                 logger.debug(f"No units found for channel_id '{channel_id}', trying channel_id=None")
-                 units = search_teaching_units(channel_id=None)
-                 logger.debug(f"Search results for channel_id=None: {len(units)} units")
-
-            # If still no units, maybe fetch all as a last resort (or return specific message)
-            if not units and TeachingUnit and hasattr(TeachingUnit, 'objects'):
-                 logger.debug("No units found for specific or None channel_id, fetching all units.")
-                 units_qs = TeachingUnit.objects.all().values("id", "name", "teaching_prompt")
-                 units = list(units_qs) # Convert QuerySet to list of dicts
-                 logger.debug(f"Fetched all units: {len(units)} units")
-
-
+            units = await search_teaching_units(channel_id=channel_id)
             if not units:
-                 return "No teaching units found for this context."
+                 units = await search_teaching_units(channel_id=None)
+
+            if not units and MODELS_AVAILABLE:
+                 @sync_to_async
+                 def get_all_units_sync():
+                      return list(TeachingUnit.objects.all().values("id", "name", "teaching_prompt"))
+                 try:
+                      units = await get_all_units_sync()
+                      logger.debug(f"Fetched all units as fallback: {len(units)} units")
+                 except Exception as db_err:
+                      logger.error(f"Error fetching all teaching units: {db_err}")
+                      units = [{"error": str(db_err)}]
+
+
+            if not units: return "No teaching units found for this context."
 
             for unit in units:
-                 if isinstance(unit, dict) and unit.get("teaching_prompt"):
+                 if isinstance(unit, dict) and 'error' in unit:
+                      logger.error(f"Error retrieving teaching unit data: {unit['error']}")
+                 elif isinstance(unit, dict) and unit.get("teaching_prompt"):
                      prompt_parts.append(f"- **Teaching Unit ({unit.get('name', 'Unnamed')}):** {unit['teaching_prompt']}")
-                 elif isinstance(unit, dict):
-                     logger.debug(f"Teaching unit '{unit.get('name', 'Unnamed')}' has no teaching_prompt.")
-                 else:
-                      logger.warning(f"Skipping invalid unit data: {unit}")
 
             final_prompt = "\n".join(prompt_parts) if prompt_parts else "No specific teaching prompts found for relevant units."
-            logger.debug(f"Constructed teaching prompt:\n{final_prompt}")
+            logger.debug(f"Constructed teaching prompt (preview): {final_prompt[:100]}...")
             return final_prompt
-
         except Exception as e:
             logger.error(f"Failed to fetch teaching prompt: {str(e)}", exc_info=True)
             return "Error: Failed to retrieve teaching prompt."
 
-    def get_related_prompts(self, channel_id: Optional[str]) -> str:
-        """Retrieve related prompts (courses, topics, subtopics), handling potential None channel_id."""
-        logger.debug(f"Fetching related prompts for channel_id: {channel_id}")
+    async def get_related_prompts(self, channel_id: Optional[str]) -> str:
+        logger.debug(f"Async fetching related prompts for channel_id: {channel_id}")
         all_prompts = []
-        teaching_unit_ids = set() # Use set for efficiency
-
+        teaching_unit_ids = set()
         try:
-            if not isinstance(channel_id, (str, type(None))):
-                logger.warning(f"Invalid channel_id type: {type(channel_id)}. Using None.")
-                channel_id = None
+            if not isinstance(channel_id, (str, type(None))): channel_id = None
 
-            # Get relevant teaching units (specific, None, or all as fallback)
-            teaching_units = search_teaching_units(channel_id=channel_id)
-            if not teaching_units:
-                 teaching_units = search_teaching_units(channel_id=None)
-            # Add fallback to all units only if models are available
-            if not teaching_units and TeachingUnit and hasattr(TeachingUnit, 'objects'):
-                 units_qs = TeachingUnit.objects.all().values("id")
-                 teaching_units = list(units_qs)
+            teaching_units = await search_teaching_units(channel_id=channel_id)
+            if not teaching_units: teaching_units = await search_teaching_units(channel_id=None)
 
-            if not teaching_units:
-                 return "No relevant teaching units found to get related prompts."
-
-            # Collect IDs from valid units
+            unit_ids_to_query = set()
             for unit in teaching_units:
-                 if isinstance(unit, dict) and "id" in unit:
-                     teaching_unit_ids.add(unit["id"])
+                if isinstance(unit, dict) and "id" in unit:
+                    unit_ids_to_query.add(unit["id"])
+                elif isinstance(unit, dict) and 'error' in unit:
+                    logger.error(f"Error retrieving teaching unit ID: {unit['error']}")
 
-            if not teaching_unit_ids:
-                return "No valid teaching unit IDs found."
-
-            logger.debug(f"Processing related prompts for teaching unit IDs: {teaching_unit_ids}")
-
-            # Fetch related items based on collected unit IDs
-            related_courses = []
-            if Course and hasattr(Course, 'objects'):
+            # Fallback if no specific units found
+            if not unit_ids_to_query and MODELS_AVAILABLE:
+                 @sync_to_async
+                 def get_all_unit_ids_sync():
+                      return list(TeachingUnit.objects.all().values_list("id", flat=True))
                  try:
-                     related_courses = Course.objects.filter(teaching_units__id__in=list(teaching_unit_ids)).only("name", "teaching_prompt")
-                     course_prompts = [f"- **Course: {c.name}**: {c.teaching_prompt}" for c in related_courses if c.teaching_prompt]
-                     all_prompts.extend(course_prompts)
-                     logger.debug(f"Found {len(course_prompts)} course prompts.")
-                 except Exception as e:
-                      logger.error(f"Error fetching courses: {e}")
-            else: logger.debug("Course model unavailable.")
+                      unit_ids_to_query.update(await get_all_unit_ids_sync())
+                      logger.debug(f"Using all unit IDs as fallback: {len(unit_ids_to_query)}")
+                 except Exception as db_err:
+                      logger.error(f"Error fetching all teaching unit IDs: {db_err}")
 
-            related_topics = []
-            topic_ids = []
-            if Topic and hasattr(Topic, 'objects'):
+
+            if not unit_ids_to_query: return "No relevant teaching units found to get related prompts."
+
+            @sync_to_async
+            def get_related_data_sync(unit_ids: List[int]):
+                 prompts = []
+                 if not MODELS_AVAILABLE: return prompts
                  try:
-                     related_topics = Topic.objects.filter(teaching_unit__id__in=list(teaching_unit_ids)).only("id", "name", "teaching_prompt")
-                     topic_ids = [t.id for t in related_topics]
-                     topic_prompts = [f"- **Topic: {t.name}**: {t.teaching_prompt}" for t in related_topics if t.teaching_prompt]
-                     all_prompts.extend(topic_prompts)
-                     logger.debug(f"Found {len(topic_prompts)} topic prompts.")
-                 except Exception as e:
-                      logger.error(f"Error fetching topics: {e}")
-            else: logger.debug("Topic model unavailable.")
+                     course_qs = Course.objects.filter(teaching_units__id__in=unit_ids).only("name", "teaching_prompt")
+                     prompts.extend([f"- **Course: {c.name}**: {c.teaching_prompt}" for c in course_qs if c.teaching_prompt])
 
-            if Subtopic and hasattr(Subtopic, 'objects') and topic_ids: # Check if topic_ids were found
-                 try:
-                     related_subtopics = Subtopic.objects.filter(topic_id__in=topic_ids).only("name", "teaching_prompt")
-                     subtopic_prompts = [f"  - **Subtopic: {s.name}**: {s.teaching_prompt}" for s in related_subtopics if s.teaching_prompt]
-                     all_prompts.extend(subtopic_prompts)
-                     logger.debug(f"Found {len(subtopic_prompts)} subtopic prompts.")
-                 except Exception as e:
-                      logger.error(f"Error fetching subtopics: {e}")
-            elif not topic_ids: logger.debug("No topics found, skipping subtopic search.")
-            else: logger.debug("Subtopic model unavailable.")
+                     topic_qs = Topic.objects.filter(teaching_unit__id__in=unit_ids).only("id", "name", "teaching_prompt")
+                     topic_ids = [t.id for t in topic_qs]
+                     prompts.extend([f"- **Topic: {t.name}**: {t.teaching_prompt}" for t in topic_qs if t.teaching_prompt])
 
-            if not all_prompts:
-                return "No related teaching content (courses, topics, subtopics) found."
+                     if topic_ids:
+                         subtopic_qs = Subtopic.objects.filter(topic_id__in=topic_ids).only("name", "teaching_prompt")
+                         prompts.extend([f"  - **Subtopic: {s.name}**: {s.teaching_prompt}" for s in subtopic_qs if s.teaching_prompt])
+                 except Exception as inner_e:
+                      logger.error(f"Error during sync related data fetch: {inner_e}")
+                 return prompts
+
+            try:
+                related_prompts_list = await get_related_data_sync(list(unit_ids_to_query))
+                all_prompts.extend(related_prompts_list)
+            except Exception as e:
+                 logger.error(f"Error awaiting related data fetch: {e}")
+
+            if not all_prompts: return "No related teaching content found."
 
             formatted_prompts = "\n".join(all_prompts)
-            logger.debug(f"Final related prompts:\n{formatted_prompts}")
+            logger.debug(f"Final related prompts (preview): {formatted_prompts[:100]}...")
             return formatted_prompts
-
         except Exception as e:
             logger.error(f"Failed to fetch related prompts: {str(e)}", exc_info=True)
             return "Error: Failed to retrieve related information."
 
-
-    def get_learning_objectives(self, channel_id: Optional[str]) -> str:
-        """Retrieve learning objectives, handling potential None channel_id."""
-        logger.debug(f"Fetching learning objectives for channel_id: {channel_id}")
+    async def get_learning_objectives(self, channel_id: Optional[str]) -> str:
+        logger.debug(f"Async fetching learning objectives for channel_id: {channel_id}")
         teaching_unit_ids = set()
-
         try:
-            if not isinstance(channel_id, (str, type(None))):
-                logger.warning(f"Invalid channel_id type: {type(channel_id)}. Using None.")
-                channel_id = None
+            if not isinstance(channel_id, (str, type(None))): channel_id = None
 
-            # Get relevant teaching units (specific, None, or all)
-            teaching_units = search_teaching_units(channel_id=channel_id)
-            if not teaching_units:
-                teaching_units = search_teaching_units(channel_id=None)
-            if not teaching_units and TeachingUnit and hasattr(TeachingUnit, 'objects'):
-                 units_qs = TeachingUnit.objects.all().values("id")
-                 teaching_units = list(units_qs)
+            teaching_units = await search_teaching_units(channel_id=channel_id)
+            if not teaching_units: teaching_units = await search_teaching_units(channel_id=None)
 
-            if not teaching_units:
-                 return "No relevant teaching units found to get learning objectives."
-
+            unit_ids_to_query = set()
             for unit in teaching_units:
                  if isinstance(unit, dict) and "id" in unit:
-                     teaching_unit_ids.add(unit["id"])
+                     unit_ids_to_query.add(unit["id"])
+                 elif isinstance(unit, dict) and 'error' in unit:
+                     logger.error(f"Error retrieving teaching unit ID for LOs: {unit['error']}")
 
-            if not teaching_unit_ids:
-                return "No valid teaching unit IDs found for learning objectives."
-
-            logger.debug(f"Processing learning objectives for teaching unit IDs: {teaching_unit_ids}")
-
-            # Fetch objectives based on unit IDs
-            learning_objectives_text = []
-            if LearningObjective and Topic and hasattr(LearningObjective, 'objects') and hasattr(Topic, 'objects'):
+            # Fallback if no specific units found
+            if not unit_ids_to_query and MODELS_AVAILABLE:
+                 @sync_to_async
+                 def get_all_unit_ids_sync():
+                      return list(TeachingUnit.objects.all().values_list("id", flat=True))
                  try:
-                     # Find topics linked to the relevant teaching units
-                     topic_ids = list(Topic.objects.filter(teaching_unit__id__in=list(teaching_unit_ids)).values_list('id', flat=True))
-                     if topic_ids:
-                         # Find learning objectives linked to those topics
-                         related_los = LearningObjective.objects.filter(topic_id__in=topic_ids).only("description")
-                         learning_objectives_text = [f"  - **Learning Objective:** {lo.description}" for lo in related_los if lo.description]
-                         logger.debug(f"Found {len(learning_objectives_text)} learning objectives.")
-                     else:
-                         logger.debug("No topics found for the relevant teaching units.")
-                 except Exception as e:
-                      logger.error(f"Error fetching learning objectives: {e}")
-            else:
-                logger.debug("LearningObjective or Topic model unavailable.")
+                      unit_ids_to_query.update(await get_all_unit_ids_sync())
+                      logger.debug(f"Using all unit IDs for LOs as fallback: {len(unit_ids_to_query)}")
+                 except Exception as db_err:
+                      logger.error(f"Error fetching all teaching unit IDs for LOs: {db_err}")
 
-            if not learning_objectives_text:
-                return "No learning objectives found for this context."
+
+            if not unit_ids_to_query: return "No relevant teaching units found to get learning objectives."
+
+            @sync_to_async
+            def get_los_for_units_sync(unit_ids: List[int]):
+                lo_texts = []
+                if not MODELS_AVAILABLE: return lo_texts
+                try:
+                    topic_ids = list(Topic.objects.filter(teaching_unit__id__in=unit_ids).values_list('id', flat=True))
+                    if topic_ids:
+                        related_los = LearningObjective.objects.filter(topic_id__in=topic_ids).only("description")
+                        lo_texts = [f"  - **Learning Objective:** {lo.description}" for lo in related_los if lo.description]
+                except Exception as inner_e:
+                     logger.error(f"Error during sync LO fetch: {inner_e}")
+                return lo_texts
+
+            learning_objectives_text = []
+            try:
+                learning_objectives_text = await get_los_for_units_sync(list(unit_ids_to_query))
+                logger.debug(f"Found {len(learning_objectives_text)} learning objectives.")
+            except Exception as e:
+                 logger.error(f"Error awaiting LO fetch: {e}")
+
+            if not learning_objectives_text: return "No learning objectives found for this context."
 
             formatted_objectives = "\n".join(learning_objectives_text)
-            logger.debug(f"Final learning objectives:\n{formatted_objectives}")
+            logger.debug(f"Final learning objectives (preview): {formatted_objectives[:100]}...")
             return formatted_objectives
-
         except Exception as e:
             logger.error(f"Failed to fetch learning objectives: {str(e)}", exc_info=True)
             return "Error: Failed to retrieve learning objectives."
 
     def create_agents(self) -> Dict[str, Agent]:
-        """Create agents with instructions dynamically fetching context."""
         logger.debug("Creating agents for UniversitySupportBlueprint")
         agents = {}
-        support_email = os.getenv("SUPPORT_EMAIL", "support@example.com") # Use a default placeholder
+        support_email = os.getenv("SUPPORT_EMAIL", "support@example.com")
 
-        # Define handoff functions (which are AgentFunctions)
         def handoff_to_support() -> Agent:
             logger.debug("Handoff to SupportAgent initiated")
-            return agents.get("SupportAgent", agents["TriageAgent"]) # Fallback to Triage
+            return agents.get("SupportAgent", agents["TriageAgent"])
 
         def handoff_to_learning() -> Agent:
             logger.debug("Handoff to LearningAgent initiated")
-            return agents.get("LearningAgent", agents["TriageAgent"]) # Fallback to Triage
+            return agents.get("LearningAgent", agents["TriageAgent"])
 
         def handoff_to_triage() -> Agent:
             logger.debug("Handoff back to TriageAgent initiated")
             return agents["TriageAgent"]
 
-        # Base instructions (static part)
-        base_instructions = (
-            "You are a university support agent. Use the context provided below (teaching prompts, related content, learning objectives) "
-            "which is dynamically retrieved based on the current conversation channel. Greet the user by name (context variable 'user_name') if available. "
-            "Answer questions comprehensively using all available sections. If a section is missing, rely on others. "
-            "Respond professionally without contractions (e.g., use 'do not' instead of 'don't')."
-        )
-
-        # Dynamic instruction builder using context
-        def build_instructions(agent_specific_instructions: str, context: dict) -> str:
-            channel_id = context.get('channel_id') # Get channel_id from context passed by Swarm/BlueprintBase
-            user_name = context.get('user_name') # Get user_name
+        async def build_instructions_async(agent_specific_instructions: str, context: dict) -> str:
+            channel_id, user_name = self.extract_metadata(context, [])
             greeting = f"Hello {user_name}. " if user_name else ""
+            try:
+                # Gather async results concurrently
+                teaching_prompt, related_prompts, learning_objectives = await asyncio.gather(
+                    self.get_teaching_prompt(channel_id),
+                    self.get_related_prompts(channel_id),
+                    self.get_learning_objectives(channel_id),
+                    return_exceptions=True # Return exceptions instead of raising immediately
+                )
 
-            teaching_prompt = self.get_teaching_prompt(channel_id)
-            related_prompts = self.get_related_prompts(channel_id)
-            learning_objectives = self.get_learning_objectives(channel_id)
+                # Handle potential errors from gather
+                if isinstance(teaching_prompt, Exception):
+                     logger.error(f"Error getting teaching prompt for instructions: {teaching_prompt}")
+                     teaching_prompt = "[Error retrieving teaching prompt]"
+                if isinstance(related_prompts, Exception):
+                     logger.error(f"Error getting related prompts for instructions: {related_prompts}")
+                     related_prompts = "[Error retrieving related prompts]"
+                if isinstance(learning_objectives, Exception):
+                     logger.error(f"Error getting learning objectives for instructions: {learning_objectives}")
+                     learning_objectives = "[Error retrieving learning objectives]"
 
-            return (
-                f"{greeting}{agent_specific_instructions}\n\n"
-                f"**Base Instructions:**\n{base_instructions}\n\n"
-                f"**Teaching Prompts:**\n{teaching_prompt}\n\n"
-                f"**Related Content (Courses, Topics, Subtopics):**\n{related_prompts}\n\n"
-                f"**Learning Objectives:**\n{learning_objectives}"
+            except Exception as gather_err:
+                 logger.error(f"Unexpected error during asyncio.gather in build_instructions_async: {gather_err}")
+                 teaching_prompt = "[Error gathering context]"
+                 related_prompts = "[Error gathering context]"
+                 learning_objectives = "[Error gathering context]"
+
+
+            base_instructions = (
+               "You are a university support agent. Use the context provided below (teaching prompts, related content, learning objectives) "
+               "which is dynamically retrieved based on the current conversation channel. Greet the user by name if available. "
+               "Answer questions comprehensively using all available sections. If a section is missing, rely on others. "
+               "Respond professionally without contractions (e.g., use 'do not' instead of 'don't')."
             )
 
-        # Triage Agent Definition
+            full_prompt = (
+                f"{greeting}{agent_specific_instructions}\n\n"
+                f"**Base Instructions:**\n{base_instructions}\n\n"
+                f"**Context for Channel '{channel_id or 'Default'}':**\n"
+                f"Teaching Prompts:\n{teaching_prompt}\n\n"
+                f"Related Content (Courses, Topics, Subtopics):\n{related_prompts}\n\n"
+                f"Learning Objectives:\n{learning_objectives}"
+            )
+            # logger.debug(f"Built instructions preview: {full_prompt[:200]}...")
+            return full_prompt
+
+        # --- Agent Definitions ---
+        # Use the asyncio.run wrapper within the lambda, now enabled by nest_asyncio
         triage_instructions_specific = (
             "You are TriageAgent, the coordinator. Analyze queries and metadata. "
             f"For complex/urgent issues or requests for human help, respond with 'Contact {support_email}'. "
@@ -393,19 +338,12 @@ class UniversitySupportBlueprint(Blueprint):
         )
         agents["TriageAgent"] = Agent(
             name="TriageAgent",
-            instructions=lambda context: build_instructions(triage_instructions_specific, context),
-            functions=[ # Handoffs are functions
-                handoff_to_support,
-                handoff_to_learning,
-            ],
-            tools=[ # Database searches are tools
-                search_courses,
-                search_teaching_units
-            ]
-            # mcp_servers can be added if needed, e.g., for memory
+            instructions=lambda context: asyncio.run(build_instructions_async(triage_instructions_specific, context)),
+            functions=[ handoff_to_support, handoff_to_learning ],
+            tools=[ search_courses, search_teaching_units ], # Async tools
+            model="default"
         )
 
-        # Support Agent Definition
         support_instructions_specific = (
             "You are SupportAgent. Handle general queries (courses, schedules, students, enrollments) using your tools. "
             "If data is missing, provide general advice based on the context below. "
@@ -414,18 +352,15 @@ class UniversitySupportBlueprint(Blueprint):
         )
         agents["SupportAgent"] = Agent(
             name="SupportAgent",
-            instructions=lambda context: build_instructions(support_instructions_specific, context),
-            functions=[ # Handoffs
-                handoff_to_triage,
-                handoff_to_learning,
-            ],
-            tools=[ # Database searches
+            instructions=lambda context: asyncio.run(build_instructions_async(support_instructions_specific, context)),
+            functions=[ handoff_to_triage, handoff_to_learning ],
+            tools=[
                 search_courses, search_teaching_units, search_students,
                 search_enrollments, search_assessment_items, comprehensive_search
-            ]
+            ], # Async tools
+             model="default"
         )
 
-        # Learning Agent Definition
         learning_instructions_specific = (
             "You are LearningAgent. Specialize in learning objectives and assessments using your tools. "
             "Delegate general academic queries using handoff_to_support(). "
@@ -433,26 +368,29 @@ class UniversitySupportBlueprint(Blueprint):
         )
         agents["LearningAgent"] = Agent(
             name="LearningAgent",
-            instructions=lambda context: build_instructions(learning_instructions_specific, context),
-            functions=[ # Handoffs
-                handoff_to_triage,
-                handoff_to_support,
-            ],
-            tools=[ # Database searches
+            instructions=lambda context: asyncio.run(build_instructions_async(learning_instructions_specific, context)),
+            functions=[ handoff_to_triage, handoff_to_support ],
+            tools=[
                 search_learning_objectives, search_topics, search_subtopics,
                 extended_comprehensive_search
-            ]
+            ], # Async tools
+             model="default"
         )
 
-        logger.info("Agents created: TriageAgent, SupportAgent, LearningAgent")
+        logger.info(f"Agents created: {list(agents.keys())}")
         self.set_starting_agent(agents["TriageAgent"])
         return agents
 
+
+# --- Main Execution Block ---
 if __name__ == "__main__":
-    logger.info("Running UniversitySupportBlueprint main...")
+    # This block is executed only when the script is run directly
+    logger.info("Running UniversitySupportBlueprint main (script execution)...")
     try:
-        # Instantiate and run using the class method
+        # BlueprintBase.main() handles argument parsing, setup, and running
         UniversitySupportBlueprint.main()
         logger.info("UniversitySupportBlueprint main finished.")
     except Exception as e:
         logger.critical(f"Error running UniversitySupportBlueprint.main: {e}", exc_info=True)
+        print(f"Critical Error in __main__: {e}", file=sys.stderr)
+
