@@ -1,260 +1,303 @@
-"""
-Utilities for MCP server interactions in the Swarm framework.
-Handles discovery and merging of tools and resources from MCP servers.
-"""
-
+import os
+import json
+import httpx
+import asyncio
 import logging
-from typing import List, Dict, Any, Optional, cast
-import asyncio # Needed for async operations
+from typing import List, Dict, Optional, Any, Tuple
+import cachetools.func
+import anyio
 
-# Import necessary types from the core swarm types
-from swarm.types import Agent, AgentFunction
-# Import the MCPToolProvider which handles communication with MCP servers
-from .mcp_tool_provider import MCPToolProvider
+# Import needed function from config_loader
+from ..config.config_loader import get_server_params
 
-# Configure module-level logging
+# --- FIX: Import FunctionDefinition instead of FunctionProperty ---
+from ...types import Agent, ToolDefinition, FunctionDefinition
+
+from .mcp_constants import MCP_SEPARATOR, MCP_DEFAULT_PORT
+from ...utils.log_utils import mcp_log_filter
+from ...utils.redact import redact_sensitive_data
+
+# Apply the filter to the logger
 logger = logging.getLogger(__name__)
-# Ensure logger level is set appropriately (e.g., DEBUG for development)
-# logger.setLevel(logging.DEBUG) # Uncomment for verbose logging
-# Add handler if not already configured by root logger setup
-if not logger.handlers:
-    stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s:%(lineno)d - %(message)s")
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
+logger.addFilter(mcp_log_filter)
 
-# Dictionary to manage locks for concurrent discovery per agent (optional)
-# _discovery_locks: Dict[str, asyncio.Lock] = {}
+# Cache for discovered tools to avoid repeated lookups
+@cachetools.func.ttl_cache(maxsize=128, ttl=300)
+async def _discover_tools_cached(agent_name: str, server_list_tuple: Tuple[str, ...], config_json_string: str) -> Dict[str, ToolDefinition]:
+    """Cached async function to discover tools from MCP servers."""
+    logger.debug(f"Cache miss or expired for tool discovery: Agent '{agent_name}', Servers {list(server_list_tuple)}")
+    discovered_tools = {}
+    try:
+        config = json.loads(config_json_string)
+        mcp_server_configs = config.get("mcpServers", {})
 
-async def discover_and_merge_agent_tools(agent: Agent, config: Dict[str, Any], debug: bool = False) -> List[AgentFunction]:
+        async with anyio.create_task_group() as tg:
+            for server_name in server_list_tuple:
+                if server_name not in mcp_server_configs:
+                    logger.warning(f"Configuration for MCP server '{server_name}' not found. Skipping discovery.")
+                    continue
+
+                server_params = get_server_params(mcp_server_configs[server_name], server_name)
+                if not server_params:
+                     logger.error(f"Invalid params for MCP server '{server_name}'. Skipping discovery.")
+                     continue
+
+                port = mcp_server_configs[server_name].get("port", MCP_DEFAULT_PORT)
+                base_url = f"http://127.0.0.1:{port}"
+                tg.start_soon(_discover_single_server, server_name, base_url, discovered_tools)
+
+    except json.JSONDecodeError:
+        logger.exception("Error decoding config JSON string in cached discovery.")
+        return {}
+    except Exception as e:
+        logger.exception(f"Error during cached MCP tool discovery for agent '{agent_name}': {e}")
+        return {}
+
+    logger.debug(f"Finished MCP tool discovery for agent '{agent_name}'. Found {len(discovered_tools)} tools.")
+    return discovered_tools
+
+
+async def _discover_single_server(server_name: str, base_url: str, discovered_tools: Dict[str, ToolDefinition]):
+    """Async helper to discover tools from a single MCP server."""
+    try:
+        async with httpx.AsyncClient(base_url=base_url, timeout=10.0) as client:
+            response = await client.get("/.well-known/openapi.json")
+            response.raise_for_status()
+            openapi_spec = response.json()
+            logger.debug(f"Successfully retrieved OpenAPI spec from {server_name} ({base_url}).")
+            server_tools = parse_openapi_for_tools(openapi_spec, server_name)
+            logger.info(f"Parsed {len(server_tools)} tools from {server_name}.")
+            for tool_name, tool_def in server_tools.items():
+                unique_tool_name = f"{server_name}{MCP_SEPARATOR}{tool_name}"
+                discovered_tools[unique_tool_name] = tool_def
+                logger.debug(f"Discovered tool '{unique_tool_name}' from {server_name}.")
+    except httpx.RequestError as e:
+        logger.error(f"HTTP error discovering tools from {server_name} ({base_url}): {e}")
+    except httpx.HTTPStatusError as e:
+         logger.error(f"HTTP status error discovering tools from {server_name}: {e.response.status_code} - {e.response.text}")
+    except json.JSONDecodeError:
+        logger.error(f"Failed to decode JSON response from {server_name} ({base_url}).")
+    except Exception as e:
+        logger.exception(f"Unexpected error discovering tools from {server_name} ({base_url}): {e}")
+
+
+def parse_openapi_for_tools(openapi_spec: Dict[str, Any], server_name: str) -> Dict[str, ToolDefinition]:
+    """Parses an OpenAPI spec and returns a dictionary of ToolDefinitions."""
+    tools = {}
+    paths = openapi_spec.get("paths", {})
+    for path, path_item in paths.items():
+        for method, operation in path_item.items():
+            if method.lower() != "post": continue
+
+            operation_id = operation.get("operationId")
+            summary = operation.get("summary")
+            description = operation.get("description", summary or "")
+
+            if not operation_id:
+                operation_id = f"{path.strip('/').replace('/', '_')}_{method}".lower()
+                logger.warning(f"Operation at '{path}' ({method}) missing operationId. Generated: '{operation_id}'.")
+
+            parameters_schema = {"type": "object", "properties": {}, "required": []}
+            request_body = operation.get("requestBody")
+            if request_body and "content" in request_body:
+                 json_schema = request_body["content"].get("application/json", {}).get("schema")
+                 if json_schema:
+                     if "properties" in json_schema and isinstance(json_schema["properties"], dict):
+                        parameters_schema["properties"] = json_schema.get("properties", {})
+                        parameters_schema["required"] = json_schema.get("required", [])
+                     else:
+                         logger.warning(f"Schema for {operation_id} ({server_name}) found but is not a standard object schema with properties. Assuming no parameters.")
+
+            # --- FIX: Use FunctionDefinition ---
+            function_def = FunctionDefinition(
+                name=operation_id,
+                description=description,
+                parameters=parameters_schema
+            )
+            tools[operation_id] = ToolDefinition(type="function", function=function_def)
+
+    return tools
+
+
+async def discover_tools_for_agent(agent: Agent, config: Dict[str, Any]) -> List[ToolDefinition]:
     """
-    Discover tools from MCP servers listed in the agent's config and merge
-    them with the agent's statically defined functions.
-
-    Handles deduplication of discovered tools based on name.
-
-    Args:
-        agent: The agent instance for which to discover tools.
-        config: The main Swarm configuration dictionary containing MCP server details.
-        debug: If True, enable detailed debugging logs.
-
-    Returns:
-        List[AgentFunction]: A combined list containing the agent's static functions
-                             and unique tools discovered from its associated MCP servers.
-                             Returns the agent's static functions if no MCP servers are defined.
-                             Returns an empty list if the agent is None.
+    Discovers available tools for a given agent, combining static and dynamic (MCP) tools.
+    Handles potential errors during MCP discovery gracefully.
     """
-    if not agent:
-        logger.error("Cannot discover tools: Agent object is None.")
-        return []
-    # Use agent's name for logging clarity
-    agent_name = getattr(agent, "name", "UnnamedAgent")
+    logger.debug(f"Starting tool discovery for agent '{agent.name}'.")
+    static_tools_dict: Dict[str, ToolDefinition] = {}
+    if hasattr(agent, 'functions') and agent.functions:
+        for func in agent.functions:
+            if callable(func):
+                tool_name = func.__name__
+                docstring = func.__doc__ or f"Executes the {tool_name} function."
+                params = {"type": "object", "properties": {}} # Placeholder
+                # --- FIX: Use FunctionDefinition ---
+                static_tools_dict[tool_name] = ToolDefinition(
+                    type="function",
+                    function=FunctionDefinition(name=tool_name, description=docstring.strip(), parameters=params)
+                )
+    logger.debug(f"[DEBUG] Agent '{agent.name}' - Static functions definitions created: {len(static_tools_dict)}")
 
-    logger.debug(f"Starting tool discovery for agent '{agent_name}'.")
-    # Get the list of MCP servers associated with the agent
-    mcp_server_names = getattr(agent, "mcp_servers", [])
 
-    # Retrieve the agent's statically defined functions
-    static_functions = getattr(agent, "functions", []) or []
-    if not isinstance(static_functions, list):
-         logger.warning(f"Agent '{agent_name}' functions attribute is not a list ({type(static_functions)}). Treating as empty.")
-         static_functions = []
-
-    # If no MCP servers are listed for the agent, return only static functions
-    if not mcp_server_names:
-        func_names = [getattr(f, 'name', getattr(f, '__name__', '<unknown>')) for f in static_functions]
-        logger.debug(f"Agent '{agent_name}' has no MCP servers listed. Returning {len(static_functions)} static functions: {func_names}")
-        return static_functions
-
-    # List to hold tools discovered from all MCP servers
-    all_discovered_tools: List[AgentFunction] = []
-    # Set to keep track of discovered tool names for deduplication
-    discovered_tool_names = set()
-
-    # Iterate through each MCP server listed for the agent
-    for server_name in mcp_server_names:
-        if not isinstance(server_name, str):
-            logger.warning(f"Invalid MCP server name type for agent '{agent_name}': {type(server_name)}. Skipping.")
-            continue
-
-        logger.debug(f"Discovering tools from MCP server '{server_name}' for agent '{agent_name}'.")
-        # Get the configuration for the specific MCP server from the main config
-        server_config = config.get("mcpServers", {}).get(server_name)
-        if not server_config:
-            logger.warning(f"MCP server '{server_name}' configuration not found in main config for agent '{agent_name}'. Skipping.")
-            continue
+    discovered_mcp_tools_dict: Dict[str, ToolDefinition] = {}
+    if agent.mcp_servers:
+        server_list = sorted(list(set(agent.mcp_servers)))
+        server_list_tuple = tuple(server_list)
+        config_str = json.dumps(config, sort_keys=True)
 
         try:
-            # Get an instance of the MCPToolProvider for this server
-            # Timeout can be adjusted based on expected MCP response time
-            provider = MCPToolProvider.get_instance(server_name, server_config, timeout=15, debug=debug)
-            # Call the provider to discover tools (this interacts with the MCP server)
-            discovered_tools_from_server = await provider.discover_tools(agent)
-
-            # Validate the response from the provider
-            if not isinstance(discovered_tools_from_server, list):
-                logger.warning(f"Invalid tools format received from MCP server '{server_name}' for agent '{agent_name}': Expected list, got {type(discovered_tools_from_server)}. Skipping.")
-                continue
-
-            server_tool_count = 0
-            for tool in discovered_tools_from_server:
-                 # Attempt to get tool name for deduplication and logging
-                 tool_name = getattr(tool, 'name', None) # Assuming tool objects have a 'name' attribute
-                 if not tool_name:
-                      logger.warning(f"Discovered tool from '{server_name}' is missing a 'name'. Skipping.")
-                      continue
-
-                 # Deduplication: Add tool only if its name hasn't been seen before
-                 if tool_name not in discovered_tool_names:
-                     # Ensure 'requires_approval' attribute exists (defaulting to True if missing)
-                     if not hasattr(tool, "requires_approval"):
-                         logger.debug(f"Tool '{tool_name}' from '{server_name}' missing 'requires_approval', defaulting to True.")
-                         try:
-                              setattr(tool, "requires_approval", True)
-                         except AttributeError:
-                              logger.warning(f"Could not set 'requires_approval' on tool '{tool_name}'.")
-
-                     all_discovered_tools.append(tool)
-                     discovered_tool_names.add(tool_name)
-                     server_tool_count += 1
-                 else:
-                      logger.debug(f"Tool '{tool_name}' from '{server_name}' is a duplicate. Skipping.")
-
-            tool_names_log = [getattr(t, 'name', '<noname>') for t in discovered_tools_from_server]
-            logger.debug(f"Discovered {server_tool_count} unique tools from '{server_name}': {tool_names_log}")
-
+            discovered_mcp_tools_dict = await _discover_tools_cached(agent.name, server_list_tuple, config_str)
+        except RuntimeError as e:
+            if "cannot reuse already awaited coroutine" in str(e):
+                logger.warning(f"Caught RuntimeError during tool discovery for '{agent.name}', likely due to async cache interaction. Clearing cache and retrying once.")
+                _discover_tools_cached.cache_clear()
+                logger.info(f"Cache cleared for _discover_tools_cached due to RuntimeError.")
+                try:
+                    discovered_mcp_tools_dict = await _discover_tools_cached(agent.name, server_list_tuple, config_str)
+                except Exception as retry_e:
+                     logger.exception(f"Error during MCP tool discovery retry for agent '{agent.name}': {retry_e}")
+            else:
+                 raise e
         except Exception as e:
-            # Log errors during discovery for a specific server but continue with others
-            logger.error(f"Failed to discover tools from MCP server '{server_name}' for agent '{agent_name}': {e}", exc_info=debug) # Show traceback if debug
-
-    # Combine static functions with the unique discovered tools
-    # Static functions take precedence if names conflict (though deduplication above is based on discovered names)
-    final_functions = static_functions + all_discovered_tools
-
-    # Log final combined list details if debugging
-    if debug:
-        static_names = [getattr(f, 'name', getattr(f, '__name__', '<unknown>')) for f in static_functions]
-        discovered_names = list(discovered_tool_names) # Names of unique discovered tools
-        combined_names = [getattr(f, 'name', getattr(f, '__name__', '<unknown>')) for f in final_functions]
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Static functions: {static_names}")
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Unique discovered tools: {discovered_names}")
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Final combined functions: {combined_names}")
-
-    logger.debug(f"Agent '{agent_name}' total functions/tools after merge: {len(final_functions)} (Static: {len(static_functions)}, Discovered: {len(all_discovered_tools)})")
-    return final_functions
+             logger.exception(f"General error during MCP tool discovery call for agent '{agent.name}': {e}")
 
 
-async def discover_and_merge_agent_resources(agent: Agent, config: Dict[str, Any], debug: bool = False) -> List[Dict[str, Any]]:
-    """
-    Discover resources from MCP servers listed in the agent's config and merge
-    them with the agent's statically defined resources.
+    logger.debug(f"[DEBUG] Agent '{agent.name}' - Unique discovered MCP tools: {len(discovered_mcp_tools_dict)}")
+    final_tools_dict = {**static_tools_dict, **discovered_mcp_tools_dict}
 
-    Handles deduplication of discovered resources based on their 'uri'.
+    logger.info(f"Agent '{agent.name}' total unique functions/tools merged: {len(final_tools_dict)}")
+    return list(final_tools_dict.values())
 
-    Args:
-        agent: The agent instance for which to discover resources.
-        config: The main Swarm configuration dictionary containing MCP server details.
-        debug: If True, enable detailed debugging logs.
 
-    Returns:
-        List[Dict[str, Any]]: A combined list containing the agent's static resources
-                              and unique resources discovered from its associated MCP servers.
-                              Returns the agent's static resources if no MCP servers are defined.
-                              Returns an empty list if the agent is None.
-    """
-    if not agent:
-        logger.error("Cannot discover resources: Agent object is None.")
+def format_tools_for_llm(tools: List[ToolDefinition]) -> List[Dict[str, Any]]:
+    """Formats the ToolDefinition list into the structure expected by OpenAI API."""
+    if not tools:
         return []
-    agent_name = getattr(agent, "name", "UnnamedAgent")
+    try:
+        formatted_tools = [tool.model_dump(exclude_none=True) for tool in tools]
+        for ft in formatted_tools:
+            if ft.get("type") == "function" and "function" in ft and isinstance(ft["function"], dict):
+                 func_details = ft["function"]
+                 if "parameters" in func_details and isinstance(func_details["parameters"], dict):
+                      if "properties" not in func_details["parameters"]:
+                           func_details["parameters"]["properties"] = {}
+                      if "properties" in func_details["parameters"] and "type" not in func_details["parameters"]:
+                           func_details["parameters"]["type"] = "object"
 
-    logger.debug(f"Starting resource discovery for agent '{agent_name}'.")
-    mcp_server_names = getattr(agent, "mcp_servers", [])
+        if not isinstance(formatted_tools, list) or not all(isinstance(t, dict) for t in formatted_tools):
+             logger.error("Formatted tools are not a list of dictionaries.")
+             return []
 
-    # Get static resources, ensure it's a list
-    static_resources = getattr(agent, "resources", []) or []
-    if not isinstance(static_resources, list):
-         logger.warning(f"Agent '{agent_name}' resources attribute is not a list ({type(static_resources)}). Treating as empty.")
-         static_resources = []
-    # Ensure static resources are dicts (basic check)
-    static_resources = [r for r in static_resources if isinstance(r, dict)]
+        return formatted_tools
+    except Exception as e:
+         logger.exception(f"Error formatting tools for LLM: {e}")
+         return []
 
-    if not mcp_server_names:
-        res_names = [r.get('name', '<unnamed>') for r in static_resources]
-        logger.debug(f"Agent '{agent_name}' has no MCP servers listed. Returning {len(static_resources)} static resources: {res_names}")
-        return static_resources
 
-    # List to hold resources discovered from all MCP servers
-    all_discovered_resources: List[Dict[str, Any]] = []
+async def execute_mcp_tool(
+    agent_name: str,
+    config: Dict[str, Any],
+    mcp_server_list: List[str],
+    tool_name: str,
+    tool_arguments: Dict[str, Any],
+    tool_call_id: str,
+    timeout: int = 120,
+    max_response_tokens: int = 4096
+) -> ToolResult:
+    """Executes a tool via MCP, finding the correct server."""
+    from ...types import ToolResult # Local import to avoid circular dependency if ToolResult moves
 
-    # Iterate through each MCP server listed for the agent
-    for server_name in mcp_server_names:
-        if not isinstance(server_name, str):
-            logger.warning(f"Invalid MCP server name type for agent '{agent_name}': {type(server_name)}. Skipping.")
-            continue
+    logger.info(f"Attempting MCP execution for tool '{tool_name}' requested by agent '{agent_name}'. Tool Call ID: {tool_call_id}")
+    logger.debug(f"Tool arguments (redacted): {redact_sensitive_data(tool_arguments)}")
 
-        logger.debug(f"Discovering resources from MCP server '{server_name}' for agent '{agent_name}'.")
-        server_config = config.get("mcpServers", {}).get(server_name)
-        if not server_config:
-            logger.warning(f"MCP server '{server_name}' configuration not found for agent '{agent_name}'. Skipping.")
-            continue
+    target_server_name = None
+    original_tool_name = tool_name
 
-        try:
-            provider = MCPToolProvider.get_instance(server_name, server_config, timeout=15, debug=debug)
-            # Fetch resources using the provider's client
-            # Assuming provider.client has a method like list_resources() that returns {'resources': [...]}
-            resources_response = await provider.client.list_resources()
+    if MCP_SEPARATOR in tool_name:
+        parts = tool_name.split(MCP_SEPARATOR, 1)
+        potential_server = parts[0]
+        original_tool_name = parts[1]
+        if potential_server in config.get("mcpServers", {}) and potential_server in mcp_server_list:
+            target_server_name = potential_server
+            logger.debug(f"Tool name '{tool_name}' indicates target server: '{target_server_name}'. Original tool name: '{original_tool_name}'")
+        else:
+            logger.warning(f"Tool name '{tool_name}' prefix '{potential_server}' doesn't match a valid, assigned MCP server. Searching all assigned servers.")
 
-            # Validate the structure of the response
-            if not isinstance(resources_response, dict) or "resources" not in resources_response:
-                logger.warning(f"Invalid resources response format from MCP server '{server_name}' for agent '{agent_name}'. Expected dict with 'resources' key, got: {type(resources_response)}")
-                continue
+    if not target_server_name:
+         logger.debug(f"Tool name '{tool_name}' not prefixed or prefix invalid. Searching assigned servers: {mcp_server_list}")
+         # TODO: Implement a more robust lookup if tool name is not prefixed.
+         if MCP_SEPARATOR not in tool_name:
+              logger.error(f"Cannot execute unprefixed tool '{tool_name}' via MCP without robust lookup. Execution failed.")
+              return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=f"Error: MCP execution failed - Tool name '{tool_name}' needs server prefix.")
 
-            resources_from_server = resources_response["resources"]
-            if not isinstance(resources_from_server, list):
-                logger.warning(f"Invalid 'resources' format in response from '{server_name}': Expected list, got {type(resources_from_server)}.")
-                continue
+    if not target_server_name:
+         logger.error(f"Could not determine target MCP server for tool '{tool_name}'. Execution failed.")
+         return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=f"Error: MCP execution failed - Cannot find server for tool '{tool_name}'.")
 
-            # Filter for valid resource dictionaries (must be dict and have 'uri')
-            valid_resources = [res for res in resources_from_server if isinstance(res, dict) and 'uri' in res]
-            invalid_count = len(resources_from_server) - len(valid_resources)
-            if invalid_count > 0:
-                 logger.warning(f"Filtered out {invalid_count} invalid resource entries from '{server_name}'.")
+    server_config = config.get("mcpServers", {}).get(target_server_name)
+    if not server_config:
+         logger.error(f"Configuration for target MCP server '{target_server_name}' not found.")
+         return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=f"Error: MCP execution failed - Server '{target_server_name}' not configured.")
 
-            all_discovered_resources.extend(valid_resources)
-            res_names_log = [r.get('name', '<unnamed>') for r in valid_resources]
-            logger.debug(f"Discovered {len(valid_resources)} valid resources from '{server_name}': {res_names_log}")
+    port = server_config.get("port", MCP_DEFAULT_PORT)
+    base_url = f"http://127.0.0.1:{port}"
+    api_path = f"/tools/{original_tool_name}"
 
-        except AttributeError:
-             logger.error(f"MCPToolProvider client for '{server_name}' does not have a 'list_resources' method.", exc_info=debug)
-        except Exception as e:
-            logger.error(f"Failed to discover resources from MCP server '{server_name}' for agent '{agent_name}': {e}", exc_info=debug)
+    logger.info(f"Executing tool '{original_tool_name}' on server '{target_server_name}' at {base_url}{api_path}")
 
-    # Deduplicate discovered resources based on 'uri'
-    # Use a dictionary to keep only the first occurrence of each URI
-    unique_discovered_resources_map: Dict[str, Dict[str, Any]] = {}
-    for resource in all_discovered_resources:
-        uri = resource.get('uri') # URI is expected from validation above
-        if uri not in unique_discovered_resources_map:
-            unique_discovered_resources_map[uri] = resource
+    try:
+        async with httpx.AsyncClient(base_url=base_url, timeout=float(timeout)) as client:
+            response = await client.post(api_path, json=tool_arguments)
+            response.raise_for_status()
 
-    unique_discovered_resources_list = list(unique_discovered_resources_map.values())
+            try:
+                result_content = response.json()
+                if isinstance(result_content, dict) and "content" in result_content:
+                     content = result_content["content"]
+                elif isinstance(result_content, str):
+                     content = result_content
+                else:
+                     content = json.dumps(result_content)
 
-    # Combine static resources with unique discovered resources
-    # Create a map of static resource URIs to prevent duplicates if they also exist in discovered
-    static_resource_uris = {res.get('uri') for res in static_resources if res.get('uri')}
-    final_resources = static_resources + [
-        res for res in unique_discovered_resources_list if res.get('uri') not in static_resource_uris
-    ]
+                if isinstance(content, str) and content.startswith(f"HANDOFF{MCP_SEPARATOR}"):
+                     logger.info(f"Received handoff signal from MCP tool '{tool_name}'.")
+                else:
+                    content_str = content if isinstance(content, str) else json.dumps(content)
+                    estimated_tokens = len(content_str.split())
+                    if estimated_tokens > max_response_tokens:
+                         logger.warning(f"MCP tool response for '{tool_name}' exceeds token limit ({estimated_tokens} > {max_response_tokens}). Truncating.")
+                         content = content_str[:max_response_tokens * 5] + "... (truncated)"
 
-    if debug:
-        static_names = [r.get('name', '<unnamed>') for r in static_resources]
-        discovered_names = [r.get('name', '<unnamed>') for r in all_discovered_resources] # Before dedupe
-        unique_discovered_names = [r.get('name', '<unnamed>') for r in unique_discovered_resources_list] # After dedupe
-        combined_names = [r.get('name', '<unnamed>') for r in final_resources]
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Static resources: {static_names}")
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Discovered resources (before URI dedupe): {discovered_names}")
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Unique discovered resources (after URI dedupe): {unique_discovered_names}")
-        logger.debug(f"[DEBUG] Agent '{agent_name}' - Final combined resources: {combined_names}")
+                logger.info(f"Successfully executed MCP tool '{tool_name}'.")
+                return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=content)
 
-    logger.debug(f"Agent '{agent_name}' total resources after merge: {len(final_resources)} (Static: {len(static_resources)}, Unique Discovered: {len(unique_discovered_resources_list)})")
-    return final_resources
+            except json.JSONDecodeError:
+                logger.warning(f"MCP tool '{tool_name}' executed but response was not valid JSON. Returning raw text.")
+                raw_content = response.text
+                estimated_tokens = len(raw_content.split())
+                if estimated_tokens > max_response_tokens:
+                    logger.warning(f"MCP tool response (raw) for '{tool_name}' exceeds token limit ({estimated_tokens} > {max_response_tokens}). Truncating.")
+                    raw_content = raw_content[:max_response_tokens * 5] + "... (truncated)"
+                return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=raw_content)
+
+    except httpx.TimeoutException:
+        logger.error(f"Timeout executing MCP tool '{tool_name}' on server '{target_server_name}'.")
+        return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=f"Error: MCP tool '{tool_name}' timed out.")
+    except httpx.RequestError as e:
+        logger.error(f"HTTP error executing MCP tool '{tool_name}' on {target_server_name}: {e}")
+        return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=f"Error: Failed to connect to MCP server for tool '{tool_name}'.")
+    except httpx.HTTPStatusError as e:
+         logger.error(f"HTTP status error executing MCP tool '{tool_name}' on {target_server_name}: {e.response.status_code}")
+         error_content = f"Error: MCP tool '{tool_name}' failed with status {e.response.status_code}."
+         try:
+              error_detail = e.response.json()
+              if isinstance(error_detail, dict) and "detail" in error_detail:
+                   error_content += f" Detail: {error_detail['detail']}"
+              else: error_content += f" Response: {e.response.text[:200]}"
+         except json.JSONDecodeError: error_content += f" Response: {e.response.text[:200]}"
+         return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=error_content)
+    except Exception as e:
+        logger.exception(f"Unexpected error executing MCP tool '{tool_name}' on {target_server_name}: {e}")
+        return ToolResult(tool_call_id=tool_call_id, name=tool_name, content=f"Error: Unexpected error executing MCP tool '{tool_name}'.")
+

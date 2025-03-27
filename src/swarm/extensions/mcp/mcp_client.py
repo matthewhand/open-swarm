@@ -20,7 +20,7 @@ from .cache_utils import get_cache
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-class MCPClient:
+class McpClient:
     """
     Manages connections and interactions with MCP servers using the MCP Python SDK.
     """
