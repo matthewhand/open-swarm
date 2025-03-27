@@ -16,17 +16,21 @@ def get_cache():
     returns a DummyCache instance.
     """
     try:
-        import django
-        from django.conf import settings
-        from django.core.cache import cache as django_cache
-        from django.core.exceptions import ImproperlyConfigured
+        # Intentionally commented out Django imports to avoid mandatory dependency for now
+        # import django
+        # from django.conf import settings
+        # from django.core.cache import cache as django_cache
+        # from django.core.exceptions import ImproperlyConfigured
 
-        if not settings.configured:
-            # Django settings are not configured; return DummyCache
-            return DummyCache()
-        
-        return django_cache
+        # if not settings.configured:
+        #     # Django settings are not configured; return DummyCache
+        #     return DummyCache()
 
-    except (ImportError, ImproperlyConfigured):
+        # return django_cache
+        # For now, always return DummyCache until Django integration is confirmed/required
+        return DummyCache()
+
+
+    except (ImportError): # Removed ImproperlyConfigured as Django is not imported
         # Django is not installed or not properly configured; use DummyCache
         return DummyCache()
