@@ -49,7 +49,10 @@ async def discover_and_merge_agent_tools(agent: Agent, config: Dict[str, Any], t
                      logger.warning(f"Static function name '{tool_name}' violates OpenAI pattern. Skipping.")
                      continue
                 if tool_name in merged_tools: logger.warning(f"Duplicate static tool name '{tool_name}'. Overwriting.")
-                description = getattr(func, '__doc__', f"Executes the {tool_name} function.").strip()
+
+                docstring = getattr(func, '__doc__', None)
+                description = docstring.strip() if docstring else f"Executes the {tool_name} function."
+
                 input_schema = {"type": "object", "properties": {}}
                 merged_tools[tool_name] = Tool(name=tool_name, func=func, description=description, input_schema=input_schema)
             else: logger.warning(f"Ignoring non-callable item in agent functions list: {func}")
@@ -321,4 +324,3 @@ class Swarm:
         logger.info(f"Starting {'STREAMING' if stream else 'NON-STREAMING'} run with agent '{agent.name}'")
         if stream: return self._run_streaming(agent, messages, context_variables, max_turns, effective_debug)
         else: return await self._run_non_streaming(agent, messages, context_variables, max_turns, effective_debug)
-
