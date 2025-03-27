@@ -1,11 +1,29 @@
 """
 Django settings for swarm project.
+Includes Pydantic base settings for Swarm Core.
 """
 
+import logging
 import os
 import sys
+from enum import Enum
 from pathlib import Path
-import logging
+from pydantic import Field # Import Field from Pydantic v2+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# --- Pydantic Settings for Swarm Core ---
+class LogFormat(str, Enum):
+    standard = "[%(levelname)s] %(asctime)s - %(name)s:%(lineno)d - %(message)s"
+    simple = "[%(levelname)s] %(name)s - %(message)s"
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix='SWARM_', case_sensitive=False)
+
+    log_level: str = Field(default='INFO', description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+    log_format: LogFormat = Field(default=LogFormat.standard, description="Logging format")
+    debug: bool = Field(default=False, description="Global debug flag")
+
+# --- Standard Django Settings ---
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,7 +38,8 @@ TESTING = 'pytest' in sys.modules
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-YOUR_FALLBACK_KEY_HERE_CHANGE_ME')
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+# Use the Pydantic setting value for Django's DEBUG
+DEBUG = Settings().debug # Read from instantiated Pydantic settings
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
 
 # --- Application definition ---
@@ -40,22 +59,15 @@ INSTALLED_APPS = [
 ]
 
 # --- Conditionally add blueprint apps for TESTING ---
-# This ensures the app is known *before* django.setup() is called by pytest-django
 if TESTING:
-    # Add specific apps needed for testing
-    # We know 'university' is needed based on SWARM_BLUEPRINTS in conftest
-    _test_apps_to_add = ['blueprints.university'] # Hardcoding for University tests specifically
+    _test_apps_to_add = ['blueprints.university']
     for app in _test_apps_to_add:
         if app not in INSTALLED_APPS:
-            # Use insert for potentially better ordering if it matters, otherwise append is fine
-            INSTALLED_APPS.insert(0, app) # Or INSTALLED_APPS.append(app)
+            INSTALLED_APPS.insert(0, app)
             logging.info(f"Settings [TESTING]: Added '{app}' to INSTALLED_APPS.")
-    # Ensure SWARM_BLUEPRINTS is set if your conftest or other logic relies on it
-    # Note: Setting it here might be redundant if conftest sets it too.
     if 'SWARM_BLUEPRINTS' not in os.environ:
          os.environ['SWARM_BLUEPRINTS'] = 'university'
          logging.info(f"Settings [TESTING]: Set SWARM_BLUEPRINTS='university'")
-
 else:
     # --- Dynamic App Loading for Production/Development ---
     _INITIAL_BLUEPRINT_APPS = []
@@ -78,19 +90,14 @@ else:
         except Exception as e:
             logging.error(f"Settings: Error discovering blueprint apps during initial load: {e}")
 
-    # Add dynamically discovered apps for non-testing scenarios
     for app in _INITIAL_BLUEPRINT_APPS:
          if app not in INSTALLED_APPS:
               INSTALLED_APPS.append(app)
               logging.info(f"Settings [{_log_source}]: Added '{app}' to INSTALLED_APPS.")
 # --- End App Loading Logic ---
 
-# Ensure INSTALLED_APPS is a list for compatibility
-if isinstance(INSTALLED_APPS, tuple):
-    INSTALLED_APPS = list(INSTALLED_APPS)
-
+if isinstance(INSTALLED_APPS, tuple): INSTALLED_APPS = list(INSTALLED_APPS)
 logging.info(f"Settings: Final INSTALLED_APPS = {INSTALLED_APPS}")
-
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -122,18 +129,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'swarm.wsgi.application'
 
-# Database
 SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH', BASE_DIR / 'db.sqlite3')
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': SQLITE_DB_PATH,
-    }
-}
+DATABASES = { 'default': { 'ENGINE': 'django.db.backends.sqlite3', 'NAME': SQLITE_DB_PATH } }
 DJANGO_DATABASE = DATABASES['default']
 
-
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -141,26 +140,13 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+LANGUAGE_CODE = 'en-us'; TIME_ZONE = 'UTC'; USE_I18N = True; USE_TZ = True
 
-# Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
+STATIC_URL = '/static/'; STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [ BASE_DIR / 'static', BASE_DIR / 'assets' ]
 
-
-# Static files
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-    BASE_DIR / 'assets',
-]
-
-# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -168,9 +154,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
-    'DEFAULT_PERMISSION_CLASSES': (
-       'rest_framework.permissions.IsAuthenticated',
-    )
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',)
 }
 
 SPECTACULAR_SETTINGS = {
@@ -181,22 +165,10 @@ SPECTACULAR_SETTINGS = {
     'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
 }
 
-# Logging configuration
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-         'standard': {
-            'format': '[%(levelname)s] %(asctime)s - %(name)s:%(lineno)d - %(message)s'
-        },
-    },
-    'handlers': {
-        'console': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard',
-        },
-    },
+    'version': 1, 'disable_existing_loggers': False,
+    'formatters': { 'standard': { 'format': '[%(levelname)s] %(asctime)s - %(name)s:%(lineno)d - %(message)s' }, },
+    'handlers': { 'console': { 'level': 'DEBUG' if DEBUG else 'INFO', 'class': 'logging.StreamHandler', 'formatter': 'standard', }, },
     'loggers': {
         'django': { 'handlers': ['console'], 'level': 'INFO', 'propagate': False, },
         'django.request': { 'handlers': ['console'], 'level': 'WARNING', 'propagate': False, },
@@ -206,20 +178,12 @@ LOGGING = {
     },
 }
 
-# Authentication backends
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-]
+AUTHENTICATION_BACKENDS = ['django.contrib.auth.backends.ModelBackend']
+LOGIN_URL = '/accounts/login/'; LOGIN_REDIRECT_URL = '/chatbot/'
 
-# Login URL
-LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/chatbot/'
-
-# Redis settings
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 
-# Adjust DB for testing if TESTING flag is set
 if TESTING:
      print("Pytest detected: Adjusting settings for testing.")
      DATABASES['default']['NAME'] = ':memory:'

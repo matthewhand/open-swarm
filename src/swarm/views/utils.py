@@ -2,6 +2,7 @@
 Utility functions for Swarm views.
 """
 import json
+from swarm.types import ChatMessage
 import uuid
 import time
 import os
@@ -357,7 +358,8 @@ def store_conversation_history(conversation_id: str, full_history: List[dict], r
         # Add only messages not already in full_history (prevent duplicates if run_conversation includes input)
         last_stored_content = json.dumps(history_to_store[-1]) if history_to_store else None
         for msg in response_messages:
-             if json.dumps(msg) != last_stored_content:
+            msg_dict = msg.model_dump(exclude_none=True) if isinstance(msg, ChatMessage) else msg
+            if json.dumps(msg_dict) != last_stored_content:
                   history_to_store.append(msg)
 
 
