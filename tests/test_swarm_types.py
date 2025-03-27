@@ -30,7 +30,7 @@ class TestSwarmTypes(unittest.TestCase):
         self.assertEqual(tool(2, 3), 5)
         self.assertEqual(tool.name, "sum")
         self.assertEqual(tool.description, "Adds two numbers")
-        self.assertEqual(tool.input_schema, {})
+        self.assertEqual(tool.input_schema, {'type': 'object', 'properties': {}})
 
 if __name__ == "__main__":
     unittest.main()

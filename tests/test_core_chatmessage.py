@@ -1,6 +1,6 @@
 import pytest  # type: ignore
 import json
-from swarm.core import ChatMessage
+from swarm.types import ChatMessage
 
 def test_model_dump_json_removes_empty_tool_calls():
     msg = ChatMessage(role="assistant", content="Test message", tool_calls=[])
