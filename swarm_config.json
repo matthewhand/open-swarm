@@ -35,7 +35,7 @@
       "intelligence": 0.1,
       "temperature": 0.0
     },
-    "litellm": {
+    "code-large": {
       "provider": "openai",
       "model": "${LITELLM_MODEL}",
       "base_url": "${LITELLM_BASE_URL}",
@@ -342,18 +342,10 @@
       "env": {
         "ALLOWED_PATH": "${ALLOWED_PATH}"
       }
-    },
-    "mcp_llms_txt_server": {
-      "command": "uvx",
-      "args": [
-        "--from","git+https://github.com/SecretiveShell/MCP-llms-txt","mcp-llms-txt"
-      ]
     }
   },
   "blueprints": {
-    "university": {
-      "path": "/app/blueprints/university",
-      "api": true
-    }
+    "defaults": { "max_llm_calls": 10, "default_markdown_cli": true },
+    "RueCodeBlueprint": { "max_llm_calls": 15, "llm_profile": "code-large" } 
   }
 }

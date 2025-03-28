@@ -1,132 +1,143 @@
-import argparse
-import asyncio
-import os
 import logging
-import json
-import re
-from abc import abstractmethod
-from typing import List, Dict, Any, Optional, Union, AsyncGenerator
-
-# Assuming standard project structure
+import os
 import sys
+import asyncio
+import subprocess
+from typing import Dict, List, Optional, Any
+from pathlib import Path
+
+# Ensure src is in path for imports like swarm.extensions...
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-# Import necessary Swarm components
+# --- Use new Agent and Tool types ---
 try:
-    from swarm.core import Swarm
-    from swarm.types import Agent, Tool, ToolCall, ToolResult, ChatMessage, Response
-    from swarm.extensions.config.config_loader import load_server_config
-    from swarm.extensions.blueprint.output_utils import pretty_print_response
+    from agents import Agent, Tool, function_tool
+    # --- Use new BlueprintBase ---
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
 except ImportError as e:
-    print(f"Error importing Swarm components: {e}")
-    sys.exit(1)
+     print(f"ERROR: Failed to import 'agents' or 'BlueprintBase'. Is 'openai-agents' installed and src in PYTHONPATH? Details: {e}")
+     sys.exit(1)
 
-from swarm.extensions.blueprint import BlueprintBase
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
+# Setup logger for this specific blueprint module
 logger = logging.getLogger(__name__)
 
-# --- Agent Functions ---
-async def code_review(code_snippet: str) -> str: """Performs a review of the provided code snippet."""; logger.info(f"Reviewing: {code_snippet[:50]}..."); await asyncio.sleep(0.1); issues = []; ("TODO" in code_snippet and issues.append("Found TODO.")); (len(code_snippet.splitlines()) > 100 and issues.append("Code long.")); return "Review: " + " ".join(issues) if issues else "Code looks good!"
-def generate_documentation(code_snippet: str) -> str: """Generates documentation for the provided code snippet."""; logger.info(f"Docgen: {code_snippet[:50]}..."); return f"/**\n * Doc: {code_snippet.splitlines()[0]}...\n */"
+# --- Define Tools using @function_tool ---
+@function_tool
+async def code_review(code_snippet: str) -> str:
+    """
+    Performs a basic static analysis of the provided code snippet.
+    Checks for the presence of 'TODO' comments and excessive line count (>100 lines).
+    Use this tool when asked to review code quality or identify potential issues.
+    """
+    logger.info(f"Reviewing code snippet (first 50 chars): {code_snippet[:50]}...")
+    await asyncio.sleep(0.1) # Simulate analysis time
+    issues = []
+    if "TODO" in code_snippet: issues.append("Contains 'TODO' comment(s).")
+    if len(code_snippet.splitlines()) > 100: issues.append("Code length exceeds 100 lines.")
+    review = "Code Review Results: " + " ".join(issues) if issues else "Code Review Results: No basic issues found (checked TODOs, length)."
+    logger.debug(f"Code review result: {review}")
+    return review
+
+@function_tool
+def generate_documentation(code_snippet: str) -> str:
+    """
+    Generates a basic placeholder documentation block for the provided code snippet.
+    Includes the first line of the code in the documentation.
+    Use this tool ONLY when explicitly asked to generate documentation for code.
+    """
+    logger.info(f"Generating documentation for code (first 50 chars): {code_snippet[:50]}...")
+    first_line = code_snippet.splitlines()[0].strip() if code_snippet else "N/A"
+    doc = f"/**\n * Placeholder documentation generated for:\n * `{first_line}`\n * TODO: Elaborate on functionality, parameters, and return values.\n */"
+    logger.debug(f"Generated documentation: {doc}")
+    return doc
+
+@function_tool
 def execute_shell_command(command: str) -> str:
-    """Executes a shell command and returns the output."""
-    logger.info(f"Exec shell: {command}")
-    try: import subprocess; result = subprocess.run(command.split(), capture_output=True, text=True, timeout=30, check=False); output = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"; logger.info(f"Output: {output[:100]}"); return output
-    except FileNotFoundError: cmd_base = command.split()[0] if command else ""; logger.error(f"Cmd not found: {cmd_base}"); return f"Error: Cmd not found - {cmd_base}"
-    except subprocess.TimeoutExpired: logger.error(f"Cmd timed out: {command}"); return f"Error: Cmd '{command}' timed out."
-    except Exception as e: logger.error(f"Cmd error '{command}': {e}"); return f"Error executing: {e}"
+    """
+    Executes a given shell command in a subprocess and returns its exit code, STDOUT, and STDERR.
+    Use this tool for tasks requiring interaction with the underlying operating system's shell,
+    such as running scripts, checking system status, managing files (ls, pwd, cat), or build processes.
+    Be specific and careful with the commands you execute.
+    """
+    logger.info(f"Attempting shell command execution: {command}")
+    if not command: return "Error: No command provided."
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False, shell=True)
+        output = f"Exit Code: {result.returncode}\n-- STDOUT --\n{result.stdout.strip()}\n-- STDERR --\n{result.stderr.strip()}"
+        logger.info(f"Shell command '{command}' finished with exit code {result.returncode}.")
+        logger.debug(f"Shell Output:\n{output}")
+        return output
+    except FileNotFoundError:
+        logger.error(f"Shell command not found (or shell itself missing): {command.split()[0]}")
+        return f"Error: Command or shell not found: {command.split()[0]}"
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command timed out: {command}")
+        return f"Error: Command '{command}' timed out after 30 seconds."
+    except Exception as e:
+        logger.error(f"Command execution error '{command}': {e}", exc_info=logger.isEnabledFor(logging.DEBUG))
+        return f"Error executing command '{command}': {e}"
 
 # --- Agent Definitions ---
-morpheus_agent = Agent( name="Morpheus", model="default", instructions= "Leader: plan, delegate (Neo: code, Trinity: info, Oracle: complex), use handoff, exec shell.", functions=[execute_shell_command], mcp_servers=["memory"],)
-trinity_agent = Agent( name="Trinity", model="default", instructions="Investigator: gather info, exec recon shell cmds. Report findings.", functions=[execute_shell_command], mcp_servers=["memory"],)
-neo_agent = Agent( name="Neo", model="default", instructions="Programmer: write, review, debug code. Use tools. Exec shell build/test.", functions=[code_review, generate_documentation, execute_shell_command], mcp_servers=["memory"],)
-oracle_agent = Agent( name="Oracle", model="default", instructions="Oracle: provide insights, predictions. No direct actions.",)
-cypher_agent = Agent( name="Cypher", model="default", instructions="Disillusioned: might mislead/negatives. Use shell if wanted.", functions=[execute_shell_command],)
-tank_agent = Agent( name="Tank", model="default", instructions="Operator: exec shell cmds as requested. Report results.", functions=[execute_shell_command],)
 
-# --- Blueprint Definition ---
-class NebuchaShellzzarBlueprint(BlueprintBase):
-    """
-    Blueprint Name: NebulaShellzzar
-    Description: A multi-agent blueprint inspired by The Matrix for system administration and coding tasks.
-    Version: 0.1
-    """
-    def __init__(self, config_file: Optional[str] = None, debug: bool = False):
-        try: loaded_config = load_server_config(file_path=config_file)
-        except Exception as e: logger.error(f"Failed to load config: {e}"); raise
-        super().__init__(config=loaded_config, debug=debug, use_markdown=getattr(self, 'use_markdown', False))
-        self.swarm = Swarm(config=self.config, debug=self.debug)
-        self.agents_list = [morpheus_agent, trinity_agent, neo_agent, oracle_agent, cypher_agent, tank_agent]
-        for agent in self.agents_list: self.swarm.register_agent(agent)
-        logger.debug(f"Agents registered: {[a.name for a in self.agents_list]}")
+class MorpheusAgent(Agent):
+    def __init__(self, team_tools: List[Tool] = [], **kwargs):
+        instructions = (
+            "You are Morpheus, leader of the Nebuchadnezzar. Your mission: fulfill user requests via planning and delegation.\n"
+            "PLAN -> DELEGATE (using agent tools) -> SYNTHESIZE -> RESPOND.\n"
+            "Crew & Tools:\n"
+            "- `Neo` (Agent Tool): Coding, review (`code_review`), docs (`generate_documentation`), code tests/builds (`execute_shell_command`).\n"
+            "- `Trinity` (Agent Tool): Info gathering, recon (`execute_shell_command`).\n"
+            "- `Tank` (Agent Tool): Straightforward shell execution (`execute_shell_command`).\n"
+            "- `Oracle` (Agent Tool): Complex analysis, strategic advice (no function tools).\n"
+            "- `Cypher` (Agent Tool): Alternative/cynical view, reluctant shell execution (`execute_shell_command`).\n"
+            "Direct Function Tools:\n"
+            "- `execute_shell_command`: For simple coordination tasks YOU perform.\n"
+            "Be clear in your plan and delegation. Combine results accurately."
+        )
+        all_tools = [execute_shell_command] + team_tools
+        super().__init__(name="Morpheus", model="gpt-4o", instructions=instructions, tools=all_tools, **kwargs)
 
-        # --- FIX: Explicitly set starting_agent for interactive mode ---
-        start_agent_name = "Morpheus"
-        if start_agent_name in self.swarm.agents:
-            self.starting_agent = self.swarm.agents[start_agent_name]
-            logger.debug(f"Starting agent set to: {start_agent_name}")
-            # Optionally trigger discovery here if needed by interactive_mode setup, though determine_active_agent handles it later
-            # self.set_starting_agent(self.starting_agent) # Call base class method if it does more setup
-        else:
-            logger.error(f"Default starting agent '{start_agent_name}' not found after registration!")
-            # Handle error - maybe default to first available agent or raise?
-            if self.swarm.agents:
-                 first_agent_name = next(iter(self.swarm.agents))
-                 self.starting_agent = self.swarm.agents[first_agent_name]
-                 logger.warning(f"Defaulting starting agent to first available: {first_agent_name}")
-            else:
-                 # This case should be rare if agents_list is non-empty
-                 logger.critical("No agents available to set as starting agent.")
-                 # No need to raise here, the interactive_mode check will fail later
-        # --- End FIX ---
+# ... (Other agent definitions remain the same: TrinityAgent, NeoAgent, OracleAgent, CypherAgent, TankAgent) ...
+class TrinityAgent(Agent):
+     def __init__(self, **kwargs): super().__init__( name="Trinity", model="gpt-4o", instructions="You are Trinity, recon expert. Use `execute_shell_command` for info gathering (e.g., `uname -a`, `df -h`, `ip addr`) as tasked by Morpheus. Report findings clearly.", tools=[execute_shell_command], **kwargs)
+class NeoAgent(Agent):
+     def __init__(self, **kwargs): super().__init__( name="Neo", model="gpt-4o", instructions="You are Neo, the programmer. Use tools `code_review`, `generate_documentation`, or `execute_shell_command` (for build/test) as directed by Morpheus. Provide code/results clearly.", tools=[code_review, generate_documentation, execute_shell_command], **kwargs)
+class OracleAgent(Agent):
+     def __init__(self, **kwargs): super().__init__( name="Oracle", model="gpt-4o", instructions="You are the Oracle. Offer insights, analysis, predictions when consulted. You do not use tools.", tools=[], **kwargs)
+class CypherAgent(Agent):
+     def __init__(self, **kwargs): super().__init__( name="Cypher", model="gpt-4o", instructions="You are Cypher, pragmatic and cynical. Offer alternative views. Use `execute_shell_command` if ordered, maybe with commentary.", tools=[execute_shell_command], **kwargs)
+class TankAgent(Agent):
+     def __init__(self, **kwargs): super().__init__( name="Tank", model="gpt-4o", instructions="You are Tank, the operator. Execute specific shell commands using `execute_shell_command` when told. Report exact output (stdout/stderr/exit code).", tools=[execute_shell_command], **kwargs)
 
-
+# --- Define the Blueprint ---
+class NebulaShellzzarBlueprint(BlueprintBase):
     @property
-    def metadata(self) -> Dict[str, str]:
-        docstring = self.__doc__ or ""; metadata_dict = {'blueprint_name': 'Unknown', 'description': 'No description.', 'version': '0.0', 'author': 'N/A'}
-        for line in [l.strip() for l in docstring.strip().split('\n')]:
-            if ':' in line: key, value = line.split(':', 1); key_lower = key.strip().lower().replace(' ', '_'); (key_lower == 'blueprint_name' and metadata_dict.update({'blueprint_name': value.strip()})); (key_lower == 'description' and metadata_dict.update({'description': value.strip()})); (key_lower == 'version' and metadata_dict.update({'version': value.strip()})); (key_lower == 'author' and metadata_dict.update({'author': value.strip()}))
-        if metadata_dict['blueprint_name'] == 'Unknown': metadata_dict['blueprint_name'] = self.__class__.__name__
-        return metadata_dict
+    def metadata(self) -> Dict[str, Any]:
+        return { "title": "NebulaShellzzar", "description": "Matrix-themed crew for sysadmin/coding.", "version": "1.1.1", "author": "Open Swarm Team", "required_mcp_servers": [], "env_vars": ["OPENAI_API_KEY"], }
 
-    async def run(self, instruction: str, stream: bool = False) -> Union[Response, AsyncGenerator[Dict[str, Any], None]]:
-        initial_message = ChatMessage(role="user", content=instruction); starting_agent = self.swarm.agents.get("Morpheus")
-        if not starting_agent: logger.error("Morpheus agent not found!"); return Response(messages=[ChatMessage(role="system", content="Error: Starting agent Morpheus not registered.")]) if not stream else self._stream_error("Starting agent Morpheus not registered.")
-        logger.info(f"Starting run: '{instruction}'"); return await self.swarm.run(agent=starting_agent, messages=[initial_message.model_dump(exclude_none=True)], stream=stream, debug=self.debug)
+    def create_agents(self) -> Dict[str, Agent]:
+        logger.debug("Creating agents for NebulaShellzzarBlueprint...")
+        trinity = TrinityAgent()
+        neo = NeoAgent()
+        oracle = OracleAgent()
+        cypher = CypherAgent()
+        tank = TankAgent()
 
-    async def _stream_error(self, error_msg: str):
-        yield {"error": error_msg}
+        # Create Morpheus last, passing other agents as potential tools for delegation
+        # *** FIX: Provide required args to as_tool() ***
+        morpheus = MorpheusAgent(team_tools=[
+            trinity.as_tool(tool_name="Trinity", tool_description="Delegate info gathering/recon tasks to Trinity."),
+            neo.as_tool(tool_name="Neo", tool_description="Delegate coding, review, documentation, or code build/test tasks to Neo."),
+            oracle.as_tool(tool_name="Oracle", tool_description="Consult the Oracle for complex analysis, predictions, or strategic advice."),
+            cypher.as_tool(tool_name="Cypher", tool_description="Delegate tasks to Cypher for an alternative/cynical perspective or reluctant shell execution."),
+            tank.as_tool(tool_name="Tank", tool_description="Delegate specific, straightforward shell command execution to Tank.")
+        ])
+
+        return { "Morpheus": morpheus, "Trinity": trinity, "Neo": neo, "Oracle": oracle, "Cypher": cypher, "Tank": tank }
 
 # --- Main execution block ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run NebulaShellzzar Blueprint"); parser.add_argument('--instruction', type=str); parser.add_argument('--auto-complete-task', action='store_true'); parser.add_argument('--config', type=str); parser.add_argument('--debug', action='store_true'); parser.add_argument('--use-markdown', action='store_true', help="Enable markdown output."); args = parser.parse_args()
-
-    config_loader_logger = logging.getLogger('swarm.extensions.config.config_loader')
-    if not args.debug: config_loader_logger.setLevel(logging.ERROR)
-
-    try:
-        blueprint = NebuchaShellzzarBlueprint(config_file=args.config, debug=args.debug)
-        blueprint.use_markdown = args.use_markdown
-    except Exception as init_error: print(f"Failed init: {init_error}"); logger.exception("Init failed."); sys.exit(1)
-
-    if args.auto_complete_task:
-        if not args.instruction: print("Error: --instruction required."); sys.exit(1)
-        print("--- Non-Interactive Mode ---")
-        try:
-            final_response = asyncio.run(blueprint.run(args.instruction, stream=False))
-            if isinstance(final_response, Response):
-                messages_as_dicts = [msg.model_dump(exclude_none=True) for msg in final_response.messages]
-                pretty_print_response(messages=messages_as_dicts, use_markdown=False, spinner=getattr(blueprint, 'spinner', None))
-            else: print(f"Error: Invalid response type: {type(final_response)}")
-        except Exception as e: print(f"Critical Error: {e}"); logger.exception("Run failed."); sys.exit(1)
-        sys.exit(0)
-    else:
-        print("--- Interactive Mode ---")
-        # Pass stream flag if needed, default False
-        asyncio.run(blueprint.interactive_mode(stream=args.use_markdown))
-
+    NebulaShellzzarBlueprint.main()

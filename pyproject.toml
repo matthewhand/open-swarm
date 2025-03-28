@@ -1,12 +1,12 @@
 [project]
 name = "open-swarm"
-version = "0.1.0"  # This will be updated dynamically in GitHub Actions
+version = "0.2.0"  # This will be updated dynamically in GitHub Actions
 description = "A tool for orchestrating Swarm using both CLI and API."
 readme = "README.md"
 authors = [
    { name = "Matthew Hand", email = "matthewhandau@gmail.com" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
    "aiofiles>=24.1.0",
    "aiohttp>=3.11.11",

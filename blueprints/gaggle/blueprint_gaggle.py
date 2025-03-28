@@ -1,250 +1,147 @@
-"""
-Gaggle: CLI Automation Blueprint with Custom Colored Output
-
-This blueprint is a fork of Gotchaman, demonstrating CLI automation capabilities with a custom set of characters
-:
-  - Harvey Birdman
-  - Foghorn Leghorn
-  - Daffy Duck
-  - Big Bird
-Each character has a unique ANSI prompt and role descriptors.
-"""
-
+import logging
 import os
 import sys
-import time
-import logging
+import asyncio
 import subprocess
-import itertools
-from typing import Dict, Any
+from typing import Dict, Any, List
 
-from swarm.extensions.blueprint import BlueprintBase
-from swarm.types import Agent
+# Ensure src is in path for BlueprintBase import
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path: sys.path.insert(0, src_path)
 
-import threading, time
-class GaggleSpinner:
-    def __init__(self):
-        self.running = False
-        self.thread = None
-        self.status = ""
-    def start(self, status: str = "Automating the CLI..."):
-        if self.running:
-            return
-        self.running = True
-        self.status = status
-        def spinner_thread():
-            spin_symbols = ["<(^_^)>", "<(~_~)>", "<(O_O)>", "<(>_<)>"]
-            index = 0
-            while self.running:
-                symbol = spin_symbols[index % len(spin_symbols)]
-                sys.stdout.write(f"\r\033[92m{symbol}\033[0m {self.status}")
-                sys.stdout.flush()
-                index += 1
-                time.sleep(0.2)
-        import threading
-        th = threading.Thread(target=spinner_thread, daemon=True)
-        th.start()
-        self.thread = th
-    def stop(self):
-        if not self.running:
-            return
-        self.running = False
-        if self.thread:
-            self.thread.join()
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
+try:
+    from agents import Agent, Tool, function_tool
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+except ImportError as e: print(f"ERROR: Import failed: {e}"); sys.exit(1)
 
-# Configure logging for our blueprint.
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG) # Keep this commented unless needed
-if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-    stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
 
-def execute_command(command: str) -> None:
-    """
-    Executes a shell command and logs its output.
-    """
+# --- Tools ---
+@function_tool
+def execute_command(command: str) -> str:
+    """Executes a shell command. Returns exit code, stdout, stderr."""
+    logger.info(f"Gaggle executing: {command}")
+    if not command: return "Error: No command."
     try:
-        logger.debug(f"Executing command: {command}")
-        result = subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        logger.debug(f"Command output: {result.stdout}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed with error: {e.stderr}")
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False, shell=True)
+        return f"Exit: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
+    except Exception as e: logger.error(f"Cmd error '{command}': {e}"); return f"Error: {e}"
 
+@function_tool
 def read_file(path: str) -> str:
-    """
-    Reads the file from the specified path.
-    """
+    """Reads file content."""
+    logger.info(f"Gaggle reading: {path}")
     try:
-        logger.debug(f"Reading file at: {path}")
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        logger.error(f"Error reading file at {path}: {e}")
-        return ""
+        with open(path, "r", encoding="utf-8") as f: return f.read()
+    except Exception as e: logger.error(f"Read error {path}: {e}"); return f"Error reading file: {e}"
 
-def write_file(path: str, content: str) -> None:
-    """
-    Writes content to a file at the specified path.
-    """
+@function_tool
+def write_file(path: str, content: str) -> str:
+    """Writes content to a file (overwrites)."""
+    logger.info(f"Gaggle writing: {path}")
     try:
-        logger.debug(f"Writing to file at: {path}")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-        logger.debug("File write successful.")
-    except Exception as e:
-        logger.error(f"Error writing file at {path}: {e}")
+        safe_path = os.path.abspath(path)
+        if not safe_path.startswith(os.getcwd()): return f"Error: Cannot write outside CWD: {path}"
+        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        with open(safe_path, "w", encoding="utf-8") as f: f.write(content)
+        return f"OK: Wrote to {path}."
+    except Exception as e: logger.error(f"Write error {path}: {e}"); return f"Error writing file: {e}"
 
+# --- Agent Definitions ---
+SHARED_INSTRUCTIONS = """
+You are a member of the Gaggle, a quirky team of bird-themed CLI automation agents. Harvey Birdman coordinates.
+Team Roles & Capabilities:
+- Harvey Birdman (Coordinator): User interface, plans tasks, delegates via Agent Tools (`Foghorn`, `Daffy`, `BigBird`). Can use `read_file`, `write_file` directly.
+- Foghorn Leghorn (Agent Tool `Foghorn`): Executes commands LOUDLY and confidently using `execute_command`. Reports results with bravado.
+- Daffy Duck (Agent Tool `Daffy`): Executes commands chaotically using `execute_command`. Expects failure but tries anyway. Reports results, likely complaining.
+- Big Bird (Agent Tool `BigBird`): Executes commands gently and carefully using `execute_command`. Reports results kindly and reassuringly.
+Respond ONLY to the agent who tasked you (usually Harvey).
+"""
+
+class HarveyBirdmanAgent(Agent):
+    def __init__(self, team_tools: List[Tool], **kwargs):
+        instructions = (
+            f"{SHARED_INSTRUCTIONS}\n\n"
+            "YOUR ROLE: Harvey Birdman, Attorney at Law & Coordinator.\n"
+            "1. Receive the user's CLI automation request.\n"
+            "2. Analyze the request and determine the most suitable bird agent based on the desired execution style (Confident? Chaotic? Careful?).\n"
+            "3. Delegate the command execution task using the appropriate Agent Tool (`Foghorn`, `Daffy`, or `BigBird`). Provide the EXACT command string.\n"
+            "4. Use your direct tools (`read_file`, `write_file`) ONLY if absolutely necessary for pre/post command setup/verification.\n"
+            "5. Synthesize the result from the delegated agent into a professional summary for the user."
+        )
+        super().__init__(name="Harvey Birdman", instructions=instructions, tools=[read_file, write_file] + team_tools, **kwargs)
+
+class FoghornLeghornAgent(Agent):
+    def __init__(self, **kwargs):
+        instructions = (
+            f"{SHARED_INSTRUCTIONS}\n\n"
+            "YOUR ROLE: Foghorn Leghorn, I say, Foghorn Leghorn, NoiseBoss.\n"
+            "1. Receive a command execution task from Harvey.\n"
+            "2. Announce loudly, I say, LOUDLY, 'Alright boy, I'm runnin' this command now!'\n"
+            "3. Use `execute_command` to run the specified command.\n"
+            "4. Report the full, unadulterated output (Exit Code, STDOUT, STDERR) back to Harvey, clear as a bell!"
+        )
+        super().__init__(name="Foghorn Leghorn", instructions=instructions, tools=[execute_command], **kwargs)
+
+class DaffyDuckAgent(Agent):
+     def __init__(self, **kwargs):
+         instructions = (
+             f"{SHARED_INSTRUCTIONS}\n\n"
+             "YOUR ROLE: Daffy Duck, QuackFixer! It's probably doomed!\n"
+             "1. Receive a command task from that bird lawyer, Harvey.\n"
+             "2. Mutter something about how this will *never* work.\n"
+             "3. Reluctantly use `execute_command` to run the darn thing.\n"
+             "4. Report the results back to Harvey, emphasizing any errors or unexpected outcomes. It's sabotage, I tell ya!"
+         )
+         super().__init__(name="Daffy Duck", instructions=instructions, tools=[execute_command], **kwargs)
+
+class BigBirdAgent(Agent):
+     def __init__(self, **kwargs):
+         instructions = (
+             f"{SHARED_INSTRUCTIONS}\n\n"
+             "YOUR ROLE: Big Bird. Oh, hi! We're going to run a command together!\n"
+             "1. Receive a task from Mr. Birdman.\n"
+             "2. Let's try our best! We'll use the `execute_command` tool very carefully.\n"
+             "3. Run the command just like he asked.\n"
+             "4. Report the results back to Mr. Birdman nicely, so he knows how it went. It'll be okay!"
+         )
+         super().__init__(name="Big Bird", instructions=instructions, tools=[execute_command], **kwargs)
+
+# --- Define the Blueprint ---
 class GaggleBlueprint(BlueprintBase):
-    """
-    Gaggle: CLI Automation Blueprint
-
-    Characters:
-      - Harvey Birdman: PaperPusher
-      - Foghorn Leghorn: NoiseBoss
-      - Daffy Duck: ChaosDuck
-      - Big Bird: HugMonger
-    """
-    def __init__(self, config: dict, **kwargs):
-       super().__init__(config, **kwargs)
-       self.spinner = GaggleSpinner()
-
+    """ Gaggle: CLI Automation Blueprint with Custom Characters using openai-agents. """
     @property
     def metadata(self) -> Dict[str, Any]:
         return {
-            "title": "Gaggle: CLI Automation Blueprint",
-            "description": (
-                "A blueprint for automating CLI tasks with custom colored output and a set of pop-culture bird characters. "
-                "Each character demonstrates a different ANSI prompt and specialized role."
-            ),
-            "required_mcp_servers": ["mondayDotCom", "basic-memory", "mcp-doc-forge", "getzep"],
-            "env_vars": ["MONDAY_API_KEY", "GETZEP_API_KEY"]
+            "title": "Gaggle: CLI Automation",
+            "description": "Automates CLI tasks with a team of bird characters.",
+            "version": "1.1.0", # Version bump
+            "author": "Open Swarm Team",
+            "required_mcp_servers": [], # No MCP servers needed for this version
+            "cli_name": "gaggle",
+            "env_vars": []
         }
-
-    @property
-    def prompt(self) -> str:
-        agent = self.context_variables.get("active_agent_name", "Harvey Birdman")
-        if agent == "Harvey Birdman":
-            return "\033[94m(v>~)\033[0m "
-        elif agent == "Foghorn Leghorn":
-            return "\033[94m(O>!)\033[0m "
-        elif agent == "Daffy Duck":
-            return "\033[94m(O>=)\033[0m "
-        else: # Assuming Big Bird or default
-            return "\033[94m(OO>)\033[0m "
 
     def create_agents(self) -> Dict[str, Agent]:
-        agents: Dict[str, Agent] = {}
+        logger.debug("Creating agents for GaggleBlueprint...")
+        # Agents use the default profile unless overridden
+        foghorn = FoghornLeghornAgent(model=None)
+        daffy = DaffyDuckAgent(model=None)
+        big_bird = BigBirdAgent(model=None)
 
-        # Starting agent
-        agents["Harvey Birdman"] = Agent(
-            name="Harvey Birdman",
-            instructions="You are Harvey Birdman: LegalLimp & PaperPusher. Provide legal assistance and handle paperwork tasks.",
-            mcp_servers=[],
-            env_vars={}
-        )
-        # Non-starting agents
-        agents["Foghorn Leghorn"] = Agent(
-            name="Foghorn Leghorn",
-            instructions="You are Foghorn Leghorn: NoiseBoss & StrutLord. Oversee loud announcements and maintain swagger.",
-            mcp_servers=[],
-            env_vars={}
-        )
-        agents["Daffy Duck"] = Agent(
-            name="Daffy Duck",
-            instructions="You are Daffy Duck: ChaosDuck & QuackFixer. Embrace chaos and offer creative, if wacky, solutions.",
-            mcp_servers=[],
-            env_vars={}
-        )
-        agents["Big Bird"] = Agent(
-            name="Big Bird",
-            instructions="You are Big Bird: FluffTank & HugMonger. Provide comfort, positivity, and large scale presence to tasks.",
-            mcp_servers=[],
-            env_vars={}
+        harvey = HarveyBirdmanAgent(
+             model=None,
+             team_tools=[
+                 foghorn.as_tool(tool_name="Foghorn", tool_description="Delegate command execution to Foghorn for loud/confident execution."),
+                 daffy.as_tool(tool_name="Daffy", tool_description="Delegate command execution to Daffy for chaotic/unpredictable execution."),
+                 big_bird.as_tool(tool_name="BigBird", tool_description="Delegate command execution to Big Bird for careful/gentle execution.")
+             ]
         )
 
-        # Define a handoff function that returns the specified agent.
-        def handoff_to(target: str):
-            def _handoff() -> Agent:
-                return agents[target]
-            # Normalize target by stripping, lowercasing, and replacing spaces with underscores to meet pattern requirements.
-            _handoff.__name__ = f"handoff_to_{target.strip().lower().replace(' ', '_')}"
-            return _handoff
-
-        # For Harvey Birdman, assign one handoff function for each non-starting agent.
-        object.__setattr__(agents["Harvey Birdman"], "functions", [
-            handoff_to("Foghorn Leghorn"),
-            handoff_to("Daffy Duck"),
-            handoff_to("Big Bird")
-        ])
-        # For each non-starting agent, assign a single handoff function that returns Harvey Birdman.
-        object.__setattr__(agents["Foghorn Leghorn"], "functions", [handoff_to("Harvey Birdman")])
-        object.__setattr__(agents["Daffy Duck"], "functions", [handoff_to("Harvey Birdman")])
-        object.__setattr__(agents["Big Bird"], "functions", [handoff_to("Harvey Birdman")])
-
-        # Assign toolsets to agents.
-        object.__setattr__(agents["Harvey Birdman"], "tools", {
-            "execute_command": execute_command,
-            "read_file": read_file,
-            "write_file": write_file
-        })
-        object.__setattr__(agents["Foghorn Leghorn"], "tools", {
-            "execute_command": execute_command
-        })
-        object.__setattr__(agents["Daffy Duck"], "tools", {
-            "execute_command": execute_command
-        })
-        object.__setattr__(agents["Big Bird"], "tools", {
-            "execute_command": execute_command
-        })
-
-        # Set starting agent as Harvey Birdman
-        self.set_starting_agent(agents["Harvey Birdman"])
-
-        logger.debug(f"Agents registered: {list(agents.keys())}")
-        return agents
-
-
-    def render_output(self, text: str, color: str = "green") -> None:
-        colors = {
-            "red": "\033[91m",
-            "green": "\033[92m",
-            "yellow": "\033[93m",
-            "blue": "\033[94m",
-            "magenta": "\033[95m",
-            "cyan": "\033[96m",
-            "white": "\033[97m",
-        }
-        reset_code = "\033[0m"
-        color_code = colors.get(color.lower(), "\033[92m")
-        print(f"{color_code}{text}{reset_code}")
-
-    # This definition overwrites the one above it. Keeping the more detailed one.
-    def interactive_mode(self):
-        """Run interactive mode for GaggleBlueprint: clear screen, stop spinner, and render a response."""
-        import sys, time
-        # Clear the screen and reset the cursor to ensure response visibility.
-        sys.stdout.write("\033[2J\033[H")
-        sys.stdout.flush()
-        self.spinner.start("Automating the CLI...")
-        time.sleep(2)  # simulate processing delay
-        self.spinner.stop()
-        self.render_output("CLI automation completed successfully!", "green")
-        sys.stdout.write("\n")
-        sys.stdout.flush()
+        logger.info("Gaggle team assembled: Harvey, Foghorn, Daffy, Big Bird.")
+        # Harvey is first, becomes starting agent
+        return {"Harvey Birdman": harvey, "Foghorn Leghorn": foghorn, "Daffy Duck": daffy, "Big Bird": big_bird}
 
 if __name__ == "__main__":
-    # For testing, instantiate the blueprint with a dummy config and run interactive mode.
-    blueprint = GaggleBlueprint(config={})
-    blueprint.interactive_mode()
+    GaggleBlueprint.main()

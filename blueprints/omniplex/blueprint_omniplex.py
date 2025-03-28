@@ -1,209 +1,136 @@
-import asyncio
-import json
 import logging
 import os
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+import sys
+import asyncio
+from typing import Dict, Any, List
 
-from swarm.core import Swarm
-from swarm.extensions.config.config_loader import load_server_config
-from swarm.settings import DEBUG
-from swarm.types import Agent
-from swarm.utils.redact import redact_sensitive_data
-from dotenv import load_dotenv
-import argparse
+# Ensure src is in path for BlueprintBase import
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path: sys.path.insert(0, src_path)
+
+try:
+    from agents import Agent, Tool
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+except ImportError as e: print(f"ERROR: Import failed: {e}"); sys.exit(1)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+
+# --- Agent Definitions ---
+# Using BlueprintBase which loads swarm_config.json containing mcpServers definitions
+
+class AmazoAgent(Agent):
+    def __init__(self, **kwargs):
+        instructions = (
+            "You are Amazo, master of 'npx'-based MCP tools.\n"
+            "Receive task instructions.\n"
+            "Identify the BEST available 'npx' MCP tool from your assigned list to accomplish the task.\n"
+            "Execute the chosen MCP tool with the necessary parameters.\n"
+            "Report the results."
+        )
+        # Tools are dynamically added by the library when mcp_servers are assigned
+        super().__init__(name="Amazo", instructions=instructions, tools=[], **kwargs)
+
+class RogueAgent(Agent):
+     def __init__(self, **kwargs):
+        instructions = (
+            "You are Rogue, master of 'uvx'-based MCP tools.\n"
+            "Receive task instructions.\n"
+            "Identify the BEST available 'uvx' MCP tool from your assigned list.\n"
+            "Execute the chosen MCP tool.\n"
+            "Report the results."
+        )
+        super().__init__(name="Rogue", instructions=instructions, tools=[], **kwargs)
+
+class SylarAgent(Agent):
+     def __init__(self, **kwargs):
+        instructions = (
+            "You are Sylar, master of miscellaneous MCP tools (non-npx, non-uvx).\n"
+            "Receive task instructions.\n"
+            "Identify the BEST available MCP tool from your assigned list.\n"
+            "Execute the chosen MCP tool.\n"
+            "Report the results."
+        )
+        super().__init__(name="Sylar", instructions=instructions, tools=[], **kwargs)
+
+class OmniplexCoordinator(Agent):
+     def __init__(self, team_tools: List[Tool], **kwargs):
+         instructions = (
+             "You are the Omniplex Coordinator. Your role is to understand the user request and delegate it to the agent best suited based on the required MCP tool's execution type.\n"
+             "Team & Tool Categories:\n"
+             "- Amazo (Agent Tool `Amazo`): Handles tasks requiring `npx`-based MCP servers.\n"
+             "- Rogue (Agent Tool `Rogue`): Handles tasks requiring `uvx`-based MCP servers.\n"
+             "- Sylar (Agent Tool `Sylar`): Handles tasks requiring other/miscellaneous MCP servers.\n"
+             "Analyze the request, determine if an `npx`, `uvx`, or `other` tool is needed, and delegate using the corresponding agent tool (`Amazo`, `Rogue`, or `Sylar`). Synthesize the final response."
+         )
+         super().__init__(name="OmniplexCoordinator", instructions=instructions, tools=team_tools, **kwargs)
 
 
-class OmniplexBlueprint(ABC):
-    """
-    Omniplex is an AI-powered orchestrator that dynamically discovers and utilizes all available MCP servers.
-    
-    - **Amazo**: Loads all `npx`-based MCP servers.
-    - **Rogue**: Loads all `uvx`-based MCP servers.
-    - **Sylar**: Loads any remaining MCP servers.
-    
-    Agents remain **aware** of each other’s capabilities using LLM-generated summaries.
-    """
-
-    def __init__(self, config: dict, **kwargs):
-        """
-        Initializes the blueprint and registers dynamically discovered agents.
-
-        Args:
-            config (dict): Configuration dictionary.
-            **kwargs: Additional parameters (e.g., existing swarm instance).
-        """
-        logger.debug(f"Initializing Omniplex with config: {redact_sensitive_data(config)}")
-
-        if not hasattr(self, 'metadata') or not isinstance(self.metadata, dict):
-            raise AssertionError("Blueprint metadata must be defined and must be a dictionary.")
-
-        # Load environment variables
-        load_dotenv()
-        logger.debug("Environment variables loaded.")
-
-        # Store configuration
-        self.config = config
-
-        # Use existing Swarm instance if provided, otherwise create a new one
-        self.swarm = kwargs.get('swarm_instance', Swarm(config=self.config))
-        logger.debug("Swarm instance initialized.")
-
-        # Register agents
-        self.starting_agent = None
-        self.context_variables: Dict[str, Any] = {}
-        agents = self.create_agents()
-        self.swarm.agents.update(agents)
-        logger.debug(f"Agents registered: {list(agents.keys())}")
-
-        # Validate required environment variables
-        missing_vars = [var for var in self.metadata.get('env_vars', []) if not os.getenv(var)]
-        if missing_vars:
-            raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
-
-        # Discover tools asynchronously for agents
-        asyncio.run(self.async_discover_agent_tools())
-
-        # Generate agent awareness summaries
-        self.update_agent_awareness()
-
-        logger.debug("Omniplex initialization complete.")
-
+# --- Define the Blueprint ---
+class OmniplexBlueprint(BlueprintBase):
+    """ Dynamically loads agents based on MCP server types defined in config. """
     @property
     def metadata(self) -> Dict[str, Any]:
-        """Metadata for the Omniplex blueprint."""
         return {
-            "title": "Omniplex – The Ultimate AI Tool Orchestrator",
-            "description": "Dynamically loads all available MCP servers, categorizes them by execution type, and enables cross-agent awareness for optimal task delegation.",
-            "required_mcp_servers": [],
+            "title": "Omniplex MCP Orchestrator",
+            "description": "Dynamically loads agents (Amazo:npx, Rogue:uvx, Sylar:other) based on available MCP servers.",
+            "version": "1.0.0",
+            "author": "Open Swarm Team",
+            # Required servers will be ALL servers defined in the config, assigned dynamically
+            "required_mcp_servers": [], # Let create_agents handle assignment
             "cli_name": "omni",
-            "env_vars": [],
+            "env_vars": [] # Keys handled by .env and server configs
         }
 
-    def create_agents(self) -> Dict[str, Any]:
-        """
-        Dynamically creates and registers agents based on MCP server execution types.
-        
-        - Amazo → Handles NPX-based MCP servers.
-        - Rogue → Handles UVX-based MCP servers.
-        - Sylar → Handles all remaining MCP servers.
-        
-        Returns:
-            Dict[str, Any]: A dictionary mapping agent names to Agent objects.
-        """
+    def create_agents(self) -> Dict[str, Agent]:
+        logger.debug("Dynamically creating agents for OmniplexBlueprint...")
         agents = {}
-        mcp_servers = self.config.get("mcpServers", {})
+        mcp_servers = self.swarm_config.get("mcpServers", {})
 
         npx_servers = [name for name, cfg in mcp_servers.items() if cfg.get("command") == "npx"]
         uvx_servers = [name for name, cfg in mcp_servers.items() if cfg.get("command") == "uvx"]
         other_servers = [name for name in mcp_servers if name not in npx_servers + uvx_servers]
 
-        agents["Amazo"] = self.create_agent("Amazo", "npx", npx_servers)
-        agents["Rogue"] = self.create_agent("Rogue", "uvx", uvx_servers)
-        agents["Sylar"] = self.create_agent("Sylar", "other", other_servers)
+        # Create agents for each category if they have servers
+        amazo = Rogue = sylar = None # Initialize to None
+        team_tools = []
 
-        self.set_starting_agent(agents["Amazo"])
+        if npx_servers:
+            logger.info(f"Creating Amazo for npx servers: {npx_servers}")
+            amazo = AmazoAgent(model=None) # Use default model profile
+            # We assign mcp_servers later in BlueprintBase._run_non_interactive
+            # agents["Amazo"] = amazo # Add to dict later with coordinator
+            team_tools.append(amazo.as_tool(tool_name="Amazo", tool_description="Delegate tasks requiring npx-based MCP servers (e.g., filesystem, memory, brave-search)."))
+        else: logger.info("No npx servers found for Amazo.")
+
+        if uvx_servers:
+            logger.info(f"Creating Rogue for uvx servers: {uvx_servers}")
+            rogue = RogueAgent(model=None)
+            # agents["Rogue"] = rogue
+            team_tools.append(rogue.as_tool(tool_name="Rogue", tool_description="Delegate tasks requiring uvx-based MCP servers."))
+        else: logger.info("No uvx servers found for Rogue.")
+
+        if other_servers:
+            logger.info(f"Creating Sylar for other servers: {other_servers}")
+            sylar = SylarAgent(model=None)
+            # agents["Sylar"] = sylar
+            team_tools.append(sylar.as_tool(tool_name="Sylar", tool_description="Delegate tasks requiring miscellaneous MCP servers."))
+        else: logger.info("No other servers found for Sylar.")
+
+        # Create Coordinator and pass the created agent tools
+        coordinator = OmniplexCoordinator(model=None, team_tools=team_tools)
+        agents["OmniplexCoordinator"] = coordinator # Coordinator is always first
+
+        # Add the specialist agents *after* the coordinator
+        if amazo: agents["Amazo"] = amazo
+        if rogue: agents["Rogue"] = rogue
+        if sylar: agents["Sylar"] = sylar
+
+        # Metadata update - list all servers found as required
+        self.metadata["required_mcp_servers"] = list(mcp_servers.keys())
+        logger.info(f"Omniplex agents created. Required servers: {self.metadata['required_mcp_servers']}")
+
         return agents
-
-    def create_agent(self, name: str, category: str, mcp_servers: List[str]) -> Any:
-        """
-        Creates an agent with dynamically assigned MCP servers.
-
-        Args:
-            name (str): Agent name.
-            category (str): Category of servers (npx, uvx, or other).
-            mcp_servers (List[str]): List of MCP servers assigned to this agent.
-
-        Returns:
-            Agent: The dynamically generated agent.
-        """
-        return Agent(
-            name=name,
-            instructions=self.generate_base_instructions(name, category),
-            mcp_servers=mcp_servers,
-            env_vars={},
-        )
-
-    def generate_base_instructions(self, agent_name: str, category: str) -> str:
-        """
-        Generates base instructions for an agent, before adding cross-agent awareness.
-
-        Args:
-            agent_name (str): The name of the agent.
-            category (str): The category of tools it manages.
-
-        Returns:
-            str: The base instruction set for the agent.
-        """
-        return (
-            f"You are {agent_name}, an advanced AI tool orchestrator handling MCP servers categorized under '{category}'.\n"
-            "Your role is to execute tasks using your assigned MCP tools and return responses to the user.\n"
-            "You do not delegate tasks outside of your assigned toolset but may inform the user if another agent is better suited.\n"
-        )
-
-    async def async_discover_agent_tools(self) -> None:
-        """Asynchronously discovers and registers tools for all agents."""
-        for agent in self.swarm.agents.values():
-            await self.swarm.discover_and_merge_agent_tools(agent)
-
-    def update_agent_awareness(self) -> None:
-        """
-        Uses an LLM request to generate agent descriptions, making agents aware of each other's capabilities.
-        """
-        descriptions = {}
-        for agent in self.swarm.agents.values():
-            descriptions[agent.name] = self.generate_tool_summary(agent)
-
-        for agent in self.swarm.agents.values():
-            agent.instructions += "\n\nAdditional agent capabilities:\n"
-            for other_agent, desc in descriptions.items():
-                if other_agent != agent.name:
-                    agent.instructions += f"- {other_agent}: {desc}\n"
-
-    def generate_tool_summary(self, agent) -> str:
-        """
-        Uses an LLM query to summarize an agent’s toolset.
-
-        Args:
-            agent: The agent to summarize.
-
-        Returns:
-            str: A concise description of the agent's capabilities.
-        """
-        tools = [tool.name for tool in agent.functions if hasattr(tool, "name")]
-        if not tools:
-            return "No specialized tools available."
-
-        response = self.swarm.get_chat_completion(
-            agent=agent,
-            history=[{"role": "user", "content": f"Summarize the following tools: {', '.join(tools)}"}],
-            context_variables={},
-            model_override=None,
-            stream=False,
-            debug=False,
-        )
-
-        return response.choices[0].message.content.strip()
-
-    def set_starting_agent(self, agent: Any) -> None:
-        """Sets the starting agent."""
-        self.starting_agent = agent
-        self.context_variables["active_agent_name"] = agent.name
-
-    @classmethod
-    def main(cls):
-        """Main entry point for running Omniplex in CLI mode."""
-        parser = argparse.ArgumentParser(description="Launch the Omniplex blueprint.")
-        parser.add_argument("--config", type=str, default="./swarm_config.json", help="Path to the configuration file")
-        args = parser.parse_args()
-
-        config = load_server_config(args.config)
-        blueprint = cls(config=config)
-        blueprint.interactive_mode()
-
 
 if __name__ == "__main__":
     OmniplexBlueprint.main()
