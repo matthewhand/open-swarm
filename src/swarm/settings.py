@@ -58,43 +58,43 @@ INSTALLED_APPS = [
     'swarm.apps.SwarmConfig',
 ]
 
-# --- Conditionally add blueprint apps for TESTING ---
-if TESTING:
-    _test_apps_to_add = ['blueprints.university']
-    for app in _test_apps_to_add:
-        if app not in INSTALLED_APPS:
-            INSTALLED_APPS.insert(0, app)
-            logging.info(f"Settings [TESTING]: Added '{app}' to INSTALLED_APPS.")
-    if 'SWARM_BLUEPRINTS' not in os.environ:
-         os.environ['SWARM_BLUEPRINTS'] = 'university'
-         logging.info(f"Settings [TESTING]: Set SWARM_BLUEPRINTS='university'")
-else:
-    # --- Dynamic App Loading for Production/Development ---
-    _INITIAL_BLUEPRINT_APPS = []
-    _swarm_blueprints_env = os.getenv('SWARM_BLUEPRINTS')
-    _log_source = "Not Set"
-    if _swarm_blueprints_env:
-        _blueprint_names = [name.strip() for name in _swarm_blueprints_env.split(',') if name.strip()]
-        _INITIAL_BLUEPRINT_APPS = [f'blueprints.{name}' for name in _blueprint_names if name.replace('_', '').isidentifier()]
-        _log_source = "SWARM_BLUEPRINTS env var"
-        logging.info(f"Settings: Found blueprints from env var: {_INITIAL_BLUEPRINT_APPS}")
-    else:
-        _log_source = "directory scan"
-        try:
-            if BLUEPRINTS_DIR.is_dir():
-                 for item in BLUEPRINTS_DIR.iterdir():
-                     if item.is_dir() and (item / '__init__.py').exists():
-                         if item.name.replace('_', '').isidentifier():
-                             _INITIAL_BLUEPRINT_APPS.append(f'blueprints.{item.name}')
-            logging.info(f"Settings: Found blueprints from directory scan: {_INITIAL_BLUEPRINT_APPS}")
-        except Exception as e:
-            logging.error(f"Settings: Error discovering blueprint apps during initial load: {e}")
+# # --- Conditionally add blueprint apps for TESTING ---
+# if TESTING:
+#     _test_apps_to_add = ['blueprints.university']
+#     for app in _test_apps_to_add:
+#         if app not in INSTALLED_APPS:
+#             INSTALLED_APPS.insert(0, app)
+#             logging.info(f"Settings [TESTING]: Added '{app}' to INSTALLED_APPS.")
+#     if 'SWARM_BLUEPRINTS' not in os.environ:
+#          os.environ['SWARM_BLUEPRINTS'] = 'university'
+#          logging.info(f"Settings [TESTING]: Set SWARM_BLUEPRINTS='university'")
+# else:
+#     # --- Dynamic App Loading for Production/Development ---
+#     _INITIAL_BLUEPRINT_APPS = []
+#     _swarm_blueprints_env = os.getenv('SWARM_BLUEPRINTS')
+#     _log_source = "Not Set"
+#     if _swarm_blueprints_env:
+#         _blueprint_names = [name.strip() for name in _swarm_blueprints_env.split(',') if name.strip()]
+#         _INITIAL_BLUEPRINT_APPS = [f'blueprints.{name}' for name in _blueprint_names if name.replace('_', '').isidentifier()]
+#         _log_source = "SWARM_BLUEPRINTS env var"
+#         logging.info(f"Settings: Found blueprints from env var: {_INITIAL_BLUEPRINT_APPS}")
+#     else:
+#         _log_source = "directory scan"
+#         try:
+#             if BLUEPRINTS_DIR.is_dir():
+#                  for item in BLUEPRINTS_DIR.iterdir():
+#                      if item.is_dir() and (item / '__init__.py').exists():
+#                          if item.name.replace('_', '').isidentifier():
+#                              _INITIAL_BLUEPRINT_APPS.append(f'blueprints.{item.name}')
+#             logging.info(f"Settings: Found blueprints from directory scan: {_INITIAL_BLUEPRINT_APPS}")
+#         except Exception as e:
+#             logging.error(f"Settings: Error discovering blueprint apps during initial load: {e}")
 
-    for app in _INITIAL_BLUEPRINT_APPS:
-         if app not in INSTALLED_APPS:
-              INSTALLED_APPS.append(app)
-              logging.info(f"Settings [{_log_source}]: Added '{app}' to INSTALLED_APPS.")
-# --- End App Loading Logic ---
+#     for app in _INITIAL_BLUEPRINT_APPS:
+#          if app not in INSTALLED_APPS:
+#               INSTALLED_APPS.append(app)
+#               logging.info(f"Settings [{_log_source}]: Added '{app}' to INSTALLED_APPS.")
+# # --- End App Loading Logic ---
 
 if isinstance(INSTALLED_APPS, tuple): INSTALLED_APPS = list(INSTALLED_APPS)
 logging.info(f"Settings: Final INSTALLED_APPS = {INSTALLED_APPS}")
