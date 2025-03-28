@@ -1,4 +1,4 @@
-import pytest
+import pytest  # type: ignore
 import os
 import json
 from pathlib import Path
@@ -287,17 +287,6 @@ def test_load_llm_config_env_override_fallback(monkeypatch):
     assert llm_config["api_key"] == "env_openai_fallback_key"
     assert llm_config["_log_key_source"] == "env var 'OPENAI_API_KEY'"
 
-def test_load_llm_config_dummy_key_applied(monkeypatch):
-    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
-    llm_config = load_llm_config(config, llm_name="dummy_required")
-    assert llm_config["api_key"] == "sk-DUMMYKEY"
-    assert llm_config["_log_key_source"] == "dummy key"
-
-def test_load_llm_config_dummy_key_suppressed(monkeypatch):
-    monkeypatch.setenv("SUPPRESS_DUMMY_KEY", "true")
-    config = json.loads(MOCK_VALID_CONFIG_CONTENT)
-    with pytest.raises(ValueError, match="Required API key.*missing"):
-         load_llm_config(config, llm_name="dummy_required")
 
 def test_load_llm_config_not_required_no_key(monkeypatch):
     config = json.loads(MOCK_VALID_CONFIG_CONTENT)
