@@ -191,3 +191,5 @@ openapi.yaml
 *.db
 *.db-shm
 logs/*
+
+openai-agents-python/*

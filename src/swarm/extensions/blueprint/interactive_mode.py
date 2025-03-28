@@ -20,7 +20,7 @@ prompted for input,
 ance's methods.
     """
     logger.debug("Starting interactive mode.")
-    if not blueprint.starting_agent or not blueprint.swarm:
+    if not blueprint.starting_agent:
         logger.error("Starting agent or Swarm not initialized.")
         # --- FIX: Terminate string literal correctly ---
         raise ValueError("Starting agent and Swarm must be initialized.")

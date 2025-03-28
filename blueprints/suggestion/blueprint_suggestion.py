@@ -79,7 +79,6 @@ class SuggestionBlueprint(BlueprintBase):
             mcp_servers=[],
             env_vars={},
             functions=[],  # No function calls, just structured text response
-            parallel_tool_calls=False,  # Still required for compatibility
             response_format=response_format,  # Structured output
         )
 

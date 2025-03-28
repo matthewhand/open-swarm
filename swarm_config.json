@@ -324,7 +324,7 @@
         "@modelcontextprotocol/server-sequential-thinking"
       ]
     },
-    "everything": {
+    "everything_server": {
       "command": "npx",
       "args": [
         "-y",
@@ -343,7 +343,7 @@
         "ALLOWED_PATH": "${ALLOWED_PATH}"
       }
     },
-    "mcp-llms-txt": {
+    "mcp_llms_txt_server": {
       "command": "uvx",
       "args": [
         "--from","git+https://github.com/SecretiveShell/MCP-llms-txt","mcp-llms-txt"
