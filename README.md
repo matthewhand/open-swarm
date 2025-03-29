@@ -1,144 +1,183 @@
-Open-Swarm Update - 20250328
+# Open-Swarm - Agentic Blueprint Framework
 
-This project is now repurposed due to OpenAI officially supporting the Swarm framework under the new name "openai-agents(-python)".
+**Version:** 0.2.9-quiet (Core)
 
-Open-swarm now utilizes the openai-agents framework for enhanced capabilities, and the MCP logic has been offloaded to the openai-agents framework.
+**Status:** Actively Refactored - Utilizing `openai-agents`
 
-Key focus areas of this open-swarm framework include:
-- **Blueprints**: A blueprint can be converted into an OpenAI-compatible REST endpoint (analogous to `/v1/chat/completions`, but with agents) and/or into CLI utilities on the shell.
-- **Config Loader**: Blueprints and configuration management form a core aspect of the project.
+## Overview
 
-Installation:
--------------
-Open-swarm is available via PyPI. To install, run:
-```
-pip install open-swarm
-```
+Open-Swarm has been refactored to leverage the official `openai-agents` library (previously known as Swarm). It provides a framework for building, configuring, and running multi-agent systems ("Blueprints").
 
-Usage:
-------
-In development, after cloning the repository (`github.com/matthewhand/open-swarm`), you can run a blueprint directly with:
-```
-uv run blueprints/mcp_demo/blueprint_mcp_demo.py
-```
+Key focus areas:
 
-To run the blueprint with a specific instruction (for example, to list its tools), execute:
-```
-uv run blueprints/mcp_demo/blueprint_mcp_demo.py --instruction "list your tools"
-```
+1.  **Blueprints (`BlueprintBase`)**:
+    *   Define multi-agent teams, their tools (functions or other agents), and instructions.
+    *   Implement a standard interface for agent creation (`create_starting_agent`).
+    *   Handle configuration loading (LLM profiles, MCP servers) with inheritance and overrides.
+    *   Can be executed directly via CLI for development and testing.
+2.  **Configuration (`swarm_config.json`)**:
+    *   Centralized JSON configuration for LLM providers/models, MCP server commands, default settings, profiles, and blueprint-specific overrides.
+    *   Supports environment variable substitution (`${VAR_NAME}`).
+3.  **Execution Modes**:
+    *   **Direct CLI**: Run blueprints using `uv run python blueprints/<name>/blueprint_<name>.py --instruction "..."`. Supports `--debug`, `--quiet`, `--config`, `--profile` flags.
+    *   **(Planned/Future)** `swarm-api`: Serve blueprints as OpenAI-compatible API endpoints.
+    *   **(Planned/Future)** `swarm-cli`: Package, install, and manage blueprints as standalone CLI tools.
 
-Alternatively, you can run the blueprint as an API endpoint using the swarm-api utility:
-```
-swarm-api --blueprint mcp_demo
-```
+## Refactoring Pattern (`BlueprintBase`)
 
-In production, you can use the swarm-cli utility to manage and run blueprints. For example, to add an example blueprint:
-```
-swarm-cli add github:matthewhand/open-swarm/blueprints/mcp_demo
-```
-This command saves the blueprint to:
-```
-~/.swarm/blueprints/mcp_demo/
-```
-After adding the blueprint, you can convert it into a standalone CLI utility with:
-```
-swarm-cli install mcp_demo
-```
+The core refactoring uses the `src.swarm.extensions.blueprint.blueprint_base.BlueprintBase` abstract class. New blueprints should follow this pattern:
 
-Building a Basic Blueprint & Config File:
-------------------------------------------
-You can create your own blueprint to extend open-swarm's capabilities. Here is a walkthrough:
+1.  **Inherit `BlueprintBase`**:
+    ````python
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from agents import Agent, function_tool, Model, MCPServer # etc.
+    from typing import Dict, Any, List, ClassVar
 
-1. **Create a Blueprint File:**
-   - In the `blueprints/` directory, create a new Python file, for example `blueprints/my_blueprint.py`.
-   - Define a new class that inherits from `BlueprintBase` and implement the required abstract methods, such as `metadata` and `create_agents()`. For instance:
-     ```
-     from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    class MyNewBlueprint(BlueprintBase):
+        # ...
+    ````
 
-     class MyBlueprint(BlueprintBase):
-         @property
-         def metadata(self):
-             return {
-                 "title": "MyBlueprint",
-                 "env_vars": [],
-                 "required_mcp_servers": [],
-                 "max_context_tokens": 8000,
-                 "max_context_messages": 50
-             }
+2.  **Define `metadata` (Class Variable)**:
+    ````python
+    class MyNewBlueprint(BlueprintBase):
+        metadata: ClassVar[Dict[str, Any]] = {
+            "name": "MyNewBlueprint", # Typically the class name
+            "title": "My Awesome Agent Team",
+            "description": "A brief description of what this blueprint does.",
+            "version": "1.0.0",
+            "author": "Your Name",
+            "tags": ["example", "custom", "multi-agent"],
+            "required_mcp_servers": ["optional-mcp-name-if-needed"], # List MCP server keys from config
+        }
+        # ...
+    ````
 
-         def create_agents(self):
-             # Create and return agents as a dictionary.
-             return {"MyAgent": ...}  # Implement your agent creation logic here.
+3.  **Implement `create_starting_agent`**:
+    ````python
+    from agents import Agent
+    from agents.models.interface import Model
+    from agents.mcp import MCPServer
+    from typing import List
 
-     if __name__ == "__main__":
-         MyBlueprint.main()
-     ```
+    class MyNewBlueprint(BlueprintBase):
+        # ... metadata ...
+        _openai_client_cache: Dict[str, Any] = {} # Cache example
+        _model_instance_cache: Dict[str, Model] = {} # Cache example
 
-2. **Create a Configuration File:**
-   - Create a configuration file (e.g., `swarm_config.json`) at the root of the project. This file can include settings for LLM models and MCP servers. For example:
-     ```
-     {
-       "llm": {
-         "default": {
-           "provider": "openai",
-           "model": "gpt-4",
-           "api_key": "your-openai-api-key",
-           "base_url": null
-         }
-       },
-       "mcpServers": {
-         "mcp_llms_txt_server": {
-           "command": "echo",
-           "args": [],
-           "env": {}
+        # Optional: Helper to get model instances (adapt from existing blueprints)
+        def _get_model_instance(self, profile_name: str) -> Model:
+            # ... (Implementation like in BurntNoodlesBlueprint) ...
+            pass
+
+        def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+            """Creates the agent team and returns the entry-point agent."""
+            logger.debug("Creating MyAwesome agent team...")
+            self._model_instance_cache.clear() # Clear cache for this run if needed
+            self._openai_client_cache.clear()
+
+            default_profile = self.config.get("llm_profile", "default")
+            model_instance = self._get_model_instance(default_profile) # Use helper
+
+            # Define tools (functions)
+            @function_tool
+            def my_tool(param: str) -> str:
+                """My custom tool."""
+                logger.info(f"Executing my_tool with '{param}'")
+                return f"Tool executed with {param}"
+
+            # Create subordinate agents if needed
+            sub_agent = Agent(
+                name="SubAgent",
+                model=model_instance,
+                instructions="I perform sub-tasks.",
+                tools=[] # Sub-agent might have its own tools
+            )
+
+            # Create the main/starting agent
+            main_agent = Agent(
+                name="MainAgent",
+                model=model_instance,
+                instructions="I am the main agent. I coordinate and use tools.",
+                tools=[
+                    my_tool,
+                    sub_agent.as_tool(tool_name="SubAgentDelegator", tool_description="Delegate tasks to SubAgent.")
+                ],
+                mcp_servers=mcp_servers # Pass MCP servers if the agent needs them directly
+            )
+            logger.debug("Agent team created. MainAgent is starting agent.")
+            return main_agent # Return the agent that Runner should start with
+    ````
+
+4.  **Add `if __name__ == "__main__":`**:
+    ````python
+    if __name__ == "__main__":
+        MyNewBlueprint.main() # Use the base class main method
+    ````
+
+## Development Usage
+
+1.  **Clone**: `git clone https://github.com/matthewhand/open-swarm.git`
+2.  **Navigate**: `cd open-swarm`
+3.  **Install Deps**: `uv pip install -r requirements.txt -e .` (Uses `uv` for speed, install with `pip install uv`)
+4.  **Configure**: Create or update `swarm_config.json` in the project root. Add LLM API keys (or set environment variables like `OPENAI_API_KEY`). Define LLM profiles and any MCP servers needed.
+    *Example `swarm_config.json`:*
+    ````json
+    {
+      "llm": {
+        "default": {
+          "provider": "openai",
+          "model": "gpt-4o-mini",
+          "api_key": "${OPENAI_API_KEY}",
+          "base_url": "${OPENAI_BASE_URL}"
+        },
+        "code-large": {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "api_key": "${OPENAI_API_KEY}",
+            "base_url": "${OPENAI_BASE_URL}"
+        }
+      },
+      "mcpServers": {
+         "memory": {
+             "command": ["uv", "run", "python", "-m", "agents.mcp.servers.memory"],
+             "args": [],
+             "env": {}
          },
-         "everything_server": {
-           "command": "echo",
-           "args": [],
-           "env": {}
+         "filesystem": {
+             "command": ["uv", "run", "python", "-m", "agents.mcp.servers.filesystem"],
+             "args": ["--root", "./agent_fs"],
+             "env": {},
+             "cwd": "${PROJECT_ROOT}"
          }
-       }
-     }
-     ```
+         # Add other MCP server definitions here
+      }
+    }
+    ````
+5.  **Run a Blueprint**:
+    *   **Normal**: `uv run python blueprints/burnt_noodles/blueprint_burnt_noodles.py --instruction "Check git status."`
+    *   **Debug**: `uv run python blueprints/burnt_noodles/blueprint_burnt_noodles.py --instruction "Check git status." --debug`
+    *   **Quiet**: `uv run python blueprints/burnt_noodles/blueprint_burnt_noodles.py --instruction "Check git status." --quiet` (Outputs only the final result string)
+    *   **With Config**: `uv run python blueprints/my_blueprint.py --instruction "Do something" --config-path /path/to/custom_config.json`
+    *   **With Profile**: `uv run python blueprints/rue_code/blueprint_rue_code.py --instruction "Refactor this code..." --profile code-large`
 
-3. **Running Your Blueprint:**
-   - To run your blueprint in development mode, use:
-     ```
-     uv run blueprints/my_blueprint.py
-     ```
-   - Ensure your configuration file is properly loaded by your blueprint (this might require modifications in your blueprint's initialization logic or passing a `--config` parameter).
+## Testing
 
-Installation & Deployment via swarm-cli:
---------------------------------------------
-After creating your blueprint and config file, you can manage it with the swarm-cli utility. For example:
-- **Adding your blueprint:**
-  ```
-  swarm-cli add github:matthewhand/open-swarm/blueprints/my_blueprint
-  ```
-- **Installing as a standalone CLI utility:**
-  ```
-  swarm-cli install my_blueprint
-  ```
+*   Run tests using `pytest`: `uv run pytest -vv`
+*   Run specific tests: `uv run pytest -k test_burnt_noodles_agent_creation`
 
-Examples:
----------
-**Blueprint "mcp_demo":**
+## Examples
 
-The blueprint located in `blueprints/mcp_demo` demonstrates a key design principle:
-- It creates a primary agent named **Sage** that leverages the MCP framework to incorporate external capabilities.
-- **Sage** uses another agent, **Explorer**, as a tool to extend its functionality.
+*   **`burnt_noodles`**: Demonstrates multi-agent collaboration for Git and testing tasks using the new `BlueprintBase` pattern.
+*   **`rue_code`**: Refactored to use `BlueprintBase`. Focuses on coding tasks with multiple agents.
+*   **`nebula_shellz`**: Refactored to use `BlueprintBase`. Matrix-themed multi-agent system for shell commands and coding.
+*   **`mcp_demo`**: (Needs Refactoring) Demonstrates MCP usage with filesystem and memory servers.
+*   *(Other blueprints)*: Need refactoring to the `BlueprintBase` pattern.
 
-This hierarchical agent design illustrates how blueprints can compose agents that call on subagents as tools. This model serves as a prototype for creating powerful agent-driven workflows and can be deployed both as a REST endpoint and as a CLI tool.
+## Future Work / Planned Features
 
-Production Environment:
------------------------
-After installing the package via pip, you can manage blueprints with `swarm-cli` and launch them as standalone utilities or REST services.
-
-For help with swarm-cli:
-```
-swarm-cli --help
-```
-
-For help with swarm-api:
-```
-swarm-api --help
+*   Implement `swarm-api` for serving blueprints as REST endpoints.
+*   Implement `swarm-cli` for packaging and installation.
+*   Refactor remaining blueprints (`gaggle`, `echocraft`, `mcp_demo`, etc.).
+*   Improve test coverage, especially for CLI, agent-as-tool, and MCP interactions.
+*   Explore further modularization of `BlueprintBase` (e.g., config loading, MCP startup).
+*   Add support for more LLM providers via `litellm` integration within `BlueprintBase` or helper functions.

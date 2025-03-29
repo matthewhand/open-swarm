@@ -3,13 +3,15 @@ import os
 import sys
 import asyncio
 import subprocess
+import shlex # Added for safe command splitting
 import re
 import inspect
+from pathlib import Path # Use pathlib for better path handling
 from typing import Dict, Any, List, Optional, ClassVar
 
 try:
     # Core imports from openai-agents
-    from agents import Agent, Tool, function_tool
+    from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
@@ -18,25 +20,30 @@ try:
     # Import our custom base class
     from swarm.extensions.blueprint.blueprint_base import BlueprintBase
 except ImportError as e:
-    print(f"ERROR: Import failed in burnt_noodles: {e}. Check 'openai-agents' install and structure.")
+    # Provide more helpful error message
+    print(f"ERROR: Import failed in BurntNoodlesBlueprint: {e}. Check 'openai-agents' install and project structure.")
+    print(f"Attempted import from directory: {os.path.dirname(__file__)}")
     print(f"sys.path: {sys.path}")
     sys.exit(1)
 
+# Configure logging for this blueprint module
 logger = logging.getLogger(__name__)
+# Logging level is controlled by BlueprintBase based on --debug flag
 
 # --- Tool Definitions ---
-# Convert blueprint methods into standalone functions decorated as tools
+# Standalone functions decorated as tools for git and testing operations.
+# Enhanced error handling and logging added.
 
 @function_tool
 def git_status() -> str:
     """Executes 'git status --porcelain' and returns the current repository status."""
-    logger.info("Executing git status --porcelain")
+    logger.info("Executing git status --porcelain") # Keep INFO for tool execution start
     try:
         # Using --porcelain for machine-readable output
         result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True, timeout=30)
         output = result.stdout.strip()
-        logger.debug(f"Git status output:\n{output}")
-        return f"OK: Git Status:\n{output}" if output else "OK: No changes detected."
+        logger.debug(f"Git status raw output:\n{output}")
+        return f"OK: Git Status:\n{output}" if output else "OK: No changes detected in the working directory."
     except FileNotFoundError:
         logger.error("Git command not found. Is git installed and in PATH?")
         return "Error: git command not found."
@@ -53,20 +60,19 @@ def git_status() -> str:
 @function_tool
 def git_diff() -> str:
     """Executes 'git diff' and returns the differences in the working directory."""
-    logger.info("Executing git diff")
+    logger.info("Executing git diff") # Keep INFO for tool execution start
     try:
-        result = subprocess.run(["git", "diff"], capture_output=True, text=True, check=True, timeout=30)
+        result = subprocess.run(["git", "diff"], capture_output=True, text=True, check=False, timeout=30) # Use check=False, handle exit code
         output = result.stdout
-        logger.debug(f"Git diff output:\n{output[:500]}...") # Log snippet
+        stderr = result.stderr.strip()
+        if result.returncode != 0 and stderr: # Error occurred
+            logger.error(f"Error executing git diff (Exit Code {result.returncode}): {stderr}")
+            return f"Error executing git diff: {stderr}"
+        logger.debug(f"Git diff raw output (Exit Code {result.returncode}):\n{output[:1000]}...") # Log snippet
         return f"OK: Git Diff Output:\n{output}" if output else "OK: No differences found."
     except FileNotFoundError:
         logger.error("Git command not found.")
         return "Error: git command not found."
-    except subprocess.CalledProcessError as e:
-        # Diff might return non-zero if there are differences, check stderr
-        if e.stderr: logger.error(f"Error executing git diff: {e.stderr}"); return f"Error executing git diff: {e.stderr}"
-        logger.debug(f"Git diff completed (non-zero exit likely means changes exist):\n{e.stdout[:500]}...")
-        return f"OK: Git Diff Output:\n{e.stdout}" # Return stdout even on non-zero exit if no stderr
     except subprocess.TimeoutExpired:
         logger.error("Git diff command timed out.")
         return "Error: Git diff command timed out."
@@ -77,10 +83,10 @@ def git_diff() -> str:
 @function_tool
 def git_add(file_path: str = ".") -> str:
     """Executes 'git add' to stage changes for the specified file or all changes (default '.')."""
-    logger.info(f"Executing git add {file_path}")
+    logger.info(f"Executing git add {file_path}") # Keep INFO for tool execution start
     try:
         result = subprocess.run(["git", "add", file_path], capture_output=True, text=True, check=True, timeout=30)
-        logger.debug(f"Git add '{file_path}' completed.")
+        logger.debug(f"Git add '{file_path}' completed successfully.")
         return f"OK: Staged '{file_path}' successfully."
     except FileNotFoundError:
         logger.error("Git command not found.")
@@ -98,26 +104,32 @@ def git_add(file_path: str = ".") -> str:
 @function_tool
 def git_commit(message: str) -> str:
     """Executes 'git commit' with a provided commit message."""
-    logger.info(f"Executing git commit -m '{message}'")
-    if not message:
-        logger.warning("Git commit attempted with empty message.")
+    logger.info(f"Executing git commit -m '{message[:50]}...'") # Keep INFO for tool execution start
+    if not message or not message.strip():
+        logger.warning("Git commit attempted with empty or whitespace-only message.")
         return "Error: Commit message cannot be empty."
     try:
         # Using list form is generally safer than shell=True for complex args
-        result = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True, check=True, timeout=30)
+        result = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True, check=False, timeout=30) # Use check=False
         output = result.stdout.strip()
-        logger.debug(f"Git commit output:\n{output}")
-        return f"OK: Committed with message '{message}'.\n{output}"
+        stderr = result.stderr.strip()
+        logger.debug(f"Git commit raw output (Exit Code {result.returncode}):\nSTDOUT: {output}\nSTDERR: {stderr}")
+
+        # Handle common non-error cases explicitly
+        if "nothing to commit" in output or "nothing added to commit" in output or "no changes added to commit" in output:
+             logger.info("Git commit reported: Nothing to commit.")
+             return "OK: Nothing to commit."
+        if result.returncode == 0:
+            return f"OK: Committed with message '{message}'.\n{output}"
+        else:
+            # Log specific error if available
+            error_detail = stderr if stderr else output
+            logger.error(f"Error executing git commit (Exit Code {result.returncode}): {error_detail}")
+            return f"Error executing git commit: {error_detail}"
+
     except FileNotFoundError:
         logger.error("Git command not found.")
         return "Error: git command not found."
-    except subprocess.CalledProcessError as e:
-        # Common case: nothing to commit
-        if "nothing to commit" in e.stdout or "nothing added to commit" in e.stdout:
-             logger.info("Git commit failed: Nothing to commit.")
-             return "OK: Nothing to commit."
-        logger.error(f"Error executing git commit: {e.stderr}\n{e.stdout}")
-        return f"Error executing git commit: {e.stderr}\n{e.stdout}"
     except subprocess.TimeoutExpired:
         logger.error("Git commit command timed out.")
         return "Error: Git commit command timed out."
@@ -128,18 +140,19 @@ def git_commit(message: str) -> str:
 @function_tool
 def git_push() -> str:
     """Executes 'git push' to push staged commits to the remote repository."""
-    logger.info("Executing git push")
+    logger.info("Executing git push") # Keep INFO for tool execution start
     try:
         result = subprocess.run(["git", "push"], capture_output=True, text=True, check=True, timeout=120) # Longer timeout for push
         output = result.stdout.strip() + "\n" + result.stderr.strip() # Combine stdout/stderr
-        logger.debug(f"Git push output:\n{output}")
-        return f"OK: Push completed.\n{output}"
+        logger.debug(f"Git push raw output:\n{output}")
+        return f"OK: Push completed.\n{output.strip()}"
     except FileNotFoundError:
         logger.error("Git command not found.")
         return "Error: git command not found."
     except subprocess.CalledProcessError as e:
-        logger.error(f"Error executing git push: {e.stderr}\n{e.stdout}")
-        return f"Error executing git push: {e.stderr}\n{e.stdout}"
+        error_output = e.stdout.strip() + "\n" + e.stderr.strip()
+        logger.error(f"Error executing git push: {error_output}")
+        return f"Error executing git push: {error_output.strip()}"
     except subprocess.TimeoutExpired:
         logger.error("Git push command timed out.")
         return "Error: Git push command timed out."
@@ -150,20 +163,22 @@ def git_push() -> str:
 @function_tool
 def run_npm_test(args: str = "") -> str:
     """Executes 'npm run test' with optional arguments."""
-    cmd_list = ["npm", "run", "test"] + (shlex.split(args) if args else [])
-    cmd_str = ' '.join(cmd_list)
-    logger.info(f"Executing npm test: {cmd_str}")
     try:
-        result = subprocess.run(cmd_list, capture_output=True, text=True, check=True, timeout=120)
+        # Use shlex.split for safer argument handling if args are provided
+        cmd_list = ["npm", "run", "test"] + (shlex.split(args) if args else [])
+        cmd_str = ' '.join(cmd_list) # For logging
+        logger.info(f"Executing npm test: {cmd_str}") # Keep INFO for tool execution start
+        result = subprocess.run(cmd_list, capture_output=True, text=True, check=False, timeout=120) # check=False to capture output on failure
         output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
-        logger.debug(f"npm test result:\n{output}")
-        return output
+        if result.returncode == 0:
+            logger.debug(f"npm test completed successfully:\n{output}")
+            return f"OK: npm test finished.\n{output}"
+        else:
+            logger.error(f"npm test failed (Exit Code {result.returncode}):\n{output}")
+            return f"Error: npm test failed.\n{output}"
     except FileNotFoundError:
         logger.error("npm command not found. Is Node.js/npm installed and in PATH?")
         return "Error: npm command not found."
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error executing npm test: {e.stderr}\n{e.stdout}")
-        return f"Error executing npm run test: {e.stderr}\n{e.stdout}"
     except subprocess.TimeoutExpired:
         logger.error("npm test command timed out.")
         return "Error: npm test command timed out."
@@ -174,21 +189,24 @@ def run_npm_test(args: str = "") -> str:
 @function_tool
 def run_pytest(args: str = "") -> str:
     """Executes 'uv run pytest' with optional arguments."""
-    cmd_list = ["uv", "run", "pytest"] + (shlex.split(args) if args else [])
-    cmd_str = ' '.join(cmd_list)
-    logger.info(f"Executing pytest via uv: {cmd_str}")
     try:
-        result = subprocess.run(cmd_list, capture_output=True, text=True, check=True, timeout=120)
+        # Use shlex.split for safer argument handling
+        cmd_list = ["uv", "run", "pytest"] + (shlex.split(args) if args else [])
+        cmd_str = ' '.join(cmd_list) # For logging
+        logger.info(f"Executing pytest via uv: {cmd_str}") # Keep INFO for tool execution start
+        result = subprocess.run(cmd_list, capture_output=True, text=True, check=False, timeout=120) # check=False to capture output on failure
         output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
-        logger.debug(f"pytest result:\n{output}")
-        return output
+        # Pytest often returns non-zero exit code on test failures, report this clearly
+        if result.returncode == 0:
+            logger.debug(f"pytest completed successfully:\n{output}")
+            return f"OK: pytest finished successfully.\n{output}"
+        else:
+            logger.warning(f"pytest finished with failures (Exit Code {result.returncode}):\n{output}")
+            # Still return "OK" from tool perspective, but indicate failure in the message
+            return f"OK: Pytest finished with failures (Exit Code {result.returncode}).\n{output}"
     except FileNotFoundError:
         logger.error("uv command not found. Is uv installed and in PATH?")
         return "Error: uv command not found."
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error executing pytest: {e.stderr}\n{e.stdout}")
-        # Pytest often returns non-zero exit code on test failures, return output anyway
-        return f"Pytest finished (Exit Code: {e.returncode}):\nSTDOUT:\n{e.stdout.strip()}\nSTDERR:\n{e.stderr.strip()}"
     except subprocess.TimeoutExpired:
         logger.error("pytest command timed out.")
         return "Error: pytest command timed out."
@@ -197,135 +215,198 @@ def run_pytest(args: str = "") -> str:
         return f"Error during pytest: {e}"
 
 # --- Agent Instructions ---
+# Define clear instructions for each agent's role and capabilities.
 michael_instructions = """
 You are Michael Toasted, the resolute leader of the Burnt Noodles creative team.
 Your primary role is to understand the user's request, break it down into actionable steps,
 and delegate tasks appropriately to your team members: Fiona Flame (Git operations) and Sam Ashes (Testing).
-You should only execute commands yourself if they are simple status checks or fall outside the specific domains of Fiona and Sam.
-Synthesize the results from your team to provide the final response to the user.
-Available Agent Tools: Fiona_Flame, Sam_Ashes.
-Available Function Tools: git_status, git_diff.
+You should only execute simple Git status checks (`git_status`, `git_diff`) yourself. Delegate all other Git actions (add, commit, push) to Fiona. Delegate all testing actions (npm test, pytest) to Sam.
+Synthesize the results from your team and provide the final response to the user.
+Available Function Tools (for you): git_status, git_diff.
+Available Agent Tools (for delegation): Fiona_Flame, Sam_Ashes.
 """
 fiona_instructions = """
-You are Fiona Flame, the git specialist. Execute git commands precisely as requested:
+You are Fiona Flame, the git specialist. Execute git commands precisely as requested using your available function tools:
 `git_status`, `git_diff`, `git_add`, `git_commit`, `git_push`.
-When committing, generate concise conventional commit messages based on the diff.
-Stage changes using `git_add` before committing.
-Ask for confirmation before executing `git_push`.
-If a task involves testing, delegate to the Sam_Ashes tool. For tasks outside git, refer back to Michael_Toasted tool.
+When asked to commit, analyze the diff if necessary and generate concise, informative conventional commit messages (e.g., 'feat: ...', 'fix: ...', 'refactor: ...', 'chore: ...').
+Always stage changes using `git_add` before committing.
+If asked to push, first ask the user (Michael) for confirmation before executing `git_push`.
+If a task involves testing (like running tests after a commit), delegate it to the Sam_Ashes agent tool.
+For tasks outside your Git domain, report back to Michael; do not use the Michael_Toasted tool directly.
 Available Function Tools: git_status, git_diff, git_add, git_commit, git_push.
-Available Agent Tools: Sam_Ashes, Michael_Toasted.
+Available Agent Tools: Sam_Ashes.
 """
 sam_instructions = """
-You are Sam Ashes, the testing operative. Execute test commands using `run_npm_test` or `run_pytest`.
-Run tests; if they fail, report the failure immediately. If they pass, run with coverage (e.g., `uv run pytest --cov`)
-and report the coverage summary.
-For tasks outside testing, refer back to the Michael_Toasted tool. If code changes are needed first, delegate to Fiona_Flame tool.
+You are Sam Ashes, the meticulous testing operative. Execute test commands using your available function tools: `run_npm_test` or `run_pytest`.
+Interpret the results: Report failures immediately and clearly. If tests pass, consider running with coverage (e.g., using `uv run pytest --cov` via the `run_pytest` tool) if appropriate or requested, and report the coverage summary.
+For tasks outside testing (e.g., needing code changes before testing, or git operations), refer back to Michael; do not use the Michael_Toasted or Fiona_Flame tools directly.
 Available Function Tools: run_npm_test, run_pytest.
-Available Agent Tools: Michael_Toasted, Fiona_Flame.
+Available Agent Tools: None (Report back to Michael for delegation).
 """
 
 # --- Blueprint Definition ---
+# Inherits from BlueprintBase, defines metadata, creates agents, and sets up delegation.
 class BurntNoodlesBlueprint(BlueprintBase):
-    """Burnt Noodles - A blazing team igniting creative sparks with git and testing functions."""
+    """
+    Burnt Noodles Blueprint: A multi-agent team demonstrating Git operations and testing workflows.
+    - Michael Toasted: Coordinator, delegates tasks.
+    - Fiona Flame: Handles Git commands (status, diff, add, commit, push).
+    - Sam Ashes: Handles test execution (npm, pytest).
+    """
+    # Class variable for blueprint metadata, conforming to BlueprintBase structure.
     metadata: ClassVar[Dict[str, Any]] = {
-        "name": "BurntNoodlesBlueprint", # Class name for consistency
+        "name": "BurntNoodlesBlueprint",
         "title": "Burnt Noodles",
-        "description": "A sizzling multi-agent team for Git operations and testing, led by Michael Toasted.",
-        "version": "1.0.0", # Reset version
-        "author": "Open Swarm Team",
-        "tags": ["git", "test", "multi-agent", "collaboration"],
-        "required_mcp_servers": [], # No MCP required for this version
+        "description": "A multi-agent team managing Git operations and code testing.",
+        "version": "1.1.0", # Incremented version
+        "author": "Open Swarm Team (Refactored)",
+        "tags": ["git", "test", "multi-agent", "collaboration", "refactor"],
+        "required_mcp_servers": [], # No external MCP servers needed for core functionality
     }
+
+    # Caches for OpenAI client and Model instances to avoid redundant creation.
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
-    # Removed display_splash_screen for brevity, can be added later if desired
-
     def _get_model_instance(self, profile_name: str) -> Model:
-        """Gets or creates a Model instance for the given profile name."""
-        # (This helper function is identical to the one in RueCodeBlueprint)
+        """
+        Retrieves or creates an LLM Model instance based on the configuration profile.
+        Handles client instantiation and caching. Uses OpenAIChatCompletionsModel.
+        Args:
+            profile_name: The name of the LLM profile to use (e.g., 'default').
+        Returns:
+            An instance of the configured Model.
+        Raises:
+            ValueError: If configuration is missing or invalid.
+        """
+        # Check cache first
         if profile_name in self._model_instance_cache:
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
+
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
+        # Retrieve profile data using BlueprintBase helper method
         profile_data = self.get_llm_profile(profile_name)
         if not profile_data:
-             logger.critical(f"Cannot create Model instance: Profile '{profile_name}' (or default) not resolved.")
+             # Critical error if the profile (or default fallback) isn't found
+             logger.critical(f"Cannot create Model instance: LLM profile '{profile_name}' (or 'default') not found in configuration.")
              raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
+
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
         if not model_name:
-             logger.critical(f"LLM profile '{profile_name}' is missing the 'model' key.")
+             logger.critical(f"LLM profile '{profile_name}' is missing the required 'model' key.")
              raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if provider == "openai":
-            if client_cache_key not in self._openai_client_cache:
-                 client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-                 filtered_client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-                 log_client_kwargs = {k:v for k,v in filtered_client_kwargs.items() if k != 'api_key'}
-                 logger.debug(f"Creating new AsyncOpenAI client for profile '{profile_name}' with config: {log_client_kwargs}")
-                 try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_client_kwargs)
-                 except Exception as e:
-                     logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
-                     raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
-            openai_client_instance = self._openai_client_cache[client_cache_key]
-            logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with specific client instance.")
-            try: model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
-            except Exception as e:
-                 logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
-                 raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
-        else:
-            logger.error(f"Unsupported LLM provider '{provider}' in profile '{profile_name}'.")
+
+        # Ensure we only handle OpenAI for now
+        if provider != "openai":
+            logger.error(f"Unsupported LLM provider '{provider}' in profile '{profile_name}'. Only 'openai' is supported in this blueprint.")
             raise ValueError(f"Unsupported LLM provider: {provider}")
-        self._model_instance_cache[profile_name] = model_instance
-        return model_instance
+
+        # Create or retrieve cached OpenAI client instance
+        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
+        if client_cache_key not in self._openai_client_cache:
+             # Prepare arguments for AsyncOpenAI, filtering out None values
+             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
+             filtered_client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+             log_client_kwargs = {k:v for k,v in filtered_client_kwargs.items() if k != 'api_key'} # Don't log API key
+             logger.debug(f"Creating new AsyncOpenAI client for profile '{profile_name}' with config: {log_client_kwargs}")
+             try:
+                 # Create and cache the client
+                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_client_kwargs)
+             except Exception as e:
+                 logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
+                 raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
+
+        openai_client_instance = self._openai_client_cache[client_cache_key]
+
+        # Instantiate the specific Model implementation (OpenAIChatCompletionsModel)
+        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with client instance for profile '{profile_name}'.")
+        try:
+            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
+            # Cache the model instance
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
+        except Exception as e:
+             logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
+             raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
-        """Creates the Burnt Noodles agent team with Michael Toasted as the leader."""
+        """
+        Creates the Burnt Noodles agent team: Michael (Coordinator), Fiona (Git), Sam (Testing).
+        Sets up tools and agent-as-tool delegation.
+        Args:
+            mcp_servers: List of started MCP server instances (not used by this BP).
+        Returns:
+            The starting agent instance (Michael Toasted).
+        """
         logger.debug("Creating Burnt Noodles agent team...")
+        # Clear caches at the start of agent creation for this run
         self._model_instance_cache = {}
         self._openai_client_cache = {}
 
+        # Determine the LLM profile to use (e.g., from config or default)
         default_profile_name = self.config.get("llm_profile", "default")
+        logger.debug(f"Using LLM profile '{default_profile_name}' for all Burnt Noodles agents.")
+        # Get the single Model instance to share among agents (or create if needed)
         default_model_instance = self._get_model_instance(default_profile_name)
-        logger.debug(f"Using LLM profile '{default_profile_name}' for all agents.")
 
-        # Instantiate agents, passing the Model instance and correct tools
+        # Instantiate the specialist agents first
+        # Fiona gets Git function tools
         fiona_flame = Agent(
             name="Fiona_Flame", # Use names valid as tool names
             model=default_model_instance,
             instructions=fiona_instructions,
-            tools=[git_status, git_diff, git_add, git_commit, git_push] # Note: Agent tools added below
+            tools=[git_status, git_diff, git_add, git_commit, git_push] # Agent tools added later
         )
+        # Sam gets Testing function tools
         sam_ashes = Agent(
             name="Sam_Ashes", # Use names valid as tool names
             model=default_model_instance,
             instructions=sam_instructions,
-            tools=[run_npm_test, run_pytest] # Note: Agent tools added below
+            tools=[run_npm_test, run_pytest] # Agent tools added later
         )
+
+        # Instantiate the coordinator agent (Michael)
+        # Michael gets limited function tools and the specialist agents as tools
         michael_toasted = Agent(
              name="Michael_Toasted",
              model=default_model_instance,
              instructions=michael_instructions,
-             tools=[ # Michael's own tools + other agents as tools
-                 git_status, git_diff, # Limited direct git access
-                 fiona_flame.as_tool(tool_name="Fiona_Flame", tool_description="Delegate Git operations (status, diff, add, commit, push) to Fiona."),
-                 sam_ashes.as_tool(tool_name="Sam_Ashes", tool_description="Delegate testing tasks (npm test, pytest) to Sam."),
+             tools=[
+                 # Michael's direct function tools (limited scope)
+                 git_status,
+                 git_diff,
+                 # Specialist agents exposed as tools for delegation
+                 fiona_flame.as_tool(
+                     tool_name="Fiona_Flame", # Explicit tool name
+                     tool_description="Delegate Git operations (add, commit, push) or complex status/diff queries to Fiona."
+                 ),
+                 sam_ashes.as_tool(
+                     tool_name="Sam_Ashes", # Explicit tool name
+                     tool_description="Delegate testing tasks (npm test, pytest) to Sam."
+                 ),
              ],
-             mcp_servers=mcp_servers # Pass MCP servers if needed by Michael directly (e.g., for memory)
+             mcp_servers=mcp_servers # Pass along MCP servers if needed (though not used here)
         )
 
-        # Add agent tools to Fiona and Sam after Michael is created (can't delegate back to leader easily)
-        fiona_flame.tools.append(sam_ashes.as_tool(tool_name="Sam_Ashes", tool_description="Delegate testing tasks (npm test, pytest) to Sam."))
-        # Fiona shouldn't directly call Michael, she should report back. Handled by prompt.
+        # Add cross-delegation tools *after* all agents are instantiated
+        # Fiona can delegate testing to Sam
+        fiona_flame.tools.append(
+            sam_ashes.as_tool(tool_name="Sam_Ashes", tool_description="Delegate testing tasks (npm test, pytest) to Sam.")
+        )
+        # Sam can delegate Git tasks back to Fiona (as per instructions, Sam should report to Michael,
+        # but having the tool technically available might be useful in complex future scenarios,
+        # rely on prompt engineering to prevent direct calls unless intended).
+        # sam_ashes.tools.append(
+        #     fiona_flame.as_tool(tool_name="Fiona_Flame", tool_description="Delegate Git operations back to Fiona if needed.")
+        # )
 
-        sam_ashes.tools.append(fiona_flame.as_tool(tool_name="Fiona_Flame", tool_description="Delegate Git operations (status, diff, add, commit, push) to Fiona."))
-        # Sam shouldn't directly call Michael. Handled by prompt.
+        logger.debug("Burnt Noodles agent team created successfully. Michael Toasted is the starting agent.")
+        # Return the coordinator agent as the entry point for the Runner
+        return michael_toasted
 
-        logger.debug("Burnt Noodles agent team created. Michael Toasted is the starting agent.")
-        return michael_toasted # Michael is the entry point
-
+# Standard Python entry point for direct script execution
 if __name__ == "__main__":
+    # Call the main class method from BlueprintBase to handle CLI parsing and execution.
     BurntNoodlesBlueprint.main()
-
