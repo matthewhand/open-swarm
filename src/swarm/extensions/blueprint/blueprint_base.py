@@ -20,10 +20,7 @@ from agents.tool import FunctionToolResult, Tool, function_tool
 from agents.result import RunResult
 from agents.items import MessageOutputItem
 from agents.mcp import MCPServerStdio, MCPServer
-# Import the specific Model implementation we might need
 from agents.models.openai_responses import OpenAIResponsesModel
-# ** CORRECTED Import: Import directly from agents **
-from agents import set_default_openai_api
 
 # --- Standard Library & Third-Party ---
 from dotenv import load_dotenv
@@ -77,15 +74,6 @@ class BlueprintBase(ABC):
         if debug:
             logger.setLevel(logging.DEBUG); logging.getLogger("agents").setLevel(logging.DEBUG)
             logger.debug("[Init] Debug logging enabled.")
-
-        # Set default API *before* loading environment or config,
-        # as config loading might depend on the client indirectly if we change it later
-        try:
-            set_default_openai_api("chat_completions")
-            logger.debug("[Init] Set default OpenAI API to 'chat_completions'.")
-        except Exception as e:
-            logger.warning(f"[Init] Failed to set default OpenAI API: {e}")
-
         self._load_environment()
         try:
             self.config = self._load_configuration(config_path_override, profile_override, config_overrides)
@@ -109,10 +97,7 @@ class BlueprintBase(ABC):
         try:
             if dotenv_path.is_file():
                 loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
-                # ** ADDED: Log which vars were loaded/overridden if debug **
                 if loaded and logger.level <= logging.DEBUG:
-                     # Note: python-dotenv doesn't easily return *which* vars were set,
-                     # just whether *any* were set. We log that it was loaded.
                      logger.debug(f"[Config] .env file Loaded/Overridden at: {dotenv_path}")
                 elif loaded:
                      logger.debug(f"[Config] .env file Loaded at: {dotenv_path}")
@@ -120,7 +105,6 @@ class BlueprintBase(ABC):
                 logger.debug(f"[Config] No .env file found at {dotenv_path}.")
         except Exception as e:
             logger.error(f"[Config] Error loading .env file '{dotenv_path}': {e}", exc_info=logger.level <= logging.DEBUG)
-
 
     def _load_configuration(
         self, config_path_override: Optional[Union[str, Path]] = None, profile_override: Optional[str] = None,
@@ -152,7 +136,6 @@ class BlueprintBase(ABC):
         elif profile_to_use != "default" and (profile_override or profile_in_bp_settings or profile_in_base_defaults): logger.warning(f"[Config] Profile '{profile_to_use}' requested but not found.")
         if config_overrides: final_config.update(config_overrides); logger.debug(f"[Config] Merged CLI overrides. Keys: {list(final_config.keys())}")
         final_config.setdefault("llm", {}); final_config.setdefault("mcpServers", {})
-        # Substitute *after* merging is complete
         final_config = _substitute_env_vars(final_config); logger.debug("[Config] Applied final env var substitution.")
         return final_config
 
@@ -262,15 +245,21 @@ class BlueprintBase(ABC):
                         except TypeError: logger.warning("Non-JSON serializable output."); final_output = str(raw_out)
                     elif raw_out is None: final_output = "[No output]"; logger.warning("Runner returned None output.")
                     else: final_output = str(raw_out)
+
+                    # **FIX:** Safely check for history attribute before logging it
                     if logger.level <= logging.DEBUG:
                         logger.debug("--- History ---")
-                        if result.history:
+                        if hasattr(result, 'history') and result.history:
                             for i, item in enumerate(result.history):
                                 if isinstance(item, MessageOutputItem): logger.debug(f"  [{i:02d}][{item.message_type.upper()}] {item.sender_alias} -> {item.recipient_alias}: {textwrap.shorten(str(item.content), width=150)}")
                                 elif isinstance(item, FunctionToolResult): logger.debug(f"  [{i:02d}][TOOL_RESULT] {item.function_name}: {textwrap.shorten(str(item.result), width=150)}")
                                 else: logger.debug(f"  [{i:02d}][{type(item).__name__}] {item}")
-                        else: logger.debug("  [Empty]")
+                        elif hasattr(result, 'history'):
+                             logger.debug("  [History attribute exists but is empty or None]")
+                        else:
+                             logger.debug("  [History attribute not found on RunResult object]")
                         logger.debug("--- End History ---")
+
                 else: final_output = "[Runner returned None result]"; logger.warning("Runner returned None result object.")
             except Exception as e: logger.error(f"--- XXX Runner.run failed: {e}", exc_info=True); final_output = f"Error during execution: {e}"
         self.console.print(f"\n--- Final Output ({bp_title}) ---", style="bold blue")
