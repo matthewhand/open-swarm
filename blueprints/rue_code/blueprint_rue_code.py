@@ -10,11 +10,13 @@ from typing import Dict, Any, List, Optional, ClassVar
 try:
     from agents import Agent, Tool, function_tool
     from agents.mcp import MCPServer
-    # from agents.models.interface import Model # No longer need explicit Model imports
-    # from agents.models.openai_responses import OpenAIResponsesModel
-    # from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from agents.models.interface import Model # Base class for type hints
+    # Explicitly import the model classes we need
+    from agents.models.openai_responses import OpenAIResponsesModel
+    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-    # from openai import AsyncOpenAI
+    # Need the OpenAI client class
+    from openai import AsyncOpenAI
 except ImportError as e:
     print(f"ERROR: Import failed: {e}. Check 'openai-agents' install and project structure.")
     print(f"sys.path: {sys.path}")
@@ -149,7 +151,7 @@ TEAM ROLES & CAPABILITIES:
 YOUR SPECIFIC TASK INSTRUCTIONS:
 {specific_instructions}
 """
-# Agent __init__ methods use **kwargs filtering for flexibility
+# Agent __init__ methods use **kwargs filtering
 class CoordinatorAgent(Agent):
     def __init__(self, team_tools: List[Tool], mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
         specific_instructions = "..." # Keep brief
@@ -194,30 +196,86 @@ class RueCodeBlueprint(BlueprintBase):
         "author": "Open Swarm Team", "tags": ["code", "dev", "mcp", "multi-agent"],
         "required_mcp_servers": ["brave-search"],
     }
-    # No longer need _get_model_instance or caches here
+    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: Dict[str, Model] = {}
+
+    def _get_model_instance(self, profile_name: str) -> Model:
+        """Gets or creates a Model instance for the given profile name."""
+        if profile_name in self._model_instance_cache:
+            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
+            return self._model_instance_cache[profile_name]
+
+        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
+        profile_data = self.get_llm_profile(profile_name)
+        if not profile_data:
+             logger.critical(f"Cannot create Model instance: Profile '{profile_name}' (or default) not resolved.")
+             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
+
+        provider = profile_data.get("provider", "openai").lower()
+        model_name = profile_data.get("model")
+        if not model_name:
+             logger.critical(f"LLM profile '{profile_name}' is missing the 'model' key.")
+             raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
+
+        # Use provider name (plus base_url if present) as cache key for the client
+        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
+
+        if provider == "openai":
+            if client_cache_key not in self._openai_client_cache:
+                 client_kwargs = {
+                     "api_key": profile_data.get("api_key"),
+                     "base_url": profile_data.get("base_url")
+                 }
+                 filtered_client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+                 log_client_kwargs = {k:v for k,v in filtered_client_kwargs.items() if k != 'api_key'}
+                 logger.info(f"Creating new AsyncOpenAI client for profile '{profile_name}' with config: {log_client_kwargs}")
+                 try:
+                     self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_client_kwargs)
+                 except Exception as e:
+                     logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
+                     raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
+            openai_client_instance = self._openai_client_cache[client_cache_key]
+
+            # Instantiate the *correct* Model class based on desired API (Chat Completions)
+            logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with specific client instance.")
+            try:
+                # Use OpenAIChatCompletionsModel
+                model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
+            except Exception as e:
+                 logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
+                 raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
+        # TODO: Add elif blocks here for other providers
+        else:
+            logger.error(f"Unsupported LLM provider '{provider}' specified in profile '{profile_name}'. Cannot create specific Model instance.")
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+        self._model_instance_cache[profile_name] = model_instance
+        return model_instance
+
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the multi-agent team and returns the Coordinator agent."""
         logger.info(f"Creating RueCode agent team with {len(mcp_servers)} MCP server(s)...")
+        self._model_instance_cache = {}
+        self._openai_client_cache = {}
 
-        # Get the *resolved* model name strings from the config
-        code_agent_profile_data = self.get_llm_profile(self.config.get("llm_profile_code", "default"))
-        code_agent_model_name = code_agent_profile_data.get("model", "gpt-3.5-turbo") if code_agent_profile_data else "gpt-3.5-turbo"
-        logger.info(f"CodeAgent requesting model name: '{code_agent_model_name}'.")
+        code_agent_profile_name = self.config.get("llm_profile", "default") # Revert: Use default for CodeAgent for now
+        code_agent_model_instance = self._get_model_instance(code_agent_profile_name)
+        logger.info(f"CodeAgent using LLM profile '{code_agent_profile_name}'.")
 
-        default_profile_data = self.get_llm_profile(self.config.get("llm_profile", "default"))
-        default_model_name = default_profile_data.get("model", "gpt-3.5-turbo") if default_profile_data else "gpt-3.5-turbo"
-        logger.info(f"Other agents requesting model name: '{default_model_name}'.")
+        # Use 'code-large' profile for Coordinator & others as originally intended
+        default_profile_name = self.config.get("llm_profile", "code-large") # Use code-large as the 'default' for this BP's agents
+        default_model_instance = self._get_model_instance(default_profile_name)
+        logger.info(f"Other agents using LLM profile '{default_profile_name}'.")
 
-        # Pass the model *name string* to the 'model' parameter.
-        # The underlying provider (set via set_default_openai_api) and client (configured via env vars) should handle the rest.
-        code_agent = CodeAgent(model=code_agent_model_name, mcp_servers=[])
-        architect_agent = ArchitectAgent(model=default_model_name, mcp_servers=mcp_servers)
-        qa_agent = QualityAssuranceAgent(model=default_model_name, mcp_servers=[])
-        git_agent = GitManagerAgent(model=default_model_name, mcp_servers=[])
+        # Pass the Model instance to the 'model' parameter
+        code_agent = CodeAgent(model=code_agent_model_instance, mcp_servers=[])
+        architect_agent = ArchitectAgent(model=default_model_instance, mcp_servers=mcp_servers)
+        qa_agent = QualityAssuranceAgent(model=default_model_instance, mcp_servers=[])
+        git_agent = GitManagerAgent(model=default_model_instance, mcp_servers=[])
 
         coordinator = CoordinatorAgent(
-             model=default_model_name,
+             model=default_model_instance, # Coordinator uses the 'code-large' (LiteLLM) model instance
              team_tools=[
                  code_agent.as_tool(tool_name="Code", tool_description="Delegate coding tasks to the Code agent."),
                  architect_agent.as_tool(tool_name="Architect", tool_description="Delegate design/research tasks."),
