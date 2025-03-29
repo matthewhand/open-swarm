@@ -1,212 +1,361 @@
-import asyncio
 import argparse
-import logging
-import sys
-import os
-import string
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, AsyncGenerator # Ensure Dict, Any are imported
-from contextlib import AsyncExitStack
-import shutil
+import asyncio
 import json
-from dotenv import load_dotenv, find_dotenv
+import logging
+import os
+import shlex
+import shutil
+import signal
+import subprocess # Retained for potential non-MCP subprocess needs
+import sys
+import textwrap
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, ClassVar, Coroutine, Dict, List, Optional, Type, Union
+from contextlib import AsyncExitStack
 
-from agents import Agent, Runner, RunConfig, Tool, function_tool, set_default_openai_client, set_tracing_disabled, set_default_openai_api
-from agents.mcp import MCPServerStdio
+# --- Core Agent Imports ---
+from agents import Agent, Runner                   # Core classes
+from agents.tool import FunctionToolResult, Tool, function_tool # Tool related
+from agents.result import RunResult                 # Result class (was ConversationResult)
+from agents.items import MessageOutputItem          # Message class (was Message)
+from agents.mcp import MCPServerStdio, MCPServer    # MCP classes
+# --- Optional / Utility Imports (Uncomment if needed later) ---
+# from agents.function_schema import convert_pydantic_to_openai_tool_function # Function definition utils - COMMENTED OUT, location unknown/potentially unused
+# from agents.llm import MODEL_PROVIDER_REGISTRY, FunctionMetadata, ModelArgs, ModelDefinition # LLM definitions - Keep if needed elsewhere
 
-logger = logging.getLogger(__name__)
+# --- Standard Library & Third-Party ---
+from dotenv import load_dotenv
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.markdown import Markdown
+from rich.panel import Panel
 
-set_tracing_disabled(os.environ.get("DISABLE_AGENT_TRACING", "false").lower() == "true")
-DEFAULT_OPENAI_API_TYPE = os.environ.get("OPENAI_API_TYPE", "chat_completions")
-set_default_openai_api(DEFAULT_OPENAI_API_TYPE)
+# --- Configuration & Constants ---
+try:
+    # Assumes blueprint_base.py is 4 levels down from the project root (src/swarm/extensions/blueprint/blueprint_base.py)
+    PROJECT_ROOT = Path(__file__).resolve().parents[4]
+except IndexError:
+    # Basic logger setup for early error reporting if path calculation fails
+    logging.basicConfig(level=logging.WARNING)
+    logging.warning("Could not automatically determine project root based on file location. Defaulting to parent of current working directory.")
+    PROJECT_ROOT = Path.cwd().parent # Fallback: Assume running from somewhere reasonable
 
-def load_swarm_config(config_path="swarm_config.json") -> Dict[str, Any]:
-    config_data = {}
-    try:
-        if not os.path.isabs(config_path): full_config_path = os.path.join(os.getcwd(), config_path)
-        else: full_config_path = config_path
-        logger.debug(f"Attempting to load full config from: {full_config_path}")
-        if os.path.exists(full_config_path):
-            with open(full_config_path, 'r') as f:
-                config_data = json.load(f); logger.info(f"Loaded config from {full_config_path}.")
-        else: logger.warning(f"Config file not found: {full_config_path}.")
-    except Exception as e: logger.error(f"Error loading config from {config_path}: {e}", exc_info=True)
-    return config_data
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "swarm_config.json"
+SWARM_VERSION = "0.2.8-finalfix" # Updated Version
 
-def substitute_env_vars(value: Any) -> Any:
-    if isinstance(value, str): template = string.Template(value); return template.safe_substitute(os.environ)
-    elif isinstance(value, list): return [substitute_env_vars(item) for item in value]
-    elif isinstance(value, dict): return {k: substitute_env_vars(v) for k, v in value.items()}
-    else: return value
+# --- Logging Setup ---
+logging.basicConfig(
+    level=logging.INFO, # Default level, can be overridden by --debug flag
+    format="%(message)s", # Keep format minimal, RichHandler takes care of timestamps etc.
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True, show_path=False)], # Use RichHandler for pretty logs
+)
+logger = logging.getLogger("swarm") # Primary logger for the application
+logger.setLevel(logging.INFO) # Set default level for swarm logger
 
+# Quieten overly verbose libraries during normal operation
+# Set to DEBUG only when blueprint's --debug flag is active
+for lib in ["httpx", "httpcore", "openai", "asyncio", "agents"]:
+    logging.getLogger(lib).setLevel(logging.WARNING)
+
+# --- Utility Functions ---
+def _substitute_env_vars(value: Any) -> Any:
+    """
+    Recursively substitute environment variables (${VAR} or $VAR) in strings
+    within nested lists and dictionaries. Non-string values are returned as is.
+    """
+    if isinstance(value, str):
+        # Use os.path.expandvars for ${VAR} and $VAR substitution
+        return os.path.expandvars(value)
+    elif isinstance(value, list):
+        # Recursively apply to list items
+        return [_substitute_env_vars(item) for item in value]
+    elif isinstance(value, dict):
+        # Recursively apply to dictionary values
+        return {k: _substitute_env_vars(v) for k, v in value.items()}
+    else:
+        # Return non-string/list/dict types unchanged
+        return value
+
+# --- Base Blueprint Class ---
 class BlueprintBase(ABC):
-    DEFAULT_MAX_LLM_CALLS = 10; DEFAULT_MARKDOWN_CLI = True; DEFAULT_MARKDOWN_API = False
+    """
+    Abstract base class for Swarm blueprints, integrating with the 'openai-agents' library.
+    Handles configuration loading, MCP server management, logging, and execution flow.
+    Subclasses must implement `create_starting_agent`.
+    """
+    # --- Class Variables ---
+    metadata: ClassVar[Dict[str, Any]] = {
+        "name": "AbstractBlueprintBase", "title": "Base Blueprint (Override Me)", "version": "0.0.0",
+        "description": "Subclasses must provide a meaningful description.", "author": "Unknown",
+        "tags": ["base"], "required_mcp_servers": [],
+    }
 
-    def __init__(self, cli_args: argparse.Namespace, cli_config_override: Dict = {}):
-        self.debug_mode = cli_args.debug; self.cli_args = cli_args
-        self.swarm_config = load_swarm_config(cli_args.config_path)
-        blueprint_configs = self.swarm_config.get("blueprints", {}); global_blueprint_defaults = blueprint_configs.get("defaults", {})
-        blueprint_specific_config = blueprint_configs.get(self.__class__.__name__, {})
-        self.config = global_blueprint_defaults.copy()
-        self.config.update(blueprint_specific_config); self.config.update(cli_config_override)
-        if cli_args.profile is not None: self.config["llm_profile"] = cli_args.profile
-        self.max_llm_calls = int(self.config.get("max_llm_calls", self.DEFAULT_MAX_LLM_CALLS))
-        bp_default_markdown = self.config.get("default_markdown_cli", self.DEFAULT_MARKDOWN_CLI)
-        self.use_markdown = cli_args.markdown if cli_args.markdown is not None else bp_default_markdown
-        self.llm_profiles = self.swarm_config.get("llm", {})
-        self._ensure_default_profile()
-        # Agents must be created AFTER profiles are loaded so they can potentially use them
-        self.agents = self.create_agents()
-        self.starting_agent_name = self._determine_starting_agent()
-        logger.info(f"Blueprint '{self.metadata.get('title', 'Untitled')}' initialized.")
-        if self.debug_mode: logger.debug(f"Agents: {list(self.agents.keys())}, Start: {self.starting_agent_name}; MD: {self.use_markdown}; Max Calls: {self.max_llm_calls}")
-        if self.starting_agent_name not in self.agents: raise ValueError(f"Start agent '{self.starting_agent_name}' not found.")
+    # --- Instance Variables ---
+    config: Dict[str, Any]; llm_profiles: Dict[str, Dict[str, Any]]; mcp_server_configs: Dict[str, Dict[str, Any]]
+    console: Console; use_markdown: bool = False; max_llm_calls: Optional[int] = None
 
-    def _ensure_default_profile(self):
-        if "default" not in self.llm_profiles:
-             logger.warning("No 'default' LLM profile. Trying env vars.")
-             api_key = os.environ.get("OPENAI_API_KEY")
-             if api_key:
-                  self.llm_profiles["default"] = { "provider": "openai", "model": os.environ.get("DEFAULT_MODEL", "gpt-4o"), "base_url": os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1"), "api_key": api_key }; logger.info("Created 'default' profile from env vars.")
-             else: logger.critical("Failed to get 'default' profile: Check OPENAI_API_KEY/config.")
+    def __init__(
+        self, config_path_override: Optional[Union[str, Path]] = None, profile_override: Optional[str] = None,
+        config_overrides: Optional[Dict[str, Any]] = None, debug: bool = False,
+    ):
+        self.console = Console()
+        if debug:
+            logger.setLevel(logging.DEBUG); logging.getLogger("agents").setLevel(logging.DEBUG)
+            logger.debug("[Init] Debug logging enabled.")
+        self._load_environment()
+        try:
+            self.config = self._load_configuration(config_path_override, profile_override, config_overrides)
+        except (ValueError, FileNotFoundError) as e:
+            logger.critical(f"[Config] Failed to load configuration: {e}", exc_info=debug)
+            raise ValueError(f"Configuration loading failed: {e}") from e
 
-    # --- CORRECT DECORATOR ORDER ---
-    @property
-    @abstractmethod
-    def metadata(self) -> Dict[str, Any]:
-        """Provides metadata about the blueprint (title, description, version, etc.)."""
-        pass
+        # Extract specific sections after full config is loaded and merged
+        # Use .get() for safety, although _load_configuration ensures they exist
+        self.llm_profiles = self.config.get("llm", {})
+        self.mcp_server_configs = self.config.get("mcpServers", {})
+        self.use_markdown = self.config.get("use_markdown", False)
+        self.max_llm_calls = self.config.get("max_llm_calls", None)
 
-    @abstractmethod
-    def create_agents(self) -> Dict[str, Agent]:
-        """Creates and returns a dictionary of Agent instances for this blueprint."""
-        pass
-    # --- END FIX ---
+        logger.debug(f"[Init] Final Config Keys: {list(self.config.keys())}")
+        logger.debug(f"[Init] LLM Profiles Loaded: {list(self.llm_profiles.keys())}")
+        logger.debug(f"[Init] MCP Server Configs Loaded: {list(self.mcp_server_configs.keys())}")
+        logger.debug(f"[Init] Use Markdown Output: {self.use_markdown}")
+        logger.debug(f"[Init] Max LLM Calls (Informational): {self.max_llm_calls}")
 
-    def _determine_starting_agent(self) -> str:
-        names = list(self.agents.keys());
-        if not names: raise ValueError("No agents created.");
-        start_agent_name = names[0]; logger.info(f"Starting agent: '{start_agent_name}'.")
-        return start_agent_name
+    def _load_environment(self):
+        """Loads environment variables from a `.env` file located at the project root."""
+        dotenv_path = PROJECT_ROOT / ".env"
+        logger.debug(f"[Config] Checking for .env file at: {dotenv_path}")
+        try:
+            if dotenv_path.is_file():
+                loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
+                logger.debug(f"[Config] .env file {'Loaded successfully' if loaded else 'Load attempted but may have failed'} at: {dotenv_path}")
+            else:
+                logger.debug(f"[Config] No .env file found at {dotenv_path}.")
+        except Exception as e:
+            logger.error(f"[Config] Error loading .env file '{dotenv_path}': {e}", exc_info=logger.level <= logging.DEBUG)
 
-    def get_llm_profile(self, profile_name: str = "default") -> Dict[str, Any]:
-        profile = self.llm_profiles.get(profile_name, self.llm_profiles.get("default"))
-        if not profile: raise ValueError(f"LLM profile '{profile_name}'/'default' not found.")
-        profile = substitute_env_vars(profile.copy()) # Substitute env vars in the profile dict
-        # Check key existence after substitution
-        if not profile.get('api_key') and profile.get('provider') != 'ollama':
-            key_var = profile.get('api_key_env_var', 'OPENAI_API_KEY');
-            # Check actual env var as substitution might have removed the key if var wasn't set
-            if not os.environ.get(key_var): logger.warning(f"API key env var '{key_var}' not set for profile '{profile_name}'.")
-        return profile
+    def _load_configuration(
+        self, config_path_override: Optional[Union[str, Path]] = None, profile_override: Optional[str] = None,
+        config_overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Loads and merges configuration settings."""
+        config_path = Path(config_path_override) if config_path_override else DEFAULT_CONFIG_PATH
+        logger.debug(f"[Config] Attempting to load base configuration from: {config_path}")
 
-    async def _start_required_mcp_servers(self, stack: AsyncExitStack, required_servers: List[str]) -> Dict[str, MCPServerStdio]:
-        started_servers = {}
-        if not required_servers: return started_servers
-        logger.debug(f"Starting required MCP servers: {required_servers}")
-        mcp_server_configs = self.swarm_config.get("mcpServers", {})
-        for server_name in required_servers:
-            server_config = mcp_server_configs.get(server_name)
-            if not server_config: logger.warning(f"Config not found for MCP server: {server_name}. Skipping."); continue
-            command = server_config.get("command")
-            if not command: logger.warning(f"No 'command' specified for MCP server: {server_name}. Skipping."); continue
-            # Substitute env vars in args and env dict *before* passing to MCPServerStdio
-            args = substitute_env_vars(server_config.get("args", []))
-            env_overrides = substitute_env_vars(server_config.get("env", {}))
-            cmd_path = shutil.which(command)
-            # Basic check in venv bin if not found in PATH
-            if not cmd_path and not os.path.isabs(command) and sys.prefix != sys.base_prefix:
-                 venv_cmd_path = os.path.join(sys.prefix, 'bin', command)
-                 if os.path.exists(venv_cmd_path): cmd_path = venv_cmd_path
-            if not cmd_path: logger.error(f"MCP command '{command}' not found in PATH or venv bin."); continue
+        base_config = {}
+        if config_path.is_file():
             try:
-                logger.debug(f"Attempting to start MCP '{server_name}': {cmd_path} {' '.join(args)}")
-                # Prepare environment, combining current env with substituted overrides
-                process_env = os.environ.copy(); process_env.update(env_overrides)
-                server_instance = MCPServerStdio(name=server_name, params={"command": cmd_path, "args": args, "env": process_env})
-                await stack.enter_async_context(server_instance)
-                started_servers[server_name] = server_instance
-                logger.debug(f"Started MCP server '{server_name}'.")
-            except Exception as e: logger.error(f"Failed to start MCP '{server_name}': {e}", exc_info=self.debug_mode)
-        if len(started_servers) != len(required_servers): logger.warning(f"Started {len(started_servers)}/{len(required_servers)} MCP servers.")
-        else: logger.info(f"Successfully started MCP servers: {list(started_servers.keys())}")
-        return started_servers
+                with open(config_path, "r", encoding="utf-8") as f: base_config = json.load(f)
+                logger.debug(f"[Config] Successfully loaded base configuration from: {config_path}")
+            except json.JSONDecodeError as e: raise ValueError(f"Config Error: Failed to parse JSON in {config_path}: {e}") from e
+            except Exception as e: raise ValueError(f"Config Error: Failed to read {config_path}: {e}") from e
+        else:
+            if config_path_override: raise FileNotFoundError(f"Configuration Error: Specified config file not found: {config_path}")
+            else: logger.warning(f"[Config] Default configuration file not found at {config_path}. Proceeding without base configuration.")
+
+        # --- Merging Logic ---
+        # 1. Start with base defaults
+        final_config = base_config.get("defaults", {}).copy()
+        logger.debug(f"[Config] Applied base defaults. Current Keys: {list(final_config.keys())}")
+
+        # 1.5 **NEW**: Explicitly merge top-level llm and mcpServers from base_config if they exist
+        # This ensures they are present before blueprint/profile overrides modify them.
+        if "llm" in base_config:
+            final_config.setdefault("llm", {}).update(base_config["llm"])
+            logger.debug(f"[Config] Merged top-level 'llm' from base config. LLM Keys: {list(final_config.get('llm', {}).keys())}")
+        if "mcpServers" in base_config:
+            final_config.setdefault("mcpServers", {}).update(base_config["mcpServers"])
+            logger.debug(f"[Config] Merged top-level 'mcpServers' from base config. MCP Keys: {list(final_config.get('mcpServers', {}).keys())}")
+
+        # 2. Merge blueprint-specific settings
+        blueprint_name = self.__class__.__name__
+        blueprint_settings = base_config.get("blueprints", {}).get(blueprint_name, {})
+        if blueprint_settings:
+            final_config.update(blueprint_settings) # Overwrites defaults and base llm/mcp if keys clash
+            logger.debug(f"[Config] Merged settings for blueprint '{blueprint_name}'. Current Keys: {list(final_config.keys())}")
+
+        # 3. Determine and merge profile settings
+        profile_in_bp_settings = blueprint_settings.get("default_profile")
+        profile_in_base_defaults = base_config.get("defaults", {}).get("default_profile")
+        profile_to_use = profile_override or profile_in_bp_settings or profile_in_base_defaults or "default"
+        logger.debug(f"[Config] Determined profile to use: '{profile_to_use}' (CLI:{profile_override}, BP:{profile_in_bp_settings}, Base:{profile_in_base_defaults})")
+
+        profile_settings = base_config.get("profiles", {}).get(profile_to_use, {})
+        if profile_settings:
+            final_config.update(profile_settings) # Overwrites defaults, base llm/mcp, blueprint settings
+            logger.debug(f"[Config] Merged settings from profile '{profile_to_use}'. Current Keys: {list(final_config.keys())}")
+        elif profile_to_use != "default" and (profile_override or profile_in_bp_settings or profile_in_base_defaults):
+            logger.warning(f"[Config] Profile '{profile_to_use}' was requested but not found.")
+
+        # 4. Merge CLI overrides (highest precedence before env vars)
+        if config_overrides:
+            final_config.update(config_overrides)
+            logger.debug(f"[Config] Merged CLI configuration overrides. Current Keys: {list(final_config.keys())}")
+
+        # Ensure top-level keys exist (redundant now but safe)
+        final_config.setdefault("llm", {})
+        final_config.setdefault("mcpServers", {})
+
+        # 5. Apply environment variable substitution
+        final_config = _substitute_env_vars(final_config)
+        logger.debug("[Config] Applied final environment variable substitution.")
+
+        return final_config
+
+    def _get_llm_profile_config(self, profile_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Retrieves the configuration for a specific LLM profile."""
+        profile_to_check = profile_name or "default"
+        profile_data = self.llm_profiles.get(profile_to_check)
+
+        if profile_data:
+            logger.debug(f"[LLM] Using LLM profile '{profile_to_check}'.")
+            return profile_data
+        elif profile_to_check != "default" and "default" in self.llm_profiles:
+            logger.debug(f"[LLM] LLM profile '{profile_name}' not found, falling back to 'default' profile.")
+            return self.llm_profiles["default"]
+        else:
+            logger.warning(f"[LLM] Could not find requested LLM profile '{profile_to_check}' and no 'default' profile is available.")
+            return None
+
+    async def _start_mcp_server_instance(self, stack: AsyncExitStack, server_name: str) -> Optional[MCPServer]:
+        """Starts a single MCP server instance based on configuration using `MCPServerStdio`."""
+        server_config = self.mcp_server_configs.get(server_name)
+        if not server_config: logger.error(f"[MCP:{server_name}] Config not found."); return None
+        command_list_or_str = server_config.get("command");
+        if not command_list_or_str: logger.error(f"[MCP:{server_name}] Command missing."); return None
+        additional_args = _substitute_env_vars(server_config.get("args", []))
+        if not isinstance(additional_args, list): logger.error(f"[MCP:{server_name}] Args must be list."); return None
+        try:
+            if isinstance(command_list_or_str, str):
+                cmd_str_expanded = _substitute_env_vars(command_list_or_str); cmd_parts = shlex.split(cmd_str_expanded)
+                if not cmd_parts: raise ValueError("Empty cmd string"); executable_name = cmd_parts[0]; base_args = cmd_parts[1:]
+            elif isinstance(command_list_or_str, list):
+                cmd_parts = [_substitute_env_vars(p) for p in command_list_or_str];
+                if not cmd_parts: raise ValueError("Empty cmd list"); executable_name = cmd_parts[0]; base_args = cmd_parts[1:]
+            else: raise TypeError(f"Cmd must be str/list");
+            full_args = base_args + additional_args
+        except Exception as e: logger.error(f"[MCP:{server_name}] Cmd/Arg Error: {e}"); return None
+        cmd_path = shutil.which(executable_name)
+        if not cmd_path and sys.prefix != sys.base_prefix:
+            for bindir in ['bin', 'Scripts']:
+                venv_path = Path(sys.prefix) / bindir / executable_name;
+                if venv_path.is_file(): cmd_path = str(venv_path); logger.debug(f"[MCP:{server_name}] Found in venv: {cmd_path}"); break
+        if not cmd_path: logger.error(f"[MCP:{server_name}] Executable '{executable_name}' not found."); return None
+        custom_env = _substitute_env_vars(server_config.get("env", {}));
+        if not isinstance(custom_env, dict): logger.error(f"[MCP:{server_name}] Env must be dict."); return None
+        cwd = _substitute_env_vars(server_config.get("cwd")); cwd_path: Optional[str] = None
+        if cwd:
+            try:
+                cwd_path_obj = Path(cwd);
+                if not cwd_path_obj.is_absolute(): cwd_path_obj = (PROJECT_ROOT / cwd_path_obj).resolve()
+                else: cwd_path_obj = cwd_path_obj.resolve()
+                if cwd_path_obj.is_dir(): cwd_path = str(cwd_path_obj)
+                else: logger.warning(f"[MCP:{server_name}] Invalid CWD: {cwd}. Using default.")
+            except Exception as e: logger.warning(f"[MCP:{server_name}] Error resolving CWD '{cwd}': {e}. Using default.")
+        mcp_params = {"command": cmd_path, "args": full_args}
+        if custom_env: mcp_params["env"] = custom_env
+        if cwd_path: mcp_params["cwd"] = cwd_path
+        if "encoding" in server_config: mcp_params["encoding"] = server_config["encoding"]
+        if "encoding_error_handler" in server_config: mcp_params["encoding_error_handler"] = server_config["encoding_error_handler"]
+        logger.debug(f"[MCP:{server_name}] Path:{cmd_path}, Args:{full_args}, CWD:{cwd_path or 'Default'}, EnvKeys:{list(custom_env.keys())}")
+        logger.info(f"[MCP:{server_name}] Starting: {' '.join(shlex.quote(p) for p in [cmd_path] + full_args)}")
+        try:
+            server_instance = MCPServerStdio(name=server_name, params=mcp_params); started_server = await stack.enter_async_context(server_instance);
+            logger.info(f"[MCP:{server_name}] Started successfully."); return started_server
+        except Exception as e: logger.error(f"[MCP:{server_name}] Failed start/connect: {e}", exc_info=logger.level <= logging.DEBUG); return None
+
+    @abstractmethod
+    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+        """Abstract method for subclasses to create the primary starting Agent."""
+        pass
 
     async def _run_non_interactive(self, instruction: str):
-        logger.debug(f"Run non-interactive: '{instruction[:50]}...'")
-        logger.info(f"Markdown rendering: {self.use_markdown}; Max Calls: {self.max_llm_calls} (informational)")
-        starting_agent = self.agents.get(self.starting_agent_name);
-        if not starting_agent: logger.error(f"Start agent '{self.starting_agent_name}' missing."); return
-        mcp_needed = self.metadata.get("required_mcp_servers", [])
-        final_output = "Error: Agent failed."
+        """Internal method orchestrating non-interactive blueprint execution."""
+        bp_title = self.metadata.get('title', self.__class__.__name__); logger.info(f"--- Run: {bp_title} v{self.metadata.get('version', 'N/A')}---")
+        truncated_instruction = textwrap.shorten(instruction, width=100, placeholder="..."); logger.info(f"Instruction: '{truncated_instruction}'")
+        required_servers = self.metadata.get("required_mcp_servers", []); started_mcps: List[MCPServer] = []; final_output = "Error: Blueprint exec failed."
         async with AsyncExitStack() as stack:
-            started_mcps = await self._start_required_mcp_servers(stack, mcp_needed) if mcp_needed else {}
-            if mcp_needed and len(started_mcps) < len(mcp_needed):
-                 logger.error("Aborting: Not all required MCPs started."); final_output = "Error: MCP start failed."
-                 print(f"\n--- Final Output ---\n{final_output}\n--------------------"); return
-            if started_mcps: logger.debug(f"Assigning MCP servers ({list(started_mcps.keys())}) to agent '{starting_agent.name}'."); starting_agent.mcp_servers = list(started_mcps.values())
-
+            if required_servers:
+                logger.info(f"[MCP] Required: {required_servers}. Starting..."); results = await asyncio.gather(*(self._start_mcp_server_instance(stack, name) for name in required_servers)); started_mcps = [s for s in results if s]
+                if len(started_mcps) != len(required_servers):
+                    failed = set(required_servers) - {s.name for s in started_mcps}; error_msg=f"Fatal MCP Error: Failed: {', '.join(failed)}. Aborting."; logger.error(error_msg); final_output=f"Error: MCP server(s) failed: {', '.join(failed)}."; self.console.print(f"\n[bold red]--- Failed ---[/]\n{final_output}\n[bold red]------------- [/]"); return
+                logger.info(f"[MCP] Started: {[s.name for s in started_mcps]}")
+            else: logger.info("[MCP] No servers required.")
             try:
-                profile_name_to_use = self.config.get("llm_profile", "default")
-                agent_model = getattr(starting_agent, 'model', None)
-                if not agent_model: # Agent relies on profile
-                     profile = self.get_llm_profile(profile_name_to_use); model_name = profile.get('model')
-                     if model_name: logger.debug(f"Agent '{starting_agent.name}' relying on profile '{profile_name_to_use}' model '{model_name}'.")
-                     else: raise ValueError(f"Agent model missing & profile '{profile_name_to_use}' has no 'model'.")
-                else: # Agent has model specified (could be profile name or direct model ID)
-                     logger.debug(f"Agent '{starting_agent.name}' using model: '{agent_model}'")
-                     # Ensure the profile corresponding to the agent's model is valid, if it's a profile name
-                     if agent_model in self.llm_profiles: self.get_llm_profile(agent_model) # Validate profile exists
-
-                logger.info(f"--- >>> Calling Runner.run ({starting_agent.name}) NOW...")
-                try: result = await Runner.run(starting_agent=starting_agent, input=instruction) # Call without config=...
-                except Exception as runner_ex: logger.error(f"--- XXX Runner.run FAILED: {runner_ex}", exc_info=self.debug_mode); raise
-                logger.info(f"--- <<< Runner.run Finished ({starting_agent.name}) ---")
+                logger.debug("Creating starting agent..."); agent = self.create_starting_agent(mcp_servers=started_mcps);
+                if not isinstance(agent, Agent): raise TypeError(f"create_starting_agent must return Agent, got {type(agent).__name__}")
+                logger.debug(f"Agent '{agent.name}' created.")
+            except Exception as e: logger.critical(f"Agent creation error: {e}", exc_info=True); final_output=f"Error: Agent creation failed - {e}"; self.console.print(f"\n[bold red]--- Failed ---[/]\n{final_output}\n[bold red]------------- [/]"); return
+            try:
+                logger.info(f"--- >>> Runner.run ({agent.name}) ---"); result: Optional[RunResult] = await Runner.run(starting_agent=agent, input=instruction); logger.info(f"--- <<< Runner.run Finished ({agent.name}) ---")
                 if result:
-                    final_output_raw = result.final_output
-                    if isinstance(final_output_raw, (dict, list)): final_output = json.dumps(final_output_raw, indent=2)
-                    elif final_output_raw is None: final_output = "No output."
-                    else: final_output = str(final_output_raw)
-                    logger.debug(f"Runner Result (output type: {type(final_output_raw)}): {result}")
-                else: final_output = "No result."; logger.warning("Runner.run returned None.")
-            except ValueError as ve: logger.error(f"Config/Run error: {ve}", exc_info=self.debug_mode); final_output = f"Error: {ve}"
-            except Exception as e: logger.error(f"Outer run error: {e}", exc_info=self.debug_mode); final_output = f"Error: {e}"
-        # TODO: Implement markdown rendering based on self.use_markdown
-        print(f"\n--- Final Output ---\n{final_output}\n--------------------")
+                    raw_out = result.final_output; logger.debug(f"Runner output type: {type(raw_out).__name__}")
+                    if isinstance(raw_out, (dict, list)):
+                        try: final_output = json.dumps(raw_out, indent=2, ensure_ascii=False)
+                        except TypeError: logger.warning("Non-JSON serializable output."); final_output = str(raw_out)
+                    elif raw_out is None: final_output = "[No output]"; logger.warning("Runner returned None output.")
+                    else: final_output = str(raw_out)
+                    if logger.level <= logging.DEBUG:
+                        logger.debug("--- History ---")
+                        if result.history:
+                            for i, item in enumerate(result.history):
+                                if isinstance(item, MessageOutputItem): logger.debug(f"  [{i:02d}][{item.message_type.upper()}] {item.sender_alias} -> {item.recipient_alias}: {textwrap.shorten(str(item.content), width=150)}")
+                                elif isinstance(item, FunctionToolResult): logger.debug(f"  [{i:02d}][TOOL_RESULT] {item.function_name}: {textwrap.shorten(str(item.result), width=150)}")
+                                else: logger.debug(f"  [{i:02d}][{type(item).__name__}] {item}")
+                        else: logger.debug("  [Empty]")
+                        logger.debug("--- End History ---")
+                else: final_output = "[Runner returned None result]"; logger.warning("Runner returned None result object.")
+            except Exception as e: logger.error(f"--- XXX Runner.run failed: {e}", exc_info=True); final_output = f"Error during execution: {e}"
+        self.console.print(f"\n--- Final Output ({bp_title}) ---", style="bold blue")
+        if self.use_markdown:
+             logger.debug("Rendering output as Markdown.")
+             try: md = Markdown(final_output); self.console.print(md)
+             except Exception as md_err: logger.warning(f"Markdown render failed ({md_err}). Printing raw."); self.console.print(final_output)
+        else: logger.debug("Printing output as plain text."); self.console.print(final_output)
+        self.console.print("-----------------------------", style="bold blue")
 
-    async def run_loop(self): logger.warning("Interactive loop needs review."); print("Use --instruction.")
+    async def run_loop(self): logger.warning("Interactive loop not implemented."); self.console.print("[yellow]Interactive mode unavailable.[/yellow]")
 
     @classmethod
     def main(cls):
-        env_path = find_dotenv(usecwd=True); did_load = False
-        if env_path: did_load = load_dotenv(dotenv_path=env_path, override=True)
-        print(f"[INFO] Dotenv: {'Loaded ' + env_path if did_load else ('Not found' if not env_path else 'Found but failed?')}", file=sys.stderr)
-        parser = argparse.ArgumentParser(description=f"Run {cls.__name__}.", add_help=False)
-        parser.add_argument("--instruction", type=str, default=None, help="Run non-interactively.")
-        parser.add_argument("--profile", type=str, default=None, help="LLM profile (overrides config).")
-        parser.add_argument("--config-path", type=str, default="swarm_config.json", help="Primary config file path.")
-        parser.add_argument("--config", type=str, default=None, help="JSON config overrides file.")
-        parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
-        parser.add_argument('--markdown', action=argparse.BooleanOptionalAction, default=None, help="Enable/disable markdown output.")
-        parser.add_argument("-h", "--help", action="help", default=argparse.SUPPRESS, help="Show this help message and exit.")
-        args = parser.parse_args()
-        log_level = logging.DEBUG if args.debug else logging.INFO
-        logging.basicConfig(level=log_level, format='%(asctime)s [%(levelname)8s] %(name)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', force=True)
-        logging.getLogger().setLevel(log_level); logger.info(f"Logging level set to {logging.getLevelName(log_level)}")
-        logger.info(f"Set default OpenAI API to '{DEFAULT_OPENAI_API_TYPE}'.")
-        libs_to_quiet = ["httpx", "httpcore", "openai", "asyncio"]; [logging.getLogger(lib).setLevel(logging.WARNING) for lib in libs_to_quiet]
-        cli_config_override = {}
-        if args.config and os.path.exists(args.config):
-             try:
-                  with open(args.config, 'r') as f: cli_config_override = json.load(f); logger.info(f"Loaded overrides from {args.config}")
-             except Exception as e: logger.error(f"Failed to load --config file {args.config}: {e}")
+        """Class method entry point for command-line execution."""
+        parser = argparse.ArgumentParser(description=cls.metadata.get("description", f"Run {cls.__name__}"), formatter_class=argparse.RawTextHelpFormatter)
+        parser.add_argument("--instruction", type=str, required=True, help="Initial instruction.")
+        parser.add_argument("--config-path", type=str, default=None, help=f"Path to swarm_config.json (Default: {DEFAULT_CONFIG_PATH})")
+        parser.add_argument("--config", type=str, metavar="JSON_FILE_OR_STRING", default=None, help="JSON config overrides (file path or string).")
+        parser.add_argument("--profile", type=str, default=None, help="Config profile.")
+        parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging.")
+        parser.add_argument('--markdown', action=argparse.BooleanOptionalAction, default=None, help="Force markdown output.")
+        parser.add_argument("--version", action="version", version=f"%(prog)s (BP: {cls.metadata.get('name', 'N/A')} v{cls.metadata.get('version', 'N/A')}, Core: {SWARM_VERSION})")
+        args = parser.parse_args(); log_level = logging.DEBUG if args.debug else logging.INFO
+        logger.setLevel(log_level);
+        for lib in ["httpx", "httpcore", "openai", "asyncio", "agents"]: logging.getLogger(lib).setLevel(log_level if args.debug else logging.WARNING)
+        logger.info(f"Log level set: {logging.getLevelName(log_level)}.")
+        cli_config_overrides = {}
+        if args.config:
+            config_arg = args.config; config_override_path = Path(config_arg)
+            if config_override_path.is_file():
+                logger.info(f"Load overrides file: {config_override_path}");
+                try:
+                    with open(config_override_path, "r", encoding="utf-8") as f: cli_config_overrides = json.load(f); logger.debug(f"Loaded overrides keys: {list(cli_config_overrides.keys())}")
+                except Exception as e: logger.error(f"Failed --config file: {e}", exc_info=args.debug); sys.exit(f"Error reading config override file: {e}")
+            else:
+                logger.info("Parse --config as JSON string.");
+                try:
+                    cli_config_overrides = json.loads(config_arg);
+                    if not isinstance(cli_config_overrides, dict): raise TypeError("--config JSON string must be dict.")
+                    logger.debug(f"--config JSON parsed. Keys: {list(cli_config_overrides.keys())}")
+                except Exception as e: logger.error(f"Failed parsing --config JSON: {e}"); sys.exit(f"Error: Invalid --config value: {e}")
         try:
-            blueprint = cls(cli_args=args, cli_config_override=cli_config_override)
-            if args.instruction:
-                print(f"--- {blueprint.metadata.get('title', 'Blueprint')} Non-Interactive ---")
-                asyncio.run(blueprint._run_non_interactive(args.instruction))
-            else: asyncio.run(blueprint.run_loop())
-        except Exception as e:
-            if not args.debug: logging.getLogger().setLevel(logging.ERROR)
-            logger.error(f"Failed to run {cls.__name__}: {e}", exc_info=args.debug); sys.exit(1)
+            blueprint = cls(config_path_override=args.config_path, profile_override=args.profile, config_overrides=cli_config_overrides, debug=args.debug)
+            if args.markdown is not None: blueprint.use_markdown = args.markdown; logger.info(f"Markdown forced: {blueprint.use_markdown}.")
+            if args.instruction: asyncio.run(blueprint._run_non_interactive(args.instruction))
+            else: logger.critical("Internal Error: No instruction."); parser.print_help(); sys.exit(1)
+        except (ValueError, TypeError, FileNotFoundError) as config_err: logger.critical(f"[Init Error] {config_err}", exc_info=args.debug); sys.exit(1)
+        except ImportError as ie: logger.critical(f"[Import Error] {ie}. Check deps.", exc_info=args.debug); sys.exit(1)
+        except Exception as e: logger.critical(f"[Exec Error] {e}", exc_info=True); sys.exit(1) # Log full trace for unexpected
+        finally: logger.debug("Blueprint run finished.")
 
