@@ -39,7 +39,7 @@ except IndexError:
     PROJECT_ROOT = Path.cwd().parent
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "swarm_config.json"
-SWARM_VERSION = "0.2.9-quiet" # Version Bump
+SWARM_VERSION = "0.2.10-env-warn" # Version Bump
 
 # --- Logging Setup ---
 # Base logging config - level might be overridden by CLI args
@@ -64,7 +64,7 @@ class BlueprintBase(ABC):
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "AbstractBlueprintBase", "title": "Base Blueprint (Override Me)", "version": "0.0.0",
         "description": "Subclasses must provide a meaningful description.", "author": "Unknown",
-        "tags": ["base"], "required_mcp_servers": [],
+        "tags": ["base"], "required_mcp_servers": [], "env_vars": [], # Added standard env_vars key
     }
     config: Dict[str, Any]; llm_profiles: Dict[str, Dict[str, Any]]; mcp_server_configs: Dict[str, Dict[str, Any]]
     console: Console; use_markdown: bool = False; max_llm_calls: Optional[int] = None
@@ -78,6 +78,7 @@ class BlueprintBase(ABC):
         self.quiet_mode = quiet
 
         # Set logging level based on flags (Debug > Info > Quiet)
+        # ... (logging setup remains the same as previous version) ...
         if quiet:
             log_level = logging.ERROR # Or CRITICAL if preferred
             logger.setLevel(log_level)
@@ -96,10 +97,10 @@ class BlueprintBase(ABC):
             logging.getLogger("agents").setLevel(log_level)
             for lib in ["httpx", "httpcore", "openai", "asyncio"]: logging.getLogger(lib).setLevel(logging.WARNING)
 
-        logger.debug(f"[Init] Final effective log level set: {logging.getLevelName(logger.level)}.") # Use DEBUG for init logs
+        logger.debug(f"[Init] Final effective log level set: {logging.getLevelName(logger.level)}.")
 
         if debug: logger.debug("[Init] Debug logging enabled.")
-        if quiet: logger.debug("[Init] Quiet mode enabled (most logs suppressed).") # Only shown if debug is also true
+        if quiet: logger.debug("[Init] Quiet mode enabled (most logs suppressed).")
 
         try:
             set_default_openai_api("chat_completions")
@@ -125,7 +126,20 @@ class BlueprintBase(ABC):
         logger.debug(f"[Init] MCP Server Configs Loaded: {list(self.mcp_server_configs.keys())}")
         logger.debug(f"[Init] Use Markdown Output: {self.use_markdown}")
         logger.debug(f"[Init] Max LLM Calls (Informational): {self.max_llm_calls}")
-        logger.debug(f"[Init] Django Settings Loaded: {logging.getLogger('django.utils.log').level == logging.DEBUG}") # Check Django log level
+
+        # --- Check Required Environment Variables defined in metadata ---
+        self._check_required_env_vars()
+
+
+    def _check_required_env_vars(self):
+        """Checks if environment variables listed in metadata['env_vars'] are set."""
+        required_vars = self.metadata.get("env_vars", [])
+        if not isinstance(required_vars, list):
+            logger.warning(f"[Init] Blueprint '{self.metadata.get('name')}' metadata 'env_vars' is not a list, skipping check.")
+            return
+        missing_vars = [var for var in required_vars if var not in os.environ]
+        if missing_vars:
+            logger.warning(f"[Init] Blueprint '{self.metadata.get('name')}' requires the following environment variables which are not set: {', '.join(missing_vars)}. Functionality may be limited.")
 
 
     def _load_environment(self):
@@ -162,13 +176,18 @@ class BlueprintBase(ABC):
         final_config = base_config.get("defaults", {}).copy(); logger.debug(f"[Config] Applied base defaults. Keys: {list(final_config.keys())}")
         if "llm" in base_config: final_config.setdefault("llm", {}).update(base_config["llm"]); logger.debug(f"[Config] Merged base 'llm'.")
         if "mcpServers" in base_config: final_config.setdefault("mcpServers", {}).update(base_config["mcpServers"]); logger.debug(f"[Config] Merged base 'mcpServers'.")
+        # Apply blueprint-specific settings from config AFTER defaults but BEFORE profile/CLI
         blueprint_name = self.__class__.__name__; blueprint_settings = base_config.get("blueprints", {}).get(blueprint_name, {})
-        if blueprint_settings: final_config.update(blueprint_settings); logger.debug(f"[Config] Merged BP '{blueprint_name}'. Keys: {list(blueprint_settings.keys())}")
+        if blueprint_settings:
+            final_config.update(blueprint_settings);
+            logger.debug(f"[Config] Merged BP '{blueprint_name}' settings. Keys: {list(blueprint_settings.keys())}")
+
         profile_in_bp_settings = blueprint_settings.get("default_profile"); profile_in_base_defaults = base_config.get("defaults", {}).get("default_profile")
         profile_to_use = profile_override or profile_in_bp_settings or profile_in_base_defaults or "default"; logger.debug(f"[Config] Using profile: '{profile_to_use}'")
         profile_settings = base_config.get("profiles", {}).get(profile_to_use, {})
         if profile_settings: final_config.update(profile_settings); logger.debug(f"[Config] Merged profile '{profile_to_use}'. Keys: {list(profile_settings.keys())}")
         elif profile_to_use != "default" and (profile_override or profile_in_bp_settings or profile_in_base_defaults): logger.warning(f"[Config] Profile '{profile_to_use}' requested but not found.")
+
         if config_overrides: final_config.update(config_overrides); logger.debug(f"[Config] Merged CLI overrides. Keys: {list(config_overrides.keys())}")
         final_config.setdefault("llm", {}); final_config.setdefault("mcpServers", {})
         final_config = _substitute_env_vars(final_config); logger.debug("[Config] Applied final env var substitution.")
@@ -192,6 +211,7 @@ class BlueprintBase(ABC):
 
     async def _start_mcp_server_instance(self, stack: AsyncExitStack, server_name: str) -> Optional[MCPServer]:
         """Starts a single MCP server instance. Logs critical start/success at INFO."""
+        # ... (MCP startup logic remains the same as previous version) ...
         server_config = self.mcp_server_configs.get(server_name)
         if not server_config: logger.error(f"[MCP:{server_name}] Config not found."); return None
         command_list_or_str = server_config.get("command");
@@ -251,6 +271,7 @@ class BlueprintBase(ABC):
             # ** Log successful start at INFO level ** (Keep this INFO)
             logger.info(f"[MCP:{server_name}] Started successfully."); return started_server
         except Exception as e: logger.error(f"[MCP:{server_name}] Failed start/connect: {e}", exc_info=logger.level <= logging.DEBUG); return None
+
 
     @abstractmethod
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
@@ -390,7 +411,7 @@ class BlueprintBase(ABC):
             # Override markdown setting if CLI flag is provided
             if args.markdown is not None:
                 blueprint.use_markdown = args.markdown;
-                logger.info(f"Markdown output explicitly set to: {blueprint.use_markdown}.")
+                logger.info(f"Markdown output explicitly set to: {blueprint.use_markdown}.") # INFO log kept for explicit overrides
 
             # Run the blueprint non-interactively
             if args.instruction:
