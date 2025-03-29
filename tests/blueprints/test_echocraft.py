@@ -1,39 +1,73 @@
 import pytest
-import subprocess
-import pytest
-from pathlib import Path
-from subprocess import TimeoutExpired
+from unittest.mock import patch, AsyncMock, MagicMock
 
-# Define the path to the blueprint script
-BLUEPRINT_PATH = Path(__file__).parent.parent.parent / "blueprints" / "echocraft" / "blueprint_echocraft.py"
-BLUEPRINT_SCRIPT = str(BLUEPRINT_PATH.resolve())
-SUBPROCESS_TIMEOUT = 15 # Should be quick
+# Assuming BlueprintBase and other necessary components are importable
+# from blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint
+# from agents import Agent, Runner, RunResult
 
-@pytest.mark.cli
-@pytest.mark.tools # As it uses the echo_function tool
-@pytest.mark.skip(reason='CLI tests require more setup/mocking')
-def test_echocraft_cli_echo():
-    """Test running echocraft directly and check echo output."""
-    instruction = "Hello EchoCraft!"
-    command = ["uv", "run", "python", BLUEPRINT_SCRIPT, "--instruction", instruction, "--debug"]
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=SUBPROCESS_TIMEOUT)
-    except TimeoutExpired:
-        pytest.fail(f"Subprocess timed out after {SUBPROCESS_TIMEOUT} seconds.")
-    except subprocess.CalledProcessError as e:
-         print("\nSTDOUT:")
-         print(e.stdout)
-         print("\nSTDERR:")
-         print(e.stderr)
-         pytest.fail(f"Subprocess failed with exit code {e.returncode}")
+@pytest.fixture
+def echocraft_blueprint_instance():
+    """Fixture to create a mocked instance of EchoCraftBlueprint."""
+    # Mock config loading and model instantiation as it's simple
+    with patch('blueprints.echocraft.blueprint_echocraft.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
+         with patch('blueprints.echocraft.blueprint_echocraft.BlueprintBase._get_model_instance') as mock_get_model:
+             mock_model_instance = MagicMock() # Simple mock, won't be used by EchoAgent logic
+             mock_get_model.return_value = mock_model_instance
+             # Import *after* patching
+             from blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint
+             instance = EchoCraftBlueprint(debug=True)
+    return instance
 
-    assert result.returncode == 0
-    print("\nSTDOUT:")
-    print(result.stdout)
-    print("\nSTDERR:")
-    print(result.stderr)
-    # Check stderr for tool execution log
-    assert "Executing echo_function tool" in result.stderr
-    # Check stdout for the exact echoed instruction in the final output section
-    assert f"--- Final Output ---\n{instruction}" in result.stdout
+# --- Test Cases ---
+
+def test_echocraft_metadata(echocraft_blueprint_instance):
+    """Test if the metadata is correctly defined."""
+    # Arrange
+    blueprint = echocraft_blueprint_instance
+    # Assert
+    assert blueprint.metadata["name"] == "EchoCraftBlueprint"
+    assert blueprint.metadata["title"] == "EchoCraft"
+    assert blueprint.metadata["version"] == "1.1.0"
+    assert len(blueprint.metadata["required_mcp_servers"]) == 0
+
+@pytest.mark.asyncio
+async def test_echocraft_agent_creation(echocraft_blueprint_instance):
+    """Test if the EchoAgent is created correctly."""
+    # Arrange
+    blueprint = echocraft_blueprint_instance
+    # Act
+    starting_agent = blueprint.create_starting_agent(mcp_servers=[])
+    # Assert
+    assert starting_agent is not None
+    assert starting_agent.name == "Echo"
+    assert len(starting_agent.tools) == 0
+    # Check if it has the overridden process method
+    assert hasattr(starting_agent, 'process')
+    # Verify it's the custom EchoAgent class defined inside create_starting_agent
+    assert "EchoAgent" in str(type(starting_agent))
+
+
+@pytest.mark.asyncio
+async def test_echocraft_run_echoes_input(echocraft_blueprint_instance):
+    """Test if running the blueprint actually echoes the input."""
+    # Arrange
+    blueprint = echocraft_blueprint_instance
+    instruction = "Hello, Echo!"
+
+    # Mock the Runner.run to simulate the flow and check EchoAgent's direct output
+    # Since EchoAgent overrides process, Runner might not call the LLM etc.
+    # We can directly test the EchoAgent's process method here for simplicity,
+    # or mock Runner.run to return the expected output. Let's test process directly.
+
+    starting_agent = blueprint.create_starting_agent(mcp_servers=[])
+    # Act
+    result = await starting_agent.process(input_data=instruction)
+    # Assert
+    assert result == instruction
+
+@pytest.mark.skip(reason="CLI tests require more setup/mocking or direct call checks")
+def test_echocraft_cli_execution():
+    """Test running the blueprint via CLI (placeholder)."""
+    # Needs subprocess testing or direct call to main with mocked Runner/Agent.
+    assert False
 
