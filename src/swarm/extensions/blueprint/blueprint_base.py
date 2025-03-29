@@ -9,11 +9,11 @@ import signal
 import subprocess
 import sys
 import textwrap
-import anyio # Added for timeout
+# import anyio # Removed for now
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Coroutine, Dict, List, Optional, Type, Union
-from contextlib import AsyncExitStack, asynccontextmanager # Added asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 # --- Core Agent Imports ---
 from agents import Agent, Runner
@@ -22,7 +22,7 @@ from agents.result import RunResult
 from agents.items import MessageOutputItem
 from agents.mcp import MCPServerStdio, MCPServer
 from agents.models.openai_responses import OpenAIResponsesModel
-from agents import set_default_openai_api # Correct import
+from agents import set_default_openai_api
 
 # --- Standard Library & Third-Party ---
 from dotenv import load_dotenv
@@ -40,8 +40,8 @@ except IndexError:
     PROJECT_ROOT = Path.cwd().parent
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "swarm_config.json"
-SWARM_VERSION = "0.2.12-md-default" # Version Bump
-DEFAULT_MCP_STARTUP_TIMEOUT = 30.0 # Default seconds to wait for MCP server startup/handshake
+SWARM_VERSION = "0.2.13-revert-timeout" # Version Bump
+DEFAULT_MCP_STARTUP_TIMEOUT = 30.0 # Keep for reference
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -67,13 +67,14 @@ class BlueprintBase(ABC):
         "tags": ["base"], "required_mcp_servers": [], "env_vars": [],
     }
     config: Dict[str, Any]; llm_profiles: Dict[str, Dict[str, Any]]; mcp_server_configs: Dict[str, Dict[str, Any]]
-    console: Console; use_markdown: bool = False; max_llm_calls: Optional[int] = None
+    console: Console; use_markdown: bool = True # Default Markdown to True for CLI context
+    max_llm_calls: Optional[int] = None
     quiet_mode: bool = False
 
     def __init__(
         self, config_path_override: Optional[Union[str, Path]] = None, profile_override: Optional[str] = None,
         config_overrides: Optional[Dict[str, Any]] = None, debug: bool = False, quiet: bool = False,
-        force_markdown: Optional[bool] = None # Added explicit markdown override
+        force_markdown: Optional[bool] = None
     ):
         self.console = Console(quiet=quiet)
         self.quiet_mode = quiet
@@ -107,13 +108,13 @@ class BlueprintBase(ABC):
         self.mcp_server_configs = self.config.get("mcpServers", {})
 
         # --- Set Markdown Usage ---
-        # Priority: CLI Flag -> Config -> Default (True for CLI, False otherwise - implicitly via not quiet)
+        # Priority: CLI Flag -> Config -> Default (True for CLI)
         if force_markdown is not None:
              self.use_markdown = force_markdown
              logger.info(f"Markdown output explicitly set by CLI flag: {self.use_markdown}.")
         else:
-             # Use config value if present, otherwise default based on quiet mode
-             self.use_markdown = self.config.get("default_markdown_cli", not self.quiet_mode)
+             # Use config value if present, otherwise default to True (for CLI)
+             self.use_markdown = self.config.get("default_markdown_cli", True) # Default changed to True
              logger.debug(f"Markdown output determined by config/default: {self.use_markdown}.")
 
         self.max_llm_calls = self.config.get("max_llm_calls", None)
@@ -211,16 +212,16 @@ class BlueprintBase(ABC):
         logger.error(f"LLM profile '{profile_to_check}' (and 'default' fallback) not found!")
         return None
 
-
     def get_mcp_server_description(self, server_name: str) -> Optional[str]:
         """Retrieves the description for a given MCP server name from the config."""
         return self.mcp_server_configs.get(server_name, {}).get("description")
 
     async def _start_mcp_server_instance(self, stack: AsyncExitStack, server_name: str) -> Optional[MCPServer]:
-        """Starts a single MCP server instance with a timeout."""
-        # ... (remains the same as previous version with timeout) ...
+        """Starts a single MCP server instance.""" # Removed timeout mention for now
         server_config = self.mcp_server_configs.get(server_name)
         if not server_config: logger.error(f"[MCP:{server_name}] Config not found."); return None
+
+        # --- Command/Args/Env/Cwd Parsing (remains the same) ---
         command_list_or_str = server_config.get("command");
         if not command_list_or_str: logger.error(f"[MCP:{server_name}] Command missing."); return None
         additional_args = _substitute_env_vars(server_config.get("args", []))
@@ -265,20 +266,20 @@ class BlueprintBase(ABC):
         if "encoding" in server_config: mcp_params["encoding"] = server_config["encoding"]
         if "encoding_error_handler" in server_config: mcp_params["encoding_error_handler"] = server_config["encoding_error_handler"]
         logger.debug(f"[MCP:{server_name}] Path:{cmd_path}, Args:{full_args}, CWD:{cwd_path or 'Default'}")
-        startup_timeout = float(server_config.get("startup_timeout", DEFAULT_MCP_STARTUP_TIMEOUT))
-        logger.info(f"[MCP:{server_name}] Starting: {' '.join(shlex.quote(p) for p in [cmd_path] + full_args)} (Timeout: {startup_timeout}s)")
+
+        # --- Startup (Reverted Timeout Logic) ---
+        logger.info(f"[MCP:{server_name}] Starting: {' '.join(shlex.quote(p) for p in [cmd_path] + full_args)}")
         try:
-            async with anyio.fail_after(startup_timeout):
-                server_instance = MCPServerStdio(name=server_name, params=mcp_params)
-                started_server = await stack.enter_async_context(server_instance)
-                logger.info(f"[MCP:{server_name}] Started successfully.")
-                return started_server
-        except TimeoutError:
-             logger.error(f"[MCP:{server_name}] Failed start/connect: Timed out after {startup_timeout} seconds.")
-             return None
+            # Removed anyio.fail_after wrapper
+            server_instance = MCPServerStdio(name=server_name, params=mcp_params)
+            started_server = await stack.enter_async_context(server_instance)
+            logger.info(f"[MCP:{server_name}] Started successfully.")
+            return started_server
+        # Removed TimeoutError catch
         except Exception as e:
              logger.error(f"[MCP:{server_name}] Failed start/connect: {e}", exc_info=logger.level <= logging.DEBUG)
              return None
+
 
     @abstractmethod
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
@@ -292,9 +293,9 @@ class BlueprintBase(ABC):
 
     async def _run_non_interactive(self, instruction: str):
         """Internal method orchestrating non-interactive blueprint execution."""
-        # ... (remains the same) ...
+        # ... (remains the same as previous version, including improved gather error handling) ...
         if not self.quiet_mode:
-            self.display_splash_screen() # Call splash screen if not quiet
+            self.display_splash_screen()
         bp_title = self.metadata.get('title', self.__class__.__name__);
         logger.debug(f"--- Running Blueprint: {bp_title} (v{self.metadata.get('version', 'N/A')}) ---")
         truncated_instruction = textwrap.shorten(instruction, width=100, placeholder="...");
@@ -368,6 +369,7 @@ class BlueprintBase(ABC):
     @classmethod
     def main(cls):
         """Class method entry point for command-line execution."""
+        # ... (argparse remains the same) ...
         parser = argparse.ArgumentParser(description=cls.metadata.get("description", f"Run {cls.__name__}"), formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument("--instruction", type=str, required=True, help="Initial instruction for the blueprint.")
         parser.add_argument("--config-path", type=str, default=None, help=f"Path to swarm_config.json (Default: {DEFAULT_CONFIG_PATH})")
@@ -375,10 +377,8 @@ class BlueprintBase(ABC):
         parser.add_argument("--profile", type=str, default=None, help="Configuration profile to use.")
         parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging level.")
         parser.add_argument("--quiet", action="store_true", help="Suppress most logs and headers, print only final output.")
-        # Use BooleanOptionalAction for --markdown
         parser.add_argument('--markdown', action=argparse.BooleanOptionalAction, default=None, help="Enable/disable markdown output (--markdown / --no-markdown). Overrides config/default.")
         parser.add_argument("--version", action="version", version=f"%(prog)s (BP: {cls.metadata.get('name', 'N/A')} v{cls.metadata.get('version', 'N/A')}, Core: {SWARM_VERSION})")
-
         args = parser.parse_args()
         quiet_mode = args.quiet
         cli_config_overrides = {}
@@ -415,10 +415,7 @@ class BlueprintBase(ABC):
                 force_markdown=args.markdown # Pass the explicit CLI value
             )
 
-            # Remove the markdown override logic here, it's handled in __init__ now
-            # if args.markdown is not None:
-            #     blueprint.use_markdown = args.markdown;
-            #     logger.info(f"Markdown output explicitly set to: {blueprint.use_markdown}.")
+            # No markdown override logic needed here anymore
 
             if args.instruction:
                  asyncio.run(blueprint._run_non_interactive(args.instruction))
