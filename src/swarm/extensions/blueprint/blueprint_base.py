@@ -21,6 +21,7 @@ from agents.result import RunResult
 from agents.items import MessageOutputItem
 from agents.mcp import MCPServerStdio, MCPServer
 from agents.models.openai_responses import OpenAIResponsesModel
+from agents import set_default_openai_api # Correct import
 
 # --- Standard Library & Third-Party ---
 from dotenv import load_dotenv
@@ -74,6 +75,11 @@ class BlueprintBase(ABC):
         if debug:
             logger.setLevel(logging.DEBUG); logging.getLogger("agents").setLevel(logging.DEBUG)
             logger.debug("[Init] Debug logging enabled.")
+        try:
+            set_default_openai_api("chat_completions")
+            logger.debug("[Init] Set default OpenAI API to 'chat_completions'.")
+        except Exception as e:
+            logger.warning(f"[Init] Failed to set default OpenAI API: {e}")
         self._load_environment()
         try:
             self.config = self._load_configuration(config_path_override, profile_override, config_overrides)
@@ -208,9 +214,11 @@ class BlueprintBase(ABC):
         if "encoding" in server_config: mcp_params["encoding"] = server_config["encoding"]
         if "encoding_error_handler" in server_config: mcp_params["encoding_error_handler"] = server_config["encoding_error_handler"]
         logger.debug(f"[MCP:{server_name}] Path:{cmd_path}, Args:{full_args}, CWD:{cwd_path or 'Default'}")
+        # ** Log MCP start at INFO level **
         logger.info(f"[MCP:{server_name}] Starting: {' '.join(shlex.quote(p) for p in [cmd_path] + full_args)}")
         try:
             server_instance = MCPServerStdio(name=server_name, params=mcp_params); started_server = await stack.enter_async_context(server_instance);
+            # ** Log successful start at INFO level **
             logger.info(f"[MCP:{server_name}] Started successfully."); return started_server
         except Exception as e: logger.error(f"[MCP:{server_name}] Failed start/connect: {e}", exc_info=logger.level <= logging.DEBUG); return None
 
@@ -219,25 +227,50 @@ class BlueprintBase(ABC):
         """Abstract method for subclasses to create the primary starting Agent."""
         pass
 
+    # --- New Method for Splash Screen ---
+    def display_splash_screen(self):
+        """
+        Optional method for blueprints to display an introductory message or graphic.
+        Called at the start of the run. Base implementation does nothing.
+        Use self.console for printing.
+        """
+        pass # Subclasses can override this
+
     async def _run_non_interactive(self, instruction: str):
         """Internal method orchestrating non-interactive blueprint execution."""
-        bp_title = self.metadata.get('title', self.__class__.__name__); logger.info(f"--- Run: {bp_title} v{self.metadata.get('version', 'N/A')}---")
-        truncated_instruction = textwrap.shorten(instruction, width=100, placeholder="..."); logger.info(f"Instruction: '{truncated_instruction}'")
+        # ** Call splash screen method **
+        self.display_splash_screen()
+
+        bp_title = self.metadata.get('title', self.__class__.__name__);
+        # ** Log Run start at INFO **
+        logger.info(f"--- Running Blueprint: {bp_title} (v{self.metadata.get('version', 'N/A')}) ---")
+        truncated_instruction = textwrap.shorten(instruction, width=100, placeholder="...");
+        # ** Log Instruction at INFO **
+        logger.info(f"Instruction: '{truncated_instruction}'")
+
         required_servers = self.metadata.get("required_mcp_servers", []); started_mcps: List[MCPServer] = []; final_output = "Error: Blueprint exec failed."
         async with AsyncExitStack() as stack:
             if required_servers:
-                logger.info(f"[MCP] Required: {required_servers}. Starting..."); results = await asyncio.gather(*(self._start_mcp_server_instance(stack, name) for name in required_servers)); started_mcps = [s for s in results if s]
+                # ** Log MCP start requirement at INFO **
+                logger.info(f"[MCP] Required Servers: {required_servers}. Attempting to start...")
+                results = await asyncio.gather(*(self._start_mcp_server_instance(stack, name) for name in required_servers)); started_mcps = [s for s in results if s]
                 if len(started_mcps) != len(required_servers):
-                    failed = set(required_servers) - {s.name for s in started_mcps}; error_msg=f"Fatal MCP Error: Failed: {', '.join(failed)}. Aborting."; logger.error(error_msg); final_output=f"Error: MCP server(s) failed: {', '.join(failed)}."; self.console.print(f"\n[bold red]--- Failed ---[/]\n{final_output}\n[bold red]------------- [/]"); return
-                logger.info(f"[MCP] Started: {[s.name for s in started_mcps]}")
-            else: logger.info("[MCP] No servers required.")
+                    failed = set(required_servers) - {s.name for s in started_mcps}; error_msg=f"Fatal MCP Error: Failed: {', '.join(failed)}. Aborting."; logger.error(error_msg); final_output=f"Error: MCP server(s) failed: {', '.join(failed)}."; self.console.print(f"\n[bold red]--- Blueprint Failed ---[/]\n{final_output}\n[bold red]------------------------[/]"); return
+                # ** Log successful MCP start at INFO **
+                logger.info(f"[MCP] Successfully started required servers: {[s.name for s in started_mcps]}")
+            else:
+                 # ** Log no MCP needed at INFO **
+                logger.info("[MCP] No MCP servers required for this blueprint.")
             try:
                 logger.debug("Creating starting agent..."); agent = self.create_starting_agent(mcp_servers=started_mcps);
                 if not isinstance(agent, Agent): raise TypeError(f"create_starting_agent must return Agent, got {type(agent).__name__}")
                 logger.debug(f"Agent '{agent.name}' created.")
-            except Exception as e: logger.critical(f"Agent creation error: {e}", exc_info=True); final_output=f"Error: Agent creation failed - {e}"; self.console.print(f"\n[bold red]--- Failed ---[/]\n{final_output}\n[bold red]------------- [/]"); return
+            except Exception as e: logger.critical(f"Agent creation error: {e}", exc_info=True); final_output=f"Error: Agent creation failed - {e}"; self.console.print(f"\n[bold red]--- Blueprint Failed ---[/]\n{final_output}\n[bold red]------------------------[/]"); return
             try:
-                logger.info(f"--- >>> Runner.run ({agent.name}) ---"); result: Optional[RunResult] = await Runner.run(starting_agent=agent, input=instruction); logger.info(f"--- <<< Runner.run Finished ({agent.name}) ---")
+                 # ** Log Runner start at INFO **
+                logger.info(f"--- >>> Starting Agent Runner for '{agent.name}' <<< ---"); result: Optional[RunResult] = await Runner.run(starting_agent=agent, input=instruction);
+                 # ** Log Runner finish at INFO **
+                logger.info(f"--- <<< Agent Runner Finished for '{agent.name}' >>> ---")
                 if result:
                     raw_out = result.final_output; logger.debug(f"Runner output type: {type(raw_out).__name__}")
                     if isinstance(raw_out, (dict, list)):
@@ -245,8 +278,6 @@ class BlueprintBase(ABC):
                         except TypeError: logger.warning("Non-JSON serializable output."); final_output = str(raw_out)
                     elif raw_out is None: final_output = "[No output]"; logger.warning("Runner returned None output.")
                     else: final_output = str(raw_out)
-
-                    # **FIX:** Safely check for history attribute before logging it
                     if logger.level <= logging.DEBUG:
                         logger.debug("--- History ---")
                         if hasattr(result, 'history') and result.history:
@@ -254,12 +285,9 @@ class BlueprintBase(ABC):
                                 if isinstance(item, MessageOutputItem): logger.debug(f"  [{i:02d}][{item.message_type.upper()}] {item.sender_alias} -> {item.recipient_alias}: {textwrap.shorten(str(item.content), width=150)}")
                                 elif isinstance(item, FunctionToolResult): logger.debug(f"  [{i:02d}][TOOL_RESULT] {item.function_name}: {textwrap.shorten(str(item.result), width=150)}")
                                 else: logger.debug(f"  [{i:02d}][{type(item).__name__}] {item}")
-                        elif hasattr(result, 'history'):
-                             logger.debug("  [History attribute exists but is empty or None]")
-                        else:
-                             logger.debug("  [History attribute not found on RunResult object]")
+                        elif hasattr(result, 'history'): logger.debug("  [History attribute exists but is empty or None]")
+                        else: logger.debug("  [History attribute not found on RunResult object]")
                         logger.debug("--- End History ---")
-
                 else: final_output = "[Runner returned None result]"; logger.warning("Runner returned None result object.")
             except Exception as e: logger.error(f"--- XXX Runner.run failed: {e}", exc_info=True); final_output = f"Error during execution: {e}"
         self.console.print(f"\n--- Final Output ({bp_title}) ---", style="bold blue")
@@ -286,7 +314,8 @@ class BlueprintBase(ABC):
         args = parser.parse_args(); log_level = logging.DEBUG if args.debug else logging.INFO
         logger.setLevel(log_level);
         for lib in ["httpx", "httpcore", "openai", "asyncio", "agents"]: logging.getLogger(lib).setLevel(log_level if args.debug else logging.WARNING)
-        logger.info(f"Log level set: {logging.getLevelName(log_level)}.")
+        # ** Log level setting now DEBUG **
+        logger.debug(f"Log level set: {logging.getLevelName(log_level)}.")
         cli_config_overrides = {}
         if args.config:
             config_arg = args.config; config_override_path = Path(config_arg)
@@ -311,3 +340,4 @@ class BlueprintBase(ABC):
         except ImportError as ie: logger.critical(f"[Import Error] {ie}. Check deps.", exc_info=args.debug); sys.exit(1)
         except Exception as e: logger.critical(f"[Exec Error] {e}", exc_info=True); sys.exit(1)
         finally: logger.debug("Blueprint run finished.")
+
