@@ -3,21 +3,21 @@ import os
 import sys
 import asyncio
 import subprocess
-from typing import Dict, Any, List
-
-# Ensure src is in path for BlueprintBase import
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+from typing import Dict, Any, List, Optional # Added Optional
 
 try:
+    # Use the correct Agent import and base class
     from agents import Agent, Tool, function_tool
+    from agents.mcp import MCPServer # Import MCPServer for type hint
     from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-except ImportError as e: print(f"ERROR: Import failed: {e}"); sys.exit(1)
+except ImportError as e:
+    print(f"ERROR: Import failed: {e}. Ensure 'openai-agents' library is installed and project structure is correct.")
+    print(f"sys.path: {sys.path}")
+    sys.exit(1)
 
 logger = logging.getLogger(__name__)
 
-# --- Tools ---
+# --- Tools (remain the same) ---
 @function_tool
 def execute_command(command: str) -> str:
     """Executes a shell command. Returns exit code, stdout, stderr."""
@@ -33,22 +33,32 @@ def read_file(path: str) -> str:
     """Reads file content."""
     logger.info(f"Gaggle reading: {path}")
     try:
+        # Basic check for safety - prevent reading sensitive system files?
+        abs_path = os.path.abspath(path)
+        if not abs_path.startswith(os.getcwd()) and not path.startswith(("/", "~")): # Allow absolute if not obviously system-wide
+             # This safety check might be too simple or too strict depending on use case
+             pass # For now, allow reading relative to CWD mainly
         with open(path, "r", encoding="utf-8") as f: return f.read()
+    except FileNotFoundError:
+        logger.warning(f"File not found: {path}")
+        return f"Error: File not found at path: {path}"
     except Exception as e: logger.error(f"Read error {path}: {e}"); return f"Error reading file: {e}"
 
 @function_tool
 def write_file(path: str, content: str) -> str:
-    """Writes content to a file (overwrites)."""
+    """Writes content to a file (overwrites). Ensures path is within CWD."""
     logger.info(f"Gaggle writing: {path}")
     try:
         safe_path = os.path.abspath(path)
-        if not safe_path.startswith(os.getcwd()): return f"Error: Cannot write outside CWD: {path}"
+        if not safe_path.startswith(os.getcwd()):
+             logger.error(f"Attempted write outside CWD denied: {path}")
+             return f"Error: Cannot write outside current working directory: {path}"
         os.makedirs(os.path.dirname(safe_path), exist_ok=True)
         with open(safe_path, "w", encoding="utf-8") as f: f.write(content)
         return f"OK: Wrote to {path}."
     except Exception as e: logger.error(f"Write error {path}: {e}"); return f"Error writing file: {e}"
 
-# --- Agent Definitions ---
+# --- Agent Definitions (Updated Structure) ---
 SHARED_INSTRUCTIONS = """
 You are a member of the Gaggle, a quirky team of bird-themed CLI automation agents. Harvey Birdman coordinates.
 Team Roles & Capabilities:
@@ -59,8 +69,9 @@ Team Roles & Capabilities:
 Respond ONLY to the agent who tasked you (usually Harvey).
 """
 
+# Agent classes updated to accept mcp_servers (though unused here)
 class HarveyBirdmanAgent(Agent):
-    def __init__(self, team_tools: List[Tool], **kwargs):
+    def __init__(self, team_tools: List[Tool], mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
         instructions = (
             f"{SHARED_INSTRUCTIONS}\n\n"
             "YOUR ROLE: Harvey Birdman, Attorney at Law & Coordinator.\n"
@@ -70,10 +81,10 @@ class HarveyBirdmanAgent(Agent):
             "4. Use your direct tools (`read_file`, `write_file`) ONLY if absolutely necessary for pre/post command setup/verification.\n"
             "5. Synthesize the result from the delegated agent into a professional summary for the user."
         )
-        super().__init__(name="Harvey Birdman", instructions=instructions, tools=[read_file, write_file] + team_tools, **kwargs)
+        super().__init__(name="Harvey Birdman", instructions=instructions, tools=[read_file, write_file] + team_tools, mcp_servers=mcp_servers, **kwargs)
 
 class FoghornLeghornAgent(Agent):
-    def __init__(self, **kwargs):
+    def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
         instructions = (
             f"{SHARED_INSTRUCTIONS}\n\n"
             "YOUR ROLE: Foghorn Leghorn, I say, Foghorn Leghorn, NoiseBoss.\n"
@@ -82,10 +93,10 @@ class FoghornLeghornAgent(Agent):
             "3. Use `execute_command` to run the specified command.\n"
             "4. Report the full, unadulterated output (Exit Code, STDOUT, STDERR) back to Harvey, clear as a bell!"
         )
-        super().__init__(name="Foghorn Leghorn", instructions=instructions, tools=[execute_command], **kwargs)
+        super().__init__(name="Foghorn Leghorn", instructions=instructions, tools=[execute_command], mcp_servers=mcp_servers, **kwargs)
 
 class DaffyDuckAgent(Agent):
-     def __init__(self, **kwargs):
+     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
          instructions = (
              f"{SHARED_INSTRUCTIONS}\n\n"
              "YOUR ROLE: Daffy Duck, QuackFixer! It's probably doomed!\n"
@@ -94,10 +105,10 @@ class DaffyDuckAgent(Agent):
              "3. Reluctantly use `execute_command` to run the darn thing.\n"
              "4. Report the results back to Harvey, emphasizing any errors or unexpected outcomes. It's sabotage, I tell ya!"
          )
-         super().__init__(name="Daffy Duck", instructions=instructions, tools=[execute_command], **kwargs)
+         super().__init__(name="Daffy Duck", instructions=instructions, tools=[execute_command], mcp_servers=mcp_servers, **kwargs)
 
 class BigBirdAgent(Agent):
-     def __init__(self, **kwargs):
+     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
          instructions = (
              f"{SHARED_INSTRUCTIONS}\n\n"
              "YOUR ROLE: Big Bird. Oh, hi! We're going to run a command together!\n"
@@ -106,42 +117,65 @@ class BigBirdAgent(Agent):
              "3. Run the command just like he asked.\n"
              "4. Report the results back to Mr. Birdman nicely, so he knows how it went. It'll be okay!"
          )
-         super().__init__(name="Big Bird", instructions=instructions, tools=[execute_command], **kwargs)
+         super().__init__(name="Big Bird", instructions=instructions, tools=[execute_command], mcp_servers=mcp_servers, **kwargs)
 
-# --- Define the Blueprint ---
+# --- Define the Blueprint (Using create_starting_agent) ---
 class GaggleBlueprint(BlueprintBase):
     """ Gaggle: CLI Automation Blueprint with Custom Characters using openai-agents. """
     @property
     def metadata(self) -> Dict[str, Any]:
         return {
+            "name": "GaggleBlueprint", # Use class name
             "title": "Gaggle: CLI Automation",
             "description": "Automates CLI tasks with a team of bird characters.",
-            "version": "1.1.0", # Version bump
+            "version": "1.2.0", # Version bump for structure change
             "author": "Open Swarm Team",
-            "required_mcp_servers": [], # No MCP servers needed for this version
-            "cli_name": "gaggle",
-            "env_vars": []
+            "tags": ["cli", "automation", "fun", "multi-agent"],
+            "required_mcp_servers": [], # No MCP servers needed for this blueprint
         }
 
-    def create_agents(self) -> Dict[str, Agent]:
-        logger.debug("Creating agents for GaggleBlueprint...")
-        # Agents use the default profile unless overridden
-        foghorn = FoghornLeghornAgent(model=None)
-        daffy = DaffyDuckAgent(model=None)
-        big_bird = BigBirdAgent(model=None)
+    # Implement the required method
+    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+        """Creates the multi-agent Gaggle team and returns Harvey Birdman."""
+        # Since this blueprint doesn't use MCPs, the mcp_servers list will be empty,
+        # but we still accept it to match the base class signature.
+        logger.info(f"Assembling the Gaggle team (MCP Servers ignored: {len(mcp_servers)})...")
 
+        # Determine the default profile for all agents in this simple blueprint
+        default_profile = self.config.get("llm_profile", "default")
+        logger.info(f"Using LLM profile '{default_profile}' for all Gaggle agents.")
+
+        # Instantiate the worker agents
+        foghorn = FoghornLeghornAgent(model=default_profile)
+        daffy = DaffyDuckAgent(model=default_profile)
+        big_bird = BigBirdAgent(model=default_profile)
+
+        # Instantiate Harvey Birdman (Coordinator), providing other agents as tools
         harvey = HarveyBirdmanAgent(
-             model=None,
+             model=default_profile,
              team_tools=[
-                 foghorn.as_tool(tool_name="Foghorn", tool_description="Delegate command execution to Foghorn for loud/confident execution."),
-                 daffy.as_tool(tool_name="Daffy", tool_description="Delegate command execution to Daffy for chaotic/unpredictable execution."),
-                 big_bird.as_tool(tool_name="BigBird", tool_description="Delegate command execution to Big Bird for careful/gentle execution.")
-             ]
+                 foghorn.as_tool(
+                     tool_name="Foghorn",
+                     tool_description="Delegate command execution to Foghorn for loud/confident execution."
+                 ),
+                 daffy.as_tool(
+                     tool_name="Daffy",
+                     tool_description="Delegate command execution to Daffy for chaotic/unpredictable execution."
+                 ),
+                 big_bird.as_tool(
+                     tool_name="BigBird",
+                     tool_description="Delegate command execution to Big Bird for careful/gentle execution."
+                 )
+             ],
+             mcp_servers=mcp_servers # Pass it along, though Harvey doesn't use it directly
         )
 
-        logger.info("Gaggle team assembled: Harvey, Foghorn, Daffy, Big Bird.")
-        # Harvey is first, becomes starting agent
-        return {"Harvey Birdman": harvey, "Foghorn Leghorn": foghorn, "Daffy Duck": daffy, "Big Bird": big_bird}
+        logger.info("Gaggle team assembled. Harvey Birdman is ready to coordinate.")
+        # Return Harvey as the starting agent
+        return harvey
+
+    # Remove the old create_agents method
+    # def create_agents(self) -> Dict[str, Agent]: <-- REMOVED
 
 if __name__ == "__main__":
     GaggleBlueprint.main()
