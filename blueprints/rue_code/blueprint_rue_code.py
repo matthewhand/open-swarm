@@ -6,19 +6,20 @@ import subprocess
 import re
 from typing import Dict, Any, List, Optional
 
-# Ensure src is in path for BlueprintBase import
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
-
 try:
+    # Use the correct Agent import and base class
     from agents import Agent, Tool, function_tool
+    from agents.mcp import MCPServer # Import MCPServer for type hint
     from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-except ImportError as e: print(f"ERROR: Import failed: {e}"); sys.exit(1)
+except ImportError as e:
+    # Provide more helpful error message
+    print(f"ERROR: Import failed: {e}. Ensure 'openai-agents' library is installed and project structure is correct.")
+    print(f"sys.path: {sys.path}")
+    sys.exit(1)
 
 logger = logging.getLogger(__name__)
 
-# --- Tools ---
+# --- Tools (remain the same) ---
 @function_tool
 def execute_command(command: str) -> str:
     """Executes a shell command. Use for tests, linting, git status/diff etc. Returns exit code, stdout, stderr."""
@@ -33,21 +34,31 @@ def read_file(path: str, include_line_numbers: bool = False) -> str:
     """Reads file content. Set include_line_numbers=True for context when modifying code."""
     logger.info(f"Reading: {path}")
     try:
+        # Use absolute path for safety, but check it's within CWD project root?
+        # For now, keep it simple, assume relative paths are intended within project
         with open(path, "r", encoding="utf-8") as f:
             if include_line_numbers: return ''.join(f'{i + 1}: {line}' for i, line in enumerate(f))
             else: return f.read()
+    except FileNotFoundError:
+        logger.warning(f"File not found: {path}")
+        return f"Error: File not found at path: {path}"
     except Exception as e: logger.error(f"Read error {path}: {e}"); return f"Error reading file: {e}"
 @function_tool
 def write_to_file(path: str, content: str) -> str:
     """Writes content to a file (overwrites), creating directories. Ensures path is within CWD."""
     logger.info(f"Writing: {path}")
     try:
-        safe_path = os.path.abspath(path)
-        if not safe_path.startswith(os.getcwd()): return f"Error: Cannot write outside CWD: {path}"
-        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
-        with open(safe_path, "w", encoding="utf-8") as f: f.write(content)
+        # Ensure path is relative to project root and prevent writing outside
+        abs_path = os.path.abspath(path)
+        if not abs_path.startswith(os.getcwd()):
+             logger.error(f"Attempted write outside CWD denied: {path}")
+             return f"Error: Cannot write outside current working directory: {path}"
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w", encoding="utf-8") as f: f.write(content)
         return f"OK: Wrote to {path}."
     except Exception as e: logger.error(f"Write error {path}: {e}"); return f"Error writing file: {e}"
+
+# Apply Diff, Search Files, List Files, Prepare Git Commit tools remain the same...
 @function_tool
 def apply_diff(path: str, search: str, replace: str) -> str:
     """Applies search/replace to a file."""
@@ -57,12 +68,12 @@ def apply_diff(path: str, search: str, replace: str) -> str:
         if not safe_path.startswith(os.getcwd()): return f"Error: Cannot apply diff outside CWD: {path}"
         if not os.path.exists(safe_path): return f"Error: File not found for diff: {path}"
         read_result = read_file(path) # Use read_file tool for consistency
-        if "Error" in read_result: return f"Error reading for diff: {read_result}"
+        if read_result.startswith("Error:"): return f"Error reading for diff: {read_result}"
         original = read_result
         updated = original.replace(search, replace)
         if original == updated: return f"Warning: Search string not found in {path}."
-        write_result = write_to_file(path, updated)
-        if "Error" in write_result: return f"Error writing diff: {write_result}"
+        write_result = write_to_file(path, updated) # Use write_to_file tool
+        if write_result.startswith("Error:"): return f"Error writing diff: {write_result}"
         return f"OK: Applied diff to {path}."
     except Exception as e: logger.error(f"Diff error {path}: {e}"); return f"Error applying diff: {e}"
 @function_tool
@@ -76,14 +87,17 @@ def search_files(directory: str, pattern: str, recursive: bool = True, case_inse
         safe_dir = os.path.abspath(directory)
         if not safe_dir.startswith(os.getcwd()): return f"Error: Cannot search outside CWD."
         for root, dirs, files in os.walk(safe_dir):
+            # Simple exclusion of hidden dirs, might need more robust ignore logic
             dirs[:] = [d for d in dirs if not d.startswith('.')]
             if not recursive and root != safe_dir: dirs.clear()
             for file in files:
-                file_path = os.path.join(root, file)
-                try:
-                    with open(file_path, "r", encoding="utf-8", errors='ignore') as f: content = f.read()
-                    if regex.search(content): matches.append(os.path.relpath(file_path, safe_dir))
-                except Exception: pass
+                 # Simple exclusion of hidden files
+                 if file.startswith('.'): continue
+                 file_path = os.path.join(root, file)
+                 try:
+                     with open(file_path, "r", encoding="utf-8", errors='ignore') as f: content = f.read()
+                     if regex.search(content): matches.append(os.path.relpath(file_path, safe_dir))
+                 except Exception: pass # Ignore files we can't read
     except Exception as e: return f"Error during search: {e}"
     if not matches: return f"No files found matching '{pattern}'."
     return f"Found matches:\n" + "\n".join(matches)
@@ -97,30 +111,36 @@ def list_files(directory: str = ".") -> str:
         if not safe_dir.startswith(os.getcwd()): return f"Error: Cannot list outside CWD."
         for root, dirs, files in os.walk(safe_dir):
             dirs[:] = [d for d in dirs if not d.startswith('.')]
+            files = [f for f in files if not f.startswith('.')] # Exclude hidden files
             for file in files:
                 try: file_list.append(os.path.relpath(os.path.join(root, file), safe_dir))
-                except ValueError: file_list.append(os.path.join(root, file))
+                except ValueError: file_list.append(os.path.join(root, file)) # Handle case if not under safe_dir? Should not happen with check
     except Exception as e: return f"Error listing files: {e}"
     if not file_list: return f"No files found in '{directory}'."
-    return f"Files found:\n" + "\n".join(file_list)
+    return f"Files found:\n" + "\n".join(sorted(file_list)) # Sort for consistency
 @function_tool
 def prepare_git_commit(commit_message: str, add_all: bool = True) -> str:
     """Stages changes and commits them."""
     logger.info(f"Git commit: '{commit_message}' (Add all: {add_all})")
     status_cmd = "git status --porcelain"; add_cmd = "git add ." if add_all else "git add -u"
     status_result = execute_command(status_cmd)
-    if "Error" in status_result: return f"Error git status: {status_result}"
-    stdout_part = status_result.split('-- STDOUT --')[-1].split('-- STDERR --')[0].strip()
-    if not stdout_part: return "No changes to commit."
+    if status_result.startswith("Error:"): return f"Error checking git status: {status_result}"
+    # Extract STDOUT cleanly
+    stdout_match = re.search(r"STDOUT:\n(.*?)\nSTDERR:", status_result, re.DOTALL)
+    stdout_part = stdout_match.group(1).strip() if stdout_match else ""
+    if not stdout_part: return "No changes detected to commit."
     add_result = execute_command(add_cmd);
-    if "Error" in add_result: return f"Error git add: {add_result}"
-    commit_cmd = f'git commit -m "{commit_message}"'; commit_result = execute_command(commit_cmd)
-    if "Error" in commit_result: return f"Error git commit: {commit_result}"
+    if add_result.startswith("Error:"): return f"Error staging files: {add_result}"
+    # Escape double quotes in commit message for shell safety
+    safe_commit_message = commit_message.replace('"', '\\"')
+    commit_cmd = f'git commit -m "{safe_commit_message}"';
+    commit_result = execute_command(commit_cmd)
+    if commit_result.startswith("Error:"): return f"Error during git commit: {commit_result}"
     return f"OK: Committed '{commit_message}'. Output:\n{commit_result}"
 
-# --- Agent Definitions ---
 
-# Enhanced shared instructions
+# --- Agent Definitions (Updated Structure) ---
+
 SHARED_INSTRUCTIONS_TEMPLATE = """
 CONTEXT: You are {agent_name}, a specialist member of the Rue-Code AI development team. Your goal is {role_goal}.
 The team collaborates to fulfill user requests under the direction of the Coordinator.
@@ -137,9 +157,11 @@ YOUR SPECIFIC TASK INSTRUCTIONS:
 {specific_instructions}
 """
 
+# Agent classes remain largely the same, but may accept mcp_servers if needed
 class CoordinatorAgent(Agent):
-    def __init__(self, team_tools: List[Tool], **kwargs):
+    def __init__(self, team_tools: List[Tool], mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
         specific_instructions = (
+            # (Instructions remain the same)
             "1. Deeply analyze the user's request. Ask clarifying questions if needed (though current setup is non-interactive).\n"
             "2. Formulate a step-by-step plan identifying which agent (Code, Architect, QA, GitManager) is needed for each step.\n"
             "3. Sequentially delegate tasks using the appropriate Agent Tool (e.g., call `Code` tool for coding).\n"
@@ -149,11 +171,13 @@ class CoordinatorAgent(Agent):
             "7. Synthesize all results into a final, comprehensive response to the user."
         )
         instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="coordinate the team to fulfill user requests via planning and delegation", specific_instructions=specific_instructions)
-        super().__init__(name="Coordinator", instructions=instructions, tools=[list_files, execute_command] + team_tools, **kwargs) # Model from profile
+        # Coordinator itself doesn't directly use MCPs in this design, but receives the list for potential future use or inspection
+        super().__init__(name="Coordinator", instructions=instructions, tools=[list_files, execute_command] + team_tools, mcp_servers=mcp_servers, **kwargs)
 
 class CodeAgent(Agent):
-    def __init__(self, **kwargs):
+    def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs): # Accept mcp_servers even if unused
         specific_instructions = (
+            # (Instructions remain the same)
             "1. Receive coding tasks (write new file, modify existing, apply diff).\n"
             "2. Use `list_files` if needed to confirm file structure.\n"
             "3. Use `read_file` (with line numbers if modifying) to get existing code context.\n"
@@ -161,12 +185,13 @@ class CodeAgent(Agent):
             "5. Report success/failure and provide the path to the modified/created file, or relevant code snippets/diff results."
         )
         instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="implement code changes accurately", specific_instructions=specific_instructions)
-        # ** FIX: Pass model correctly using kwargs **
-        super().__init__(name="Code", instructions=instructions, tools=[read_file, write_to_file, apply_diff, list_files], **kwargs)
+        super().__init__(name="Code", instructions=instructions, tools=[read_file, write_to_file, apply_diff, list_files], mcp_servers=mcp_servers, **kwargs)
 
 class ArchitectAgent(Agent):
-     def __init__(self, **kwargs):
+     # CRITICAL: Needs mcp_servers passed in
+     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
          specific_instructions = (
+             # (Instructions remain the same)
              "1. Receive design or research tasks.\n"
              "2. Use `brave-search` (via attached MCP server) for external web research on technologies, libraries, or best practices.\n"
              "3. Use `search_files` or `read_file` to understand existing project context.\n"
@@ -175,68 +200,106 @@ class ArchitectAgent(Agent):
              "6. Report completion and the path to the documentation file."
          )
          instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="design systems and research technical solutions", specific_instructions=specific_instructions)
-         super().__init__(name="Architect", instructions=instructions, tools=[read_file, write_to_file, search_files, list_files], **kwargs)
+         # Pass mcp_servers to the parent Agent class
+         super().__init__(name="Architect", instructions=instructions, tools=[read_file, write_to_file, search_files, list_files], mcp_servers=mcp_servers, **kwargs)
 
 class QualityAssuranceAgent(Agent):
-     def __init__(self, **kwargs):
+     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs): # Accept mcp_servers
          specific_instructions = (
+             # (Instructions remain the same)
              "1. Receive testing or linting tasks with the EXACT command to execute.\n"
              "2. Use the `execute_command` tool to run the command.\n"
              "3. Report the full, verbatim results (Exit Code, STDOUT, STDERR) back."
          )
          instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="ensure code quality via tests and linting", specific_instructions=specific_instructions)
-         super().__init__(name="QualityAssurance", instructions=instructions, tools=[execute_command], **kwargs)
+         super().__init__(name="QualityAssurance", instructions=instructions, tools=[execute_command], mcp_servers=mcp_servers, **kwargs)
 
 class GitManagerAgent(Agent):
-     def __init__(self, **kwargs):
-         instructions = (
-             f"{SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal='manage version control', specific_instructions='')}\n\n" # Add specific instructions if needed
-             "Receive version control tasks. Use `prepare_git_commit` for staging and committing (provide a clear commit message!). Use `execute_command` for non-committing actions like 'git status', 'git diff', 'git log'. Report the outcome."
+     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs): # Accept mcp_servers
+         specific_instructions = (
+             # (Instructions remain the same, just formatting applied here)
+             "Receive version control tasks. Use `prepare_git_commit` for staging and committing (provide a clear commit message!).\n"
+             "Use `execute_command` for non-committing actions like 'git status', 'git diff', 'git log'. Report the outcome."
          )
-         super().__init__(name="GitManager", instructions=instructions, tools=[prepare_git_commit, execute_command], **kwargs)
+         instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(
+            agent_name=self.__class__.__name__,
+            role_goal='manage version control',
+            specific_instructions=specific_instructions
+         )
+         super().__init__(name="GitManager", instructions=instructions, tools=[prepare_git_commit, execute_command], mcp_servers=mcp_servers, **kwargs)
 
-# --- Define the Blueprint ---
+
+# --- Define the Blueprint (Using create_starting_agent) ---
 class RueCodeBlueprint(BlueprintBase):
+    # metadata remains the same
     @property
     def metadata(self) -> Dict[str, Any]:
         return {
-            "title": "Rue-Code AI Dev Team", "description": "An automated coding team using openai-agents.",
-            "version": "1.2.1", "author": "Open Swarm Team",
+            "name": "RueCodeBlueprint", # Use class name for consistency
+            "title": "Rue-Code AI Dev Team",
+            "description": "An automated coding team using openai-agents.",
+            "version": "1.3.0", # Incremented version
+            "author": "Open Swarm Team",
+            "tags": ["code", "dev", "mcp", "multi-agent"],
             "required_mcp_servers": ["brave-search"], # Architect needs Brave Search
-            "env_vars": [] # Keys handled by .env and server config
         }
 
-    def create_agents(self) -> Dict[str, Agent]:
-        logger.debug("Creating agents for RueCodeBlueprint...")
-        # Determine profile for CodeAgent based on blueprint config or fallback to general profile
-        code_profile_name = self.config.get("llm_profile", "default") # Start with CLI/global default
-        if self.__class__.__name__ in self.swarm_config.get("blueprints", {}) and \
-           "llm_profile" in self.swarm_config["blueprints"][self.__class__.__name__]:
-            code_profile_name = self.swarm_config["blueprints"][self.__class__.__name__]["llm_profile"] # Use blueprint specific if defined
-            logger.info(f"Using blueprint-specific profile '{code_profile_name}' for CodeAgent.")
-        else:
-             # Use the profile potentially overridden by --profile CLI arg, or the ultimate default
-             code_profile_name = self.config.get("llm_profile", "default")
-             logger.info(f"Using general profile '{code_profile_name}' for CodeAgent.")
+    # Implement the required method
+    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+        """Creates the multi-agent team and returns the Coordinator agent."""
+        logger.info(f"Creating RueCode agent team with {len(mcp_servers)} MCP server(s)...")
+
+        # Determine LLM profile for the CodeAgent (specialized model if configured)
+        # Use self.config which already has merged blueprint/profile/cli overrides
+        code_agent_profile = self.config.get("llm_profile_code", self.config.get("llm_profile", "default"))
+        # Fallback further if specific profile doesn't exist? Base class _get_llm_profile handles default.
+        # For simplicity, we assume the profile name in config is valid or 'default'.
+        logger.info(f"Using LLM profile '{code_agent_profile}' for CodeAgent.")
+
+        # Determine default profile for other agents
+        default_profile = self.config.get("llm_profile", "default")
+        logger.info(f"Using LLM profile '{default_profile}' for Coordinator, Architect, QA, GitManager.")
 
 
-        # Pass model=None to use the default profile determined by BlueprintBase logic
-        code_agent = CodeAgent(model=code_profile_name) # Explicitly assign profile name
-        architect_agent = ArchitectAgent(model=None)
-        qa_agent = QualityAssuranceAgent(model=None)
-        git_agent = GitManagerAgent(model=None)
+        # Instantiate agents, passing mcp_servers ONLY to those that need it (Architect)
+        # Pass the profile NAME to the 'model' parameter, agents library should handle lookup via configured providers
+        code_agent = CodeAgent(model=code_agent_profile)
+        architect_agent = ArchitectAgent(model=default_profile, mcp_servers=mcp_servers) # Pass MCPs here
+        qa_agent = QualityAssuranceAgent(model=default_profile)
+        git_agent = GitManagerAgent(model=default_profile)
 
+        # Instantiate Coordinator, giving it the other agents as tools
         coordinator = CoordinatorAgent(
-             model=None, # Use default profile
+             model=default_profile,
+             # Pass the *list* of other agents converted to tools
              team_tools=[
-                 code_agent.as_tool(tool_name="Code", tool_description="Delegate coding tasks (write, modify, read, diff files) to the Code agent."),
-                 architect_agent.as_tool(tool_name="Architect", tool_description="Delegate system design, research (web via brave-search, files), or documentation (markdown) tasks."),
-                 qa_agent.as_tool(tool_name="QualityAssurance", tool_description="Delegate running test or lint commands via shell."),
-                 git_agent.as_tool(tool_name="GitManager", tool_description="Delegate version control tasks like committing changes or checking status.")
-             ]
+                 code_agent.as_tool(
+                     tool_name="Code",
+                     tool_description="Delegate coding tasks (write, modify, read, diff files) to the Code agent. Provide full context and file paths."
+                 ),
+                 architect_agent.as_tool(
+                     tool_name="Architect",
+                     tool_description="Delegate system design, research (web via brave-search, files), or documentation (markdown) tasks to the Architect agent."
+                 ),
+                 qa_agent.as_tool(
+                     tool_name="QualityAssurance",
+                     tool_description="Delegate running test or lint commands via shell to the QA agent. Provide the exact command."
+                 ),
+                 git_agent.as_tool(
+                     tool_name="GitManager",
+                     tool_description="Delegate version control tasks like committing changes or checking status/diff to the GitManager agent."
+                 )
+             ],
+             # Coordinator doesn't need direct MCP access in this design
+             mcp_servers=None # Explicitly None
         )
 
-        return { "Coordinator": coordinator, "Code": code_agent, "Architect": architect_agent, "QualityAssurance": qa_agent, "GitManager": git_agent }
+        logger.info("RueCode agent team created. Coordinator is the starting agent.")
+        # Return the Coordinator as the entry point for the Runner
+        return coordinator
+
+    # Remove the old create_agents method if it exists (it does in the user provided code)
+    # def create_agents(self) -> Dict[str, Agent]: <-- REMOVED
 
 if __name__ == "__main__":
     RueCodeBlueprint.main()
