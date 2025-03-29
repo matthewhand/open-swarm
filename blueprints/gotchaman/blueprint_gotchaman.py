@@ -1,256 +1,232 @@
 """
-Gotchaman: CLI Automation Blueprint with Custom Colored Output
+Gotchaman: CLI Automation Blueprint
 
-This blueprint provides CLI automation capabilities with the following customizations:
-  - A custom colored spinner override that animates a bird-head prompt.
-  - A custom render_output method that prints output in color on the CLI.
-  - Five agents: Ken, Joe, Jun, Jinpei, and Ryu.
+This blueprint provides CLI automation capabilities using a team of agents:
+- Ken (Coordinator)
+- Joe (Runner - executes commands/file ops)
+- Jun (Logger - hypothetical monitoring via MCP)
+- Jinpei (Advisor - hypothetical suggestion via MCP)
+- Ryu (Reviewer - hypothetical insights via MCP)
+
+Uses BlueprintBase, @function_tool for local commands, and agent-as-tool delegation.
 """
 
 import os
 import sys
-import time
 import logging
 import subprocess
-import itertools
-from typing import Dict, Any
+import shlex # For safe command splitting
+from pathlib import Path # Use pathlib
+from typing import Dict, Any, List, ClassVar, Optional
 
-from swarm.extensions.blueprint import BlueprintBase
-from swarm.types import Agent
+# Ensure src is in path for BlueprintBase import
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path: sys.path.insert(0, src_path)
 
-# Configure logging for our blueprint.
+try:
+    from agents import Agent, Tool, function_tool, Runner
+    from agents.mcp import MCPServer
+    from agents.models.interface import Model
+    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from openai import AsyncOpenAI
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+except ImportError as e:
+    print(f"ERROR: Import failed in GotchamanBlueprint: {e}. Check dependencies.")
+    print(f"sys.path: {sys.path}")
+    sys.exit(1)
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-    stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
 
-
-class GotchamanSpinner:
-    def __init__(self):
-        self.running = False
-        self.thread = None
-        self.status = ""
-
-    def start(self, status: str = "Automating the CLI..."):
-        if self.running:
-            return
-        self.running = True
-        self.status = status
-        def spinner_thread():
-            spin_symbols = ["(●>)", "(○>)", "(◐>)", "(◑>)"]
-            index = 0
-            while self.running:
-                symbol = spin_symbols[index % len(spin_symbols)]
-                sys.stdout.write(f"\r\033[94m{symbol}\033[0m {self.status}")
-                sys.stdout.flush()
-                index += 1
-                time.sleep(0.2)
-        import threading
-        th = threading.Thread(target=spinner_thread, daemon=True)
-        th.start()
-        self.thread = th
-
-    def stop(self):
-        if not self.running:
-            return
-        self.running = False
-        if self.thread:
-            self.thread.join()
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
-
-
-def execute_command(command: str) -> None:
-    """
-    Executes a shell command and logs its output.
-    """
+# --- Function Tools ---
+@function_tool
+def execute_command(command: str) -> str:
+    """Executes a shell command and returns its stdout and stderr."""
+    if not command: return "Error: No command provided."
+    logger.info(f"Tool: Executing command: {command}")
     try:
-        logger.debug(f"Executing command: {command}")
+        # Use shell=True cautiously, consider splitting if possible for safer execution
         result = subprocess.run(
             command,
-            shell=True,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            shell=True, # Be cautious with shell=True
+            check=False, # Capture output even on error
+            capture_output=True,
+            text=True,
+            timeout=120
         )
-        logger.debug(f"Command output: {result.stdout}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed with error: {e.stderr}")
+        output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
+        if result.returncode == 0:
+            logger.debug(f"Command successful:\n{output}")
+            return f"OK: Command executed.\n{output}"
+        else:
+            logger.error(f"Command failed:\n{output}")
+            return f"Error: Command failed.\n{output}"
+    except FileNotFoundError:
+         # This error is less likely with shell=True unless the shell itself is missing
+         logger.error(f"Error executing command '{command}': Shell or command not found.")
+         return f"Error: Shell or command '{command.split()[0]}' not found."
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command '{command}' timed out.")
+        return f"Error: Command '{command}' timed out."
+    except Exception as e:
+        logger.error(f"Unexpected error executing command '{command}': {e}", exc_info=logger.level <= logging.DEBUG)
+        return f"Error: Unexpected error during command execution: {e}"
 
-
+@function_tool
 def read_file(path: str) -> str:
-    """
-    Reads the file from the specified path.
-    """
+    """Reads the content of a file at the specified path."""
+    if not path: return "Error: No file path provided."
+    logger.info(f"Tool: Reading file at: {path}")
     try:
-        logger.debug(f"Reading file at: {path}")
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
+        file_path = Path(path).resolve()
+        # Optional: Add security check to ensure path is within allowed bounds if needed
+        # cwd = Path.cwd()
+        # if not str(file_path).startswith(str(cwd)):
+        #     logger.warning(f"Attempt to read file outside current working directory: {path}")
+        #     return f"Error: Access denied to path: {path}"
+        if not file_path.is_file():
+             logger.error(f"File not found at: {file_path}")
+             return f"Error: File not found at path: {path}"
+        content = file_path.read_text(encoding="utf-8")
+        logger.debug(f"Read {len(content)} characters from {file_path}.")
+        return f"OK: Content of {path}:\n{content}"
     except Exception as e:
-        logger.error(f"Error reading file at {path}: {e}")
-        return ""
+        logger.error(f"Error reading file at {path}: {e}", exc_info=logger.level <= logging.DEBUG)
+        return f"Error reading file '{path}': {e}"
 
-
-def write_file(path: str, content: str) -> None:
-    """
-    Writes content to a file at the specified path.
-    """
+@function_tool
+def write_file(path: str, content: str) -> str:
+    """Writes content to a file at the specified path, overwriting if it exists."""
+    if not path: return "Error: No file path provided."
+    logger.info(f"Tool: Writing {len(content)} characters to file at: {path}")
     try:
-        logger.debug(f"Writing to file at: {path}")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-        logger.debug("File write successful.")
+        file_path = Path(path).resolve()
+        # Optional: Add security check
+        # cwd = Path.cwd()
+        # if not str(file_path).startswith(str(cwd)):
+        #     logger.warning(f"Attempt to write file outside current working directory: {path}")
+        #     return f"Error: Access denied to path: {path}"
+
+        file_path.parent.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+        file_path.write_text(content, encoding="utf-8")
+        logger.debug(f"Successfully wrote to {file_path}.")
+        return f"OK: Successfully wrote to {path}."
     except Exception as e:
-        logger.error(f"Error writing file at {path}: {e}")
+        logger.error(f"Error writing file at {path}: {e}", exc_info=logger.level <= logging.DEBUG)
+        return f"Error writing file '{path}': {e}"
 
-
+# --- Define the Blueprint ---
 class GotchamanBlueprint(BlueprintBase):
-    """
-    Gotchaman: CLI Automation Blueprint
+    """Gotchaman: CLI Automation Blueprint using BlueprintBase."""
 
-    Agents:
-      - Ken: Coordinator for delegating CLI tasks.
-      - Joe: Runner, responsible for executing shell commands.
-      - Jun: Logger, monitors outputs.
-      - Jinpei: Auxiliary agent that provides quick suggestions.
-      - Ryu: Additional agent that offers insights and reviews outputs.
-    """
+    metadata: ClassVar[Dict[str, Any]] = {
+        "name": "GotchamanBlueprint",
+        "title": "Gotchaman: CLI Automation",
+        "description": (
+            "A blueprint for automating CLI tasks using a team of agents (Ken, Joe, Jun, Jinpei, Ryu) "
+            "with specific roles and MCP/tool access."
+        ),
+        "version": "1.1.0", # Refactored version
+        "author": "Open Swarm Team (Refactored)",
+        "tags": ["cli", "automation", "multi-agent", "mcp", "slack", "monday"],
+        # List only servers directly used by refactored agents
+        "required_mcp_servers": ["slack", "mondayDotCom", "basic-memory", "mcp-npx-fetch"],
+        "env_vars": ["SLACK_API_KEY", "MONDAY_API_KEY"]
+    }
 
-    def __init__(self, config: dict, **kwargs):
-        super().__init__(config, **kwargs)
-        self._gotchaman_spinner = GotchamanSpinner()
+     # Caches
+    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: Dict[str, Model] = {}
 
-    @property
-    def metadata(self) -> Dict[str, Any]:
-        return {
-            "title": "Gotchaman: CLI Automation Blueprint",
-            "description": (
-                "A blueprint for automating CLI tasks with custom colored output and an animated bird-head spinner. "
-                "Includes agents for coordination (Ken), command execution (Joe), logging (Jun), suggestions (Jinpei), "
-                "and insights (Ryu)."
-            ),
-            "required_mcp_servers": ["slack", "mondayDotCom", "basic-memory", "mcp-npx-fetch"],
-            "env_vars": ["SLACK_API_KEY", "MONDAY_API_KEY"]
-        }
+    # --- Model Instantiation Helper --- (Standard helper)
+    def _get_model_instance(self, profile_name: str) -> Model:
+        """Retrieves or creates an LLM Model instance."""
+        # ... (Implementation is the same as previous refactors) ...
+        if profile_name in self._model_instance_cache:
+            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
+            return self._model_instance_cache[profile_name]
+        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
+        profile_data = self.get_llm_profile(profile_name)
+        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
+        provider = profile_data.get("provider", "openai").lower()
+        model_name = profile_data.get("model")
+        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
+        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
+        if client_cache_key not in self._openai_client_cache:
+             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
+             filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+             log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
+             logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
+             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
+        client = self._openai_client_cache[client_cache_key]
+        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
+        try:
+            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
+        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
 
-    @property
-    def prompt(self) -> str:
-        agent = self.context_variables.get("active_agent_name", "Ken")
-        if agent == "Ken":
-            return "\033[94m(^>)\033[0m "
-        elif agent == "Joe":
-            return "\033[94m(O>>\033[0m "
-        elif agent == "Jun":
-            return "\033[94m(~>)\033[0m "
-        elif agent == "Jinpei":
-            return "\033[94m(o>-\033[0m "
-        else:
-            return "\033[94m(O)^)\033[0m "
 
-    def create_agents(self) -> Dict[str, Agent]:
-        MCP_SERVERS = [
-            "mcp-shell", "mcp-doc-forge", "mcp-server-web", "mcp-server-file",
-            "mcp-server-db", "mcp-server-api", "mcp-server-search", "mcp-server-monitor"
-        ]
-        import random
-        
-        agents: Dict[str, Agent] = {}
-        # Starting agent
-        # Explicit agent assignments with defined MCP servers and environment variables
-        agents["Ken"] = Agent(
-            name="Ken",
-            instructions="You are Ken, the Coordinator for Gotchaman. Your team: Joe (Runner), Jun (Logger), Jinpei (Advisor), and Ryu (Reviewer). Delegate tasks accordingly.",
-            mcp_servers=["basic-memory"],
-            env_vars={}
+    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+        """Creates the Gotchaman agent team and returns Ken (Coordinator)."""
+        logger.debug("Creating Gotchaman agent team...")
+        self._model_instance_cache = {}
+        self._openai_client_cache = {}
+
+        default_profile_name = self.config.get("llm_profile", "default")
+        logger.debug(f"Using LLM profile '{default_profile_name}' for Gotchaman agents.")
+        model_instance = self._get_model_instance(default_profile_name)
+
+        # Helper to filter MCP servers
+        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+            return [s for s in mcp_servers if s.name in names]
+
+        # --- Agent Instructions ---
+        ken_instructions = "You are Ken, the Coordinator for Gotchaman team. Your team: Joe (Runner), Jun (Logger), Jinpei (Advisor), and Ryu (Reviewer). Analyze the user request and delegate tasks to the appropriate agent using their Agent Tool. Synthesize their responses for the final output."
+        joe_instructions = "You are Joe, the Runner. Execute shell commands, read files, or write files using your function tools (`execute_command`, `read_file`, `write_file`) as requested by Ken. Report the outcome."
+        jun_instructions = "You are Jun, the Logger. Receive information or instructions from Ken. Use the `slack` MCP tool to log messages or feedback to a designated channel (details provided by Ken or pre-configured). Report success/failure of logging back to Ken."
+        jinpei_instructions = "You are Jinpei, the Advisor. Receive context from Ken. Use the `mcp-npx-fetch` MCP tool to fetch relevant documentation or examples based on the context. Provide concise suggestions or relevant snippets back to Ken."
+        ryu_instructions = "You are Ryu, the Reviewer. Receive outputs or code snippets from Ken. Use the `basic-memory` MCP tool to recall previous related outputs or guidelines if necessary. Provide insightful review comments or quality checks back to Ken."
+
+        # Instantiate agents
+        joe_agent = Agent(
+            name="Joe", model=model_instance, instructions=joe_instructions,
+            tools=[execute_command, read_file, write_file], # Joe has the function tools
+            mcp_servers=[] # Joe doesn't directly use MCPs listed
         )
-        agents["Joe"] = Agent(
-            name="Joe",
-            instructions="You are Joe, the Runner. Your MCP server: slack. Use it to execute shell commands.",
-            mcp_servers=["slack"],
-            env_vars={"SLACK_API_KEY": os.getenv("SLACK_API_KEY", "")}
+        jun_agent = Agent(
+            name="Jun", model=model_instance, instructions=jun_instructions,
+            tools=[], # Jun uses MCP
+            mcp_servers=get_agent_mcps(["slack"])
         )
-        agents["Jun"] = Agent(
-            name="Jun",
-            instructions="You are Jun, the Logger. Your MCP server: mondayDotCom. Monitor outputs and log feedback.",
-            mcp_servers=["mondayDotCom"],
-            env_vars={"MONDAY_API_KEY": os.getenv("MONDAY_API_KEY", "")}
+        jinpei_agent = Agent(
+            name="Jinpei", model=model_instance, instructions=jinpei_instructions,
+            tools=[], # Jinpei uses MCP
+            mcp_servers=get_agent_mcps(["mcp-npx-fetch"])
         )
-        agents["Jinpei"] = Agent(
-            name="Jinpei",
-            instructions="You are Jinpei, the Advisor. Your MCP server: mcp-npx-fetch. Provide quick task suggestions.",
-            mcp_servers=["mcp-npx-fetch"],
-            env_vars={}
+        ryu_agent = Agent(
+            name="Ryu", model=model_instance, instructions=ryu_instructions,
+            tools=[], # Ryu uses MCP
+            mcp_servers=get_agent_mcps(["basic-memory"])
         )
-        agents["Ryu"] = Agent(
-            name="Ryu",
-            instructions="You are Ryu, the Reviewer. Your MCP server: basic-memory. Review outputs and offer insights.",
-            mcp_servers=["basic-memory"],
-            env_vars={}
+        # Coordinator - Ken
+        ken_agent = Agent(
+            name="Ken", model=model_instance, instructions=ken_instructions,
+            tools=[ # Ken delegates to others via agent tools
+                joe_agent.as_tool(tool_name="Joe", tool_description="Delegate command execution or file operations to Joe."),
+                jun_agent.as_tool(tool_name="Jun", tool_description="Delegate logging tasks via Slack to Jun."),
+                jinpei_agent.as_tool(tool_name="Jinpei", tool_description="Delegate fetching docs/examples to Jinpei."),
+                ryu_agent.as_tool(tool_name="Ryu", tool_description="Delegate review tasks or recall past info via Ryu."),
+            ],
+             # Ken might use memory directly, or coordinate access via Ryu? Assigning for potential direct use.
+            mcp_servers=get_agent_mcps(["basic-memory"])
         )
 
-        def handoff_to(target: str):
-            def _handoff() -> Agent:
-                return agents[target]
-            _handoff.__name__ = f"handoff_to_{target}"
-            return _handoff
+        logger.debug("Gotchaman agents created. Starting with Ken.")
+        return ken_agent
 
-        object.__setattr__(agents["Ken"], "functions", [
-            handoff_to("Joe"),
-            handoff_to("Jun"),
-            handoff_to("Jinpei"),
-            handoff_to("Ryu")
-        ])
-        object.__setattr__(agents["Joe"], "functions", [handoff_to("Ken")])
-        object.__setattr__(agents["Jun"], "functions", [handoff_to("Ken")])
-        object.__setattr__(agents["Jinpei"], "functions", [handoff_to("Ken")])
-        object.__setattr__(agents["Ryu"], "functions", [handoff_to("Ken")])
-
-        object.__setattr__(agents["Ken"], "tools", {})
-        object.__setattr__(agents["Joe"], "tools", {
-            "execute_command": execute_command,
-            "read_file": read_file,
-            "write_file": write_file
-        })
-        object.__setattr__(agents["Jun"], "tools", {
-            "execute_command": execute_command
-        })
-        object.__setattr__(agents["Jinpei"], "tools", {})
-        object.__setattr__(agents["Ryu"], "tools", {})
-
-        self.set_starting_agent(agents["Ken"])
-        logger.debug(f"Agents registered: {list(agents.keys())}")
-        return agents
-
-    def spinner_method(self, message: str = "Automating the CLI...", error: bool = False) -> None:
-        """
-        Compatibility method for direct spinner references using the custom spinner.
-        """
-        if not hasattr(self, "_gotchaman_spinner") or not isinstance(self._gotchaman_spinner, GotchamanSpinner):
-            return
-        if error:
-            self._gotchaman_spinner.stop()
-        else:
-            self._gotchaman_spinner.start(message)
-
-    def render_output(self, text: str, color: str = "green") -> None:
-        colors = {
-            "red": "\033[91m",
-            "green": "\033[92m",
-            "yellow": "\033[93m",
-            "blue": "\033[94m",
-            "magenta": "\033[95m",
-            "cyan": "\033[96m",
-            "white": "\033[97m",
-        }
-        reset_code = "\033[0m"
-        color_code = colors.get(color.lower(), "\033[92m")
-        print(f"{color_code}{text}{reset_code}")
-
-
+# Standard Python entry point
 if __name__ == "__main__":
     GotchamanBlueprint.main()
