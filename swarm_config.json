@@ -82,166 +82,126 @@
     }
   },
   "mcpServers": {
-    "basic-memory": {
-      "command": "uvx",
+    "git": {
+      "description": "Provides Git operations (clone, status, diff, add, commit, push) via a Docker container.",
+      "command": "docker",
       "args": [
-        "basic-memory",
-        "mcp"
-      ]
+        "run", "--rm", "-i",
+        "--mount", "type=bind,src=.,dst=/project",
+        "mcp/git"
+      ],
+      "startup_timeout": 60
+    },
+    "mcp-google-cse": {
+        "description": "Performs web searches using a configured Google Custom Search Engine.",
+        "command": "uvx",
+        "args": ["mcp-google-cse"],
+        "env": {
+            "API_KEY": "${GOOGLE_API_KEY}",
+            "ENGINE_ID": "${GOOGLE_ENGINE_ID}"
+        }
+    },
+    "basic-memory": {
+      "description": "A very basic in-memory key-value store.",
+      "command": "uvx",
+      "args": ["basic-memory", "mcp"]
     },
     "mcp-miro": {
+      "description": "Interacts with Miro boards using the Miro API.",
       "command": "npx",
-      "args": [
-        "-y",
-        "github:evalstate/mcp-miro"
-      ],
-      "env": {
-        "MIRO-OAUTH-KEY": "${MIRO-OAUTH-KEY}"
-      }
+      "args": ["-y", "github:evalstate/mcp-miro"],
+      "env": {"MIRO-OAUTH-KEY": "${MIRO-OAUTH-KEY}"}
     },
-
     "mondayDotCom": {
+      "description": "Interacts with Monday.com via its GraphQL API.",
       "command": "npx",
-      "args": ["-y","mcp-graphql",
-        "--endpoint","https://api.monday.com/v2",
-        "--headers","'{\"Authorization\":\"Bearer ${MONDAY_API_KEY}\"}'"
-      ],
-      "env": {
-        "MONDAY_API_KEY": "${MONDAY_API_KEY}"
-      }
+      "args": ["-y","mcp-graphql", "--endpoint","https://api.monday.com/v2", "--headers","'{\"Authorization\":\"Bearer ${MONDAY_API_KEY}\"}'"],
+      "env": {"MONDAY_API_KEY": "${MONDAY_API_KEY}"}
     },
     "wcgw": {
+      "description": "What Could Go Wrong? - Experimental server.",
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/rusiaaman/wcgw",
-        "wcgw_mcp"
-      ]
+      "args": ["--from", "git+https://github.com/rusiaaman/wcgw", "wcgw_mcp"]
     },
     "mcp-hfspace": {
+      "description": "Interacts with specific Hugging Face Spaces.",
       "command": "npx",
-      "args": [
-        "-y",
-        "@llmindset/mcp-hfspace",
-        "shuttleai/shuttle-jaguar",
-        "styletts2/styletts2",
-        "Qwen/QVQ-72B-preview"
-      ]
+      "args": ["-y", "@llmindset/mcp-hfspace", "shuttleai/shuttle-jaguar", "styletts2/styletts2", "Qwen/QVQ-72B-preview"]
     },
     "mcp-npx-fetch": {
+      "description": "Fetches content from URLs using NPX.",
       "command": "npx",
-      "args": [
-        "-y",
-        "@tokenizin/mcp-npx-fetch"
-      ]
+      "args": ["-y", "@tokenizin/mcp-npx-fetch"]
     },
     "mcp-doc-forge": {
+      "description": "Generates or manipulates document content.",
       "command": "npx",
-      "args": [
-        "-y",
-        "@cablate/mcp-doc-forge"
-      ]
+      "args": ["-y", "@cablate/mcp-doc-forge"]
     },
     "youtube-transcript": {
+      "description": "Fetches transcripts from YouTube videos.",
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/jkawamoto/mcp-youtube-transcript", 
-        "mcp-youtube-transcript"
-      ]
+      "args": ["--from", "git+https://github.com/jkawamoto/mcp-youtube-transcript", "mcp-youtube-transcript"]
     },
     "wolframalpha": {
+      "description": "Provides computational knowledge using WolframAlpha.",
       "command": "npx",
       "args": ["-y","github:Garoth/wolframalpha-llm-mcp"],
-      "env": {
-        "WOLFRAM_LLM_APP_ID": "${WOLFRAM_LLM_APP_ID}"
-      },
-      "disabled": false,
-      "autoApprove": [
-        "ask_llm",
-        "get_simple_answer",
-        "validate_key"
-      ]
+      "env": {"WOLFRAM_LLM_APP_ID": "${WOLFRAM_LLM_APP_ID}"},
+      "autoApprove": ["ask_llm", "get_simple_answer", "validate_key"]
     },
     "home-assistant": {
+      "description": "Controls Home Assistant devices and entities.",
       "command": "mcp-proxy",
-      "env": {
-        "SSE_URL": "${HASS_URL}",
-        "API_ACCESS_TOKEN": "${HASS_API_KEY}"
-      }
+      "env": {"SSE_URL": "${HASS_URL}", "API_ACCESS_TOKEN": "${HASS_API_KEY}"}
     },
     "memory": {
+      "description": "Provides a key-value store for short-term memory.",
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "startup_timeout": 30
     },
     "server-wp-mcp": {
+      "description": "Manages WordPress sites via the WP REST API.",
       "command": "npx",
-      "args": [
-        "-y",
-        "github:matthewhand/server-wp-mcp"
-      ],
-      "env": {
-        "WP_SITES_PATH": "${WP_SITES_PATH}",
-        "WP_ALLOW_INSECURE_TLS": "true"
-      }
+      "args": ["-y", "github:matthewhand/server-wp-mcp"],
+      "env": {"WP_SITES_PATH": "${WP_SITES_PATH}", "WP_ALLOW_INSECURE_TLS": "true"}
     },
     "mcp-server-reddit": {
+      "description": "Interacts with Reddit (e.g., fetches posts).",
       "command": "uvx",
-      "args": [
-        "--from", 
-        "git+https://github.com/Hawstein/mcp-server-reddit",
-        "mcp-server-reddit"
-      ]
+      "args": ["--from", "git+https://github.com/Hawstein/mcp-server-reddit", "mcp-server-reddit"]
     },
     "mcp-shell": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "github:hdresearch/mcp-shell"
-      ]
+        "description": "Executes shell commands in a restricted environment.",
+        "command": "npx",
+        "args": ["-y", "github:hdresearch/mcp-shell"]
     },
     "brave-search": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-brave-search"
-      ],
-      "env": {
-        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
-      }
+        "description": "Performs web searches using the Brave Search API.",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": {"BRAVE_API_KEY": "${BRAVE_API_KEY}"}
     },
     "duckduckgo-search": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-duckduckgo-search"
-      ],
-      "env": {
-        "SERPAPI_KEY": "${SERPAPI_API_KEY}"
-      }
+        "description": "Performs web searches using the DuckDuckGo API via SerpApi.",
+        "command": "npx",
+        "args": ["-y", "mcp-duckduckgo-search"],
+        "env": {"SERPAPI_KEY": "${SERPAPI_API_KEY}"}
     },
     "sqlite": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-server-sqlite-npx",
-        "${SQLITE_DB_PATH}"
-      ],
-      "env": {
-        "npm_config_registry": "https://registry.npmjs.org",
-        "SQLITE_DB_PATH": "${SQLITE_DB_PATH}"
-      }
+        "description": "Executes SQL queries against a configured SQLite database.",
+        "command": "npx",
+        "args": ["-y", "mcp-server-sqlite-npx", "${SQLITE_DB_PATH}"],
+        "env": {
+            "npm_config_registry": "https://registry.npmjs.org",
+            "SQLITE_DB_PATH": "${SQLITE_DB_PATH}"
+        }
     },
     "mcp-flowise": {
+      "description": "Interacts with Flowise chatflows.",
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/matthewhand/mcp-flowise",
-        "mcp-flowise"
-      ],
+      "args": ["--from", "git+https://github.com/matthewhand/mcp-flowise", "mcp-flowise"],
       "env": {
         "DEBUG": "true",
         "FLOWISE_LOGFILE_PATH": "/tmp/debug-mcp-flowise.log",
@@ -253,13 +213,13 @@
       }
     },
     "glama": {
+        "description": "Interacts with the Glama API via OpenAPI spec.",
         "command": "uvx",
         "args": ["mcp-openapi-proxy"],
-        "env": {
-            "OPENAPI_SPEC_URL": "https://glama.ai/api/mcp/openapi.json"
-        }
+        "env": {"OPENAPI_SPEC_URL": "https://glama.ai/api/mcp/openapi.json"}
     },
     "getzep": {
+        "description": "Interacts with the Getzep memory API.",
         "command": "uvx",
         "args": ["mcp-openapi-proxy"],
         "env": {
@@ -271,6 +231,7 @@
         }
     },
     "slack": {
+        "description": "Interacts with the Slack Web API.",
         "command": "uvx",
         "args": ["mcp-openapi-proxy"],
         "env": {
@@ -281,6 +242,7 @@
         }
     },
     "render": {
+        "description": "Interacts with the Render hosting platform API.",
         "command": "uvx",
         "args": ["mcp-openapi-proxy"],
         "env": {
@@ -290,6 +252,7 @@
         }
     },
     "flyio": {
+      "description": "Interacts with the Fly.io Machines API.",
       "command": "uvx",
       "args": ["mcp-openapi-proxy"],
       "env": {
@@ -298,54 +261,49 @@
       }
     },
     "rag-docs": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@hannesrudolph/mcp-ragdocs"
-      ],
-      "env": {
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-        "QDRANT_URL": "${QDRANT_URL}",
-        "QDRANT_API_KEY": "${QDRANT_API_KEY}"
-      },
-      "node_version": "18.16.0"
+        "description": "Performs Retrieval-Augmented Generation using a Qdrant vector store.",
+        "command": "npx",
+        "args": ["-y", "@hannesrudolph/mcp-ragdocs"],
+        "env": {
+            "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+            "QDRANT_URL": "${QDRANT_URL}",
+            "QDRANT_API_KEY": "${QDRANT_API_KEY}"
+        },
+        "node_version": "18.16.0"
     },
     "mcp-installer": {
+      "description": "Installs other MCP servers (experimental).",
       "command": "npx",
-      "args": [
-        "-y",
-        "@anaisbetts/mcp-installer"
-      ]
+      "args": ["-y", "@anaisbetts/mcp-installer"]
     },
     "sequential-thinking": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
+        "description": "Helps structure complex tasks or documents sequentially.",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
     },
     "everything_server": {
+      "description": "An MCP server demonstrating many protocol features.",
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-everything"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
       "env": {}
     },
     "filesystem": {
+      "description": "Allows reading, writing, listing, and deleting files within allowed paths.",
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "${ALLOWED_PATH}"
-      ],
-      "env": {
-        "ALLOWED_PATH": "${ALLOWED_PATH}"
-      }
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATH}"],
+      "env": {"ALLOWED_PATH": "${ALLOWED_PATH}"},
+      "startup_timeout": 20
     }
   },
   "blueprints": {
-    "defaults": { "max_llm_calls": 10, "default_markdown_cli": true },
-    "RueCodeBlueprint": { "max_llm_calls": 15, "llm_profile": "code-large" } 
+    "defaults": {
+       "max_llm_calls": 10,
+       "default_markdown_cli": true
+    },
+    "RueCodeBlueprint": {
+        "max_llm_calls": 15,
+        "llm_profile": "code-large"
+    }
+    
   }
 }

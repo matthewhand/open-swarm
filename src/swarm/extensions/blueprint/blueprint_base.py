@@ -9,10 +9,11 @@ import signal
 import subprocess
 import sys
 import textwrap
+import anyio # Added for timeout
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Coroutine, Dict, List, Optional, Type, Union
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager # Added asynccontextmanager
 
 # --- Core Agent Imports ---
 from agents import Agent, Runner
@@ -39,21 +40,20 @@ except IndexError:
     PROJECT_ROOT = Path.cwd().parent
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "swarm_config.json"
-SWARM_VERSION = "0.2.10-env-warn" # Version Bump
+SWARM_VERSION = "0.2.12-md-default" # Version Bump
+DEFAULT_MCP_STARTUP_TIMEOUT = 30.0 # Default seconds to wait for MCP server startup/handshake
 
 # --- Logging Setup ---
-# Base logging config - level might be overridden by CLI args
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True, markup=True, show_path=False)],
 )
 logger = logging.getLogger("swarm"); logger.setLevel(logging.INFO)
-# Set third-party loggers to WARNING by default to reduce noise
 for lib in ["httpx", "httpcore", "openai", "asyncio", "agents"]: logging.getLogger(lib).setLevel(logging.WARNING)
 
 # --- Utility Functions ---
 def _substitute_env_vars(value: Any) -> Any:
-    """Recursively substitute environment variables in nested data structures."""
+    # ... (remains the same) ...
     if isinstance(value, str): return os.path.expandvars(value)
     elif isinstance(value, list): return [_substitute_env_vars(item) for item in value]
     elif isinstance(value, dict): return {k: _substitute_env_vars(v) for k, v in value.items()}
@@ -64,44 +64,32 @@ class BlueprintBase(ABC):
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "AbstractBlueprintBase", "title": "Base Blueprint (Override Me)", "version": "0.0.0",
         "description": "Subclasses must provide a meaningful description.", "author": "Unknown",
-        "tags": ["base"], "required_mcp_servers": [], "env_vars": [], # Added standard env_vars key
+        "tags": ["base"], "required_mcp_servers": [], "env_vars": [],
     }
     config: Dict[str, Any]; llm_profiles: Dict[str, Dict[str, Any]]; mcp_server_configs: Dict[str, Dict[str, Any]]
     console: Console; use_markdown: bool = False; max_llm_calls: Optional[int] = None
-    quiet_mode: bool = False # Added for quiet mode state
+    quiet_mode: bool = False
 
     def __init__(
         self, config_path_override: Optional[Union[str, Path]] = None, profile_override: Optional[str] = None,
         config_overrides: Optional[Dict[str, Any]] = None, debug: bool = False, quiet: bool = False,
+        force_markdown: Optional[bool] = None # Added explicit markdown override
     ):
-        self.console = Console(quiet=quiet) # Pass quiet to Rich Console
+        self.console = Console(quiet=quiet)
         self.quiet_mode = quiet
-
-        # Set logging level based on flags (Debug > Info > Quiet)
-        # ... (logging setup remains the same as previous version) ...
-        if quiet:
-            log_level = logging.ERROR # Or CRITICAL if preferred
-            logger.setLevel(log_level)
-            logging.getLogger("agents").setLevel(log_level)
-            # Keep third-party loggers at WARNING or higher
-            for lib in ["httpx", "httpcore", "openai", "asyncio"]: logging.getLogger(lib).setLevel(logging.WARNING)
-        elif debug:
-            log_level = logging.DEBUG
-            logger.setLevel(log_level)
-            logging.getLogger("agents").setLevel(log_level)
-            # Third-party debug logs can be noisy, keep them INFO/WARNING unless specifically needed
-            for lib in ["httpx", "httpcore", "openai", "asyncio"]: logging.getLogger(lib).setLevel(logging.INFO)
-        else:
-            log_level = logging.INFO # Default
-            logger.setLevel(log_level)
-            logging.getLogger("agents").setLevel(log_level)
-            for lib in ["httpx", "httpcore", "openai", "asyncio"]: logging.getLogger(lib).setLevel(logging.WARNING)
-
+        # ... (logging setup remains the same) ...
+        if quiet: log_level = logging.ERROR
+        elif debug: log_level = logging.DEBUG
+        else: log_level = logging.INFO
+        logger.setLevel(log_level)
+        logging.getLogger("agents").setLevel(log_level)
+        for lib in ["httpx", "httpcore", "openai", "asyncio"]:
+             logging.getLogger(lib).setLevel(logging.WARNING if not debug else logging.INFO)
         logger.debug(f"[Init] Final effective log level set: {logging.getLevelName(logger.level)}.")
-
         if debug: logger.debug("[Init] Debug logging enabled.")
         if quiet: logger.debug("[Init] Quiet mode enabled (most logs suppressed).")
 
+        # ... (set_default_openai_api remains the same) ...
         try:
             set_default_openai_api("chat_completions")
             logger.debug("[Init] Set default OpenAI API to 'chat_completions'.")
@@ -117,22 +105,32 @@ class BlueprintBase(ABC):
 
         self.llm_profiles = self.config.get("llm", {})
         self.mcp_server_configs = self.config.get("mcpServers", {})
-        self.use_markdown = self.config.get("use_markdown", False)
+
+        # --- Set Markdown Usage ---
+        # Priority: CLI Flag -> Config -> Default (True for CLI, False otherwise - implicitly via not quiet)
+        if force_markdown is not None:
+             self.use_markdown = force_markdown
+             logger.info(f"Markdown output explicitly set by CLI flag: {self.use_markdown}.")
+        else:
+             # Use config value if present, otherwise default based on quiet mode
+             self.use_markdown = self.config.get("default_markdown_cli", not self.quiet_mode)
+             logger.debug(f"Markdown output determined by config/default: {self.use_markdown}.")
+
         self.max_llm_calls = self.config.get("max_llm_calls", None)
 
-        # Log initial config details only at DEBUG level
+        # ... (debug logging for config remains the same) ...
         logger.debug(f"[Init] Final Config Keys: {list(self.config.keys())}")
         logger.debug(f"[Init] LLM Profiles Loaded: {list(self.llm_profiles.keys())}")
         logger.debug(f"[Init] MCP Server Configs Loaded: {list(self.mcp_server_configs.keys())}")
         logger.debug(f"[Init] Use Markdown Output: {self.use_markdown}")
         logger.debug(f"[Init] Max LLM Calls (Informational): {self.max_llm_calls}")
 
-        # --- Check Required Environment Variables defined in metadata ---
         self._check_required_env_vars()
 
 
     def _check_required_env_vars(self):
         """Checks if environment variables listed in metadata['env_vars'] are set."""
+        # ... (remains the same) ...
         required_vars = self.metadata.get("env_vars", [])
         if not isinstance(required_vars, list):
             logger.warning(f"[Init] Blueprint '{self.metadata.get('name')}' metadata 'env_vars' is not a list, skipping check.")
@@ -144,6 +142,7 @@ class BlueprintBase(ABC):
 
     def _load_environment(self):
         """Loads environment variables from a `.env` file located at the project root."""
+        # ... (remains the same) ...
         dotenv_path = PROJECT_ROOT / ".env"
         logger.debug(f"[Config] Checking for .env file at: {dotenv_path}")
         try:
@@ -155,11 +154,13 @@ class BlueprintBase(ABC):
         except Exception as e:
             logger.error(f"[Config] Error loading .env file '{dotenv_path}': {e}", exc_info=logger.level <= logging.DEBUG)
 
+
     def _load_configuration(
         self, config_path_override: Optional[Union[str, Path]] = None, profile_override: Optional[str] = None,
         config_overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Loads and merges configuration settings. Logs at DEBUG level."""
+        # ... (remains the same) ...
         config_path = Path(config_path_override) if config_path_override else DEFAULT_CONFIG_PATH
         logger.debug(f"[Config] Attempting to load base configuration from: {config_path}")
         base_config = {}
@@ -176,7 +177,6 @@ class BlueprintBase(ABC):
         final_config = base_config.get("defaults", {}).copy(); logger.debug(f"[Config] Applied base defaults. Keys: {list(final_config.keys())}")
         if "llm" in base_config: final_config.setdefault("llm", {}).update(base_config["llm"]); logger.debug(f"[Config] Merged base 'llm'.")
         if "mcpServers" in base_config: final_config.setdefault("mcpServers", {}).update(base_config["mcpServers"]); logger.debug(f"[Config] Merged base 'mcpServers'.")
-        # Apply blueprint-specific settings from config AFTER defaults but BEFORE profile/CLI
         blueprint_name = self.__class__.__name__; blueprint_settings = base_config.get("blueprints", {}).get(blueprint_name, {})
         if blueprint_settings:
             final_config.update(blueprint_settings);
@@ -193,8 +193,10 @@ class BlueprintBase(ABC):
         final_config = _substitute_env_vars(final_config); logger.debug("[Config] Applied final env var substitution.")
         return final_config
 
+
     def get_llm_profile(self, profile_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Retrieves the fully resolved configuration dictionary for a given LLM profile name."""
+        # ... (remains the same) ...
         profile_to_check = profile_name or "default"
         profile_data = self.llm_profiles.get(profile_to_check)
         if profile_data:
@@ -209,16 +211,20 @@ class BlueprintBase(ABC):
         logger.error(f"LLM profile '{profile_to_check}' (and 'default' fallback) not found!")
         return None
 
+
+    def get_mcp_server_description(self, server_name: str) -> Optional[str]:
+        """Retrieves the description for a given MCP server name from the config."""
+        return self.mcp_server_configs.get(server_name, {}).get("description")
+
     async def _start_mcp_server_instance(self, stack: AsyncExitStack, server_name: str) -> Optional[MCPServer]:
-        """Starts a single MCP server instance. Logs critical start/success at INFO."""
-        # ... (MCP startup logic remains the same as previous version) ...
+        """Starts a single MCP server instance with a timeout."""
+        # ... (remains the same as previous version with timeout) ...
         server_config = self.mcp_server_configs.get(server_name)
         if not server_config: logger.error(f"[MCP:{server_name}] Config not found."); return None
         command_list_or_str = server_config.get("command");
         if not command_list_or_str: logger.error(f"[MCP:{server_name}] Command missing."); return None
         additional_args = _substitute_env_vars(server_config.get("args", []))
         if not isinstance(additional_args, list): logger.error(f"[MCP:{server_name}] Args must be list."); return None
-
         executable_name: str = ""; base_args: List[str] = []
         try:
             if isinstance(command_list_or_str, str):
@@ -232,21 +238,18 @@ class BlueprintBase(ABC):
             else: raise TypeError(f"Cmd must be str/list");
             full_args = base_args + additional_args
         except Exception as e: logger.error(f"[MCP:{server_name}] Cmd/Arg Error: {e}", exc_info=logger.level<=logging.DEBUG); return None
-
         cmd_path = shutil.which(executable_name)
         if not cmd_path and sys.prefix != sys.base_prefix:
             for bindir in ['bin', 'Scripts']:
                 venv_path = Path(sys.prefix) / bindir / executable_name;
                 if venv_path.is_file(): cmd_path = str(venv_path); logger.debug(f"[MCP:{server_name}] Found in venv: {cmd_path}"); break
         if not cmd_path: logger.error(f"[MCP:{server_name}] Executable '{executable_name}' not found."); return None
-
         process_env = os.environ.copy()
         custom_env_config = server_config.get("env", {})
         if not isinstance(custom_env_config, dict): logger.error(f"[MCP:{server_name}] Config 'env' must be dict."); return None
         custom_env_substituted = _substitute_env_vars(custom_env_config)
         process_env.update(custom_env_substituted)
         logger.debug(f"[MCP:{server_name}] Custom Env Vars Merged: {list(custom_env_substituted.keys())}")
-
         cwd = _substitute_env_vars(server_config.get("cwd")); cwd_path: Optional[str] = None
         if cwd:
             try:
@@ -257,21 +260,25 @@ class BlueprintBase(ABC):
                 else: logger.warning(f"[MCP:{server_name}] Invalid CWD: '{cwd_path_obj}' not directory.")
             except FileNotFoundError: logger.warning(f"[MCP:{server_name}] CWD '{cwd_path_obj}' not found.")
             except Exception as e: logger.warning(f"[MCP:{server_name}] Error resolving CWD '{cwd}': {e}.")
-
         mcp_params = {"command": cmd_path, "args": full_args, "env": process_env}
         if cwd_path: mcp_params["cwd"] = cwd_path
         if "encoding" in server_config: mcp_params["encoding"] = server_config["encoding"]
         if "encoding_error_handler" in server_config: mcp_params["encoding_error_handler"] = server_config["encoding_error_handler"]
         logger.debug(f"[MCP:{server_name}] Path:{cmd_path}, Args:{full_args}, CWD:{cwd_path or 'Default'}")
-
-        # ** Log MCP start at INFO level ** (Keep this INFO for operational visibility)
-        logger.info(f"[MCP:{server_name}] Starting: {' '.join(shlex.quote(p) for p in [cmd_path] + full_args)}")
+        startup_timeout = float(server_config.get("startup_timeout", DEFAULT_MCP_STARTUP_TIMEOUT))
+        logger.info(f"[MCP:{server_name}] Starting: {' '.join(shlex.quote(p) for p in [cmd_path] + full_args)} (Timeout: {startup_timeout}s)")
         try:
-            server_instance = MCPServerStdio(name=server_name, params=mcp_params); started_server = await stack.enter_async_context(server_instance);
-            # ** Log successful start at INFO level ** (Keep this INFO)
-            logger.info(f"[MCP:{server_name}] Started successfully."); return started_server
-        except Exception as e: logger.error(f"[MCP:{server_name}] Failed start/connect: {e}", exc_info=logger.level <= logging.DEBUG); return None
-
+            async with anyio.fail_after(startup_timeout):
+                server_instance = MCPServerStdio(name=server_name, params=mcp_params)
+                started_server = await stack.enter_async_context(server_instance)
+                logger.info(f"[MCP:{server_name}] Started successfully.")
+                return started_server
+        except TimeoutError:
+             logger.error(f"[MCP:{server_name}] Failed start/connect: Timed out after {startup_timeout} seconds.")
+             return None
+        except Exception as e:
+             logger.error(f"[MCP:{server_name}] Failed start/connect: {e}", exc_info=logger.level <= logging.DEBUG)
+             return None
 
     @abstractmethod
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
@@ -281,33 +288,40 @@ class BlueprintBase(ABC):
     # --- Optional Splash Screen ---
     def display_splash_screen(self):
         """Optional method for blueprints to display an intro message. Base does nothing."""
-        pass # Subclasses can override this
+        pass
 
     async def _run_non_interactive(self, instruction: str):
         """Internal method orchestrating non-interactive blueprint execution."""
+        # ... (remains the same) ...
         if not self.quiet_mode:
             self.display_splash_screen() # Call splash screen if not quiet
-
         bp_title = self.metadata.get('title', self.__class__.__name__);
-        # ** Log Run start/Instruction at DEBUG level now **
         logger.debug(f"--- Running Blueprint: {bp_title} (v{self.metadata.get('version', 'N/A')}) ---")
         truncated_instruction = textwrap.shorten(instruction, width=100, placeholder="...");
         logger.debug(f"Instruction: '{truncated_instruction}'")
-
         required_servers = self.metadata.get("required_mcp_servers", []); started_mcps: List[MCPServer] = []; final_output = "Error: Blueprint exec failed."
         async with AsyncExitStack() as stack:
             if required_servers:
-                # ** Log MCP start requirement/success at INFO level (Keep these INFO) **
                 logger.info(f"[MCP] Required Servers: {required_servers}. Attempting to start...")
-                results = await asyncio.gather(*(self._start_mcp_server_instance(stack, name) for name in required_servers)); started_mcps = [s for s in results if s]
-                if len(started_mcps) != len(required_servers):
-                    failed = set(required_servers) - {s.name for s in started_mcps}; error_msg=f"Fatal MCP Error: Failed: {', '.join(failed)}. Aborting."; logger.error(error_msg); final_output=f"Error: MCP server(s) failed: {', '.join(failed)}.";
-                    # Only print error details if not quiet
+                results = await asyncio.gather(
+                     *(self._start_mcp_server_instance(stack, name) for name in required_servers),
+                     return_exceptions=True
+                )
+                started_mcps = []
+                failed_servers = set(required_servers)
+                for i, result in enumerate(results):
+                     server_name = required_servers[i]
+                     if isinstance(result, MCPServer):
+                          started_mcps.append(result)
+                          failed_servers.discard(server_name)
+                     elif isinstance(result, Exception):
+                           logger.error(f"[MCP:{server_name}] Startup gathered exception: {result}", exc_info=isinstance(result, Exception))
+                if failed_servers:
+                    error_msg=f"Fatal MCP Error: Failed to start/connect: {', '.join(failed_servers)}. Aborting."; logger.error(error_msg); final_output=f"Error: MCP server(s) failed: {', '.join(failed_servers)}.";
                     if not self.quiet_mode: self.console.print(f"\n[bold red]--- Blueprint Failed ---[/]\n{final_output}\n[bold red]------------------------[/]");
-                    return # Exit after MCP failure
+                    return
                 logger.info(f"[MCP] Successfully started required servers: {[s.name for s in started_mcps]}")
             else:
-                 # ** Log no MCP needed at INFO level (Keep INFO) **
                 logger.info("[MCP] No MCP servers required for this blueprint.")
             try:
                 logger.debug("Creating starting agent..."); agent = self.create_starting_agent(mcp_servers=started_mcps);
@@ -316,21 +330,17 @@ class BlueprintBase(ABC):
             except Exception as e:
                 logger.critical(f"Agent creation error: {e}", exc_info=True); final_output=f"Error: Agent creation failed - {e}";
                 if not self.quiet_mode: self.console.print(f"\n[bold red]--- Blueprint Failed ---[/]\n{final_output}\n[bold red]------------------------[/]");
-                return # Exit after agent creation failure
+                return
             try:
-                 # ** Log Runner start/finish at DEBUG level now **
                 logger.debug(f"--- >>> Starting Agent Runner for '{agent.name}' <<< ---"); result: Optional[RunResult] = await Runner.run(starting_agent=agent, input=instruction);
                 logger.debug(f"--- <<< Agent Runner Finished for '{agent.name}' >>> ---")
                 if result:
                     raw_out = result.final_output; logger.debug(f"Runner output type: {type(raw_out).__name__}")
-                    # Process output for final display
                     if isinstance(raw_out, (dict, list)):
                         try: final_output = json.dumps(raw_out, indent=2, ensure_ascii=False)
                         except TypeError: logger.warning("Non-JSON serializable output."); final_output = str(raw_out)
                     elif raw_out is None: final_output = "[No output]"; logger.warning("Runner returned None output.")
                     else: final_output = str(raw_out)
-
-                    # Log history only if DEBUG is enabled
                     if logger.level <= logging.DEBUG:
                         logger.debug("--- Run History ---")
                         if hasattr(result, 'history') and result.history:
@@ -343,10 +353,8 @@ class BlueprintBase(ABC):
                         logger.debug("--- End Run History ---")
                 else: final_output = "[Runner returned None result]"; logger.warning("Runner returned None result object.")
             except Exception as e: logger.error(f"--- XXX Agent Runner Failed: {e}", exc_info=True); final_output = f"Error during execution: {e}"
-
-        # Final Output Handling based on quiet mode
         if self.quiet_mode:
-            print(final_output) # Print only the raw output string
+            print(final_output)
         else:
             self.console.print(f"\n--- Final Output ({bp_title}) ---", style="bold blue")
             if self.use_markdown:
@@ -355,6 +363,7 @@ class BlueprintBase(ABC):
                  except Exception as md_err: logger.warning(f"Markdown render failed ({md_err}). Printing raw."); self.console.print(final_output)
             else: logger.debug("Printing output as plain text."); self.console.print(final_output)
             self.console.print("-----------------------------", style="bold blue")
+
 
     @classmethod
     def main(cls):
@@ -366,16 +375,14 @@ class BlueprintBase(ABC):
         parser.add_argument("--profile", type=str, default=None, help="Configuration profile to use.")
         parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging level.")
         parser.add_argument("--quiet", action="store_true", help="Suppress most logs and headers, print only final output.")
-        parser.add_argument('--markdown', action=argparse.BooleanOptionalAction, default=None, help="Force enable/disable markdown output (overrides config).")
+        # Use BooleanOptionalAction for --markdown
+        parser.add_argument('--markdown', action=argparse.BooleanOptionalAction, default=None, help="Enable/disable markdown output (--markdown / --no-markdown). Overrides config/default.")
         parser.add_argument("--version", action="version", version=f"%(prog)s (BP: {cls.metadata.get('name', 'N/A')} v{cls.metadata.get('version', 'N/A')}, Core: {SWARM_VERSION})")
 
         args = parser.parse_args()
-
-        # Quiet mode takes precedence over debug for top-level logger setting in __init__
         quiet_mode = args.quiet
-
-        # Load CLI config overrides if provided
         cli_config_overrides = {}
+        # ... (CLI config loading remains the same) ...
         if args.config:
             config_arg = args.config; config_override_path = Path(config_arg)
             temp_logger = logging.getLogger("swarm.main.config") # Temp logger for this part
@@ -397,30 +404,28 @@ class BlueprintBase(ABC):
                     temp_logger.error(f"Failed parsing --config JSON string: {e}");
                     sys.exit(f"Error: Invalid --config value: {e}")
 
-        # Instantiate and run the blueprint
         try:
-            # Pass debug and quiet flags to the constructor
+            # Pass markdown flag to constructor
             blueprint = cls(
                 config_path_override=args.config_path,
                 profile_override=args.profile,
                 config_overrides=cli_config_overrides,
                 debug=args.debug,
-                quiet=quiet_mode
+                quiet=quiet_mode,
+                force_markdown=args.markdown # Pass the explicit CLI value
             )
 
-            # Override markdown setting if CLI flag is provided
-            if args.markdown is not None:
-                blueprint.use_markdown = args.markdown;
-                logger.info(f"Markdown output explicitly set to: {blueprint.use_markdown}.") # INFO log kept for explicit overrides
+            # Remove the markdown override logic here, it's handled in __init__ now
+            # if args.markdown is not None:
+            #     blueprint.use_markdown = args.markdown;
+            #     logger.info(f"Markdown output explicitly set to: {blueprint.use_markdown}.")
 
-            # Run the blueprint non-interactively
             if args.instruction:
                  asyncio.run(blueprint._run_non_interactive(args.instruction))
             else:
-                 # This case should ideally not be reachable due to argparse 'required=True'
                  logger.critical("Internal Error: No instruction provided despite being required.")
                  parser.print_help(); sys.exit(1)
-
+        # ... (exception handling remains the same) ...
         except (ValueError, TypeError, FileNotFoundError) as config_err:
             logger.critical(f"[Initialization Error] Configuration problem: {config_err}", exc_info=args.debug)
             sys.exit(1)
@@ -428,7 +433,7 @@ class BlueprintBase(ABC):
             logger.critical(f"[Import Error] Failed to import required module: {ie}. Please check dependencies.", exc_info=args.debug)
             sys.exit(1)
         except Exception as e:
-            logger.critical(f"[Execution Error] An unexpected error occurred: {e}", exc_info=True) # Always show traceback for unexpected errors
+            logger.critical(f"[Execution Error] An unexpected error occurred: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            logger.debug("Blueprint main execution finished.") # Log at debug level
+            logger.debug("Blueprint main execution finished.")
