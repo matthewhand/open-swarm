@@ -11,9 +11,8 @@ from django.contrib.auth import views as auth_views
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
-# *** Comment out this import ***
-# from swarm.views.model_views import ModelListView
-# *** Comment out this import ***
+# *** Uncomment and correct the import path ***
+from swarm.views.api_views import ModelsListView
 # from swarm.views.webui_views import index as webui_index # Rename to avoid conflict
 
 logger = logging.getLogger(__name__)
@@ -23,8 +22,8 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 api_urlpatterns = [
     path('chat/completions', ChatCompletionsView.as_view(), name='chat_completions'),
-    # *** Comment out this URL pattern ***
-    # path('models', ModelListView.as_view(), name='list_models'),
+    # *** Uncomment this URL pattern ***
+    path('models', ModelsListView.as_view(), name='list_models'),
     path('health', HealthCheckView.as_view(), name='health_check'),
     # Add other v1 API endpoints here
 ]
