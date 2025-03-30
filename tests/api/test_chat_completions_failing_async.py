@@ -3,9 +3,9 @@ import asyncio
 from django.urls import reverse
 from rest_framework import status
 from django.contrib.auth import get_user_model
+# *** Import AsyncMock ***
 from unittest.mock import patch, MagicMock, AsyncMock
 import json
-# import sseclient # Manual parsing
 from rest_framework import exceptions
 from asgiref.sync import sync_to_async
 import logging
@@ -41,25 +41,37 @@ class TestChatCompletionsAPIFailingAsync:
         return async_client
 
     @pytest.fixture(autouse=True)
-    def setup_base_mocks(self, mocker, test_user):
-        # General mocks - auth is assumed OK (session) for these streaming tests
+    def setup_mocks(self, mocker, test_user):
+        self.test_user = test_user
+        self.mock_blueprint_instance = MagicMock()
+        # Default run mock - assign AsyncMock directly here
+        self.mock_blueprint_instance.run = AsyncMock(
+             return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": "Default Mock Response"}]}])
+        )
+        # Mock get_blueprint_instance where it's imported/used
+        self.mock_get_blueprint = mocker.patch(
+            'swarm.views.chat_views.get_blueprint_instance',
+            new_callable=AsyncMock,
+            return_value=self.mock_blueprint_instance
+        )
+        self.mock_get_available_blueprints = mocker.patch(
+             'swarm.views.utils.get_available_blueprints', # Path might differ
+             return_value={name: MagicMock() for name in ['echocraft', 'chatbot', 'error_bp', 'config_error_bp', 'nonexistent_bp']},
+             create=True )
+        # Mock sync auth methods (assuming session auth for authenticated client)
         mocker.patch('swarm.auth.CustomSessionAuthentication.authenticate', return_value=(test_user, None))
         mocker.patch('swarm.auth.CustomTokenAuthentication.authenticate', return_value=None)
+        # Mock validate_model_access (assuming sync or wrapped in view)
         mocker.patch('swarm.views.chat_views.validate_model_access', return_value=True)
-        # Mock get_available_blueprints if needed elsewhere
-        mocker.patch(
-             'swarm.views.utils.get_available_blueprints',
-             return_value={name: MagicMock() for name in ['echocraft', 'chatbot', 'error_bp']},
-             create=True )
 
     # === Failing Async Streaming Tests ===
     @pytest.mark.asyncio
-    async def test_echocraft_streaming_success(self, authenticated_client, mocker):
+    async def test_echocraft_streaming_success(self, authenticated_client):
         url = reverse('chat_completions')
         data = {"model": "echocraft", "messages": [{"role": "user", "content": "Stream Test"}], "stream": True}
 
-        # *** Define the async generator factory ***
-        async def mock_sse_generator_factory(*args, **kwargs):
+        # Create the generator instance first
+        async def mock_sse_generator():
             logger.debug("mock_sse_generator for echocraft called")
             yield {"messages": [{"role": "assistant", "content": ""}]}; await asyncio.sleep(0.01)
             yield {"messages": [{"role": "assistant", "content": "Echo:"}]}; await asyncio.sleep(0.01)
@@ -67,13 +79,10 @@ class TestChatCompletionsAPIFailingAsync:
             yield {"messages": [{"role": "assistant", "content": " Test"}]}; await asyncio.sleep(0.01)
             logger.debug("mock_sse_generator for echocraft finished")
 
-        # *** Create simple mock object for blueprint instance ***
-        mock_bp = MagicMock()
-        # *** Assign the AsyncMock directly to the run attribute ***
-        mock_bp.run = AsyncMock(side_effect=mock_sse_generator_factory)
-
-        # *** Patch get_blueprint_instance to return this specific mock ***
-        mock_get_bp = mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp)
+        # *** Set the return_value of the AsyncMock to the generator ***
+        self.mock_blueprint_instance.run.return_value = mock_sse_generator()
+        self.mock_get_blueprint.side_effect = None # Clear potential side_effect
+        self.mock_get_blueprint.return_value = self.mock_blueprint_instance # Ensure get_blueprint returns the mock
 
         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
 
@@ -99,23 +108,24 @@ class TestChatCompletionsAPIFailingAsync:
         full_content = "".join(e['choices'][0]['delta'].get('content', '') for e in events if 'choices' in e and e['choices'])
         assert full_content == "Echo: Stream Test"
         assert done_event_present, "Did not receive [DONE] event"
-        mock_get_bp.assert_awaited_once_with("echocraft", params=None)
-        mock_bp.run.assert_awaited_once() # Check the mock on the specific instance
+        self.mock_get_blueprint.assert_awaited_once_with("echocraft", params=None)
+        self.mock_blueprint_instance.run.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_chatbot_streaming_success(self, authenticated_client, mocker):
+    async def test_chatbot_streaming_success(self, authenticated_client):
         url = reverse('chat_completions')
         data = {"model": "chatbot", "messages": [{"role": "user", "content": "Stream Chat"}], "stream": True}
 
-        async def mock_sse_generator_factory(*args, **kwargs):
+        async def mock_sse_generator():
             logger.debug("mock_sse_generator for chatbot called")
             yield {"messages": [{"role": "assistant", "content": "Chatbot"}]}; await asyncio.sleep(0.01)
             yield {"messages": [{"role": "assistant", "content": " streaming!"}]}; await asyncio.sleep(0.01)
             logger.debug("mock_sse_generator for chatbot finished")
 
-        mock_bp = MagicMock()
-        mock_bp.run = AsyncMock(side_effect=mock_sse_generator_factory)
-        mock_get_bp = mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp)
+        # *** Set the return_value of the AsyncMock to the generator ***
+        self.mock_blueprint_instance.run.return_value = mock_sse_generator()
+        self.mock_get_blueprint.side_effect = None
+        self.mock_get_blueprint.return_value = self.mock_blueprint_instance
 
         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
 
@@ -140,20 +150,19 @@ class TestChatCompletionsAPIFailingAsync:
         full_content = "".join(e['choices'][0]['delta'].get('content', '') for e in events if 'choices' in e and e['choices'])
         assert full_content == "Chatbot streaming!"
         assert done_event_present, "Did not receive [DONE] event"
-        mock_get_bp.assert_awaited_once_with("chatbot", params=None)
-        mock_bp.run.assert_awaited_once()
+        self.mock_get_blueprint.assert_awaited_once_with("chatbot", params=None)
+        self.mock_blueprint_instance.run.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_blueprint_run_exception_streaming_returns_error_sse(self, authenticated_client, mocker):
+    async def test_blueprint_run_exception_streaming_returns_error_sse(self, authenticated_client):
         url = reverse('chat_completions')
         data = {"model": "error_bp", "messages": [{"role": "user", "content": "Cause stream error"}], "stream": True}
 
         error_message = "Blueprint streaming runtime error"
-        mock_bp = MagicMock()
-        # *** Assign exception instance directly to run's side_effect ***
-        mock_bp.run = AsyncMock(side_effect=Exception(error_message))
-        mock_get_bp = mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp)
-
+        # *** Assign exception instance directly to side_effect ***
+        self.mock_blueprint_instance.run = AsyncMock(side_effect=Exception(error_message))
+        self.mock_get_blueprint.side_effect = None
+        self.mock_get_blueprint.return_value = self.mock_blueprint_instance
 
         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
 
@@ -170,5 +179,5 @@ class TestChatCompletionsAPIFailingAsync:
         assert error_message in raw_content, "Specific error message not found in SSE stream"
         assert "[DONE]" in raw_content, "Stream should still end with [DONE] even after error"
 
-        mock_get_bp.assert_awaited_once_with("error_bp", params=None)
-        mock_bp.run.assert_awaited_once() # Check the mock on the specific instance
+        self.mock_get_blueprint.assert_awaited_once_with("error_bp", params=None)
+        self.mock_blueprint_instance.run.assert_awaited_once()

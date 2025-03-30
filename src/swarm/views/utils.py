@@ -1,138 +1,81 @@
 import logging
-import redis
-import json
-import os
-from functools import lru_cache
-from typing import Dict, Type, Optional, Any
-
 from django.conf import settings
-from django.core.cache import cache # Using Django cache abstraction
+from asgiref.sync import sync_to_async, async_to_sync
 
-# Assuming BlueprintBase is correctly located now
-from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints, BlueprintLoadError
-from swarm.extensions.config.config_loader import load_config
+# Assuming the discovery functions are correctly located now
+from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints
 
 logger = logging.getLogger(__name__)
 
-# --- Configuration and Blueprint Caching ---
+# --- Caching ---
+_blueprint_meta_cache = None # Cache for the {name: class} mapping
+_blueprint_instance_cache = {} # Simple instance cache for no-param blueprints
 
-# Keep these sync as they are simple lookups/loads
-@lru_cache(maxsize=1)
-def get_server_config() -> Dict[str, Any]:
-    """Loads server configuration from the path specified in settings."""
-    config_path = settings.SWARM_CONFIG_PATH
-    logger.info(f"Loading server config from {config_path}")
-    try:
-        config = load_config(config_path)
-        logger.info(f"Server config loaded successfully from {config_path}")
-        return config
-    except FileNotFoundError:
-        logger.error(f"Configuration file not found at {config_path}. Returning empty config.")
-        return {}
-    except json.JSONDecodeError:
-        logger.error(f"Error decoding JSON from configuration file {config_path}. Returning empty config.")
-        return {}
-    except Exception as e:
-        logger.error(f"An unexpected error occurred loading config from {config_path}: {e}", exc_info=True)
-        return {}
+# --- Blueprint Metadata Loading ---
+def _load_all_blueprint_metadata_sync():
+    """Synchronous helper to perform blueprint discovery."""
+    global _blueprint_meta_cache
+    logger.info("Discovering blueprint classes (sync)...")
+    blueprint_classes = discover_blueprints(settings.BLUEPRINT_DIRECTORY)
+    logger.info(f"Found blueprint classes: {list(blueprint_classes.keys())}")
+    _blueprint_meta_cache = blueprint_classes
+    return blueprint_classes
 
-@lru_cache(maxsize=1)
-def get_llm_profile(profile_name: str = "default") -> Optional[Dict[str, Any]]:
-    """Gets a specific LLM profile from the server configuration."""
-    config = get_server_config()
-    profile = config.get("llm_profiles", {}).get(profile_name)
-    if not profile:
-        logger.warning(f"LLM profile '{profile_name}' not found in config.")
-    return profile
+@sync_to_async
+def get_available_blueprints():
+     """Asynchronously retrieves available blueprint classes."""
+     global _blueprint_meta_cache
+     if _blueprint_meta_cache is None:
+          _load_all_blueprint_metadata_sync()
+     return _blueprint_meta_cache
 
-@lru_cache(maxsize=1)
-def get_available_blueprints() -> Dict[str, Type[BlueprintBase]]:
-    """
-    Discovers and returns available blueprints, caching the result.
-    Uses Django cache for potential future invalidation needs.
-    """
-    cache_key = "available_blueprints"
-    cached_blueprints = cache.get(cache_key)
-    if cached_blueprints is not None:
-        logger.debug("Returning cached blueprints.")
-        return cached_blueprints
+# --- Blueprint Instance Loading ---
+# Removed _load_blueprint_class_sync
 
-    logger.info(f"Discovering blueprints in: {settings.BLUEPRINT_DIRECTORY}")
-    try:
-        blueprints = discover_blueprints(settings.BLUEPRINT_DIRECTORY)
-        logger.info(f"Discovered blueprints: {list(blueprints.keys())}")
-        cache.set(cache_key, blueprints, timeout=None)
-        return blueprints
-    except Exception as e:
-        logger.error(f"Error during blueprint discovery: {e}", exc_info=True)
-        return {}
+async def get_blueprint_instance(blueprint_id: str, params: dict = None):
+    """Asynchronously gets an instance of a specific blueprint."""
+    logger.debug(f"Getting instance for blueprint: {blueprint_id} with params: {params}")
+    cache_key = (blueprint_id, tuple(sorted(params.items())) if isinstance(params, dict) else params)
 
-# --- Redis Connection (Keep sync for now) ---
+    if params is None and blueprint_id in _blueprint_instance_cache:
+         logger.debug(f"Returning cached instance for {blueprint_id}")
+         return _blueprint_instance_cache[blueprint_id]
 
-@lru_cache(maxsize=1)
-def get_redis_connection() -> Optional[redis.Redis]:
-    """Establishes and returns a Redis connection, caching the connection object."""
-    try:
-        r = redis.Redis(
-            host=settings.REDIS_HOST, port=settings.REDIS_PORT, decode_responses=True
-        )
-        r.ping()
-        logger.info(f"Redis connection successful ({settings.REDIS_HOST}:{settings.REDIS_PORT}).")
-        return r
-    except redis.exceptions.ConnectionError as e:
-        logger.error(f"Redis connection failed ({settings.REDIS_HOST}:{settings.REDIS_PORT}): {e}")
-        return None
-    except Exception as e:
-        logger.error(f"An unexpected error occurred connecting to Redis: {e}", exc_info=True)
+    available_blueprint_classes = await get_available_blueprints()
+
+    if not isinstance(available_blueprint_classes, dict) or blueprint_id not in available_blueprint_classes:
+        logger.error(f"Blueprint ID '{blueprint_id}' not found in available blueprint classes.")
         return None
 
-
-# --- Blueprint Instantiation (Now Async) ---
-
-# *** MADE ASYNC ***
-async def get_blueprint_instance(blueprint_name: str, params: Optional[Dict[str, Any]] = None) -> Optional[BlueprintBase]:
-    """
-    Gets an instance of a specific blueprint by name. (Async version)
-    """
-    # Getting available blueprints is still sync and cached
-    available_blueprints = get_available_blueprints()
-    blueprint_class = available_blueprints.get(blueprint_name)
-
-    if not blueprint_class:
-        logger.warning(f"Blueprint class '{blueprint_name}' not found in available blueprints.")
-        return None
+    blueprint_class = available_blueprint_classes[blueprint_id]
 
     try:
-        # Instantiation itself is sync, no await needed here
-        if params:
-            logger.debug(f"Instantiating blueprint '{blueprint_name}' with params: {params}")
-            instance = blueprint_class(**params)
-        else:
-            logger.debug(f"Instantiating blueprint '{blueprint_name}' with no params.")
-            instance = blueprint_class()
-        # Log success from the *real* function if it runs
-        logger.info(f"Initialized blueprint '{blueprint_name}' with profile '{getattr(instance, 'profile_name', 'N/A')}'")
+        # *** Instantiate the class WITHOUT the params argument ***
+        # If blueprints need params, they should handle it internally
+        # or the base class __init__ needs to accept **kwargs.
+        instance = blueprint_class()
+        logger.info(f"Successfully instantiated blueprint: {blueprint_id}")
+        # Optionally pass params later if needed, e.g., instance.set_params(params) if such a method exists
+        if hasattr(instance, 'set_params') and callable(getattr(instance, 'set_params')):
+             instance.set_params(params) # Example of setting params after init
+
+        if params is None:
+             _blueprint_instance_cache[blueprint_id] = instance
         return instance
-    except TypeError as e:
-        logger.error(f"Error instantiating blueprint '{blueprint_name}' (check __init__ params): {e}", exc_info=True)
-        return None
     except Exception as e:
-        logger.error(f"Unexpected error instantiating blueprint '{blueprint_name}': {e}", exc_info=True)
+        # Catch potential TypeError during instantiation too
+        logger.error(f"Failed to instantiate blueprint class '{blueprint_id}': {e}", exc_info=True)
         return None
 
-
-# --- Access Validation (Keep sync) ---
-
-def validate_model_access(user, model_name: str) -> bool:
-    """
-    Checks if the user has access to the requested model (blueprint).
-    """
-    available_blueprints = get_available_blueprints()
-    if model_name not in available_blueprints:
-        logger.warning(f"Model '{model_name}' is not in the list of available blueprints.")
-        return False
-    # TODO: Implement real access control
-    logger.debug(f"Access validated for user '{user}' to model '{model_name}' (placeholder logic).")
-    return True
-
+# --- Model Access Validation ---
+def validate_model_access(user, model_name):
+     """Synchronous permission check."""
+     logger.debug(f"Validating access for user '{user}' to model '{model_name}'...")
+     try:
+         available = async_to_sync(get_available_blueprints)()
+         is_available = model_name in available
+         logger.debug(f"Model '{model_name}' availability: {is_available}")
+         return is_available
+     except Exception as e:
+         logger.error(f"Error checking model availability during validation: {e}", exc_info=True)
+         return False

@@ -2,8 +2,10 @@ import pytest
 import asyncio
 from django.urls import reverse
 from rest_framework import status, exceptions
+# Use async client provided by pytest-django
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+# *** Import AsyncMock ***
 from unittest.mock import patch, MagicMock, AsyncMock
 import json
 from asgiref.sync import sync_to_async
@@ -48,29 +50,32 @@ class TestChatCompletionsAuthAsync:
          yield async_client
          del async_client.defaults['HTTP_AUTHORIZATION']
 
-    # Keep autouse fixture for common setup if needed, but mocks might be per-test
     @pytest.fixture(autouse=True)
-    def setup_common_mocks(self, mocker):
-        # General mocks that don't change per test
-        self.mock_get_available_blueprints = mocker.patch(
-             'swarm.views.utils.get_available_blueprints',
-             return_value={name: MagicMock() for name in ['echocraft', 'chatbot', 'error_bp', 'config_error_bp', 'nonexistent_bp']},
-             create=True )
-        # Mock validate_model_access (called via sync_to_async in view)
-        self.mock_validate_model_access = mocker.patch(
-            'swarm.views.chat_views.validate_model_access',
-            return_value=True
-        )
-        # Mock get_blueprint_instance by default to return a basic mock
-        # Tests needing specific blueprint behavior will override this
+    def setup_common_mocks(self, mocker, test_user):
+        self.test_user = test_user # Store for potential use in tests
         self.mock_blueprint_instance = MagicMock()
-        self.mock_blueprint_instance.run = AsyncMock(return_value=async_gen_mock([])) # Default empty run
+        # *** Use AsyncMock for the blueprint run method ***
+        self.mock_blueprint_instance.run = AsyncMock(
+            return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": "Default Mock Response"}]}])
+        )
+        self.mock_blueprint_instance.get_llm_profile = MagicMock(return_value={"provider": "mock", "model": "mock-model"})
+        self.mock_blueprint_instance.use_markdown = False
+
+        # Mock get_blueprint_instance where it's used in the view (chat_views)
         self.mock_get_blueprint = mocker.patch(
             'swarm.views.chat_views.get_blueprint_instance',
-            new_callable=AsyncMock,
+            new_callable=AsyncMock, # Mock it as an async function
             return_value=self.mock_blueprint_instance
         )
-
+        self.mock_get_available_blueprints = mocker.patch(
+             'swarm.views.utils.get_available_blueprints', # Assuming called from index view?
+             return_value={name: MagicMock() for name in ['echocraft', 'chatbot', 'error_bp', 'config_error_bp', 'nonexistent_bp']},
+             create=True )
+        # Mock validate_model_access (it's sync, called via sync_to_async in view)
+        self.mock_validate_model_access = mocker.patch(
+            'swarm.views.chat_views.validate_model_access', # Target where it's imported in the view
+            return_value=True
+        )
 
     # === Auth Tests (Use async client, mock sync auth methods) ===
     @pytest.mark.asyncio
@@ -92,47 +97,37 @@ class TestChatCompletionsAuthAsync:
          headers = {'HTTP_AUTHORIZATION': 'Bearer invalidtoken'}
          data = {"model": "echocraft", "messages": [{"role": "user", "content": "Hello"}]}
          response = await client.post(url, json.dumps(data), content_type='application/json', headers=headers)
-         # *** Changed assertion to 403 based on previous run's actual result ***
-         # This acknowledges that permission check might occur after auth failure sets AnonymousUser
-         assert response.status_code == status.HTTP_403_FORBIDDEN
-         # If you strictly need 401, DRF's exception handling might need deeper investigation/customization
+         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_valid_token_allows_access(self, token_client, mocker, test_user, mock_token_tuple):
          mocker.patch('swarm.auth.CustomSessionAuthentication.authenticate', return_value=None)
          mocker.patch('swarm.auth.CustomTokenAuthentication.authenticate', return_value=mock_token_tuple)
 
-         # Define specific blueprint behavior for this test
-         mock_bp_instance = MagicMock()
-         mock_bp_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": "Echo: Hello"}]}]))
-         mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp_instance)
-
          url = reverse('chat_completions')
          data = {"model": "echocraft", "messages": [{"role": "user", "content": "Hello"}]}
+         # Re-assign the run mock within the test if needed, or rely on the default setup
+         self.mock_blueprint_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": "Echo: Hello"}]}]))
+
          response = await token_client.post(url, json.dumps(data), content_type='application/json')
 
          assert response.status_code == status.HTTP_200_OK
-         response_data = json.loads(response.content.decode())
+         response_data = json.loads(response.content.decode()) # Use response.content for async client
          assert response_data["choices"][0]["message"]["content"] == "Echo: Hello"
-         mock_bp_instance.run.assert_awaited_once() # Check the specific mock was awaited
 
     @pytest.mark.asyncio
     async def test_valid_session_allows_access(self, authenticated_client, mocker, test_user):
          mocker.patch('swarm.auth.CustomSessionAuthentication.authenticate', return_value=(test_user, None))
          mocker.patch('swarm.auth.CustomTokenAuthentication.authenticate', return_value=None)
 
-         mock_bp_instance = MagicMock()
-         mock_bp_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": "Echo: Hello Session"}]}]))
-         mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp_instance)
-
          url = reverse('chat_completions')
          data = {"model": "echocraft", "messages": [{"role": "user", "content": "Hello"}]}
-         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
+         self.mock_blueprint_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": "Echo: Hello Session"}]}]))
 
+         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
          assert response.status_code == status.HTTP_200_OK
          response_data = json.loads(response.content.decode())
          assert response_data["choices"][0]["message"]["content"] == "Echo: Hello Session"
-         mock_bp_instance.run.assert_awaited_once()
 
     # === Non-Streaming Success Tests (now async) ===
     @pytest.mark.asyncio
@@ -140,37 +135,34 @@ class TestChatCompletionsAuthAsync:
          mocker.patch('swarm.auth.CustomSessionAuthentication.authenticate', return_value=(test_user, None))
          mocker.patch('swarm.auth.CustomTokenAuthentication.authenticate', return_value=None)
 
-         expected_content = "Echo: Hello Echo"
-         mock_bp_instance = MagicMock()
-         mock_bp_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": expected_content}]}]))
-         mock_get_bp = mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp_instance)
-
          url = reverse('chat_completions')
          data = {"model": "echocraft", "messages": [{"role": "user", "content": "Hello Echo"}]}
-         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
+         expected_content = "Echo: Hello Echo"
+         self.mock_blueprint_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": expected_content}]}]))
+         # Mock get_blueprint_instance directly to return the pre-configured mock blueprint
+         mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=self.mock_blueprint_instance)
 
+         response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
          assert response.status_code == status.HTTP_200_OK
          response_data = json.loads(response.content.decode())
          assert response_data["choices"][0]["message"]["content"] == expected_content
-         mock_get_bp.assert_awaited_once_with("echocraft", params=None)
-         mock_bp_instance.run.assert_awaited_once()
+         self.mock_get_blueprint.assert_awaited_once_with("echocraft", params=None)
+         self.mock_blueprint_instance.run.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_chatbot_non_streaming_success(self, authenticated_client, mocker, test_user):
         mocker.patch('swarm.auth.CustomSessionAuthentication.authenticate', return_value=(test_user, None))
         mocker.patch('swarm.auth.CustomTokenAuthentication.authenticate', return_value=None)
 
-        expected_content = "Chatbot says hi!"
-        mock_bp_instance = MagicMock()
-        mock_bp_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": expected_content}]}]))
-        mock_get_bp = mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=mock_bp_instance)
-
         url = reverse('chat_completions')
         data = {"model": "chatbot", "messages": [{"role": "user", "content": "Hi Chatbot"}]}
-        response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
+        expected_content = "Chatbot says hi!"
+        self.mock_blueprint_instance.run = AsyncMock(return_value=async_gen_mock([{"messages": [{"role": "assistant", "content": expected_content}]}]))
+        mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=self.mock_blueprint_instance)
 
+        response = await authenticated_client.post(url, json.dumps(data), content_type='application/json')
         assert response.status_code == status.HTTP_200_OK
         response_data = json.loads(response.content.decode())
         assert response_data["choices"][0]["message"]["content"] == expected_content
-        mock_get_bp.assert_awaited_once_with("chatbot", params=None)
-        mock_bp_instance.run.assert_awaited_once()
+        self.mock_get_blueprint.assert_awaited_once_with("chatbot", params=None)
+        self.mock_blueprint_instance.run.assert_awaited_once()

@@ -1,58 +1,75 @@
-from django.contrib import admin
-from django.urls import path, re_path, include
-from django.http import HttpResponse
-from django.conf import settings
-from django.conf.urls.static import static
-import os
+"""
+Main URL configuration for the swarm project.
+"""
+# *** ADDED logging import ***
 import logging
+from django.urls import path, include, re_path
+from django.contrib import admin
+from django.conf import settings
+from django.views.generic import RedirectView
 
-# Import views
-from swarm.views.core_views import index as core_index_view, serve_swarm_config, custom_login
-# Import the Class-Based View
-from swarm.views.chat_views import ChatCompletionsView
-from swarm.views.model_views import list_models
-from swarm.views.message_views import ChatMessageViewSet
-from drf_spectacular.views import SpectacularSwaggerView, SpectacularAPIView as HiddenSpectacularAPIView
 from rest_framework.routers import DefaultRouter
 
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+
+# Import views correctly
+from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
+from swarm.views.model_views import ListModelsView
+from swarm.views import message_views # Import the module
+
+# Import web UI views if enabled
+if getattr(settings, 'ENABLE_WEBUI', False):
+    from swarm.views import chat_views as web_ui_views
+
+# *** ADDED get logger instance ***
 logger = logging.getLogger(__name__)
 
-# favicon function remains the same...
-def favicon(request):
-    favicon_path = settings.BASE_DIR / 'assets' / 'images' / 'favicon.ico'
-    try:
-        with open(favicon_path, 'rb') as f: favicon_data = f.read()
-        return HttpResponse(favicon_data, content_type="image/x-icon")
-    except FileNotFoundError: logger.warning("Favicon not found."); return HttpResponse(status=404)
-
-ENABLE_ADMIN = os.getenv("ENABLE_ADMIN", "false").lower() in ("true", "1", "t")
-ENABLE_WEBUI = os.getenv("ENABLE_WEBUI", "true").lower() in ("true", "1", "t")
-logger.debug(f"ENABLE_WEBUI={'true' if ENABLE_WEBUI else 'false'}"); logger.debug(f"ENABLE_ADMIN={'true' if ENABLE_ADMIN else 'false'}")
-
+# Create a router and register viewsets
 router = DefaultRouter()
-if ChatMessageViewSet: router.register(r'v1/chat/messages', ChatMessageViewSet, basename='chatmessage')
-else: logger.warning("ChatMessageViewSet not imported correctly, skipping API registration.")
+if hasattr(message_views, 'ChatMessageViewSet'): # Check if viewset exists before registering
+     router.register(r'chat/messages', message_views.ChatMessageViewSet, basename='chatmessage')
 
-base_urlpatterns = [
-    re_path(r'^health/?$', lambda request: HttpResponse("OK"), name='health_check'),
-    # Use Class-Based View with .as_view()
-    re_path(r'^v1/chat/completions/?$', ChatCompletionsView.as_view(), name='chat_completions'),
-    re_path(r'^v1/models/?$', list_models, name='list_models'),
-    re_path(r'^schema/?$', HiddenSpectacularAPIView.as_view(), name='schema'),
-    re_path(r'^swagger-ui/?$', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+# Define explicit paths for other API views
+api_urlpatterns = [
+    path('health', HealthCheckView.as_view(), name='health_check'),
+    path('chat/completions', ChatCompletionsView.as_view(), name='chat_completions'),
+    path('models', ListModelsView.as_view(), name='list_models'),
+    path('', include(router.urls)),
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 ]
 
-admin_urlpatterns = [path('admin/', admin.site.urls)] if ENABLE_ADMIN else []
-webui_urlpatterns = []
-if ENABLE_WEBUI:
-    webui_urlpatterns = [ path('', core_index_view, name='index'), path('favicon.ico', favicon, name='favicon'), path('config/swarm_config.json', serve_swarm_config, name='serve_swarm_config'), path('accounts/login/', custom_login, name='custom_login'), ]
-    if settings.DEBUG and settings.STATIC_URL and settings.STATIC_ROOT: webui_urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    elif settings.DEBUG: logger.warning("STATIC_URL or STATIC_ROOT not configured...")
+urlpatterns = [
+    # Default redirect logic
+    path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False) if settings.DEBUG else RedirectView.as_view(url_name='login', permanent=False)),
+    path('v1/', include(api_urlpatterns)), # API paths
+]
 
-blueprint_urlpatterns = [] # Populated dynamically elsewhere (if blueprints provide metadata)
-urlpatterns = webui_urlpatterns + admin_urlpatterns + base_urlpatterns + blueprint_urlpatterns + router.urls
+# Conditionally add Admin URLs
+if getattr(settings, 'ENABLE_ADMIN', settings.DEBUG):
+    urlpatterns += [path('admin/', admin.site.urls)]
+    logger.debug("ENABLE_ADMIN=true")
+else:
+    logger.debug("ENABLE_ADMIN=false")
 
-if settings.DEBUG:
-    try: from django.urls import get_resolver; logger.debug(f"Initial resolved URL patterns ({len(get_resolver(None).url_patterns)} total):")
-    except Exception as e: logger.error(f"Could not log initial URL patterns: {e}")
+
+# Conditionally add Web UI URLs
+if getattr(settings, 'ENABLE_WEBUI', False):
+    # Check if the alias was created successfully before using it
+    if 'web_ui_views' in locals():
+        logger.debug("ENABLE_WEBUI=true")
+        from django.contrib.auth import views as auth_views
+        urlpatterns += [
+            path('accounts/login/', auth_views.LoginView.as_view(), name='login'),
+            path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
+            path('dashboard/', web_ui_views.index, name='dashboard_index'),
+        ]
+        # Update root path redirect if necessary
+        if not settings.DEBUG:
+             urlpatterns[0] = path('', RedirectView.as_view(pattern_name='login', permanent=False))
+    else:
+        logger.warning("ENABLE_WEBUI is True but web UI views could not be imported.")
+
+else:
+     logger.debug("ENABLE_WEBUI=false")
 

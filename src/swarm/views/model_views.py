@@ -1,90 +1,78 @@
 """
-Model listing views for Open Swarm MCP Core.
-Dynamically discovers blueprints and lists them alongside configured LLMs.
+Views related to listing and describing available models (Blueprints).
 """
-import os
 import logging
-from pathlib import Path
-from django.http import JsonResponse
-from django.conf import settings # Import settings
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import AllowAny # Import AllowAny
+from django.conf import settings
+from django.http import JsonResponse # Not used directly, Response is preferred
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import status
+
 from drf_spectacular.utils import extend_schema
 
-from swarm.utils.logger_setup import setup_logger
-# Import the function to discover blueprints
-from swarm.extensions.blueprint import discover_blueprints
-# Import config loader correctly
-from swarm.extensions.config.config_loader import load_config, find_config_file, DEFAULT_CONFIG_FILENAME
+# *** Import async_to_sync ***
+from asgiref.sync import async_to_sync
 
-logger = setup_logger(__name__)
+# Import the utility function
+from .utils import get_available_blueprints
+from ..permissions import HasValidTokenOrSession
 
-@extend_schema(
-    summary="List Available Models",
-    description="Provides a list of available models, including configured LLMs and discovered blueprints."
-)
-@api_view(['GET'])
-@authentication_classes([]) # No auth needed for model listing? Adjust if required.
-@permission_classes([AllowAny])
-def list_models(request):
+logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# API Views (DRF based) for Models
+# ==============================================================================
+
+class ListModelsView(APIView):
     """
-    Lists available models compatible with the OpenAI API standard.
-    Includes both configured LLMs and discovered blueprints.
+    API view to list available models (Blueprints).
+    Compliant with OpenAI API's /v1/models endpoint structure.
     """
-    data = []
-    created_time = int(os.path.getmtime(__file__)) # Use file mod time as a proxy
+    permission_classes = [HasValidTokenOrSession]
 
-    # --- Load Config ---
-    # Need to load config here to get LLM profiles
-    config = {}
-    try:
-        config_path_obj = find_config_file(start_dir=Path(settings.BASE_DIR).parent) # Use default filename search
-        if config_path_obj:
-             config = load_config(config_path_obj)
-        else:
-             logger.warning("list_models: Config file not found, only listing blueprints.")
-             config = {"llm": {}, "agents": {}, "settings": {}}
-    except Exception as e:
-        logger.error(f"list_models: Error loading config: {e}", exc_info=True)
-        config = {"llm": {}, "agents": {}, "settings": {}}
+    @extend_schema(
+        responses={ # Simplified schema for brevity
+            200: {"description": "A list of available models."}
+        }
+    )
+    # *** Make the handler synchronous ***
+    def get(self, request, *args, **kwargs):
+        """
+        Handles GET requests to list available models.
+        """
+        try:
+            # *** Call the async utility function using async_to_sync ***
+            # Ensure get_available_blueprints is awaitable (async def or wrapped)
+            available_blueprints_dict = async_to_sync(get_available_blueprints)()
 
+            models_data = [
+                {
+                    "id": model_id,
+                    "object": "model",
+                    "created": 0, # Placeholder
+                    "owned_by": "open-swarm",
+                    # Access metadata safely
+                    "profile_name": metadata.get('profile_name', 'unknown') if isinstance(metadata, dict) else 'unknown'
+                }
+                # Ensure iteration works correctly
+                for model_id, metadata in (available_blueprints_dict.items() if isinstance(available_blueprints_dict, dict) else [])
+            ]
 
-    # --- List Configured LLMs ---
-    llm_profiles = config.get("llm", {})
-    for model_id, profile in llm_profiles.items():
-        if isinstance(profile, dict): # Ensure profile is a dict
-             data.append({
-                 "id": model_id,
-                 "object": "model",
-                 "created": created_time,
-                 "owned_by": profile.get("provider", "unknown"), # Use provider as owner
-                 "title": profile.get("title", model_id.replace('_', ' ').title()), # Nicer title
-                 "description": profile.get("description", f"LLM profile: {model_id}")
-             })
-        else:
-            logger.warning(f"Skipping invalid LLM profile entry: {model_id}")
+            response_data = {
+                "object": "list",
+                "data": models_data,
+            }
+            # Return the standard sync Response
+            return Response(response_data, status=status.HTTP_200_OK)
 
-
-    # --- List Discovered Blueprints ---
-    # Re-discover or use cached metadata from utils? Using cached is faster.
-    from swarm.views.utils import blueprints_metadata # Access cached metadata
-
-    for blueprint_id, meta in blueprints_metadata.items():
-        # Avoid listing duplicates if an LLM profile has the same name as a blueprint
-        if not any(d['id'] == blueprint_id for d in data):
-             data.append({
-                 "id": blueprint_id,
-                 "object": "model", # Treat blueprints as 'models' in this context
-                 "created": meta.get("created_time", created_time), # Use metadata time if available
-                 "owned_by": "swarm-blueprint",
-                 # Use metadata for title/description if available
-                 "title": meta.get("title", blueprint_id.replace('_', ' ').title()),
-                 "description": meta.get("description", f"Swarm Blueprint: {blueprint_id}")
-             })
-
-    logger.info(f"Listed {len(data)} models (LLMs + Blueprints).")
-    return JsonResponse({
-        "object": "list",
-        "data": data
-    })
-
+        except Exception as e:
+            logger.error(f"Error retrieving available blueprints: {e}", exc_info=True)
+            # Return the standard sync Response
+            return Response(
+                {"error": "Internal server error retrieving models."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
