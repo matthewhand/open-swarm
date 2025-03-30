@@ -1,244 +1,216 @@
-import typer
-import subprocess
-import platformdirs
-from pathlib import Path
-import logging
 import os
-import stat # To check execute permissions
+import typer
+import platformdirs
+import subprocess
 import sys
-from typing import Optional, List # <<< ADD THIS IMPORT <<<
-
-# Try importing PyInstaller; fail gracefully if not installed unless installing
-try:
-    import PyInstaller.__main__
-    PYINSTALLER_AVAILABLE = True
-except ImportError:
-    PYINSTALLER_AVAILABLE = False
-
-app = typer.Typer()
+from pathlib import Path
+import importlib.resources as pkg_resources
+import swarm # Import the main package to access its resources
 
 # --- Configuration ---
-# Use environment variables set in test fixtures or real environment
 APP_NAME = "swarm"
 APP_AUTHOR = "swarm-authors" # Replace if needed
 
+# Use platformdirs for user-specific data, config locations
 USER_DATA_DIR = Path(os.getenv("SWARM_USER_DATA_DIR", platformdirs.user_data_dir(APP_NAME, APP_AUTHOR)))
 USER_CONFIG_DIR = Path(os.getenv("SWARM_USER_CONFIG_DIR", platformdirs.user_config_dir(APP_NAME, APP_AUTHOR)))
-USER_CACHE_DIR = Path(os.getenv("SWARM_USER_CACHE_DIR", platformdirs.user_cache_dir(APP_NAME, APP_AUTHOR)))
 
-# Define standard subdirectories
+# *** CORRECTED: Define user bin dir as a subdir of user data dir ***
+USER_BIN_DIR = Path(os.getenv("SWARM_USER_BIN_DIR", USER_DATA_DIR / "bin"))
+
+# Derived paths
 BLUEPRINTS_DIR = USER_DATA_DIR / "blueprints"
-BIN_DIR = USER_DATA_DIR / "bin"
-CONFIG_FILE_PATH = USER_CONFIG_DIR / "swarm_config.json" # Example config path
-BUILD_CACHE_DIR = USER_CACHE_DIR / "build"
+INSTALLED_BIN_DIR = USER_BIN_DIR # Keep using this variable name for clarity
 
-
-# Ensure base directories exist
-USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-USER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure directories exist
 BLUEPRINTS_DIR.mkdir(parents=True, exist_ok=True)
-BIN_DIR.mkdir(parents=True, exist_ok=True)
-BUILD_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+INSTALLED_BIN_DIR.mkdir(parents=True, exist_ok=True) # Ensure the user bin dir is created
+USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# --- Logging ---
-# Basic logging configuration
-log_level = logging.INFO
-log_format = "[%(levelname)s] %(asctime)s - %(name)s - %(message)s"
-logging.basicConfig(level=log_level, format=log_format)
-logger = logging.getLogger(__name__)
-
+# --- Typer App ---
+app = typer.Typer(
+    help="Swarm CLI tool for managing blueprints.",
+    add_completion=True # Enable shell completion commands
+)
 
 # --- Helper Functions ---
-def find_blueprint_entrypoint(blueprint_name: str) -> Optional[Path]: # Use Optional here too
-    """Finds the main Python file for a blueprint."""
-    bp_dir = BLUEPRINTS_DIR / blueprint_name
-    if not bp_dir.is_dir():
-        return None
-    # Look for common entrypoint names
-    possible_files = [
-        bp_dir / f"blueprint_{blueprint_name}.py",
-        bp_dir / "main.py",
-        bp_dir / "blueprint.py",
-        bp_dir / f"{blueprint_name}.py",
-    ]
-    for file in possible_files:
-        if file.is_file():
-            return file
-    # Fallback: Find the first .py file? (Might be risky)
-    try:
-        first_py = next(bp_dir.glob('*.py'))
-        return first_py
-    except StopIteration:
-        return None
-
-def get_executable_path(blueprint_name: str, bin_dir_override: Optional[Path] = None) -> Path:
-    """Gets the expected path for the blueprint's executable."""
-    target_bin_dir = bin_dir_override if bin_dir_override else BIN_DIR
-    return target_bin_dir / blueprint_name
-
+def find_entry_point(blueprint_dir: Path) -> str | None:
+    """Placeholder: Finds the main Python script in a blueprint directory."""
+    # Improve this logic: Look for a specific file, check pyproject.toml, etc.
+    for item in blueprint_dir.glob("*.py"):
+        if item.is_file() and not item.name.startswith("_"):
+            return item.name
+    return None
 
 # --- CLI Commands ---
 
 @app.command()
 def install(
-    blueprint_name: str = typer.Argument(..., help="Name of the blueprint directory."),
-    bin_dir: Optional[Path] = typer.Option(None, "--bin-dir", help=f"Override default install location ({BIN_DIR})."), # Use Optional hint
-    force: bool = typer.Option(False, "-f", "--force", help="Force rebuild even if executable exists."),
+    blueprint_name: str = typer.Argument(..., help="Name of the blueprint directory to install."),
+    # Add options for specifying source dir if needed later
 ):
-    """Install a blueprint by creating a standalone executable using PyInstaller."""
-    if not PYINSTALLER_AVAILABLE:
-        logger.error("PyInstaller is not installed. Cannot build executable.")
-        logger.error("Please install it: pip install pyinstaller")
+    """
+    Install a blueprint by creating a standalone executable using PyInstaller.
+    """
+    # Decide where to look for the source blueprint: User dir first, then bundled?
+    # For now, let's assume it must exist in the user dir for installation
+    # TODO: Enhance this to allow installing bundled blueprints directly?
+    source_dir = BLUEPRINTS_DIR / blueprint_name
+    if not source_dir.is_dir():
+        # Could also check bundled blueprints here if desired
+        typer.echo(f"Error: Blueprint source directory not found in user directory: {source_dir}", err=True)
+        typer.echo("Currently, only blueprints placed in the user directory can be installed.", err=True)
         raise typer.Exit(code=1)
 
-    logger.info(f"Attempting to install blueprint: {blueprint_name}")
-    entrypoint = find_blueprint_entrypoint(blueprint_name)
-    if not entrypoint:
-        # Ensure stderr is used for user-facing errors in CLI
-        typer.echo(f"Error: Blueprint directory or entrypoint file not found for '{blueprint_name}' in {BLUEPRINTS_DIR}", err=True)
-        typer.echo(f"Searched in: {BLUEPRINTS_DIR / blueprint_name}", err=True)
-        raise typer.Exit(code=1) # <<< EXIT HERE <<<
+    entry_point = find_entry_point(source_dir)
+    if not entry_point:
+        typer.echo(f"Error: Could not find entry point script in {source_dir}", err=True)
+        raise typer.Exit(code=1)
 
-    target_bin_dir = bin_dir if bin_dir else BIN_DIR
-    target_bin_dir.mkdir(parents=True, exist_ok=True) # Ensure target bin dir exists
-    executable_path = get_executable_path(blueprint_name, target_bin_dir)
+    entry_point_path = source_dir / entry_point
+    output_bin = INSTALLED_BIN_DIR / blueprint_name
+    dist_path = USER_DATA_DIR / "dist" # PyInstaller dist path within user data
+    build_path = USER_DATA_DIR / "build" # PyInstaller build path within user data
 
-    if executable_path.exists() and not force:
-        typer.echo(f"Executable already exists at {executable_path}. Use --force to rebuild.")
-        return # Success, already installed
+    typer.echo(f"Installing blueprint '{blueprint_name}'...")
+    typer.echo(f"  Source: {source_dir}")
+    typer.echo(f"  Entry Point: {entry_point}")
+    typer.echo(f"  Output Executable: {output_bin}")
 
-    logger.info(f"Installing: {entrypoint}")
-    logger.info(f"Building executable for '{blueprint_name}'...")
-    logger.info(f"Build cache: {BUILD_CACHE_DIR}")
-
-    pyinstaller_args = [
-        '--name', blueprint_name,
-        '--onefile',
-        '--distpath', str(target_bin_dir),
-        '--workpath', str(BUILD_CACHE_DIR / "build"), # Build workspace
-        '--specpath', str(BUILD_CACHE_DIR), # Where to write .spec file
-        # Add src directory to python path for imports
-        '--paths', str(Path(__file__).parent.parent.parent), # Assuming src is parent of swarm/extensions/launchers
-        # Add blueprint's own directory for relative imports within the blueprint
-        '--paths', str(entrypoint.parent),
-        '--log-level', 'INFO', # PyInstaller log level
-        str(entrypoint), # The script to bundle
+    pyinstaller_cmd = [
+        "pyinstaller",
+        "--onefile", # Create a single executable file
+        "--name", str(output_bin.name), # Name of the output executable
+        "--distpath", str(INSTALLED_BIN_DIR), # Output directory for the executable
+        "--workpath", str(build_path), # Directory for temporary build files
+        "--specpath", str(USER_DATA_DIR), # Directory for the .spec file
+        str(entry_point_path), # The main script to bundle
     ]
 
-    logger.debug(f"Running: pyinstaller {' '.join(pyinstaller_args)}")
+    typer.echo(f"Running PyInstaller: {' '.join(map(str, pyinstaller_cmd))}") # Use map(str,...) for Path objects
+
     try:
-        # Run PyInstaller
-        PyInstaller.__main__.run(pyinstaller_args)
-        typer.echo(f"Built: {executable_path}") # Use typer.echo for user output
-        # Check execute permissions (important on Linux/macOS)
-        if not os.access(executable_path, os.X_OK):
-             logger.warning(f"Executable at {executable_path} may not have execute permissions. Attempting chmod +x.")
-             try:
-                 current_permissions = stat.S_IMODE(os.stat(executable_path).st_mode)
-                 os.chmod(executable_path, current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-             except Exception as chmod_err:
-                 logger.error(f"Failed to set execute permissions: {chmod_err}")
-
-        # Display PATH warning if custom bin_dir used or default isn't typically in PATH
-        if str(target_bin_dir) not in os.environ.get("PATH", ""):
-             typer.echo("---", err=True) # Use typer.echo(err=True) for warnings
-             typer.echo(f"PATH WARNING: '{target_bin_dir}' not in PATH. Add manually (e.g., export PATH=\"$PATH:{target_bin_dir}\")", err=True)
-             typer.echo("---", err=True)
-
+        # Use subprocess.run for better control and error handling
+        result = subprocess.run(pyinstaller_cmd, check=True, capture_output=True, text=True)
+        typer.echo("PyInstaller output:")
+        typer.echo(result.stdout)
+        typer.echo(f"Successfully installed '{blueprint_name}' to {output_bin}")
+    except FileNotFoundError:
+        typer.echo("Error: PyInstaller command not found. Is PyInstaller installed?", err=True)
+        raise typer.Exit(code=1)
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"Error during PyInstaller execution (Return Code: {e.returncode}):", err=True)
+        typer.echo(e.stderr, err=True)
+        typer.echo("Check the output above for details.", err=True)
+        raise typer.Exit(code=1)
     except Exception as e:
-        typer.echo(f"Error: PyInstaller failed: {e}", err=True)
-        logger.error(f"PyInstaller failed details:", exc_info=True) # Log full traceback
+        typer.echo(f"An unexpected error occurred: {e}", err=True)
         raise typer.Exit(code=1)
 
 
 @app.command()
-def launch(
-    blueprint_name: str = typer.Argument(..., help="Name of the installed blueprint to launch."),
-    args: List[str] = typer.Argument(None, help="Arguments to pass to the blueprint executable."),
-):
-    """Launch a previously installed blueprint executable."""
-    executable_path = get_executable_path(blueprint_name)
-    if not executable_path.is_file():
-        typer.echo(f"Error: Executable for blueprint '{blueprint_name}' not found at {executable_path}.", err=True)
-        typer.echo("Please install it first using: swarm-cli install <blueprint_name>", err=True)
+def launch(blueprint_name: str = typer.Argument(..., help="Name of the installed blueprint executable to launch.")):
+    """
+    Launch a previously installed blueprint executable.
+    """
+    executable_path = INSTALLED_BIN_DIR / blueprint_name
+    if not executable_path.is_file() or not os.access(executable_path, os.X_OK):
+        typer.echo(f"Error: Blueprint executable not found or not executable: {executable_path}", err=True)
         raise typer.Exit(code=1)
 
-    # Check for execute permission before trying to run
-    if not os.access(executable_path, os.X_OK):
-        typer.echo(f"Error: Executable at {executable_path} does not have execute permissions.", err=True)
-        raise typer.Exit(code=1)
-
-
-    cmd = [str(executable_path)] + (args if args else [])
-    logger.info(f"Launching: {' '.join(cmd)}")
+    typer.echo(f"Launching '{blueprint_name}' from {executable_path}...")
     try:
-        # Use subprocess.run, stream output potentially?
-        # For now, run and capture, then print. Consider streaming for long-running blueprints.
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = process.communicate() # Wait for completion
+        # Execute the blueprint directly
+        # Using subprocess.run is generally safer and more flexible than os.execv
+        result = subprocess.run([str(executable_path)], capture_output=True, text=True, check=False) # check=False to handle non-zero exits gracefully
+        typer.echo(f"--- {blueprint_name} Output ---")
+        typer.echo(result.stdout)
+        if result.stderr:
+            typer.echo("--- Errors/Warnings ---", err=True)
+            typer.echo(result.stderr, err=True)
+        typer.echo(f"--- '{blueprint_name}' finished (Return Code: {result.returncode}) ---")
 
-        logger.info(f"Blueprint '{blueprint_name}' finished with code {process.returncode}.")
-        if stdout:
-             typer.echo("--- Blueprint STDOUT ---")
-             typer.echo(stdout)
-             typer.echo("------------------------")
-        if stderr:
-             typer.echo("--- Blueprint STDERR ---", err=True)
-             typer.echo(stderr, err=True)
-             typer.echo("------------------------", err=True)
-
-        if process.returncode != 0:
-             raise typer.Exit(code=process.returncode)
-
-    except FileNotFoundError:
-         # Should be caught by earlier check, but belt-and-suspenders
-         typer.echo(f"Error: Executable not found at {executable_path}", err=True)
-         raise typer.Exit(code=1)
     except Exception as e:
-        typer.echo(f"An unexpected error occurred during launch: {e}", err=True)
-        logger.error(f"Launch exception details:", exc_info=True)
+        typer.echo(f"Error launching blueprint: {e}", err=True)
         raise typer.Exit(code=1)
 
 
-@app.command(name="list") # Explicitly name the command "list"
+@app.command(name="list")
 def list_blueprints(
     installed: bool = typer.Option(False, "--installed", "-i", help="List only installed blueprint executables."),
     available: bool = typer.Option(False, "--available", "-a", help="List only available blueprints (source dirs).")
 ):
-    """Lists available blueprints in the blueprints directory and/or installed executables."""
+    """
+    Lists available blueprints (bundled and user-provided) and/or installed executables.
+    """
+    list_installed = not available or installed
+    list_available = not installed or available
 
-    list_installed = installed or not (installed or available) # Default show installed if no flags
-    list_available = available or not (installed or available) # Default show available if no flags
-
-    if list_available:
-        typer.echo(f"--- Available Blueprints (in {BLUEPRINTS_DIR}) ---")
-        found_available = False
-        # Sort items for consistent output
-        items = sorted(BLUEPRINTS_DIR.iterdir(), key=lambda p: p.name)
-        for item in items:
-            if item.is_dir():
-                 entrypoint = find_blueprint_entrypoint(item.name)
-                 status = f"(entry: {entrypoint.name})" if entrypoint else "(No entrypoint found!)"
-                 typer.echo(f"- {item.name} {status}")
-                 found_available = True
-        if not found_available:
-             typer.echo("(No blueprint directories found)")
-
+    # --- List Installed Blueprints ---
     if list_installed:
-        typer.echo(f"\n--- Installed Blueprints (in {BIN_DIR}) ---")
+        typer.echo(f"--- Installed Blueprints (in {INSTALLED_BIN_DIR}) ---")
         found_installed = False
-        # Sort items for consistent output
-        items = sorted(BIN_DIR.iterdir(), key=lambda p: p.name)
-        for item in items:
-             # Check if it's a file and executable (on POSIX systems)
-             is_executable = item.is_file() and os.access(item, os.X_OK)
-             if is_executable:
-                 typer.echo(f"- {item.name}")
-                 found_installed = True
+        if INSTALLED_BIN_DIR.exists():
+            try:
+                for item in INSTALLED_BIN_DIR.iterdir():
+                    # Basic check: is it a file and executable? Refine as needed.
+                    if item.is_file() and os.access(item, os.X_OK):
+                        typer.echo(f"- {item.name}")
+                        found_installed = True
+            except OSError as e:
+                typer.echo(f"(Warning: Could not read installed directory: {e})", err=True)
         if not found_installed:
-             typer.echo("(No installed blueprint executables found)")
+            typer.echo("(No installed blueprint executables found)")
+        typer.echo("") # Add spacing
 
+    # --- List Available Blueprints (Bundled and User) ---
+    if list_available:
+        # --- Bundled ---
+        typer.echo("--- Bundled Blueprints (installed with package) ---")
+        bundled_found = False
+        try:
+            # Use importlib.resources to access the 'blueprints' directory within the installed 'swarm' package
+            bundled_blueprints_path = pkg_resources.files(swarm) / 'blueprints'
+
+            if bundled_blueprints_path.is_dir(): # Check if the directory exists in the package
+                for item in bundled_blueprints_path.iterdir():
+                    # Check if it's a directory containing an entry point (adapt check as needed)
+                    if item.is_dir() and not item.name.startswith("__"): # Skip __pycache__ etc.
+                        entry_point = find_entry_point(item) # Use helper, might need refinement
+                        if entry_point:
+                            typer.echo(f"- {item.name} (entry: {entry_point})")
+                            bundled_found = True
+        except ModuleNotFoundError:
+             typer.echo("(Could not find bundled blueprints - package structure issue?)", err=True)
+        except FileNotFoundError: # Can happen if package data wasn't included correctly
+             typer.echo("(Could not find bundled blueprints path - package data missing?)", err=True)
+        except Exception as e:
+            typer.echo(f"(Error accessing bundled blueprints: {e})", err=True)
+
+        if not bundled_found:
+            typer.echo("(No bundled blueprints found or accessible)")
+        typer.echo("") # Add spacing
+
+        # --- User ---
+        typer.echo(f"--- User Blueprints (in {BLUEPRINTS_DIR}) ---")
+        user_found = False
+        if BLUEPRINTS_DIR.exists() and BLUEPRINTS_DIR.is_dir():
+            try:
+                for item in BLUEPRINTS_DIR.iterdir():
+                    if item.is_dir():
+                        entry_point = find_entry_point(item) # Use helper
+                        if entry_point:
+                            typer.echo(f"- {item.name} (entry: {entry_point})")
+                            user_found = True
+            except OSError as e:
+                typer.echo(f"(Warning: Could not read user blueprints directory: {e})", err=True)
+
+        if not user_found:
+            typer.echo("(No user blueprints found)")
+        typer.echo("") # Add spacing
+
+
+# --- Main Execution Guard ---
 if __name__ == "__main__":
     app()
