@@ -1,27 +1,38 @@
 import logging
 from rest_framework.permissions import BasePermission
+from django.conf import settings
+from swarm.auth import StaticTokenAuthentication # Import for type checking
 
 logger = logging.getLogger(__name__)
 
 class HasValidTokenOrSession(BasePermission):
     """
-    Allows access only to authenticated users.
-
-    Relies on DRF's authentication classes (e.g., SessionAuthentication,
-    TokenAuthentication) having run first to populate request.user.
+    Allows access if the user is authenticated via a valid session
+    OR if a valid static API token was provided (indicated by request.auth).
     """
-    message = 'Authentication credentials were not provided or are invalid.'
 
     def has_permission(self, request, view):
-        # Authentication backends run before permissions.
-        # We just need to check if authentication was successful.
-        is_authenticated = request.user and request.user.is_authenticated
-
-        if is_authenticated:
-            # logger.debug(f"Permission granted for authenticated user: {request.user}") # Optional: keep for debugging
+        # Check if standard Django user authentication succeeded (Session)
+        # This user comes from AuthenticationMiddleware + CustomSessionAuthentication
+        is_session_authenticated = request.user and request.user.is_authenticated
+        if is_session_authenticated:
+            logger.debug("[Permission] Access granted via authenticated session user.")
             return True
-        else:
-            # logger.debug("Permission denied: User is not authenticated.") # Optional: keep for debugging
-            # Let DRF handle returning 401/403 based on whether credentials were provided.
-            return False
+
+        # Check if StaticTokenAuthentication succeeded.
+        # We modified StaticTokenAuthentication to return (AnonymousUser(), token)
+        # DRF populates request.auth with the second element of the tuple (the token).
+        # We also check the authenticator type for robustness.
+        is_static_token_auth = (
+            request.successful_authenticator and
+            isinstance(request.successful_authenticator, StaticTokenAuthentication) and
+            request.auth is not None # Check if request.auth (the token) was set
+        )
+
+        if is_static_token_auth:
+             logger.debug("[Permission] Access granted via valid static API token.")
+             return True
+
+        logger.debug("[Permission] Access denied. No valid session or static token found.")
+        return False
 
