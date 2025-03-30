@@ -21,10 +21,22 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "openai>=1.58.1", "openai-agents", "django>=4.2,<5.0", "djangorestframework>=3.15.2",
-    "pyinstaller>=6.12.0", "typer>=0.9", "platformdirs>=4.0", "userpath>=1.8",
-    "django-allauth>=65.6.0", "python-dotenv>=1.0.1", "whitenoise>=6.8.2",
-    "drf-spectacular>=0.23.0", "django-cors-headers>=4.7.0",
+    "openai>=1.58.1",
+    "openai-agents",
+    "django>=4.2,<5.0",
+    "djangorestframework>=3.15.2",
+    "pyinstaller>=6.12.0",
+    "typer>=0.9",
+    "platformdirs>=4.0",
+    "userpath>=1.8",
+    "django-allauth>=65.6.0",
+    "python-dotenv>=1.0.1",
+    "whitenoise>=6.8.2",
+    "drf-spectacular>=0.23.0",
+    "django-cors-headers>=4.7.0",
+    "jmespath>=1.0.1",
+    "tiktoken>=0.9.0",
+    "asyncio>=3.4.3",
 ]
 
 [project.urls]
