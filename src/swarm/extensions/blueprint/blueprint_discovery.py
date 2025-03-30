@@ -1,112 +1,126 @@
-"""
-Blueprint Discovery Module for Open Swarm MCP.
-
-This module dynamically discovers and imports blueprints from specified directories.
-It identifies classes derived from BlueprintBase as valid blueprints and extracts their metadata.
-"""
-
+import os
+import importlib
 import importlib.util
 import inspect
-import logging
-import os
+import logging # Ensure logging is imported
+import sys
+from typing import Dict, Type, Any
 from pathlib import Path
-from typing import Dict, List, Any
-from swarm.settings import DEBUG
 
+# *** Define logger EARLIER ***
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 
+# *** Import the ACTUAL BlueprintBase from the likely correct path ***
 try:
-    from .blueprint_base import BlueprintBase
-except ImportError as e:
-    logger.critical(f"Failed to import BlueprintBase: {e}")
-    raise
+    # Adjust this path if BlueprintBase lives elsewhere
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+except ImportError:
+    # This logger call is now safe
+    logger.error("Failed to import BlueprintBase from swarm.extensions.blueprint.blueprint_base. Using placeholder.", exc_info=True)
+    class BlueprintBase: # Fallback placeholder
+        metadata: Dict[str, Any] = {}
+        def __init__(self, *args, **kwargs): pass
+        async def run(self, *args, **kwargs): pass
 
-def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
+
+class BlueprintLoadError(Exception):
+    """Custom exception for errors during blueprint loading."""
+    pass
+
+def _get_blueprint_name_from_dir(dir_name: str) -> str:
+    """Converts directory name (e.g., 'blueprint_my_agent') to blueprint name (e.g., 'my_agent')."""
+    prefix = "blueprint_"
+    if dir_name.startswith(prefix):
+        return dir_name[len(prefix):]
+    return dir_name
+
+def discover_blueprints(blueprint_dir: str) -> Dict[str, Type[BlueprintBase]]:
     """
-    Discover and load blueprints from specified directories.
-    Extract metadata including title, description, and other attributes.
+    Discovers blueprints (subclasses of BlueprintBase) by looking for
+    'blueprint_{name}.py' files within subdirectories of the given blueprint directory.
 
     Args:
-        directories (List[str]): List of directories to search for blueprints.
+        blueprint_dir: The path to the directory containing blueprint subdirectories.
 
     Returns:
-        Dict[str, Dict[str, Any]]: Dictionary containing blueprint metadata.
+        A dictionary mapping blueprint names to their corresponding class objects.
     """
-    blueprints = {}
-    logger.info("Starting blueprint discovery.")
-    swarm_blueprints = os.getenv("SWARM_BLUEPRINTS", "").split(",")
-    if swarm_blueprints and swarm_blueprints[0]:
-        logger.debug(f"Filtering blueprints to: {swarm_blueprints}")
+    logger.info(f"Starting blueprint discovery in directory: {blueprint_dir}")
+    blueprints: Dict[str, Type[BlueprintBase]] = {}
+    base_dir = Path(blueprint_dir).resolve()
 
-    for directory in directories:
-        logger.debug(f"Searching for blueprints in: {directory}")
-        dir_path = Path(directory)
+    if not base_dir.is_dir():
+        logger.error(f"Blueprint directory not found or is not a directory: {base_dir}")
+        return blueprints
 
-        if not dir_path.exists() or not dir_path.is_dir():
-            logger.warning(f"Invalid directory: {directory}. Skipping...")
-            continue
+    # Iterate over items inside the base blueprint directory
+    for item_name in os.listdir(base_dir):
+        item_path = base_dir / item_name
 
-        for blueprint_file in dir_path.rglob("blueprint_*.py"):
-            module_name = blueprint_file.stem
-            blueprint_name = module_name.replace("blueprint_", "")
-            if swarm_blueprints and swarm_blueprints[0] and blueprint_name not in swarm_blueprints:
-                logger.debug(f"Skipping blueprint '{blueprint_name}' not in SWARM_BLUEPRINTS")
-                continue
-            module_path = str(blueprint_file.parent)
+        if not item_path.is_dir():
+            continue # Skip files directly under blueprints/
 
-            logger.debug(f"Found blueprint file: {blueprint_file}")
-            logger.debug(f"Module name: {module_name}, Blueprint name: {blueprint_name}, Module path: {module_path}")
+        # Use directory name as blueprint name (e.g., 'echocraft')
+        blueprint_name = item_name
+        logger.debug(f"Processing potential blueprint '{blueprint_name}' in directory: {item_name}")
 
-            try:
-                spec = importlib.util.spec_from_file_location(module_name, str(blueprint_file))
-                if spec is None or spec.loader is None:
-                    logger.error(f"Cannot load module spec for blueprint file: {blueprint_file}. Skipping.")
-                    continue
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                logger.debug(f"Successfully imported module: {module_name}")
+        # Look for the specific .py file, e.g., blueprint_echocraft.py
+        py_file_name = f"blueprint_{blueprint_name}.py"
+        py_file_path = item_path / py_file_name
 
-                for name, obj in inspect.getmembers(module, inspect.isclass):
-                    if not issubclass(obj, BlueprintBase) or obj is BlueprintBase:
-                        continue
+        if not py_file_path.is_file():
+            # Also check for just {blueprint_name}.py if that's a convention
+            alt_py_file_name = f"{blueprint_name}.py"
+            alt_py_file_path = item_path / alt_py_file_name
+            if alt_py_file_path.is_file():
+                 py_file_path = alt_py_file_path # Use the alternative path
+                 py_file_name = alt_py_file_name
+                 logger.debug(f"Found alternative blueprint file: {py_file_name}")
+            else:
+                 logger.warning(f"Skipping directory '{item_name}': Neither '{py_file_name}' nor '{alt_py_file_name}' found.")
+                 continue
 
-                    logger.debug(f"Discovered blueprint class: {name}")
 
-                    try:
-                        metadata = obj.metadata
-                        if callable(metadata):
-                            metadata = metadata()
-                        elif isinstance(metadata, property):
-                            if metadata.fget is not None:
-                                metadata = metadata.fget(obj)
-                            else:
-                                logger.error(f"Blueprint '{blueprint_name}' property 'metadata' has no getter.")
-                                raise ValueError(f"Blueprint '{blueprint_name}' metadata is inaccessible.")
+        # Construct module import path, e.g., blueprints.echocraft.blueprint_echocraft
+        module_import_path = f"{base_dir.name}.{item_name}.{py_file_path.stem}"
 
-                        if not isinstance(metadata, dict):
-                            logger.error(f"Metadata for blueprint '{blueprint_name}' is not a dictionary.")
-                            raise ValueError(f"Metadata for blueprint '{blueprint_name}' is invalid or inaccessible.")
+        try:
+            # Ensure parent directory is in path
+            parent_dir = str(base_dir.parent)
+            if parent_dir not in sys.path:
+                 logger.debug(f"Adding '{parent_dir}' to sys.path for blueprint discovery.")
+                 sys.path.insert(0, parent_dir)
 
-                        if "title" not in metadata or "description" not in metadata:
-                            logger.error(f"Required metadata fields (title, description) are missing for blueprint '{blueprint_name}'.")
-                            raise ValueError(f"Metadata for blueprint '{blueprint_name}' is invalid or inaccessible.")
+            # Create module spec from file path
+            module_spec = importlib.util.spec_from_file_location(module_import_path, py_file_path)
 
-                    except Exception as e:
-                        logger.error(f"Error retrieving metadata for blueprint '{blueprint_name}': {e}")
-                        continue
+            if module_spec and module_spec.loader:
+                module = importlib.util.module_from_spec(module_spec)
+                sys.modules[module_import_path] = module
+                module_spec.loader.exec_module(module)
+                logger.debug(f"Successfully loaded module: {module_import_path}")
 
-                    blueprints[blueprint_name] = {
-                        "blueprint_class": obj,
-                        "title": metadata["title"],
-                        "description": metadata["description"],
-                    }
-                    logger.debug(f"Added blueprint '{blueprint_name}' with metadata: {metadata}")
-            except ImportError as e:
-                logger.error(f"Failed to import module '{module_name}': {e}")
-            except Exception as e:
-                logger.error(f"Unexpected error importing '{module_name}': {e}", exc_info=True)
+                found_bp_class = None
+                for name, obj in inspect.getmembers(module):
+                    if inspect.isclass(obj) and obj.__module__ == module_import_path and issubclass(obj, BlueprintBase) and obj is not BlueprintBase:
+                        if found_bp_class:
+                            logger.warning(f"Multiple BlueprintBase subclasses found in {py_file_name}. Using the first: {found_bp_class.__name__}.")
+                        else:
+                            logger.debug(f"Found Blueprint class '{name}' in module '{module_import_path}'")
+                            found_bp_class = obj
+                            blueprints[blueprint_name] = found_bp_class
+                            # break
 
-    logger.info("Blueprint discovery complete.")
-    logger.debug(f"Discovered blueprints: {list(blueprints.keys())}")
+                if not found_bp_class:
+                    logger.warning(f"No BlueprintBase subclass found directly defined in module: {module_import_path}")
+            else:
+                logger.warning(f"Could not create module spec for {py_file_path}")
+
+        except Exception as e:
+            logger.error(f"Error processing blueprint file '{py_file_path}': {e}", exc_info=True)
+            if module_import_path in sys.modules:
+                 del sys.modules[module_import_path]
+
+    logger.info(f"Blueprint discovery complete. Found: {list(blueprints.keys())}")
     return blueprints
+
