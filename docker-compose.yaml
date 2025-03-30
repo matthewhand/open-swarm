@@ -1,24 +1,34 @@
+# docker-compose.yaml (V2 Syntax - Base Configuration)
+
 services:
   open-swarm:
+    # Default to using a pre-built image
     image: mhand79/open-swarm:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: open-swarm
     environment:
       - OPENAI_API_KEY
       - PORT=${PORT:-8000}
+      - PYTHONUNBUFFERED=1
+      - DJANGO_LOG_LEVEL=DEBUG
+      - SWARM_LOG_LEVEL=DEBUG
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     env_file:
       - .env
     volumes:
-      - ./sql-data/:/mnt/sqlite_data/
-      - ./blueprints:/app/blueprints
-      - ./swarm_config.json:/app/swarm_config.json
+      # Map blueprints and config for the API to potentially use
+      - ./blueprints:/app/blueprints:ro
+      - ./swarm_config.json:/app/swarm_config.json:ro
+      - ./db.sqlite3:/app/db.sqlite3
+      # Optional persistent user dirs (use with caution)
+      # - ~/.local/share/swarm:/home/chatgpt/.local/share/swarm
+      # - ~/.config/swarm:/home/chatgpt/.config/swarm
+    # entrypoint: directive REMOVED - rely on Dockerfile CMD or override
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    # depends_on:
+    #   - redis
 
   redis:
     image: redis:alpine
@@ -26,3 +36,4 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     restart: unless-stopped
+
