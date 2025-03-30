@@ -4,18 +4,22 @@ from rest_framework.authentication import (
 )
 from rest_framework import exceptions
 from django.utils.translation import gettext_lazy as _
+# We need async_to_sync to call async code from sync code
+# We still need sync_to_async for the DB helper itself
+from asgiref.sync import sync_to_async, async_to_sync
+# Keep original helpers
 from django.contrib.auth import get_user, SESSION_KEY
-from asgiref.sync import sync_to_async # Keep sync_to_async for DB calls
 
 # Use a specific logger for auth related messages
 logger = logging.getLogger('swarm.auth')
 
-# --- Async Token Authentication ---
-
+# --- Async DB Helper ---
+# This remains async as it performs DB I/O
 @sync_to_async
 def get_token_from_db(model, key):
     logger.debug(f"[Auth][Token] Attempting DB lookup for key: {key[:6]}...")
     try:
+        # Ensure user is selected to avoid N+1 in sync context
         token = model.objects.select_related("user").get(key=key)
         logger.debug(f"[Auth][Token] DB lookup successful for key: {key[:6]}..., User: {token.user.username}")
         return token
@@ -24,38 +28,42 @@ def get_token_from_db(model, key):
         return None
     except Exception as e:
         logger.error(f"[Auth][Token] DB lookup unexpected error for key {key[:6]}...: {e}", exc_info=True)
-        return None
+        return None # Or re-raise depending on desired behavior
 
-class AsyncTokenAuthentication(TokenAuthentication):
+# --- Custom *Synchronous* Token Authentication ---
+class CustomTokenAuthentication(TokenAuthentication):
     """
-    An async-aware version of TokenAuthentication.
-    The authenticate method is async, suitable for async views/tests.
+    Standard TokenAuthentication, but uses an async helper for the DB lookup.
+    The main authenticate methods are synchronous to align with DRF's standard flow.
     """
+    keyword = 'Bearer' # Or 'Token' depending on your desired header
 
+    # Override get_authorization_header if needed (like DRF's does)
     def get_authorization_header(self, request):
         auth = request.META.get('HTTP_AUTHORIZATION', b'')
         if isinstance(auth, str):
+            # Ensure encoding is handled correctly.
             auth = auth.encode(HTTP_HEADER_ENCODING)
         return auth
 
-    # This method MUST be async when called from an async context (like AsyncClient)
-    async def authenticate(self, request):
-        logger.debug("[Auth][Token] AsyncTokenAuthentication.authenticate called.")
+    # This method is synchronous as per DRF's standard APIView flow
+    def authenticate(self, request):
+        logger.debug("[Auth][Token] CustomTokenAuthentication.authenticate called.")
         auth = self.get_authorization_header(request).split()
         logger.debug(f"[Auth][Token] Authorization header parts: {auth}")
 
         if not auth or auth[0].lower() != self.keyword.lower().encode():
-            logger.debug(f"[Auth][Token] No auth header or incorrect keyword '{self.keyword}'. Expected: {self.keyword.lower().encode()}. Got: {auth[0].lower() if auth else 'N/A'}")
-            return None
+            logger.debug(f"[Auth][Token] No auth header or incorrect keyword '{self.keyword}'.")
+            return None # No credentials provided, DRF expects None here
 
         if len(auth) == 1:
             msg = _("Invalid token header. No credentials provided.")
             logger.warning(f"[Auth][Token] {msg}")
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(msg) # Raise exception for invalid format
         elif len(auth) > 2:
             msg = _("Invalid token header. Token string should not contain spaces.")
             logger.warning(f"[Auth][Token] {msg}")
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(msg) # Raise exception for invalid format
 
         try:
             key = auth[1].decode()
@@ -63,28 +71,27 @@ class AsyncTokenAuthentication(TokenAuthentication):
         except UnicodeError:
             msg = _("Invalid token header. Token string should not contain invalid characters.")
             logger.warning(f"[Auth][Token] {msg}")
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(msg) # Raise exception for invalid format
 
-        # Directly await the async credentials check
-        try:
-             logger.debug(f"[Auth][Token] Awaiting authenticate_credentials for key: {key[:6]}...")
-             user_token_tuple = await self.authenticate_credentials(key)
-             logger.debug(f"[Auth][Token] authenticate_credentials completed. Result: {user_token_tuple}")
-             return user_token_tuple
-        except exceptions.AuthenticationFailed as e:
-             logger.warning(f"[Auth][Token] AuthenticationFailed raised during authenticate_credentials: {e.detail}")
-             raise e # Re-raise auth exceptions
-        except Exception as e:
-             logger.error(f"[Auth][Token] Unexpected error during authenticate_credentials: {e}", exc_info=True)
-             raise exceptions.AuthenticationFailed(_("Token authentication failed due to an internal error."))
+        # Call the synchronous credentials check
+        # Exceptions raised within authenticate_credentials will propagate
+        return self.authenticate_credentials(key)
 
-
-    async def authenticate_credentials(self, key):
+    # This method remains synchronous
+    def authenticate_credentials(self, key):
         logger.debug(f"[Auth][Token] authenticate_credentials started for key: {key[:6]}...")
         model = self.get_model()
-        token = await get_token_from_db(model, key) # Await the async DB call
+
+        try:
+            # *** Use async_to_sync to call the async DB helper ***
+            token = async_to_sync(get_token_from_db)(model, key)
+        except Exception as e:
+             # Catch potential errors during async_to_sync execution if needed
+             logger.error(f"[Auth][Token] Error calling async DB helper via async_to_sync: {e}", exc_info=True)
+             raise exceptions.AuthenticationFailed(_("Internal error during token validation."))
 
         if token is None:
+            logger.warning(f"[Auth][Token] Token lookup returned None for key {key[:6]}...")
             raise exceptions.AuthenticationFailed(_("Invalid token."))
 
         if not token.user.is_active:
@@ -92,64 +99,19 @@ class AsyncTokenAuthentication(TokenAuthentication):
             raise exceptions.AuthenticationFailed(_("User inactive or deleted."))
 
         logger.info(f"[Auth][Token] Authentication successful for user: {token.user.username}")
+        # Return the tuple expected by DRF
         return (token.user, token)
 
-# --- Async Session Authentication ---
-
-@sync_to_async
-def get_user_from_session(request):
+# --- Custom *Synchronous* Session Authentication ---
+# Inherit directly from DRF's SessionAuthentication
+class CustomSessionAuthentication(SessionAuthentication):
     """
-    Synchronous helper to get user from session, wrapped for async context.
-    This encapsulates the potentially blocking parts of Django's session/auth middleware logic.
+    Standard SessionAuthentication. Django's session and user loading
+    mechanisms called within are synchronous.
     """
-    user = getattr(request, '_cached_user', None)
-    if user is not None:
-        logger.debug("[Auth][Session] Using cached user from request.")
-        return user
-
-    # This mimics parts of AuthenticationMiddleware and get_user
-    session_key = request.session.get(SESSION_KEY)
-    if session_key is None:
-        logger.debug("[Auth][Session] No session key found.")
-        return None
-
-    try:
-        # The get_user function handles the DB lookup
-        user = get_user(request)
-        logger.debug(f"[Auth][Session] User retrieved from session: {user}")
-        # Cache user for subsequent calls within the same request
-        request._cached_user = user
-        return user
-    except Exception as e:
-        # Catch potential errors during session/user loading
-        logger.error(f"[Auth][Session] Error retrieving user from session: {e}", exc_info=True)
-        return None
-
-
-class AsyncSessionAuthentication(SessionAuthentication):
-    """
-    An async-aware version of SessionAuthentication.
-    """
-    async def authenticate(self, request):
-        """
-        Returns a `User` if the request session currently has a logged in user.
-        Otherwise returns `None`.
-        """
-        logger.debug("[Auth][Session] AsyncSessionAuthentication.authenticate called.")
-        # We use a helper function wrapped in sync_to_async to handle the sync parts
-        # This still might cause issues if called during the wrong part of the loop
-        user = await get_user_from_session(request)
-
-        if user is None:
-             logger.debug("[Auth][Session] No user retrieved from session helper.")
-             return None
-
-        # Standard SessionAuthentication checks (CSRF, active user)
-        self.enforce_csrf(request)
-        if not user.is_active:
-            logger.warning(f"[Auth][Session] User '{user.username}' is inactive.")
-            raise exceptions.AuthenticationFailed(_("User inactive or deleted."))
-
-        logger.info(f"[Auth][Session] Authentication successful for user: {user.username}")
-        return (user, None)
+    # No need to override authenticate unless adding custom logic.
+    # DRF's default authenticate method will be called.
+    # It internally accesses request.user, which triggers Django's
+    # synchronous session/user loading middleware logic.
+    pass # Inherit standard behavior
 
