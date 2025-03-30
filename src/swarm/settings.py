@@ -18,35 +18,19 @@ from dotenv import load_dotenv # Import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Load .env file ---
-# Load environment variables from .env file, if it exists
-# This should be early, before accessing os.getenv for settings
-load_dotenv(BASE_DIR.parent / '.env') # Load .env from the project root (one level up from src)
+load_dotenv(BASE_DIR.parent / '.env')
 # ---
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-dev') # Use env var or fallback
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't') # Default to True for dev
-
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-dev')
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # --- Custom Swarm Settings ---
-# Flag to enable API Key authentication (can be overridden by runserver command)
 ENABLE_API_AUTH = False
-# API Key storage (will be populated by runserver if --enable-auth is used and key exists)
 SWARM_API_KEY = None
-# Path to the main swarm configuration file
 SWARM_CONFIG_PATH = os.getenv('SWARM_CONFIG_PATH', str(BASE_DIR.parent / 'swarm_config.json'))
-# Directory containing blueprints
 BLUEPRINT_DIRECTORY = os.getenv('BLUEPRINT_DIRECTORY', str(BASE_DIR.parent / 'blueprints'))
 # --- End Custom Swarm Settings ---
-
-
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -55,24 +39,20 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third-party apps
     'rest_framework',
-    'rest_framework.authtoken', # Added for token authentication
-    'drf_spectacular',          # Added for OpenAPI schema generation
-    # Your apps
-    'swarm', # Add your main app
+    'rest_framework.authtoken',
+    'drf_spectacular',
+    'swarm',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware', # Must come before Auth middleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware', # Standard auth middleware
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Add custom middleware if needed, e.g., for request logging
-    # 'swarm.middleware.RequestLoggingMiddleware',
 ]
 
 ROOT_URLCONF = 'swarm.urls'
@@ -80,7 +60,7 @@ ROOT_URLCONF = 'swarm.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'], # Add project-level templates directory
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -94,166 +74,82 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'swarm.wsgi.application'
-ASGI_APPLICATION = 'swarm.asgi.application' # Specify ASGI application
-
-
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+ASGI_APPLICATION = 'swarm.asgi.application'
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR.parent / 'db.sqlite3', # Store DB in project root
+        'NAME': BASE_DIR.parent / 'db.sqlite3',
     }
 }
 
-
-# Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
-
-
-# Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/
-
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR.parent / 'staticfiles' # For collectstatic
-STATICFILES_DIRS = [
-    BASE_DIR / "static", # Project-level static files
-]
-
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
+STATICFILES_DIRS = [ BASE_DIR / "static", ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django REST Framework Settings
 REST_FRAMEWORK = {
-    # Use Django's standard `django.contrib.auth` permissions,
-    # or allow read-only access for unauthenticated users.
-    # 'DEFAULT_PERMISSION_CLASSES': [
-    #     'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
-    # ],
-    # Use TokenAuthentication globally
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication', # Keep session auth for web UI
-        'rest_framework.authentication.TokenAuthentication',
+        # *** USE CUSTOM ASYNC AUTHENTICATION BACKENDS ***
+        'swarm.auth.AsyncSessionAuthentication', # Use custom async session auth
+        'swarm.auth.AsyncTokenAuthentication',   # Use custom async token auth
+        # 'rest_framework.authentication.SessionAuthentication', # Comment out default
+        # 'rest_framework.authentication.TokenAuthentication', # Comment out default
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    # Add other DRF settings as needed
+    # 'DEFAULT_PERMISSION_CLASSES': [ # Keep permissions commented out for now
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ]
 }
 
-# drf-spectacular settings (Optional: customize schema generation)
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Open Swarm API',
     'DESCRIPTION': 'API for managing autonomous agent swarms',
     'VERSION': '0.2.0',
-    'SERVE_INCLUDE_SCHEMA': False, # Usually served by separate endpoint
-    # OTHER SETTINGS
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# Logging Configuration (Example)
+# Logging Configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'verbose': {
-            'format': '[{levelname}] {asctime} - {name}:{lineno} - {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '[{levelname}] {message}',
-            'style': '{',
-        },
+        'verbose': { 'format': '[{levelname}] {asctime} - {name}:{lineno} - {message}', 'style': '{', },
+        'simple': { 'format': '[{levelname}] {message}', 'style': '{', },
     },
     'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose', # Use verbose format for console
-        },
-        # Add file handler if needed
-        # 'file': {
-        #     'level': 'DEBUG',
-        #     'class': 'logging.FileHandler',
-        #     'filename': BASE_DIR.parent / 'debug.log',
-        #     'formatter': 'verbose',
-        # },
+        'console': { 'class': 'logging.StreamHandler', 'formatter': 'verbose', },
     },
     'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
-            'propagate': False,
-        },
-        'swarm': { # Logger for your app
-            'handlers': ['console'],
-            'level': 'DEBUG', # Set your app's log level
-            'propagate': False,
-        },
-         # Add specific loggers for blueprints or extensions if needed
-        'swarm.extensions': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'swarm.views': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        # Example blueprint logger
-        'blueprint_django_chat': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
+        'django': { 'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'), 'propagate': False, },
+        'swarm': { 'handlers': ['console'], 'level': os.getenv('SWARM_LOG_LEVEL', 'DEBUG'), 'propagate': False, }, # Ensure swarm is DEBUG
+        'swarm.auth': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, }, # Explicitly set auth logger
+        'swarm.views': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, }, # Ensure views are DEBUG
+        'blueprint_django_chat': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        'print_debug': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
     },
-    'root': { # Catch-all logger
-        'handlers': ['console'],
-        'level': 'WARNING', # Set root level higher to avoid too much noise
-    },
+    'root': { 'handlers': ['console'], 'level': 'WARNING', },
 }
 
-
-# Redis Settings (Optional, if using Redis)
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
-# REDIS_DB = int(os.getenv('REDIS_DB', '0'))
-# REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
 
-# Add any other settings below
-
-LOGIN_URL = '/login/' # Or your custom login URL
-LOGIN_REDIRECT_URL = '/' # Redirect after login
-LOGOUT_REDIRECT_URL = '/' # Redirect after logout
-
-# Ensure CSRF is handled correctly, especially if mixing session and token auth
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
