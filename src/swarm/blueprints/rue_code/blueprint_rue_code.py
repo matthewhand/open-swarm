@@ -1,352 +1,291 @@
 import logging
 import os
 import sys
-import asyncio
+import json
 import subprocess
+from typing import Dict, List, Any, AsyncGenerator, Optional
+from pathlib import Path
 import re
-import inspect # Needed for filtering kwargs
-from typing import Dict, Any, List, Optional, ClassVar
 
-try:
-    from agents import Agent, Tool, function_tool
-    from agents.mcp import MCPServer
-    from agents.models.interface import Model # Base class for type hints
-    # Explicitly import the model classes we need
-    from agents.models.openai_responses import OpenAIResponsesModel
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-    # Need the OpenAI client class
-    from openai import AsyncOpenAI
-except ImportError as e:
-    print(f"ERROR: Import failed: {e}. Check 'openai-agents' install and project structure.")
-    print(f"sys.path: {sys.path}")
-    sys.exit(1)
-
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Tools (remain unchanged) ---
-@function_tool
-def execute_command(command: str) -> str:
-    """Executes a shell command. Use for tests, linting, git status/diff etc. Returns exit code, stdout, stderr."""
+# Attempt to import BlueprintBase, handle potential ImportError during early setup/testing
+try:
+    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+except ImportError as e:
+    logger.error(f"Import failed: {e}. Check 'openai-agents' install and project structure.")
+    # *** REMOVED sys.exit(1) ***
+    # Define a dummy class if import fails, allowing module to load for inspection/debugging
+    class BlueprintBase:
+        metadata = {}
+        def __init__(self, *args, **kwargs): pass
+        async def run(self, *args, **kwargs): yield {}
+
+# --- Tool Definitions ---
+
+def execute_shell_command(command: str) -> str:
+    """
+    Executes a shell command and returns its stdout and stderr.
+    Security Note: Ensure commands are properly sanitized or restricted.
+    """
     logger.info(f"Executing shell command: {command}")
-    if not command: return "Error: No command provided."
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False, shell=True)
-        output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
-        logger.debug(f"Command '{command}' result:\n{output}")
-        return output
-    except FileNotFoundError:
-        cmd_base = command.split()[0] if command else ""
-        logger.error(f"Command not found: {cmd_base}")
-        return f"Error: Command not found - {cmd_base}"
+        result = subprocess.run(
+            command,
+            shell=True,
+            check=False, # Don't raise exception on non-zero exit code
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=60 # Add a timeout
+        )
+        output = f"Exit Code: {result.returncode}\n"
+        if result.stdout:
+            output += f"STDOUT:\n{result.stdout}\n"
+        if result.stderr:
+            output += f"STDERR:\n{result.stderr}\n"
+        logger.info(f"Command finished. Exit Code: {result.returncode}")
+        return output.strip()
     except subprocess.TimeoutExpired:
-        logger.error(f"Command '{command}' timed out after 60 seconds.")
-        return f"Error: Command '{command}' timed out."
+        logger.error(f"Command timed out: {command}")
+        return "Error: Command timed out after 60 seconds."
     except Exception as e:
-        logger.error(f"Error executing command '{command}': {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(f"Error executing command '{command}': {e}", exc_info=True)
         return f"Error executing command: {e}"
 
-@function_tool
-def read_file(path: str, include_line_numbers: bool = False) -> str:
-    """Reads file content. Set include_line_numbers=True for context when modifying code."""
-    logger.info(f"Reading file: {path}")
+def read_file(file_path: str) -> str:
+    """Reads the content of a specified file."""
+    logger.info(f"Reading file: {file_path}")
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            if include_line_numbers:
-                lines = [f'{i + 1}: {line}' for i, line in enumerate(f)]
-                content = "".join(lines)
-            else:
-                content = f.read()
-            logger.debug(f"Read {len(content)} characters from {path}.")
-            return content
-    except FileNotFoundError:
-        logger.warning(f"File not found: {path}")
-        return f"Error: File not found at path: {path}"
+        # Basic path traversal check (can be enhanced)
+        if ".." in file_path:
+             logger.warning(f"Attempted path traversal detected in read_file: {file_path}")
+             return "Error: Invalid file path (potential traversal)."
+        # Consider restricting base path if needed
+        # base_path = Path("/workspace").resolve()
+        # target_path = (base_path / file_path).resolve()
+        # if not target_path.is_relative_to(base_path):
+        #     return "Error: Access denied."
+
+        path = Path(file_path)
+        if not path.is_file():
+            return f"Error: File not found at {file_path}"
+        content = path.read_text(encoding='utf-8')
+        logger.info(f"Successfully read {len(content)} characters from {file_path}")
+        # Truncate long files?
+        max_len = 10000
+        if len(content) > max_len:
+             logger.warning(f"File {file_path} truncated to {max_len} characters.")
+             return content[:max_len] + "\n... [File Truncated]"
+        return content
     except Exception as e:
-        logger.error(f"Error reading file {path}: {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(f"Error reading file '{file_path}': {e}", exc_info=True)
         return f"Error reading file: {e}"
 
-@function_tool
-def write_to_file(path: str, content: str) -> str:
-    """Writes content to a file (overwrites), creating directories. Ensures path is within CWD."""
-    logger.info(f"Writing {len(content)} characters to file: {path}")
+def write_file(file_path: str, content: str) -> str:
+    """Writes content to a specified file, creating directories if needed."""
+    logger.info(f"Writing to file: {file_path}")
     try:
-        abs_path_obj = Path(path).resolve()
-        cwd_obj = Path.cwd().resolve()
-        if not str(abs_path_obj).startswith(str(cwd_obj)):
-             logger.error(f"Attempted write outside CWD denied: {path} (resolved to {abs_path_obj})")
-             return f"Error: Cannot write outside current working directory: {path}"
-        abs_path_obj.parent.mkdir(parents=True, exist_ok=True)
-        with open(abs_path_obj, "w", encoding="utf-8") as f:
-            f.write(content)
-        logger.debug(f"Successfully wrote to {abs_path_obj}.")
-        return f"OK: Wrote {len(content)} characters to {path}."
+        # Basic path traversal check
+        if ".." in file_path:
+             logger.warning(f"Attempted path traversal detected in write_file: {file_path}")
+             return "Error: Invalid file path (potential traversal)."
+        # Consider restricting base path
+
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding='utf-8')
+        logger.info(f"Successfully wrote {len(content)} characters to {file_path}")
+        return f"Successfully wrote to {file_path}"
     except Exception as e:
-        logger.error(f"Error writing file {path}: {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(f"Error writing file '{file_path}': {e}", exc_info=True)
         return f"Error writing file: {e}"
 
-@function_tool
-def apply_diff(path: str, search: str, replace: str) -> str:
-    """Applies search/replace to a file using its current content."""
-    logger.info(f"Applying diff to file: {path} (search: '{search[:30]}...', replace: '{replace[:30]}...')")
+def list_files(directory_path: str = ".") -> str:
+    """Lists files and directories in a specified path."""
+    logger.info(f"Listing files in directory: {directory_path}")
     try:
-        safe_path_obj = Path(path).resolve()
-        cwd_obj = Path.cwd().resolve()
-        if not str(safe_path_obj).startswith(str(cwd_obj)):
-            return f"Error: Cannot apply diff outside CWD: {path}"
-        if not safe_path_obj.is_file():
-            return f"Error: File not found for diff: {path}"
-        read_result = read_file(path)
-        if read_result.startswith("Error:"):
-            return f"Error reading file for diff: {read_result}"
-        original_content = read_result
-        updated_content = original_content.replace(search, replace)
-        if original_content == updated_content:
-            logger.warning(f"Search string not found in {path}, no changes applied.")
-            return f"Warning: Search string not found in {path}."
-        write_result = write_to_file(path, updated_content)
-        if write_result.startswith("Error:"):
-            return f"Error writing updated content after diff: {write_result}"
-        logger.debug(f"Successfully applied diff to {path}.")
-        return f"OK: Applied diff to {path}."
-    except Exception as e:
-        logger.error(f"Error applying diff to {path}: {e}", exc_info=logger.level <= logging.DEBUG)
-        return f"Error applying diff: {e}"
+        # Basic path traversal check
+        if ".." in directory_path:
+             logger.warning(f"Attempted path traversal detected in list_files: {directory_path}")
+             return "Error: Invalid directory path (potential traversal)."
+        # Consider restricting base path
 
-@function_tool
-def search_files(directory: str, pattern: str, recursive: bool = True, case_insensitive: bool = False) -> str:
-    """Searches files within a directory for a regex pattern."""
-    logger.info(f"Searching for pattern '{pattern}' in directory '{directory}' (recursive={recursive}, case_insensitive={case_insensitive})")
-    matches = []; flags = re.IGNORECASE if case_insensitive else 0
-    try:
-        regex = re.compile(pattern, flags=flags)
-    except re.error as e:
-        logger.error(f"Invalid regex pattern '{pattern}': {e}")
-        return f"Error: Invalid regex pattern provided: {e}"
-    try:
-        safe_dir_obj = Path(directory).resolve()
-        cwd_obj = Path.cwd().resolve()
-        if not str(safe_dir_obj).startswith(str(cwd_obj)) and safe_dir_obj != cwd_obj:
-             logger.warning(f"Search directory '{directory}' resolves outside CWD to '{safe_dir_obj}'. Restricting search to CWD.")
-             safe_dir_obj = cwd_obj
-        if not safe_dir_obj.is_dir():
-            logger.error(f"Search directory not found: {safe_dir_obj}")
-            return f"Error: Search directory not found: {directory}"
-        search_method = safe_dir_obj.rglob if recursive else safe_dir_obj.glob
-        for item_path in search_method("*"):
-            if item_path.is_file() and not item_path.name.startswith('.'):
-                 try:
-                     content = item_path.read_text(encoding="utf-8", errors='ignore')
-                     if regex.search(content):
-                         matches.append(str(item_path.relative_to(cwd_obj)))
-                 except Exception as read_err:
-                     logger.debug(f"Could not read or search file {item_path}: {read_err}")
-                     pass
-    except Exception as e:
-        logger.error(f"Error during file search in '{directory}': {e}", exc_info=logger.level <= logging.DEBUG)
-        return f"Error during file search: {e}"
-    if not matches:
-        logger.info(f"No files found matching pattern '{pattern}' in '{directory}'.")
-        return f"No files found matching '{pattern}'."
-    result_str = f"Found {len(matches)} file(s) matching '{pattern}':\n" + "\n".join(sorted(matches))
-    logger.debug(f"Search results for '{pattern}':\n{result_str}")
-    return result_str
+        path = Path(directory_path)
+        if not path.is_dir():
+            return f"Error: Directory not found at {directory_path}"
 
-@function_tool
-def list_files(directory: str) -> str:
-    """Lists files recursively within a directory (excluding hidden files/dirs)."""
-    logger.info(f"Listing files in directory: {directory}")
-    file_list = []
-    try:
-        safe_dir_obj = Path(directory).resolve()
-        cwd_obj = Path.cwd().resolve()
-        if not str(safe_dir_obj).startswith(str(cwd_obj)) and safe_dir_obj != cwd_obj:
-            logger.warning(f"List directory '{directory}' resolves outside CWD to '{safe_dir_obj}'. Restricting list to CWD.")
-            safe_dir_obj = cwd_obj
-        if not safe_dir_obj.is_dir():
-            logger.error(f"List directory not found: {safe_dir_obj}")
-            return f"Error: Directory not found: {directory}"
-        for item_path in safe_dir_obj.rglob('*'):
-            if any(part.startswith('.') for part in item_path.relative_to(safe_dir_obj).parts): continue
-            if item_path.is_file():
-                try: file_list.append(str(item_path.relative_to(safe_dir_obj)))
-                except ValueError: file_list.append(str(item_path))
+        entries = []
+        for entry in path.iterdir():
+            entry_type = "d" if entry.is_dir() else "f"
+            entries.append(f"{entry_type} {entry.name}")
+
+        logger.info(f"Found {len(entries)} entries in {directory_path}")
+        return "\n".join(entries) if entries else "Directory is empty."
     except Exception as e:
-        logger.error(f"Error listing files in '{directory}': {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(f"Error listing files in '{directory_path}': {e}", exc_info=True)
         return f"Error listing files: {e}"
-    if not file_list:
-        logger.info(f"No non-hidden files found in '{directory}'.")
-        return f"No non-hidden files found in '{directory}'."
-    result_str = f"Files found in '{directory}':\n" + "\n".join(sorted(file_list))
-    logger.debug(f"List files result:\n{result_str}")
-    return result_str
 
-@function_tool
-def prepare_git_commit(commit_message: str, add_all: bool = True) -> str:
-    """Stages changes ('git add .' or 'git add -u') and commits them."""
-    logger.info(f"Preparing Git commit: '{commit_message}' (Add all: {add_all})")
-    status_cmd = "git status --porcelain"; add_cmd = "git add ." if add_all else "git add -u"
-    status_result = execute_command(status_cmd)
-    if status_result.startswith("Error:"): return f"Error checking git status: {status_result}"
-    stdout_match = re.search(r"STDOUT:\n(.*?)(?:\nSTDERR:|\Z)", status_result, re.DOTALL)
-    stdout_part = stdout_match.group(1).strip() if stdout_match else ""
-    if not stdout_part:
-        logger.info("No changes detected by 'git status --porcelain'.")
-        return "No changes detected to commit."
-    logger.info(f"Staging changes using: {add_cmd}")
-    add_result = execute_command(add_cmd);
-    if add_result.startswith("Error:") or "Exit Code: 0" not in add_result:
-        logger.error(f"Error staging files: {add_result}")
-        return f"Error staging files: {add_result}"
-    safe_commit_message = commit_message.replace('"', '\\"')
-    commit_cmd = f'git commit -m "{safe_commit_message}"';
-    logger.info(f"Executing commit command: {commit_cmd}")
-    commit_result = execute_command(commit_cmd)
-    if commit_result.startswith("Error:") or "Exit Code: 0" not in commit_result:
-         logger.error(f"Error during git commit: {commit_result}")
-         return f"Error during git commit: {commit_result}"
-    logger.info(f"Successfully committed '{commit_message}'.")
-    return f"OK: Committed '{commit_message}'.\nCommit Output:\n{commit_result}"
+# --- RueCodeBlueprint Definition ---
 
-# --- Agent Definitions ---
-SHARED_INSTRUCTIONS_TEMPLATE = """
-CONTEXT: You are {agent_name}, a specialist member of the Rue-Code AI development team. Your goal is {role_goal}.
-The team collaborates to fulfill user requests under the direction of the Coordinator.
-Always respond ONLY to the agent who gave you the task (usually the Coordinator). Be clear and concise.
-
-TEAM ROLES & CAPABILITIES:
-- Coordinator: User Interface, Planner, Delegator, Reviewer. Uses Agent Tools to delegate. Can use `list_files` and `execute_command` ('git status') directly for simple checks.
-- Code (Agent Tool `Code`): Implements/modifies code. Function Tools: `read_file`, `write_to_file`, `apply_diff`, `list_files`.
-- Architect (Agent Tool `Architect`): Designs architecture, researches solutions. Function Tools: `search_files`, `read_file`, `write_to_file` (for *.md files). MCP Tools: `brave-search` for web research.
-- QualityAssurance (QA) (Agent Tool `QualityAssurance`): Runs tests & linters. Function Tools: `execute_command` (e.g., 'pytest', 'npm test', 'eslint').
-- GitManager (Agent Tool `GitManager`): Manages version control. Function Tools: `prepare_git_commit`, `execute_command` (e.g., 'git status', 'git diff').
-
-YOUR SPECIFIC TASK INSTRUCTIONS:
-{specific_instructions}
-"""
-# Agent __init__ methods use **kwargs filtering
-class CoordinatorAgent(Agent):
-    def __init__(self, team_tools: List[Tool], mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
-        specific_instructions = "..." # Keep brief
-        instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="coordinate the team", specific_instructions=specific_instructions)
-        effective_mcp_servers = mcp_servers if mcp_servers is not None else []
-        agent_kwargs = {k: v for k, v in kwargs.items() if k in inspect.signature(Agent.__init__).parameters}
-        super().__init__(name="Coordinator", instructions=instructions, tools=[list_files, execute_command] + team_tools, mcp_servers=effective_mcp_servers, **agent_kwargs)
-class CodeAgent(Agent):
-    def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
-        specific_instructions = "..." # Keep brief
-        instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="implement code changes", specific_instructions=specific_instructions)
-        effective_mcp_servers = mcp_servers if mcp_servers is not None else []
-        agent_kwargs = {k: v for k, v in kwargs.items() if k in inspect.signature(Agent.__init__).parameters}
-        super().__init__(name="Code", instructions=instructions, tools=[read_file, write_to_file, apply_diff, list_files], mcp_servers=effective_mcp_servers, **agent_kwargs)
-class ArchitectAgent(Agent):
-     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
-         specific_instructions = "..." # Keep brief
-         instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="design systems", specific_instructions=specific_instructions)
-         effective_mcp_servers = mcp_servers if mcp_servers is not None else []
-         agent_kwargs = {k: v for k, v in kwargs.items() if k in inspect.signature(Agent.__init__).parameters}
-         super().__init__(name="Architect", instructions=instructions, tools=[read_file, write_to_file, search_files, list_files], mcp_servers=effective_mcp_servers, **agent_kwargs)
-class QualityAssuranceAgent(Agent):
-     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
-         specific_instructions = "..." # Keep brief
-         instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal="ensure quality", specific_instructions=specific_instructions)
-         effective_mcp_servers = mcp_servers if mcp_servers is not None else []
-         agent_kwargs = {k: v for k, v in kwargs.items() if k in inspect.signature(Agent.__init__).parameters}
-         super().__init__(name="QualityAssurance", instructions=instructions, tools=[execute_command], mcp_servers=effective_mcp_servers, **agent_kwargs)
-class GitManagerAgent(Agent):
-     def __init__(self, mcp_servers: Optional[List[MCPServer]] = None, **kwargs):
-         specific_instructions = "..." # Keep brief
-         instructions = SHARED_INSTRUCTIONS_TEMPLATE.format(agent_name=self.__class__.__name__, role_goal='manage version control', specific_instructions=specific_instructions)
-         effective_mcp_servers = mcp_servers if mcp_servers is not None else []
-         agent_kwargs = {k: v for k, v in kwargs.items() if k in inspect.signature(Agent.__init__).parameters}
-         super().__init__(name="GitManager", instructions=instructions, tools=[prepare_git_commit, execute_command], mcp_servers=effective_mcp_servers, **agent_kwargs)
-
-# --- Define the Blueprint ---
 class RueCodeBlueprint(BlueprintBase):
-    metadata: ClassVar[Dict[str, Any]] = {
-        "name": "RueCodeBlueprint", "title": "Rue-Code AI Dev Team",
-        "description": "An automated coding team using openai-agents.", "version": "1.3.0",
-        "author": "Open Swarm Team", "tags": ["code", "dev", "mcp", "multi-agent"],
-        "required_mcp_servers": ["brave-search"],
+    """
+    A blueprint designed for code generation, execution, and file system interaction.
+    Uses Jinja2 for templating prompts and provides tools for shell commands and file operations.
+    """
+    metadata = {
+        "name": "RueCode",
+        "description": "Generates, executes code, and interacts with the file system.",
+        "author": "Matthew Hand",
+        "version": "0.1.0",
+        "tags": ["code", "execution", "filesystem", "developer"],
+        "llm_profile": "default_dev" # Example: Suggests a profile suitable for coding
     }
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
 
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Gets or creates a Model instance for the given profile name."""
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
+    # Override __init__ if you need specific setup beyond the base class
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     # Add any RueCode specific initialization here
+    #     logger.info("RueCodeBlueprint initialized.")
 
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
-        if not profile_data:
-             logger.critical(f"Cannot create Model instance: Profile '{profile_name}' (or default) not resolved.")
-             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
+    async def run(self, messages: List[Dict[str, str]]) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Processes user requests for code generation, execution, or file operations.
+        """
+        logger.info(f"RueCodeBlueprint run called with {len(messages)} messages.")
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
 
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name:
-             logger.critical(f"LLM profile '{profile_name}' is missing the 'model' key.")
-             raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
 
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
+        # 1. Prepare the prompt using Jinja (example)
+        # Assuming you have a 'rue_code_prompt.j2' in a 'templates' subdir
+        try:
+            prompt_context = {
+                "user_request": last_user_message,
+                "history": messages[:-1], # Provide previous messages for context
+                "available_tools": ["execute_shell_command", "read_file", "write_file", "list_files"]
+            }
+            rendered_prompt = self.render_prompt("rue_code_prompt.j2", prompt_context)
+            logger.debug(f"Rendered prompt:\n{rendered_prompt}")
+        except Exception as e:
+            logger.error(f"Failed to render prompt template: {e}")
+            yield {"messages": [{"role": "assistant", "content": f"Internal error: Could not prepare request ({e})."}]}
+            return
 
-        if provider == "openai":
-            if client_cache_key not in self._openai_client_cache:
-                 client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-                 filtered_client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-                 log_client_kwargs = {k:v for k,v in filtered_client_kwargs.items() if k != 'api_key'}
-                 logger.debug(f"Creating new AsyncOpenAI client for profile '{profile_name}' with config: {log_client_kwargs}")
-                 try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_client_kwargs)
-                 except Exception as e:
-                     logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
-                     raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
-            openai_client_instance = self._openai_client_cache[client_cache_key]
-            logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with specific client instance.")
-            try: model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
-            except Exception as e:
-                 logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
-                 raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
-        else:
-            logger.error(f"Unsupported LLM provider '{provider}' in profile '{profile_name}'.")
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        # 2. Define available tools for the LLM
+        tools = [
+            {"type": "function", "function": {"name": "execute_shell_command", "description": "Executes a shell command.", "parameters": {"type": "object", "properties": {"command": {"type": "string", "description": "The shell command to execute."}}, "required": ["command"]}}},
+            {"type": "function", "function": {"name": "read_file", "description": "Reads content from a file.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string", "description": "Path to the file to read."}}, "required": ["file_path"]}}},
+            {"type": "function", "function": {"name": "write_file", "description": "Writes content to a file.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string", "description": "Path to the file to write."}, "content": {"type": "string", "description": "Content to write."}}, "required": ["file_path", "content"]}}},
+            {"type": "function", "function": {"name": "list_files", "description": "Lists files in a directory.", "parameters": {"type": "object", "properties": {"directory_path": {"type": "string", "description": "Path to the directory (default is current)."}}, "required": []}}}, # directory_path is optional
+        ]
+        tool_map = {
+            "execute_shell_command": execute_shell_command,
+            "read_file": read_file,
+            "write_file": write_file,
+            "list_files": list_files,
+        }
 
-        self._model_instance_cache[profile_name] = model_instance
-        return model_instance
+        # 3. Call the LLM (using the base class's llm instance)
+        llm_messages = [{"role": "system", "content": rendered_prompt}] # Or construct differently based on template
+        # Add user message if not fully incorporated into the system prompt
+        # llm_messages.append({"role": "user", "content": last_user_message})
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
-        """Creates the multi-agent team and returns the Coordinator agent."""
-        logger.debug(f"Creating RueCode agent team with {len(mcp_servers)} MCP server(s)...") # Changed to DEBUG
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
+        logger.info(f"Calling LLM profile '{self.llm_profile_name}' with tools.")
+        try:
+            # Use the configured LLM instance from the base class
+            response_stream = self.llm.chat_completion_stream(
+                messages=llm_messages,
+                tools=tools,
+                tool_choice="auto" # Let the model decide
+            )
 
-        code_agent_profile_name = self.config.get("llm_profile", "default")
-        code_agent_model_instance = self._get_model_instance(code_agent_profile_name)
-        logger.debug(f"CodeAgent using LLM profile '{code_agent_profile_name}'.") # Changed to DEBUG
+            # 4. Process the streaming response and handle tool calls
+            full_response_content = ""
+            tool_calls = []
+            async for chunk in response_stream:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    full_response_content += delta.content
+                    yield {"messages": [{"role": "assistant", "delta": {"content": delta.content}}]} # Yield content delta
 
-        default_profile_name = self.config.get("llm_profile", "code-large")
-        default_model_instance = self._get_model_instance(default_profile_name)
-        logger.debug(f"Other agents using LLM profile '{default_profile_name}'.") # Changed to DEBUG
+                if delta.tool_calls:
+                    # Accumulate tool call information from deltas
+                    for tc_delta in delta.tool_calls:
+                        if tc_delta.index >= len(tool_calls):
+                            # Start of a new tool call
+                            tool_calls.append({
+                                "id": tc_delta.id,
+                                "type": "function",
+                                "function": {"name": tc_delta.function.name, "arguments": tc_delta.function.arguments}
+                            })
+                        else:
+                            # Append arguments to existing tool call
+                            tool_calls[tc_delta.index]["function"]["arguments"] += tc_delta.function.arguments
 
-        code_agent = CodeAgent(model=code_agent_model_instance, mcp_servers=[])
-        architect_agent = ArchitectAgent(model=default_model_instance, mcp_servers=mcp_servers)
-        qa_agent = QualityAssuranceAgent(model=default_model_instance, mcp_servers=[])
-        git_agent = GitManagerAgent(model=default_model_instance, mcp_servers=[])
+            logger.info("LLM response received.")
+            # If no tool calls, the final response is just the accumulated content
+            if not tool_calls and not full_response_content:
+                 logger.warning("LLM finished without content or tool calls.")
+                 yield {"messages": [{"role": "assistant", "content": "[No response content or tool call generated]"}]}
 
-        coordinator = CoordinatorAgent(
-             model=default_model_instance,
-             team_tools=[
-                 code_agent.as_tool(tool_name="Code", tool_description="Delegate coding tasks to the Code agent."),
-                 architect_agent.as_tool(tool_name="Architect", tool_description="Delegate design/research tasks."),
-                 qa_agent.as_tool(tool_name="QualityAssurance", tool_description="Delegate testing/linting tasks."),
-                 git_agent.as_tool(tool_name="GitManager", tool_description="Delegate version control tasks.")
-             ],
-             mcp_servers=[]
-        )
 
-        logger.debug("RueCode agent team created. Coordinator is the starting agent.") # Changed to DEBUG
-        return coordinator
+            # 5. Execute tool calls if any were made
+            if tool_calls:
+                logger.info(f"Executing {len(tool_calls)} tool call(s)...")
+                tool_messages = [{"role": "assistant", "tool_calls": tool_calls}] # Message for next LLM call
 
-if __name__ == "__main__":
-    RueCodeBlueprint.main()
+                for tool_call in tool_calls:
+                    function_name = tool_call["function"]["name"]
+                    tool_call_id = tool_call["id"]
+                    logger.debug(f"Processing tool call: {function_name} (ID: {tool_call_id})")
+
+                    if function_name in tool_map:
+                        try:
+                            arguments = json.loads(tool_call["function"]["arguments"])
+                            logger.debug(f"Arguments: {arguments}")
+                            tool_function = tool_map[function_name]
+                            # Execute the tool function (sync for now, consider async if tools are I/O bound)
+                            tool_output = tool_function(**arguments)
+                            logger.debug(f"Tool output: {tool_output[:200]}...") # Log truncated output
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to decode arguments for {function_name}: {tool_call['function']['arguments']}")
+                            tool_output = f"Error: Invalid arguments format for {function_name}."
+                        except Exception as e:
+                            logger.error(f"Error executing tool {function_name}: {e}", exc_info=True)
+                            tool_output = f"Error executing tool {function_name}: {e}"
+
+                        tool_messages.append({
+                            "tool_call_id": tool_call_id,
+                            "role": "tool",
+                            "name": function_name,
+                            "content": tool_output,
+                        })
+                    else:
+                        logger.warning(f"LLM requested unknown tool: {function_name}")
+                        tool_messages.append({
+                            "tool_call_id": tool_call_id,
+                            "role": "tool",
+                            "name": function_name,
+                            "content": f"Error: Tool '{function_name}' not found.",
+                        })
+
+                # 6. Send tool results back to LLM for final response
+                logger.info("Sending tool results back to LLM...")
+                final_response_stream = self.llm.chat_completion_stream(
+                    messages=llm_messages + tool_messages # Original messages + tool req + tool resp
+                )
+                async for final_chunk in final_response_stream:
+                     if final_chunk.choices[0].delta.content:
+                         yield {"messages": [{"role": "assistant", "delta": {"content": final_chunk.choices[0].delta.content}}]}
+
+        except Exception as e:
+            logger.error(f"Error during RueCodeBlueprint run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+
+        logger.info("RueCodeBlueprint run finished.")
+

@@ -1,128 +1,160 @@
-import typer
-import json
-import os
-import asyncio
-from abc import ABC, abstractmethod
-# Import AsyncGenerator for type hint
-from typing import Optional, List, Dict, Any, Type, AsyncGenerator
-from pathlib import Path
 import logging
-import time
+import os
+import inspect
+from typing import Dict, List, Any, AsyncGenerator, Optional, Type
+from abc import ABC, abstractmethod
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pathlib import Path
 import copy
+# *** Import Django settings ***
+from django.conf import settings
 
-from swarm.extensions.config.config_loader import load_config, find_config_file, DEFAULT_CONFIG_FILENAME
-from agents import Agent as LibraryAgent
-from agents import Runner as LibraryRunner
+# *** REMOVE SwarmConfig import from apps.py ***
+# from swarm.apps import SwarmConfig
+
+# Import helpers from config_loader if needed directly
+# from swarm.extensions.config.config_loader import find_config_file, DEFAULT_CONFIG_FILENAME
+
+# *** LLMRegistry doesn't exist yet - Comment out import ***
+# from swarm.llm.llm_registry import LLMRegistry # Example path - CHANGE ME!
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_DIR = Path(__file__).parent.parent / "config" # Example default
-
 class BlueprintBase(ABC):
-    """Abstract base class for Swarm blueprints."""
-
-    # --- Abstract Properties/Methods ---
-    @property
-    @abstractmethod
-    def name(self) -> str: pass
-
-    @abstractmethod
-    def description(self) -> str: pass
+    """
+    Abstract base class for all blueprints.
+    Ensures common interface and configuration handling.
+    """
+    metadata: Dict[str, Any] = {}
 
     @abstractmethod
-    def create_starting_agent(self, mcp_servers: Optional[list] = None) -> LibraryAgent: pass
-
-    # UPDATED: 'run' is now an async generator yielding dictionaries
-    @abstractmethod
-    async def run(self, input_data: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: List[Dict[str, str]]) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Runs the blueprint's core logic asynchronously, yielding response chunks.
-
-        Args:
-            input_data: Dictionary containing input, typically including 'messages'.
-
-        Yields:
-            Dictionaries representing response chunks (e.g., message deltas or full messages).
+        Asynchronously runs the blueprint logic with the given messages.
+        Must be implemented by subclasses.
         """
-        # Ensure the generator actually yields something for type checkers
-        # This implementation detail should be in subclasses.
-        # Example: yield {"done": True}
-        # The actual implementation is just 'pass' in the ABC.
-        # We need this dummy yield here only if Python<3.8/typing issues arise.
-        # Modern Python handles this fine with just 'pass'. For safety:
-        if False: # This code is never executed, but satisfies type checkers
-             yield {}
-        pass # Subclasses must implement this as an async generator
-
-
-    # --- End Abstract ---
+        if False: yield {}
+        pass
 
     def __init__(
         self,
-        profile: Optional[str] = None,
-        config_path: Optional[str] = None,
-        config_override: Optional[Dict[str, Any]] = None,
-        debug: bool = False,
-        markdown: Optional[bool] = None,
+        # config_override: Optional[Dict] = None, # Override logic needs rethink
+        params: Optional[Dict] = None,
     ):
-        # ... (rest of __init__ remains largely the same) ...
-        self.debug = debug
-        self.log_level_int = logging.DEBUG if debug else logging.INFO
-        self.log_level_str = logging.getLevelName(self.log_level_int)
-        log_format = "[%(levelname)s] %(asctime)s - %(name)s - %(message)s"
-        root_logger = logging.getLogger();
-        if not root_logger.hasHandlers(): logging.basicConfig(level=self.log_level_int, format=log_format); logger.info(f"Root logger configured by BlueprintBase. Level: {self.log_level_str}")
-        else:
-             current_level = root_logger.getEffectiveLevel()
-             if current_level > self.log_level_int: root_logger.setLevel(self.log_level_int); logger.info(f"Root logger handlers exist. Lowered level from {logging.getLevelName(current_level)} to {self.log_level_str}.")
-             else: logger.info(f"Root logger handlers already exist. Level ({logging.getLevelName(current_level)}) not changed by request for {self.log_level_str}.")
-        logger.debug(f"BlueprintBase.__init__ called for {self.__class__.__name__}")
-        self.profile_name = profile or os.getenv("SWARM_PROFILE", "default")
-        self.config_override = config_override
-        self._resolved_config_path = None
-        self.config = self._load_configuration(config_path)
-        self.llm_profile = self._get_llm_profile()
-        self._force_markdown = markdown
-        self.markdown_output = self._determine_markdown_output()
-        try: self.runner = LibraryRunner(); logger.debug(f"Initialized LibraryRunner instance: {self.runner}") # Simplistic runner init
-        except Exception as e: logger.error(f"Failed to initialize LibraryRunner: {e}", exc_info=True); raise RuntimeError(f"Could not initialize agent Runner: {e}")
-        logger.info(f"Initialized blueprint '{self.name}' with profile '{self.profile_name}'")
+        logger.debug(f"BlueprintBase.__init__ starting for {self.__class__.__name__}")
+        self.params = params if params else {}
+        # self._config_override = config_override # Store override for use in _configure
+        # self._resolved_config_path = None # Initialize path tracker
+
+        # Configuration loading needs rethink - access via settings for now
+        self._configure() # This sets self.config attributes from settings
+
+        # Now setup others that might depend on config
+        self._setup_llm() # Uses self.config attributes
+        self._setup_jinja() # Uses class path
+
+        # Logging Adjustment
+        # Check config *after* it has been loaded by _configure
+        # Use self.is_debug which should be set in _configure
+        if hasattr(self, 'is_debug') and self.is_debug:
+             log_level_int = logging.DEBUG
+             if logging.root.level > log_level_int:
+                logger.info(f"Root logger level is {logging.getLevelName(logging.root.level)}. Lowering to DEBUG due to config.")
+                logging.root.setLevel(log_level_int)
+
+        # Ensure llm_profile_name is set by _setup_llm before logging it
+        # Add check if llm_profile_name exists before logging
+        profile_name_to_log = getattr(self, 'llm_profile_name', 'N/A')
+        logger.info(f"Initialized blueprint '{self.metadata.get('name', self.__class__.__name__)}' with profile '{profile_name_to_log}'")
+
+    def _configure(self):
+        """Placeholder: Sets config attributes based on django.conf.settings."""
+        logger.debug("BlueprintBase._configure accessing django.conf.settings")
+        # *** Access settings directly (temporary) ***
+        # This assumes swarm_config.json content is NOT yet loaded into settings
+        # We'll rely on defaults or potentially fail in _setup_llm
+        self.is_debug = getattr(settings, 'DEBUG', False)
+        # Store blueprint-specific parts for convenience - these won't exist in settings yet!
+        self.blueprint_config = {} # Placeholder
+        self.blueprint_defaults = {} # Placeholder
+        logger.warning("_configure is using placeholders. Swarm config file content is not loaded here.")
 
 
-    def _load_configuration(self, config_path_str: Optional[str]) -> Dict[str, Any]:
-        if self.config_override is not None:
-            logger.info("Using configuration override provided during instantiation.")
-            cfg = copy.deepcopy(self.config_override); cfg.setdefault("llm", {}); cfg.setdefault("agents", {}); cfg.setdefault("settings", {}); return cfg
-        logger.debug("No config override, searching for config file.")
-        resolved_path = find_config_file(None, start_dir=Path.cwd().parent) # Search from project root potentially
-        if not resolved_path: logger.error(f"Default config '{DEFAULT_CONFIG_FILENAME}' not found."); raise FileNotFoundError(f"Swarm config '{DEFAULT_CONFIG_FILENAME}' not found.")
-        if not resolved_path.is_file(): logger.error(f"Resolved config path is not a file: {resolved_path}"); raise FileNotFoundError(f"Swarm config not found at '{resolved_path}'.")
-        self._resolved_config_path = resolved_path; logger.info(f"Loading configuration from file: {resolved_path}")
-        try: loaded_cfg = load_config(resolved_path); loaded_cfg.setdefault("llm", {}); loaded_cfg.setdefault("agents", {}); loaded_cfg.setdefault("settings", {}); return loaded_cfg
-        except Exception as e: logger.error(f"Failed loading config file {resolved_path}: {e}", exc_info=True); raise
+    def _setup_llm(self):
+        """Sets up the LLM provider based on configuration stored in self.config."""
+        # *** Access settings directly (temporary) ***
+        # Get default profile name from settings if defined, else 'default'
+        default_profile = getattr(settings, 'DEFAULT_LLM_PROFILE', 'default')
+        self.llm_profile_name = self.blueprint_config.get('llm_profile', default_profile) # Use placeholder blueprint_config
+        logger.debug(f"Getting LLM profile details for '{self.llm_profile_name}'.")
 
-    def _get_llm_profile(self) -> Dict[str, Any]:
-        logger.debug(f"Getting LLM profile '{self.profile_name}'.")
-        if "llm" not in self.config or not isinstance(self.config.get("llm"), dict): raise ValueError("Internal Error: Config 'llm' section missing/malformed.")
-        profile_data = self.config["llm"].get(self.profile_name)
-        if profile_data is None: config_source = f"'{self._resolved_config_path}'" if self._resolved_config_path else "provided config_override"; raise ValueError(f"LLM profile '{self.profile_name}' not found in configuration ({config_source}). Please define it.")
-        if not isinstance(profile_data, dict): raise ValueError(f"LLM profile '{self.profile_name}' is not a dictionary.")
-        logger.debug(f"Using LLM profile '{self.profile_name}'.")
-        return BlueprintBase._substitute_env_vars(profile_data)
+        # *** This part will likely fail or use defaults as swarm_config isn't in settings ***
+        # Attempt to get profiles from settings if they were somehow loaded there
+        all_llm_profiles = getattr(settings, 'LLM_PROFILES', {})
+        profile_data = all_llm_profiles.get(self.llm_profile_name)
+
+        if profile_data is None:
+            logger.warning(f"LLM profile '{self.llm_profile_name}' not found in django settings. LLM will not be available.")
+            self.llm_profile = {} # Set empty profile
+            self.llm = None # Set LLM to None
+            return # Exit setup early
+
+        logger.debug(f"Using LLM profile '{self.llm_profile_name}' from settings.")
+        self.llm_profile = profile_data
+        # *** LLMRegistry doesn't exist yet - Comment out usage and set placeholder ***
+        # self.llm = LLMRegistry.get_llm(self.llm_profile)
+        self.llm = None # Placeholder until registry is implemented
+        logger.warning("LLMRegistry not implemented. self.llm set to None.")
+
 
     @staticmethod
     def _substitute_env_vars(data: Any) -> Any:
-        if isinstance(data, dict): return {k: BlueprintBase._substitute_env_vars(v) for k, v in data.items()}
-        if isinstance(data, list): return [BlueprintBase._substitute_env_vars(item) for item in data]
-        if isinstance(data, str): return os.path.expandvars(data)
+        """Recursively substitutes environment variables in strings."""
+        if isinstance(data, dict):
+            return {k: BlueprintBase._substitute_env_vars(v) for k, v in data.items()}
+        if isinstance(data, list):
+            return [BlueprintBase._substitute_env_vars(item) for item in data]
+        if isinstance(data, str):
+            return os.path.expandvars(data)
         return data
 
-    def _determine_markdown_output(self) -> bool:
-        if self._force_markdown is not None: logger.debug(f"Markdown output forced to: {self._force_markdown}"); return self._force_markdown
-        settings = self.config.get("settings", {}); config_setting = settings.get("default_markdown_output", True); logger.info(f"Using config/default markdown setting: {config_setting}")
-        return bool(config_setting)
+    def _setup_jinja(self):
+        """Sets up Jinja2 environment."""
+        try:
+            blueprint_file_path = inspect.getfile(self.__class__)
+            blueprint_dir = os.path.dirname(blueprint_file_path)
+            template_dir = os.path.join(blueprint_dir, 'templates')
+            if os.path.isdir(template_dir):
+                 logger.debug(f"Setting up Jinja env with loader at: {template_dir}")
+                 self.jinja_env = Environment(
+                     loader=FileSystemLoader(template_dir),
+                     autoescape=select_autoescape(['html', 'xml'])
+                 )
+            else:
+                 logger.debug(f"No 'templates' directory found for blueprint at {template_dir}. Jinja env not created.")
+                 self.jinja_env = None
+        except Exception as e:
+             logger.warning(f"Could not determine template path for {self.__class__.__name__}: {e}. Jinja env not created.")
+             self.jinja_env = None
 
-    def get_agent_configs(self) -> Dict[str, Any]: # Return dict consistently
-        agents_config = self.config.get("agents", {}); logger.debug(f"get_agent_configs called. Returning 'agents' section (type: {type(agents_config)}).")
-        return agents_config if isinstance(agents_config, dict) else {}
+    def render_prompt(self, template_name: str, context: Dict = None) -> str:
+        """Renders a Jinja2 template."""
+        if not self.jinja_env:
+             raise RuntimeError(f"Jinja environment not set up for blueprint {self.__class__.__name__}.")
+        if context is None:
+             context = {}
+        try:
+             template = self.jinja_env.get_template(template_name)
+             full_context = {**self.params, **context}
+             return template.render(full_context)
+        except Exception as e:
+             logger.error(f"Error rendering template '{template_name}': {e}", exc_info=True)
+             raise
+
+    def get_llm_profile(self) -> Dict:
+         """Returns the configuration for the LLM profile being used."""
+         if not hasattr(self, 'llm_profile'):
+              logger.warning("LLM profile was not set during initialization, returning empty dict.")
+              return {}
+         return self.llm_profile
 

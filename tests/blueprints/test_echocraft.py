@@ -1,84 +1,75 @@
 import pytest
-from unittest.mock import patch, MagicMock
 import asyncio
+from typing import List, Dict, AsyncGenerator
 
-# Corrected import path
-from swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint, EchoAgent
+# Assuming EchoAgent is no longer used/defined
+from swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint
+# from swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint, EchoAgent # <--- REMOVE EchoAgent
 
-# Mock platformdirs before importing the blueprint module if it uses it at import time
-with patch('platformdirs.user_data_dir', return_value='/tmp/test_swarm_data'), \
-     patch('platformdirs.user_config_dir', return_value='/tmp/test_swarm_config'):
-    pass # Mocking applied contextually if needed
+# Use pytest-asyncio decorator for async tests
+@pytest.mark.asyncio
+async def test_echocraft_blueprint_run():
+    """Tests the basic run functionality of EchoCraftBlueprint."""
+    blueprint = EchoCraftBlueprint()
+    test_messages: List[Dict[str, str]] = [
+        {"role": "user", "content": "Hello Echo!"}
+    ]
 
-@pytest.fixture
-def blueprint():
-    """Fixture to create an instance of EchoCraftBlueprint."""
-    with patch('platformdirs.user_data_dir', return_value='/tmp/test_swarm_data'), \
-         patch('platformdirs.user_config_dir', return_value='/tmp/test_swarm_config'):
-        instance = EchoCraftBlueprint()
-    return instance
+    # Run the blueprint (which should be an async generator)
+    result_generator: AsyncGenerator[Dict, None] = blueprint.run(test_messages)
 
-@pytest.fixture
-def echo_agent():
-    """Fixture to create an instance of EchoAgent."""
-    # Initialize EchoAgent using arguments accepted by Agent.__init__ (likely 'name')
-    # Set custom attributes afterwards if needed by EchoAgent implementation
-    # Assuming EchoAgent itself doesn't require agent_id/blueprint_name during super().__init__()
-    agent = EchoAgent(name="EchoAgent")
-    # If EchoAgent uses these attributes, set them here:
-    # agent.agent_id = "test_echo_agent"
-    # agent.blueprint_name = "EchoCraft" # Or maybe 'echocraft' if that's consistent
-    # agent.status = "idle" # Set initial status if not done in __init__
-    return agent
+    # Get the result from the async generator
+    final_result = None
+    async for chunk in result_generator:
+        # In non-streaming, the final result might be the last chunk
+        # or accumulated. EchoCraft yields one final chunk.
+        final_result = chunk
 
-# Basic Test Cases
-def test_blueprint_initialization(blueprint):
-    """Test that the blueprint initializes correctly."""
-    # Adjust assertion to match the actual name (likely lowercase)
-    assert blueprint.name == "echocraft"
-    assert blueprint.description is not None
-    # Add more checks if the blueprint has specific initial state
-
-def test_agent_initialization(echo_agent):
-    """Test that the EchoAgent initializes correctly."""
-    # Check attributes that should be set by __init__ or the fixture
-    assert echo_agent.name == "EchoAgent" # Check the name passed to __init__
-    # assert echo_agent.agent_id == "test_echo_agent" # Uncomment if agent_id is set in fixture
-    # assert echo_agent.blueprint_name == "echocraft" # Uncomment if blueprint_name is set
-    # assert echo_agent.status == "idle" # Check initial status
+    assert final_result is not None
+    assert isinstance(final_result, dict)
+    assert "messages" in final_result
+    assert isinstance(final_result["messages"], list)
+    assert len(final_result["messages"]) == 1
+    assert final_result["messages"][0]["role"] == "assistant"
+    assert final_result["messages"][0]["content"] == "Echo: Hello Echo!"
 
 @pytest.mark.asyncio
-async def test_agent_run_cycle(echo_agent):
-    """Test the basic run cycle of the EchoAgent."""
-    # Mock external dependencies if any (e.g., network calls, file I/O)
-    # For EchoAgent, it might just process input and change status
-    # echo_agent.status = "running" # Set status if needed for test
-    # Simulate some activity or check state transitions if applicable
-    # Example: Check if run method exists and can be called
-    if hasattr(echo_agent, 'run'):
-         # If run is async, await it; mock dependencies as needed
-         # await echo_agent.run() # This might need more setup/mocking
-         pass # Placeholder for actual run logic test
-    # assert echo_agent.status == "running" # Or whatever the expected end state is
-    pass # Placeholder - Test needs implementation
+async def test_echocraft_blueprint_no_user_message():
+    """Tests that EchoCraft handles cases with no user message gracefully."""
+    blueprint = EchoCraftBlueprint()
+    test_messages: List[Dict[str, str]] = [
+        {"role": "system", "content": "System prompt"}
+        # No user message
+    ]
+    result_generator = blueprint.run(test_messages)
+    final_result = None
+    async for chunk in result_generator:
+        final_result = chunk
 
-# Add more specific tests for blueprint methods, agent interactions, etc.
-# Example: Test the 'echo' functionality if the agent has an echo method
+    assert final_result is not None
+    assert final_result["messages"][0]["content"] == "Echo: No user message found."
+
 @pytest.mark.asyncio
-async def test_agent_echo_method(echo_agent):
-    """Test the agent's primary echo functionality."""
-    input_message = "Hello, Swarm!"
-    # Assuming the agent has a method like 'process_message' or similar
-    # that implements the echo logic. This is hypothetical.
-    # response = await echo_agent.process_message(input_message)
-    # assert response == f"Echo: {input_message}"
-    # If no such method, test the intended behavior differently.
-    pass # Placeholder - Test needs implementation
+async def test_echocraft_blueprint_multiple_messages():
+    """Tests that EchoCraft uses the *last* user message."""
+    blueprint = EchoCraftBlueprint()
+    test_messages: List[Dict[str, str]] = [
+        {"role": "user", "content": "First message"},
+        {"role": "assistant", "content": "Assistant reply"},
+        {"role": "user", "content": "Second message - use this one!"}
+    ]
+    result_generator = blueprint.run(test_messages)
+    final_result = None
+    async for chunk in result_generator:
+        final_result = chunk
 
-# Consider testing blueprint methods like 'create_agent', 'get_agent_status' etc.
-# def test_blueprint_create_agent(blueprint):
-#     agent = blueprint.create_agent("new_echo_agent")
-#     assert isinstance(agent, EchoAgent)
-#     assert agent.agent_id == "new_echo_agent"
-#     # Add checks for agent registration within the blueprint if applicable
+    assert final_result is not None
+    assert final_result["messages"][0]["content"] == "Echo: Second message - use this one!"
+
+# --- Remove any tests that were specifically testing EchoAgent ---
+# Example:
+# def test_echo_agent_functionality():
+#     agent = EchoAgent()
+#     # ... assertions for the old agent ...
+#     pass # Remove this whole test if it existed
 
