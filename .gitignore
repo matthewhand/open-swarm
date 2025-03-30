@@ -21,6 +21,7 @@ sdist/
 var/
 wheels/
 share/python-wheels/
+db.sqlite3-*
 *.egg-info/
 .installed.cfg
 *.egg
