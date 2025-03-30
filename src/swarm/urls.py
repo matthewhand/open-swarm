@@ -1,75 +1,73 @@
 """
-Main URL configuration for the swarm project.
+Swarm URL Configuration
 """
-# *** ADDED logging import ***
 import logging
-from django.urls import path, include, re_path
 from django.contrib import admin
+from django.urls import path, include, reverse_lazy
 from django.conf import settings
 from django.views.generic import RedirectView
+from django.contrib.auth import views as auth_views
 
-from rest_framework.routers import DefaultRouter
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-
-# Import views correctly
 from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
-from swarm.views.model_views import ListModelsView
-from swarm.views import message_views # Import the module
+# *** Comment out this import ***
+# from swarm.views.model_views import ModelListView
+# *** Comment out this import ***
+# from swarm.views.webui_views import index as webui_index # Rename to avoid conflict
 
-# Import web UI views if enabled
-if getattr(settings, 'ENABLE_WEBUI', False):
-    from swarm.views import chat_views as web_ui_views
-
-# *** ADDED get logger instance ***
 logger = logging.getLogger(__name__)
 
-# Create a router and register viewsets
-router = DefaultRouter()
-if hasattr(message_views, 'ChatMessageViewSet'): # Check if viewset exists before registering
-     router.register(r'chat/messages', message_views.ChatMessageViewSet, basename='chatmessage')
-
-# Define explicit paths for other API views
+# ==============================================================================
+# API URL Patterns (v1)
+# ==============================================================================
 api_urlpatterns = [
-    path('health', HealthCheckView.as_view(), name='health_check'),
     path('chat/completions', ChatCompletionsView.as_view(), name='chat_completions'),
-    path('models', ListModelsView.as_view(), name='list_models'),
-    path('', include(router.urls)),
+    # *** Comment out this URL pattern ***
+    # path('models', ModelListView.as_view(), name='list_models'),
+    path('health', HealthCheckView.as_view(), name='health_check'),
+    # Add other v1 API endpoints here
+]
+
+# ==============================================================================
+# Schema URL Patterns
+# ==============================================================================
+schema_urlpatterns = [
     path('schema/', SpectacularAPIView.as_view(), name='schema'),
     path('schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
 
+# ==============================================================================
+# Main URL Patterns
+# ==============================================================================
 urlpatterns = [
-    # Default redirect logic
-    path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False) if settings.DEBUG else RedirectView.as_view(url_name='login', permanent=False)),
-    path('v1/', include(api_urlpatterns)), # API paths
+    # Redirect root based on DEBUG setting
+    path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False) if settings.DEBUG else RedirectView.as_view(pattern_name='login', permanent=False)),
+
+    # API v1 endpoints
+    path('v1/', include(api_urlpatterns)),
+
+    # Schema endpoints
+    path('api/', include(schema_urlpatterns)),
+
+    # Django Admin (Optional)
+    path('admin/', admin.site.urls) if getattr(settings, 'ENABLE_ADMIN', False) else path('admin/', RedirectView.as_view(url=reverse_lazy('login'))),
+
+    # Authentication Views (Django Built-in)
+    path('login/', auth_views.LoginView.as_view(template_name='swarm/login.html'), name='login'),
+    path('logout/', auth_views.LogoutView.as_view(next_page=reverse_lazy('login')), name='logout'),
+
+    # Web UI (Optional) - Conditionally include based on settings
+    # *** Ensure this line remains commented out or removed if webui_index is not defined ***
+    # path('webui/', webui_index, name='webui_index') if getattr(settings, 'ENABLE_WEBUI', False) else path('webui/', RedirectView.as_view(url=reverse_lazy('login'))),
 ]
 
-# Conditionally add Admin URLs
-if getattr(settings, 'ENABLE_ADMIN', settings.DEBUG):
-    urlpatterns += [path('admin/', admin.site.urls)]
-    logger.debug("ENABLE_ADMIN=true")
-else:
-    logger.debug("ENABLE_ADMIN=false")
+# Debug logging (optional)
+logger.debug(f"ENABLE_ADMIN={getattr(settings, 'ENABLE_ADMIN', False)}")
+logger.debug(f"ENABLE_WEBUI={getattr(settings, 'ENABLE_WEBUI', False)}")
 
-
-# Conditionally add Web UI URLs
-if getattr(settings, 'ENABLE_WEBUI', False):
-    # Check if the alias was created successfully before using it
-    if 'web_ui_views' in locals():
-        logger.debug("ENABLE_WEBUI=true")
-        from django.contrib.auth import views as auth_views
-        urlpatterns += [
-            path('accounts/login/', auth_views.LoginView.as_view(), name='login'),
-            path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
-            path('dashboard/', web_ui_views.index, name='dashboard_index'),
-        ]
-        # Update root path redirect if necessary
-        if not settings.DEBUG:
-             urlpatterns[0] = path('', RedirectView.as_view(pattern_name='login', permanent=False))
-    else:
-        logger.warning("ENABLE_WEBUI is True but web UI views could not be imported.")
-
-else:
-     logger.debug("ENABLE_WEBUI=false")
+# Example of how to conditionally add URLs based on settings
+# if getattr(settings, 'ENABLE_SOMETHING', False):
+#     urlpatterns.append(path('something/', include('something.urls')))
 
