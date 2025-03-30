@@ -35,7 +35,7 @@
       "intelligence": 0.1,
       "temperature": 0.0
     },
-    "code-large": {
+    "test": {
       "provider": "openai",
       "model": "${LITELLM_MODEL}",
       "base_url": "${LITELLM_BASE_URL}",
