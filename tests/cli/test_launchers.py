@@ -1,122 +1,138 @@
 import pytest
 import subprocess
-import sys
-from pathlib import Path
+from typer.testing import CliRunner
 from unittest.mock import patch, MagicMock
-import json
+from pathlib import Path
+import sys
 import os
 
-# Import swarm_cli at the module level
-from swarm.extensions.launchers import swarm_cli
+# Assuming swarm_cli.py is in src/swarm/extensions/launchers
+from swarm.extensions.launchers import swarm_cli # Adjust import if needed
+import PyInstaller.__main__
 
-# Use the paths defined in swarm_cli for consistency
-# These will be patched by the fixture
-MANAGED_DIR_ORIG = swarm_cli.MANAGED_DIR
-BIN_DIR_ORIG = swarm_cli.BIN_DIR
-DEFAULT_CONFIG_PATH_ORIG = swarm_cli.DEFAULT_CONFIG_PATH
+# Initialize runner to capture stderr separately
+runner = CliRunner(mix_stderr=False)
 
-
+# Fixture to ensure temp dirs exist, but remove env var patching
 @pytest.fixture(autouse=True)
-def manage_swarm_dirs(tmp_path, monkeypatch): # Added monkeypatch here
-    """ Ensures swarm directories exist for tests and are cleaned up. """
-    managed_dir = tmp_path / "managed_blueprints"
-    bin_dir = tmp_path / "bin"
+def test_env_dirs(tmp_path):
+    # Use tmp_path provided by pytest for user directories
+    data_dir = tmp_path / "data"
     config_dir = tmp_path / "config"
     cache_dir = tmp_path / "cache"
-    data_dir = tmp_path / "data" # Define data dir if needed by ensure_swarm_dirs
-
-    paths_to_patch = {
-        'MANAGED_DIR': managed_dir,
-        'BIN_DIR': bin_dir,
-        'DEFAULT_CONFIG_PATH': config_dir / 'swarm_config.json',
-        'BUILD_CACHE_DIR': cache_dir / 'build',
-        'SWARM_CONFIG_DIR': config_dir,
-        'SWARM_DATA_DIR': data_dir, # Patch this as well
-        'SWARM_CACHE_DIR': cache_dir,
-    }
-
-    # Apply patches using monkeypatch fixture for better control
-    for name, path_obj in paths_to_patch.items():
-         monkeypatch.setattr(swarm_cli, name, path_obj, raising=False)
-
-    # Ensure patched dirs exist before test
-    for path_obj in paths_to_patch.values():
-         if str(path_obj).endswith('.json'): # Only create parent for file paths
-              path_obj.parent.mkdir(parents=True, exist_ok=True)
-         else:
-              path_obj.mkdir(parents=True, exist_ok=True)
-
-    yield # Run the test
-    # tmp_path fixture handles cleanup
+    # Ensure base dirs exist, tests will patch the constants in swarm_cli
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "blueprints").mkdir(parents=True, exist_ok=True) # Ensure blueprints subdir exists
+    (data_dir / "bin").mkdir(parents=True, exist_ok=True)      # Ensure bin subdir exists
+    config_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Return paths for tests to use if needed (though mocker is preferred for patching)
+    return {"data": data_dir, "config": config_dir, "cache": cache_dir}
 
 
-def test_swarm_cli_install_creates_executable(monkeypatch, tmp_path, capsys):
-    """ Test that 'swarm-cli install' runs PyInstaller and simulates executable creation. """
-    bp_src_dir = tmp_path / "bp_source"; bp_src_dir.mkdir()
-    blueprint_file = bp_src_dir / "blueprint_dummy_blueprint.py"
-    blueprint_file.write_text("""
-import sys
-# Need to ensure imports work relative to where PyInstaller runs from
-# Assuming swarm package is in PYTHONPATH or site-packages
-try: from swarm.extensions.blueprint import BlueprintBase
-except ImportError: sys.path.insert(0, '/path/to/your/project/src'); from swarm.extensions.blueprint import BlueprintBase # Adjust path
-try: from agents import Agent
-except ImportError: sys.path.insert(0, '/path/to/your/project/src'); from agents import Agent # Adjust path
+def test_swarm_cli_entrypoint():
+    """ Test if the CLI runs without errors (basic check). """
+    result = runner.invoke(swarm_cli.app, ["--help"])
+    assert result.exit_code == 0
+    # Adjust assertion to match Typer runner's default prog name
+    assert "Usage: root [OPTIONS] COMMAND [ARGS]..." in result.stdout
 
-class DummyAgent(Agent):
-    async def process(self, messages, **kwargs): return "Dummy Done"
-class DummyBlueprint(BlueprintBase):
-    metadata = {"name": "DummyBlueprint"}
-    def create_starting_agent(self, mcp_servers): return DummyAgent()
-if __name__ == "__main__": DummyBlueprint.main()
-""")
+# Add 'mocker' fixture to arguments
+def test_swarm_cli_install_creates_executable(tmp_path, mocker):
+    """ Test 'swarm-cli install' runs PyInstaller and simulates executable creation. """
+    # Paths based on tmp_path
+    data_dir = tmp_path / "data"
+    bp_dir = data_dir / "blueprints"
+    bin_dir = data_dir / "bin"
+    cache_dir = tmp_path / "cache"
 
-    # Mock PyInstaller to avoid actual build time AND simulate file creation
+    # Patch the constants within the swarm_cli module
+    mocker.patch.object(swarm_cli, "BLUEPRINTS_DIR", bp_dir)
+    mocker.patch.object(swarm_cli, "BIN_DIR", bin_dir) # Patch BIN_DIR too
+    mocker.patch.object(swarm_cli, "BUILD_CACHE_DIR", cache_dir / "build") # Patch cache too
+
+    # Setup dummy blueprint inside the *mocked* blueprints dir
+    bp_src_dir = bp_dir / "dummy_bp"
+    bp_src_dir.mkdir(parents=True, exist_ok=True)
+    bp_file = bp_src_dir / "blueprint_dummy_bp.py"
+    bp_file.write_text("class DummyBlueprint: pass\nprint('Hello from dummy')")
+
+    # Mock PyInstaller run function
     mock_pyinstaller_run = MagicMock()
-    final_executable_path = swarm_cli.BIN_DIR / "dummy_blueprint"
-    def simulate_pyinstaller(*args, **kwargs):
-         final_executable_path.touch(mode=0o666)
-         mock_pyinstaller_run(*args, **kwargs)
-    monkeypatch.setattr(swarm_cli.PyInstaller.__main__, "run", simulate_pyinstaller)
+    final_executable_path = bin_dir / "dummy_bp" # Should be inside tmp_path now
 
-    mock_chmod = MagicMock(); monkeypatch.setattr(Path, "chmod", mock_chmod)
+    def simulate_pyinstaller(args):
+         try:
+             distpath = Path(args[args.index('--distpath') + 1])
+             name = args[args.index('--name') + 1]
+             distpath.mkdir(parents=True, exist_ok=True)
+             (distpath / name).touch(mode=0o777)
+             print(f"Simulated creating executable at: {distpath / name}")
+         except Exception as e:
+             print(f"Simulate pyinstaller file creation failed (continuing): {e}")
+             pass
+         mock_pyinstaller_run(args)
 
-    # 1. Add blueprint
-    add_args = ["swarm-cli", "add", str(bp_src_dir), "--name", "dummy_blueprint"]
-    monkeypatch.setattr(sys, "argv", add_args); swarm_cli.main()
-    managed_bp_file = swarm_cli.MANAGED_DIR / "dummy_blueprint" / "blueprint_dummy_blueprint.py"
-    assert managed_bp_file.exists()
-
-    # 2. Install blueprint
-    install_args = ["swarm-cli", "install", "dummy_blueprint"]
-    monkeypatch.setattr(sys, "argv", install_args); swarm_cli.main()
+    with patch.object(PyInstaller.__main__, "run", side_effect=simulate_pyinstaller) as patched_run:
+         # Note: We don't need --bin-dir override anymore if we patch swarm_cli.BIN_DIR
+         result = runner.invoke(
+             swarm_cli.app,
+             ["install", "dummy_bp"], # No --bin-dir needed
+             catch_exceptions=False
+         )
 
     # Assertions
-    assert mock_pyinstaller_run.called
-    mock_chmod.assert_called_once()
-    assert mock_chmod.call_args[0][0] & 0o111 != 0
-    captured = capsys.readouterr().out
-    assert f"Success! Installed 'dummy_blueprint' to {final_executable_path}" in captured, captured
+    assert result.exit_code == 0, f"CLI failed unexpectedly. stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    patched_run.assert_called_once()
+    mock_pyinstaller_run.assert_called_once()
+    assert final_executable_path.exists(), f"Executable file was not created at {final_executable_path}"
+    assert os.access(final_executable_path, os.X_OK), "Executable file doesn't have execute permissions"
 
-def test_swarm_install_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(sys, "argv", ["swarm-cli", "install", "nonexistent"])
-    with pytest.raises(SystemExit): swarm_cli.main()
+# Add 'mocker' fixture
+def test_swarm_install_failure(tmp_path, mocker):
+    """Test install command fails and exits if blueprint doesn't exist."""
+    # Patch BLUEPRINTS_DIR to use tmp_path
+    bp_dir = tmp_path / "data" / "blueprints"
+    mocker.patch.object(swarm_cli, "BLUEPRINTS_DIR", bp_dir)
 
-def test_swarm_cli_creates_default_config(monkeypatch, tmp_path):
-    """ Test 'swarm-cli run' creates default config if missing. """
-    config_path = swarm_cli.DEFAULT_CONFIG_PATH
-    if config_path.exists(): config_path.unlink()
-    assert not config_path.exists() # Verify deletion
+    # Don't create the blueprint file/dir within the mocked bp_dir
+    result = runner.invoke(swarm_cli.app, ["install", "nonexistent_blueprint"])
+    assert result.exit_code != 0
+    assert "Error: Blueprint directory or entrypoint file not found" in result.stderr
+    # Check that the error message uses the patched path
+    assert str(bp_dir) in result.stderr
 
-    mock_run_bp = MagicMock()
-    monkeypatch.setattr(swarm_cli, "run_blueprint", mock_run_bp)
+# Add 'mocker' fixture
+def test_swarm_launch_runs_executable(tmp_path, mocker):
+    """ Test 'swarm-cli launch' executes the correct pre-installed executable. """
+    # Paths based on tmp_path
+    data_dir = tmp_path / "data"
+    bin_dir = data_dir / "bin"
 
-    test_args = ["swarm-cli", "run", "dummy_bp"]
-    monkeypatch.setattr(sys, "argv", test_args)
-    swarm_cli.main()
+    # Patch BIN_DIR constant in swarm_cli
+    mocker.patch.object(swarm_cli, "BIN_DIR", bin_dir)
 
-    assert config_path.exists(), f"Config file should exist at {config_path}"
-    mock_run_bp.assert_called_once_with("dummy_bp", [], config_path_override=None) # Check args passed to mock
-    with open(config_path, 'r') as f: content = json.load(f)
-    assert "llm" in content and "mcpServers" in content
+    # Setup dummy executable in the *mocked* bin dir
+    exe_path = bin_dir / "test_bp"
+    # Ensure bin_dir exists
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    # FIX: Use "$*" within the echo string to correctly print all arguments
+    exe_path.write_text(f"#!/bin/sh\necho \"Test BP Launched with args: $*\"\necho 'Output to file' > {tmp_path}/output.txt")
+    os.chmod(exe_path, 0o777)
+
+    # Invoke the launch command
+    result = runner.invoke(
+        swarm_cli.app,
+        ["launch", "test_bp", "--", "arg1", "--option=val"],
+        catch_exceptions=False
+    )
+
+    # Assertions
+    assert result.exit_code == 0, f"CLI failed unexpectedly. stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    # Check stdout from the launched process (captured by runner)
+    assert "Test BP Launched with args: arg1 --option=val" in result.stdout
+    # Check side effect file
+    output_file = tmp_path / "output.txt"
+    assert output_file.exists(), "Executable did not create side effect file"
+    output_file.unlink()
 
