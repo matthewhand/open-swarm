@@ -1,160 +1,111 @@
+
+# --- Content for src/swarm/extensions/blueprint/blueprint_base.py ---
 import logging
-import os
-import inspect
-from typing import Dict, List, Any, AsyncGenerator, Optional, Type
+import json
 from abc import ABC, abstractmethod
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from typing import Dict, Any, Optional, List, AsyncGenerator
 from pathlib import Path
-import copy
-# *** Import Django settings ***
-from django.conf import settings
+from django.apps import apps # Import Django apps registry
 
-# *** REMOVE SwarmConfig import from apps.py ***
-# from swarm.apps import SwarmConfig
-
-# Import helpers from config_loader if needed directly
-# from swarm.extensions.config.config_loader import find_config_file, DEFAULT_CONFIG_FILENAME
-
-# *** LLMRegistry doesn't exist yet - Comment out import ***
-# from swarm.llm.llm_registry import LLMRegistry # Example path - CHANGE ME!
+# Keep the function import
+from swarm.extensions.config.config_loader import get_profile_from_config
 
 logger = logging.getLogger(__name__)
 
 class BlueprintBase(ABC):
     """
-    Abstract base class for all blueprints.
-    Ensures common interface and configuration handling.
+    Abstract base class for all Swarm blueprints.
+
+    Defines the core interface for blueprint initialization and execution.
     """
-    metadata: Dict[str, Any] = {}
+    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None):
+        """
+        Initializes the blueprint.
+
+        Args:
+            blueprint_id: A unique identifier for this blueprint instance.
+            config_path: Optional path to a specific swarm_config.json file.
+                         If None, the standard search logic will be used.
+        """
+        if not blueprint_id:
+             raise ValueError("blueprint_id cannot be empty or None") # Add validation
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path # Note: config_path is currently unused if we rely on AppConfig
+        self._config: Optional[Dict[str, Any]] = None
+        self._llm_profile_name: Optional[str] = None
+        self._llm_profile_data: Optional[Dict[str, Any]] = None
+        self._markdown_output: bool = True # Default
+
+        logger.info(f"Initializing blueprint '{self.blueprint_id}' (Type: {self.__class__.__name__})")
+        self._load_and_process_config()
+
+    def _load_and_process_config(self):
+        """Loads the main Swarm config and extracts relevant settings."""
+        try:
+            # --- Get config from the AppConfig instance ---
+            app_config_instance = apps.get_app_config('swarm')
+            # Assuming the loaded config is stored in an attribute named 'config'
+            # Adjust 'config' if your AppConfig uses a different attribute name
+            if not hasattr(app_config_instance, 'config') or not app_config_instance.config:
+                 logger.error("Swarm configuration not found on AppConfig instance. Was ready() called?")
+                 raise ValueError("Swarm configuration unavailable via AppConfig.")
+            self._config = app_config_instance.config
+            # --- End change ---
+
+            logger.debug(f"Blueprint '{self.blueprint_id}' using loaded Swarm config.")
+
+            # Determine LLM profile
+            self._llm_profile_name = self._config.get("settings", {}).get("default_llm_profile", "default")
+            logger.debug(f"Attempting to use LLM profile: '{self._llm_profile_name}'")
+
+            # Get substituted profile data
+            self._llm_profile_data = get_profile_from_config(self._config, self._llm_profile_name)
+            logger.info(f"Successfully loaded LLM profile '{self._llm_profile_name}'. Provider: {self._llm_profile_data.get('provider')}")
+
+            # Get markdown setting
+            blueprint_specific_settings = self._config.get("blueprints", {}).get(self.blueprint_id, {})
+            global_markdown_setting = self._config.get("settings", {}).get("default_markdown_output", True)
+            self._markdown_output = blueprint_specific_settings.get("markdown_output", global_markdown_setting)
+            logger.debug(f"Markdown output for '{self.blueprint_id}': {self._markdown_output}")
+
+        except ValueError as e:
+            logger.error(f"Configuration error for blueprint '{self.blueprint_id}': {e}", exc_info=True)
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error loading config for blueprint '{self.blueprint_id}': {e}", exc_info=True)
+            raise
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        """Returns the loaded and processed Swarm configuration."""
+        if self._config is None:
+            raise RuntimeError("Configuration accessed before initialization or after failure.")
+        return self._config
+
+    @property
+    def llm_profile(self) -> Dict[str, Any]:
+        """Returns the loaded and processed LLM profile data for this blueprint."""
+        if self._llm_profile_data is None:
+            raise RuntimeError("LLM profile accessed before initialization or after failure.")
+        return self._llm_profile_data
+
+    @property
+    def llm_profile_name(self) -> str:
+        """Returns the name of the LLM profile being used."""
+        if self._llm_profile_name is None:
+             raise RuntimeError("LLM profile name accessed before initialization or after failure.")
+        return self._llm_profile_name
+
+    @property
+    def should_output_markdown(self) -> bool:
+        """Returns whether the blueprint should format output as Markdown."""
+        return self._markdown_output
 
     @abstractmethod
-    async def run(self, messages: List[Dict[str, str]]) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Asynchronously runs the blueprint logic with the given messages.
-        Must be implemented by subclasses.
+        The main execution method for the blueprint.
         """
-        if False: yield {}
-        pass
-
-    def __init__(
-        self,
-        # config_override: Optional[Dict] = None, # Override logic needs rethink
-        params: Optional[Dict] = None,
-    ):
-        logger.debug(f"BlueprintBase.__init__ starting for {self.__class__.__name__}")
-        self.params = params if params else {}
-        # self._config_override = config_override # Store override for use in _configure
-        # self._resolved_config_path = None # Initialize path tracker
-
-        # Configuration loading needs rethink - access via settings for now
-        self._configure() # This sets self.config attributes from settings
-
-        # Now setup others that might depend on config
-        self._setup_llm() # Uses self.config attributes
-        self._setup_jinja() # Uses class path
-
-        # Logging Adjustment
-        # Check config *after* it has been loaded by _configure
-        # Use self.is_debug which should be set in _configure
-        if hasattr(self, 'is_debug') and self.is_debug:
-             log_level_int = logging.DEBUG
-             if logging.root.level > log_level_int:
-                logger.info(f"Root logger level is {logging.getLevelName(logging.root.level)}. Lowering to DEBUG due to config.")
-                logging.root.setLevel(log_level_int)
-
-        # Ensure llm_profile_name is set by _setup_llm before logging it
-        # Add check if llm_profile_name exists before logging
-        profile_name_to_log = getattr(self, 'llm_profile_name', 'N/A')
-        logger.info(f"Initialized blueprint '{self.metadata.get('name', self.__class__.__name__)}' with profile '{profile_name_to_log}'")
-
-    def _configure(self):
-        """Placeholder: Sets config attributes based on django.conf.settings."""
-        logger.debug("BlueprintBase._configure accessing django.conf.settings")
-        # *** Access settings directly (temporary) ***
-        # This assumes swarm_config.json content is NOT yet loaded into settings
-        # We'll rely on defaults or potentially fail in _setup_llm
-        self.is_debug = getattr(settings, 'DEBUG', False)
-        # Store blueprint-specific parts for convenience - these won't exist in settings yet!
-        self.blueprint_config = {} # Placeholder
-        self.blueprint_defaults = {} # Placeholder
-        logger.warning("_configure is using placeholders. Swarm config file content is not loaded here.")
-
-
-    def _setup_llm(self):
-        """Sets up the LLM provider based on configuration stored in self.config."""
-        # *** Access settings directly (temporary) ***
-        # Get default profile name from settings if defined, else 'default'
-        default_profile = getattr(settings, 'DEFAULT_LLM_PROFILE', 'default')
-        self.llm_profile_name = self.blueprint_config.get('llm_profile', default_profile) # Use placeholder blueprint_config
-        logger.debug(f"Getting LLM profile details for '{self.llm_profile_name}'.")
-
-        # *** This part will likely fail or use defaults as swarm_config isn't in settings ***
-        # Attempt to get profiles from settings if they were somehow loaded there
-        all_llm_profiles = getattr(settings, 'LLM_PROFILES', {})
-        profile_data = all_llm_profiles.get(self.llm_profile_name)
-
-        if profile_data is None:
-            logger.warning(f"LLM profile '{self.llm_profile_name}' not found in django settings. LLM will not be available.")
-            self.llm_profile = {} # Set empty profile
-            self.llm = None # Set LLM to None
-            return # Exit setup early
-
-        logger.debug(f"Using LLM profile '{self.llm_profile_name}' from settings.")
-        self.llm_profile = profile_data
-        # *** LLMRegistry doesn't exist yet - Comment out usage and set placeholder ***
-        # self.llm = LLMRegistry.get_llm(self.llm_profile)
-        self.llm = None # Placeholder until registry is implemented
-        logger.warning("LLMRegistry not implemented. self.llm set to None.")
-
-
-    @staticmethod
-    def _substitute_env_vars(data: Any) -> Any:
-        """Recursively substitutes environment variables in strings."""
-        if isinstance(data, dict):
-            return {k: BlueprintBase._substitute_env_vars(v) for k, v in data.items()}
-        if isinstance(data, list):
-            return [BlueprintBase._substitute_env_vars(item) for item in data]
-        if isinstance(data, str):
-            return os.path.expandvars(data)
-        return data
-
-    def _setup_jinja(self):
-        """Sets up Jinja2 environment."""
-        try:
-            blueprint_file_path = inspect.getfile(self.__class__)
-            blueprint_dir = os.path.dirname(blueprint_file_path)
-            template_dir = os.path.join(blueprint_dir, 'templates')
-            if os.path.isdir(template_dir):
-                 logger.debug(f"Setting up Jinja env with loader at: {template_dir}")
-                 self.jinja_env = Environment(
-                     loader=FileSystemLoader(template_dir),
-                     autoescape=select_autoescape(['html', 'xml'])
-                 )
-            else:
-                 logger.debug(f"No 'templates' directory found for blueprint at {template_dir}. Jinja env not created.")
-                 self.jinja_env = None
-        except Exception as e:
-             logger.warning(f"Could not determine template path for {self.__class__.__name__}: {e}. Jinja env not created.")
-             self.jinja_env = None
-
-    def render_prompt(self, template_name: str, context: Dict = None) -> str:
-        """Renders a Jinja2 template."""
-        if not self.jinja_env:
-             raise RuntimeError(f"Jinja environment not set up for blueprint {self.__class__.__name__}.")
-        if context is None:
-             context = {}
-        try:
-             template = self.jinja_env.get_template(template_name)
-             full_context = {**self.params, **context}
-             return template.render(full_context)
-        except Exception as e:
-             logger.error(f"Error rendering template '{template_name}': {e}", exc_info=True)
-             raise
-
-    def get_llm_profile(self) -> Dict:
-         """Returns the configuration for the LLM profile being used."""
-         if not hasattr(self, 'llm_profile'):
-              logger.warning("LLM profile was not set during initialization, returning empty dict.")
-              return {}
-         return self.llm_profile
+        raise NotImplementedError("Subclasses must implement the 'run' method.")
+        yield {}
 

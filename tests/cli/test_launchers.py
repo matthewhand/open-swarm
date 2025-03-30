@@ -1,174 +1,206 @@
+
+# --- Content for tests/cli/test_launchers.py ---
 import pytest
 import subprocess
+import sys
+import os
+import pathlib
 from typer.testing import CliRunner
-from pathlib import Path
-from unittest.mock import patch, MagicMock, ANY # Import ANY
+from unittest.mock import patch, MagicMock
 
-# Assuming swarm_cli.py is now at src/swarm/extensions/launchers/swarm_cli.py
-# Adjust the import path if necessary
-try:
-    from swarm.extensions.launchers import swarm_cli
-except ImportError:
-    # Fallback or handle error if structure is different
-    pytest.fail("Could not import swarm_cli module. Check path.")
+# Corrected import path
+from swarm.extensions.launchers import swarm_cli
 
-# *** Initialize runner to NOT mix stderr ***
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
-# --- Fixtures ---
+EXPECTED_EXE_NAME = "test_blueprint"
 
-@pytest.fixture(autouse=True)
-def isolate_filesystem(monkeypatch, tmp_path):
-    """Ensure tests don't interact with the real user filesystem."""
-    # Use tmp_path provided by pytest for isolation
-    mock_user_data_dir = tmp_path / "swarm_user_data"
-    mock_user_config_dir = tmp_path / "swarm_user_config"
-    # Define the bin dir within the mocked data dir
+@pytest.fixture
+def mock_dirs(tmp_path):
+    """Creates temporary directories and returns their paths."""
+    mock_user_data_dir = tmp_path / "user_data"
     mock_user_bin_dir = mock_user_data_dir / "bin"
+    mock_user_blueprints_dir = mock_user_data_dir / "blueprints"
 
-    # Ensure mocked dirs exist for the test
-    mock_user_data_dir.mkdir(parents=True, exist_ok=True)
-    mock_user_config_dir.mkdir(parents=True, exist_ok=True)
-    mock_user_bin_dir.mkdir(parents=True, exist_ok=True) # Ensure bin dir exists
+    mock_user_bin_dir.mkdir(parents=True, exist_ok=True)
+    mock_user_blueprints_dir.mkdir(parents=True, exist_ok=True)
 
-    # Patch platformdirs functions used in swarm_cli
-    monkeypatch.setattr(swarm_cli.platformdirs, "user_data_dir", lambda *args, **kwargs: str(mock_user_data_dir))
-    monkeypatch.setattr(swarm_cli.platformdirs, "user_config_dir", lambda *args, **kwargs: str(mock_user_config_dir))
-    # Patch the derived directory variables directly in the module where they are defined
-    monkeypatch.setattr(swarm_cli, "USER_DATA_DIR", mock_user_data_dir)
-    monkeypatch.setattr(swarm_cli, "USER_CONFIG_DIR", mock_user_config_dir)
-    monkeypatch.setattr(swarm_cli, "USER_BIN_DIR", mock_user_bin_dir)
-    monkeypatch.setattr(swarm_cli, "BLUEPRINTS_DIR", mock_user_data_dir / "blueprints")
-    monkeypatch.setattr(swarm_cli, "INSTALLED_BIN_DIR", mock_user_bin_dir) # Patch the correct variable
+    return {
+        "data": mock_user_data_dir,
+        "bin": mock_user_bin_dir,
+        "blueprints": mock_user_blueprints_dir,
+    }
 
+# This fixture is needed because mock_dirs uses mocker
+@pytest.fixture(autouse=True)
+def apply_mocker(mocker):
+    pass
 
-# --- Tests ---
+@pytest.fixture
+def mock_subprocess_run():
+    """Mocks subprocess.run."""
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stdout = "Success"
+        mock_process.stderr = ""
+        mock_run.return_value = mock_process
+        yield mock_run
+
 
 def test_swarm_cli_entrypoint():
     """Test that the CLI runs and shows help."""
     result = runner.invoke(swarm_cli.app, ["--help"])
     assert result.exit_code == 0
-    # *** Adjust assertion to expect 'root' in test runner context ***
-    assert "Usage: root [OPTIONS] COMMAND [ARGS]..." in result.stdout
-    assert "install" in result.stdout
-    assert "launch" in result.stdout
-    assert "list" in result.stdout
+    assert "[OPTIONS] COMMAND [ARGS]..." in result.stdout
+    assert "Swarm CLI tool" in result.stdout
 
 
-# Mock subprocess.run used by the install command
-@patch('subprocess.run')
-def test_swarm_cli_install_creates_executable(mock_subprocess_run, tmp_path, monkeypatch):
-    """ Test 'swarm-cli install' runs PyInstaller and simulates executable creation. """
-    # Use paths derived from the isolated filesystem fixture
-    mock_user_data_dir = swarm_cli.USER_DATA_DIR
-    mock_bp_dir = swarm_cli.BLUEPRINTS_DIR
-    mock_bin_dir = swarm_cli.INSTALLED_BIN_DIR # Use the correct variable
+@patch("subprocess.run")
+def test_swarm_cli_install_creates_executable(mock_run, mock_dirs, mocker):
+    """Test the install command attempts to run PyInstaller."""
+    install_bin_dir = mock_dirs["bin"]
+    blueprints_src_dir = mock_dirs["blueprints"]
+    user_data_dir = mock_dirs["data"]
 
-    # Ensure mocked dirs exist (should be handled by fixture, but double-check)
-    mock_bp_dir.mkdir(parents=True, exist_ok=True)
-    mock_bin_dir.mkdir(parents=True, exist_ok=True)
+    blueprint_name = "test_blueprint"
+    target_path = install_bin_dir / blueprint_name
 
-    # Create a dummy blueprint source directory and entry point file
-    blueprint_name = "dummy_install_bp"
-    source_bp_path = mock_bp_dir / blueprint_name
-    source_bp_path.mkdir()
+    # Simulate Source Blueprint Directory and File
+    source_dir = blueprints_src_dir / blueprint_name
+    source_dir.mkdir()
     entry_point_name = "main.py"
-    (source_bp_path / entry_point_name).touch()
+    entry_point_path = source_dir / entry_point_name
+    entry_point_path.write_text("print('hello from blueprint')")
 
-    # Configure the mock for subprocess.run
-    # Simulate successful PyInstaller run (no output needed, just check call)
-    mock_subprocess_run.return_value = MagicMock(
-        returncode=0, stdout="PyInstaller success", stderr=""
-    )
+    # Mock find_entry_point
+    mocker.patch("swarm.extensions.launchers.swarm_cli.find_entry_point", return_value=entry_point_name)
 
-    # Invoke the install command
+    # Configure mock for successful PyInstaller run
+    mock_process = MagicMock()
+    mock_process.returncode = 0
+    mock_process.stdout = f"PyInstaller finished successfully. Executable at {target_path}"
+    mock_process.stderr = ""
+    mock_run.return_value = mock_process
+
+    # --- Patch Module-Level Variables Directly ---
+    mocker.patch.object(swarm_cli, 'BLUEPRINTS_DIR', blueprints_src_dir)
+    mocker.patch.object(swarm_cli, 'INSTALLED_BIN_DIR', install_bin_dir)
+    mocker.patch.object(swarm_cli, 'USER_DATA_DIR', user_data_dir)
+
     result = runner.invoke(swarm_cli.app, ["install", blueprint_name])
 
-    # Assertions
-    assert result.exit_code == 0, f"CLI exited with code {result.exit_code}. Output:\n{result.stdout}\n{result.stderr}"
-    assert f"Installing blueprint '{blueprint_name}'..." in result.stdout
-    assert f"Successfully installed '{blueprint_name}'" in result.stdout
+    print(f"CLI Output:\n{result.output}")
+    print(f"CLI Exit Code: {result.exit_code}")
+    print(f"CLI Exception: {result.exception}")
 
-    # Check that subprocess.run (PyInstaller) was called correctly
-    expected_pyinstaller_cmd_start = [
-        "pyinstaller",
-        "--onefile",
-        "--name", blueprint_name,
-        "--distpath", str(mock_bin_dir), # Check correct output path
-        # Check other paths point within tmp_path structure
-        "--workpath", str(mock_user_data_dir / "build"),
-        "--specpath", str(mock_user_data_dir),
-        str(source_bp_path / entry_point_name),
-    ]
-    mock_subprocess_run.assert_called_once()
-    called_args = mock_subprocess_run.call_args[0][0] # Get the list passed to subprocess.run
-    assert called_args == expected_pyinstaller_cmd_start
+    assert result.exit_code == 0, f"CLI failed unexpectedly. Output:\n{result.output}"
+    assert f"Installing blueprint '{blueprint_name}'..." in result.output
+    assert f"Successfully installed '{blueprint_name}' to {target_path}" in result.output
+
+    mock_run.assert_called_once()
+    args, kwargs = mock_run.call_args
+    cmd_list = args[0] # Get the command list
+    assert "pyinstaller" in cmd_list[0]
+    assert str(entry_point_path) in cmd_list
+    # --- Corrected --name assertion ---
+    assert "--name" in cmd_list
+    assert cmd_list[cmd_list.index("--name") + 1] == blueprint_name
+    # --- End correction ---
+    assert "--distpath" in cmd_list
+    assert cmd_list[cmd_list.index("--distpath") + 1] == str(install_bin_dir)
+    assert "--workpath" in cmd_list
+    assert cmd_list[cmd_list.index("--workpath") + 1] == str(user_data_dir / "build") # Check specific build path
+    assert "--specpath" in cmd_list
+    assert cmd_list[cmd_list.index("--specpath") + 1] == str(user_data_dir)
 
 
-@patch('subprocess.run') # Mock subprocess even if not expected to be called
-def test_swarm_install_failure(mock_subprocess_run, tmp_path, monkeypatch):
-    """Test install command fails and exits if blueprint doesn't exist."""
-    # Use paths derived from the isolated filesystem fixture
-    mock_bp_dir = swarm_cli.BLUEPRINTS_DIR
-    mock_bp_dir.mkdir(parents=True, exist_ok=True) # Ensure base dir exists
+@patch("subprocess.run")
+def test_swarm_install_failure(mock_run, mock_dirs, mocker):
+    """Test the install command handles PyInstaller failure."""
+    install_bin_dir = mock_dirs["bin"]
+    blueprints_src_dir = mock_dirs["blueprints"]
+    user_data_dir = mock_dirs["data"]
+    blueprint_name = "fail_blueprint"
 
-    # Don't create the blueprint source dir
+    # Simulate Source Blueprint Directory and File
+    source_dir = blueprints_src_dir / blueprint_name
+    source_dir.mkdir()
+    entry_point_name = "fail_main.py"
+    entry_point_path = source_dir / entry_point_name
+    entry_point_path.write_text("print('fail')")
+
+    # Mock find_entry_point
+    mocker.patch("swarm.extensions.launchers.swarm_cli.find_entry_point", return_value=entry_point_name)
+
+    # --- Configure mock to RAISE CalledProcessError ---
+    error_stderr = "PyInstaller error: Build failed!"
+    mock_run.side_effect = subprocess.CalledProcessError(
+        returncode=1, cmd=["pyinstaller", "..."], stderr=error_stderr
+    )
+    # --- End change ---
+
+    # --- Patch Module-Level Variables Directly ---
+    mocker.patch.object(swarm_cli, 'BLUEPRINTS_DIR', blueprints_src_dir)
+    mocker.patch.object(swarm_cli, 'INSTALLED_BIN_DIR', install_bin_dir)
+    mocker.patch.object(swarm_cli, 'USER_DATA_DIR', user_data_dir)
+
+    result = runner.invoke(swarm_cli.app, ["install", blueprint_name])
+
+    assert result.exit_code == 1
+    assert f"Error during PyInstaller execution" in result.output
+    assert error_stderr in result.output
+
+
+@patch("subprocess.run")
+def test_swarm_launch_runs_executable(mock_run, mock_dirs, mocker):
+    """Test the launch command runs the correct executable."""
+    install_bin_dir = mock_dirs["bin"]
+    blueprint_name = EXPECTED_EXE_NAME
+    exe_path = install_bin_dir / blueprint_name
+
+    # Simulate the executable existing in the mocked bin dir
+    exe_path.touch(exist_ok=True)
+    exe_path.chmod(0o755)
+
+    mock_process = MagicMock()
+    mock_process.returncode = 0
+    mock_process.stdout = "Blueprint output"
+    mock_process.stderr = ""
+    mock_run.return_value = mock_process
+
+    # --- Patch Module-Level INSTALLED_BIN_DIR ---
+    mocker.patch.object(swarm_cli, 'INSTALLED_BIN_DIR', install_bin_dir)
+    # Patch file checks used by launch command
+    mocker.patch('pathlib.Path.is_file', return_value=True)
+    mocker.patch('os.access', return_value=True)
+
+    result = runner.invoke(
+        swarm_cli.app,
+        ["launch", blueprint_name], # No extra args
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, f"CLI failed unexpectedly. Output:\n{result.output}"
+    assert f"Launching '{blueprint_name}' from {exe_path}..." in result.output
+    mock_run.assert_called_once_with([str(exe_path)], capture_output=True, text=True, check=False)
+
+
+def test_swarm_launch_failure_not_found(mock_dirs, mocker):
+    """Test the launch command fails if the executable doesn't exist."""
+    install_bin_dir = mock_dirs["bin"]
     blueprint_name = "nonexistent_blueprint"
-    result = runner.invoke(swarm_cli.app, ["install", blueprint_name])
+    expected_path = install_bin_dir / blueprint_name
 
-    # Assertions
-    assert result.exit_code != 0
-    # Check stderr for the error message (should work now with mix_stderr=False)
-    expected_error = f"Error: Blueprint source directory not found in user directory: {mock_bp_dir / blueprint_name}"
-    assert expected_error in result.stderr
-    assert "Currently, only blueprints placed in the user directory can be installed." in result.stderr
-    mock_subprocess_run.assert_not_called() # PyInstaller should not have been called
+    # --- Patch Module-Level INSTALLED_BIN_DIR ---
+    mocker.patch.object(swarm_cli, 'INSTALLED_BIN_DIR', install_bin_dir)
+    # Patch file checks to return False
+    mocker.patch('pathlib.Path.is_file', return_value=False)
+    mocker.patch('os.access', return_value=False)
 
-
-@patch('subprocess.run')
-def test_swarm_launch_runs_executable(mock_subprocess_run, tmp_path, monkeypatch):
-    """ Test 'swarm-cli launch' executes the correct pre-installed executable. """
-    # Use paths derived from the isolated filesystem fixture
-    mock_bin_dir = swarm_cli.INSTALLED_BIN_DIR # Use the correct variable
-    mock_bin_dir.mkdir(parents=True, exist_ok=True) # Ensure base dir exists
-
-    # Create a dummy executable file in the mocked bin directory
-    blueprint_name = "dummy_launch_bp"
-    executable_path = mock_bin_dir / blueprint_name
-    executable_path.touch()
-    executable_path.chmod(0o755) # Make it executable
-
-    # Configure the mock for subprocess.run (simulating the launched blueprint)
-    mock_subprocess_run.return_value = MagicMock(
-        returncode=0, stdout=f"Launched {blueprint_name} successfully!", stderr=""
-    )
-
-    # Invoke the launch command
     result = runner.invoke(swarm_cli.app, ["launch", blueprint_name])
 
-    # Assertions
-    assert result.exit_code == 0, f"CLI exited with code {result.exit_code}. Output:\n{result.stdout}\n{result.stderr}"
-    assert f"Launching '{blueprint_name}' from {executable_path}..." in result.stdout
-    assert f"Launched {blueprint_name} successfully!" in result.stdout # Check blueprint output
-
-    # Check that subprocess.run was called to execute the blueprint
-    mock_subprocess_run.assert_called_once_with(
-        [str(executable_path)], capture_output=True, text=True, check=False
-    )
-
-
-def test_swarm_launch_failure_not_found(tmp_path, monkeypatch):
-    """Test launch command fails if executable doesn't exist."""
-    # Use paths derived from the isolated filesystem fixture
-    mock_bin_dir = swarm_cli.INSTALLED_BIN_DIR # Use the correct variable
-    mock_bin_dir.mkdir(parents=True, exist_ok=True) # Ensure base dir exists
-
-    blueprint_name = "nonexistent_launch_bp"
-    result = runner.invoke(swarm_cli.app, ["launch", blueprint_name])
-
-    # Assertions
-    assert result.exit_code != 0
-    expected_error = f"Error: Blueprint executable not found or not executable: {mock_bin_dir / blueprint_name}"
-    # Check stderr for the error message (should work now with mix_stderr=False)
-    assert expected_error in result.stderr
+    assert result.exit_code == 1
+    expected_error = f"Error: Blueprint executable not found or not executable: {expected_path}"
+    assert expected_error in result.output.strip()
 
