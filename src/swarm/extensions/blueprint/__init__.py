@@ -12,7 +12,6 @@ from .blueprint_utils import filter_blueprints
 
 # Helper modules (primarily used internally by BlueprintBase or CLI)
 from . import config_loader
-from . import mcp_manager
 from . import cli_handler
 # from . import interactive_mode # If interactive mode is refactored out
 # from . import output_utils     # If output utils are used externally
@@ -40,7 +39,6 @@ __all__ = [
 
     # Helper Modules (Exporting for potential external use, though less common)
     "config_loader",
-    "mcp_manager",
     "cli_handler",
     # "interactive_mode",
     # "output_utils",
