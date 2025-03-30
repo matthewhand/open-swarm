@@ -1,46 +1,55 @@
-"""
-API-specific views and viewsets for Open Swarm MCP Core.
-"""
-from rest_framework.viewsets import ModelViewSet
+import time
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.permissions import AllowAny
-from drf_spectacular.views import SpectacularAPIView as BaseSpectacularAPIView
-from drf_spectacular.utils import extend_schema
-from swarm.utils.logger_setup import setup_logger
-from swarm.models import ChatMessage
-from swarm.serializers import ChatMessageSerializer
+# *** Import async_to_sync ***
+from asgiref.sync import async_to_sync
 
-logger = setup_logger(__name__)
+from swarm.views.utils import get_available_blueprints
 
-class HiddenSpectacularAPIView(BaseSpectacularAPIView):
-    exclude_from_schema = True
+logger = logging.getLogger(__name__)
 
-class ChatMessageViewSet(ModelViewSet):
-    """API viewset for managing chat messages."""
-    authentication_classes = []
+class ModelsListView(APIView):
+    """
+    API view to list available models (blueprints) compatible with OpenAI's /v1/models format.
+    """
     permission_classes = [AllowAny]
-    queryset = ChatMessage.objects.all()
-    serializer_class = ChatMessageSerializer
 
-    @extend_schema(summary="List all chat messages")
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+    def get(self, request, *args, **kwargs):
+        try:
+            # *** Use async_to_sync to call the async function ***
+            available_blueprints = async_to_sync(get_available_blueprints)()
 
-    @extend_schema(summary="Retrieve a chat message by its unique id")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+            models_data = []
+            current_time = int(time.time())
+            if isinstance(available_blueprints, dict):
+                blueprint_ids = available_blueprints.keys()
+            elif isinstance(available_blueprints, list):
+                 blueprint_ids = available_blueprints
+            else:
+                 logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
+                 blueprint_ids = []
 
-    @extend_schema(summary="Create a new chat message")
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+            for blueprint_id in blueprint_ids:
+                models_data.append({
+                    "id": blueprint_id,
+                    "object": "model",
+                    "created": current_time,
+                    "owned_by": "open-swarm",
+                })
 
-    @extend_schema(summary="Update an existing chat message")
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
+            response_payload = {
+                "object": "list",
+                "data": models_data,
+            }
+            return Response(response_payload, status=status.HTTP_200_OK)
 
-    @extend_schema(summary="Partially update a chat message")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        except Exception as e:
+            logger.exception("Error retrieving available models.")
+            return Response(
+                {"error": "Failed to retrieve models list."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-    @extend_schema(summary="Delete a chat message by its unique id")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
