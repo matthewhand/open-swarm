@@ -1,111 +1,77 @@
+"""
+EchoCraft Blueprint: A simple example blueprint for Open Swarm.
+
+This blueprint demonstrates the basic structure and functionality.
+It defines a single agent, "Echo", which simply repeats the user's input.
+"""
 import logging
-import os
-import sys
-from typing import Dict, Any, List, ClassVar, Optional
+from typing import List, Dict, Any
 
-# Ensure src is in path for BlueprintBase import
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
-
-try:
-    from agents import Agent, Tool, function_tool, Runner
-    from agents.mcp import MCPServer
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-except ImportError as e:
-    print(f"ERROR: Import failed in EchoCraftBlueprint: {e}. Check dependencies.")
-    print(f"sys.path: {sys.path}")
-    sys.exit(1)
+# Import necessary components from the 'agents' library and the base class
+from agents import Agent
+from swarm.extensions.blueprint import BlueprintBase
 
 logger = logging.getLogger(__name__)
 
-# --- Define the Blueprint ---
+# Define the EchoAgent at the module level
+class EchoAgent(Agent):
+    """A simple agent that echoes the last user message."""
+    name: str = "Echo"
+    description: str = "Echoes the user's input directly back."
+
+    async def process(self, messages: List[Dict[str, Any]], **kwargs) -> str:
+        """
+        Finds the last user message and returns its content.
+        """
+        # Find the last message from the user
+        last_user_message = next((msg['content'] for msg in reversed(messages) if msg.get('role') == 'user'), None)
+
+        if last_user_message:
+            logger.debug(f"EchoAgent received: '{last_user_message}'. Echoing back.")
+            return last_user_message
+        else:
+            logger.warning("EchoAgent couldn't find a user message to echo.")
+            return "I didn't receive any input to echo back."
+
 class EchoCraftBlueprint(BlueprintBase):
-    """A simple blueprint that echoes the user's instruction."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    """
+    EchoCraft Blueprint - Repeats user input.
+    """
+    # --- Blueprint Metadata ---
+    metadata = {
         "name": "EchoCraftBlueprint",
         "title": "EchoCraft",
-        "description": "A simple agent that echoes the provided instruction.",
-        "version": "1.1.0", # Refactored version
-        "author": "Open Swarm Team (Refactored)",
-        "tags": ["simple", "echo", "testing"],
-        "required_mcp_servers": [], # No MCP needed
-        "env_vars": [], # No specific env vars needed
+        "version": "1.1.0", # Increment version if changes are made
+        "description": "A very simple blueprint that echoes back whatever the user says.",
+        "author": "Open Swarm Contributors",
+        "tags": ["Example", "Simple", "Echo", "Test"],
+        "required_mcp_servers": [], # No MCP servers needed
+        "env_vars": [], # No specific environment variables needed
     }
 
-    # Caches (Standard practice, though not strictly needed for this simple BP)
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    # --- Initialization (Inherited) ---
+    # Uses the __init__ from BlueprintBase for config loading, logging, etc.
 
-    # --- Model Instantiation Helper --- (Standard helper)
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
-        if not profile_data:
-             logger.critical(f"LLM profile '{profile_name}' (or 'default') not found.")
-             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name:
-             logger.critical(f"LLM profile '{profile_name}' missing 'model' key.")
-             raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
-        if provider != "openai": # Keep simple for now
-            logger.error(f"Unsupported LLM provider '{provider}'.")
-            raise ValueError(f"Unsupported LLM provider: {provider}")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if client_cache_key not in self._openai_client_cache:
-             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-             filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-             log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
-             logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init OpenAI client: {e}") from e
-        client = self._openai_client_cache[client_cache_key]
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
-        try:
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
-
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
-        """Creates the EchoAgent."""
-        logger.debug("Creating EchoAgent...")
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
-
-        # Get model instance (even though EchoAgent won't use it for LLM calls, Agent requires it)
-        default_profile_name = self.config.get("llm_profile", "default")
-        model_instance = self._get_model_instance(default_profile_name)
-
-        # Define the EchoAgent. It doesn't need tools or complex instructions.
-        # It overrides the process method to simply return the input.
-        class EchoAgent(Agent):
-            async def process(self, input_data: Any, **kwargs) -> Any:
-                """Overrides the default process method to simply echo the input."""
-                logger.info(f"EchoAgent received input: {input_data}")
-                # We need to return something the Runner expects as output.
-                # The simplest is just returning the input string.
-                return str(input_data) if input_data is not None else "[No input received]"
-
-        echo_agent = EchoAgent(
-            name="Echo",
-            model=model_instance, # Still required by Agent base class
-            instructions="You are a simple echo agent. You don't need to process instructions.", # Basic instructions
-            tools=[], # No tools needed
-            mcp_servers=mcp_servers # Pass along, though unused
-        )
-
-        logger.debug("EchoAgent created.")
+    # --- Agent Creation ---
+    def create_starting_agent(self, mcp_servers: List) -> Agent:
+        """
+        Creates and returns the starting agent for this blueprint.
+        In this case, it's just the EchoAgent.
+        """
+        logger.debug("Creating EchoAgent instance.")
+        # Instantiate the module-level EchoAgent
+        echo_agent = EchoAgent()
         return echo_agent
 
-# Standard Python entry point
+    # --- Main Execution Logic (Inherited) ---
+    # Uses _run_non_interactive from BlueprintBase, which calls create_starting_agent
+    # and then uses agents.Runner.run() on the returned agent.
+
+    # --- CLI Entry Point (Inherited) ---
+    # Uses main() from BlueprintBase, which parses args and calls _run_non_interactive.
+
+# --- Direct execution example (optional) ---
 if __name__ == "__main__":
+    # This allows running the blueprint directly using: python blueprint_echocraft.py --instruction "Hello"
     EchoCraftBlueprint.main()
+
