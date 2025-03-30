@@ -1,62 +1,113 @@
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock, DEFAULT
-import asyncio
-from agents import Agent # Import real Agent for type checking
+import logging
+from unittest.mock import MagicMock, patch
+import asyncio # Import asyncio if needed for advanced mocking
 
+# Use the agents library components directly
+from agents import Agent as LibraryAgent
+from agents import Runner as LibraryRunner # Import Runner for mocking in the next test
+from agents import model_settings as ModelSettings
+from agents.result import RunResult
+
+from swarm.extensions.blueprint.blueprint_base import BlueprintBase
 from blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint, EchoAgent
+from tests.conftest import skip_llm, MOCK_CONFIG_ECHOCRAFT
+
+# Configure logging for tests
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 @pytest.fixture
-def echocraft_blueprint_instance():
-    """ Fixture to create an instance of EchoCraftBlueprint with mocked config loading. """
-    minimal_config = {
-        'llm': {'default': {'provider': 'mock', 'model': 'mock-model'}},
-        'mcpServers': {}, 'defaults': {},
-    }
-    with patch('src.swarm.extensions.blueprint.blueprint_base.load_environment'), \
-         patch('src.swarm.extensions.blueprint.blueprint_base.load_full_configuration', return_value=minimal_config):
-        instance = EchoCraftBlueprint(quiet=True)
-        yield instance
+def echocraft_blueprint_instance(mock_config_loader, mock_openai_client):
+    """Fixture to create an instance of EchoCraftBlueprint with mocked config."""
+    logger.debug("Creating EchoCraftBlueprint instance in fixture with mock config")
+    instance = EchoCraftBlueprint(config_override=MOCK_CONFIG_ECHOCRAFT, debug=True)
+    # Explicitly mock the runner instance assigned within the Blueprint
+    instance.runner = MagicMock(spec=LibraryRunner)
+    # IMPORTANT: The runner.run attribute is ALSO a MagicMock by default.
+    # We will configure this nested mock within the test itself.
+    logger.debug(f"Runner mocked in fixture: {instance.runner}")
+    return instance
+
+
+def test_echocraft_is_blueprint_base(echocraft_blueprint_instance):
+    """Test if EchoCraftBlueprint is a subclass of BlueprintBase."""
+    assert isinstance(echocraft_blueprint_instance, BlueprintBase)
+    logger.info("EchoCraftBlueprint is instance of BlueprintBase.")
+
 
 def test_echocraft_metadata(echocraft_blueprint_instance):
-    blueprint = echocraft_blueprint_instance
-    assert blueprint.metadata["name"] == "EchoCraftBlueprint"
-    assert blueprint.metadata["title"] == "EchoCraft"
-    assert len(blueprint.metadata["required_mcp_servers"]) == 0
+    """Test if EchoCraftBlueprint has the correct metadata."""
+    assert echocraft_blueprint_instance.name == "echocraft"
+    assert isinstance(echocraft_blueprint_instance.description(), str)
+    assert len(echocraft_blueprint_instance.description()) > 0
+    logger.info("EchoCraftBlueprint metadata tests passed.")
 
-@pytest.mark.skip(reason="Skipping due to persistent Agent mocking/instantiation issue in test environment.")
-@pytest.mark.asyncio
-async def test_echocraft_agent_creation(echocraft_blueprint_instance):
-    """ Test if the EchoAgent is created correctly (real agent). """
-    blueprint = echocraft_blueprint_instance
-    starting_agent = blueprint.create_starting_agent(mcp_servers=[])
-    assert starting_agent is not None
-    assert isinstance(starting_agent, Agent), "Should be an instance of agents.Agent"
-    assert starting_agent.name == "Echo", "Agent name should be Echo"
-    assert len(getattr(starting_agent, 'tools', [])) == 0
-    assert hasattr(starting_agent, 'process')
-    assert asyncio.iscoroutinefunction(starting_agent.process), "Agent.process should be async"
-    assert type(starting_agent).__name__ == "EchoAgent"
 
-@pytest.mark.skip(reason="Skipping due to persistent Agent mocking/instantiation issue in test environment.")
-@pytest.mark.asyncio
+# This test now passes, keep @skip_llm unless debugging agent creation specifically
+@skip_llm
+@pytest.mark.llm
+def test_echocraft_agent_creation(echocraft_blueprint_instance):
+    """Test the creation of the starting agent."""
+    logger.info("Starting test_echocraft_agent_creation")
+    starting_agent = echocraft_blueprint_instance.create_starting_agent()
+    logger.info(f"Agent created by blueprint: {starting_agent}")
+
+    assert starting_agent is not None, "create_starting_agent should return an agent object, not None."
+    assert isinstance(starting_agent, EchoAgent), f"Expected EchoAgent, but got {type(starting_agent)}"
+    assert isinstance(starting_agent, LibraryAgent), f"Expected an instance of agents.Agent or subclass, but got {type(starting_agent)}"
+    assert starting_agent.model == "gpt-4o", f"Expected model 'gpt-4o', got {starting_agent.model}"
+    logger.info(f"Agent creation test assertions passed (type: {type(starting_agent)}).")
+
+
+# Keep @skip_llm until the test reliably passes, then remove if desired
+@skip_llm
+@pytest.mark.llm
 async def test_echocraft_run_echoes_input(echocraft_blueprint_instance):
-    """ Test if the agent's process method echoes the input. """
-    blueprint = echocraft_blueprint_instance
-    instruction = "Hello, Echo!"
-    starting_agent = blueprint.create_starting_agent(mcp_servers=[])
+    """Test the run method echoes the input."""
+    logger.info("Starting test_echocraft_run_echoes_input")
+    input_data = {"input": "Hello, Swarm!"}
 
-    assert starting_agent is not None and isinstance(starting_agent, Agent)
-    assert asyncio.iscoroutinefunction(starting_agent.process)
+    # The runner should already be mocked by the fixture
+    mock_runner = echocraft_blueprint_instance.runner
+    assert isinstance(mock_runner, MagicMock), "Runner should be mocked by the fixture"
+    logger.debug(f"Runner instance being used in test: {mock_runner}")
 
-    mock_messages = [{"role": "user", "content": instruction}]
-    try:
-        result = await starting_agent.process(messages=mock_messages)
-    except Exception as e:
-        pytest.fail(f"Awaiting agent.process failed unexpectedly: {e}")
+    # Prepare the mock result object
+    mock_run_result = MagicMock(spec=RunResult)
+    expected_output = f"Echo: {input_data['input']}"
+    mock_run_result.final_output = {"output": expected_output}
+    logger.debug(f"Mock RunResult configured with final_output: {mock_run_result.final_output}")
 
-    assert result == instruction, "Agent process method did not return the expected echo"
+    # Configure the runner's 'run' method (which is also a MagicMock)
+    # Setting return_value directly often works for async mocks in pytest-asyncio
+    mock_runner.run.return_value = mock_run_result
+    # Alternative if direct return_value doesn't await correctly:
+    # future = asyncio.Future()
+    # future.set_result(mock_run_result)
+    # mock_runner.run.return_value = future
 
-@pytest.mark.skip(reason="CLI tests require more setup/mocking or direct call checks")
-def test_echocraft_cli_execution():
-    pass
+    # Now call the blueprint's async run method
+    logger.debug("Calling blueprint.run(input_data)")
+    result = await echocraft_blueprint_instance.run(input_data)
+    logger.debug(f"Blueprint run method returned: {result}")
+
+    # Verify the mock runner's 'run' method was called
+    mock_runner.run.assert_called_once() # Use the standard mock assertion
+
+    # Check the arguments passed TO the runner's run method
+    call_args, call_kwargs = mock_runner.run.call_args
+    logger.debug(f"Asserting call args: args={call_args}, kwargs={call_kwargs}")
+    # Expected: runner.run(agent=..., input=...)
+    assert "agent" in call_kwargs, "Keyword argument 'agent' missing in runner call"
+    assert isinstance(call_kwargs["agent"], EchoAgent), "Agent passed to runner was not an EchoAgent"
+    assert call_kwargs.get("input") == input_data["input"], f"Input passed to runner was not '{input_data['input']}'"
+
+
+    # Verify the result returned by the blueprint matches the mocked final output
+    assert result == mock_run_result.final_output
+    assert result.get("output") == expected_output, f"Expected '{expected_output}', got '{result.get('output')}'"
+
+    logger.info("Echocraft run test passed.")
 

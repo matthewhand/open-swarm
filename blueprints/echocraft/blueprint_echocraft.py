@@ -1,77 +1,115 @@
-"""
-EchoCraft Blueprint: A simple example blueprint for Open Swarm.
-
-This blueprint demonstrates the basic structure and functionality.
-It defines a single agent, "Echo", which simply repeats the user's input.
-"""
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any, Optional
 
-# Import necessary components from the 'agents' library and the base class
-from agents import Agent
-from swarm.extensions.blueprint import BlueprintBase
+# Use the agents library components
+from agents import Agent as LibraryAgent
+from agents import Runner as LibraryRunner
+from agents import model_settings as ModelSettings
+from agents.result import RunResult
+
+from swarm.extensions.blueprint.blueprint_base import BlueprintBase
 
 logger = logging.getLogger(__name__)
 
-# Define the EchoAgent at the module level
-class EchoAgent(Agent):
-    """A simple agent that echoes the last user message."""
-    name: str = "Echo"
-    description: str = "Echoes the user's input directly back."
+# --- EchoAgent Definition ---
+class EchoAgent(LibraryAgent):
+    """A simple agent that repeats the user's input."""
 
-    async def process(self, messages: List[Dict[str, Any]], **kwargs) -> str:
-        """
-        Finds the last user message and returns its content.
-        """
-        # Find the last message from the user
-        last_user_message = next((msg['content'] for msg in reversed(messages) if msg.get('role') == 'user'), None)
+    def __init__(self, name="EchoAgent", instructions: Optional[str] = None, **kwargs):
+        # Default instructions if none provided
+        effective_instructions = instructions or "You are an echo agent. Repeat the user's input exactly."
+        # Pass relevant kwargs to the base Agent class
+        # Make sure **kwargs ONLY contains arguments accepted by LibraryAgent.__init__
+        # Likely candidates: name, instructions, model, model_settings, tools, metadata, etc.
+        # DO NOT pass api_key, base_url etc. here.
+        logger.debug(f"EchoAgent.__init__ called with name={name}, instructions='{effective_instructions}', kwargs={kwargs}")
+        super().__init__(name=name, instructions=effective_instructions, **kwargs)
+        logger.debug(f"EchoAgent super().__init__ completed.")
 
-        if last_user_message:
-            logger.debug(f"EchoAgent received: '{last_user_message}'. Echoing back.")
-            return last_user_message
-        else:
-            logger.warning("EchoAgent couldn't find a user message to echo.")
-            return "I didn't receive any input to echo back."
+    # Note: agents.Agent itself doesn't have a run method.
+    # The logic is handled by agents.Runner.run(agent=self, input=...)
 
+
+# --- EchoCraftBlueprint Definition ---
 class EchoCraftBlueprint(BlueprintBase):
     """
-    EchoCraft Blueprint - Repeats user input.
+    A simple blueprint demonstrating the Swarm framework.
+    It uses an agent that just echoes back the input.
     """
-    # --- Blueprint Metadata ---
-    metadata = {
-        "name": "EchoCraftBlueprint",
-        "title": "EchoCraft",
-        "version": "1.1.0", # Increment version if changes are made
-        "description": "A very simple blueprint that echoes back whatever the user says.",
-        "author": "Open Swarm Contributors",
-        "tags": ["Example", "Simple", "Echo", "Test"],
-        "required_mcp_servers": [], # No MCP servers needed
-        "env_vars": [], # No specific environment variables needed
-    }
 
-    # --- Initialization (Inherited) ---
-    # Uses the __init__ from BlueprintBase for config loading, logging, etc.
+    @property
+    def name(self) -> str:
+        return "echocraft"
 
-    # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List) -> Agent:
+    def description(self) -> str:
+        return "A simple echo agent blueprint."
+
+    def create_starting_agent(self) -> LibraryAgent:
+        """Creates the initial EchoAgent instance."""
+        logger.info("Creating EchoAgent")
+        # Pass necessary parameters derived from the loaded config/profile
+        # ONLY include parameters accepted by the LibraryAgent constructor
+        agent_kwargs = {
+            "model": self.llm_profile.get("model"),
+            "model_settings": ModelSettings.ModelSettings(
+                temperature=self.llm_profile.get("temperature"),
+                max_tokens=self.llm_profile.get("max_tokens")
+                # Add other relevant settings from ModelSettings if needed
+            ),
+            # "tools": [], # Example if tools were needed
+            # "metadata": {}, # Example if metadata was needed
+        }
+        # Filter out None values from ALLOWED arguments before passing
+        filtered_agent_kwargs = {k: v for k, v in agent_kwargs.items() if v is not None}
+        logger.debug(f"Instantiating EchoAgent with filtered kwargs: {filtered_agent_kwargs}")
+        try:
+             # Pass only the filtered, known-good kwargs
+            agent = EchoAgent(
+                name="EchoAgent", # Can still set name explicitly
+                instructions="You are an echo agent. Repeat the user's input exactly.", # Can set instructions
+                **filtered_agent_kwargs
+            )
+            logger.debug(f"EchoAgent successfully instantiated: {agent}")
+            return agent
+        except Exception as e:
+             logger.error(f"Failed to instantiate EchoAgent with kwargs {filtered_agent_kwargs}: {e}", exc_info=True)
+             raise
+
+    async def run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Creates and returns the starting agent for this blueprint.
-        In this case, it's just the EchoAgent.
+        Runs the EchoAgent using the agents.Runner.
         """
-        logger.debug("Creating EchoAgent instance.")
-        # Instantiate the module-level EchoAgent
-        echo_agent = EchoAgent()
-        return echo_agent
+        logger.info(f"EchoCraftBlueprint run called with input: {input_data}")
+        agent = self.create_starting_agent() # Get the configured agent
 
-    # --- Main Execution Logic (Inherited) ---
-    # Uses _run_non_interactive from BlueprintBase, which calls create_starting_agent
-    # and then uses agents.Runner.run() on the returned agent.
+        user_input_text = input_data.get("input")
+        if user_input_text is None:
+            logger.warning("No 'input' key found in input_data for EchoCraftBlueprint run.")
+            return {"output": "Error: No input provided."}
 
-    # --- CLI Entry Point (Inherited) ---
-    # Uses main() from BlueprintBase, which parses args and calls _run_non_interactive.
+        # Execute the agent using the runner instance (should be mocked in tests)
+        logger.debug(f"Running agent {agent.name} via runner {self.runner} (Type: {type(self.runner)})")
+        try:
+            run_result: RunResult = await self.runner.run(agent=agent, input=user_input_text)
+            logger.debug(f"Runner execution finished. Result: {run_result}")
 
-# --- Direct execution example (optional) ---
-if __name__ == "__main__":
-    # This allows running the blueprint directly using: python blueprint_echocraft.py --instruction "Hello"
-    EchoCraftBlueprint.main()
+            if run_result and hasattr(run_result, 'final_output'):
+                if isinstance(run_result.final_output, dict):
+                    final_output = run_result.final_output
+                elif isinstance(run_result.final_output, str):
+                     final_output = {"output": run_result.final_output}
+                else:
+                    logger.warning(f"Unexpected final_output type: {type(run_result.final_output)}. Returning as string.")
+                    final_output = {"output": str(run_result.final_output)}
+            else:
+                 logger.warning("RunResult or final_output missing or malformed.")
+                 final_output = {"output": "Error: Agent execution did not produce expected output."}
+
+            logger.info(f"EchoCraftBlueprint run returning: {final_output}")
+            return final_output
+
+        except Exception as e:
+            # Log the specific exception during runner execution
+            logger.exception(f"Error during runner.run execution: {e}", exc_info=True)
+            return {"output": f"Error: An exception occurred during agent run: {e}"}
 
