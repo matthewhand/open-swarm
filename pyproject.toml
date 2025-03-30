@@ -47,6 +47,9 @@ dependencies = [
 swarm-cli = "swarm.extensions.launchers.swarm_cli:app"
 swarm-api = "swarm.extensions.launchers.swarm_api:main"
 
+[tool.setuptools.package-data]
+"swarm.blueprints" = ["**"]
+
 [project.optional-dependencies]
 dev = [
    "pytest>=8.3.4", "pytest-asyncio>=0.25.1", "pytest-cov>=6.0.0",
