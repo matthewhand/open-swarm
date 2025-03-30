@@ -6,6 +6,11 @@
 
 **Open Swarm** is a Python framework for creating, managing, and deploying autonomous agent swarms. It leverages the `openai-agents` library for core agent functionality and provides a structured way to build complex, multi-agent workflows using **Blueprints**.
 
+Open Swarm can be used in two primary ways:
+
+1.  **As a CLI Utility (`swarm-cli`):** Manage, run, and install blueprints directly on your local machine. Ideal for personal use, testing, and creating standalone agent tools. (Recommended installation: PyPI)
+2.  **As an API Service (`swarm-api`):** Deploy a web server that exposes your blueprints via an OpenAI-compatible REST API. Ideal for integrations, web UIs, and shared access. (Recommended deployment: Docker)
+
 ---
 
 ## Core Concepts
@@ -19,97 +24,160 @@
 
 ---
 
-## Quickstart (Docker - Recommended)
+## Quickstart 1: Using `swarm-cli` Locally (via PyPI)
 
-This is the easiest and recommended way to get started, especially for deploying the API service.
+This is the recommended way to use `swarm-cli` for managing and running blueprints on your local machine.
+
+**Prerequisites:**
+*   Python 3.10+
+*   `pip` (Python package installer)
+
+**Steps:**
+
+1.  **Install `open-swarm` from PyPI:**
+    ```bash
+    pip install open-swarm
+    ```
+    *(Using a virtual environment is recommended: `python -m venv .venv && source .venv/bin/activate`)*
+
+2.  **Initial Configuration (First Run):**
+    *   The first time you run a `swarm-cli` command that requires configuration (like `run` or `config`), it will automatically create a default `swarm_config.json` at `~/.config/swarm/swarm_config.json` if one doesn't exist.
+    *   You **must** set the required environment variables (like `OPENAI_API_KEY`) in your shell for the configuration to work. Create a `.env` file in your working directory or export them:
+        ```bash
+        export OPENAI_API_KEY="sk-..."
+        # Add other keys as needed (GROQ_API_KEY, etc.)
+        ```
+    *   You can customize the configuration further using `swarm-cli config` commands (see `USERGUIDE.md`).
+
+3.  **Add a Blueprint:**
+    *   Download or create a blueprint file (e.g., `my_blueprint.py`). Example blueprints are available in the [project repository](https://github.com/matthewhand/open-swarm/tree/main/src/swarm/blueprints).
+    *   Add it using `swarm-cli`:
+        ```bash
+        # Example: Adding a downloaded blueprint file
+        swarm-cli add ./path/to/downloaded/blueprint_echocraft.py
+
+        # Example: Adding a directory containing a blueprint
+        swarm-cli add ./my_custom_blueprints/agent_smith --name agent_smith
+        ```
+
+4.  **Run the Blueprint:**
+    *   **Single Instruction:**
+        ```bash
+        swarm-cli run echocraft --instruction "Hello from CLI!"
+        ```
+    *   **Interactive Mode:**
+        ```bash
+        swarm-cli run echocraft
+        # Now you can chat with the blueprint interactively
+        ```
+
+5.  **(Optional) Install as Command:**
+    ```bash
+    swarm-cli install echocraft
+    # Now run (ensure ~/.local/share/swarm/bin is in your PATH):
+    echocraft --instruction "I am a command now!"
+    ```
+
+---
+
+## Quickstart 2: Deploying `swarm-api` Service (via Docker)
+
+This section covers deploying the API service using Docker.
+
+### Option A: Docker Compose (Recommended for Flexibility)
+
+This method uses `docker-compose.yaml` and is best if you need to customize volumes, environment variables easily, or manage related services (like Redis).
 
 **Prerequisites:**
 *   Docker ([Install Docker](https://docs.docker.com/engine/install/))
 *   Docker Compose ([Install Docker Compose](https://docs.docker.com/compose/install/))
+*   Git
 
 **Steps:**
 
-1.  **Clone the Repository:**
+1.  **Clone the Repository:** (Needed for `docker-compose.yaml` and config files)
     ```bash
     git clone https://github.com/matthewhand/open-swarm.git
     cd open-swarm
     ```
 
 2.  **Configure Environment:**
-    *   Copy the example environment file:
-        ```bash
-        cp .env.example .env
-        ```
-    *   Edit `.env` and add your necessary API keys (e.g., `OPENAI_API_KEY`).
+    *   Copy `cp .env.example .env` and edit `.env` with your API keys (e.g., `OPENAI_API_KEY`, `SWARM_API_KEY`).
 
-3.  **Configure Docker Compose Overrides (Optional but Recommended):**
-    *   Copy the override example:
-        ```bash
-        cp docker-compose.override.yaml.example docker-compose.override.yaml
-        ```
-    *   Edit `docker-compose.override.yaml` to:
-        *   Mount any local directories containing custom blueprints you want the API server to access (e.g., uncomment and adjust the `./my_custom_blueprints:/app/custom_blueprints:ro` line).
-        *   Make any other necessary adjustments (ports, environment variables, etc.).
+3.  **Prepare Blueprints & Config:**
+    *   Place blueprints in `./blueprints`.
+    *   Ensure `./swarm_config.json` exists and is configured.
 
-4.  **Start the Service:**
+4.  **Configure Overrides (Optional):**
+    *   Copy `cp docker-compose.override.yaml.example docker-compose.override.yaml`.
+    *   Edit the override file to mount additional volumes, change ports, etc.
+
+5.  **Start the Service:**
     ```bash
     docker compose up -d
     ```
-    This will build the image (if not already pulled/built) and start the `open-swarm` service, exposing the API on port 8000 (or the port specified in your `.env`/override).
 
-5.  **Verify API:**
-    *   Check the available models (blueprints):
-        ```bash
-        curl http://localhost:8000/v1/models
-        ```
-    *   Send a chat completion request:
-        ```bash
-        curl http://localhost:8000/v1/chat/completions \
-          -H "Content-Type: application/json" \
-          -d '{
-                "model": "echocraft",
-                "messages": [{"role": "user", "content": "Hello Docker!"}]
-              }'
-        ```
-        *(Replace `echocraft` with a blueprint name available in your mounted volumes or the base image).*
+6.  **Verify API:** (Default port 8000)
+    *   Models: `curl http://localhost:8000/v1/models`
+    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "echocraft", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
+
+### Option B: Direct `docker run` (Simpler for Single Container)
+
+This method runs the pre-built image directly from Docker Hub. Good for quick tests or simple deployments without cloning the repo. Customization requires careful use of `-v` (volume) and `-e` (environment) flags.
+
+**Prerequisites:**
+*   Docker ([Install Docker](https://docs.docker.com/engine/install/))
+
+**Steps:**
+
+1.  **Prepare Local Files (If Customizing):**
+    *   Create a directory for your blueprints (e.g., `~/my_swarm_blueprints`).
+    *   Create your `swarm_config.json` file locally (e.g., `~/my_swarm_config.json`).
+    *   Create a `.env` file locally (e.g., `~/swarm.env`) with your API keys (`OPENAI_API_KEY`, `SWARM_API_KEY`, etc.).
+
+2.  **Run the Container:**
+    ```bash
+    docker run -d \
+      --name open-swarm-api \
+      -p 8000:8000 \
+      --env-file ~/swarm.env \
+      -v ~/my_swarm_blueprints:/app/blueprints:ro \
+      -v ~/my_swarm_config.json:/app/swarm_config.json:ro \
+      -v open_swarm_db:/app/db.sqlite3 \
+      --restart unless-stopped \
+      mhand79/open-swarm:latest
+    ```
+    *   `-d`: Run detached (in background).
+    *   `--name`: Assign a name to the container.
+    *   `-p 8000:8000`: Map host port 8000 to container port 8000 (adjust if needed).
+    *   `--env-file`: Load environment variables from your local file.
+    *   `-v ...:/app/blueprints:ro`: Mount your local blueprints directory (read-only). **Required** if you want to use custom blueprints.
+    *   `-v ...:/app/swarm_config.json:ro`: Mount your local config file (read-only). **Required** for custom LLM/MCP settings.
+    *   `-v open_swarm_db:/app/db.sqlite3`: Use a named Docker volume for the database to persist data.
+    *   `--restart unless-stopped`: Automatically restart the container unless manually stopped.
+    *   `mhand79/open-swarm:latest`: The image name on Docker Hub.
+
+3.  **Verify API:** (Same as Docker Compose)
+    *   Models: `curl http://localhost:8000/v1/models`
+    *   Chat: `curl http://localhost:8000/v1/chat/completions ...` (Add `-H "Authorization: Bearer <key>"` if needed).
 
 ---
 
-## Usage Modes
+## Usage Modes Summary
 
-Open Swarm offers several ways to interact with your blueprints:
-
-1.  **Run via `swarm-api` (OpenAI-Compatible REST API):**
-    *   **How:** Start the Django server (`uv run python manage.py runserver` or via Docker as shown above).
-    *   **What:** Exposes blueprints listed in `settings.BLUEPRINT_DIRECTORY` (within the Docker container, this typically includes `/app/blueprints` and any volumes mounted in the override file) via `/v1/models` and `/v1/chat/completions`.
-    *   **Auth:** If `SWARM_API_KEY` is set in `.env`, requests require an `Authorization: Bearer <your_key>` header. Otherwise, access is anonymous.
-    *   **Security:** **Warning:** Running with anonymous access, especially when bound to `0.0.0.0`, can be insecure if blueprints have access to sensitive operations (filesystem, shell commands). **Setting `SWARM_API_KEY` is highly recommended for non-local deployments.**
-    *   **(TODO) Web UI:** A future mode will integrate a simple web chat interface with the API server.
-
-2.  **Run via `swarm-cli run`:**
-    *   **How:** `swarm-cli run <blueprint_name> --instruction "Your single instruction"`
-    *   **What:** Executes a blueprint managed by `swarm-cli` (located in `~/.local/share/swarm/blueprints/`) directly in the terminal. Uses configuration from `~/.config/swarm/swarm_config.json`.
-    *   **Interactive Mode:** If you omit the `--instruction` argument (`swarm-cli run <blueprint_name>`), it will enter an interactive chat mode in the terminal.
-    *   **Use Case:** Good for testing, debugging, interactive sessions, or running specific tasks locally without the API overhead.
-
-3.  **Run via `swarm-cli install`:**
-    *   **How:** `swarm-cli install <blueprint_name>`, then run `<blueprint_name> --instruction "..."`
-    *   **What:** Creates a standalone executable for a managed blueprint using PyInstaller and places it in the user's binary directory (e.g., `~/.local/bin/` or similar, ensure it's in your `PATH`).
-    *   **Use Case:** Convenient for frequently used blueprints that act like regular command-line tools.
-
-4.  **Direct Python Execution:**
-    *   **How:** `uv run python /path/to/your/blueprint_file.py --instruction "..."`
-    *   **What:** Runs a specific blueprint Python file directly. Requires manual handling of configuration loading and dependencies.
-    *   **Use Case:** Primarily for development and testing of a single blueprint file outside the managed environment.
+*   **`swarm-api` (via Docker or `manage.py runserver`):** Exposes blueprints as an OpenAI-compatible REST API. Ideal for integrations. Requires `SWARM_API_KEY` for security in non-local deployments.
+*   **`swarm-cli run` (via PyPI install):** Executes managed blueprints locally, either with a single instruction or in interactive chat mode. Good for testing and local tasks.
+*   **`swarm-cli install` (via PyPI install):** Creates standalone command-line executables from managed blueprints.
+*   **Direct Python Execution (via Git clone):** Running `uv run python <blueprint_file.py>` is mainly for development and testing individual files.
 
 ---
 
 ## Further Documentation
 
-This README provides a high-level overview and quickstart. For more detailed information, please refer to:
+This README provides a high-level overview and quickstart guides. For more detailed information, please refer to:
 
-*   **User Guide (`USERGUIDE.md`):** Detailed instructions on using `swarm-cli` commands for managing blueprints and configuration.
-*   **Development Guide (`DEVELOPMENT.md`):** Information for contributors and developers, including architecture details, testing strategies, project layout, and advanced topics like XDG paths and blueprint creation.
+*   **User Guide (`USERGUIDE.md`):** Detailed instructions on using `swarm-cli` commands for managing blueprints and configuration locally.
+*   **Development Guide (`DEVELOPMENT.md`):** Information for contributors and developers, including architecture details, testing strategies, project layout, API details, and advanced topics.
 *   **Example Blueprints (`src/swarm/blueprints/README.md`):** A list and description of the example blueprints included with the framework, showcasing various features and integration patterns.
 
 ---

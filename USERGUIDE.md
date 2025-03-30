@@ -1,6 +1,6 @@
 # Open Swarm User Guide: `swarm-cli`
 
-This guide provides detailed instructions for using the `swarm-cli` command-line tool to manage blueprints and configuration for your Open Swarm environment.
+This guide provides detailed instructions for using the `swarm-cli` command-line tool to manage blueprints and configuration for your Open Swarm environment. This assumes you have installed `open-swarm` via `pip install open-swarm`.
 
 ---
 
@@ -71,9 +71,13 @@ swarm-cli list
 
 Executes a blueprint directly from the managed directory using the configuration found in `~/.config/swarm/swarm_config.json`.
 
-*   **Basic run:**
+*   **Single Instruction Run:**
     ```bash
     swarm-cli run echocraft --instruction "Repeat this message."
+    ```
+*   **Interactive Chat Mode:** (Omit `--instruction`)
+    ```bash
+    swarm-cli run echocraft
     ```
 *   **Run with specific LLM profile:** (Assumes 'local_llm' is defined in `swarm_config.json`)
     ```bash
@@ -160,7 +164,7 @@ If `~/.config/swarm/swarm_config.json` doesn't exist when `swarm-cli` needs it (
     }
 }
 ```
-**Important:** Placeholders like `${OPENAI_API_KEY}` are used. You **must** set the corresponding environment variables in your shell for the configuration to work.
+**Important:** Placeholders like `${OPENAI_API_KEY}` are used. You **must** set the corresponding environment variables in your shell for the configuration to work. Create a `.env` file in your working directory or `export` them.
 
 ### Listing Configuration Entries (`swarm-cli config list`)
 
@@ -214,22 +218,15 @@ Deletes an entry from a specified section.
 
 ---
 
-## Swarm API (Alternative Usage)
-
-While `swarm-cli` is used for management and direct execution, blueprints can also be exposed via an OpenAI-compatible REST API using the `swarm-api` launcher (or by running `uv run python manage.py runserver`).
-
-*   **Endpoints:** `/v1/models`, `/v1/chat/completions`
-*   **Blueprint Source:** The API server typically loads blueprints from the directory specified in `settings.py` (`BLUEPRINT_DIRECTORY`), which defaults to `src/swarm/blueprints/` within the project or Docker container structure. This is *different* from the user directory managed by `swarm-cli`. Use Docker volumes (see `README.md`) to make user or custom blueprints available to the API server.
-*   **Use Case:** Integrating Open Swarm with other applications, web UIs (like Open WebUI), or tools that expect an OpenAI-compatible backend.
-
----
-
 ## Troubleshooting
 
-*   **Command Not Found:** If running an installed blueprint (e.g., `echocraft`) fails, ensure the installation directory (`~/.local/share/swarm/bin/`) is in your system's `PATH`.
+*   **Command Not Found (`swarm-cli` or installed blueprint):**
+    *   Ensure `pip install open-swarm` completed successfully.
+    *   Verify that Python's user script directory (e.g., `~/.local/bin`) is in your system's `PATH`. You might need to add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile (`.bashrc`, `.zshrc`, etc.) and restart your shell.
+    *   For installed blueprints, check that `~/.local/share/swarm/bin/` is also in your `PATH`.
 *   **Blueprint Not Found (`swarm-cli run`):** Make sure the blueprint was added using `swarm-cli add` and appears in `swarm-cli list`. Check the spelling.
 *   **Configuration Errors:**
     *   Verify `~/.config/swarm/swarm_config.json` exists and is valid JSON.
-    *   Ensure environment variables (like `OPENAI_API_KEY`) referenced in `swarm_config.json` are set correctly in your current shell session (`export OPENAI_API_KEY=sk-...`).
+    *   Ensure environment variables (like `OPENAI_API_KEY`) referenced in `swarm_config.json` are set correctly in your current shell session (`export OPENAI_API_KEY=sk-...` or via a `.env` file).
 *   **Permissions:** Ensure you have read/write permissions for the XDG directories (`~/.config/swarm`, `~/.local/share/swarm`, `~/.cache/swarm`).
 
