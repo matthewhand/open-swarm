@@ -1,53 +1,60 @@
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError # Import ValidationError
+from swarm.models import ChatMessage
+import logging # Import logging
 
-class ChatMessageSerializer(serializers.Serializer):
+logger = logging.getLogger(__name__) # Add logger for debugging
+
+class MessageSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=["system", "user", "assistant", "tool"])
-    content = serializers.CharField(allow_null=True, required=False)
+    content = serializers.CharField(allow_null=True, required=False, allow_blank=True)
+    name = serializers.CharField(required=False)
 
     def validate(self, data):
         role = data.get('role')
         content = data.get('content')
-        if role == 'user' and content is None:
-            # Raise field-specific error
-            raise ValidationError({"content": "User messages must have content."})
+        if role in ['user', 'assistant'] and content is None:
+             raise serializers.ValidationError(f"Field 'content' is required for role '{role}'.")
         return data
 
 class ChatCompletionRequestSerializer(serializers.Serializer):
-    model = serializers.CharField(max_length=100)
-    messages = ChatMessageSerializer(many=True, min_length=1)
+    model = serializers.CharField(max_length=255)
+    messages = MessageSerializer(many=True, min_length=1)
     stream = serializers.BooleanField(default=False)
     params = serializers.JSONField(required=False, allow_null=True)
-    temperature = serializers.FloatField(min_value=0.0, max_value=2.0, required=False)
-    max_tokens = serializers.IntegerField(min_value=1, required=False)
 
-    # Removed validate_model and validate_stream methods
+    # REMOVED validate_model method
 
+    # *** ADDED top-level validate method ***
     def validate(self, data):
-        """Explicit type checks in the main validate method."""
-        errors = {}
-        # Check model type
-        if 'model' in data and not isinstance(data['model'], str):
-            # Use field-specific error format
-            errors['model'] = ["Must be a string."]
-            # Alternatively, for non-field errors: raise ValidationError("Model must be a string.")
+        """
+        Perform object-level validation.
+        Check raw input types before DRF field coercion.
+        """
+        # Check the type of 'model' in the original input data
+        # `initial_data` holds the data before field processing
+        model_value = self.initial_data.get('model')
+        logger.debug(f"Top-level validate checking model type. Got: {type(model_value)}, value: {model_value}")
+        if model_value is not None and not isinstance(model_value, str):
+             raise serializers.ValidationError({"model": "Field 'model' must be a string."})
 
-        # Check stream type
-        if 'stream' in data and not isinstance(data['stream'], bool):
-             errors['stream'] = ["Must be a boolean."]
+        # You can add other cross-field validations here if needed
 
-        # Check messages type and content
-        if 'messages' in data:
-            if not isinstance(data['messages'], list):
-                 errors['messages'] = ["Must be a list."]
-            elif not data['messages']:
-                 errors['messages'] = ["This list may not be empty."]
-            # Individual message validation happens in ChatMessageSerializer
-
-        # Add other cross-field validation if needed
-
-        if errors:
-            raise ValidationError(errors) # Raise collected errors
-
+        # Return the validated data (after field-level validation has run)
         return data
 
+    def validate_messages(self, value):
+        # This runs on the 'messages' field *after* it passes MessageSerializer validation
+        if not value:
+            raise serializers.ValidationError("Messages list cannot be empty.")
+        for i, msg in enumerate(value):
+            if not isinstance(msg, dict):
+                 raise serializers.ValidationError(f"Message at index {i} must be a dictionary.")
+            if 'role' not in msg:
+                 raise serializers.ValidationError(f"Message at index {i} must have a 'role'.")
+        return value
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = '__all__'
+        # read_only_fields = ('timestamp',)
