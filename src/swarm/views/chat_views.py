@@ -17,23 +17,19 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound, APIException, ParseError
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound, APIException, ParseError, NotAuthenticated
 
 from asgiref.sync import sync_to_async
 
+# Assuming serializers are in the same app
 from swarm.serializers import ChatCompletionRequestSerializer
+# Assuming utils are in the same app/directory level
 from .utils import get_blueprint_instance, validate_model_access, get_available_blueprints
-from swarm.permissions import HasValidTokenOrSession # Ensure this import is correct
+from swarm.permissions import HasValidTokenOrSession
 
 logger = logging.getLogger(__name__)
-# Add a print logger for easier spotting in test output
 print_logger = logging.getLogger('print_debug')
-print_logger.setLevel(logging.DEBUG)
-print_handler = logging.StreamHandler() # Prints to stderr by default
-print_handler.setFormatter(logging.Formatter('%(asctime)s - PRINT_DEBUG - %(message)s'))
-if not print_logger.hasHandlers(): # Avoid adding handler multiple times on reload
-      print_logger.addHandler(print_handler)
-
+# Ensure print_debug handler setup remains from previous steps
 
 # ==============================================================================
 # API Views (DRF based)
@@ -54,7 +50,15 @@ class ChatCompletionsView(APIView):
             async for chunk in async_generator:
                 if isinstance(chunk, dict) and "messages" in chunk: final_response_data = chunk["messages"]; logger.debug(f"[ReqID: {request_id}] Received final data chunk: {final_response_data}"); break
                 else: logger.warning(f"[ReqID: {request_id}] Unexpected chunk format: {chunk}")
-            if not final_response_data: logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not return valid data."); raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Check if final_response_data was actually populated
+            if not final_response_data or not isinstance(final_response_data, list) or not final_response_data:
+                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not return valid final data structure. Got: {final_response_data}")
+                 raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Basic check for message structure (can be more robust)
+            if not isinstance(final_response_data[0], dict) or 'role' not in final_response_data[0]:
+                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' returned invalid message structure. Got: {final_response_data[0]}")
+                 raise APIException("Blueprint returned invalid message structure.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
             response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_response_data[0], "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None }
             end_time = time.time(); logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)
@@ -69,30 +73,26 @@ class ChatCompletionsView(APIView):
                 logger.debug(f"[ReqID: {request_id}] Awaiting blueprint run..."); async_generator = await blueprint_instance.run(messages); logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
-                    if not isinstance(chunk, dict) or "messages" not in chunk: logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}"); continue
-                    delta_content = chunk["messages"][0].get("content", ""); response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": {"role": "assistant", "content": delta_content}, "logprobs": None, "finish_reason": None}] }
+                    # Added more robust chunk validation
+                    if not isinstance(chunk, dict) or "messages" not in chunk or not isinstance(chunk["messages"], list) or not chunk["messages"] or not isinstance(chunk["messages"][0], dict):
+                        logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}"); continue
+                    delta_content = chunk["messages"][0].get("content", "");
+                    # Ensure delta is dict, even if content is empty
+                    delta = {"role": "assistant"}
+                    if delta_content is not None: # Only add content if not None
+                        delta["content"] = delta_content
+
+                    response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
                     logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}"); yield f"data: {json.dumps(response_chunk)}\n\n"; chunk_index += 1; await asyncio.sleep(0.01)
                 logger.debug(f"[ReqID: {request_id}] Finished iterating stream. Sending [DONE]."); yield "data: [DONE]\n\n"; end_time = time.time(); logger.info(f"[ReqID: {request_id}] Streaming request completed in {end_time - start_time:.2f}s.")
             except APIException as e:
-                logger.error(f"[ReqID: {request_id}] API error during streaming blueprint execution: {e}", exc_info=True)
-                error_msg = f"API error during stream: {e.detail}"
-                error_chunk = {"error": {"message": error_msg, "type": "api_error", "code": e.status_code}}
-                try:
-                    # *** FIXED Syntax: yield must be on separate lines ***
-                    yield f"data: {json.dumps(error_chunk)}\n\n"
-                    yield "data: [DONE]\n\n"
-                except Exception as send_err:
-                    logger.error(f"[ReqID: {request_id}] Failed to send error chunk: {send_err}")
+                 logger.error(f"[ReqID: {request_id}] API error during streaming blueprint execution: {e}", exc_info=True); error_msg = f"API error during stream: {e.detail}"; error_chunk = {"error": {"message": error_msg, "type": "api_error", "code": e.status_code}}
+                 try: yield f"data: {json.dumps(error_chunk)}\n\n"; yield "data: [DONE]\n\n"
+                 except Exception as send_err: logger.error(f"[ReqID: {request_id}] Failed to send error chunk: {send_err}")
             except Exception as e:
-                logger.error(f"[ReqID: {request_id}] Unexpected error during streaming blueprint execution: {e}", exc_info=True)
-                error_msg = f"Internal server error during stream: {e}"
-                error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
-                try:
-                    # *** FIXED Syntax: yield must be on separate lines ***
-                    yield f"data: {json.dumps(error_chunk)}\n\n"
-                    yield "data: [DONE]\n\n"
-                except Exception as send_err:
-                    logger.error(f"[ReqID: {request_id}] Failed to send error chunk: {send_err}")
+                 logger.error(f"[ReqID: {request_id}] Unexpected error during streaming blueprint execution: {e}", exc_info=True); error_msg = f"Internal server error during stream: {str(e)}"; error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
+                 try: yield f"data: {json.dumps(error_chunk)}\n\n"; yield "data: [DONE]\n\n"
+                 except Exception as send_err: logger.error(f"[ReqID: {request_id}] Failed to send error chunk: {send_err}")
         return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
 
     @method_decorator(csrf_exempt)
@@ -101,38 +101,49 @@ class ChatCompletionsView(APIView):
         request = self.initialize_request(request, *args, **kwargs)
         self.request = request; self.headers = self.default_response_headers
         try:
-            # *** DEBUG: Check user before initial ***
             print_logger.debug(f"User before initial(): {getattr(request, 'user', 'N/A')}, Auth before initial(): {getattr(request, 'auth', 'N/A')}")
+            # Use sync_to_async for initial, as it performs sync permission checks etc.
             await sync_to_async(self.initial)(request, *args, **kwargs)
-             # *** DEBUG: Check user after initial ***
             print_logger.debug(f"User after initial(): {getattr(request, 'user', 'N/A')}, Auth after initial(): {getattr(request, 'auth', 'N/A')}")
+
             if request.method.lower() in self.http_method_names: handler = getattr(self, request.method.lower(), self.http_method_not_allowed)
             else: handler = self.http_method_not_allowed
-            response = await handler(request, *args, **kwargs)
+
+            if asyncio.iscoroutinefunction(handler):
+                response = await handler(request, *args, **kwargs)
+            else:
+                 # This case shouldn't happen for POST, but added for completeness
+                 response = await sync_to_async(handler)(request, *args, **kwargs)
         except Exception as exc: response = self.handle_exception(exc)
         self.response = self.finalize_response(request, response, *args, **kwargs)
         return self.response
 
     async def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
-        request_id = str(uuid.uuid4())
-        logger.info(f"[ReqID: {request_id}] Received chat completion request.")
-        # *** DEBUG: Check user at start of post ***
+        request_id = str(uuid.uuid4()); logger.info(f"[ReqID: {request_id}] Received chat completion request.")
         print_logger.debug(f"[ReqID: {request_id}] User at start of post: {getattr(request, 'user', 'N/A')}, Auth: {getattr(request, 'auth', 'N/A')}")
-        try: request_data = json.loads(request.body)
-        except json.JSONDecodeError as e: raise ParseError(f"Invalid JSON body: {e}")
+        try:
+            # Use request.data provided by DRF's initialize_request, handles parsing
+            request_data = request.data
+        except ParseError as e: # Catch DRF's ParseError if JSON is invalid
+             logger.error(f"[ReqID: {request_id}] Invalid JSON body: {e.detail}")
+             # Reraise is fine, handle_exception will catch it
+             raise e
+        # Catch potential general JSON errors if request.data wasn't populated correctly
+        except json.JSONDecodeError as e:
+             logger.error(f"[ReqID: {request_id}] JSON Decode Error: {e}")
+             raise ParseError(f"Invalid JSON body: {e}")
 
         serializer = ChatCompletionRequestSerializer(data=request_data)
         try:
-            print_logger.debug(f"[ReqID: {request_id}] Attempting serializer.is_valid(). Data: {request_data}") # DEBUG
-            is_valid = await sync_to_async(serializer.is_valid)(raise_exception=True) # Ensure async call if needed, though is_valid is typically sync
-            print_logger.debug(f"[ReqID: {request_id}] Serializer is_valid() PASSED. Result: {is_valid}") # DEBUG
+            print_logger.debug(f"[ReqID: {request_id}] Attempting serializer.is_valid(). Data: {request_data}")
+            serializer.is_valid(raise_exception=True)
+            print_logger.debug(f"[ReqID: {request_id}] Serializer is_valid() PASSED.")
         except ValidationError as e:
-            print_logger.error(f"[ReqID: {request_id}] Serializer validation FAILED: {e.detail}") # DEBUG
-            # Let DRF's exception handler catch this by re-raising or just letting it propagate
-            raise e
+            print_logger.error(f"[ReqID: {request_id}] Serializer validation FAILED: {e.detail}")
+            raise e # Let DRF handle the 400 response
         except Exception as e:
-             print_logger.error(f"[ReqID: {request_id}] UNEXPECTED error during serializer validation: {e}", exc_info=True) # DEBUG
-             raise e # Re-raise unexpected errors
+             print_logger.error(f"[ReqID: {request_id}] UNEXPECTED error during serializer validation: {e}", exc_info=True)
+             raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
         validated_data = serializer.validated_data
         model_name = validated_data['model']
@@ -140,17 +151,21 @@ class ChatCompletionsView(APIView):
         stream = validated_data.get('stream', False)
         blueprint_params = validated_data.get('params', None)
 
-        print_logger.debug(f"[ReqID: {request_id}] Validation passed. Checking model access for user {request.user} and model {model_name}") # DEBUG
+        print_logger.debug(f"[ReqID: {request_id}] Validation passed. Checking model access for user {request.user} and model {model_name}")
+        # Assuming validate_model_access is sync, wrap it
         access_granted = await sync_to_async(validate_model_access)(request.user, model_name)
         if not access_granted:
              logger.warning(f"[ReqID: {request_id}] User {request.user} denied access to model '{model_name}'.")
              raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
-        print_logger.debug(f"[ReqID: {request_id}] Access granted. Getting blueprint instance for {model_name}") # DEBUG
+        print_logger.debug(f"[ReqID: {request_id}] Access granted. Getting blueprint instance for {model_name}")
+        # get_blueprint_instance is async
         blueprint_instance = await get_blueprint_instance(model_name, params=blueprint_params)
+
+        # *** ADDED CHECK: Ensure blueprint instance was found ***
         if blueprint_instance is None:
-            logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (post-validation).")
-            raise NotFound(f"The requested model (blueprint) '{model_name}' was not found or failed to initialize.")
+            logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize after access checks.")
+            raise NotFound(f"The requested model (blueprint) '{model_name}' was not found or could not be initialized.")
 
         if stream: return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
         else: return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
@@ -160,6 +175,7 @@ class ChatCompletionsView(APIView):
 # ==============================================================================
 @login_required
 def index(request):
-    context = { 'user': request.user, 'available_blueprints': list(get_available_blueprints().keys()), }
+    # Assuming get_available_blueprints is sync
+    available_bps = get_available_blueprints()
+    context = { 'user': request.user, 'available_blueprints': list(available_bps.keys()), }
     return render(request, 'swarm/index.html', context)
-
