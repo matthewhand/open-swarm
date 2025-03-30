@@ -16,17 +16,15 @@ from django.conf import settings
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny # Keep AllowAny import
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound, APIException, ParseError, NotAuthenticated
 
-from asgiref.sync import sync_to_async
+from asgiref.sync import sync_to_async, async_to_sync # Import async_to_sync
 
 # Assuming serializers are in the same app
 from swarm.serializers import ChatCompletionRequestSerializer
 # Assuming utils are in the same app/directory level
 from .utils import get_blueprint_instance, validate_model_access, get_available_blueprints
-# *** REMOVE or COMMENT OUT this import if present ***
-# from swarm.permissions import HasValidTokenOrSession
 
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_debug')
@@ -36,7 +34,7 @@ print_logger = logging.getLogger('print_debug')
 # ==============================================================================
 
 class HealthCheckView(APIView):
-    permission_classes = [AllowAny] # Health check should always be allowed
+    permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs): return Response({"status": "ok"})
 
 class ChatCompletionsView(APIView):
@@ -44,15 +42,14 @@ class ChatCompletionsView(APIView):
     Handles chat completion requests, compatible with OpenAI API.
     Permissions are now handled by DEFAULT_PERMISSION_CLASSES in settings.py.
     """
-    # *** REMOVED explicit permission_classes = [HasValidTokenOrSession] ***
-    serializer_class = ChatCompletionRequestSerializer # Define serializer for schema generation
+    serializer_class = ChatCompletionRequestSerializer
 
     async def _handle_non_streaming(self, blueprint_instance, messages: List[Dict[str, str]], request_id: str, model_name: str) -> Response:
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
         final_response_data = None; start_time = time.time()
         try:
-            # Assuming blueprint_instance.run is now correctly async def
-            async_generator = blueprint_instance.run(messages) # No await needed here if it returns the generator
+            # *** FIX: Remove await here. run() returns the async generator directly ***
+            async_generator = blueprint_instance.run(messages)
             async for chunk in async_generator:
                 if isinstance(chunk, dict) and "messages" in chunk: final_response_data = chunk["messages"]; logger.debug(f"[ReqID: {request_id}] Received final data chunk: {final_response_data}"); break
                 else: logger.warning(f"[ReqID: {request_id}] Unexpected chunk format: {chunk}")
@@ -77,8 +74,8 @@ class ChatCompletionsView(APIView):
             start_time = time.time(); chunk_index = 0
             try:
                 logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint run...");
-                # Assuming blueprint_instance.run is now correctly async def
-                async_generator = blueprint_instance.run(messages) # No await needed here
+                # *** FIX: Remove await here. run() returns the async generator directly ***
+                async_generator = blueprint_instance.run(messages)
                 logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
@@ -89,7 +86,7 @@ class ChatCompletionsView(APIView):
                     if delta_content is not None: delta["content"] = delta_content
 
                     response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
-                    logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}"); yield f"data: {json.dumps(response_chunk)}\n\n"; chunk_index += 1; await asyncio.sleep(0.01) # Small sleep to yield control
+                    logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}"); yield f"data: {json.dumps(response_chunk)}\n\n"; chunk_index += 1; await asyncio.sleep(0.01)
                 logger.debug(f"[ReqID: {request_id}] Finished iterating stream. Sending [DONE]."); yield "data: [DONE]\n\n"; end_time = time.time(); logger.info(f"[ReqID: {request_id}] Streaming request completed in {end_time - start_time:.2f}s.")
             except APIException as e:
                  logger.error(f"[ReqID: {request_id}] API error during streaming blueprint execution: {e}", exc_info=True); error_msg = f"API error during stream: {e.detail}"; error_chunk = {"error": {"message": error_msg, "type": "api_error", "code": e.status_code}}
@@ -108,18 +105,17 @@ class ChatCompletionsView(APIView):
         self.request = request; self.headers = self.default_response_headers
         try:
             print_logger.debug(f"User before initial(): {getattr(request, 'user', 'N/A')}, Auth before initial(): {getattr(request, 'auth', 'N/A')}")
-            # DRF's initial performs auth and permission checks synchronously
+            # Wrap sync initial() call
             await sync_to_async(self.initial)(request, *args, **kwargs)
             print_logger.debug(f"User after initial(): {getattr(request, 'user', 'N/A')}, Auth after initial(): {getattr(request, 'auth', 'N/A')}")
 
             if request.method.lower() in self.http_method_names: handler = getattr(self, request.method.lower(), self.http_method_not_allowed)
             else: handler = self.http_method_not_allowed
 
-            # Check if handler is async (which post should be)
             if asyncio.iscoroutinefunction(handler):
                 response = await handler(request, *args, **kwargs)
             else:
-                 response = await sync_to_async(handler)(request, *args, **kwargs) # Wrap sync handlers if any
+                 response = await sync_to_async(handler)(request, *args, **kwargs)
         except Exception as exc: response = self.handle_exception(exc)
         self.response = self.finalize_response(request, response, *args, **kwargs)
         return self.response
@@ -132,10 +128,11 @@ class ChatCompletionsView(APIView):
         except ParseError as e: logger.error(f"[ReqID: {request_id}] Invalid JSON body: {e.detail}"); raise e
         except json.JSONDecodeError as e: logger.error(f"[ReqID: {request_id}] JSON Decode Error: {e}"); raise ParseError(f"Invalid JSON body: {e}")
 
-        serializer = self.serializer_class(data=request_data) # Use self.serializer_class
+        serializer = self.serializer_class(data=request_data)
         try:
             print_logger.debug(f"[ReqID: {request_id}] Attempting serializer.is_valid(). Data: {request_data}")
-            serializer.is_valid(raise_exception=True)
+            # Wrap sync is_valid call
+            await sync_to_async(serializer.is_valid)(raise_exception=True)
             print_logger.debug(f"[ReqID: {request_id}] Serializer is_valid() PASSED.")
         except ValidationError as e: print_logger.error(f"[ReqID: {request_id}] Serializer validation FAILED: {e.detail}"); raise e
         except Exception as e: print_logger.error(f"[ReqID: {request_id}] UNEXPECTED error during serializer validation: {e}", exc_info=True); raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
@@ -154,7 +151,6 @@ class ChatCompletionsView(APIView):
              raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
         print_logger.debug(f"[ReqID: {request_id}] Access granted. Getting blueprint instance for {model_name}")
-        # get_blueprint_instance is async
         blueprint_instance = await get_blueprint_instance(model_name, params=blueprint_params)
 
         if blueprint_instance is None:
@@ -164,12 +160,3 @@ class ChatCompletionsView(APIView):
         if stream: return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
         else: return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
 
-# ==============================================================================
-# Web UI Views (Django standard views) - Keep commented if not used
-# ==============================================================================
-# @login_required
-# def index(request):
-#     # Assuming get_available_blueprints is sync or wrapped appropriately elsewhere
-#     available_bps = get_available_blueprints() # Needs to be sync or wrapped
-#     context = { 'user': request.user, 'available_blueprints': list(available_bps.keys()), }
-#     return render(request, 'swarm/index.html', context)
