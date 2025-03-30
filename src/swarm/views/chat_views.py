@@ -1,76 +1,213 @@
-"""
-Chat-related views for Open Swarm MCP Core.
-"""
-import asyncio
 import logging
 import json
+import uuid
+import time
+import asyncio # *** ADDED IMPORT ***
+from typing import Dict, Any, AsyncGenerator, List, Optional
+
+from django.shortcuts import render
+from django.http import StreamingHttpResponse, JsonResponse, Http404, HttpRequest, HttpResponse, HttpResponseBase
+from django.views import View
+from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+from django.conf import settings
+
+from rest_framework import status
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from swarm.auth import EnvOrTokenAuthentication
-from swarm.utils.logger_setup import setup_logger
-from swarm.views import utils as view_utils
-from swarm.extensions.config.config_loader import config
-from swarm.settings import Settings
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound, APIException
 
-logger = setup_logger(__name__)
+from asgiref.sync import sync_to_async
 
-# Removed _run_async_in_sync helper
+from swarm.serializers import ChatCompletionRequestSerializer
+from .utils import get_blueprint_instance, validate_model_access, get_available_blueprints
+from swarm.permissions import HasValidTokenOrSession
 
-@api_view(['POST'])
-@csrf_exempt
-@authentication_classes([EnvOrTokenAuthentication])
-@permission_classes([IsAuthenticated])
-def chat_completions(request): # Sync view
-    """Handle chat completion requests via POST."""
-    if request.method != "POST":
-        return Response({"error": "Method not allowed. Use POST."}, status=405)
-    logger.info(f"Authenticated User: {request.user}")
+logger = logging.getLogger(__name__)
 
-    parse_result = view_utils.parse_chat_request(request)
-    if isinstance(parse_result, Response): return parse_result
+# ==============================================================================
+# API Views (DRF based)
+# ==============================================================================
 
-    body, model, messages, context_vars, conversation_id, tool_call_id = parse_result
-    model_type = "llm" if model in config.get('llm', {}) and config.get('llm', {}).get(model, {}).get("passthrough") else "blueprint"
-    logger.info(f"Identified model type: {model_type} for model: {model}")
+class HealthCheckView(APIView):
+    """Simple health check endpoint."""
+    permission_classes = [AllowAny]
 
-    if model_type == "llm":
-         return Response({"error": f"LLM passthrough for model '{model}' not implemented."}, status=501)
+    def get(self, request, *args, **kwargs):
+        return Response({"status": "ok"})
 
-    try:
-        blueprint_instance = view_utils.get_blueprint_instance(model, context_vars)
-        messages_extended = view_utils.load_conversation_history(conversation_id, messages, tool_call_id)
 
-        # Try running the async function using asyncio.run()
-        # This might fail in test environments with existing loops.
+class ChatCompletionsView(APIView):
+    """
+    APIView for handling OpenAI-compatible chat completions requests.
+    """
+    permission_classes = [HasValidTokenOrSession]
+
+    async def _handle_non_streaming(self, blueprint_instance, messages: List[Dict[str, str]], request_id: str, model_name: str) -> Response:
+        """Handles non-streaming chat completion requests."""
+        logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
+        final_response_data = None
+        start_time = time.time()
+
         try:
-            logger.debug("Attempting asyncio.run(run_conversation)...")
-            response_obj, updated_context = asyncio.run(
-                view_utils.run_conversation(blueprint_instance, messages_extended, context_vars)
-            )
-            logger.debug("asyncio.run(run_conversation) completed.")
-        except RuntimeError as e:
-             # Catch potential nested loop errors specifically from asyncio.run()
-             logger.error(f"Asyncio run error: {e}", exc_info=True)
-             # Return a 500 error, as the async call couldn't be completed
-             return Response({"error": f"Server execution error: {str(e)}"}, status=500)
+            async_generator = await blueprint_instance.run(messages)
+            async for chunk in async_generator:
+                if isinstance(chunk, dict) and "messages" in chunk:
+                    final_response_data = chunk["messages"]
+                    logger.debug(f"[ReqID: {request_id}] Received final data chunk: {final_response_data}")
+                    break
+                else:
+                    logger.warning(f"[ReqID: {request_id}] Unexpected chunk format received in non-streaming mode: {chunk}")
 
+            if not final_response_data:
+                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not return valid data.")
+                 raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        serialized = view_utils.serialize_swarm_response(response_obj, model, updated_context)
+            response_payload = {
+                "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name,
+                "choices": [{"index": 0, "message": final_response_data[0], "logprobs": None, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None,
+            }
+            end_time = time.time()
+            logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
+            return Response(response_payload, status=status.HTTP_200_OK)
 
-        if conversation_id:
-            serialized["conversation_id"] = conversation_id
-            view_utils.store_conversation_history(conversation_id, messages_extended, response_obj)
+        except Exception as e:
+            logger.error(f"[ReqID: {request_id}] Error during non-streaming blueprint execution: {e}", exc_info=True)
+            if isinstance(e, TypeError) and ("__aiter__" in str(e) or "unexpected keyword argument" in str(e)):
+                 logger.error(f"[ReqID: {request_id}] Blueprint run method signature or async usage mismatch. Check {type(blueprint_instance).__name__}.run()")
+                 raise APIException(f"Internal server error: Blueprint signature/usage mismatch.", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
-        return Response(serialized, status=200)
+    async def _handle_streaming(self, blueprint_instance, messages: List[Dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
+        """Handles streaming chat completion requests using Server-Sent Events (SSE)."""
+        logger.info(f"[ReqID: {request_id}] Processing streaming request for model '{model_name}'.")
 
-    except FileNotFoundError as e:
-         logger.warning(f"Blueprint not found for model '{model}': {e}")
-         return Response({"error": f"Blueprint not found: {model}"}, status=404)
-    # Catch other exceptions, including the potential RuntimeError from above
-    except Exception as e:
-        logger.error(f"Error during execution for model '{model}': {e}", exc_info=True)
-        error_msg = str(e) if Settings().debug else "An internal error occurred."
-        return Response({"error": f"Error during execution: {error_msg}"}, status=500)
+        async def event_stream():
+            start_time = time.time()
+            chunk_index = 0
+            try:
+                logger.debug(f"[ReqID: {request_id}] Awaiting blueprint run...")
+                async_generator = await blueprint_instance.run(messages)
+                logger.debug(f"[ReqID: {request_id}] Got async generator: {async_generator}. Starting iteration...")
+                async for chunk in async_generator:
+                    logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
+                    if not isinstance(chunk, dict) or "messages" not in chunk:
+                         logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}")
+                         continue
+
+                    delta_content = chunk["messages"][0].get("content", "")
+                    response_chunk = {
+                        "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name,
+                        "choices": [{"index": 0, "delta": {"role": "assistant", "content": delta_content}, "logprobs": None, "finish_reason": None}]
+                    }
+                    logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}")
+                    yield f"data: {json.dumps(response_chunk)}\n\n"
+                    chunk_index += 1
+                    await asyncio.sleep(0.01) # Keep small sleep
+
+                logger.debug(f"[ReqID: {request_id}] Finished iterating stream. Sending [DONE].")
+                yield "data: [DONE]\n\n"
+                end_time = time.time()
+                logger.info(f"[ReqID: {request_id}] Streaming request completed in {end_time - start_time:.2f}s.")
+
+            except Exception as e:
+                logger.error(f"[ReqID: {request_id}] Error during streaming blueprint execution: {e}", exc_info=True)
+                if isinstance(e, TypeError) and ("__aiter__" in str(e) or "unexpected keyword argument" in str(e)):
+                    logger.error(f"[ReqID: {request_id}] Blueprint run method signature or async usage mismatch. Check {type(blueprint_instance).__name__}.run()")
+                    error_msg = "Internal server error: Blueprint signature/usage mismatch."
+                else:
+                    error_msg = f"Internal server error during stream: {e}"
+                error_chunk = {"error": {"message": error_msg, "type": "api_error"}}
+                try:
+                    yield f"data: {json.dumps(error_chunk)}\n\n"
+                    yield "data: [DONE]\n\n"
+                except Exception as send_err:
+                     logger.error(f"[ReqID: {request_id}] Failed to send error chunk to client: {send_err}")
+
+        return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+
+    @method_decorator(csrf_exempt)
+    async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
+        """Manually dispatch to the appropriate async handler (post)."""
+        self.args = args
+        self.kwargs = kwargs
+        request = self.initialize_request(request, *args, **kwargs)
+        self.request = request
+        self.headers = self.default_response_headers
+
+        try:
+            await sync_to_async(self.initial)(request, *args, **kwargs)
+            if request.method.lower() in self.http_method_names:
+                handler = getattr(self, request.method.lower(), self.http_method_not_allowed)
+            else:
+                handler = self.http_method_not_allowed
+            response = await handler(request, *args, **kwargs)
+        except Exception as exc:
+            response = self.handle_exception(exc)
+
+        self.response = self.finalize_response(request, response, *args, **kwargs)
+        return self.response
+
+    async def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
+        """Handles POST requests for chat completions."""
+        request_id = str(uuid.uuid4())
+        logger.info(f"[ReqID: {request_id}] Received chat completion request.")
+
+        try:
+            request_data = json.loads(request.body)
+            serializer = ChatCompletionRequestSerializer(data=request_data)
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+            model_name = validated_data['model']
+            messages = validated_data['messages']
+            stream = validated_data.get('stream', False)
+            blueprint_params = validated_data.get('params', None)
+        except json.JSONDecodeError:
+             raise ValidationError("Invalid JSON body.")
+
+        try:
+            access_granted = await sync_to_async(validate_model_access)(request.user, model_name)
+            if not access_granted:
+                 logger.warning(f"[ReqID: {request_id}] User {request.user} denied access to model '{model_name}'.")
+                 raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
+        except Exception as e:
+             logger.error(f"[ReqID: {request_id}] Error during model access validation for '{model_name}': {e}", exc_info=True)
+             raise APIException("Error checking model access.", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+
+        try:
+            blueprint_instance = await get_blueprint_instance(model_name, params=blueprint_params)
+            if blueprint_instance is None:
+                logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (post-validation).")
+                raise NotFound(f"The requested model (blueprint) '{model_name}' was not found or failed to initialize.")
+        except Exception as e:
+            logger.error(f"[ReqID: {request_id}] Error getting blueprint instance '{model_name}': {e}", exc_info=True)
+            raise APIException("Error loading the requested model.", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+
+        try:
+            if stream:
+                return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
+            else:
+                return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
+        except Exception as e:
+             logger.error(f"[ReqID: {request_id}] Unexpected error during response handling for '{model_name}': {e}", exc_info=True)
+             if not isinstance(e, APIException):
+                  raise APIException("Internal server error during response generation.", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+             else:
+                  raise e
+
+# ==============================================================================
+# Web UI Views (Django standard views)
+# ==============================================================================
+
+@login_required
+def index(request):
+    """Renders the main Swarm Web UI page."""
+    context = {
+        'user': request.user,
+        'available_blueprints': list(get_available_blueprints().keys()),
+    }
+    return render(request, 'swarm/index.html', context)
 
