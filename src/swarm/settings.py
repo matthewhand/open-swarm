@@ -80,6 +80,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR.parent / 'db.sqlite3',
+        # *** Add TEST setting for WAL mode ***
+        'TEST': {
+            'NAME': BASE_DIR.parent / 'test_db.sqlite3', # Optional: use a different file for tests
+            'OPTIONS': {
+                'timeout': 20, # Increase timeout for potential locking issues
+                'init_command': "PRAGMA journal_mode=WAL;", # Enable WAL mode
+            },
+        },
     }
 }
 
@@ -104,11 +112,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework Settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        # *** USE CUSTOM ASYNC AUTHENTICATION BACKENDS ***
-        'swarm.auth.AsyncSessionAuthentication', # Use custom async session auth
-        'swarm.auth.AsyncTokenAuthentication',   # Use custom async token auth
-        # 'rest_framework.authentication.SessionAuthentication', # Comment out default
-        # 'rest_framework.authentication.TokenAuthentication', # Comment out default
+        # *** USE CUSTOM *SYNCHRONOUS* AUTHENTICATION BACKENDS ***
+        'swarm.auth.CustomSessionAuthentication', # Use custom sync session auth
+        'swarm.auth.CustomTokenAuthentication',   # Use custom sync token auth
+        # 'swarm.auth.AsyncSessionAuthentication', # Commented out old async class
+        # 'swarm.auth.AsyncTokenAuthentication',   # Commented out old async class
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     # 'DEFAULT_PERMISSION_CLASSES': [ # Keep permissions commented out for now
@@ -153,3 +161,7 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
+# Allow calling sync DB operations from async context (needed for async_to_sync in Token Auth)
+# Use with caution - only if absolutely necessary and understood.
+# Alternatively, ensure all DB access happens within sync_to_async blocks.
+# os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true" # Generally avoid if possible
