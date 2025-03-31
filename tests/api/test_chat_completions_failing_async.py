@@ -1,12 +1,10 @@
 import pytest
 import json
 import asyncio
-import time # Import time
+import time
 from unittest.mock import AsyncMock, MagicMock
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.test import AsyncClient
-# *** Import StreamingHttpResponse ***
 from django.http import StreamingHttpResponse
 from rest_framework import status, exceptions
 from rest_framework.exceptions import APIException
@@ -42,36 +40,28 @@ async def mock_stream_generator(chunks: list):
 @pytest.mark.django_db(transaction=True)
 class TestChatCompletionsAPIFailingAsync:
 
-    @pytest.fixture
-    def test_user(self, db):
-        user = User.objects.create_user(username='testuser', password='password123')
-        return user
+    # Removed redundant test_user fixture
+    # Removed redundant async_client fixture
+    # Removed redundant authenticated_async_client fixture
 
-    @pytest.fixture
-    def async_client(self):
-         return AsyncClient()
-
-    @pytest.fixture
-    async def authenticated_async_client(self, async_client, test_user):
-         await sync_to_async(async_client.login)(username='testuser', password='password123')
-         return async_client
-
-    @pytest.fixture()
-    def setup_general_mocks(self, mocker, test_user):
+    @pytest.fixture(autouse=True) # Changed scope to autouse for simplicity
+    def setup_general_mocks(self, mocker, test_user): # test_user from conftest
         mocker.patch('swarm.views.chat_views.validate_model_access', return_value=True)
+        # Assume session auth is primary for these tests via authenticated_async_client
         mocker.patch('swarm.auth.CustomSessionAuthentication.authenticate', return_value=(test_user, None))
         mocker.patch('swarm.auth.StaticTokenAuthentication.authenticate', return_value=None)
+        # Mock get_blueprint_instance globally here if it's always needed before _handle_streaming
         mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=MagicMock())
 
 
     @pytest.mark.asyncio
-    async def test_echocraft_streaming_success(self, authenticated_async_client, mocker, setup_general_mocks):
+    async def test_echocraft_streaming_success(self, authenticated_async_client, mocker): # authenticated_async_client from conftest
         request_id = "test-stream-echo"
         model_name = "echocraft"
         chunks = [
             create_sse_chunk({"role": "assistant", "content": "Echo stream: Stream me"}, request_id, model_name)
         ]
-        # *** Mock _handle_streaming directly ***
+        # Mock _handle_streaming directly
         mock_streaming_response = StreamingHttpResponse(
             mock_stream_generator(chunks), content_type="text/event-stream"
         )
@@ -96,7 +86,7 @@ class TestChatCompletionsAPIFailingAsync:
 
 
     @pytest.mark.asyncio
-    async def test_chatbot_streaming_success(self, authenticated_async_client, mocker, setup_general_mocks):
+    async def test_chatbot_streaming_success(self, authenticated_async_client, mocker): # authenticated_async_client from conftest
         request_id = "test-stream-chat"
         model_name = "chatbot"
         chunks = [
@@ -129,7 +119,7 @@ class TestChatCompletionsAPIFailingAsync:
 
 
     @pytest.mark.asyncio
-    async def test_blueprint_run_exception_streaming_returns_error_sse(self, authenticated_async_client, mocker, setup_general_mocks):
+    async def test_blueprint_run_exception_streaming_returns_error_sse(self, authenticated_async_client, mocker): # authenticated_async_client from conftest
         error_message = "API error during stream: Blueprint failed!"
         error_code = status.HTTP_503_SERVICE_UNAVAILABLE
         chunks = [
@@ -138,15 +128,16 @@ class TestChatCompletionsAPIFailingAsync:
         mock_streaming_response = StreamingHttpResponse(
             mock_stream_generator(chunks), content_type="text/event-stream"
         )
+        # Mock _handle_streaming to simulate it catching an error and returning the SSE error
         mocker.patch.object(ChatCompletionsView, '_handle_streaming', return_value=mock_streaming_response)
 
-        mocker.patch('swarm.views.chat_views.get_blueprint_instance', new_callable=AsyncMock, return_value=MagicMock())
+        # No need to mock get_blueprint_instance again if setup_general_mocks does it
 
         url = reverse('chat_completions')
         data = {'model': 'error_bp', 'messages': [{'role': 'user', 'content': 'Cause error'}], 'stream': True}
         response = await authenticated_async_client.post(url, data=json.dumps(data), content_type='application/json')
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_200_OK # Streaming responses usually return 200 even for errors in the stream
         assert response.get('content-type') == 'text/event-stream'
 
         content = b""
@@ -157,5 +148,5 @@ class TestChatCompletionsAPIFailingAsync:
         assert 'data: {"error":' in content_str
         assert f'"message": "{error_message}"' in content_str
         assert f'"code": {error_code}' in content_str
-        assert 'data: [DONE]' in content_str
+        assert 'data: [DONE]' in content_str # Check if DONE is still sent after error
 
