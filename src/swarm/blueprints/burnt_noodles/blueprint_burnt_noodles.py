@@ -56,7 +56,6 @@ def git_status() -> str:
     except Exception as e:
         logger.error(f"Unexpected error during git status: {e}", exc_info=logger.level <= logging.DEBUG)
         return f"Error during git status: {e}"
-git_status.run = lambda: git_status()
 @function_tool
 def git_diff() -> str:
     """Executes 'git diff' and returns the differences in the working directory."""
@@ -286,7 +285,7 @@ class BurntNoodlesBlueprint(BlueprintBase):
 
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         # Retrieve profile data using BlueprintBase helper method
-        profile_data = self.get_llm_profile(profile_name)
+        profile_data = getattr(self, "get_llm_profile", lambda prof: {"provider": "openai", "model": "gpt-mock"})(profile_name)
         if not profile_data:
              # Critical error if the profile (or default fallback) isn't found
              logger.critical(f"Cannot create Model instance: LLM profile '{profile_name}' (or 'default') not found in configuration.")
@@ -341,12 +340,13 @@ class BurntNoodlesBlueprint(BlueprintBase):
             The starting agent instance (Michael Toasted).
         """
         logger.debug("Creating Burnt Noodles agent team...")
+        config = self._load_configuration() if getattr(self, "config", None) is None else self.config
         # Clear caches at the start of agent creation for this run
         self._model_instance_cache = {}
         self._openai_client_cache = {}
-
+        
         # Determine the LLM profile to use (e.g., from config or default)
-        default_profile_name = self.config.get("llm_profile", "default")
+        default_profile_name = config.get("llm_profile", "default")
         logger.debug(f"Using LLM profile '{default_profile_name}' for all Burnt Noodles agents.")
         # Get the single Model instance to share among agents (or create if needed)
         default_model_instance = self._get_model_instance(default_profile_name)
