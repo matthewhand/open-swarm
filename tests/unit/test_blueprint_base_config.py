@@ -1,5 +1,3 @@
-
-# --- Content for tests/unit/test_blueprint_base_config.py ---
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, ANY
@@ -8,12 +6,14 @@ from django.apps import apps # Import apps registry
 
 # Assuming BlueprintBase is correctly importable now
 from swarm.extensions.blueprint.blueprint_base import BlueprintBase
-# No longer need to import SwarmConfig directly here
 
 # A minimal concrete implementation for testing
 class _TestableBlueprint(BlueprintBase):
     async def run(self, messages, **kwargs):
-        yield {"result": "ok"}
+        # Minimal async generator implementation - must contain yield
+        if False: # Never actually yields in this test context
+            yield {}
+        # Cannot use 'return <value>' in an async generator
 
 # Fixture to mock the result of apps.get_app_config('swarm')
 @pytest.fixture
@@ -50,14 +50,6 @@ class TestBlueprintBaseConfigLoading:
             assert blueprint.should_output_markdown is True
         except Exception as e:
             pytest.fail(f"BlueprintBase initialization failed: {e}")
-
-    @pytest.mark.skip(reason="Skipping due to Blueprint/Config refactor")
-    def test_get_llm_profile_success(self):
-        pass
-
-    @pytest.mark.skip(reason="Skipping due to Blueprint/Config refactor")
-    def test_get_llm_profile_missing_raises_error(self):
-        pass
 
     def test_markdown_setting_priority(self, mock_app_config_instance): # Use the fixture
         """Test markdown setting priority: blueprint > global."""
@@ -97,10 +89,4 @@ class TestBlueprintBaseConfigLoading:
         }
         blueprint4 = _TestableBlueprint(blueprint_id="bp4")
         assert blueprint4.should_output_markdown is True, "Blueprint setting (True) should override global (False)"
-
-
-# Standalone tests (if any)
-@pytest.mark.skip(reason="Skipping test: substitute_env_vars not found")
-def test_substitute_env_vars_direct():
-    pass
 
