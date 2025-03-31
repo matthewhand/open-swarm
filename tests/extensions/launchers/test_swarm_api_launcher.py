@@ -43,7 +43,8 @@ def test_swarm_api_basic_run(
 
         # --- Assertions ---
         # Check if runserver was called with default port
-        expected_call = call(['python', 'manage.py', 'runserver', '0.0.0.0:8000'], check=True)
+        default_port = 8000
+        expected_call = call(['python', 'manage.py', 'runserver', f'0.0.0.0:{default_port}'], check=True)
         mock_subprocess_run.assert_has_calls([expected_call])
         # Check config file wasn't created (mock_exists returned True)
         mock_makedirs.assert_not_called()
@@ -71,7 +72,8 @@ def test_swarm_api_custom_port_and_config_creation(
 
         # --- Assertions ---
         # Check runserver called with custom port
-        expected_run_call = call(['python', 'manage.py', 'runserver', '0.0.0.0:9999'], check=True)
+        custom_port = 9999
+        expected_run_call = call(['python', 'manage.py', 'runserver', f'0.0.0.0:{custom_port}'], check=True)
         mock_subprocess_run.assert_has_calls([expected_run_call])
 
         # Check config directory and file were created
@@ -101,7 +103,8 @@ def test_swarm_api_daemon_mode(mock_expanduser, mock_exists, mock_subprocess_pop
 
         # --- Assertions ---
         # Check Popen was called instead of run
-        expected_popen_call = call(['python', 'manage.py', 'runserver', '0.0.0.0:8000'])
+        default_port = 8000
+        expected_popen_call = call(['python', 'manage.py', 'runserver', f'0.0.0.0:{default_port}'])
         mock_subprocess_popen.assert_has_calls([expected_popen_call])
 
 
