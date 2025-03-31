@@ -56,8 +56,6 @@ class TestChatCompletionsValidationAsync:
         response_data = response.json()
         assert field in response_data # Check if the specific field error is reported
 
-    # --- SKIPPING THIS PARAMETERIZED TEST ---
-    @pytest.mark.skip(reason="Assertion needs refinement for nested/punctuated error messages")
     @pytest.mark.asyncio
     @pytest.mark.parametrize("invalid_data, expected_error_part", [
         ({'model': 'test', 'messages': []}, "Ensure this field has at least 1 elements"), # Empty messages list
@@ -77,7 +75,7 @@ class TestChatCompletionsValidationAsync:
         # Check if the core part of the expected error message is present anywhere
         # in the string representation of the response JSON.
         core_expected_error = expected_error_part.strip('\'". ')
-        error_found = core_expected_error in json.dumps(response_data)
+        error_found = any(core_expected_error in str(value) for value in response_data.values())
 
         assert error_found, f"Expected error containing '{core_expected_error}' (from '{expected_error_part}') not found in response: {response_data}"
 
