@@ -28,6 +28,8 @@ ENABLE_API_AUTH = bool(_raw_api_token)
 SWARM_API_KEY = _raw_api_token # Assign the loaded token (or None)
 
 if ENABLE_API_AUTH:
+    # Add assertion to satisfy type checkers within this block
+    assert SWARM_API_KEY is not None, "SWARM_API_KEY cannot be None when ENABLE_API_AUTH is True"
     print(f"[Settings] SWARM_API_KEY loaded: {SWARM_API_KEY[:4]}...{SWARM_API_KEY[-4:]}")
     print("[Settings] ENABLE_API_AUTH is True.")
 else:
@@ -58,6 +60,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Add custom middleware to handle async user loading after standard auth
+    'swarm.middleware.AsyncAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
