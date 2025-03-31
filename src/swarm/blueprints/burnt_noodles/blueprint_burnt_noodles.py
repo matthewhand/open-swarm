@@ -56,7 +56,7 @@ def git_status() -> str:
     except Exception as e:
         logger.error(f"Unexpected error during git status: {e}", exc_info=logger.level <= logging.DEBUG)
         return f"Error during git status: {e}"
-
+git_status.run = lambda: git_status()
 @function_tool
 def git_diff() -> str:
     """Executes 'git diff' and returns the differences in the working directory."""
