@@ -18,7 +18,6 @@ from ..utils.redact import redact_sensitive_data
 from ..utils.general_utils import serialize_datetime
 from ..utils.message_utils import filter_duplicate_system_messages, update_null_content
 from ..utils.context_utils import get_token_count, truncate_message_history
-# --- REMOVED import: from ..utils.message_sequence import repair_message_payload ---
 
 # Configure module-level logging
 logger = logging.getLogger(__name__)
@@ -28,6 +27,29 @@ if not logger.handlers:
     formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(name)s - %(message)s")
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
+
+# --- PATCH: Suppress OpenAI tracing/telemetry errors if using LiteLLM/custom endpoint ---
+import logging
+import os
+if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
+    # Silence openai.agents tracing/telemetry errors
+    logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
+    try:
+        import openai.agents.tracing
+        openai.agents.tracing.TracingClient = lambda *a, **kw: None
+    except Exception:
+        pass
+
+# --- PATCH: Enforce custom endpoint, never fallback to OpenAI if custom base_url is set ---
+def _enforce_litellm_only(client):
+    # If client has a base_url attribute, check it
+    base_url = getattr(client, 'base_url', None)
+    if base_url and 'openai.com' in base_url:
+        return  # Using OpenAI, allowed
+    if base_url and 'openai.com' not in base_url:
+        # If any fallback to OpenAI API is attempted, raise error
+        import traceback
+        raise RuntimeError(f"Attempted fallback to OpenAI API when custom base_url is set! base_url={base_url}\n{traceback.format_stack()}")
 
 
 async def get_chat_completion(
@@ -44,6 +66,7 @@ async def get_chat_completion(
     stream: bool = False,
     debug: bool = False
 ) -> Union[Dict[str, Any], AsyncGenerator[Any, None]]:
+    _enforce_litellm_only(client)
     """
     Retrieve a chat completion from the LLM for the given agent and history.
     Relies on openai-agents Runner for actual execution, this might become deprecated.
@@ -61,6 +84,12 @@ async def get_chat_completion(
     client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
     redacted_kwargs = redact_sensitive_data(client_kwargs, sensitive_keys=["api_key"])
     logger.debug(f"Using client with model='{active_model}', base_url='{client_kwargs.get('base_url', 'default')}', api_key={redacted_kwargs['api_key']}")
+
+    # --- ENFORCE: Disallow fallback to OpenAI if custom base_url is set ---
+    if client_kwargs.get("base_url") and "openai.com" not in client_kwargs["base_url"]:
+        # If the base_url is set and is not OpenAI, ensure no fallback to OpenAI API
+        if "openai.com" in os.environ.get("OPENAI_API_BASE", ""):
+            raise RuntimeError(f"[SECURITY] Fallback to OpenAI API attempted with base_url={client_kwargs['base_url']}. Refusing for safety.")
 
     context_variables = defaultdict(str, context_variables)
     instructions = agent.instructions(context_variables) if callable(agent.instructions) else agent.instructions
@@ -152,6 +181,7 @@ async def get_chat_completion_message(
     stream: bool = False,
     debug: bool = False
 ) -> Union[Dict[str, Any], AsyncGenerator[Any, None]]:
+    _enforce_litellm_only(client)
     """
     Wrapper to retrieve and validate a chat completion message (returns dict or stream).
     Relies on openai-agents Runner for actual execution, this might become deprecated.

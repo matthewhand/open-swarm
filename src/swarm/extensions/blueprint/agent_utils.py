@@ -6,7 +6,7 @@ This module has been updated to remove dependency on swarm.types;
 instead, it now imports Agent from the openai-agents SDK.
 """
 
-from agents.agent import Agent  # Updated import
+from blueprint_agents.agent import Agent  # Updated import
 
 def get_agent_name(agent: Agent) -> str:
     """

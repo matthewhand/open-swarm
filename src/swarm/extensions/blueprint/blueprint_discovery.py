@@ -54,35 +54,38 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, Type[BlueprintBase]]:
         return blueprints
 
     # Iterate over items inside the base blueprint directory
-    for item_name in os.listdir(base_dir):
-        item_path = base_dir / item_name
-
-        if not item_path.is_dir():
+    for subdir in base_dir.iterdir():
+        if not subdir.is_dir():
             continue # Skip files directly under blueprints/
 
         # Use directory name as blueprint name (e.g., 'echocraft')
-        blueprint_name = item_name
-        logger.debug(f"Processing potential blueprint '{blueprint_name}' in directory: {item_name}")
+        blueprint_name = subdir.name
+        logger.debug(f"Processing potential blueprint '{blueprint_name}' in directory: {subdir.name}")
 
         # Look for the specific .py file, e.g., blueprint_echocraft.py
         py_file_name = f"blueprint_{blueprint_name}.py"
-        py_file_path = item_path / py_file_name
+        py_file_path = subdir / py_file_name
 
         if not py_file_path.is_file():
             # Also check for just {blueprint_name}.py if that's a convention
             alt_py_file_name = f"{blueprint_name}.py"
-            alt_py_file_path = item_path / alt_py_file_name
+            alt_py_file_path = subdir / alt_py_file_name
             if alt_py_file_path.is_file():
                  py_file_path = alt_py_file_path # Use the alternative path
                  py_file_name = alt_py_file_name
                  logger.debug(f"Found alternative blueprint file: {py_file_name}")
             else:
-                 logger.warning(f"Skipping directory '{item_name}': Neither '{py_file_name}' nor '{alt_py_file_name}' found.")
+                 logger.warning(f"Skipping directory '{subdir.name}': Neither '{py_file_name}' nor '{alt_py_file_name}' found.")
                  continue
 
 
         # Construct module import path, e.g., blueprints.echocraft.blueprint_echocraft
-        module_import_path = f"{base_dir.name}.{item_name}.{py_file_path.stem}"
+        if py_file_path.name.startswith('blueprint_gatcha'):
+            module_import_path = f"swarm.blueprints.gatcha.{py_file_path.stem}"
+        elif py_file_path.name.startswith('blueprint_'):
+            module_import_path = f"swarm.blueprints.{subdir.name}.{py_file_path.stem}"
+        else:
+            continue
 
         try:
             # Ensure parent directory is in path
@@ -123,4 +126,3 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, Type[BlueprintBase]]:
 
     logger.info(f"Blueprint discovery complete. Found: {list(blueprints.keys())}")
     return blueprints
-

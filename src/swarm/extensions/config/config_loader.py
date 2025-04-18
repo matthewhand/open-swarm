@@ -57,6 +57,10 @@ def _substitute_env_vars_recursive(data: Any) -> Any:
     if isinstance(data,str): return os.path.expandvars(data)
     return data
 
+def _substitute_env_vars(data: Any) -> Any:
+    """Public API: Recursively substitute environment variables in dict, list, str."""
+    return _substitute_env_vars_recursive(data)
+
 def create_default_config(config_path: Path):
     """Creates a default configuration file with valid JSON."""
     default_config = {
@@ -88,4 +92,3 @@ def create_default_config(config_path: Path):
     except Exception as e:
         logger.error(f"Failed to create default config file at {config_path}: {e}", exc_info=True)
         raise
-

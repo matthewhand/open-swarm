@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent # Points to src/
 # --- Load .env file ---
 dotenv_path = BASE_DIR.parent / '.env'
 load_dotenv(dotenv_path=dotenv_path)
-print(f"[Settings] Attempted to load .env from: {dotenv_path}")
+# print(f"[Settings] Attempted to load .env from: {dotenv_path}")
 # ---
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-dev')
@@ -30,12 +30,12 @@ SWARM_API_KEY = _raw_api_token # Assign the loaded token (or None)
 if ENABLE_API_AUTH:
     # Add assertion to satisfy type checkers within this block
     assert SWARM_API_KEY is not None, "SWARM_API_KEY cannot be None when ENABLE_API_AUTH is True"
-    print(f"[Settings] SWARM_API_KEY loaded: {SWARM_API_KEY[:4]}...{SWARM_API_KEY[-4:]}")
-    print("[Settings] ENABLE_API_AUTH is True.")
+    # print(f"[Settings] SWARM_API_KEY loaded: {SWARM_API_KEY[:4]}...{SWARM_API_KEY[-4:]}")
+    # print("[Settings] ENABLE_API_AUTH is True.")
 else:
-    print("[Settings] API_AUTH_TOKEN env var not set. SWARM_API_KEY is None.")
-    print("[Settings] ENABLE_API_AUTH is False.")
-
+    # print("[Settings] API_AUTH_TOKEN env var not set. SWARM_API_KEY is None.")
+    # print("[Settings] ENABLE_API_AUTH is False.")
+    pass
 
 SWARM_CONFIG_PATH = os.getenv('SWARM_CONFIG_PATH', str(BASE_DIR.parent / 'swarm_config.json'))
 BLUEPRINT_DIRECTORY = os.getenv('BLUEPRINT_DIRECTORY', str(BASE_DIR / 'swarm' / 'blueprints'))
@@ -175,4 +175,3 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
-

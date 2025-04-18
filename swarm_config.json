@@ -2,24 +2,24 @@
   "llm": {
     "default": {
       "provider": "openai",
-      "model": "gpt-4o",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
+      "model": "llama-4-maverick",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
       "max_tokens": "32000"
     },
     "reason": {
       "provider": "openai",
-      "model": "o3-mini",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
+      "model": "llama-4-maverick",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
       "max_tokens": "200000",
       "reasoning_effort": "high"
     },
     "classify": {
       "provider": "openai",
-      "model": "llama3.2:latest",
-      "base_url": "http://localhost:11434/",
-      "api_key": "",
+      "model": "llama-4-maverick",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
       "cost": 0.1,
       "speed": 0.1,
       "intelligence": 0.1,
@@ -37,7 +37,13 @@
     },
     "test": {
       "provider": "openai",
-      "model": "${LITELLM_MODEL}",
+      "model": "llama-4-maverick",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}"
+    },
+    "free": {
+      "provider": "openai",
+      "model": "llama-4-maverick",
       "base_url": "${LITELLM_BASE_URL}",
       "api_key": "${LITELLM_API_KEY}"
     },
@@ -302,7 +308,7 @@
     },
     "RueCodeBlueprint": {
         "max_llm_calls": 15,
-        "llm_profile": "code-large"
+        "llm_profile": "code-small"
     }
     
   }
