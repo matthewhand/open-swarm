@@ -8,31 +8,38 @@ from unittest.mock import patch, AsyncMock, MagicMock
 @pytest.fixture
 def divine_ops_blueprint_instance():
     """Fixture to create a mocked instance of DivineOpsBlueprint."""
-    with patch('blueprints.divine_code.blueprint_divine_code.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
-         with patch('blueprints.divine_code.blueprint_divine_code.BlueprintBase._get_model_instance') as mock_get_model:
-             mock_model_instance = MagicMock()
-             mock_get_model.return_value = mock_model_instance
-             from blueprints.divine_code.blueprint_divine_code import DivineOpsBlueprint
-             # Provide mock MCP server list during instantiation if needed, though create_starting_agent handles filtering
-             instance = DivineOpsBlueprint(debug=True)
-    return instance
+    # Patch the correct import path for BlueprintBase
+    with patch('swarm.core.blueprint_base.BlueprintBase._load_and_process_config', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
+        with patch('swarm.core.blueprint_base.BlueprintBase._get_model_instance') as mock_get_model:
+            mock_model_instance = MagicMock()
+            mock_get_model.return_value = mock_model_instance
+            from swarm.blueprints.divine_code.blueprint_divine_code import DivineOpsBlueprint
+            instance = DivineOpsBlueprint(blueprint_id="test_divineops", debug=True)
+            # Manually set config and mcp_server_configs to avoid RuntimeError
+            instance._config = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}
+            instance.mcp_server_configs = {}
+            return instance
 
 # --- Test Cases ---
 
-@pytest.mark.skip(reason="Blueprint tests not yet implemented")
 def test_divineops_agent_creation(divine_ops_blueprint_instance):
     """Test if Zeus and the pantheon agents are created correctly."""
     # Arrange
     blueprint = divine_ops_blueprint_instance
     # Mock MCP servers (can be simple mocks if only names are checked)
-    mock_mcp_list = [
-        MagicMock(spec=MCPServer, name="memory"),
-        MagicMock(spec=MCPServer, name="filesystem"),
-        MagicMock(spec=MCPServer, name="mcp-shell"),
-        MagicMock(spec=MCPServer, name="sqlite"),
-        MagicMock(spec=MCPServer, name="sequential-thinking"),
-        MagicMock(spec=MCPServer, name="brave-search"),
-    ]
+    m1 = MagicMock()
+    m1.name = "memory"
+    m2 = MagicMock()
+    m2.name = "filesystem"
+    m3 = MagicMock()
+    m3.name = "mcp-shell"
+    m4 = MagicMock()
+    m4.name = "sqlite"
+    m5 = MagicMock()
+    m5.name = "sequential-thinking"
+    m6 = MagicMock()
+    m6.name = "brave-search"
+    mock_mcp_list = [m1, m2, m3, m4, m5, m6]
 
     # Act
     starting_agent = blueprint.create_starting_agent(mcp_servers=mock_mcp_list)

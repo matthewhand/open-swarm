@@ -6,22 +6,27 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from typing import Dict, List, TypedDict
 
 # Assuming BlueprintBase and other necessary components are importable
-# from blueprints.suggestion.blueprint_suggestion import SuggestionBlueprint, SuggestionsOutput
+from blueprints.suggestion.blueprint_suggestion import SuggestionBlueprint, SuggestionsOutput as BlueprintSuggestionsOutput
 # from agents import Agent, Runner, RunResult
 
-# Define the TypedDict here as well for testing validation
-class SuggestionsOutput(TypedDict):
-    suggestions: List[str]
-
+# Patch the correct config loader method for BlueprintBase
 @pytest.fixture
 def suggestion_blueprint_instance():
     """Fixture to create a mocked instance of SuggestionBlueprint."""
-    with patch('blueprints.suggestion.blueprint_suggestion.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
-         with patch('blueprints.suggestion.blueprint_suggestion.BlueprintBase._get_model_instance') as mock_get_model:
-             mock_model_instance = MagicMock()
-             mock_get_model.return_value = mock_model_instance
-             from blueprints.suggestion.blueprint_suggestion import SuggestionBlueprint
-             instance = SuggestionBlueprint(debug=True)
+    with patch('blueprints.suggestion.blueprint_suggestion.BlueprintBase._load_and_process_config', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
+        from blueprints.suggestion.blueprint_suggestion import SuggestionBlueprint
+        instance = SuggestionBlueprint("test_suggestion")
+        instance.debug = True
+        # Set a minimal valid config to avoid RuntimeError
+        instance._config = {
+            "llm": {"default": {"provider": "openai", "model": "gpt-mock"}},
+            "settings": {"default_llm_profile": "default", "default_markdown_output": True},
+            "blueprints": {},
+            "llm_profile": "default",
+            "mcpServers": {}
+        }
+        # Patch _get_model_instance to return a MagicMock
+        instance._get_model_instance = MagicMock(return_value=MagicMock())
     return instance
 
 # --- Test Cases ---
@@ -31,7 +36,6 @@ import pytest
 
 skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
 
-@skip_unless_test_llm(reason="Blueprint tests not yet implemented")
 def test_suggestion_agent_creation(suggestion_blueprint_instance):
     """Test if the SuggestionAgent is created correctly with output_type."""
     # Arrange
@@ -41,7 +45,7 @@ def test_suggestion_agent_creation(suggestion_blueprint_instance):
     # Assert
     assert starting_agent is not None
     assert starting_agent.name == "SuggestionAgent"
-    assert starting_agent.output_type == SuggestionsOutput
+    assert starting_agent.output_type == BlueprintSuggestionsOutput
 
 import os
 import pytest

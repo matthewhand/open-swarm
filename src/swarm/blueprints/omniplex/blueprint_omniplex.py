@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import shlex
 from typing import Dict, Any, List, ClassVar, Optional
 
 # Ensure src is in path for BlueprintBase import
