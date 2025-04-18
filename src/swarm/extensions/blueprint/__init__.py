@@ -6,7 +6,7 @@ and running autonomous agent workflows (blueprints).
 """
 
 # Core components
-from .blueprint_base import BlueprintBase
+from swarm.core.blueprint_base import BlueprintBase
 from .blueprint_discovery import discover_blueprints
 from .blueprint_utils import filter_blueprints
 
@@ -48,4 +48,3 @@ __all__ = [
     "validate_message_sequence",
     "truncate_message_history",
 ]
-
