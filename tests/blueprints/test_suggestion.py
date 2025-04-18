@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/swarm')))
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from typing import Dict, List, TypedDict
@@ -23,7 +26,12 @@ def suggestion_blueprint_instance():
 
 # --- Test Cases ---
 
-@pytest.mark.skip(reason="Blueprint tests not yet implemented")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint tests not yet implemented")
 def test_suggestion_agent_creation(suggestion_blueprint_instance):
     """Test if the SuggestionAgent is created correctly with output_type."""
     # Arrange
@@ -35,7 +43,12 @@ def test_suggestion_agent_creation(suggestion_blueprint_instance):
     assert starting_agent.name == "SuggestionAgent"
     assert starting_agent.output_type == SuggestionsOutput
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio
 async def test_suggestion_run_produces_structured_output(suggestion_blueprint_instance):
     """Test running the blueprint and check if output matches SuggestionsOutput structure."""
@@ -56,7 +69,12 @@ async def test_suggestion_run_produces_structured_output(suggestion_blueprint_in
         # Assertions would go here based on captured output or console mock calls
         # e.g., assert '"suggestions": [' in captured_stdout
 
-@pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint CLI tests not yet implemented")
 def test_suggestion_cli_execution():
     """Test running the blueprint via CLI."""
     assert False
