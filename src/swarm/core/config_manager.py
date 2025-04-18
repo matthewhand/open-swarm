@@ -10,11 +10,7 @@ from swarm.core.server_config import load_server_config, save_server_config
 from swarm.utils.color_utils import color_text
 from swarm.settings import DEBUG
 from swarm.core.utils.logger import *
-from swarm.extensions.cli.utils import (
-    prompt_user,
-    log_and_exit,
-    display_message
-)
+from swarm.extensions.cli.utils.prompt_user import prompt_user
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
@@ -56,10 +52,10 @@ def backup_configuration(config_path: str) -> None:
     try:
         shutil.copy(config_path, backup_path)
         logger.info(f"Configuration backup created at '{backup_path}'")
-        display_message(f"Backup of configuration created at '{backup_path}'", "info")
+        print(f"Backup of configuration created at '{backup_path}'")
     except Exception as e:
         logger.error(f"Failed to create configuration backup: {e}")
-        display_message(f"Failed to create backup: {e}", "error")
+        print(f"Failed to create backup: {e}")
         sys.exit(1)
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -82,11 +78,11 @@ def load_config(config_path: str) -> Dict[str, Any]:
             logger.debug(f"Raw configuration loaded: {config}")
     except FileNotFoundError:
         logger.error(f"Configuration file not found at {config_path}")
-        display_message(f"Configuration file not found at {config_path}", "error")
+        print(f"Configuration file not found at {config_path}")
         sys.exit(1)
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in configuration file {config_path}: {e}")
-        display_message(f"Invalid JSON in configuration file {config_path}: {e}", "error")
+        print(f"Invalid JSON in configuration file {config_path}: {e}")
         sys.exit(1)
 
     # Resolve placeholders recursively
@@ -95,7 +91,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         logger.debug(f"Configuration after resolving placeholders: {resolved_config}")
     except Exception as e:
         logger.error(f"Failed to resolve placeholders in configuration: {e}")
-        display_message(f"Failed to resolve placeholders in configuration: {e}", "error")
+        print(f"Failed to resolve placeholders in configuration: {e}")
         sys.exit(1)
 
     return resolved_config
@@ -115,10 +111,10 @@ def save_config(config_path: str, config: Dict[str, Any]) -> None:
         with open(config_path, "w") as f:
             json.dump(config, f, indent=4)
         logger.info(f"Configuration saved to '{config_path}'")
-        display_message(f"Configuration saved to '{config_path}'", "info")
+        print(f"Configuration saved to '{config_path}'")
     except Exception as e:
         logger.error(f"Failed to save configuration: {e}")
-        display_message(f"Failed to save configuration: {e}", "error")
+        print(f"Failed to save configuration: {e}")
         sys.exit(1)
 
 def add_llm(config_path: str) -> None:
@@ -129,20 +125,20 @@ def add_llm(config_path: str) -> None:
         config_path (str): Path to the configuration file.
     """
     config = load_config(config_path)
-    display_message("Starting the process to add a new LLM.", "info")
+    print("Starting the process to add a new LLM.")
 
     while True:
         llm_name = prompt_user("Enter the name of the new LLM (or type 'done' to finish)").strip()
-        display_message(f"User entered LLM name: {llm_name}", "info")
+        print(f"User entered LLM name: {llm_name}")
         if llm_name.lower() == 'done':
-            display_message("Finished adding LLMs.", "info")
+            print("Finished adding LLMs.")
             break
         if not llm_name:
-            display_message("LLM name cannot be empty.", "error")
+            print("LLM name cannot be empty.")
             continue
 
         if llm_name in config.get("llm", {}):
-            display_message(f"LLM '{llm_name}' already exists.", "warning")
+            print(f"LLM '{llm_name}' already exists.")
             continue
 
         llm = {}
@@ -158,16 +154,16 @@ def add_llm(config_path: str) -> None:
             temperature_input = prompt_user("Enter the temperature (e.g., 0.7)").strip()
             llm["temperature"] = float(temperature_input)
         except ValueError:
-            display_message("Invalid temperature value. Using default 0.7.", "warning")
+            print("Invalid temperature value. Using default 0.7.")
             llm["temperature"] = 0.7
 
         config.setdefault("llm", {})[llm_name] = llm
         logger.info(f"Added LLM '{llm_name}' to configuration.")
-        display_message(f"LLM '{llm_name}' added.", "info")
+        print(f"LLM '{llm_name}' added.")
 
     backup_configuration(config_path)
     save_config(config_path, config)
-    display_message("LLM configuration process completed.", "info")
+    print("LLM configuration process completed.")
 
 def remove_llm(config_path: str, llm_name: str) -> None:
     """
@@ -180,18 +176,18 @@ def remove_llm(config_path: str, llm_name: str) -> None:
     config = load_config(config_path)
 
     if llm_name not in config.get("llm", {}):
-        display_message(f"LLM '{llm_name}' does not exist.", "error")
+        print(f"LLM '{llm_name}' does not exist.")
         return
 
     confirm = prompt_user(f"Are you sure you want to remove LLM '{llm_name}'? (yes/no)").strip().lower()
     if confirm not in ['yes', 'y']:
-        display_message("Operation cancelled.", "warning")
+        print("Operation cancelled.")
         return
 
     del config["llm"][llm_name]
     backup_configuration(config_path)
     save_config(config_path, config)
-    display_message(f"LLM '{llm_name}' has been removed.", "info")
+    print(f"LLM '{llm_name}' has been removed.")
     logger.info(f"Removed LLM '{llm_name}' from configuration.")
 
 def add_mcp_server(config_path: str) -> None:
@@ -202,20 +198,20 @@ def add_mcp_server(config_path: str) -> None:
         config_path (str): Path to the configuration file.
     """
     config = load_config(config_path)
-    display_message("Starting the process to add a new MCP server.", "info")
+    print("Starting the process to add a new MCP server.")
 
     while True:
         server_name = prompt_user("Enter the name of the new MCP server (or type 'done' to finish)").strip()
-        display_message(f"User entered MCP server name: {server_name}", "info")
+        print(f"User entered MCP server name: {server_name}")
         if server_name.lower() == 'done':
-            display_message("Finished adding MCP servers.", "info")
+            print("Finished adding MCP servers.")
             break
         if not server_name:
-            display_message("Server name cannot be empty.", "error")
+            print("Server name cannot be empty.")
             continue
 
         if server_name in config.get("mcpServers", {}):
-            display_message(f"MCP server '{server_name}' already exists.", "warning")
+            print(f"MCP server '{server_name}' already exists.")
             continue
 
         server = {}
@@ -226,7 +222,7 @@ def add_mcp_server(config_path: str) -> None:
             if not isinstance(server["args"], list):
                 raise ValueError
         except ValueError:
-            display_message("Invalid arguments format. Using an empty list.", "warning")
+            print("Invalid arguments format. Using an empty list.")
             server["args"] = []
 
         env_vars = {}
@@ -242,11 +238,11 @@ def add_mcp_server(config_path: str) -> None:
 
         config.setdefault("mcpServers", {})[server_name] = server
         logger.info(f"Added MCP server '{server_name}' to configuration.")
-        display_message(f"MCP server '{server_name}' added.", "info")
+        print(f"MCP server '{server_name}' added.")
 
     backup_configuration(config_path)
     save_config(config_path, config)
-    display_message("MCP server configuration process completed.", "info")
+    print("MCP server configuration process completed.")
 
 def remove_mcp_server(config_path: str, server_name: str) -> None:
     """
@@ -259,16 +255,16 @@ def remove_mcp_server(config_path: str, server_name: str) -> None:
     config = load_config(config_path)
 
     if server_name not in config.get("mcpServers", {}):
-        display_message(f"MCP server '{server_name}' does not exist.", "error")
+        print(f"MCP server '{server_name}' does not exist.")
         return
 
     confirm = prompt_user(f"Are you sure you want to remove MCP server '{server_name}'? (yes/no)").strip().lower()
     if confirm not in ['yes', 'y']:
-        display_message("Operation cancelled.", "warning")
+        print("Operation cancelled.")
         return
 
     del config["mcpServers"][server_name]
     backup_configuration(config_path)
     save_config(config_path, config)
-    display_message(f"MCP server '{server_name}' has been removed.", "info")
+    print(f"MCP server '{server_name}' has been removed.")
     logger.info(f"Removed MCP server '{server_name}' from configuration.")

@@ -70,10 +70,10 @@ def ansi_box(title: str, content: str, color: str = "94", emoji: str = "🔎", b
 def print_search_box(title: str, content: str, color: str = "94", emoji: str = "🔎"):
     print(ansi_box(title, content, color=color, emoji=emoji))
 
-def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None) -> None:
-    """Format and print messages, optionally rendering assistant content as markdown."""
+def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str = None) -> None:
+    """Format and print messages, optionally rendering assistant content as markdown, and always prefixing agent responses with the agent's name."""
     # --- DEBUG PRINT ---
-    print(f"\n[DEBUG pretty_print_response called with {len(messages)} messages, use_markdown={use_markdown}]", flush=True)
+    print(f"\n[DEBUG pretty_print_response called with {len(messages)} messages, use_markdown={use_markdown}, agent_name={agent_name}]", flush=True)
 
     if spinner:
         spinner.stop()
@@ -85,7 +85,7 @@ def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = F
         return
 
     for i, msg in enumerate(messages):
-         # --- DEBUG PRINT ---
+        # --- DEBUG PRINT ---
         print(f"\n[DEBUG Processing message {i}: type={type(msg)}]", flush=True)
         if not isinstance(msg, dict):
             print(f"[DEBUG Skipping non-dict message {i}]", flush=True)
@@ -98,20 +98,20 @@ def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = F
         # --- DEBUG PRINT ---
         print(f"[DEBUG Message {i}: role={role}, sender={sender}, has_content={bool(msg_content)}, has_tools={bool(tool_calls)}]", flush=True)
 
-
         if role == "assistant":
-            print(f"\033[94m{sender}\033[0m: ", end="", flush=True)
+            # Use agent_name if provided, else sender, else 'assistant'
+            display_name = agent_name or sender or "assistant"
+            # Magenta for agent output
+            print(f"\033[95m[{display_name}]\033[0m: ", end="", flush=True)
             if msg_content:
-                 # --- DEBUG PRINT ---
+                # --- DEBUG PRINT ---
                 print(f"\n[DEBUG Assistant content found, printing/rendering... Rich={RICH_AVAILABLE}, Markdown={use_markdown}]", flush=True)
                 if use_markdown and RICH_AVAILABLE:
                     render_markdown(msg_content)
                 else:
-                    # --- DEBUG PRINT ---
-                    print(f"\n[DEBUG Using standard print for content:]", flush=True)
-                    print(msg_content, flush=True) # Added flush
+                    print(msg_content, flush=True)
             elif not tool_calls:
-                print(flush=True) # Flush newline if no content/tools
+                print(flush=True)
 
             if tool_calls and isinstance(tool_calls, list):
                 print("  \033[92mTool Calls:\033[0m", flush=True)

@@ -119,23 +119,22 @@ class BlueprintBase(ABC):
     Defines the core interface for blueprint initialization and execution.
     """
     enable_terminal_commands: bool = False  # By default, terminal command execution is disabled
-
-    @classmethod
-    def main(cls):
-        """
-        Standard CLI entry point for all blueprints.
-        Subclasses can override metadata/config_path if needed.
-        """
-        from swarm.extensions.blueprint.cli_handler import run_blueprint_cli
-        from pathlib import Path
-        swarm_version = getattr(cls, "SWARM_VERSION", "1.0.0")
-        config_path = getattr(cls, "DEFAULT_CONFIG_PATH", Path(__file__).parent / "swarm_config.json")
-        run_blueprint_cli(cls, swarm_version=swarm_version, default_config_path=config_path)
+    approval_required: bool = False
+    console = Console()
+    session_logger: 'SessionLogger' = None
 
     def display_splash_screen(self, animated: bool = False):
         """Default splash screen. Subclasses can override for custom CLI/API branding."""
         console = Console()
         console.print(f"[bold cyan]Welcome to {self.__class__.__name__}![/]", style="bold")
+
+    def _load_configuration(self):
+        """
+        Loads blueprint configuration. This method is a stub for compatibility with tests that patch it.
+        In production, configuration is loaded via _load_and_process_config.
+        """
+        # You may override this in subclasses or patch in tests
+        return getattr(self, '_config', {})
 
     def __init__(self, blueprint_id: str, config: dict = None, config_path: 'Optional[Path]' = None, enable_terminal_commands: 'Optional[bool]' = None, **kwargs):
         try:
@@ -195,9 +194,14 @@ class BlueprintBase(ABC):
                     if _should_debug():
                         logger.warning(f"Falling back to CLI/home config due to error: {e}")
                     # 1. CLI argument (not handled here, handled in cli_handler)
-                    # 2. Current working directory
-                    cwd_config = Path.cwd() / "swarm_config.json"
-                    if cwd_config.exists():
+                    # 2. Current working directory (guard against missing CWD)
+                    try:
+                        cwd_config = Path.cwd() / "swarm_config.json"
+                    except Exception as e:
+                        cwd_config = None
+                        if _should_debug():
+                            logger.warning(f"Unable to determine CWD for config lookup: {e}")
+                    if cwd_config and cwd_config.exists():
                         with open(cwd_config, 'r') as f:
                             self._config = json.load(f)
                     # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
@@ -344,30 +348,36 @@ class BlueprintBase(ABC):
         if not hasattr(self, '_openai_client_cache'):
             self._openai_client_cache = {}
         if profile_name in self._model_instance_cache:
+            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
+        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         profile_data = self.get_llm_profile(profile_name)
         import os
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model") or "gpt-3.5-turbo"
-        openai_kwargs = {}
-        if "base_url" in profile_data:
-            openai_kwargs["base_url"] = profile_data["base_url"]
-        if "api_key" in profile_data:
-            openai_kwargs["api_key"] = profile_data["api_key"]
-        from openai import AsyncOpenAI
-        from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-        client_cache_key = f"{model_name}:{openai_kwargs.get('base_url','')}:key={bool(openai_kwargs.get('api_key'))}"
+        # --- PATCH: API mode selection ---
+        # Default to 'completions' mode unless 'responses' is explicitly specified in swarm_config.json for this blueprint
+        api_mode = profile_data.get("api_mode") or self.config.get("api_mode") or "completions"
+        # Allow env override for debugging if needed
+        api_mode = os.getenv("SWARM_LLM_API_MODE", api_mode)
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model")
+        provider = profile_data.get("provider", "openai")
+        client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
+        filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+        log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
+        logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}' with {log_kwargs} and api_mode={api_mode}")
+        client_cache_key = f"{provider}_{profile_data.get('base_url')}_{api_mode}"
         if client_cache_key not in self._openai_client_cache:
-            try:
-                self._openai_client_cache[client_cache_key] = AsyncOpenAI(**openai_kwargs)
-            except Exception as e:
-                raise ValueError(f"Failed to init client: {e}") from e
+            from openai import AsyncOpenAI
+            self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
         client = self._openai_client_cache[client_cache_key]
-        try:
+        # --- PATCH: Use correct model class based on api_mode ---
+        if api_mode == "responses":
+            from agents.models.openai_responses import OpenAIResponsesModel
+            model_instance = OpenAIResponsesModel(model=model_name, openai_client=client)
+        else:
+            from agents.models.openai_completions import OpenAIChatCompletionsModel
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e:
-            raise ValueError(f"Failed to init LLM: {e}") from e
+        self._model_instance_cache[profile_name] = model_instance
+        return model_instance
 
     def make_agent(self, name, instructions, tools, mcp_servers=None, **kwargs):
         """Factory for creating an Agent with the correct model instance from framework config."""
@@ -381,6 +391,60 @@ class BlueprintBase(ABC):
             mcp_servers=mcp_servers or [],
             **kwargs
         )
+
+    def request_approval(self, action_type, action_summary, action_details=None):
+        """
+        Prompt user for approval before executing an action.
+        Returns True if approved, False if rejected, or edited action if supported.
+        """
+        try:
+            from swarm.core.blueprint_ux import BlueprintUX
+            ux = BlueprintUX(style="serious")
+            box = ux.box(f"Approve {action_type}?", action_summary, summary="Details:", params=action_details)
+            self.console.print(box)
+        except Exception:
+            print(f"Approve {action_type}?\n{action_summary}\nDetails: {action_details}")
+        while True:
+            resp = input("Approve this action? [y]es/[n]o/[e]dit/[s]kip: ").strip().lower()
+            if resp in ("y", "yes"): return True
+            if resp in ("n", "no"): return False
+            if resp in ("s", "skip"): return False
+            if resp in ("e", "edit"):
+                if action_details:
+                    print("Edit not yet implemented; skipping.")
+                    return False
+                else:
+                    print("No editable content; skipping.")
+                    return False
+
+    def execute_tool_with_approval(self, tool_func, action_type, action_summary, action_details=None, *args, **kwargs):
+        if getattr(self, 'approval_required', False):
+            approved = self.request_approval(action_type, action_summary, action_details)
+            if not approved:
+                try:
+                    self.console.print(f"[yellow]Skipped {action_type}[/yellow]")
+                except Exception:
+                    print(f"Skipped {action_type}")
+                return None
+        return tool_func(*args, **kwargs)
+
+    def start_session_logger(self, blueprint_name: str, global_instructions: str = None, project_instructions: str = None):
+        from swarm.core.session_logger import SessionLogger
+        self.session_logger = SessionLogger(blueprint_name=blueprint_name)
+        self.session_logger.log_instructions(global_instructions, project_instructions)
+
+    def log_message(self, role: str, content: str):
+        if self.session_logger:
+            self.session_logger.log_message(role, content)
+
+    def log_tool_call(self, tool_name: str, result: str):
+        if self.session_logger:
+            self.session_logger.log_tool_call(tool_name, result)
+
+    def close_session_logger(self):
+        if self.session_logger:
+            self.session_logger.close()
+            self.session_logger = None
 
     @abstractmethod
     async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:

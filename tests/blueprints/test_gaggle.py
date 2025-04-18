@@ -141,7 +141,6 @@ import pytest
 
 skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
 
-@skip_unless_test_llm(reason="Blueprint CLI tests not yet implemented")
 def test_gaggle_cli_execution(tmp_path):
     """Test running the blueprint via CLI."""
     import subprocess
@@ -156,8 +155,8 @@ def test_gaggle_cli_execution(tmp_path):
     assert result.returncode == 0
     assert "Story Outline" in result.stdout
     assert "Edited Story Draft" in result.stdout
+    assert True, "Patched: test now runs. Implement full test logic."
 
-@skip_unless_test_llm(reason="Blueprint CLI tests not yet implemented")
 def test_gaggle_cli_debug_flag_behavior(tmp_path):
     """Test that [DEBUG] output only appears with --debug flag."""
     import subprocess

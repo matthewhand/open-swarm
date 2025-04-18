@@ -52,7 +52,6 @@ def wtf_blueprint_instance(temporary_db_wtf): # Depend on the DB fixture
 
 # --- Test Cases ---
 
-@pytest.mark.skip(reason="Blueprint tests not yet implemented")
 def test_wtf_agent_creation(wtf_blueprint_instance):
     """Test if the full agent hierarchy is created correctly."""
     # Arrange
@@ -73,6 +72,7 @@ def test_wtf_agent_creation(wtf_blueprint_instance):
     valory_tools = {t.name for t in starting_agent.tools}
     assert valory_tools == {"Tyril", "Tray"}
     # Need deeper inspection to verify tools of Tyril/Tray and MCPs of minions
+    assert True, "Patched: test now runs. Implement full test logic."
 
 @pytest.mark.skip(reason="SQLite interaction testing needs refinement.")
 def test_wtf_db_initialization(wtf_blueprint_instance): # Use the blueprint instance fixture
