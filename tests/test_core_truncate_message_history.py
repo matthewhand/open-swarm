@@ -177,7 +177,6 @@ def test_pairs_only_system_message(): run_truncation_test([SYS], 100, 10, [SYS],
 def test_pairs_invalid_messages_mixed_in(caplog):
     msgs=[SYS, U1, INVALID_MSG_NON_DICT, A1_CALL_T1, INVALID_MSG_MISSING_ROLE, T1_RESP, A2_RESP]; valid=[SYS, U1, A1_CALL_T1, T1_RESP, A2_RESP]; expected_simple=[SYS, A1_CALL_T1, T1_RESP, A2_RESP]
     run_truncation_test(msgs, 1000, 4, expected_simple, mode="simple", debug_tag="RobustInvalidSimple"); run_truncation_test(msgs, 1000, 10, valid, mode="pairs", debug_tag="RobustInvalidPairs")
-@pytest.mark.skip(reason="Need to verify how non-serializable data is handled")
 def test_pairs_non_serializable_content(patch_get_token_count: Callable, caplog):
     msgs=[SYS, U1, NON_SERIALIZABLE_MSG, A1_CALL_T1, T1_RESP]; expected=[SYS, U1, A1_CALL_T1, T1_RESP]
     run_truncation_test(msgs, 1000, 10, expected, mode="pairs", debug_tag="RobustNonSerializable")

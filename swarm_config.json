@@ -88,14 +88,19 @@
     }
   },
   "mcpServers": {
-    "git": {
-      "description": "Provides Git operations (clone, status, diff, add, commit, push) via a Docker container.",
+    "github": {
       "command": "docker",
       "args": [
-        "run", "--rm", "-i",
-        "--mount", "type=bind,src=.,dst=/project",
-        "mcp/git"
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
       ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
       "startup_timeout": 60
     },
     "mcp-google-cse": {

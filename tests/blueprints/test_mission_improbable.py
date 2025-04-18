@@ -35,13 +35,16 @@ def mission_blueprint_instance():
             instance.mcp_server_configs = {}
             return instance
 
-@pytest.mark.skip(reason="SQLite interaction testing needs refinement.")
-@patch('blueprints.mission_improbable.blueprint_mission_improbable.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions_mission.db"))
-@patch('blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}})
-@patch('blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._get_model_instance')
+@patch('swarm.blueprints.mission_improbable.blueprint_mission_improbable.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions_mission.db"))
+@patch('swarm.blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}})
+@patch('swarm.blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._get_model_instance')
 def test_mission_db_initialization(mock_get_model, mock_load_config, temporary_db_mission):
     """Test if the DB table is created and mission sample data loaded."""
-    from blueprints.mission_improbable.blueprint_mission_improbable import MissionImprobableBlueprint
+    # Ensure working directory is project root so DB file is created in a writable location
+    import os
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    os.chdir(project_root)
+    from swarm.blueprints.mission_improbable.blueprint_mission_improbable import MissionImprobableBlueprint
 
     blueprint = MissionImprobableBlueprint(debug=True)
     blueprint._init_db_and_load_data() # Call directly

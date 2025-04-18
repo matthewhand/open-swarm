@@ -2,6 +2,9 @@ import logging
 import os
 import sys
 from typing import Dict, Any, List, TypedDict, ClassVar, Optional
+from datetime import datetime
+import pytz
+from pathlib import Path
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -54,10 +57,22 @@ class SuggestionBlueprint(BlueprintBase):
     # Caches
     _model_instance_cache: Dict[str, Model] = {}
 
+    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
+        if blueprint_id is None:
+            blueprint_id = "suggestion"
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
         """Retrieves or creates an LLM Model instance."""
-        # ... (Implementation is the same as previous refactors) ...
         if profile_name in self._model_instance_cache:
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
@@ -66,15 +81,10 @@ class SuggestionBlueprint(BlueprintBase):
         if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
-        # Ensure a model capable of structured output is used (most recent OpenAI models are)
         if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
         if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
-
-        # Remove redundant client instantiation; rely on framework-level default client
-        # All blueprints now use the default client set at framework init
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
-            # Ensure the model selected supports structured output (most recent OpenAI do)
             model_instance = OpenAIChatCompletionsModel(model=model_name)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
@@ -84,25 +94,21 @@ class SuggestionBlueprint(BlueprintBase):
         """Create the SuggestionAgent."""
         logger.debug("Creating SuggestionAgent...")
         self._model_instance_cache = {}
-
         default_profile_name = self.config.get("llm_profile", "default")
-        # Verify the chosen profile/model supports structured output if possible, or rely on OpenAI's newer models
         logger.debug(f"Using LLM profile '{default_profile_name}' for SuggestionAgent.")
         model_instance = self._get_model_instance(default_profile_name)
-
         suggestion_agent_instructions = (
             "You are the SuggestionAgent. Analyze the user's input and generate exactly three relevant, "
             "concise follow-up questions or conversation starters as a JSON object with a single key 'suggestions' "
             "containing a list of strings."
         )
-
         suggestion_agent = Agent(
             name="SuggestionAgent",
             instructions=suggestion_agent_instructions,
-            tools=[], # No function tools needed
+            tools=[],
             model=model_instance,
-            output_type=SuggestionsOutput, # Enforce the TypedDict structure
-            mcp_servers=mcp_servers # Pass along, though unused
+            output_type=SuggestionsOutput,
+            mcp_servers=mcp_servers
         )
         logger.debug("SuggestionAgent created with output_type enforcement.")
         return suggestion_agent

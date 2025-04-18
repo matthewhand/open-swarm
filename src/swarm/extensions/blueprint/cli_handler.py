@@ -157,6 +157,25 @@ def run_blueprint_cli(
             # swarm_version=swarm_version
         )
 
+        # Non-interactive slash-command handling
+        if instruction.strip().startswith('/'):
+            from swarm.core.slash_commands import slash_registry
+            parts = instruction.strip().split(maxsplit=1)
+            cmd = parts[0]
+            cmd_args = parts[1] if len(parts) > 1 else None
+            handler = blueprint_instance.slash_commands.get(cmd)
+            if handler:
+                try:
+                    res = handler(blueprint_instance, cmd_args)
+                    if res is not None:
+                        if isinstance(res, str):
+                            print(res)
+                        else:
+                            for line in res:
+                                print(line)
+                except Exception as sc_e:
+                    print(f"Error executing slash command {cmd}: {sc_e}", file=sys.stderr)
+                sys.exit(0)
         # Run the async part with shutdown handling
         asyncio.run(_run_blueprint_async_with_shutdown(blueprint_instance, instruction))
 

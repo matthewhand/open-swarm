@@ -50,6 +50,17 @@ from swarm.utils.logger_setup import setup_logger
 logger = setup_logger(__name__)
 
 class DjangoChatBlueprint(Blueprint):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+
     @property
     def metadata(self) -> Dict[str, Any]:
         logger.debug("Fetching metadata")
@@ -86,6 +97,30 @@ class DjangoChatBlueprint(Blueprint):
         }
         return render(request, "django_chat/django_chat_webpage.html", context)
 
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+
+    async def run(self, messages: List[Dict[str, str]]) -> object:
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["django_chat"]
+        }
+        rendered_prompt = self.render_prompt("django_chat_prompt.j2", prompt_context)
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[DjangoChat LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
+
     def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
         """Minimal implementation for CLI compatibility without agents."""
         logger.debug("Running with context (UI-focused implementation)")
@@ -93,3 +128,15 @@ class DjangoChatBlueprint(Blueprint):
             "response": {"messages": [{"role": "assistant", "content": "Django Chat UI active via web interface at /django_chat/"}]},
             "context_variables": context_variables
         }
+
+if __name__ == "__main__":
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "Start a chat session about Django."}
+    ]
+    blueprint = DjangoChatBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())

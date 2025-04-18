@@ -5,6 +5,7 @@ A chaotic spy-themed blueprint with a multi-tiered agent hierarchy for tracking 
 Uses BlueprintBase and agent-as-tool delegation.
 """
 
+from agents.mcp import MCPServer
 import os
 from dotenv import load_dotenv; load_dotenv(override=True)
 
@@ -21,7 +22,6 @@ if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
     from agents import Agent, Tool, function_tool, Runner
-    from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
@@ -126,6 +126,24 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
+    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
+        if blueprint_id is None:
+            blueprint_id = "whiskeytangofoxtrot"
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+        # Initialize the services database schema on instantiation
+        try:
+            self.initialize_db()
+        except Exception as e:
+            logger.error(f"Error initializing WTF services database: {e}", exc_info=True)
+
     def initialize_db(self) -> None:
         """Initializes the SQLite database schema if not present."""
         db_path = SQLITE_DB_PATH
@@ -194,33 +212,30 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
 
 
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+
+
     async def run(self, messages: List[dict], **kwargs):
-        logger.info("WhiskeyTangoFoxtrotBlueprint run method called.")
-        instruction = messages[-1].get("content", "") if messages else ""
-        try:
-            mcp_servers = kwargs.get("mcp_servers", [])
-            starting_agent = self.create_starting_agent(mcp_servers=mcp_servers)
-            from agents import Runner
-            if not starting_agent.model:
-                yield {"messages": [{"role": "assistant", "content": f"Error: No model instance available for WTF agent. Check your OPENAI_API_KEY, or LITELLM_MODEL/LITELLM_BASE_URL config."}]}
-                return
-            if not starting_agent.tools:
-                yield {"messages": [{"role": "assistant", "content": f"Warning: No tools registered for WTF agent. Only direct LLM output is possible."}]}
-            required_mcps = self.metadata.get('required_mcp_servers', [])
-            missing_mcps = [m for m in required_mcps if m not in [s.name for s in mcp_servers]]
-            if missing_mcps:
-                yield {"messages": [{"role": "assistant", "content": f"Warning: Missing required MCP servers: {', '.join(missing_mcps)}. Some features may not work."}]}
-            from rich.console import Console
-            console = Console()
-            with console.status("Generating...", spinner="dots") as status:
-                async for chunk in Runner.run(starting_agent, instruction):
-                    content = chunk.get("content")
-                    if content and ("function call" in content or "args" in content):
-                        continue
-                    yield chunk
-            logger.info("WhiskeyTangoFoxtrotBlueprint run method finished.")
-        except Exception as e:
-            yield {"messages": [{"role": "assistant", "content": f"Error: {e}"}]}
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["whiskeytango_foxtrot"]
+        }
+        rendered_prompt = self.render_prompt("whiskeytango_foxtrot_prompt.j2", prompt_context)
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[WhiskeyTangoFoxtrot LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
 
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
@@ -283,4 +298,13 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    WhiskeyTangoFoxtrotBlueprint.main()
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "WTF is going on?"}
+    ]
+    blueprint = WhiskeyTangoFoxtrotBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())

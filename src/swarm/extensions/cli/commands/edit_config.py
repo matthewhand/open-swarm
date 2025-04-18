@@ -7,8 +7,15 @@ from swarm.core import (
     setup_wizard,
 )
 from pathlib import Path
+import os
 
-CONFIG_PATH = Path("swarm_config.json").resolve()
+def get_xdg_config_path():
+    config_home = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    config_dir = Path(config_home) / "swarm"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir / "swarm_config.json"
+
+CONFIG_PATH = get_xdg_config_path()
 
 def list_config(config):
     """

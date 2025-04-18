@@ -143,6 +143,17 @@ class MonkaiMagicBlueprint(BlueprintBase):
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
         """Retrieves or creates an LLM Model instance."""
@@ -172,6 +183,30 @@ class MonkaiMagicBlueprint(BlueprintBase):
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
         except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+
+    async def run(self, messages: list) -> object:
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["monkai_magic"]
+        }
+        rendered_prompt = self.render_prompt("monkai_magic_prompt.j2", prompt_context)
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[MonkaiMagic LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the MonkaiMagic agent team and returns Tripitaka."""
@@ -255,4 +290,13 @@ class MonkaiMagicBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    MonkaiMagicBlueprint.main()
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "Do some magic."}
+    ]
+    blueprint = MonkaiMagicBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())

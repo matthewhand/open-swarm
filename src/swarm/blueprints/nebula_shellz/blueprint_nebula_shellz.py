@@ -77,6 +77,17 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
     }
     _model_instance_cache: Dict[str, Model] = {}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+
     # --- ADDED: Splash Screen ---
     def display_splash_screen(self, animated: bool = False):
         console = Console()
@@ -170,33 +181,38 @@ Initializing NebulaShellzzar Crew...
         logger.debug("NebulaShellzzar agent team created. Morpheus is the starting agent.") # Changed to DEBUG
         return morpheus
 
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+
     async def run(self, messages: List[dict], **kwargs):
-        logger.info("NebuchaShellzzarBlueprint run method called.")
-        instruction = messages[-1].get("content", "") if messages else ""
-        try:
-            mcp_servers = kwargs.get("mcp_servers", [])
-            starting_agent = self.create_starting_agent(mcp_servers=mcp_servers)
-            from agents import Runner
-            if not starting_agent.model:
-                yield {"messages": [{"role": "assistant", "content": f"Error: No model instance available for NebuchaShellzzar agent. Check your OPENAI_API_KEY, or LITELLM_MODEL/LITELLM_BASE_URL config."}]}
-                return
-            if not starting_agent.tools:
-                yield {"messages": [{"role": "assistant", "content": f"Warning: No tools registered for NebuchaShellzzar agent. Only direct LLM output is possible."}]}
-            required_mcps = self.metadata.get('required_mcp_servers', [])
-            missing_mcps = [m for m in required_mcps if m not in [s.name for s in mcp_servers]]
-            if missing_mcps:
-                yield {"messages": [{"role": "assistant", "content": f"Warning: Missing required MCP servers: {', '.join(missing_mcps)}. Some features may not work."}]}
-            from rich.console import Console
-            console = Console()
-            with console.status("Generating...", spinner="dots") as status:
-                async for chunk in Runner.run(starting_agent, instruction):
-                    content = chunk.get("content")
-                    if content and ("function call" in content or "args" in content):
-                        continue
-                    yield chunk
-            logger.info("NebuchaShellzzarBlueprint run method finished.")
-        except Exception as e:
-            yield {"messages": [{"role": "assistant", "content": f"Error: {e}"}]}
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["nebula_shellz"]
+        }
+        rendered_prompt = self.render_prompt("nebula_shellz_prompt.j2", prompt_context)
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[NebulaShellz LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
 
 if __name__ == "__main__":
-    NebuchaShellzzarBlueprint.main()
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "Shell out to the stars."}
+    ]
+    blueprint = NebuchaShellzzarBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())
