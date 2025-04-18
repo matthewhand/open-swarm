@@ -2,7 +2,7 @@
   "llm": {
     "default": {
       "provider": "openai",
-      "model": "llama-4-maverick",
+      "model": "${LITELLM_MODEL}",
       "base_url": "${LITELLM_BASE_URL}",
       "api_key": "${LITELLM_API_KEY}",
       "max_tokens": "32000"
