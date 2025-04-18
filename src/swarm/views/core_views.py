@@ -18,7 +18,7 @@ from django.contrib.auth.forms import AuthenticationForm # Use standard auth for
 # from .utils import blueprints_metadata # Or however metadata is accessed
 
 # Use the current config loader
-from swarm.extensions.config.config_loader import load_config, find_config_file, DEFAULT_CONFIG_FILENAME
+from swarm.core import config_loader, server_config
 
 logger = logging.getLogger(__name__)
 
@@ -70,16 +70,16 @@ def serve_swarm_config(request):
     config_path = None
     try:
          # Use the same logic as BlueprintBase if possible, or find_config_file
-         config_path = find_config_file(filename=DEFAULT_CONFIG_FILENAME, start_dir=Path(settings.BASE_DIR).parent) # Search from project root
+         config_path = config_loader.find_config_file(filename=config_loader.DEFAULT_CONFIG_FILENAME, start_dir=Path(settings.BASE_DIR).parent) # Search from project root
          if not config_path:
               # Fallback to location relative to settings? Unlikely to be correct.
-              config_path = Path(settings.BASE_DIR) / '..' / DEFAULT_CONFIG_FILENAME # Adjust relative path if needed
+              config_path = Path(settings.BASE_DIR) / '..' / config_loader.DEFAULT_CONFIG_FILENAME # Adjust relative path if needed
               config_path = config_path.resolve()
 
          if config_path and config_path.exists():
               logger.info(f"Serving config from: {config_path}")
               # Load config to potentially redact sensitive info before serving
-              config_data = load_config(config_path)
+              config_data = config_loader.load_config(config_path)
               # Redact sensitive keys (e.g., api_key)
               if 'llm' in config_data:
                    for profile in config_data['llm']: config_data['llm'][profile].pop('api_key', None)
@@ -109,5 +109,3 @@ def list_available_blueprints_api(request):
      except Exception as e:
           logger.error(f"Error listing blueprints via API: {e}", exc_info=True)
           return JsonResponse({"error": "Failed to list blueprints."}, status=500)
-
-

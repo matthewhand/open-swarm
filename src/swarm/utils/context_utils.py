@@ -23,10 +23,16 @@ def _is_valid_message(msg: Any) -> bool:
     role = msg.get("role")
     if not role or not isinstance(role, str): logger.warning(f"Skipping msg missing role: {str(msg)[:150]}"); return False
     content = msg.get("content"); tool_calls = msg.get("tool_calls"); tool_call_id = msg.get("tool_call_id")
-    if role == "system": is_valid = content is not None
-    elif role == "user": is_valid = content is not None
-    elif role == "assistant": is_valid = content is not None or (isinstance(tool_calls, list) and len(tool_calls) > 0)
-    elif role == "tool": is_valid = content is not None and tool_call_id is not None
+    # Validate based on role: content must be a string for system/user/tool; assistant may have tool calls
+    if role == "system":
+        is_valid = isinstance(content, str)
+    elif role == "user":
+        is_valid = isinstance(content, str)
+    elif role == "assistant":
+        # Assistant valid if it has string content or at least one tool call
+        is_valid = isinstance(content, str) or (isinstance(tool_calls, list) and len(tool_calls) > 0)
+    elif role == "tool":
+        is_valid = isinstance(content, str) and tool_call_id is not None
     else: is_valid = False
     if not is_valid: logger.warning(f"Skipping msg failing validity check for role '{role}': {str(msg)[:150]}")
     return is_valid

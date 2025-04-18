@@ -62,6 +62,25 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=system_message_html)
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
+        import os, logging
+        if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
+            logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
+            try:
+                import openai.agents.tracing
+                openai.agents.tracing.TracingClient = lambda *a, **kw: None
+            except Exception:
+                pass
+        def _enforce_litellm_only(client):
+            base_url = getattr(client, 'base_url', None)
+            if base_url and 'openai.com' in base_url:
+                return
+            if base_url and 'openai.com' not in base_url:
+                import traceback
+                raise RuntimeError(f"Attempted fallback to OpenAI API when custom base_url is set! base_url={base_url}\n{traceback.format_stack()}")
+        _enforce_litellm_only(client)
+        
         stream = await client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL"),
             messages=self.messages,

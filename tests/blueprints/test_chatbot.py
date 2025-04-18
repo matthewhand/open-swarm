@@ -66,7 +66,6 @@ def test_chatbot_agent_creation(chatbot_blueprint_instance):
         traceback.print_exc()
         raise
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio
 async def test_chatbot_run_conversation(chatbot_blueprint_instance):
     """Test running the blueprint with a simple conversational input."""
@@ -86,7 +85,4 @@ async def test_chatbot_run_conversation(chatbot_blueprint_instance):
         mock_runner_run.assert_called_once()
         # Need to capture stdout/stderr or check console output mock
 
-@pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
-def test_chatbot_cli_execution():
-    """Test running the blueprint via CLI."""
-    assert False
+# Keep the main branch's logic for chatbot blueprint tests. Integrate any unique improvements from the feature branch only if they do not conflict with stability or test coverage.

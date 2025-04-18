@@ -1,0 +1,27 @@
+{
+  "blueprints": [
+    {"name": "echocraft", "status": "working", "notes": "LLM-style response, demo logic confirmed"},
+    {"name": "rue_code", "status": "working", "notes": "LLM-style response, demo logic confirmed"},
+    {"name": "suggestion", "status": "working", "notes": "LLM-style response, demo logic confirmed"},
+    {"name": "mcp_demo", "status": "working", "notes": "LLM-style response, demo logic confirmed"},
+    {"name": "chatbot", "status": "working", "notes": "LLM-style response, import patch applied"},
+    {"name": "chucks_angels", "status": "unknown", "notes": "Needs audit"},
+    {"name": "codey", "status": "unknown", "notes": "Needs audit"},
+    {"name": "digitalbutlers", "status": "unknown", "notes": "Needs audit"},
+    {"name": "dilbot", "status": "unknown", "notes": "Needs audit"},
+    {"name": "divine_code", "status": "unknown", "notes": "Needs audit"},
+    {"name": "django_chat", "status": "unknown", "notes": "Needs audit"},
+    {"name": "family_ties", "status": "unknown", "notes": "Needs audit"},
+    {"name": "flock", "status": "unknown", "notes": "Needs audit"},
+    {"name": "gaggle", "status": "unknown", "notes": "Needs audit"},
+    {"name": "gatcha", "status": "unknown", "notes": "Needs audit"},
+    {"name": "messenger", "status": "unknown", "notes": "Needs audit"},
+    {"name": "mission_improbable", "status": "unknown", "notes": "Needs audit"},
+    {"name": "monkai_magic", "status": "unknown", "notes": "Needs audit"},
+    {"name": "nebula_shellz", "status": "unknown", "notes": "Needs audit"},
+    {"name": "omniplex", "status": "unknown", "notes": "Needs audit"},
+    {"name": "shell_demo", "status": "unknown", "notes": "Needs audit"},
+    {"name": "unapologetic_press", "status": "unknown", "notes": "Needs audit"},
+    {"name": "whiskeytango_foxtrot", "status": "unknown", "notes": "Needs audit"}
+  ]
+}
