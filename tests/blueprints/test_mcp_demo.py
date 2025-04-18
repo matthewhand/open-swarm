@@ -1,9 +1,14 @@
 import pytest
+import os
 from unittest.mock import patch, AsyncMock, MagicMock
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
 # from agents import Agent, Runner, RunResult, MCPServer
+
+SKIP_LLM_TESTS = not (
+    os.getenv("OPENAI_API_KEY") or os.getenv("LITELLM_API_KEY") or os.getenv("DEFAULT_LLM")
+)
 
 @pytest.fixture
 def mcp_demo_blueprint_instance():
@@ -28,6 +33,7 @@ def mcp_demo_blueprint_instance():
 
 # --- Test Cases ---
 
+@pytest.mark.skipif(SKIP_LLM_TESTS, reason="LLM API credentials not available")
 @pytest.mark.skip(reason="Blueprint tests not yet implemented")
 def test_mcpdemo_agent_creation(mcp_demo_blueprint_instance):
     """Test if Sage agent is created correctly with MCP info in prompt."""
@@ -44,6 +50,7 @@ def test_mcpdemo_agent_creation(mcp_demo_blueprint_instance):
     assert "memory: Store/retrieve data" in starting_agent.instructions
     assert starting_agent.mcp_servers == [mock_fs_mcp, mock_mem_mcp]
 
+@pytest.mark.skipif(SKIP_LLM_TESTS, reason="LLM API credentials not available")
 @pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio
 async def test_mcpdemo_filesystem_interaction(mcp_demo_blueprint_instance):
@@ -51,6 +58,7 @@ async def test_mcpdemo_filesystem_interaction(mcp_demo_blueprint_instance):
     # Needs Runner mocking to trace agent calls and MCP interactions.
     assert False
 
+@pytest.mark.skipif(SKIP_LLM_TESTS, reason="LLM API credentials not available")
 @pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio
 async def test_mcpdemo_memory_interaction(mcp_demo_blueprint_instance):
