@@ -6,7 +6,7 @@ from typing import List, Dict, Any, AsyncGenerator
 import uuid # Import uuid to generate IDs
 import time # Import time for timestamp
 
-from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+from swarm.core.blueprint_base import BlueprintBase
 
 logger = logging.getLogger(__name__)
 

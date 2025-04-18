@@ -1,7 +1,7 @@
 import os
 import argparse
-from swarm.extensions.config.config_loader import load_server_config
-from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+from swarm.core import config_loader, config_manager, server_config
+from swarm.core.blueprint_base import BlueprintBase
 
 CONFIG_PATH = "swarm_config.json"
 
@@ -43,7 +43,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        config = load_server_config(CONFIG_PATH)
+        config = server_config.load_server_config(CONFIG_PATH)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return

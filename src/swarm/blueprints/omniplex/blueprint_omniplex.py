@@ -14,7 +14,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in OmniplexBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -216,26 +216,36 @@ class OmniplexBlueprint(BlueprintBase):
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
-        """Main execution entry point for the Omniplex blueprint."""
-        logger.info("OmniplexBlueprint run method called.")
+    async def run(self, messages: list, **kwargs):
+        import logging
+        if not hasattr(self, "logger"):
+            self.logger = logging.getLogger(__name__)
+        self.logger.info("OmniplexBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
-        async for chunk in self._run_non_interactive(instruction, **kwargs):
-            yield chunk
-        logger.info("OmniplexBlueprint run method finished.")
-
-    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
-        logger.info(f"Running OmniplexBlueprint non-interactively with instruction: '{instruction[:100]}...'")
-        mcp_servers = kwargs.get("mcp_servers", [])
-        agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        from agents import Runner
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
-            for chunk in Runner.run(agent, instruction):
-                yield chunk
+            mcp_servers = kwargs.get("mcp_servers", [])
+            agent = self.create_starting_agent(mcp_servers=mcp_servers)
+            from agents import Runner
+            if not agent.model:
+                yield {"messages": [{"role": "assistant", "content": f"Error: No model instance available for Omniplex agent. Check your OPENAI_API_KEY, or LITELLM_MODEL/LITELLM_BASE_URL config."}]}
+                return
+            if not agent.tools:
+                yield {"messages": [{"role": "assistant", "content": f"Warning: No tools registered for Omniplex agent. Only direct LLM output is possible."}]}
+            required_mcps = self.metadata.get('required_mcp_servers', [])
+            missing_mcps = [m for m in required_mcps if m not in [s.name for s in mcp_servers]]
+            if missing_mcps:
+                yield {"messages": [{"role": "assistant", "content": f"Warning: Missing required MCP servers: {', '.join(missing_mcps)}. Some features may not work."}]}
+            from rich.console import Console
+            console = Console()
+            with console.status("Generating...", spinner="dots") as status:
+                async for chunk in Runner.run(agent, instruction):
+                    content = chunk.get("content")
+                    if content and ("function call" in content or "args" in content):
+                        continue
+                    yield chunk
+            self.logger.info("OmniplexBlueprint run method finished.")
         except Exception as e:
-            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
-            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+            yield {"messages": [{"role": "assistant", "content": f"Error: {e}"}]}
 
 # Standard Python entry point
 if __name__ == "__main__":

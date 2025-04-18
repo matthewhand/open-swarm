@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Attempt to import BlueprintBase, handle potential ImportError during early setup/testing
 try:
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     logger.error(f"Import failed: {e}. Check 'openai-agents' install and project structure.")
     # *** REMOVED sys.exit(1) ***

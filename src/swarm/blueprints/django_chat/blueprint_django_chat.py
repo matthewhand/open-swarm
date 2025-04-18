@@ -44,7 +44,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from swarm.models import ChatConversation, ChatMessage
-from swarm.extensions.blueprint.blueprint_base import BlueprintBase as Blueprint
+from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.utils.logger_setup import setup_logger
 
 logger = setup_logger(__name__)
