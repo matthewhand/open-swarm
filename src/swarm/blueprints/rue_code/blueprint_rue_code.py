@@ -57,51 +57,41 @@ def execute_shell_command(command: str) -> str:
 
 def read_file(file_path: str) -> str:
     """Reads the content of a specified file."""
-    logger.info(f"Reading file: {file_path}")
+    logger.info(f"📄 Reading file: {file_path}")
     try:
-        # Basic path traversal check (can be enhanced)
         if ".." in file_path:
-             logger.warning(f"Attempted path traversal detected in read_file: {file_path}")
-             return "Error: Invalid file path (potential traversal)."
-        # Consider restricting base path if needed
-        # base_path = Path("/workspace").resolve()
-        # target_path = (base_path / file_path).resolve()
-        # if not target_path.is_relative_to(base_path):
-        #     return "Error: Access denied."
-
+            logger.warning(f"Attempted path traversal detected in read_file: {file_path}")
+            return "\033[91m❌ Error: Invalid file path (potential traversal).\033[0m"
         path = Path(file_path)
         if not path.is_file():
-            return f"Error: File not found at {file_path}"
+            logger.warning(f"File not found: {file_path}")
+            return f"\033[91m❌ Error: File not found at {file_path}\033[0m"
         content = path.read_text(encoding='utf-8')
         logger.info(f"Successfully read {len(content)} characters from {file_path}")
-        # Truncate long files?
         max_len = 10000
         if len(content) > max_len:
-             logger.warning(f"File {file_path} truncated to {max_len} characters.")
-             return content[:max_len] + "\n... [File Truncated]"
-        return content
+            logger.warning(f"File {file_path} truncated to {max_len} characters.")
+            return f"\033[93m⚠️ {content[:max_len]}\n... [File Truncated]\033[0m"
+        return f"\033[92m✅ File read successfully!\033[0m\n\033[94m{content}\033[0m"
     except Exception as e:
         logger.error(f"Error reading file '{file_path}': {e}", exc_info=True)
-        return f"Error reading file: {e}"
+        return f"\033[91m❌ Error reading file: {e}\033[0m"
 
 def write_file(file_path: str, content: str) -> str:
     """Writes content to a specified file, creating directories if needed."""
-    logger.info(f"Writing to file: {file_path}")
+    logger.info(f"✏️ Writing to file: {file_path}")
     try:
-        # Basic path traversal check
         if ".." in file_path:
-             logger.warning(f"Attempted path traversal detected in write_file: {file_path}")
-             return "Error: Invalid file path (potential traversal)."
-        # Consider restricting base path
-
+            logger.warning(f"Attempted path traversal detected in write_file: {file_path}")
+            return "\033[91m❌ Error: Invalid file path (potential traversal).\033[0m"
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding='utf-8')
         logger.info(f"Successfully wrote {len(content)} characters to {file_path}")
-        return f"Successfully wrote to {file_path}"
+        return f"\033[92m✅ Successfully wrote to {file_path}\033[0m"
     except Exception as e:
         logger.error(f"Error writing file '{file_path}': {e}", exc_info=True)
-        return f"Error writing file: {e}"
+        return f"\033[91m❌ Error writing file: {e}\033[0m"
 
 def list_files(directory_path: str = ".") -> str:
     """Lists files and directories in a specified path."""
@@ -129,6 +119,16 @@ def list_files(directory_path: str = ".") -> str:
         return f"Error listing files: {e}"
 
 # --- RueCodeBlueprint Definition ---
+
+# === OpenAI GPT-4.1 Prompt Engineering Guide ===
+# See: https://github.com/openai/openai-cookbook/blob/main/examples/gpt4-1_prompting_guide.ipynb
+#
+# Agentic System Prompt Example (recommended for code generation/repair agents):
+SYS_PROMPT_AGENTIC = """
+You are an agent - please keep going until the user’s query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved.
+If you are not sure about file content or codebase structure pertaining to the user’s request, use your tools to read files and gather the relevant information: do NOT guess or make up an answer.
+You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls. DO NOT do this entire process by making function calls only, as this can impair your ability to solve the problem and think insightfully.
+"""
 
 class RueCodeBlueprint(BlueprintBase):
     """
@@ -288,4 +288,3 @@ class RueCodeBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
         logger.info("RueCodeBlueprint run finished.")
-

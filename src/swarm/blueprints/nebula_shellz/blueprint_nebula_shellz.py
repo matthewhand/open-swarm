@@ -59,6 +59,13 @@ cypher_instructions = "You are Cypher..."
 tank_instructions = "You are Tank..."
 
 # --- Blueprint Definition ---
+from rich.console import Console
+from rich.panel import Panel
+from rich.live import Live
+from rich.text import Text
+import random
+import time
+
 class NebuchaShellzzarBlueprint(BlueprintBase):
     """A multi-agent blueprint inspired by The Matrix for sysadmin and coding tasks."""
     metadata: ClassVar[Dict[str, Any]] = {
@@ -68,22 +75,46 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
         "tags": ["matrix", "multi-agent", "shell", "coding", "mcp"],
         "required_mcp_servers": ["memory"],
     }
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
     # --- ADDED: Splash Screen ---
-    def display_splash_screen(self):
-        """Displays a Matrix-themed splash screen."""
-        splash_text = """
+    def display_splash_screen(self, animated: bool = False):
+        console = Console()
+        if not animated:
+            splash_text = """
 [bold green]Wake up, Neo...[/]
 [green]The Matrix has you...[/]
 [bold green]Follow the white rabbit.[/]
 
 Initializing NebulaShellzzar Crew...
-        """
-        panel = Panel(splash_text.strip(), title="[bold green]NebulaShellzzar[/]", border_style="green", expand=False)
-        self.console.print(panel)
-        self.console.print() # Add a blank line
+            """
+            panel = Panel(splash_text.strip(), title="[bold green]NebulaShellzzar[/]", border_style="green", expand=False)
+            console.print(panel)
+            console.print() # Add a blank line
+        else:
+            # Animated Matrix rain effect
+            width = 60
+            height = 12
+            charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&"
+            rain_cols = [0] * width
+            with Live(refresh_per_second=20, console=console, transient=True) as live:
+                for _ in range(30):
+                    matrix = ""
+                    for y in range(height):
+                        line = ""
+                        for x in range(width):
+                            if random.random() < 0.02:
+                                rain_cols[x] = 0
+                            char = random.choice(charset) if rain_cols[x] < y else " "
+                            line += f"[green]{char}[/]"
+                        matrix += line + "\n"
+                    panel = Panel(Text.from_markup(matrix), title="[bold green]NebulaShellzzar[/]", border_style="green", expand=False)
+                    live.update(panel)
+                    time.sleep(0.07)
+            console.print("[bold green]Wake up, Neo...[/]")
+            console.print("[green]The Matrix has you...[/]")
+            console.print("[bold green]Follow the white rabbit.[/]")
+            console.print("\nInitializing NebulaShellzzar Crew...\n")
 
     def _get_model_instance(self, profile_name: str) -> Model:
         """Gets or creates a Model instance for the given profile name."""
@@ -100,26 +131,14 @@ Initializing NebulaShellzzar Crew...
         if not model_name:
              logger.critical(f"LLM profile '{profile_name}' is missing the 'model' key.")
              raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if provider == "openai":
-            if client_cache_key not in self._openai_client_cache:
-                 client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-                 filtered_client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-                 log_client_kwargs = {k:v for k,v in filtered_client_kwargs.items() if k != 'api_key'}
-                 logger.debug(f"Creating new AsyncOpenAI client for profile '{profile_name}' with config: {log_client_kwargs}") # Changed to DEBUG
-                 try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_client_kwargs)
-                 except Exception as e:
-                     logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
-                     raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
-            openai_client_instance = self._openai_client_cache[client_cache_key]
-            logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with specific client instance.")
-            try: model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
-            except Exception as e:
-                 logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
-                 raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
-        else:
-            logger.error(f"Unsupported LLM provider '{provider}' in profile '{profile_name}'.")
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+        # Remove redundant client instantiation; rely on framework-level default client
+        # All blueprints now use the default client set at framework init
+        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with default client.")
+        try: model_instance = OpenAIChatCompletionsModel(model=model_name)
+        except Exception as e:
+             logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
+             raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
         self._model_instance_cache[profile_name] = model_instance
         return model_instance
 
@@ -127,7 +146,6 @@ Initializing NebulaShellzzar Crew...
         """Creates the Matrix-themed agent team with Morpheus as the coordinator."""
         logger.debug(f"Creating NebulaShellzzar agent team with {len(mcp_servers)} MCP server(s)...") # Changed to DEBUG
         self._model_instance_cache = {}
-        self._openai_client_cache = {}
         default_profile_name = self.config.get("llm_profile", "default")
         default_model_instance = self._get_model_instance(default_profile_name)
         logger.debug(f"Using LLM profile '{default_profile_name}' for all agents.") # Changed to DEBUG

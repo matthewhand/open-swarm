@@ -8,6 +8,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
+from typing import Optional
+from pathlib import Path
 try:
     from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
@@ -107,6 +109,9 @@ Available MCP Tools (if provided): sequential-thinking, filesystem.
 
 # --- Define the Blueprint ---
 class DivineOpsBlueprint(BlueprintBase):
+    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+
     """ Divine Ops: Streamlined Software Dev & Sysadmin Team Blueprint using openai-agents """
     metadata: ClassVar[Dict[str, Any]] = {
             "name": "DivineOpsBlueprint",
@@ -213,6 +218,27 @@ class DivineOpsBlueprint(BlueprintBase):
 
         logger.debug("Divine Ops Team (Zeus & Pantheon) created successfully. Zeus is starting agent.")
         return zeus_agent
+
+    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+        """Main execution entry point for the DivineOps blueprint."""
+        logger.info("DivineOpsBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        async for chunk in self._run_non_interactive(instruction, **kwargs):
+            yield chunk
+        logger.info("DivineOpsBlueprint run method finished.")
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        logger.info(f"Running DivineOps non-interactively with instruction: '{instruction[:100]}...'")
+        mcp_servers = kwargs.get("mcp_servers", [])
+        agent = self.create_starting_agent(mcp_servers=mcp_servers)
+        runner = Runner(agent=agent)
+        try:
+            final_result = await runner.run(instruction)
+            logger.info(f"Non-interactive run finished. Final Output: {final_result.final_output}")
+            yield { "messages": [ {"role": "assistant", "content": final_result.final_output} ] }
+        except Exception as e:
+            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            yield { "messages": [ {"role": "assistant", "content": f"An error occurred: {e}"} ] }
 
 # Standard Python entry point
 if __name__ == "__main__":
