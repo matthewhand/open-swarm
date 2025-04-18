@@ -24,6 +24,106 @@ Open Swarm can be used in two primary ways:
 
 ---
 
+## Environment Variables
+
+Open Swarm and its blueprints use a variety of environment variables for configuration, security, and integration with external services. Set these in your shell, `.env` file, Docker environment, or deployment platform as appropriate.
+
+### Core Framework Environment Variables
+
+| Variable                 | Description                                                      | Default / Required         |
+|--------------------------|------------------------------------------------------------------|----------------------------|
+| `OPENAI_API_KEY`         | API key for OpenAI LLMs (used by agents and blueprints)           | Required for OpenAI usage  |
+| `SWARM_API_KEY`          | API key for securing API endpoints (swarm-api)                   | Optional (recommended)     |
+| `LITELLM_BASE_URL`       | Override base URL for LiteLLM/OpenAI-compatible endpoints        | Optional                   |
+| `LITELLM_API_KEY`        | API key for LiteLLM endpoints                                    | Optional                   |
+| `SWARM_CONFIG_PATH`      | Path to the main Swarm config file (`swarm_config.json`)          | `../swarm_config.json`     |
+| `BLUEPRINT_DIRECTORY`    | Directory containing blueprint files                              | `src/swarm/blueprints`     |
+| `DJANGO_SECRET_KEY`      | Django secret key (for API mode)                                 | Auto-generated/dev default |
+| `DJANGO_DEBUG`           | Enable Django debug mode                                         | `True`                     |
+| `DJANGO_ALLOWED_HOSTS`   | Comma-separated allowed hosts for Django API                      | `localhost,127.0.0.1`      |
+| `API_AUTH_TOKEN`         | Token for authenticating API requests                            | Optional                   |
+| `DJANGO_LOG_LEVEL`       | Log level for Django app                                         | `INFO`                     |
+| `SWARM_LOG_LEVEL`        | Log level for Swarm app                                          | `DEBUG`                    |
+| `REDIS_HOST`             | Host for Redis (if used)                                         | `localhost`                |
+| `REDIS_PORT`             | Port for Redis (if used)                                         | `6379`                     |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF protection           | `http://localhost:8000,...`|
+| `ENABLE_ADMIN`           | Enable admin web interface                                      | `false`                    |
+| `ENABLE_API_AUTH`        | Require API authentication                                      | `true`                     |
+
+#### Blueprint/Tool-Specific Variables
+- Some blueprints and MCP tools may require additional env vars (e.g., Google API keys, Slack tokens, etc.).
+- Refer to the blueprint's docstring or config for details.
+
+#### Usage Example
+```bash
+export OPENAI_API_KEY="sk-..."
+export SWARM_API_KEY="..."
+export LITELLM_BASE_URL="https://open-litellm.fly.dev/v1"
+# ... set other variables as needed
+```
+
+---
+
+## Toolbox Functionality
+
+Open Swarm ships with a growing toolbox of agent and blueprint utilities. All features listed below have robust, passing tests unless marked as **WIP** (Work In Progress).
+
+### Task Scheduler Toolbox
+- **Schedule jobs with `at`:**
+  - Schedule a shell script or command to run at a specific time (uses the system `at` command).
+  - **Test Status:** Passing
+- **List scheduled `at` jobs:**
+  - List all jobs currently scheduled with `at`.
+  - **Test Status:** Passing
+- **Remove `at` jobs:**
+  - Remove a scheduled job by its job ID.
+  - **Test Status:** Passing
+- **Schedule jobs with `cron`:**
+  - Schedule recurring jobs using cron expressions (uses the system `crontab`).
+  - **Test Status:** Passing
+- **List scheduled `cron` jobs:**
+  - List all jobs currently scheduled with `crontab`.
+  - **Test Status:** Passing
+- **Remove `cron` jobs:**
+  - Remove a scheduled cron job by its job ID.
+  - **Test Status:** Passing
+
+### Slash Command Framework
+- **Global slash command registry:**
+  - Blueprints can register and use slash commands (e.g., `/help`, `/agent`, `/model`).
+  - Built-in demo commands: `/help`, `/agent`, `/model`.
+  - **Test Status:** Passing
+- **Blueprint Integration:**
+  - Blueprints can access the global registry and add their own commands.
+  - **Test Status:** Passing
+
+#### Usage Example (Slash Commands)
+```python
+from swarm.extensions.blueprint.slash_commands import slash_command_registry
+
+@slash_command_registry.register('/hello')
+def hello_command(args):
+    return f"Hello, {args}!"
+```
+
+#### Usage Example (Task Scheduler)
+```python
+from swarm.extensions.task_scheduler_toolbox import schedule_at_job, list_at_jobs, remove_at_job
+
+job_id = schedule_at_job('/path/to/script.sh', run_time='now + 5 minutes')
+jobs = list_at_jobs()
+remove_at_job(job_id)
+```
+
+---
+
+## Developer Notes
+- System dependencies are mocked in tests for CI and portability.
+- Any toolbox feature not listed as **Passing** above is considered **WIP** and may not be stable.
+- Contributions and feedback are welcome!
+
+---
+
 ## Quickstart 1: Using `swarm-cli` Locally (via PyPI)
 
 This is the recommended way to use `swarm-cli` for managing and running blueprints on your local machine.
