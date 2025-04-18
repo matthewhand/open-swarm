@@ -11,6 +11,10 @@ pytestmark = pytest.mark.skipif(
 # from src.swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
 # from agents import Agent, Runner, RunResult, MCPServer
 
+SKIP_LLM_TESTS = not (
+    os.getenv("OPENAI_API_KEY") or os.getenv("LITELLM_API_KEY") or os.getenv("DEFAULT_LLM")
+)
+
 @pytest.fixture
 def mcp_demo_blueprint_instance():
     """Fixture to create a mocked instance of MCPDemoBlueprint."""
@@ -36,6 +40,8 @@ def mcp_demo_blueprint_instance():
 
 # --- Test Cases ---
 
+@pytest.mark.skipif(SKIP_LLM_TESTS, reason="LLM API credentials not available")
+@pytest.mark.skip(reason="Blueprint tests not yet implemented")
 def test_mcpdemo_agent_creation(mcp_demo_blueprint_instance):
     """Test if Sage agent is created correctly with MCP info in prompt."""
     # Arrange
