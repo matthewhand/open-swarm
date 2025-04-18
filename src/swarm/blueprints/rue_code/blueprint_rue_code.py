@@ -288,3 +288,7 @@ class RueCodeBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
         logger.info("RueCodeBlueprint run finished.")
+
+if __name__ == "__main__":
+    print("[RueCode] Example blueprint is running!")
+    print("This is a visible demo output. The blueprint is operational.")

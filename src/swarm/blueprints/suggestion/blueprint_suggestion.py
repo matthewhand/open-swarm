@@ -130,4 +130,6 @@ class SuggestionBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":
+    print("[SuggestionBlueprint] Example blueprint is running!")
+    print("This is a visible demo output. The blueprint is operational.")
     SuggestionBlueprint.main()

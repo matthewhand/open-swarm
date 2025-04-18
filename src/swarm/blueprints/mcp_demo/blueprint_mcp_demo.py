@@ -15,6 +15,7 @@ try:
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_discovery import discover_blueprints
 except ImportError as e:
     print(f"ERROR: Import failed in MCPDemoBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -159,4 +160,6 @@ class MCPDemoBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    MCPDemoBlueprint.main()
+    from swarm.core.blueprint_discovery import discover_blueprints
+    blueprints = discover_blueprints("src/swarm/blueprints")
+    print("Discovered blueprints:", list(blueprints.keys()))

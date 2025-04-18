@@ -76,3 +76,7 @@ class EchoCraftBlueprint(BlueprintBase):
         # --- End formatting change ---
 
         logger.info("EchoCraftBlueprint run finished.")
+
+if __name__ == "__main__":
+    print("[EchoCraft] Example blueprint is running!")
+    print("This is a visible demo output. The blueprint is operational.")

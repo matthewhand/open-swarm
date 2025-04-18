@@ -21,7 +21,7 @@ if src_path not in sys.path: sys.path.insert(0, src_path)
 from typing import Optional
 from pathlib import Path
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, MCPServer
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel

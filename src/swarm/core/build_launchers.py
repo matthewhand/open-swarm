@@ -6,9 +6,10 @@ def build_executable(script, output_name):
         script,
         "--onefile",
         "--name", output_name,
-        "--add-data", "swarm_config.json:."  # Adjust if additional data is needed
     ])
 
 if __name__ == "__main__":
-    build_executable("launchers/swarm_cli.py", "swarm-cli")
-    build_executable("launchers/swarm_rest.py", "swarm-rest")
+    # build echocraft first (already done), now build rue_code
+    build_executable("src/swarm/blueprints/rue_code/blueprint_rue_code.py", "ruecode-blueprint")
+    # Uncomment below to build suggestion after verifying disk space
+    # build_executable("src/swarm/blueprints/suggestion/blueprint_suggestion.py", "suggestion-blueprint")
