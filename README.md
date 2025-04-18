@@ -117,6 +117,34 @@ remove_at_job(job_id)
 
 ---
 
+## CLI Reference
+
+### swarm-cli Usage
+
+```shell
+Usage: swarm-cli [OPTIONS] COMMAND [ARGS]...
+
+Swarm CLI tool for managing blueprints.
+
+Options:
+  --install-completion          Install completion for the current shell.
+  --show-completion             Show completion for the current shell, to copy it or customize the installation.
+  --help                        Show this message and exit.
+
+Commands:
+  install   Install a blueprint by creating a standalone executable using PyInstaller.
+  launch    Launch a previously installed blueprint executable.
+  list      Lists available blueprints (bundled and user-provided) and/or installed executables.
+```
+
+### swarm-api Usage
+
+```shell
+# (No standalone swarm-api binary was found in dist/; see Docker/API section below for usage.)
+```
+
+---
+
 ## Developer Notes
 - System dependencies are mocked in tests for CI and portability.
 - Any toolbox feature not listed as **Passing** above is considered **WIP** and may not be stable.
