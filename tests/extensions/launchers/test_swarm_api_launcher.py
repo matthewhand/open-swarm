@@ -1,4 +1,3 @@
-
 import sys
 import subprocess
 import pytest
@@ -7,16 +6,16 @@ import os
 
 # Assume the script is importable relative to the project structure
 # Adjust the import path if your test runner setup requires it
-from swarm.extensions.launchers.swarm_api import main as swarm_api_main
+from swarm.core.swarm_api import main as swarm_api_main
 
 # --- Test Cases ---
 
-@patch('swarm.extensions.launchers.swarm_api.subprocess.run')
-@patch('swarm.extensions.launchers.swarm_api.path.exists')
-@patch('swarm.extensions.launchers.swarm_api.path.isdir')
-@patch('swarm.extensions.launchers.swarm_api.listdir')
-@patch('swarm.extensions.launchers.swarm_api.path.expanduser')
-@patch('swarm.extensions.launchers.swarm_api.makedirs')
+@patch('swarm.core.swarm_api.subprocess.run')
+@patch('swarm.core.swarm_api.path.exists')
+@patch('swarm.core.swarm_api.path.isdir')
+@patch('swarm.core.swarm_api.listdir')
+@patch('swarm.core.swarm_api.path.expanduser')
+@patch('swarm.core.swarm_api.makedirs')
 @patch('builtins.open', new_callable=mock_open) # Mock open for config file
 def test_swarm_api_basic_run(
     mock_file_open, mock_makedirs, mock_expanduser, mock_listdir,
@@ -51,10 +50,10 @@ def test_swarm_api_basic_run(
         mock_file_open.assert_not_called()
 
 
-@patch('swarm.extensions.launchers.swarm_api.subprocess.run')
-@patch('swarm.extensions.launchers.swarm_api.path.exists')
-@patch('swarm.extensions.launchers.swarm_api.path.expanduser')
-@patch('swarm.extensions.launchers.swarm_api.makedirs')
+@patch('swarm.core.swarm_api.subprocess.run')
+@patch('swarm.core.swarm_api.path.exists')
+@patch('swarm.core.swarm_api.path.expanduser')
+@patch('swarm.core.swarm_api.makedirs')
 @patch('builtins.open', new_callable=mock_open) # Mock open for config file
 def test_swarm_api_custom_port_and_config_creation(
     mock_file_open, mock_makedirs, mock_expanduser, mock_exists, mock_subprocess_run
@@ -82,9 +81,9 @@ def test_swarm_api_custom_port_and_config_creation(
         mock_file_open().write.assert_called_once_with("{}")
 
 
-@patch('swarm.extensions.launchers.swarm_api.subprocess.Popen')
-@patch('swarm.extensions.launchers.swarm_api.path.exists')
-@patch('swarm.extensions.launchers.swarm_api.path.expanduser')
+@patch('swarm.core.swarm_api.subprocess.Popen')
+@patch('swarm.core.swarm_api.path.exists')
+@patch('swarm.core.swarm_api.path.expanduser')
 def test_swarm_api_daemon_mode(mock_expanduser, mock_exists, mock_subprocess_popen):
     """Test daemon mode uses Popen."""
     # --- Mock Setup ---
@@ -108,9 +107,9 @@ def test_swarm_api_daemon_mode(mock_expanduser, mock_exists, mock_subprocess_pop
         mock_subprocess_popen.assert_has_calls([expected_popen_call])
 
 
-@patch('swarm.extensions.launchers.swarm_api.subprocess.run')
-@patch('swarm.extensions.launchers.swarm_api.path.exists')
-@patch('swarm.extensions.launchers.swarm_api.path.expanduser')
+@patch('swarm.core.swarm_api.subprocess.run')
+@patch('swarm.core.swarm_api.path.exists')
+@patch('swarm.core.swarm_api.path.expanduser')
 def test_swarm_api_blueprint_not_found(mock_expanduser, mock_exists, mock_subprocess_run):
     """Test script exits if blueprint is not found."""
     # --- Mock Setup ---
@@ -128,4 +127,3 @@ def test_swarm_api_blueprint_not_found(mock_expanduser, mock_exists, mock_subpro
 
         # Ensure runserver was NOT called
         mock_subprocess_run.assert_not_called()
-

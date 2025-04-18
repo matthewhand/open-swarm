@@ -1,5 +1,5 @@
-from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints
-from swarm.extensions.config.config_loader import load_env_config, validate_env_vars
+from swarm.core.blueprint_discovery import discover_blueprints
+from swarm.core import config_loader, config_manager, server_config
 import argparse
 
 def validate_envvars(blueprint_name=None):
@@ -19,16 +19,16 @@ def validate_envvars(blueprint_name=None):
             print(f"Blueprint '{blueprint_name}' not found.")
             return
         required_vars = blueprint.get("env_vars", [])
-        env_vars = load_env_config()
-        validation = validate_env_vars(env_vars, required_vars)
+        env_vars = config_loader.load_env_config()
+        validation = config_manager.validate_env_vars(env_vars, required_vars)
         print(f"Validation for '{blueprint_name}': {validation}")
     else:
         # Global validation
-        env_vars = load_env_config()
+        env_vars = config_loader.load_env_config()
         print("Global Environment Validation:")
         for blueprint_name, blueprint_data in blueprints.items():
             required_vars = blueprint_data.get("env_vars", [])
-            validation = validate_env_vars(env_vars, required_vars)
+            validation = config_manager.validate_env_vars(env_vars, required_vars)
             print(f"Validation for '{blueprint_name}': {validation}")
 
 def main():

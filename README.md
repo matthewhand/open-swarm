@@ -13,6 +13,30 @@ Open Swarm can be used in two primary ways:
 
 ---
 
+## Core Framework TODO
+
+- [ ] Unified interactive approval mode for all blueprints (core, CLI/API flag, boxed UX)
+- [ ] Enhanced ANSI/emoji output for search, analysis, and file ops (core BlueprintUX)
+- [ ] Custom spinner/progress messages (core and per-blueprint personality)
+- [ ] Persistent session logging/audit trail (core, opt-in per blueprint)
+- [ ] Automatic context/project file injection for agent prompts
+- [ ] User feedback/correction loop for agent actions
+- [x] API/CLI flag for enabling/disabling advanced UX features
+  - [ ] Support desktop notifications (`--notify`)
+  - [ ] Support attaching image inputs (`--image`, `-i`)
+  - [ ] Support inspecting past sessions via `--view`, `-v`
+  - [ ] Support opening instructions file with `--config`, `-c`
+  - [ ] Support whitelisting sandbox write roots (`--writable-root`, `-w`)
+  - [ ] Support disabling project docs (`--no-project-doc`)
+  - [ ] Support full stdout (`--full-stdout`)
+  - [ ] Support dangerous auto-approve (`--dangerously-auto-approve-everything`)
+  - [ ] Support shell completion subcommand (`completion <bash|zsh|fish>`)
+  - [ ] Support full-context mode (`--full-context`, `-f`)
+- [ ] Security review: command sanitization, safe execution wrappers
+- [ ] Documentation: core feature usage, extension points, UX guidelines
+
+---
+
 ## Core Concepts
 
 *   **Agents:** Individual AI units performing specific tasks, powered by LLMs (like GPT-4, Claude, etc.). Built using the `openai-agents` SDK.
@@ -21,6 +45,234 @@ Open Swarm can be used in two primary ways:
 *   **Configuration (`swarm_config.json`):** A central JSON file defining available LLM profiles (API keys, models) and configurations for MCP servers. Typically managed via `swarm-cli` in `~/.config/swarm/`.
 *   **`swarm-cli`:** A command-line tool for managing blueprints (adding, listing, running, installing) and the `swarm_config.json` file. Uses XDG directories for storing blueprints (`~/.local/share/swarm/blueprints/`) and configuration (`~/.config/swarm/`).
 *   **`swarm-api`:** A launcher for the Django/DRF backend that exposes installed blueprints via an OpenAI-compatible REST API (`/v1/models`, `/v1/chat/completions`).
+
+---
+
+## Installation
+
+### Option 1: Install from PyPI (Recommended for most users)
+
+```bash
+pip install open-swarm
+```
+
+This will install the `swarm-cli` and `swarm-api` command-line tools to your PATH (typically `~/.local/bin/` for user installs).
+
+- Run `swarm-cli --help` or `swarm-api --help` to verify installation.
+
+### Option 2: Install from Local Source (for development and testing)
+
+Clone the repository and install in editable mode:
+
+```bash
+git clone https://github.com/matthewhand/open-swarm.git
+cd open-swarm
+pip install -e .
+```
+
+- This makes `swarm-cli` and `swarm-api` available from your local copy. Changes to the code are immediately reflected.
+- You can now test your local changes before pushing to PyPI.
+
+#### Local CLI Usage Example
+
+```bash
+swarm-cli --help
+swarm-api --help
+```
+
+If you do not see the commands in your PATH, ensure `~/.local/bin` is in your PATH:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+---
+
+## Configuration Management & Secrets
+
+Open Swarm uses a modern, XDG-compliant config structure:
+
+- Main config: `~/.config/swarm/swarm_config.json`
+- Secrets: `~/.config/swarm/.env`
+- Example config: `swarm_config.json.example` (in project root)
+
+### Deploying/Initializing Config
+
+1.  **Copy the advanced example config:**
+   ```bash
+   cp ./swarm_config.json ~/.config/swarm/swarm_config.json
+   ```
+2.  **Copy your .env file:**
+   ```bash
+   cp .env ~/.config/swarm/.env
+   ```
+
+### Config Structure (Advanced Example)
+
+Your `swarm_config.json` can include rich LLM profiles, MCP server definitions, and blueprint metadata. Example:
+
+```json
+{
+  "llm": {
+    "default": {
+      "provider": "openai",
+      "model": "${LITELLM_MODEL}",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}"
+    },
+    ...
+  },
+  "mcpServers": {
+    "git": {
+      "description": "Provides Git operations via Docker.",
+      "command": "docker",
+      "args": ["run", "--rm", ...]
+    },
+    ...
+  },
+  "blueprints": {
+    "defaults": { "max_llm_calls": 10 },
+    "MyBlueprint": { "llm_profile": "default" }
+  }
+}
+```
+- **Secrets** (like API keys) are always referenced as `${ENV_VAR}` in the config and stored in `.env`.
+
+### Editing Config with `swarm-cli`
+
+- Use `swarm-cli` to add/edit/remove/list:
+  - LLMs
+  - MCP servers
+  - Blueprints
+- When prompted for secrets, they are stored in `~/.config/swarm/.env`, not in the JSON.
+
+---
+
+## Environment Variables
+
+Open Swarm and its blueprints use a variety of environment variables for configuration, security, and integration with external services. Set these in your shell, `.env` file, Docker environment, or deployment platform as appropriate.
+
+### Core Framework Environment Variables
+
+| Variable                 | Description                                                      | Default / Required         |
+|--------------------------|------------------------------------------------------------------|----------------------------|
+| `OPENAI_API_KEY`         | API key for OpenAI LLMs (used by agents and blueprints)           | Required for OpenAI usage  |
+| `SWARM_API_KEY`          | API key for securing API endpoints (swarm-api)                   | Optional (recommended)     |
+| `LITELLM_BASE_URL`       | Override base URL for LiteLLM/OpenAI-compatible endpoints        | Optional                   |
+| `LITELLM_API_KEY`        | API key for LiteLLM endpoints                                    | Optional                   |
+| `SWARM_CONFIG_PATH`      | Path to the main Swarm config file (`swarm_config.json`)          | `../swarm_config.json`     |
+| `BLUEPRINT_DIRECTORY`    | Directory containing blueprint files                              | `src/swarm/blueprints`     |
+| `DJANGO_SECRET_KEY`      | Django secret key (for API mode)                                 | Auto-generated/dev default |
+| `DJANGO_DEBUG`           | Enable Django debug mode                                         | `True`                     |
+| `DJANGO_ALLOWED_HOSTS`   | Comma-separated allowed hosts for Django API                      | `localhost,127.0.0.1`      |
+| `API_AUTH_TOKEN`         | Token for authenticating API requests                            | Optional                   |
+| `DJANGO_LOG_LEVEL`       | Log level for Django app                                         | `INFO`                     |
+| `SWARM_LOG_LEVEL`        | Log level for Swarm app                                          | `DEBUG`                    |
+| `REDIS_HOST`             | Host for Redis (if used)                                         | `localhost`                |
+| `REDIS_PORT`             | Port for Redis (if used)                                         | `6379`                     |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF protection           | `http://localhost:8000,...`|
+| `ENABLE_ADMIN`           | Enable admin web interface                                      | `false`                    |
+| `ENABLE_API_AUTH`        | Require API authentication                                      | `true`                     |
+
+#### Blueprint/Tool-Specific Variables
+- Some blueprints and MCP tools may require additional env vars (e.g., Google API keys, Slack tokens, etc.).
+- Refer to the blueprint's docstring or config for details.
+
+#### Usage Example
+```bash
+export OPENAI_API_KEY="sk-..."
+export SWARM_API_KEY="..."
+export LITELLM_BASE_URL="https://open-litellm.fly.dev/v1"
+# ... set other variables as needed
+```
+
+---
+
+## Toolbox Functionality
+
+Open Swarm ships with a growing toolbox of agent and blueprint utilities. All features listed below have robust, passing tests unless marked as **WIP** (Work In Progress).
+
+### Task Scheduler Toolbox
+- **Schedule jobs with `at`:**
+  - Schedule a shell script or command to run at a specific time (uses the system `at` command).
+  - **Test Status:** Passing
+- **List scheduled `at` jobs:**
+  - List all jobs currently scheduled with `at`.
+  - **Test Status:** Passing
+- **Remove `at` jobs:**
+  - Remove a scheduled job by its job ID.
+  - **Test Status:** Passing
+- **Schedule jobs with `cron`:**
+  - Schedule recurring jobs using cron expressions (uses the system `crontab`).
+  - **Test Status:** Passing
+- **List scheduled `cron` jobs:**
+  - List all jobs currently scheduled with `crontab`.
+  - **Test Status:** Passing
+- **Remove `cron` jobs:**
+  - Remove a scheduled cron job by its job ID.
+  - **Test Status:** Passing
+
+### Slash Command Framework
+- **Global slash command registry:**
+  - Blueprints can register and use slash commands (e.g., `/help`, `/agent`, `/model`).
+  - Built-in demo commands: `/help`, `/agent`, `/model`.
+  - **Test Status:** Passing
+- **Blueprint Integration:**
+  - Blueprints can access the global registry and add their own commands.
+  - **Test Status:** Passing
+
+#### Usage Example (Slash Commands)
+```python
+from swarm.extensions.blueprint.slash_commands import slash_command_registry
+
+@slash_command_registry.register('/hello')
+def hello_command(args):
+    return f"Hello, {args}!"
+```
+
+#### Usage Example (Task Scheduler)
+```python
+from swarm.extensions.task_scheduler_toolbox import schedule_at_job, list_at_jobs, remove_at_job
+
+job_id = schedule_at_job('/path/to/script.sh', run_time='now + 5 minutes')
+jobs = list_at_jobs()
+remove_at_job(job_id)
+```
+
+---
+
+## CLI Reference
+
+### swarm-cli Usage
+
+```shell
+Usage: swarm-cli [OPTIONS] COMMAND [ARGS]...
+
+Swarm CLI tool for managing blueprints.
+
+Options:
+  --install-completion          Install completion for the current shell.
+  --show-completion             Show completion for the current shell, to copy it or customize the installation.
+  --help                        Show this message and exit.
+
+Commands:
+  install   Install a blueprint by creating a standalone executable using PyInstaller.
+  launch    Launch a previously installed blueprint executable.
+  list      Lists available blueprints (bundled and user-provided) and/or installed executables.
+```
+
+### swarm-api Usage
+
+```shell
+# (No standalone swarm-api binary was found in dist/; see Docker/API section below for usage.)
+```
+
+---
+
+## Developer Notes
+- System dependencies are mocked in tests for CI and portability.
+- Any toolbox feature not listed as **Passing** above is considered **WIP** and may not be stable.
+- Contributions and feedback are welcome!
 
 ---
 

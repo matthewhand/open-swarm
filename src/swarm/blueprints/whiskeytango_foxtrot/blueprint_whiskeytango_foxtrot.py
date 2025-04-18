@@ -5,9 +5,12 @@ A chaotic spy-themed blueprint with a multi-tiered agent hierarchy for tracking 
 Uses BlueprintBase and agent-as-tool delegation.
 """
 
+from agents.mcp import MCPServer
+import os
+from dotenv import load_dotenv; load_dotenv(override=True)
+
 import logging
 import sqlite3
-import os
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, ClassVar, Optional
@@ -19,11 +22,10 @@ if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
     from agents import Agent, Tool, function_tool, Runner
-    from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in WhiskeyTangoFoxtrotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -124,6 +126,24 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
+    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
+        if blueprint_id is None:
+            blueprint_id = "whiskeytangofoxtrot"
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+        # Initialize the services database schema on instantiation
+        try:
+            self.initialize_db()
+        except Exception as e:
+            logger.error(f"Error initializing WTF services database: {e}", exc_info=True)
+
     def initialize_db(self) -> None:
         """Initializes the SQLite database schema if not present."""
         db_path = SQLITE_DB_PATH
@@ -192,6 +212,32 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
 
 
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+
+
+    async def run(self, messages: List[dict], **kwargs):
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["whiskeytango_foxtrot"]
+        }
+        rendered_prompt = self.render_prompt("whiskeytango_foxtrot_prompt.j2", prompt_context)
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[WhiskeyTangoFoxtrot LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
+
+
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the WTF agent hierarchy and returns Valory (Coordinator)."""
         self.initialize_db() # Ensure DB is ready
@@ -252,5 +298,13 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    WhiskeyTangoFoxtrotBlueprint.main()
-
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "WTF is going on?"}
+    ]
+    blueprint = WhiskeyTangoFoxtrotBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())

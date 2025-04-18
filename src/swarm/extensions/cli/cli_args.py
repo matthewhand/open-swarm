@@ -1,7 +1,13 @@
 # src/swarm/extensions/blueprint/modes/cli_mode/cli_args.py
 
 import argparse
+import os
+import sys
 from typing import Namespace
+
+# --- DEBUG PRINTS REMOVED BY CASCADE ---
+# print(f"[DEBUG] cli_args.py startup: sys.argv={sys.argv}")
+# print(f"[DEBUG] cli_args.py startup: LITELLM_MODEL={os.environ.get('LITELLM_MODEL')}, DEFAULT_LLM={os.environ.get('DEFAULT_LLM')}")
 
 def parse_arguments() -> Namespace:
     """

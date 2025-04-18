@@ -35,7 +35,21 @@ def interactive_shell():
             break
 
 def show_help(commands):
-    """Display available commands."""
+    """Display available commands with helpful context and usage."""
+    print("\n\033[1;36mSwarm CLI Help\033[0m")
+    print("Type the command name to run it, or 'exit' to quit.")
+    print("Commands can be used to manage your Swarm config, blueprints, LLMs, MCP servers, and more.\n")
     print("Available commands:")
     for cmd, metadata in commands.items():
-        print(f" - {cmd}: {metadata['description']}")
+        desc = metadata.get('description', 'No description provided.')
+        usage = metadata.get('usage', None)
+        print(f"  \033[1;33m{cmd}\033[0m: {desc}")
+        if usage:
+            print(f"    Usage: {usage}")
+    print("\nExamples:")
+    print("  validate_envvars    # Check required environment variables")
+    print("  edit_config         # Edit your Swarm config interactively")
+    print("  list_blueprints     # List all available blueprints")
+    print("  blueprint_management # Advanced blueprint management")
+    print("  config_management   # Manage LLMs, MCP servers, blueprints")
+    print("\nType 'exit' to leave the shell.\n")

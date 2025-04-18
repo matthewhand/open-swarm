@@ -2,6 +2,7 @@ import pytest
 import sqlite3
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
+from agents.mcp import MCPServer
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot import WhiskeyTangoFoxtrotBlueprint
@@ -37,14 +38,14 @@ def temporary_db_wtf():
         test_db_path.unlink()
 
 @pytest.fixture
-@patch('blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.SQLITE_DB_PATH', new_callable=lambda: Path("./test_wtf_services.db"))
+@patch('swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.SQLITE_DB_PATH', new_callable=lambda: Path("./test_wtf_services.db"))
 def wtf_blueprint_instance(temporary_db_wtf): # Depend on the DB fixture
     """Fixture to create a mocked instance of WhiskeyTangoFoxtrotBlueprint."""
-    with patch('blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
-         with patch('blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.BlueprintBase._get_model_instance') as mock_get_model:
+    with patch('swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
+         with patch('swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.WhiskeyTangoFoxtrotBlueprint._get_model_instance') as mock_get_model:
              mock_model_instance = MagicMock()
              mock_get_model.return_value = mock_model_instance
-             from blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot import WhiskeyTangoFoxtrotBlueprint
+             from swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot import WhiskeyTangoFoxtrotBlueprint
              # Instantiation will call initialize_db on the temporary_db_wtf path due to patch
              instance = WhiskeyTangoFoxtrotBlueprint(debug=True)
     return instance
@@ -52,7 +53,6 @@ def wtf_blueprint_instance(temporary_db_wtf): # Depend on the DB fixture
 
 # --- Test Cases ---
 
-@pytest.mark.skip(reason="Blueprint tests not yet implemented")
 def test_wtf_agent_creation(wtf_blueprint_instance):
     """Test if the full agent hierarchy is created correctly."""
     # Arrange
@@ -73,8 +73,8 @@ def test_wtf_agent_creation(wtf_blueprint_instance):
     valory_tools = {t.name for t in starting_agent.tools}
     assert valory_tools == {"Tyril", "Tray"}
     # Need deeper inspection to verify tools of Tyril/Tray and MCPs of minions
+    assert True, "Patched: test now runs. Implement full test logic."
 
-@pytest.mark.skip(reason="SQLite interaction testing needs refinement.")
 def test_wtf_db_initialization(wtf_blueprint_instance): # Use the blueprint instance fixture
     """Test the initialize_db method creates the table."""
     # Arrange

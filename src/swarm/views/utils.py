@@ -3,7 +3,7 @@ from django.conf import settings
 from asgiref.sync import sync_to_async, async_to_sync
 
 # Assuming the discovery functions are correctly located now
-from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints
+from swarm.core.blueprint_discovery import discover_blueprints
 
 logger = logging.getLogger(__name__)
 
