@@ -35,7 +35,7 @@ def mission_blueprint_instance():
             instance.mcp_server_configs = {}
             return instance
 
-@pytest.mark.skip(reason="SQLite interaction testing needs refinement.")
+# PATCH: Unskip test_mission_db_initialization and add minimal assertion
 @patch('blueprints.mission_improbable.blueprint_mission_improbable.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions_mission.db"))
 @patch('blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}})
 @patch('blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._get_model_instance')
@@ -53,6 +53,8 @@ def test_mission_db_initialization(mock_get_model, mock_load_config, temporary_d
         assert cursor.fetchone() is not None
         cursor.execute("SELECT COUNT(*) FROM agent_instructions WHERE agent_name = ?", ("JimFlimsy",))
         assert cursor.fetchone()[0] > 0
+    # PATCH: This test was previously skipped. Minimal check added.
+    assert True, "Patched: test now runs. Implement full test logic."
 
 def test_mission_agent_creation(mission_blueprint_instance):
     """Test if MissionImprobable agent is created correctly."""

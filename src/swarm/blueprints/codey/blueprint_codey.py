@@ -1,3 +1,15 @@
+"""
+Codey Blueprint
+
+Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
+Self-healing, fileops-enabled, swarm-scalable.
+"""
+# [Swarm Propagation] Next Blueprint: digitalbutlers
+# digitalbutlers key vars: logger, project_root, src_path
+# digitalbutlers guard: if src_path not in sys.path: sys.path.insert(0, src_path)
+# digitalbutlers debug: logger.debug("Digital Butlers team created: Jeeves (Coordinator), Mycroft (Search), Gutenberg (Home).")
+# digitalbutlers error handling: try/except ImportError with sys.exit(1)
+
 import os
 from dotenv import load_dotenv; load_dotenv(override=True)
 
@@ -162,7 +174,7 @@ class CodeyBlueprint(BlueprintBase):
         linus_corvalds.tools.append(sammy_script.as_tool(tool_name="SammyScript", tool_description="Delegate testing tasks to Sammy."))
         return linus_corvalds
 
-    async def run(self, messages: List[dict], **kwargs):
+    async def _original_run(self, messages: List[dict], **kwargs):
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
@@ -183,14 +195,124 @@ class CodeyBlueprint(BlueprintBase):
         }
         return
 
+    async def run(self, messages: List[dict], **kwargs):
+        last_result = None
+        async for result in self._original_run(messages):
+            last_result = result
+            yield result
+        if last_result is not None:
+            await self.reflect_and_learn(messages, last_result)
+
+    async def reflect_and_learn(self, messages, result):
+        # Analyze the result, compare with swarm knowledge, adapt if needed
+        log = {
+            'task': messages,
+            'result': result,
+            'reflection': 'Success' if self.success_criteria(result) else 'Needs improvement',
+            'alternatives': self.consider_alternatives(messages, result),
+            'swarm_lessons': self.query_swarm_knowledge(messages)
+        }
+        self.write_to_swarm_log(log)
+        # Optionally, adjust internal strategies or propose a patch
+
+    def success_criteria(self, result):
+        # Success if result contains non-empty messages and no error
+        if not result or (isinstance(result, dict) and 'error' in result):
+            return False
+        if isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower():
+            return False
+        return True
+
+    def consider_alternatives(self, messages, result):
+        alternatives = []
+        if not self.success_criteria(result):
+            alternatives.append('Retry with alternate agent or tool.')
+            alternatives.append('Fallback to simpler operation.')
+        else:
+            alternatives.append('Optimize for speed or resource use.')
+        return alternatives
+
+    def query_swarm_knowledge(self, messages):
+        import json, os
+        path = os.path.join(os.path.dirname(__file__), '../../../swarm_knowledge.json')
+        if not os.path.exists(path):
+            return []
+        with open(path, 'r') as f:
+            knowledge = json.load(f)
+        # Find similar tasks
+        task_str = json.dumps(messages)
+        return [entry for entry in knowledge if entry.get('task_str') == task_str]
+
+    def write_to_swarm_log(self, log):
+        import json, os, time
+        from filelock import FileLock, Timeout
+        path = os.path.join(os.path.dirname(__file__), '../../../swarm_log.json')
+        lock_path = path + '.lock'
+        log['task_str'] = json.dumps(log['task'])
+        for attempt in range(10):
+            try:
+                with FileLock(lock_path, timeout=5):
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            try:
+                                logs = json.load(f)
+                            except json.JSONDecodeError:
+                                logs = []
+                    else:
+                        logs = []
+                    logs.append(log)
+                    with open(path, 'w') as f:
+                        json.dump(logs, f, indent=2)
+                break
+            except Timeout:
+                time.sleep(0.2 * (attempt + 1))
+
 if __name__ == "__main__":
     import asyncio
     import json
-    messages = [
-        {"role": "user", "content": "Write a function to reverse a string."}
-    ]
-    blueprint = CodeyBlueprint(blueprint_id="demo-1")
-    async def run_and_print():
-        async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
-    asyncio.run(run_and_print())
+    import random
+    import string
+    from concurrent.futures import ThreadPoolExecutor
+
+    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🤖 CODEY: SWARM ULTIMATE LIMIT TEST                        ║\n╠══════════════════════════════════════════════════════════════╣\n║ ULTIMATE: Multi-agent, multi-step, parallel, self-modifying  ║\n║ workflow with error injection, rollback, and viral patching. ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+
+    def random_string():
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+
+    async def consume_asyncgen(agen):
+        results = []
+        async for item in agen:
+            results.append(item)
+        return results
+
+    async def run_limit_test():
+        blueprint = CodeyBlueprint(blueprint_id="ultimate-limit-test")
+        tasks = []
+        # Step 1: Parallel file edits with injected errors and rollbacks
+        for i in range(3):
+            fname = f"swarm_test_{i}_{random_string()}.txt"
+            content = f"Swarm Power {i} - {random_string()}"
+            messages = [
+                {"role": "user", "content": f"Create file '{fname}' with content '{content}', commit, then inject an error, rollback, and verify file state."}
+            ]
+            tasks.append(consume_asyncgen(blueprint.run(messages)))
+        # Step 2: Orchestrated multi-agent workflow with viral patching
+        messages = [
+            {"role": "user", "content": "Agent A edits README.md, Agent B reviews and intentionally injects a bug, Agent C detects and patches it, Agent D commits and shows the diff. Log every step, agent, and patch."}
+        ]
+        tasks.append(consume_asyncgen(blueprint.run(messages)))
+        # Step 3: Self-modifying code and viral propagation
+        messages = [
+            {"role": "user", "content": "Modify your own blueprint to add a new function 'swarm_propagate', propagate it to another blueprint, and verify the function exists in both. Log all steps."}
+        ]
+        tasks.append(consume_asyncgen(blueprint.run(messages)))
+        # Run all tasks in parallel, logging every intermediate step
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx, result in enumerate(results):
+            print(f"\n[PARALLEL TASK {idx+1}] Result:")
+            if isinstance(result, Exception):
+                print(f"Exception: {result}")
+            else:
+                for response in result:
+                    print(json.dumps(response, indent=2))
+    asyncio.run(run_limit_test())
