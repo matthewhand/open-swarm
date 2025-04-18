@@ -13,6 +13,30 @@ Open Swarm can be used in two primary ways:
 
 ---
 
+## Core Framework TODO
+
+- [ ] Unified interactive approval mode for all blueprints (core, CLI/API flag, boxed UX)
+- [ ] Enhanced ANSI/emoji output for search, analysis, and file ops (core BlueprintUX)
+- [ ] Custom spinner/progress messages (core and per-blueprint personality)
+- [ ] Persistent session logging/audit trail (core, opt-in per blueprint)
+- [ ] Automatic context/project file injection for agent prompts
+- [ ] User feedback/correction loop for agent actions
+- [x] API/CLI flag for enabling/disabling advanced UX features
+  - [ ] Support desktop notifications (`--notify`)
+  - [ ] Support attaching image inputs (`--image`, `-i`)
+  - [ ] Support inspecting past sessions via `--view`, `-v`
+  - [ ] Support opening instructions file with `--config`, `-c`
+  - [ ] Support whitelisting sandbox write roots (`--writable-root`, `-w`)
+  - [ ] Support disabling project docs (`--no-project-doc`)
+  - [ ] Support full stdout (`--full-stdout`)
+  - [ ] Support dangerous auto-approve (`--dangerously-auto-approve-everything`)
+  - [ ] Support shell completion subcommand (`completion <bash|zsh|fish>`)
+  - [ ] Support full-context mode (`--full-context`, `-f`)
+- [ ] Security review: command sanitization, safe execution wrappers
+- [ ] Documentation: core feature usage, extension points, UX guidelines
+
+---
+
 ## Core Concepts
 
 *   **Agents:** Individual AI units performing specific tasks, powered by LLMs (like GPT-4, Claude, etc.). Built using the `openai-agents` SDK.
@@ -21,6 +45,106 @@ Open Swarm can be used in two primary ways:
 *   **Configuration (`swarm_config.json`):** A central JSON file defining available LLM profiles (API keys, models) and configurations for MCP servers. Typically managed via `swarm-cli` in `~/.config/swarm/`.
 *   **`swarm-cli`:** A command-line tool for managing blueprints (adding, listing, running, installing) and the `swarm_config.json` file. Uses XDG directories for storing blueprints (`~/.local/share/swarm/blueprints/`) and configuration (`~/.config/swarm/`).
 *   **`swarm-api`:** A launcher for the Django/DRF backend that exposes installed blueprints via an OpenAI-compatible REST API (`/v1/models`, `/v1/chat/completions`).
+
+---
+
+## Installation
+
+### Option 1: Install from PyPI (Recommended for most users)
+
+```bash
+pip install open-swarm
+```
+
+This will install the `swarm-cli` and `swarm-api` command-line tools to your PATH (typically `~/.local/bin/` for user installs).
+
+- Run `swarm-cli --help` or `swarm-api --help` to verify installation.
+
+### Option 2: Install from Local Source (for development and testing)
+
+Clone the repository and install in editable mode:
+
+```bash
+git clone https://github.com/matthewhand/open-swarm.git
+cd open-swarm
+pip install -e .
+```
+
+- This makes `swarm-cli` and `swarm-api` available from your local copy. Changes to the code are immediately reflected.
+- You can now test your local changes before pushing to PyPI.
+
+#### Local CLI Usage Example
+
+```bash
+swarm-cli --help
+swarm-api --help
+```
+
+If you do not see the commands in your PATH, ensure `~/.local/bin` is in your PATH:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+---
+
+## Configuration Management & Secrets
+
+Open Swarm uses a modern, XDG-compliant config structure:
+
+- Main config: `~/.config/swarm/swarm_config.json`
+- Secrets: `~/.config/swarm/.env`
+- Example config: `swarm_config.json.example` (in project root)
+
+### Deploying/Initializing Config
+
+1.  **Copy the advanced example config:**
+   ```bash
+   cp ./swarm_config.json ~/.config/swarm/swarm_config.json
+   ```
+2.  **Copy your .env file:**
+   ```bash
+   cp .env ~/.config/swarm/.env
+   ```
+
+### Config Structure (Advanced Example)
+
+Your `swarm_config.json` can include rich LLM profiles, MCP server definitions, and blueprint metadata. Example:
+
+```json
+{
+  "llm": {
+    "default": {
+      "provider": "openai",
+      "model": "${LITELLM_MODEL}",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}"
+    },
+    ...
+  },
+  "mcpServers": {
+    "git": {
+      "description": "Provides Git operations via Docker.",
+      "command": "docker",
+      "args": ["run", "--rm", ...]
+    },
+    ...
+  },
+  "blueprints": {
+    "defaults": { "max_llm_calls": 10 },
+    "MyBlueprint": { "llm_profile": "default" }
+  }
+}
+```
+- **Secrets** (like API keys) are always referenced as `${ENV_VAR}` in the config and stored in `.env`.
+
+### Editing Config with `swarm-cli`
+
+- Use `swarm-cli` to add/edit/remove/list:
+  - LLMs
+  - MCP servers
+  - Blueprints
+- When prompted for secrets, they are stored in `~/.config/swarm/.env`, not in the JSON.
 
 ---
 

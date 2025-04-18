@@ -13,6 +13,12 @@ if not os.environ.get("SWARM_DEBUG"):
 else:
     logging.basicConfig(level=logging.DEBUG)
 
+# Set logging to WARNING by default unless SWARM_DEBUG=1
+if not os.environ.get("SWARM_DEBUG"):
+    logging.basicConfig(level=logging.WARNING)
+else:
+    logging.basicConfig(level=logging.DEBUG)
+
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
@@ -204,11 +210,20 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
 if __name__ == "__main__":
     import asyncio
     import json
-    messages = [
-        {"role": "user", "content": "Say hello to the user."}
-    ]
-    blueprint = ChatbotBlueprint(blueprint_id="demo-1")
-    async def run_and_print():
-        async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
-    asyncio.run(run_and_print())
+    parser = argparse.ArgumentParser(description='Chatbot Blueprint Runner')
+    parser.add_argument('instruction', nargs=argparse.REMAINDER, help='Instruction for Chatbot to process (all args after -- are joined as the prompt)')
+    args = parser.parse_args()
+    instruction_args = args.instruction
+    if instruction_args and instruction_args[0] == '--':
+        instruction_args = instruction_args[1:]
+    instruction = ' '.join(instruction_args).strip() if instruction_args else None
+    if instruction:
+        blueprint = ChatbotBlueprint(blueprint_id="chatbot")
+        async def runner():
+            async for chunk in blueprint._run_non_interactive(instruction):
+                msg = chunk["messages"][0]["content"]
+                if not msg.startswith("An error occurred:"):
+                    print(msg)
+        asyncio.run(runner())
+    else:
+        print("Interactive mode not supported in this script.")
