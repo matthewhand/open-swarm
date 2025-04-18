@@ -3,11 +3,19 @@ import os
 import sys
 from typing import Dict, Any, List, ClassVar, Optional
 
+# Set logging to WARNING by default unless SWARM_DEBUG=1
+if not os.environ.get("SWARM_DEBUG"):
+    logging.basicConfig(level=logging.WARNING)
+else:
+    logging.basicConfig(level=logging.DEBUG)
+
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
+from typing import Optional
+from pathlib import Path
 try:
     from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
@@ -24,6 +32,13 @@ logger = logging.getLogger(__name__)
 
 # --- Define the Blueprint ---
 class ChatbotBlueprint(BlueprintBase):
+    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+
+        # Remove redundant client instantiation; rely on framework-level default client
+        # (No need to re-instantiate AsyncOpenAI or set_default_openai_client)
+        # All blueprints now use the default client set at framework init
+
     """A simple conversational chatbot agent."""
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "ChatbotBlueprint",
@@ -42,19 +57,21 @@ class ChatbotBlueprint(BlueprintBase):
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        # ... (Implementation is the same as previous refactors) ...
+        """Retrieves or creates an LLM Model instance, respecting LITELLM_MODEL/DEFAULT_LLM if set."""
         if profile_name in self._model_instance_cache:
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         profile_data = self.get_llm_profile(profile_name)
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
+        # Patch: Respect LITELLM_MODEL/DEFAULT_LLM env vars
+        import os
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model")
+        profile_data["model"] = model_name
+        if profile_data.get("provider", "openai").lower() != "openai": raise ValueError(f"Unsupported provider: {profile_data.get('provider')}")
         if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
+
+        # REMOVE PATCH: env expansion is now handled globally in config loader
+        client_cache_key = f"{profile_data.get('provider', 'openai')}_{profile_data.get('base_url')}"
         if client_cache_key not in self._openai_client_cache:
              client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
@@ -93,6 +110,45 @@ class ChatbotBlueprint(BlueprintBase):
         logger.debug("Chatbot agent created.")
         return chatbot_agent
 
+    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+        """Main execution entry point for the Chatbot blueprint."""
+        logger.info("ChatbotBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        async for chunk in self._run_non_interactive(instruction, **kwargs):
+            yield chunk
+        logger.info("ChatbotBlueprint run method finished.")
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        mcp_servers = kwargs.get("mcp_servers", [])
+        agent = self.create_starting_agent(mcp_servers=mcp_servers)
+        from agents import Runner
+        import os
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        try:
+            result = await Runner.run(agent, instruction)
+            yield {"messages": [{"role": "assistant", "content": getattr(result, 'final_output', str(result))}]}
+        except Exception as e:
+            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+
 # Standard Python entry point
 if __name__ == "__main__":
-    ChatbotBlueprint.main()
+    import sys
+    import asyncio
+    # --- AUTO-PYTHONPATH PATCH FOR AGENTS ---
+    import os
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..'))
+    src_path = os.path.join(project_root, 'src')
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+    if '--instruction' in sys.argv:
+        instruction = sys.argv[sys.argv.index('--instruction') + 1]
+        blueprint = ChatbotBlueprint(blueprint_id="chatbot")
+        async def runner():
+            async for chunk in blueprint._run_non_interactive(instruction):
+                msg = chunk["messages"][0]["content"]
+                if not msg.startswith("An error occurred:"):
+                    print(msg)
+        asyncio.run(runner())
+    else:
+        print("Interactive mode not supported in this script.")
