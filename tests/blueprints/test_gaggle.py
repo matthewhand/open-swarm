@@ -6,6 +6,11 @@ from unittest.mock import patch, AsyncMock, MagicMock
 # from agents.runner import RunResult  # Removed, not needed for MagicMock
 from blueprints.gaggle.blueprint_gaggle import create_story_outline, _create_story_outline
 
+pytestmark = pytest.mark.skipif(
+    not (os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY")),
+    reason="No LLM API key available in CI/CD"
+)
+
 @pytest.fixture
 def gaggle_blueprint_instance():
     """Fixture to create a mocked instance of GaggleBlueprint."""

@@ -1,5 +1,11 @@
 import pytest
+import os
 from unittest.mock import patch, AsyncMock, MagicMock
+
+pytestmark = pytest.mark.skipif(
+    not (os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY")),
+    reason="No LLM API key available in CI/CD"
+)
 
 # Assuming BlueprintBase and other necessary components are importable
 # from src.swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
