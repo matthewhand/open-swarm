@@ -16,7 +16,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in DigitalButlersBlueprint: {e}. Check 'openai-agents' install and project structure.")
     print(f"Attempted import from directory: {os.path.dirname(__file__)}")

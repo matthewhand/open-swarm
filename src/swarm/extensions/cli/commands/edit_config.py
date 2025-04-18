@@ -1,8 +1,10 @@
 import argparse
 import json
-from swarm.extensions.config.config_loader import (
-    load_server_config,
-    save_server_config,
+from swarm.core import (
+    config_loader,
+    config_manager,
+    server_config,
+    setup_wizard,
 )
 from pathlib import Path
 
@@ -60,7 +62,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        config = load_server_config(str(CONFIG_PATH))
+        config = config_loader.load_server_config(str(CONFIG_PATH))
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return
@@ -69,9 +71,9 @@ def main():
         list_config(config)
     elif args.interactive:
         edit_config_interactive(config)
-        save_server_config(str(CONFIG_PATH), config)
+        config_loader.save_server_config(str(CONFIG_PATH), config)
     elif args.field and args.value:
         edit_config_field(config, args.field, args.value)
-        save_server_config(str(CONFIG_PATH), config)
+        config_loader.save_server_config(str(CONFIG_PATH), config)
     else:
         parser.print_help()

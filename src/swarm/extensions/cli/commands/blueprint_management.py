@@ -1,7 +1,7 @@
 # Handles blueprint discovery and validation for the CLI
 
-from swarm.extensions.blueprint.discovery import discover_blueprints
-from swarm.extensions.config.config_loader import load_server_config
+from swarm.core.blueprint_discovery import discover_blueprints
+from swarm.core.config_loader import load_server_config
 
 def list_blueprints():
     """List available blueprints and their metadata."""
@@ -16,7 +16,7 @@ def list_blueprints():
 cat > src/swarm/extensions/cli/commands/config_management.py << 'EOF'
 # Handles configuration management workflows (e.g., LLM, MCP servers)
 
-from swarm.extensions.config.config_loader import (
+from swarm.core.config_loader import (
     load_server_config,
     save_server_config,
 )

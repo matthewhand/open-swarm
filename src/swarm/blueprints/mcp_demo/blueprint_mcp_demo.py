@@ -14,7 +14,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MCPDemoBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -127,6 +127,35 @@ class MCPDemoBlueprint(BlueprintBase):
 
         logger.debug("Sage agent created.")
         return sage_agent
+
+    async def run(self, messages: List[dict], **kwargs):
+        """Main execution entry point for the MCP Demo blueprint."""
+        logger.info("MCPDemoBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        try:
+            mcp_servers = kwargs.get("mcp_servers", [])
+            starting_agent = self.create_starting_agent(mcp_servers=mcp_servers)
+            from agents import Runner
+            if not starting_agent.model:
+                yield {"messages": [{"role": "assistant", "content": f"Error: No model instance available for MCPDemo agent. Check your OPENAI_API_KEY, or LITELLM_MODEL/LITELLM_BASE_URL config."}]}
+                return
+            if not starting_agent.tools:
+                yield {"messages": [{"role": "assistant", "content": f"Warning: No tools registered for MCPDemo agent. Only direct LLM output is possible."}]}
+            required_mcps = self.metadata.get('required_mcp_servers', [])
+            missing_mcps = [m for m in required_mcps if m not in [s.name for s in mcp_servers]]
+            if missing_mcps:
+                yield {"messages": [{"role": "assistant", "content": f"Warning: Missing required MCP servers: {', '.join(missing_mcps)}. Some features may not work."}]}
+            from rich.console import Console
+            console = Console()
+            with console.status("Generating...", spinner="dots") as status:
+                async for chunk in Runner.run(starting_agent, instruction):
+                    content = chunk.get("content")
+                    if content and ("function call" in content or "args" in content):
+                        continue
+                    yield chunk
+            logger.info("MCPDemoBlueprint run method finished.")
+        except Exception as e:
+            yield {"messages": [{"role": "assistant", "content": f"Error: {e}"}]}
 
 # Standard Python entry point
 if __name__ == "__main__":
