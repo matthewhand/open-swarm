@@ -13,6 +13,12 @@ if not os.environ.get("SWARM_DEBUG"):
 else:
     logging.basicConfig(level=logging.DEBUG)
 
+# Set logging to WARNING by default unless SWARM_DEBUG=1
+if not os.environ.get("SWARM_DEBUG"):
+    logging.basicConfig(level=logging.WARNING)
+else:
+    logging.basicConfig(level=logging.DEBUG)
+
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
@@ -145,6 +151,7 @@ if __name__ == "__main__":
     src_path = os.path.join(project_root, 'src')
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
+<<<<<<< HEAD
     parser = argparse.ArgumentParser(description='Chatbot Blueprint Runner')
     parser.add_argument('instruction', nargs=argparse.REMAINDER, help='Instruction for Chatbot to process (all args after -- are joined as the prompt)')
     args = parser.parse_args()
@@ -153,6 +160,10 @@ if __name__ == "__main__":
         instruction_args = instruction_args[1:]
     instruction = ' '.join(instruction_args).strip() if instruction_args else None
     if instruction:
+=======
+    if '--instruction' in sys.argv:
+        instruction = sys.argv[sys.argv.index('--instruction') + 1]
+>>>>>>> e72a556 (fix(chatbot): clean CLI output, suppress errors, print only assistant response)
         blueprint = ChatbotBlueprint(blueprint_id="chatbot")
         async def runner():
             async for chunk in blueprint._run_non_interactive(instruction):
