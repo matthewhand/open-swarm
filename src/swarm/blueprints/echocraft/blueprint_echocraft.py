@@ -1,6 +1,7 @@
-
 # --- Content for src/swarm/blueprints/echocraft/blueprint_echocraft.py ---
 import logging
+from typing import Optional
+from pathlib import Path
 from typing import List, Dict, Any, AsyncGenerator
 import uuid # Import uuid to generate IDs
 import time # Import time for timestamp
@@ -10,6 +11,9 @@ from swarm.extensions.blueprint.blueprint_base import BlueprintBase
 logger = logging.getLogger(__name__)
 
 class EchoCraftBlueprint(BlueprintBase):
+    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+
     """
     A simple blueprint that echoes the last user message.
     Used for testing and demonstrating basic blueprint structure.
@@ -26,6 +30,10 @@ class EchoCraftBlueprint(BlueprintBase):
         Yields a final message in OpenAI ChatCompletion format.
         """
         logger.info(f"EchoCraftBlueprint run called with {len(messages)} messages.")
+
+        # Ensure LLM profile is initialized for test compatibility
+        if self._llm_profile_name is None:
+            self._llm_profile_name = self.config.get("llm_profile", "default")
 
         last_user_message_content = "No user message found."
         for msg in reversed(messages):
@@ -68,4 +76,3 @@ class EchoCraftBlueprint(BlueprintBase):
         # --- End formatting change ---
 
         logger.info("EchoCraftBlueprint run finished.")
-

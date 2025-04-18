@@ -27,6 +27,16 @@ class SuggestionsOutput(TypedDict):
     suggestions: List[str]
 
 # --- Define the Blueprint ---
+# === OpenAI GPT-4.1 Prompt Engineering Guide ===
+# See: https://github.com/openai/openai-cookbook/blob/main/examples/gpt4-1_prompting_guide.ipynb
+#
+# Agentic System Prompt Example (recommended for structured output/suggestion agents):
+SYS_PROMPT_AGENTIC = """
+You are an agent - please keep going until the user’s query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved.
+If you are not sure about file content or codebase structure pertaining to the user’s request, use your tools to read files and gather the relevant information: do NOT guess or make up an answer.
+You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls. DO NOT do this entire process by making function calls only, as this can impair your ability to solve the problem and think insightfully.
+"""
+
 class SuggestionBlueprint(BlueprintBase):
     """A blueprint defining an agent that generates structured JSON suggestions using output_type."""
 
@@ -42,7 +52,6 @@ class SuggestionBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
     # --- Model Instantiation Helper --- (Standard helper)
@@ -61,19 +70,12 @@ class SuggestionBlueprint(BlueprintBase):
         if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
         if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
 
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if client_cache_key not in self._openai_client_cache:
-             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-             filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-             log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
-             logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
-        client = self._openai_client_cache[client_cache_key]
+        # Remove redundant client instantiation; rely on framework-level default client
+        # All blueprints now use the default client set at framework init
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
             # Ensure the model selected supports structured output (most recent OpenAI do)
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
+            model_instance = OpenAIChatCompletionsModel(model=model_name)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
         except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
@@ -82,7 +84,6 @@ class SuggestionBlueprint(BlueprintBase):
         """Create the SuggestionAgent."""
         logger.debug("Creating SuggestionAgent...")
         self._model_instance_cache = {}
-        self._openai_client_cache = {}
 
         default_profile_name = self.config.get("llm_profile", "default")
         # Verify the chosen profile/model supports structured output if possible, or rely on OpenAI's newer models
@@ -105,6 +106,28 @@ class SuggestionBlueprint(BlueprintBase):
         )
         logger.debug("SuggestionAgent created with output_type enforcement.")
         return suggestion_agent
+
+    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+        """Main execution entry point for the Suggestion blueprint."""
+        logger.info("SuggestionBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        async for chunk in self._run_non_interactive(instruction, **kwargs):
+            yield chunk
+        logger.info("SuggestionBlueprint run method finished.")
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        logger.info(f"Running SuggestionBlueprint non-interactively with instruction: '{instruction[:100]}...'")
+        mcp_servers = kwargs.get("mcp_servers", [])
+        agent = self.create_starting_agent(mcp_servers=mcp_servers)
+        from agents import Runner
+        import os
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        try:
+            for chunk in Runner.run(agent, instruction):
+                yield chunk
+        except Exception as e:
+            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":
     SuggestionBlueprint.main()

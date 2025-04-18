@@ -10,11 +10,22 @@ import sys
 import os
 from typing import Dict, Any, List
 
+# --- Logging Setup ---
+def setup_logging():
+    import argparse
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    args, _ = parser.parse_known_args()
+    loglevel = os.environ.get('LOGLEVEL', None)
+    if args.debug or os.environ.get('SWARM_DEBUG', '0') == '1' or (loglevel and loglevel.upper() == 'DEBUG'):
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+    return args
+
+args = setup_logging()
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stderr)
-handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d - %(message)s"))
-logger.addHandler(handler)
 
 # Reject CLI execution immediately
 if __name__ == "__main__":

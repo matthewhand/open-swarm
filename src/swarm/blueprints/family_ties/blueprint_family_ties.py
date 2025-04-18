@@ -8,6 +8,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
+from typing import Optional
+from pathlib import Path
 try:
     from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
@@ -53,6 +55,9 @@ brian_instructions = (
 
 # --- Define the Blueprint ---
 class FamilyTiesBlueprint(BlueprintBase):
+    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+
     """Manages WordPress content with a Peter/Brian agent team using the `server-wp-mcp` server."""
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "FamilyTiesBlueprint", # Standardized name
@@ -147,6 +152,29 @@ class FamilyTiesBlueprint(BlueprintBase):
         )
         logger.debug("Agents created: PeterGrifton (Coordinator), BrianGrifton (WordPress Manager).")
         return peter_agent # Peter is the entry point
+
+    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+        """Main execution entry point for the FamilyTies blueprint."""
+        logger.info("FamilyTiesBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        async for chunk in self._run_non_interactive(instruction, **kwargs):
+            yield chunk
+        logger.info("FamilyTiesBlueprint run method finished.")
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        logger.info(f"Running FamilyTies non-interactively with instruction: '{instruction[:100]}...'")
+        mcp_servers = kwargs.get("mcp_servers", [])
+        agent = self.create_starting_agent(mcp_servers=mcp_servers)
+        # Use Runner.run as a classmethod for portability
+        from agents import Runner
+        import os
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        try:
+            for chunk in Runner.run(agent, instruction):
+                yield chunk
+        except Exception as e:
+            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":
     FamilyTiesBlueprint.main()

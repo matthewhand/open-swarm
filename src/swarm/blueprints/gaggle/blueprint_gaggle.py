@@ -1,6 +1,26 @@
 import logging
-import os # Added os import
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s')
+import os
 import sys
+
+# --- Universal Logging Reset ---
+def force_info_logging():
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+    loglevel = os.environ.get('LOGLEVEL', None)
+    debug_env = os.environ.get('SWARM_DEBUG', '0') == '1'
+    debug_arg = '--debug' in sys.argv
+    if debug_arg or debug_env or (loglevel and loglevel.upper() == 'DEBUG'):
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logging.basicConfig(level=level, format='[%(levelname)s] %(name)s: %(message)s')
+    root.setLevel(level)
+
+force_info_logging()
+
+import argparse
 from typing import List, Dict, Any, Optional, ClassVar
 
 # Ensure src is in path for BlueprintBase import (if needed, adjust path)
@@ -8,6 +28,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
+from typing import Optional
+from pathlib import Path
 try:
     from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
@@ -21,39 +43,66 @@ except ImportError as e:
     print(f"sys.path: {sys.path}")
     sys.exit(1)
 
+import argparse
+
+# --- Logging Setup ---
+def setup_logging():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    args, _ = parser.parse_known_args()
+    loglevel = os.environ.get('LOGLEVEL', None)
+    if args.debug or os.environ.get('SWARM_DEBUG', '0') == '1' or (loglevel and loglevel.upper() == 'DEBUG'):
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+    return args
+
+args = setup_logging()
+
 logger = logging.getLogger(__name__)
 
 # --- Tools ---
-@function_tool
-def create_story_outline(topic: str) -> str:
-    """Generates a basic story outline based on a topic."""
-    logger.info(f"Tool: Generating outline for: {topic}") # Keep INFO for tool exec start
-    # In a real scenario, this might involve more logic or an LLM call.
-    # Adding slight variation for clarity
+def _create_story_outline(topic: str) -> str:
+    logger.info(f"Tool: Generating outline for: {topic}")
     outline = f"Story Outline for '{topic}':\n1. Beginning: Introduce characters and setting.\n2. Middle: Develop conflict and rising action.\n3. Climax: The peak of the conflict.\n4. End: Resolution and aftermath."
     logger.debug(f"Generated outline: {outline}")
     return outline
 
 @function_tool
-def write_story_part(part_name: str, outline: str, previous_parts: str) -> str:
-    """Writes a specific part of the story using the outline and previous context."""
-    logger.info(f"Tool: Writing story part: {part_name}") # Keep INFO for tool exec start
-    # Simple placeholder implementation
+def create_story_outline(topic: str) -> str:
+    """Generates a basic story outline based on a topic."""
+    return _create_story_outline(topic)
+
+def _write_story_part(part_name: str, outline: str, previous_parts: str) -> str:
+    logger.info(f"Tool: Writing story part: {part_name}")
     content = f"## {part_name}\n\nThis is the draft content for the '{part_name}' section. It follows:\n'{previous_parts[:100]}...' \nIt should align with the outline:\n'{outline}'"
     logger.debug(f"Generated content for {part_name}: {content[:100]}...")
     return content
 
 @function_tool
-def edit_story(full_story: str, edit_instructions: str) -> str:
-    """Edits the complete story based on instructions."""
-    logger.info(f"Tool: Editing story with instructions: {edit_instructions}") # Keep INFO for tool exec start
-    # Simple placeholder for editing
+def write_story_part(part_name: str, outline: str, previous_parts: str) -> str:
+    """Writes a specific part of the story using the outline and previous context."""
+    return _write_story_part(part_name, outline, previous_parts)
+
+def _edit_story(full_story: str, edit_instructions: str) -> str:
+    logger.info(f"Tool: Editing story with instructions: {edit_instructions}")
     edited_content = f"*** Edited Story Draft ***\n(Based on instructions: '{edit_instructions}')\n\n{full_story}\n\n[Editor's Notes: Minor tweaks applied for flow.]"
     logger.debug("Editing complete.")
     return edited_content
 
+@function_tool
+def edit_story(full_story: str, edit_instructions: str) -> str:
+    """Edits the complete story based on instructions."""
+    return _edit_story(full_story, edit_instructions)
+
 # --- Blueprint Definition ---
+from rich.console import Console
+from rich.panel import Panel
+
 class GaggleBlueprint(BlueprintBase):
+    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+
     """A multi-agent blueprint using a Coordinator, Planner, Writer, and Editor for collaborative story writing."""
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "GaggleBlueprint",
@@ -69,6 +118,23 @@ class GaggleBlueprint(BlueprintBase):
     # Caches
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
+
+    def display_splash_screen(self, animated: bool = False):
+        console = Console()
+        splash = r'''
+[bold magenta]
+   ____                   _      _      ____  _             _
+  / ___| __ _ _ __   __ _| | ___| |__  / ___|| |_ __ _ _ __| |_ ___
+ | |  _ / _` | '_ \ / _` | |/ _ \ '_ \ \___ \| __/ _` | '__| __/ _ \
+ | |_| | (_| | | | | (_| | |  __/ | | | ___) | || (_| | |  | ||  __/
+  \____|\__,_|_| |_|\__, |_|\___|_| |_|____/ \__\__,_|_|   \__\___|
+                   |___/
+[/bold magenta]
+[white]Collaborative Story Writing Blueprint[/white]
+'''
+        panel = Panel(splash, title="[bold magenta]Gaggle Blueprint[/]", border_style="magenta", expand=False)
+        console.print(panel)
+        console.print() # Blank line for spacing
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -179,6 +245,42 @@ class GaggleBlueprint(BlueprintBase):
 
         logger.debug("Gaggle Story Writing Team created. Coordinator is the starting agent.")
         return coordinator_agent
+
+    async def run(self, messages: List[Dict[str, str]]):
+        """
+        Run the Gaggle blueprint agentic workflow.
+        Accepts a list of messages (e.g., task prompt from CLI) and yields output chunks.
+        """
+        # For demonstration, this will run the collaborative story workflow
+        topic = None
+        for msg in messages:
+            if msg.get("role") == "user":
+                topic = msg.get("content")
+                break
+        if not topic:
+            yield {"messages": [{"role": "system", "content": "No topic provided."}]}
+            return
+        # Step 1: Planner creates outline
+        outline = _create_story_outline(topic)
+        yield {"messages": [{"role": "planner", "content": outline}]}
+        # Step 2: Writer writes story parts (simulate parts)
+        story_parts = []
+        for part in ["Beginning", "Middle", "Climax", "End"]:
+            part_text = _write_story_part(part, outline, "\n".join(story_parts))
+            story_parts.append(part_text)
+            yield {"messages": [{"role": "writer", "content": part_text}]}
+        # Step 3: Editor edits the full story
+        full_story = "\n\n".join(story_parts)
+        edited = _edit_story(full_story, "Polish for flow and clarity.")
+        yield {"messages": [{"role": "editor", "content": edited}]}
+
+    async def _run_non_interactive(self, instruction: str, **kwargs):
+        """Adapter for CLI non-interactive execution, yields results from the public run method. Accepts **kwargs for compatibility."""
+        messages = [{"role": "user", "content": instruction}]
+        async for chunk in self.run(messages, **kwargs):
+            yield chunk
+
+
 
 if __name__ == "__main__":
     GaggleBlueprint.main()

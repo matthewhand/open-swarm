@@ -216,6 +216,27 @@ class OmniplexBlueprint(BlueprintBase):
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
+    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+        """Main execution entry point for the Omniplex blueprint."""
+        logger.info("OmniplexBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        async for chunk in self._run_non_interactive(instruction, **kwargs):
+            yield chunk
+        logger.info("OmniplexBlueprint run method finished.")
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        logger.info(f"Running OmniplexBlueprint non-interactively with instruction: '{instruction[:100]}...'")
+        mcp_servers = kwargs.get("mcp_servers", [])
+        agent = self.create_starting_agent(mcp_servers=mcp_servers)
+        from agents import Runner
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        try:
+            for chunk in Runner.run(agent, instruction):
+                yield chunk
+        except Exception as e:
+            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+
 # Standard Python entry point
 if __name__ == "__main__":
     OmniplexBlueprint.main()
