@@ -1,7 +1,11 @@
+import os
+from dotenv import load_dotenv; load_dotenv(override=True)
+
 import logging
 import os
 import sys
 from typing import Dict, Any, List, ClassVar, Optional
+import argparse
 
 # Set logging to WARNING by default unless SWARM_DEBUG=1
 if not os.environ.get("SWARM_DEBUG"):
@@ -22,7 +26,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in ChatbotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -141,8 +145,14 @@ if __name__ == "__main__":
     src_path = os.path.join(project_root, 'src')
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
-    if '--instruction' in sys.argv:
-        instruction = sys.argv[sys.argv.index('--instruction') + 1]
+    parser = argparse.ArgumentParser(description='Chatbot Blueprint Runner')
+    parser.add_argument('instruction', nargs=argparse.REMAINDER, help='Instruction for Chatbot to process (all args after -- are joined as the prompt)')
+    args = parser.parse_args()
+    instruction_args = args.instruction
+    if instruction_args and instruction_args[0] == '--':
+        instruction_args = instruction_args[1:]
+    instruction = ' '.join(instruction_args).strip() if instruction_args else None
+    if instruction:
         blueprint = ChatbotBlueprint(blueprint_id="chatbot")
         async def runner():
             async for chunk in blueprint._run_non_interactive(instruction):

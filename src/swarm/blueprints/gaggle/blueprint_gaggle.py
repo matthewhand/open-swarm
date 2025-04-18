@@ -1,6 +1,8 @@
+import os
+from dotenv import load_dotenv; load_dotenv(override=True)
+
 import logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s')
-import os
 import sys
 
 # --- Universal Logging Reset ---
@@ -36,8 +38,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    # Corrected Import: Relative path within the package
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in blueprint_gaggle: {e}. Check 'openai-agents' install and project structure.")
     print(f"sys.path: {sys.path}")
@@ -283,4 +284,20 @@ class GaggleBlueprint(BlueprintBase):
 
 
 if __name__ == "__main__":
-    GaggleBlueprint.main()
+    parser = argparse.ArgumentParser(description='Gaggle Story Writing Team')
+    parser.add_argument('instruction', nargs=argparse.REMAINDER, help='Instruction for Gaggle to process (all args after -- are joined as the prompt)')
+    args = parser.parse_args()
+    instruction_args = args.instruction
+    if instruction_args and instruction_args[0] == '--':
+        instruction_args = instruction_args[1:]
+    instruction = ' '.join(instruction_args).strip() if instruction_args else None
+    blueprint = GaggleBlueprint('gaggle')
+    import asyncio
+    if instruction:
+        async def main():
+            async for chunk in blueprint._run_non_interactive(instruction):
+                print(chunk)
+        asyncio.run(main())
+    else:
+        blueprint.display_splash_screen()
+        blueprint.run_interactive()
