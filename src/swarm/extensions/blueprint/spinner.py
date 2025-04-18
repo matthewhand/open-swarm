@@ -6,29 +6,36 @@ import os
 import sys
 import threading
 import time
+from typing import Optional
 
 class Spinner:
     """Simple terminal spinner for interactive feedback."""
     # Define spinner characters (can be customized)
     SPINNER_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-    # SPINNER_CHARS = ['|', '/', '-', '\\'] # Simpler alternative
+    # Custom status sequences for special cases
+    STATUS_SEQUENCES = {
+        'generating': ['Generating.', 'Generating..', 'Generating...'],
+        'running': ['Running...']
+    }
 
-    def __init__(self, interactive: bool):
+    def __init__(self, interactive: bool, custom_sequence: str = None):
         """
         Initialize the spinner.
 
         Args:
             interactive (bool): Hint whether the environment is interactive.
                                 Spinner is disabled if False or if output is not a TTY.
+            custom_sequence (str): Optional name for a custom status sequence (e.g., 'generating', 'running').
         """
         self.interactive = interactive
-        # Check if output is a TTY (terminal) and interactive flag is True
         self.is_tty = sys.stdout.isatty()
         self.enabled = self.interactive and self.is_tty
         self.running = False
         self.thread: Optional[threading.Thread] = None
         self.status = ""
         self.index = 0
+        self.custom_sequence = custom_sequence
+        self.sequence_idx = 0
 
     def start(self, status: str = "Processing..."):
         """Start the spinner with an optional status message."""
@@ -36,7 +43,7 @@ class Spinner:
             return # Do nothing if disabled or already running
         self.status = status
         self.running = True
-        # Run the spinner animation in a separate daemon thread
+        self.sequence_idx = 0
         self.thread = threading.Thread(target=self._spin, daemon=True)
         self.thread.start()
 
@@ -47,30 +54,33 @@ class Spinner:
         self.running = False
         if self.thread is not None:
             self.thread.join() # Wait for the thread to finish
-        # Clear the spinner line using ANSI escape codes
-        # \r: Carriage return (move cursor to beginning of line)
-        # \033[K: Clear line from cursor to end
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
-        self.thread = None # Reset thread
+        self.thread = None
 
     def _spin(self):
         """Internal method running in the spinner thread to animate."""
+        start_time = time.time()
+        warned = False
         while self.running:
-            # Get the next spinner character
-            char = self.SPINNER_CHARS[self.index % len(self.SPINNER_CHARS)]
-            # Write spinner char and status, overwrite previous line content
-            try:
-                # \r moves cursor to beginning, \033[K clears the rest of the line
+            elapsed = time.time() - start_time
+            if self.custom_sequence and self.custom_sequence in self.STATUS_SEQUENCES:
+                seq = self.STATUS_SEQUENCES[self.custom_sequence]
+                # If taking longer than 10s, show special message
+                if elapsed > 10 and not warned:
+                    msg = f"{seq[-1]} Taking longer than expected"
+                    warned = True
+                else:
+                    msg = seq[self.sequence_idx % len(seq)]
+                sys.stdout.write(f"\r{msg}\033[K")
+                sys.stdout.flush()
+                self.sequence_idx += 1
+            else:
+                char = self.SPINNER_CHARS[self.index % len(self.SPINNER_CHARS)]
                 sys.stdout.write(f"\r{char} {self.status}\033[K")
                 sys.stdout.flush()
-            except BlockingIOError:
-                 # Handle potential issues if stdout is blocked (less likely for TTY)
-                 time.sleep(0.1)
-                 continue
-            self.index += 1
-            # Pause for animation effect
-            time.sleep(0.1)
+                self.index += 1
+            time.sleep(0.4 if self.custom_sequence else 0.1)
 
 # Example usage (if run directly)
 if __name__ == "__main__":
@@ -88,4 +98,3 @@ if __name__ == "__main__":
     finally:
         s.stop() # Ensure spinner stops on exit/error
         print("Test finished.")
-
