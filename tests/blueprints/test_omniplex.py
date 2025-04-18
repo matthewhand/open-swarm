@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/swarm')))
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 
@@ -33,7 +36,12 @@ def omniplex_blueprint_instance(tmp_path):
 
 # --- Test Cases ---
 
-@pytest.mark.skip(reason="Blueprint tests need refinement for dynamic MCPs")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint tests need refinement for dynamic MCPs")
 def test_omniplex_agent_creation_all_types(omniplex_blueprint_instance):
     """Test agent creation when all MCP server types are present."""
     # Arrange
@@ -57,7 +65,12 @@ def test_omniplex_agent_creation_all_types(omniplex_blueprint_instance):
     assert "Sylar" in tool_names
     # We would need to inspect the tools/agents further to check their assigned MCPs
 
-@pytest.mark.skip(reason="Blueprint tests need refinement for dynamic MCPs")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint tests need refinement for dynamic MCPs")
 def test_omniplex_agent_creation_only_npx(omniplex_blueprint_instance):
     """Test agent creation when only npx servers are present."""
      # Arrange
@@ -73,14 +86,24 @@ def test_omniplex_agent_creation_only_npx(omniplex_blueprint_instance):
     assert "Rogue" not in tool_names
     assert "Sylar" not in tool_names
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio
 async def test_omniplex_delegation_to_amazo(omniplex_blueprint_instance):
     """Test if Coordinator correctly delegates an npx task to Amazo."""
     # Needs Runner mocking, potentially mocking MCP interactions within Amazo.
     assert False
 
-@pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint CLI tests not yet implemented")
 def test_omniplex_cli_execution():
     """Test running the blueprint via CLI."""
     # Needs subprocess testing or direct call to main with mocks.
