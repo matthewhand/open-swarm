@@ -16,7 +16,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in FamilyTiesBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -177,4 +177,13 @@ class FamilyTiesBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":
-    FamilyTiesBlueprint.main()
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "Who are my relatives?"}
+    ]
+    blueprint = FamilyTiesBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())

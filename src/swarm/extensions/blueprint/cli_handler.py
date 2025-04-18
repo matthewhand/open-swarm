@@ -24,6 +24,7 @@ logger = logging.getLogger("swarm.cli")
 project_root = Path(__file__).parent.parent.parent.parent  # /home/chatgpt/open-swarm
 dotenv_path = project_root / ".env"
 load_dotenv(dotenv_path=dotenv_path, override=True)
+# print("[DEBUG] LITELLM_API_KEY:", os.environ.get("LITELLM_API_KEY"))
 # print(f"[DEBUG] Loaded .env from: {dotenv_path}")
 # print(f"[DEBUG] LITELLM_MODEL={os.environ.get('LITELLM_MODEL')}")
 # print(f"[DEBUG] LITELLM_BASE_URL={os.environ.get('LITELLM_BASE_URL')}")
@@ -54,10 +55,12 @@ async def _run_blueprint_async_with_shutdown(blueprint: 'BlueprintBase', instruc
             except Exception as e:
                  logger.error(f"Unexpected error setting fallback signal handler for {sig.name}: {e}", exc_info=True)
 
-
     # Instead of wrapping in a task and awaiting, use async for to support async generators
     try:
-        async for chunk in blueprint._run_non_interactive(instruction):
+        # PATCH: Use blueprint.run instead of blueprint._run_non_interactive
+        async for chunk in blueprint.run([
+            {"role": "user", "content": instruction}
+        ]):
             # Print the full JSON chunk
             print(json.dumps(chunk, ensure_ascii=False))
             # If chunk contains 'messages', print each assistant message's content for CLI/test UX
@@ -68,7 +71,6 @@ async def _run_blueprint_async_with_shutdown(blueprint: 'BlueprintBase', instruc
     except Exception as e:
         logger.critical(f"Blueprint execution failed with unhandled exception: {e}", exc_info=True)
         sys.exit(1)
-
 
 
 def run_blueprint_cli(
@@ -90,7 +92,6 @@ def run_blueprint_cli(
         description=metadata.get("description", f"Run {blueprint_cls.__name__}"),
         formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("--instruction", type=str, required=True, help="Initial instruction for the blueprint.")
     parser.add_argument("--config-path", type=str, default=None, help=f"Path to swarm_config.json (Default: {default_config_path})")
     parser.add_argument("--config", type=str, metavar="JSON_FILE_OR_STRING", default=None, help="JSON config overrides (file path or string). Merged last.")
     parser.add_argument("--profile", type=str, default=None, help="Configuration profile to use.")
@@ -98,7 +99,21 @@ def run_blueprint_cli(
     parser.add_argument("--quiet", action="store_true", help="Suppress most logs and headers, print only final output.")
     parser.add_argument('--markdown', action=argparse.BooleanOptionalAction, default=None, help="Enable/disable markdown output (--markdown / --no-markdown). Overrides config/default.")
     parser.add_argument("--version", action="version", version=f"%(prog)s (BP: {metadata.get('name', 'N/A')} v{metadata.get('version', 'N/A')}, Core: {swarm_version})")
+    parser.add_argument("instruction", nargs=argparse.REMAINDER, help="Instruction or prompt for the blueprint. All arguments after -- are treated as the prompt.")
     args = parser.parse_args()
+
+    # Determine instruction string: if '--' is present, treat everything after as prompt
+    instruction_args = args.instruction
+    if instruction_args:
+        # Remove leading '--' if present
+        if instruction_args and instruction_args[0] == '--':
+            instruction_args = instruction_args[1:]
+        instruction = ' '.join(instruction_args).strip()
+    else:
+        instruction = ''
+
+    if not instruction:
+        parser.error("No instruction provided. Pass a prompt after -- or as positional arguments.")
 
     # --- Load CLI Config Overrides ---
     cli_config_overrides = {}
@@ -141,8 +156,27 @@ def run_blueprint_cli(
             # swarm_version=swarm_version
         )
 
+        # Non-interactive slash-command handling
+        if instruction.strip().startswith('/'):
+            from swarm.core.slash_commands import slash_registry
+            parts = instruction.strip().split(maxsplit=1)
+            cmd = parts[0]
+            cmd_args = parts[1] if len(parts) > 1 else None
+            handler = blueprint_instance.slash_commands.get(cmd)
+            if handler:
+                try:
+                    res = handler(blueprint_instance, cmd_args)
+                    if res is not None:
+                        if isinstance(res, str):
+                            print(res)
+                        else:
+                            for line in res:
+                                print(line)
+                except Exception as sc_e:
+                    print(f"Error executing slash command {cmd}: {sc_e}", file=sys.stderr)
+                sys.exit(0)
         # Run the async part with shutdown handling
-        asyncio.run(_run_blueprint_async_with_shutdown(blueprint_instance, args.instruction))
+        asyncio.run(_run_blueprint_async_with_shutdown(blueprint_instance, instruction))
 
     except (ValueError, TypeError, FileNotFoundError) as config_err:
         logger.critical(f"[Initialization Error] Configuration problem: {config_err}", exc_info=args.debug)

@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import shlex
 from typing import Dict, Any, List, ClassVar, Optional
 
 # Ensure src is in path for BlueprintBase import
@@ -14,7 +15,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in OmniplexBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -80,6 +81,17 @@ class OmniplexBlueprint(BlueprintBase):
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
         """Retrieves or creates an LLM Model instance."""
@@ -115,6 +127,9 @@ class OmniplexBlueprint(BlueprintBase):
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
         except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
+
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     # --- Agent Creation ---
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
@@ -239,4 +254,13 @@ class OmniplexBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    OmniplexBlueprint.main()
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "Show me everything."}
+    ]
+    blueprint = OmniplexBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())

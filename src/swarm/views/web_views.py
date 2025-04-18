@@ -14,11 +14,11 @@ from django.contrib.auth.models import User
 
 from swarm.utils.logger_setup import setup_logger
 # Import the function to discover blueprints dynamically
-from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints
+from swarm.core.blueprint_discovery import discover_blueprints
 # Import the setting for the blueprints directory
 from swarm.settings import BLUEPRINTS_DIR
 # Import config loader if needed, or assume config is loaded elsewhere
-from swarm.extensions.config.config_loader import load_server_config
+from swarm.core import config_loader, server_config
 
 logger = setup_logger(__name__)
 

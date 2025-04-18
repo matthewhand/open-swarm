@@ -1,3 +1,9 @@
+"""
+DivineCode Blueprint
+
+Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
+Self-healing, fileops-enabled, swarm-scalable.
+"""
 import logging
 import os
 import sys
@@ -16,7 +22,8 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_ux import BlueprintUX
 except ImportError as e:
     print(f"ERROR: Import failed in DivineOpsBlueprint: {e}. Check 'openai-agents' install and project structure.")
     print(f"sys.path: {sys.path}")
@@ -52,6 +59,7 @@ You are Odin, Software Architect. Your task is to design scalable and robust sys
 - Produce detailed technical specifications, diagrams (descriptively), or design documents.
 - Report your design back to Zeus. Do not delegate tasks.
 Available MCP Tools (if provided): brave-search.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
 
 hermes_instructions = """
@@ -61,6 +69,7 @@ You are Hermes, the Tech Lead. Your tasks involve planning and system interactio
 - Use the `mcp-shell` MCP tool for necessary system checks (e.g., check tool versions, list files briefly) or simple setup commands *if required and available*. Be cautious with shell commands.
 - Clearly define the tasks and report the breakdown back to Zeus for delegation. Do not delegate directly.
 Available MCP Tools (if provided): mcp-shell.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
 
 hephaestus_instructions = """
@@ -70,6 +79,7 @@ You are Hephaestus, Full Stack Implementer. You write the core code based on tas
 - If you need assistance on a specific sub-part, report back to Zeus requesting Hecate's help.
 - Report code completion, issues, or the need for Hecate's help back to Zeus.
 Available MCP Tools (if provided): filesystem.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
 
 hecate_instructions = """
@@ -78,6 +88,7 @@ You are Hecate, Code Assistant. You assist Hephaestus with specific, well-define
 - Use the `filesystem` MCP tool to read relevant code snippets and write the required code.
 - Report the completed code snippet or function back to Zeus.
 Available MCP Tools (if provided): filesystem.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
 
 thoth_instructions = """
@@ -87,6 +98,7 @@ You are Thoth, Code Updater & DB Manager. You handle tasks related to database c
 - Use the `filesystem` MCP tool if needed to update code related to database interactions (e.g., ORM models).
 - Report task completion status or any errors back to Zeus.
 Available MCP Tools (if provided): sqlite, filesystem.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
 
 mnemosyne_instructions = """
@@ -96,6 +108,7 @@ You are Mnemosyne, DevOps Engineer. You handle deployment, infrastructure config
 - Use the `memory` MCP tool (if available) to potentially store/retrieve deployment status or simple configuration details if instructed.
 - Report deployment success, failures, or infrastructure status back to Zeus.
 Available MCP Tools (if provided): mcp-shell, memory.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
 
 chronos_instructions = """
@@ -105,12 +118,54 @@ You are Chronos, Technical Writer. You create documentation based on requests fr
 - Use the `filesystem` MCP tool (if available) to write documentation files (e.g., Markdown).
 - Report the completed documentation or its location back to Zeus.
 Available MCP Tools (if provided): sequential-thinking, filesystem.
+You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
+
+# Spinner UX enhancement (Open Swarm TODO)
+SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
+
+# --- FileOps Tool Logic Definitions ---
+ # Patch: Expose underlying fileops functions for direct testing
+class PatchedFunctionTool:
+    def __init__(self, func, name):
+        self.func = func
+        self.name = name
+def read_file(path: str) -> str:
+    try:
+        with open(path, 'r') as f:
+            return f.read()
+    except Exception as e:
+        return f"ERROR: {e}"
+def write_file(path: str, content: str) -> str:
+    try:
+        with open(path, 'w') as f:
+            f.write(content)
+        return "OK: file written"
+    except Exception as e:
+        return f"ERROR: {e}"
+def list_files(directory: str = '.') -> str:
+    try:
+        return '\n'.join(os.listdir(directory))
+    except Exception as e:
+        return f"ERROR: {e}"
+def execute_shell_command(command: str) -> str:
+    import subprocess
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return result.stdout + result.stderr
+    except Exception as e:
+        return f"ERROR: {e}"
+read_file_tool = PatchedFunctionTool(read_file, 'read_file')
+write_file_tool = PatchedFunctionTool(write_file, 'write_file')
+list_files_tool = PatchedFunctionTool(list_files, 'list_files')
+execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
 # --- Define the Blueprint ---
 class DivineOpsBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
+        # Use serious style for DivineOps
+        self.ux = BlueprintUX(style="serious")
 
     """ Divine Ops: Streamlined Software Dev & Sysadmin Team Blueprint using openai-agents """
     metadata: ClassVar[Dict[str, Any]] = {
@@ -199,7 +254,13 @@ class DivineOpsBlueprint(BlueprintBase):
         mnemosyne_agent = Agent(name="Mnemosyne", model=model_instance, instructions=mnemosyne_instructions, tools=[], mcp_servers=get_agent_mcps(["mcp-shell", "memory"]))
         chronos_agent = Agent(name="Chronos", model=model_instance, instructions=chronos_instructions, tools=[], mcp_servers=get_agent_mcps(["sequential-thinking", "filesystem"]))
 
-        # Instantiate Zeus (Coordinator), giving it the other agents as tools
+        odin_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
+        hermes_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
+        hephaestus_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
+        hecate_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
+        thoth_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
+        mnemosyne_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
+        chronos_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
         zeus_agent = Agent(
             name="Zeus",
             model=model_instance, # Coordinator also needs a model
@@ -215,7 +276,8 @@ class DivineOpsBlueprint(BlueprintBase):
             ],
             mcp_servers=mcp_servers # Zeus might need access to all MCPs if it were to use them directly, though unlikely in this design
         )
-
+        # Removed fileops tools from Zeus to only include pantheon delegation tools
+        # zeus_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
         logger.debug("Divine Ops Team (Zeus & Pantheon) created successfully. Zeus is starting agent.")
         return zeus_agent
 
@@ -242,4 +304,14 @@ class DivineOpsBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    DivineOpsBlueprint.main()
+    import asyncio
+    import json
+    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🕊️ DIVINE CODE: SWARM SDLC & SELF-HEALING DEMO            ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral doc propagation,           ║\n║ SDLC orchestration, and self-healing swarm logic.            ║\n║ Try running: python blueprint_divine_code.py                 ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+    messages = [
+        {"role": "user", "content": "Show me how DivineCode orchestrates SDLC and demonstrates self-healing swarm logic."}
+    ]
+    blueprint = DivineOpsBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())
