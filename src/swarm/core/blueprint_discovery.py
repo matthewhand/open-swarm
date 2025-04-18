@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 # *** Import the ACTUAL BlueprintBase from the likely correct path ***
 try:
     # Adjust this path if BlueprintBase lives elsewhere
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError:
     # This logger call is now safe
-    logger.error("Failed to import BlueprintBase from swarm.extensions.blueprint.blueprint_base. Using placeholder.", exc_info=True)
+    logger.error("Failed to import BlueprintBase from swarm.core.blueprint_base. Using placeholder.", exc_info=True)
     class BlueprintBase: # Fallback placeholder
         metadata: Dict[str, Any] = {}
         def __init__(self, *args, **kwargs): pass

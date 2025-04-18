@@ -4,7 +4,7 @@ Description: Lists all blueprints available in the system.
 """
 
 from pathlib import Path
-from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints
+from swarm.core.blueprint_discovery import discover_blueprints
 
 # Metadata for dynamic registration
 description = "Lists all blueprints available in the system."

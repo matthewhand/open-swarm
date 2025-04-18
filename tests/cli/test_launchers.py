@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 from unittest.mock import patch, MagicMock
 
 # Corrected import path
-from swarm.extensions.launchers import swarm_cli
+from swarm.core import swarm_cli
 
 runner = CliRunner()
 
@@ -74,7 +74,7 @@ def test_swarm_cli_install_creates_executable(mock_run, mock_dirs, mocker):
     entry_point_path.write_text("print('hello from blueprint')")
 
     # Mock find_entry_point
-    mocker.patch("swarm.extensions.launchers.swarm_cli.find_entry_point", return_value=entry_point_name)
+    mocker.patch("swarm.core.swarm_cli.find_entry_point", return_value=entry_point_name)
 
     # Configure mock for successful PyInstaller run
     mock_process = MagicMock()
@@ -131,7 +131,7 @@ def test_swarm_install_failure(mock_run, mock_dirs, mocker):
     entry_point_path.write_text("print('fail')")
 
     # Mock find_entry_point
-    mocker.patch("swarm.extensions.launchers.swarm_cli.find_entry_point", return_value=entry_point_name)
+    mocker.patch("swarm.core.swarm_cli.find_entry_point", return_value=entry_point_name)
 
     # --- Configure mock to RAISE CalledProcessError ---
     error_stderr = "PyInstaller error: Build failed!"
@@ -203,4 +203,3 @@ def test_swarm_launch_failure_not_found(mock_dirs, mocker):
     assert result.exit_code == 1
     expected_error = f"Error: Blueprint executable not found or not executable: {expected_path}"
     assert expected_error in result.output.strip()
-

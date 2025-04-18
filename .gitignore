@@ -195,3 +195,5 @@ logs/*
 
 openai-agents-python/*
 docker-compose.override.yml
+
+bin/*

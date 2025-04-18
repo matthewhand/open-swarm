@@ -8,13 +8,15 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
+from typing import Optional
+from pathlib import Path
 try:
     from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in FamilyTiesBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -53,6 +55,17 @@ brian_instructions = (
 
 # --- Define the Blueprint ---
 class FamilyTiesBlueprint(BlueprintBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        class DummyLLM:
+            def chat_completion_stream(self, messages, **_):
+                class DummyStream:
+                    def __aiter__(self): return self
+                    async def __anext__(self):
+                        raise StopAsyncIteration
+                return DummyStream()
+        self.llm = DummyLLM()
+
     """Manages WordPress content with a Peter/Brian agent team using the `server-wp-mcp` server."""
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "FamilyTiesBlueprint", # Standardized name
@@ -148,5 +161,53 @@ class FamilyTiesBlueprint(BlueprintBase):
         logger.debug("Agents created: PeterGrifton (Coordinator), BrianGrifton (WordPress Manager).")
         return peter_agent # Peter is the entry point
 
+    def render_prompt(self, template_name: str, context: dict) -> str:
+        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+
+    async def run(self, messages: list) -> object:
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["family_ties"]
+        }
+        rendered_prompt = self.render_prompt("family_ties_prompt.j2", prompt_context)
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[FamilyTies LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        logger.info(f"Running FamilyTies non-interactively with instruction: '{instruction[:100]}...'")
+        mcp_servers = kwargs.get("mcp_servers", [])
+        agent = self.create_starting_agent(mcp_servers=mcp_servers)
+        # Use Runner.run as a classmethod for portability
+        from agents import Runner
+        import os
+        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        try:
+            for chunk in Runner.run(agent, instruction):
+                yield chunk
+        except Exception as e:
+            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+
 if __name__ == "__main__":
-    FamilyTiesBlueprint.main()
+    import asyncio
+    import json
+    messages = [
+        {"role": "user", "content": "Who are my relatives?"}
+    ]
+    blueprint = FamilyTiesBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())
