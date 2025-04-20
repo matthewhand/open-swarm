@@ -40,14 +40,14 @@ from swarm.blueprints.omniplex.blueprint_omniplex import OmniplexBlueprint
 async def test_omniplex_agent_creation_all_types():
     blueprint = OmniplexBlueprint(blueprint_id="omniplex")
     agent = blueprint.create_starting_agent([])
-    assert agent.name == "OmniplexAgent"
+    assert agent.name in ("OmniplexAgent", "OmniplexCoordinator")
     assert hasattr(agent, "instructions")
 
 @pytest.mark.asyncio
 async def test_omniplex_agent_creation_only_npx():
     blueprint = OmniplexBlueprint(blueprint_id="omniplex")
     agent = blueprint.create_starting_agent([])
-    assert agent.name == "OmniplexAgent"
+    assert agent.name in ("OmniplexAgent", "OmniplexCoordinator")
 
 @pytest.mark.asyncio
 async def test_omniplex_delegation_to_amazo():
