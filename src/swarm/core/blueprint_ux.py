@@ -15,11 +15,11 @@ class BlueprintUX:
         box += "┗"+"━"*20
         return box
 
-# Integrate unique improvements from the feature branch
 import time
 import itertools
 
 # Style presets
+
 def get_style(style):
     if style == "serious":
         return {
@@ -56,7 +56,9 @@ class BlueprintUXImproved:
         return spinner_states[state_idx % len(spinner_states)]
 
     def summary(self, op_type, result_count, params):
-        return f"{op_type} | Results: {result_count} | Params: {params}"
+        # Enhanced: pretty param formatting
+        param_str = ', '.join(f'{k}={v!r}' for k, v in (params or {}).items()) if params else 'None'
+        return f"{op_type} | Results: {result_count} | Params: {param_str}"
 
     def progress(self, current, total=None):
         if total:
@@ -70,4 +72,38 @@ class BlueprintUXImproved:
             header = "[Semantic Search Results]"
         else:
             header = "[Results]"
-        return f"{header}\n" + "\n".join(results)
+        # Enhanced: visually distinct divider
+        divider = "\n" + ("=" * 40) + "\n"
+        return f"{header}{divider}" + "\n".join(results)
+
+    def ansi_emoji_box(self, title, content, summary=None, params=None, result_count=None, op_type=None, style=None, color=None, status=None):
+        """
+        Unified ANSI/emoji box for search/analysis/fileops results.
+        Summarizes: operation, result count, params, and allows for periodic updates.
+        Supports color and status for advanced UX.
+        """
+        style_conf = get_style(style or self.style)
+        # Color/status logic
+        color_map = {
+            "success": "92",  # green
+            "info": "94",     # blue
+            "warning": "93",  # yellow
+            "error": "91",    # red
+            None: "94",         # default blue
+        }
+        ansi_color = color_map.get(status, color_map[None])
+        box = f"\033[{ansi_color}m" + style_conf["border_top"] + "\033[0m\n"
+        box += f"\033[{ansi_color}m{style_conf['border_side']} {style_conf['emoji']} {title}"
+        if op_type:
+            box += f" | {op_type}"
+        if result_count is not None:
+            box += f" | Results: {result_count}"
+        box += "\033[0m\n"
+        if params:
+            box += f"\033[{ansi_color}m{style_conf['border_side']} Params: {params}\033[0m\n"
+        if summary:
+            box += f"\033[{ansi_color}m{style_conf['border_side']} {summary}\033[0m\n"
+        for line in content.split('\n'):
+            box += f"\033[{ansi_color}m{style_conf['border_side']} {line}\033[0m\n"
+        box += f"\033[{ansi_color}m" + style_conf["border_bottom"] + "\033[0m"
+        return box

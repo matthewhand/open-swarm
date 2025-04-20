@@ -17,10 +17,7 @@ try:
 except ImportError:
     # This logger call is now safe
     logger.error("Failed to import BlueprintBase from swarm.core.blueprint_base. Using placeholder.", exc_info=True)
-    class BlueprintBase: # Fallback placeholder
-        metadata: Dict[str, Any] = {}
-        def __init__(self, *args, **kwargs): pass
-        async def run(self, *args, **kwargs): pass
+    # REMOVED DUMMY BlueprintBase to prevent MRO/import bugs. Always import BlueprintBase from swarm.core.blueprint_base
 
 
 class BlueprintLoadError(Exception):

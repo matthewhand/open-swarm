@@ -9,15 +9,15 @@ from dotenv import load_dotenv
 logger = logging.getLogger("swarm.config")
 
 def _substitute_env_vars(value: Any) -> Any:
-    """Recursively substitute environment variables in strings, lists, and dicts."""
+    import os
     if isinstance(value, str):
+        # Always expand env vars in any string
         return os.path.expandvars(value)
     elif isinstance(value, list):
         return [_substitute_env_vars(item) for item in value]
     elif isinstance(value, dict):
         return {k: _substitute_env_vars(v) for k, v in value.items()}
-    else:
-        return value
+    return value
 
 def load_environment(project_root: Path):
     """Loads environment variables from a `.env` file located at the project root."""
