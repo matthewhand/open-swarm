@@ -14,6 +14,7 @@ import sqlite3
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, ClassVar, Optional
+import time
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -25,7 +26,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
     print(f"ERROR: Import failed in WhiskeyTangoFoxtrotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -109,7 +110,7 @@ Available MCP Tools: mcp-doc-forge.
 """
 
 # --- Define the Blueprint ---
-class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
+class WhiskeyTangoFoxtrotBlueprint(BlueprintUXImproved):
     """Tracks free online services with a hierarchical spy-inspired agent team using SQLite and web search."""
     metadata: ClassVar[Dict[str, Any]] = {
         "name": "WhiskeyTangoFoxtrotBlueprint",
@@ -126,23 +127,16 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
-    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
-        if blueprint_id is None:
-            blueprint_id = "whiskeytangofoxtrot"
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
-                class DummyStream:
-                    def __aiter__(self): return self
-                    async def __anext__(self):
-                        raise StopAsyncIteration
-                return DummyStream()
-        self.llm = DummyLLM()
-        # Initialize the services database schema on instantiation
-        try:
-            self.initialize_db()
-        except Exception as e:
-            logger.error(f"Error initializing WTF services database: {e}", exc_info=True)
+    def __init__(self, blueprint_id: str = "whiskeytangofoxtrot", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._config = config if config is not None else None
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for WhiskeyTangoFoxtrot
+        # ...
 
     def initialize_db(self) -> None:
         """Initializes the SQLite database schema if not present."""
@@ -217,29 +211,64 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
 
 
     async def run(self, messages: List[dict], **kwargs):
-        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
-        if not last_user_message:
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
-            return
-        prompt_context = {
-            "user_request": last_user_message,
-            "history": messages[:-1],
-            "available_tools": ["whiskeytango_foxtrot"]
-        }
-        rendered_prompt = self.render_prompt("whiskeytango_foxtrot_prompt.j2", prompt_context)
-        yield {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": f"[WhiskeyTangoFoxtrot LLM] Would respond to: {rendered_prompt}"
-                }
-            ]
-        }
+        """Main execution entry point for the WhiskeyTangoFoxtrot blueprint."""
+        logger.info("WhiskeyTangoFoxtrotBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        from agents import Runner
+        ux = BlueprintUXImproved(style="serious")
+        spinner_idx = 0
+        start_time = time.time()
+        spinner_yield_interval = 1.0  # seconds
+        last_spinner_time = start_time
+        yielded_spinner = False
+        result_chunks = []
+        try:
+            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
+            while True:
+                now = time.time()
+                try:
+                    chunk = next(runner_gen)
+                    result_chunks.append(chunk)
+                    # If chunk is a final result, wrap and yield
+                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
+                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
+                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
+                        box = ux.ansi_emoji_box(
+                            title="WhiskeyTangoFoxtrot Result",
+                            content=content,
+                            summary=summary,
+                            params={"instruction": instruction[:40]},
+                            result_count=len(result_chunks),
+                            op_type="run",
+                            status="success"
+                        )
+                        yield {"messages": [{"role": "assistant", "content": box}]}
+                    else:
+                        yield chunk
+                    yielded_spinner = False
+                except StopIteration:
+                    break
+                except Exception:
+                    if now - last_spinner_time >= spinner_yield_interval:
+                        taking_long = (now - start_time > 10)
+                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
+                        spinner_idx += 1
+                        last_spinner_time = now
+                        yielded_spinner = True
+            if not result_chunks and not yielded_spinner:
+                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
+        except Exception as e:
+            logger.error(f"Error during WhiskeyTangoFoxtrot run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
         return
 
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the WTF agent hierarchy and returns Valory (Coordinator)."""
+        # Ensure config is loaded (defensive fix for tests/patching)
+        if self._config is None:
+            self._load_configuration()
         self.initialize_db() # Ensure DB is ready
 
         logger.debug("Creating WhiskeyTangoFoxtrot agent team...")

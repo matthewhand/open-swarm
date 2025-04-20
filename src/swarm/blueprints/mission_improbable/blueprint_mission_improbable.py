@@ -28,6 +28,7 @@ try:
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
     print(f"ERROR: Import failed in MissionImprobableBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -60,12 +61,28 @@ def list_files(directory: str = '.') -> str:
     except Exception as e:
         return f"ERROR: {e}"
 def execute_shell_command(command: str) -> str:
-    import subprocess
+    """
+    Executes a shell command and returns its stdout and stderr.
+    Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 60s).
+    """
+    logger.info(f"Executing shell command: {command}")
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout + result.stderr
+        import os
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        output = f"Exit Code: {result.returncode}\n"
+        if result.stdout:
+            output += f"STDOUT:\n{result.stdout}\n"
+        if result.stderr:
+            output += f"STDERR:\n{result.stderr}\n"
+        logger.info(f"Command finished. Exit Code: {result.returncode}")
+        return output.strip()
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command timed out: {command}")
+        return f"Error: Command timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '60')} seconds."
     except Exception as e:
-        return f"ERROR: {e}"
+        logger.error(f"Error executing command '{command}': {e}", exc_info=True)
+        return f"Error executing command: {e}"
 read_file_tool = PatchedFunctionTool(read_file, 'read_file')
 write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
@@ -100,18 +117,16 @@ class MissionImprobableBlueprint(BlueprintBase):
     _model_instance_cache: Dict[str, Model] = {}
     _db_initialized = False # Flag to ensure DB init runs only once per instance
 
-    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
-        if blueprint_id is None:
-            blueprint_id = "mission-improbable"
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
-                class DummyStream:
-                    def __aiter__(self): return self
-                    async def __anext__(self):
-                        raise StopAsyncIteration
-                return DummyStream()
-        self.llm = DummyLLM()
+    def __init__(self, blueprint_id: str = "mission_improbable", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._config = config if config is not None else None
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for MissionImprobable
+        # ...
 
     # --- Database Interaction ---
     def _init_db_and_load_data(self) -> None:
@@ -252,29 +267,133 @@ class MissionImprobableBlueprint(BlueprintBase):
         logger.debug("Mission Improbable agents created. Starting with JimFlimsy.")
         return agents["JimFlimsy"] # Jim is the coordinator
 
-    async def run(self, messages: list) -> object:
-        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
-        if not last_user_message:
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
-            return
-        prompt_context = {
-            "user_request": last_user_message,
-            "history": messages[:-1],
-            "available_tools": ["mission_improbable"]
-        }
-        rendered_prompt = self.render_prompt("mission_improbable_prompt.j2", prompt_context)
-        yield {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": f"[MissionImprobable LLM] Would respond to: {rendered_prompt}"
-                }
-            ]
-        }
-        return
+    async def run(self, messages: list, **kwargs):
+        """Main execution entry point for the MissionImprobable blueprint."""
+        logger.info("MissionImprobableBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        from agents import Runner
+        ux = BlueprintUXImproved(style="serious")
+        spinner_idx = 0
+        start_time = time.time()
+        spinner_yield_interval = 1.0  # seconds
+        last_spinner_time = start_time
+        yielded_spinner = False
+        result_chunks = []
+        try:
+            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
+            while True:
+                now = time.time()
+                try:
+                    chunk = next(runner_gen)
+                    result_chunks.append(chunk)
+                    # If chunk is a final result, wrap and yield
+                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
+                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
+                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
+                        box = ux.ansi_emoji_box(
+                            title="MissionImprobable Result",
+                            content=content,
+                            summary=summary,
+                            params={"instruction": instruction[:40]},
+                            result_count=len(result_chunks),
+                            op_type="run",
+                            status="success"
+                        )
+                        yield {"messages": [{"role": "assistant", "content": box}]}
+                    else:
+                        yield chunk
+                    yielded_spinner = False
+                except StopIteration:
+                    break
+                except Exception:
+                    if now - last_spinner_time >= spinner_yield_interval:
+                        taking_long = (now - start_time > 10)
+                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
+                        spinner_idx += 1
+                        last_spinner_time = now
+                        yielded_spinner = True
+            if not result_chunks and not yielded_spinner:
+                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
+        except Exception as e:
+            logger.error(f"Error during MissionImprobable run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
-    def render_prompt(self, template_name: str, context: dict) -> str:
-        return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
+# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
+from swarm.ux.ansi_box import ansi_box
+from rich.console import Console
+from rich.style import Style
+from rich.text import Text
+import threading
+import time
+
+class MissionImprobableSpinner:
+    FRAMES = [
+        "Generating.", "Generating..", "Generating...", "Running...",
+        "⠋ Generating...", "⠙ Generating...", "⠹ Generating...", "⠸ Generating...",
+        "⠼ Generating...", "⠴ Generating...", "⠦ Generating...", "⠧ Generating...",
+        "⠇ Generating...", "⠏ Generating...", "🤖 Generating...", "💡 Generating...", "✨ Generating..."
+    ]
+    SLOW_FRAME = "Generating... Taking longer than expected"
+    INTERVAL = 0.12
+    SLOW_THRESHOLD = 10  # seconds
+
+    def __init__(self):
+        self._stop_event = threading.Event()
+        self._thread = None
+        self._start_time = None
+        self.console = Console()
+        self._last_frame = None
+        self._last_slow = False
+
+    def start(self):
+        self._stop_event.clear()
+        self._start_time = time.time()
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def _spin(self):
+        idx = 0
+        while not self._stop_event.is_set():
+            elapsed = time.time() - self._start_time
+            if elapsed > self.SLOW_THRESHOLD:
+                txt = Text(self.SLOW_FRAME, style=Style(color="yellow", bold=True))
+                self._last_frame = self.SLOW_FRAME
+                self._last_slow = True
+            else:
+                frame = self.FRAMES[idx % len(self.FRAMES)]
+                txt = Text(frame, style=Style(color="cyan", bold=True))
+                self._last_frame = frame
+                self._last_slow = False
+            self.console.print(txt, end="\r", soft_wrap=True, highlight=False)
+            time.sleep(self.INTERVAL)
+            idx += 1
+        self.console.print(" " * 40, end="\r")  # Clear line
+
+    def stop(self, final_message="Done!"):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join()
+        self.console.print(Text(final_message, style=Style(color="green", bold=True)))
+
+    def current_spinner_state(self):
+        if self._last_slow:
+            return self.SLOW_FRAME
+        return self._last_frame or self.FRAMES[0]
+
+
+def print_operation_box(op_type, results, params=None, result_type="mission", taking_long=False):
+    emoji = "🕵️" if result_type == "mission" else "🔍"
+    style = 'success' if result_type == "mission" else 'default'
+    box_title = op_type if op_type else ("MissionImprobable Output" if result_type == "mission" else "Results")
+    summary_lines = []
+    count = len(results) if isinstance(results, list) else 0
+    summary_lines.append(f"Results: {count}")
+    if params:
+        for k, v in params.items():
+            summary_lines.append(f"{k.capitalize()}: {v}")
+    box_content = "\n".join(summary_lines + ["\n".join(map(str, results))])
+    ansi_box(box_title, box_content, count=count, params=params, style=style if not taking_long else 'warning', emoji=emoji)
 
 # Standard Python entry point
 if __name__ == "__main__":
@@ -286,6 +405,19 @@ if __name__ == "__main__":
     ]
     blueprint = MissionImprobableBlueprint(blueprint_id="demo-1")
     async def run_and_print():
-        async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
+        spinner = MissionImprobableSpinner()
+        spinner.start()
+        try:
+            all_results = []
+            async for response in blueprint.run(messages):
+                content = response["messages"][0]["content"]
+                all_results.append(content)
+        finally:
+            spinner.stop()
+        print_operation_box(
+            op_type="MissionImprobable Output",
+            results=all_results,
+            params={"prompt": messages[0]["content"]},
+            result_type="mission"
+        )
     asyncio.run(run_and_print())

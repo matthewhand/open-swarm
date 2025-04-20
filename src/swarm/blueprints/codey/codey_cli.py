@@ -1,6 +1,16 @@
 import argparse
 import asyncio
 import sys
+# Enable GNU Readline for rich line‑editing (Emacs‑style key‑bindings are the
+# default).  On macOS / BSD the stdlib links to libedit which also honours the
+# same bindings.
+try:
+    import readline  # noqa: F401  – activates on import
+    # Ensure we’re in emacs mode explicitly (users can still override in
+    # their ~/.inputrc).
+    readline.parse_and_bind('set editing-mode emacs')
+except Exception:  # pragma: no cover – readline absent on some exotic builds
+    pass
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint, CodeySpinner, display_operation_box
 from swarm.extensions.cli.utils.async_input import AsyncInputHandler
 
