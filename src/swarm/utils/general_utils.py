@@ -118,6 +118,27 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
 
     return str(chat_id) if chat_id is not None else ""
 
+# ---------------------------------------------------------------------------
+# Debug utilities
+# ---------------------------------------------------------------------------
+
+_DEBUG_ENV_VARS = ("SWARM_DEBUG", "DEBUG", "OPEN_SWARM_DEBUG")
+
+
+def is_debug_enabled() -> bool:
+    """Return True if any recognised debug environment variable is truthy.
+
+    A value is considered *truthy* when it is set and **not** one of
+    "0", "false", "off" (case‑insensitive).
+    """
+    import os
+
+    for var in _DEBUG_ENV_VARS:
+        val = os.getenv(var)
+        if val and val.lower() not in ("0", "false", "off"):
+            return True
+    return False
+
 
 def extract_chat_id(payload: dict) -> str:
     """
