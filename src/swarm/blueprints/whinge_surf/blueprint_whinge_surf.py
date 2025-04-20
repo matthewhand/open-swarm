@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.spinner import Spinner
 import asyncio
 from swarm.core.output_utils import ansi_box, print_operation_box, get_spinner_state
+import os
 
 class WhingeSurfBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, **kwargs):
@@ -29,6 +30,7 @@ class WhingeSurfBlueprint(BlueprintBase):
         instruction = messages[-1].get("content", "") if messages else ""
         if not instruction:
             spinner_state = get_spinner_state(op_start)
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             print_operation_box(
                 op_type="WhingeSurf Error",
                 results=["I need a user message to proceed.", "WhingeSurf is under construction"],
@@ -40,7 +42,8 @@ class WhingeSurfBlueprint(BlueprintBase):
                 operation_type="WhingeSurf Run",
                 search_mode=None,
                 total_lines=None,
-                emoji='🌊'
+                emoji='🌊',
+                border=border
             )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
@@ -97,11 +100,13 @@ class WhingeSurfBlueprint(BlueprintBase):
                 total_lines=None,
                 emoji='🌊'
             )
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             print_operation_box(
                 op_type="WhingeSurf Error",
                 results=["WhingeSurf is under construction"],
                 result_type="whinge_surf",
                 summary="Blueprint scaffold / UX demonstration",
-                emoji='🌊'
+                emoji='🌊',
+                border=border
             )
             raise

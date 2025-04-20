@@ -278,6 +278,8 @@ class CodeyBlueprint(BlueprintBase):
         self.audit_logger.log_event("agent_action", {"status": "start"})
         self.audit_logger.log_event("completion", {"event": "start", "messages": messages})
         if not instruction:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
             print_operation_box(
                 op_type="Codey Error",
@@ -289,13 +291,16 @@ class CodeyBlueprint(BlueprintBase):
                 spinner_state=spinner_state,
                 operation_type="Codey Run",
                 search_mode=None,
-                total_lines=None
+                total_lines=None,
+                border=border
             )
             self.audit_logger.log_event("completion", {"event": "no_user_message", "messages": messages})
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             self.audit_logger.log_event("agent_action", {"status": "end"})
             self.audit_logger.log_event("completion", {"status": "done"})
             return
+        import os
+        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
         print_operation_box(
             op_type="Codey Input",
@@ -307,7 +312,8 @@ class CodeyBlueprint(BlueprintBase):
             spinner_state=spinner_state,
             operation_type="Codey Run",
             search_mode=None,
-            total_lines=None
+            total_lines=None,
+            border=border
         )
         import os
         test_mode = os.environ.get("SWARM_TEST_MODE", "0") == "1"
@@ -322,6 +328,8 @@ class CodeyBlueprint(BlueprintBase):
             return
         async for chunk in self._run_non_interactive(instruction, **kwargs):
             content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
             print_operation_box(
                 op_type="Codey Result",
@@ -333,7 +341,8 @@ class CodeyBlueprint(BlueprintBase):
                 spinner_state=spinner_state,
                 operation_type="Codey Run",
                 search_mode=None,
-                total_lines=None
+                total_lines=None,
+                border=border
             )
             # Audit log agent action
             self.audit_logger.log_event("agent_action", {
@@ -357,6 +366,8 @@ class CodeyBlueprint(BlueprintBase):
             if hasattr(result, "__aiter__"):
                 async for chunk in result:
                     result_content = getattr(chunk, 'final_output', str(chunk))
+                    import os
+                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                     spinner_state = get_spinner_state(op_start)
                     print_operation_box(
                         op_type="Codey Result",
@@ -368,7 +379,8 @@ class CodeyBlueprint(BlueprintBase):
                         spinner_state=spinner_state,
                         operation_type="Codey Run",
                         search_mode=None,
-                        total_lines=None
+                        total_lines=None,
+                        border=border
                     )
                     self.audit_logger.log_event("agent_action", {
                         "event": "agent_action",
@@ -380,6 +392,8 @@ class CodeyBlueprint(BlueprintBase):
                 if isinstance(result, list):
                     for chunk in result:
                         result_content = getattr(chunk, 'final_output', str(chunk))
+                        import os
+                        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                         spinner_state = get_spinner_state(op_start)
                         print_operation_box(
                             op_type="Codey Result",
@@ -391,7 +405,8 @@ class CodeyBlueprint(BlueprintBase):
                             spinner_state=spinner_state,
                             operation_type="Codey Run",
                             search_mode=None,
-                            total_lines=None
+                            total_lines=None,
+                            border=border
                         )
                         self.audit_logger.log_event("agent_action", {
                             "event": "agent_action",
@@ -401,6 +416,8 @@ class CodeyBlueprint(BlueprintBase):
                         yield chunk
                 else:
                     result_content = getattr(result, 'final_output', str(result))
+                    import os
+                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                     spinner_state = get_spinner_state(op_start)
                     print_operation_box(
                         op_type="Codey Result",
@@ -412,7 +429,8 @@ class CodeyBlueprint(BlueprintBase):
                         spinner_state=spinner_state,
                         operation_type="Codey Run",
                         search_mode=None,
-                        total_lines=None
+                        total_lines=None,
+                        border=border
                     )
                     self.audit_logger.log_event("agent_action", {
                         "event": "agent_action",
@@ -421,6 +439,8 @@ class CodeyBlueprint(BlueprintBase):
                     })
                     yield result
             elif result is not None:
+                import os
+                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                 spinner_state = get_spinner_state(op_start)
                 print_operation_box(
                     op_type="Codey Result",
@@ -432,7 +452,8 @@ class CodeyBlueprint(BlueprintBase):
                     spinner_state=spinner_state,
                     operation_type="Codey Run",
                     search_mode=None,
-                    total_lines=None
+                    total_lines=None,
+                    border=border
                 )
                 self.audit_logger.log_event("agent_action", {
                     "event": "agent_action",
@@ -442,6 +463,8 @@ class CodeyBlueprint(BlueprintBase):
                 yield {"messages": [{"role": "assistant", "content": str(result)}]}
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             print_operation_box(
                 op_type="Codey Error",
                 results=[f"An error occurred: {e}"],
@@ -452,7 +475,8 @@ class CodeyBlueprint(BlueprintBase):
                 spinner_state="Error!",
                 operation_type="Codey Run",
                 search_mode=None,
-                total_lines=None
+                total_lines=None,
+                border=border
             )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 

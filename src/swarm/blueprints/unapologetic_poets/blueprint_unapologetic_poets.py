@@ -1,5 +1,5 @@
 """
-Poets Blueprint
+UnapologeticPoets Blueprint
 
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
@@ -14,14 +14,6 @@ from pathlib import Path
 from typing import Dict, Any, List, ClassVar, Optional
 from datetime import datetime
 import pytz
-from datetime import datetime
-import pytz
-from rich.console import Console
-from rich.style import Style
-from rich.text import Text
-import threading
-import time
-from swarm.extensions.cli.utils.async_input import AsyncInputHandler
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -36,7 +28,7 @@ try:
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
-    print(f"ERROR: Import failed in PoetsBlueprint: {e}. Check dependencies.")
+    print(f"ERROR: Import failed in UnapologeticPoetsBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
     sys.exit(1)
 
@@ -172,60 +164,12 @@ write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
-# --- Unified Operation/Result Box for UX ---
-from swarm.core.output_utils import print_operation_box, get_spinner_state
-
-# --- Spinner and ANSI/emoji operation box for unified UX ---
-class PoetsSpinner:
-    FRAMES = [
-        "Generating.", "Generating..", "Generating...", "Running...",
-        "⠋ Generating...", "⠙ Generating...", "⠹ Generating...", "⠸ Generating...",
-        "⠼ Generating...", "⠴ Generating...", "⠦ Generating...", "⠧ Generating...",
-        "⠇ Generating...", "⠏ Generating...", "🤖 Generating...", "💡 Generating...", "✨ Generating..."
-    ]
-    SLOW_FRAME = "⏳ Generating... Taking longer than expected"
-    INTERVAL = 0.12
-    SLOW_THRESHOLD = 10  # seconds
-
-    def __init__(self):
-        self._stop_event = threading.Event()
-        self._thread = None
-        self._start_time = None
-        self.console = Console()
-
-    def start(self):
-        self._stop_event.clear()
-        self._start_time = time.time()
-        self._thread = threading.Thread(target=self._spin, daemon=True)
-        self._thread.start()
-
-    def _spin(self):
-        idx = 0
-        while not self._stop_event.is_set():
-            elapsed = time.time() - self._start_time
-            if elapsed > self.SLOW_THRESHOLD:
-                txt = Text(self.SLOW_FRAME, style=Style(color="yellow", bold=True))
-            else:
-                frame = self.FRAMES[idx % len(self.FRAMES)]
-                txt = Text(frame, style=Style(color="cyan", bold=True))
-            self.console.print(txt, end="\r", soft_wrap=True, highlight=False)
-            time.sleep(self.INTERVAL)
-            idx += 1
-        self.console.print(" " * 40, end="\r")  # Clear line
-
-    def stop(self, final_message="Done!"):
-        self._stop_event.set()
-        if self._thread:
-            self._thread.join()
-        self.console.print(Text(final_message, style=Style(color="green", bold=True)))
-
-
 # --- Define the Blueprint ---
-class PoetsBlueprint(BlueprintBase):
+class UnapologeticPoetsBlueprint(BlueprintBase):
     """A literary blueprint defining a swarm of poet agents using SQLite instructions and agent-as-tool handoffs."""
     metadata: ClassVar[Dict[str, Any]] = {
-        "name": "PoetsBlueprint",
-        "title": "Poets: A Swarm of Literary Geniuses (SQLite)",
+        "name": "UnapologeticPoetsBlueprint",
+        "title": "Unapologetic Poets: A Swarm of Literary Geniuses (SQLite)",
         "description": (
             "A swarm of agents embodying legendary poets, using SQLite for instructions, "
             "agent-as-tool for collaboration, and MCPs for creative augmentation."
@@ -264,9 +208,9 @@ class PoetsBlueprint(BlueprintBase):
 
     # --- Database Interaction ---
     def _init_db_and_load_data(self) -> None:
-        """Initializes the SQLite DB and loads Poets sample data if needed."""
+        """Initializes the SQLite DB and loads Unapologetic Poets sample data if needed."""
         if self._db_initialized: return
-        logger.info(f"Initializing SQLite database at: {DB_PATH} for Poets")
+        logger.info(f"Initializing SQLite database at: {DB_PATH} for Unapologetic Poets")
         try:
             DB_PATH.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(DB_PATH) as conn:
@@ -284,9 +228,9 @@ class PoetsBlueprint(BlueprintBase):
 
                     cursor.executemany(f"INSERT OR IGNORE INTO {TABLE_NAME} (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)", sample_data)
                     conn.commit()
-                    logger.info(f"Sample agent instructions for Poets loaded into {DB_PATH}")
+                    logger.info(f"Sample agent instructions for Unapologetic Poets loaded into {DB_PATH}")
                 else:
-                    logger.info(f"Poets agent instructions found in {DB_PATH}. Skipping.")
+                    logger.info(f"Unapologetic Poets agent instructions found in {DB_PATH}. Skipping.")
             self._db_initialized = True
         except sqlite3.Error as e:
             logger.error(f"SQLite error during DB init/load: {e}", exc_info=True)
@@ -349,115 +293,79 @@ class PoetsBlueprint(BlueprintBase):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: list):
-        logger = logging.getLogger(__name__)
+    async def run(self, messages: list) -> object:
         import time
         op_start = time.monotonic()
-        from agents import Runner
-        try:
-            result = await Runner.run(self.create_starting_agent([]), messages[-1].get("content", ""))
-            if hasattr(result, "__aiter__"):
-                async for chunk in result:
-                    result_content = getattr(chunk, 'final_output', str(chunk))
-                    spinner_state = get_spinner_state(op_start)
-                    import os
-                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                    print_operation_box(
-                        op_type="Poets Result",
-                        results=[result_content],
-                        params=None,
-                        result_type="creative",
-                        summary="Poets agent response",
-                        progress_line=None,
-                        spinner_state=spinner_state,
-                        operation_type="Creative Output",
-                        search_mode=None,
-                        total_lines=None,
-                        border=border
-                    )
-                    yield chunk
-            elif isinstance(result, (list, dict)):
-                if isinstance(result, list):
-                    for chunk in result:
-                        result_content = getattr(chunk, 'final_output', str(chunk))
-                        spinner_state = get_spinner_state(op_start)
-                        import os
-                        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                        print_operation_box(
-                            op_type="Poets Result",
-                            results=[result_content],
-                            params=None,
-                            result_type="creative",
-                            summary="Poets agent response",
-                            progress_line=None,
-                            spinner_state=spinner_state,
-                            operation_type="Creative Output",
-                            search_mode=None,
-                            total_lines=None,
-                            border=border
-                        )
-                        yield chunk
-                else:
-                    result_content = getattr(result, 'final_output', str(result))
-                    spinner_state = get_spinner_state(op_start)
-                    import os
-                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                    print_operation_box(
-                        op_type="Poets Result",
-                        results=[result_content],
-                        params=None,
-                        result_type="creative",
-                        summary="Poets agent response",
-                        progress_line=None,
-                        spinner_state=spinner_state,
-                        operation_type="Creative Output",
-                        search_mode=None,
-                        total_lines=None,
-                        border=border
-                    )
-                    yield result
-            elif result is not None:
-                spinner_state = get_spinner_state(op_start)
-                import os
-                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                print_operation_box(
-                    op_type="Poets Result",
-                    results=[str(result)],
-                    params=None,
-                    result_type="creative",
-                    summary="Poets agent response",
-                    progress_line=None,
-                    spinner_state=spinner_state,
-                    operation_type="Creative Output",
-                    search_mode=None,
-                    total_lines=None,
-                    border=border
-                )
-                yield {"messages": [{"role": "assistant", "content": str(result)}]}
-        except Exception as e:
-            spinner_state = get_spinner_state(op_start)
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
             import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
             print_operation_box(
-                op_type="Poets Error",
-                results=[f"An error occurred: {e}"],
+                op_type="UnapologeticPoets Error",
+                results=["I need a user message to proceed."],
+                summary="No user message provided",
                 params=None,
-                result_type="creative",
-                summary="Poets agent error",
+                result_type="unapologetic_poets",
                 progress_line=None,
                 spinner_state=spinner_state,
-                operation_type="Creative Output",
+                operation_type="UnapologeticPoets Run",
                 search_mode=None,
                 total_lines=None,
+                emoji='📰',
                 border=border
             )
-            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        instruction = last_user_message
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="UnapologeticPoets Input",
+            results=[instruction],
+            summary="User instruction received",
+            params=None,
+            result_type="unapologetic_poets",
+            operation_type="UnapologeticPoets Run",
+            search_mode=None,
+            total_lines=None,
+            spinner_state=spinner_state,
+            emoji='📰'
+        )
+        prompt_context = {
+            "user_request": last_user_message,
+            "history": messages[:-1],
+            "available_tools": ["unapologetic_poets"]
+        }
+        rendered_prompt = self.render_prompt("unapologetic_poets_prompt.j2", prompt_context)
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="UnapologeticPoets Result",
+            results=[f"[UnapologeticPoets LLM] Would respond to: {rendered_prompt}"],
+            summary="Generated poet agent response",
+            params={"user_request": last_user_message},
+            result_type="unapologetic_poets",
+            operation_type="UnapologeticPoets Run",
+            search_mode=None,
+            total_lines=None,
+            spinner_state=spinner_state,
+            emoji='📰'
+        )
+        yield {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": f"[UnapologeticPoets LLM] Would respond to: {rendered_prompt}"
+                }
+            ]
+        }
+        return
 
     # --- Agent Creation ---
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
-        """Creates the Poets agent team."""
+        """Creates the Unapologetic Poets agent team."""
         self._init_db_and_load_data()
-        logger.debug("Creating Poets agent team...")
+        logger.debug("Creating Unapologetic Poets agent team...")
         self._model_instance_cache = {}
         self._openai_client_cache = {}
 
@@ -506,10 +414,10 @@ class PoetsBlueprint(BlueprintBase):
         for agent in agents.values():
             agent.tools = agent_tools
 
-        # Create PoetsAgent with fileops tools
-        poets_agent = Agent(
-            name="PoetsAgent",
-            instructions="You are PoetsAgent. You can use fileops tools (read_file, write_file, list_files, execute_shell_command) for any file or shell tasks.",
+        # Create UnapologeticPoetsAgent with fileops tools
+        unapologetic_poets_agent = Agent(
+            name="UnapologeticPoetsAgent",
+            instructions="You are UnapologeticPoetsAgent. You can use fileops tools (read_file, write_file, list_files, execute_shell_command) for any file or shell tasks.",
             tools=[read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool],
             mcp_servers=mcp_servers
         )
@@ -518,62 +426,21 @@ class PoetsBlueprint(BlueprintBase):
         start_name = random.choice(agent_names)
         starting_agent = agents[start_name]
 
-        logger.info(f"Poets agents created (using SQLite). Starting poet: {start_name}")
+        logger.info(f"Unapologetic Poets agents created (using SQLite). Starting poet: {start_name}")
         return starting_agent
 
 # Standard Python entry point
 if __name__ == "__main__":
     import asyncio
     import json
-    import os
-    import sys
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   📰 POETS: SWARM MEDIA & RELEASE DEMO          ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral doc propagation,           ║\n║ swarm-powered media release, and robust agent logic.         ║\n║ Try running: python blueprint_poets.py          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
-    debug_env = os.environ.get("SWARM_DEBUG", "0")
-    debug_flag = "--debug" in sys.argv
-    def debug_print(msg):
-        if debug_env == "1" or debug_flag:
-            print(msg)
-    blueprint = PoetsBlueprint(blueprint_id="demo-1")
-    async def interact():
-        print("\nType your prompt (or 'exit' to quit):\n")
-        messages = []
-        handler = AsyncInputHandler()
-        while True:
-            print("You: ", end="", flush=True)
-            user_input = ""
-            warned = False
-            while True:
-                inp = handler.get_input(timeout=0.1)
-                if inp == 'warn' and not warned:
-                    print("\n[!] Press Enter again to interrupt and send a new message.", flush=True)
-                    warned = True
-                elif inp and inp != 'warn':
-                    user_input = inp
-                    break
-                await asyncio.sleep(0.05)
-            user_input = user_input.strip()
-            if user_input.lower() in {"exit", "quit", "q"}:
-                print("Goodbye!")
-                break
-            messages.append({"role": "user", "content": user_input})
-            spinner = PoetsSpinner()
-            spinner.start()
-            try:
-                all_results = []
-                async for response in blueprint.run(messages):
-                    # Assume response is a dict with 'messages' key
-                    for msg in response.get("messages", []):
-                        all_results.append(msg["content"])
-            finally:
-                spinner.stop()
-            print_operation_box(
-                op_type="Creative Output",
-                results=all_results,
-                params={"prompt": user_input},
-                result_type="creative",
-                operation_type="Creative Output",
-                search_mode=None
-            )
-            # Optionally, clear messages for single-turn, or keep for context
-            messages = []
-    asyncio.run(interact())
+    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   📰 UNAPOLOGETIC POETS: SWARM MEDIA & RELEASE DEMO          ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral doc propagation,           ║\n║ swarm-powered media release, and robust agent logic.         ║\n║ Try running: python blueprint_unapologetic_poets.py          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+    messages = [
+        {"role": "user", "content": "Show me how Unapologetic Poets handles media releases and swarm logic."}
+    ]
+    blueprint = UnapologeticPoetsBlueprint(blueprint_id="demo-1")
+    async def run_and_print():
+        async for response in blueprint.run(messages):
+            print(json.dumps(response, indent=2))
+    asyncio.run(run_and_print())
+
+# TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.

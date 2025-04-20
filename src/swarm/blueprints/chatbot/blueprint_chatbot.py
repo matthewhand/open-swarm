@@ -189,8 +189,63 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
     async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
         """Main execution entry point for the Chatbot blueprint."""
         logger.info("ChatbotBlueprint run method called.")
+        import time
+        op_start = time.monotonic()
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
         instruction = messages[-1].get("content", "") if messages else ""
+        if not instruction:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Chatbot Error",
+                results=["I need a user message to proceed."],
+                params=None,
+                result_type="chat",
+                summary="No user message provided",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Chatbot Run",
+                search_mode=None,
+                total_lines=None,
+                border=border
+            )
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        import os
+        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="Chatbot Input",
+            results=[instruction],
+            params=None,
+            result_type="chat",
+            summary="User instruction received",
+            progress_line=None,
+            spinner_state=spinner_state,
+            operation_type="Chatbot Run",
+            search_mode=None,
+            total_lines=None,
+            border=border
+        )
         async for chunk in self._run_non_interactive(instruction, **kwargs):
+            content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Chatbot Result",
+                results=[content],
+                params=None,
+                result_type="chat",
+                summary="Chatbot response",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Chatbot Run",
+                search_mode=None,
+                total_lines=None,
+                border=border
+            )
             yield chunk
         logger.info("ChatbotBlueprint run method finished.")
 
@@ -202,9 +257,42 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             result = await Runner.run(agent, instruction)
-            yield {"messages": [{"role": "assistant", "content": getattr(result, 'final_output', str(result))}]}
+            response = getattr(result, 'final_output', str(result))
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            from swarm.core.output_utils import print_operation_box
+            print_operation_box(
+                op_type="Chatbot Result",
+                results=[response],
+                params=None,
+                result_type="chat",
+                summary="Chatbot response",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="Chatbot Run",
+                search_mode=None,
+                total_lines=None,
+                border=border
+            )
+            yield {"messages": [{"role": "assistant", "content": response}]}
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            from swarm.core.output_utils import print_operation_box
+            print_operation_box(
+                op_type="Chatbot Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="chat",
+                summary="Chatbot error",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="Chatbot Run",
+                search_mode=None,
+                total_lines=None,
+                border=border
+            )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 # Standard Python entry point

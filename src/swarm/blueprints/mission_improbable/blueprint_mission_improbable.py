@@ -260,6 +260,8 @@ class MissionImprobableBlueprint(BlueprintBase):
         from swarm.core.output_utils import print_operation_box, get_spinner_state
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
             print_operation_box(
                 op_type="MissionImprobable Error",
@@ -272,11 +274,14 @@ class MissionImprobableBlueprint(BlueprintBase):
                 operation_type="MissionImprobable Error",
                 search_mode=None,
                 total_lines=None,
-                emoji='🕵️'
+                emoji='🕵️',
+                border=border
             )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
         instruction = last_user_message
+        import os
+        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
         print_operation_box(
             op_type="MissionImprobable Input",
@@ -289,7 +294,8 @@ class MissionImprobableBlueprint(BlueprintBase):
             operation_type="MissionImprobable Input",
             search_mode=None,
             total_lines=None,
-            emoji='🕵️'
+            emoji='🕵️',
+            border=border
         )
         prompt_context = {
             "user_request": last_user_message,
@@ -297,19 +303,22 @@ class MissionImprobableBlueprint(BlueprintBase):
             "available_tools": ["mission_improbable"]
         }
         rendered_prompt = self.render_prompt("mission_improbable_prompt.j2", prompt_context)
+        import os
+        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
         print_operation_box(
             op_type="MissionImprobable Result",
             results=[f"[MissionImprobable LLM] Would respond to: {rendered_prompt}"],
             params=None,
             result_type="mission_improbable",
-            summary="MissionImprobable agent response",
+            summary="Generated mission response",
             progress_line=None,
             spinner_state=spinner_state,
             operation_type="MissionImprobable Result",
             search_mode=None,
             total_lines=None,
-            emoji='🕵️'
+            emoji='🕵️',
+            border=border
         )
         yield {
             "messages": [

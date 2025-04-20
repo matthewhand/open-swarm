@@ -95,6 +95,8 @@ def edit_story(full_story: str, edit_instructions: str) -> str:
 
 from rich.console import Console
 from rich.panel import Panel
+from swarm.blueprints.common.spinner import SwarmSpinner
+from swarm.core.output_utils import print_operation_box, get_spinner_state
 
 class GeeseBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, config_path: Optional[str] = None, **kwargs):
@@ -131,9 +133,77 @@ class GeeseBlueprint(BlueprintBase):
         self._openai_client_cache = {}
 
     async def run(self, messages: List[dict], **kwargs):
-        # Pass the prompt to the coordinator agent and yield results
-        async for result in self.coordinator.run(messages):
-            yield result
+        import time
+        op_start = time.monotonic()
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
+        instruction = messages[-1].get("content", "") if messages else ""
+        if not instruction:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Geese Error",
+                results=["I need a user message to proceed."],
+                params=None,
+                result_type="creative",
+                summary="No user message provided",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Geese Run",
+                search_mode=None,
+                total_lines=None,
+                border=border
+            )
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="Geese Input",
+            results=[instruction],
+            params=None,
+            result_type="creative",
+            summary="User instruction received",
+            progress_line=None,
+            spinner_state=spinner_state,
+            operation_type="Geese Run",
+            search_mode=None,
+            total_lines=None
+        )
+        try:
+            async for chunk in self._run_non_interactive(instruction, **kwargs):
+                content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
+                spinner_state = get_spinner_state(op_start)
+                print_operation_box(
+                    op_type="Geese Result",
+                    results=[content],
+                    params=None,
+                    result_type="creative",
+                    summary="Geese agent response",
+                    progress_line=None,
+                    spinner_state=spinner_state,
+                    operation_type="Geese Run",
+                    search_mode=None,
+                    total_lines=None
+                )
+                yield chunk
+        except Exception as e:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Geese Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="creative",
+                summary="Geese agent error",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Geese Run",
+                search_mode=None,
+                total_lines=None,
+                border=border
+            )
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
     def display_splash_screen(self, animated: bool = False):
         console = Console()
@@ -151,7 +221,7 @@ class GeeseBlueprint(BlueprintBase):
         panel = Panel(splash, title="[bold magenta]Geese Blueprint[/]", border_style="magenta", expand=False)
         console.print(panel)
         console.print() # Blank line for spacing
-    
+
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Returns the coordinator agent for GeeseBlueprint."""
         # mcp_servers not used in this blueprint

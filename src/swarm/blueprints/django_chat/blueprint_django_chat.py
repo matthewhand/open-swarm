@@ -111,6 +111,8 @@ class DjangoChatBlueprint(Blueprint):
         try:
             last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
             if not last_user_message:
+                import os
+                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                 spinner_state = get_spinner_state(op_start)
                 print_operation_box(
                     op_type="DjangoChat Error",
@@ -123,7 +125,8 @@ class DjangoChatBlueprint(Blueprint):
                     operation_type="DjangoChat Run",
                     search_mode=None,
                     total_lines=None,
-                    emoji='💬'
+                    emoji='💬',
+                    border=border
                 )
                 yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
                 return
@@ -156,6 +159,8 @@ class DjangoChatBlueprint(Blueprint):
                 ]
             }
         except Exception as e:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
             print_operation_box(
                 op_type="DjangoChat Error",
@@ -168,7 +173,8 @@ class DjangoChatBlueprint(Blueprint):
                 operation_type="DjangoChat Run",
                 search_mode=None,
                 total_lines=None,
-                emoji='💬'
+                emoji='💬',
+                border=border
             )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
         # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.

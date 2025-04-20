@@ -239,6 +239,8 @@ class OmniplexBlueprint(BlueprintBase):
         op_start = time.monotonic()
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
             print_operation_box(
                 op_type="Omniplex Error",
@@ -251,11 +253,14 @@ class OmniplexBlueprint(BlueprintBase):
                 operation_type="Omniplex Run",
                 search_mode=None,
                 total_lines=None,
-                emoji='🧩'
+                emoji='🧩',
+                border=border
             )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
         instruction = last_user_message
+        import os
+        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
         print_operation_box(
             op_type="Omniplex Result",
@@ -268,11 +273,14 @@ class OmniplexBlueprint(BlueprintBase):
             operation_type="Omniplex Run",
             search_mode=None,
             total_lines=None,
-            emoji='🧩'
+            emoji='🧩',
+            border=border
         )
         async for chunk in self._run_non_interactive(instruction, **kwargs):
             # Unified UX output for each chunk/result
             result_content = chunk.get('messages', [{}])[-1].get('content', str(chunk))
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
             print_operation_box(
                 op_type="Omniplex Result",
@@ -285,7 +293,8 @@ class OmniplexBlueprint(BlueprintBase):
                 operation_type="Omniplex Run",
                 search_mode=None,
                 total_lines=None,
-                emoji='🧩'
+                emoji='🧩',
+                border=border
             )
             yield chunk
         logger.info("OmniplexBlueprint run method finished.")
@@ -302,6 +311,8 @@ class OmniplexBlueprint(BlueprintBase):
             result = await Runner.run(agent, instruction)
             if hasattr(result, "__aiter__"):
                 async for chunk in result:
+                    import os
+                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                     spinner_state = get_spinner_state(op_start)
                     print_operation_box(
                         op_type="Omniplex Spinner",
@@ -314,10 +325,13 @@ class OmniplexBlueprint(BlueprintBase):
                         operation_type="Omniplex Run",
                         search_mode=None,
                         total_lines=None,
-                        emoji='🧩'
+                        emoji='🧩',
+                        border=border
                     )
                     yield chunk
             else:
+                import os
+                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
                 spinner_state = get_spinner_state(op_start)
                 print_operation_box(
                     op_type="Omniplex Spinner",
@@ -330,11 +344,14 @@ class OmniplexBlueprint(BlueprintBase):
                     operation_type="Omniplex Run",
                     search_mode=None,
                     total_lines=None,
-                    emoji='🧩'
+                    emoji='🧩',
+                    border=border
                 )
                 yield result
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             print_operation_box(
                 op_type="Omniplex Error",
                 results=[f"An error occurred: {e}"],
@@ -346,7 +363,8 @@ class OmniplexBlueprint(BlueprintBase):
                 operation_type="Omniplex Run",
                 search_mode=None,
                 total_lines=None,
-                emoji='🧩'
+                emoji='🧩',
+                border=border
             )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
         # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.

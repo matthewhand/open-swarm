@@ -17,6 +17,7 @@ import subprocess
 import sys
 import shlex # Import shlex
 from typing import Dict, Any, List, ClassVar, Optional
+import time
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -30,6 +31,7 @@ try:
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.output_utils import print_operation_box, get_spinner_state
 except ImportError as e:
     print(f"ERROR: Import failed in MonkaiMagicBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -115,6 +117,10 @@ def vercel_cli(command: str) -> str:
         return f"Error: Unexpected error during Vercel CLI: {e}"
 
 
+# --- Unified Operation/Result Box for UX ---
+# Removed local print_operation_box; use the shared one from output_utils
+
+
 # --- Define the Blueprint ---
 # === OpenAI GPT-4.1 Prompt Engineering Guide ===
 # See: https://github.com/openai/openai-cookbook/blob/main/examples/gpt4-1_prompting_guide.ipynb
@@ -187,26 +193,89 @@ class MonkaiMagicBlueprint(BlueprintBase):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: list) -> object:
-        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
-        if not last_user_message:
+    async def run(self, messages: list, **kwargs):
+        import time
+        op_start = time.monotonic()
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
+        instruction = messages[-1].get("content", "") if messages else ""
+        if not instruction:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="MonkaiMagic Error",
+                results=["I need a user message to proceed."],
+                params=None,
+                result_type="monkai_magic",
+                summary="No user message provided",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="MonkaiMagic Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧙',
+                border=border
+            )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
-        prompt_context = {
-            "user_request": last_user_message,
-            "history": messages[:-1],
-            "available_tools": ["monkai_magic"]
-        }
-        rendered_prompt = self.render_prompt("monkai_magic_prompt.j2", prompt_context)
-        yield {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": f"[MonkaiMagic LLM] Would respond to: {rendered_prompt}"
-                }
-            ]
-        }
-        return
+        import os
+        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="MonkaiMagic Input",
+            results=[instruction],
+            params=None,
+            result_type="monkai_magic",
+            summary="User instruction received",
+            progress_line=None,
+            spinner_state=spinner_state,
+            operation_type="MonkaiMagic Run",
+            search_mode=None,
+            total_lines=None,
+            emoji='🧙',
+            border=border
+        )
+        try:
+            async for chunk in self._run_non_interactive(instruction, **kwargs):
+                content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
+                import os
+                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+                spinner_state = get_spinner_state(op_start)
+                print_operation_box(
+                    op_type="MonkaiMagic Result",
+                    results=[content],
+                    params=None,
+                    result_type="monkai_magic",
+                    summary="MonkaiMagic agent response",
+                    progress_line=None,
+                    spinner_state=spinner_state,
+                    operation_type="MonkaiMagic Run",
+                    search_mode=None,
+                    total_lines=None,
+                    emoji='🧙',
+                    border=border
+                )
+                yield chunk
+        except Exception as e:
+            import os
+            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="MonkaiMagic Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="monkai_magic",
+                summary="MonkaiMagic agent error",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="MonkaiMagic Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧙',
+                border=border
+            )
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+        # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the MonkaiMagic agent team and returns Tripitaka."""
