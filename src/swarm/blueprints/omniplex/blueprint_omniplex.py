@@ -131,6 +131,9 @@ class OmniplexBlueprint(BlueprintBase):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
+    # --- Unified Operation/Result Box for UX ---
+    from swarm.core.output_utils import print_operation_box, get_spinner_state
+
     # --- Agent Creation ---
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the Omniplex agent team based on available started MCP servers."""
@@ -221,7 +224,7 @@ class OmniplexBlueprint(BlueprintBase):
 
         # Create Coordinator and pass the tools for the agents that were created
         coordinator_agent = Agent(
-            name="OmniplexCoordinator",
+            name="OmniplexAgent",
             model=model_instance,
             instructions=coordinator_instructions,
             tools=team_tools,
@@ -231,26 +234,122 @@ class OmniplexBlueprint(BlueprintBase):
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
-        """Main execution entry point for the Omniplex blueprint."""
-        logger.info("OmniplexBlueprint run method called.")
-        instruction = messages[-1].get("content", "") if messages else ""
+    async def run(self, messages: List[Dict[str, Any]], **kwargs):
+        import time
+        op_start = time.monotonic()
+        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+        if not last_user_message:
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Omniplex Error",
+                results=["I need a user message to proceed."],
+                params=None,
+                result_type="omniplex",
+                summary="No user message provided",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Omniplex Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧩'
+            )
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        instruction = last_user_message
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="Omniplex Result",
+            results=[instruction],
+            params=None,
+            result_type="omniplex",
+            summary="User instruction received",
+            progress_line=None,
+            spinner_state=spinner_state,
+            operation_type="Omniplex Run",
+            search_mode=None,
+            total_lines=None,
+            emoji='🧩'
+        )
         async for chunk in self._run_non_interactive(instruction, **kwargs):
+            # Unified UX output for each chunk/result
+            result_content = chunk.get('messages', [{}])[-1].get('content', str(chunk))
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Omniplex Result",
+                results=[result_content],
+                params=None,
+                result_type="omniplex",
+                summary="Omniplex agent response",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Omniplex Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧩'
+            )
             yield chunk
         logger.info("OmniplexBlueprint run method finished.")
 
-    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+    async def _run_non_interactive(self, instruction: str, **kwargs):
         logger.info(f"Running OmniplexBlueprint non-interactively with instruction: '{instruction[:100]}...'")
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
         from agents import Runner
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        import time
+        op_start = time.monotonic()
         try:
-            for chunk in Runner.run(agent, instruction):
-                yield chunk
+            result = await Runner.run(agent, instruction)
+            if hasattr(result, "__aiter__"):
+                async for chunk in result:
+                    spinner_state = get_spinner_state(op_start)
+                    print_operation_box(
+                        op_type="Omniplex Spinner",
+                        results=["Generating Omniplex result..."],
+                        params=None,
+                        result_type="omniplex",
+                        summary="Processing...",
+                        progress_line=None,
+                        spinner_state=spinner_state,
+                        operation_type="Omniplex Run",
+                        search_mode=None,
+                        total_lines=None,
+                        emoji='🧩'
+                    )
+                    yield chunk
+            else:
+                spinner_state = get_spinner_state(op_start)
+                print_operation_box(
+                    op_type="Omniplex Spinner",
+                    results=["Generating Omniplex result..."],
+                    params=None,
+                    result_type="omniplex",
+                    summary="Processing...",
+                    progress_line=None,
+                    spinner_state=spinner_state,
+                    operation_type="Omniplex Run",
+                    search_mode=None,
+                    total_lines=None,
+                    emoji='🧩'
+                )
+                yield result
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            print_operation_box(
+                op_type="Omniplex Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="omniplex",
+                summary="Omniplex agent error",
+                progress_line=None,
+                spinner_state="Error!",
+                operation_type="Omniplex Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧩'
+            )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+        # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.
 
 # Standard Python entry point
 if __name__ == "__main__":
