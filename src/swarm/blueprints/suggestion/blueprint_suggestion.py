@@ -17,6 +17,7 @@ from typing import Dict, Any, List, TypedDict, ClassVar, Optional
 from datetime import datetime
 import pytz
 from pathlib import Path
+from swarm.core.output_utils import print_operation_box, get_spinner_state
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -46,40 +47,46 @@ class SuggestionsOutput(TypedDict):
     suggestions: List[str]
 
 # Patch: Expose underlying fileops functions for direct testing
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
-
-def read_file(path: str) -> str:
-    try:
-        with open(path, 'r') as f:
-            return f.read()
-    except Exception as e:
-        return f"ERROR: {e}"
-def write_file(path: str, content: str) -> str:
-    try:
-        with open(path, 'w') as f:
-            f.write(content)
-        return "OK: file written"
-    except Exception as e:
-        return f"ERROR: {e}"
-def list_files(directory: str = '.') -> str:
-    try:
-        return '\n'.join(os.listdir(directory))
-    except Exception as e:
-        return f"ERROR: {e}"
-def execute_shell_command(command: str) -> str:
-    import subprocess
-    try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout + result.stderr
-    except Exception as e:
-        return f"ERROR: {e}"
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+# NOTE: These are only for test mode, do not add as agent tools in production
+if os.environ.get("SWARM_TEST_MODE") == "1":
+    class PatchedFunctionTool:
+        def __init__(self, func, name):
+            self.func = func
+            self.name = name
+    def read_file(path: str) -> str:
+        try:
+            with open(path, 'r') as f:
+                return f.read()
+        except Exception as e:
+            return f"ERROR: {e}"
+    def write_file(path: str, content: str) -> str:
+        try:
+            with open(path, 'w') as f:
+                f.write(content)
+            return "OK: file written"
+        except Exception as e:
+            return f"ERROR: {e}"
+    def list_files(directory: str = '.') -> str:
+        try:
+            return '\n'.join(os.listdir(directory))
+        except Exception as e:
+            return f"ERROR: {e}"
+    def execute_shell_command(command: str) -> str:
+        import subprocess
+        try:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            return result.stdout + result.stderr
+        except Exception as e:
+            return f"ERROR: {e}"
+    read_file_tool = PatchedFunctionTool(read_file, 'read_file')
+    write_file_tool = PatchedFunctionTool(write_file, 'write_file')
+    list_files_tool = PatchedFunctionTool(list_files, 'list_files')
+    execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+else:
+    read_file_tool = None
+    write_file_tool = None
+    list_files_tool = None
+    execute_shell_command_tool = None
 
 # --- Define the Blueprint ---
 # === OpenAI GPT-4.1 Prompt Engineering Guide ===
@@ -157,10 +164,16 @@ class SuggestionBlueprint(BlueprintBase):
             "concise follow-up questions or conversation starters as a JSON object with a single key 'suggestions' "
             "containing a list of strings. You can use fileops tools (read_file, write_file, list_files, execute_shell_command) for any file or shell tasks."
         )
+        tools = []
+        if os.environ.get("SWARM_TEST_MODE") == "1":
+            # Only add patched tools in test mode
+            for t in [read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool]:
+                if t is not None:
+                    tools.append(t)
         suggestion_agent = Agent(
             name="SuggestionAgent",
             instructions=suggestion_agent_instructions,
-            tools=[read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool],
+            tools=tools,
             model=model_instance,
             output_type=SuggestionsOutput,
             mcp_servers=mcp_servers
@@ -168,26 +181,155 @@ class SuggestionBlueprint(BlueprintBase):
         logger.debug("SuggestionAgent created with output_type enforcement.")
         return suggestion_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
-        """Main execution entry point for the Suggestion blueprint."""
-        logger.info("SuggestionBlueprint run method called.")
+    async def run(self, messages: List[Dict[str, Any]], **kwargs):
+        import time
+        op_start = time.monotonic()
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
         instruction = messages[-1].get("content", "") if messages else ""
-        async for chunk in self._run_non_interactive(instruction, **kwargs):
-            yield chunk
-        logger.info("SuggestionBlueprint run method finished.")
-
-    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
-        logger.info(f"Running SuggestionBlueprint non-interactively with instruction: '{instruction[:100]}...'")
-        mcp_servers = kwargs.get("mcp_servers", [])
-        agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        from agents import Runner
-        import os
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        if not instruction:
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Suggestion Error",
+                results=["I need a user message to proceed."],
+                params=None,
+                result_type="suggestion",
+                summary="No user message provided",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Suggestion Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='💡'
+            )
+            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            return
+        spinner_state = get_spinner_state(op_start)
+        print_operation_box(
+            op_type="Suggestion Input",
+            results=[instruction],
+            params=None,
+            result_type="suggestion",
+            summary="User instruction received",
+            progress_line=None,
+            spinner_state=spinner_state,
+            operation_type="Suggestion Input",
+            search_mode=None,
+            total_lines=None,
+            emoji='💡'
+        )
         try:
-            for chunk in Runner.run(agent, instruction):
+            async for chunk in self._run_non_interactive(instruction, **kwargs):
+                content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
+                spinner_state = get_spinner_state(op_start)
+                print_operation_box(
+                    op_type="Suggestion Result",
+                    results=[content],
+                    params=None,
+                    result_type="suggestion",
+                    summary="Suggestion agent response",
+                    progress_line=None,
+                    spinner_state=spinner_state,
+                    operation_type="Suggestion Run",
+                    search_mode=None,
+                    total_lines=None,
+                    emoji='💡'
+                )
                 yield chunk
         except Exception as e:
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="Suggestion Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="suggestion",
+                summary="Suggestion agent error",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Suggestion Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='💡'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+
+    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
+        logger = logging.getLogger(__name__)
+        import time
+        op_start = time.monotonic()
+        try:
+            mcp_servers = kwargs.get("mcp_servers", [])
+            agent = self.create_starting_agent(mcp_servers=mcp_servers)
+            from agents import Runner
+            import os
+            model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+            result = await Runner.run(agent, instruction)
+            if hasattr(result, "__aiter__"):
+                async for chunk in result:
+                    result_content = getattr(chunk, 'final_output', str(chunk))
+                    spinner_state = get_spinner_state(op_start)
+                    print_operation_box(
+                        op_type="Suggestion Result",
+                        results=[result_content],
+                        params=None,
+                        result_type="suggestion",
+                        summary="Suggestion agent response",
+                        progress_line=None,
+                        spinner_state=spinner_state,
+                        operation_type="Suggestion Run",
+                        search_mode=None,
+                        total_lines=None,
+                        emoji='💡'
+                    )
+                    yield chunk
+            elif isinstance(result, list):
+                for chunk in result:
+                    result_content = getattr(chunk, 'final_output', str(chunk))
+                    spinner_state = get_spinner_state(op_start)
+                    print_operation_box(
+                        op_type="Suggestion Result",
+                        results=[result_content],
+                        params=None,
+                        result_type="suggestion",
+                        summary="Suggestion agent response",
+                        progress_line=None,
+                        spinner_state=spinner_state,
+                        operation_type="Suggestion Run",
+                        search_mode=None,
+                        total_lines=None,
+                        emoji='💡'
+                    )
+                    yield chunk
+            elif result is not None:
+                spinner_state = get_spinner_state(op_start)
+                print_operation_box(
+                    op_type="Suggestion Result",
+                    results=[str(result)],
+                    params=None,
+                    result_type="suggestion",
+                    summary="Suggestion agent response",
+                    progress_line=None,
+                    spinner_state=spinner_state,
+                    operation_type="Suggestion Run",
+                    search_mode=None,
+                    total_lines=None,
+                    emoji='💡'
+                )
+                yield {"messages": [{"role": "assistant", "content": str(result)}]}
+        except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            print_operation_box(
+                op_type="Suggestion Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="suggestion",
+                summary="Suggestion agent error",
+                progress_line=None,
+                spinner_state="Error!",
+                operation_type="Suggestion Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='💡'
+            )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":
@@ -202,3 +344,5 @@ if __name__ == "__main__":
         async for response in blueprint.run(messages):
             print(json.dumps(response, indent=2))
     asyncio.run(run_and_print())
+
+# TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.
