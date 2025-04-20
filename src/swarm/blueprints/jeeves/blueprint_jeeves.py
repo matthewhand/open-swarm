@@ -1,8 +1,6 @@
 """
-DigitalButlers Blueprint
-
-Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
-Self-healing, fileops-enabled, swarm-scalable.
+Jeeves Blueprint (formerly DigitalButlers)
+This file was moved from digitalbutlers/blueprint_digitalbutlers.py
 """
 # [Swarm Propagation] Next Blueprint: divine_code
 # divine_code key vars: logger, project_root, src_path
@@ -16,37 +14,30 @@ import sys
 from typing import Dict, Any, List, ClassVar, Optional
 from datetime import datetime
 import pytz
-
-# Ensure src is in path for BlueprintBase import
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
-
 from typing import Optional
 from pathlib import Path
+
 try:
-    from agents import Agent, Tool, function_tool, Runner # Added Runner
+    from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
-    print(f"ERROR: Import failed in DigitalButlersBlueprint: {e}. Check 'openai-agents' install and project structure.")
+    print(f"ERROR: Import failed in JeevesBlueprint: {e}. Check 'openai-agents' install and project structure.")
     print(f"Attempted import from directory: {os.path.dirname(__file__)}")
     print(f"sys.path: {sys.path}")
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
 
-# Last swarm update: 2025-04-18T10:15:21Z (UTC)
 utc_now = datetime.now(pytz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 print(f"# Last swarm update: {utc_now} (UTC)")
 
 # --- Agent Instructions ---
-
 SHARED_INSTRUCTIONS = """
-You are part of the Digital Butlers team. Collaborate via Jeeves, the coordinator.
+You are part of the Jeeves team. Collaborate via Jeeves, the coordinator.
 Roles:
 - Jeeves (Coordinator): User interface, planning, delegation via Agent Tools.
 - Mycroft (Web Search): Uses `duckduckgo-search` MCP tool for private web searches.
@@ -81,19 +72,19 @@ gutenberg_instructions = (
     "You can use fileops tools (read_file, write_file, list_files, execute_shell_command) for any file or shell tasks."
 )
 
-
 # --- FileOps Tool Logic Definitions ---
- # Patch: Expose underlying fileops functions for direct testing
 class PatchedFunctionTool:
     def __init__(self, func, name):
         self.func = func
         self.name = name
+
 def read_file(path: str) -> str:
     try:
         with open(path, 'r') as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
+
 def write_file(path: str, content: str) -> str:
     try:
         with open(path, 'w') as f:
@@ -101,11 +92,13 @@ def write_file(path: str, content: str) -> str:
         return "OK: file written"
     except Exception as e:
         return f"ERROR: {e}"
+
 def list_files(directory: str = '.') -> str:
     try:
         return '\n'.join(os.listdir(directory))
     except Exception as e:
         return f"ERROR: {e}"
+
 def execute_shell_command(command: str) -> str:
     import subprocess
     try:
@@ -113,6 +106,7 @@ def execute_shell_command(command: str) -> str:
         return result.stdout + result.stderr
     except Exception as e:
         return f"ERROR: {e}"
+
 read_file_tool = PatchedFunctionTool(read_file, 'read_file')
 write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
@@ -122,54 +116,41 @@ execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute
 SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 
 # --- Define the Blueprint ---
-class DigitalButlersBlueprint(BlueprintBase):
+class JeevesBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
 
-    """Blueprint for private web search and home automation using a team of digital butlers."""
+    """Blueprint for private web search and home automation using a team of digital butlers (Jeeves, Mycroft, Gutenberg)."""
     metadata: ClassVar[Dict[str, Any]] = {
-            "name": "DigitalButlersBlueprint",
-            "title": "Digital Butlers",
+            "name": "JeevesBlueprint",
+            "title": "Jeeves",
             "description": "Provides private web search (DuckDuckGo) and home automation (Home Assistant) via specialized agents (Jeeves, Mycroft, Gutenberg).",
             "version": "1.1.0", # Version updated
             "author": "Open Swarm Team (Refactored)",
             "tags": ["web search", "home automation", "duckduckgo", "home assistant", "multi-agent", "delegation"],
-            "required_mcp_servers": ["duckduckgo-search", "home-assistant"], # List the MCP servers needed by the agents
-            # Env vars listed here are informational; they are primarily used by the MCP servers themselves,
-            # loaded via .env by BlueprintBase or the MCP process.
-            # "env_vars": ["SERPAPI_API_KEY", "HASS_URL", "HASS_API_KEY"]
+            "required_mcp_servers": ["duckduckgo-search", "home-assistant"],
         }
 
-    # Caches for OpenAI client and Model instances
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
-    # --- Model Instantiation Helper --- (Copied from BurntNoodles)
     def _get_model_instance(self, profile_name: str) -> Model:
-        """
-        Retrieves or creates an LLM Model instance based on the configuration profile.
-        Handles client instantiation and caching. Uses OpenAIChatCompletionsModel.
-        """
         if profile_name in self._model_instance_cache:
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
-
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         profile_data = self.get_llm_profile(profile_name)
         if not profile_data:
              logger.critical(f"Cannot create Model instance: LLM profile '{profile_name}' (or 'default') not found.")
              raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
-
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
         if not model_name:
              logger.critical(f"LLM profile '{profile_name}' missing 'model' key.")
              raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
-
         if provider != "openai":
             logger.error(f"Unsupported LLM provider '{provider}' in profile '{profile_name}'.")
             raise ValueError(f"Unsupported LLM provider: {provider}")
-
         client_cache_key = f"{provider}_{profile_data.get('base_url')}"
         if client_cache_key not in self._openai_client_cache:
              client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
@@ -181,9 +162,7 @@ class DigitalButlersBlueprint(BlueprintBase):
              except Exception as e:
                  logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
                  raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
-
         openai_client_instance = self._openai_client_cache[client_cache_key]
-
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for profile '{profile_name}'.")
         try:
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
@@ -194,39 +173,31 @@ class DigitalButlersBlueprint(BlueprintBase):
              raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
-        """Creates the Digital Butlers agent team: Jeeves, Mycroft, Gutenberg."""
-        logger.debug("Creating Digital Butlers agent team...")
+        logger.debug("Creating Jeeves agent team...")
         self._model_instance_cache = {}
         self._openai_client_cache = {}
-
         default_profile_name = self.config.get("llm_profile", "default")
-        logger.debug(f"Using LLM profile '{default_profile_name}' for Digital Butler agents.")
+        logger.debug(f"Using LLM profile '{default_profile_name}' for Jeeves agents.")
         model_instance = self._get_model_instance(default_profile_name)
-
-        # Instantiate specialist agents, passing the *required* MCP servers
-        # Note: Agent class currently accepts the full list, but ideally would filter or select.
-        # We rely on the agent's instructions and the MCP server name matching for now.
         mycroft_agent = Agent(
             name="Mycroft",
             model=model_instance,
             instructions=mycroft_instructions,
-            tools=[], # Mycroft uses MCP, not function tools
-            mcp_servers=[s for s in mcp_servers if s.name == "duckduckgo-search"] # Pass only relevant MCP
+            tools=[],
+            mcp_servers=[s for s in mcp_servers if s.name == "duckduckgo-search"]
         )
         gutenberg_agent = Agent(
             name="Gutenberg",
             model=model_instance,
             instructions=gutenberg_instructions,
-            tools=[], # Gutenberg uses MCP
-            mcp_servers=[s for s in mcp_servers if s.name == "home-assistant"] # Pass only relevant MCP
+            tools=[],
+            mcp_servers=[s for s in mcp_servers if s.name == "home-assistant"]
         )
-
-        # Instantiate the coordinator agent (Jeeves)
         jeeves_agent = Agent(
             name="Jeeves",
             model=model_instance,
             instructions=jeeves_instructions,
-            tools=[ # Jeeves delegates via Agent-as-Tool
+            tools=[
                 mycroft_agent.as_tool(
                     tool_name="Mycroft",
                     tool_description="Delegate private web search tasks to Mycroft (provide the search query)."
@@ -240,29 +211,24 @@ class DigitalButlersBlueprint(BlueprintBase):
                 list_files_tool,
                 execute_shell_command_tool
             ],
-            # Jeeves itself doesn't directly need MCP servers in this design
             mcp_servers=[]
         )
-
         mycroft_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
         gutenberg_agent.tools.extend([read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool])
-
-        logger.debug("Digital Butlers team created: Jeeves (Coordinator), Mycroft (Search), Gutenberg (Home).")
-        return jeeves_agent # Jeeves is the entry point
+        logger.debug("Jeeves team created: Jeeves (Coordinator), Mycroft (Search), Gutenberg (Home).")
+        return jeeves_agent
 
     async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
-        """Main execution entry point for the DigitalButlers blueprint."""
-        logger.info("DigitalButlersBlueprint run method called.")
+        logger.info("JeevesBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
         async for chunk in self._run_non_interactive(instruction, **kwargs):
             yield chunk
-        logger.info("DigitalButlersBlueprint run method finished.")
+        logger.info("JeevesBlueprint run method finished.")
 
     async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
-        logger.info(f"Running DigitalButlers non-interactively with instruction: '{instruction[:100]}...'")
+        logger.info(f"Running Jeeves non-interactively with instruction: '{instruction[:100]}...'")
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        # Use Runner.run as a classmethod for portability
         from agents import Runner
         import os
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
@@ -273,21 +239,18 @@ class DigitalButlersBlueprint(BlueprintBase):
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
-# Standard Python entry point
 if __name__ == "__main__":
     import asyncio
     import json
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🤖 DIGITALBUTLERS: SWARM ULTIMATE LIMIT TEST               ║\n╠══════════════════════════════════════════════════════════════╣\n║ ULTIMATE: Multi-agent, multi-step, parallel, cross-agent     ║\n║ orchestration, error injection, and viral patching.          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
-    blueprint = DigitalButlersBlueprint(blueprint_id="ultimate-limit-test")
+    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🤖 JEEVES: SWARM ULTIMATE LIMIT TEST                        ║\n╠══════════════════════════════════════════════════════════════╣\n║ ULTIMATE: Multi-agent, multi-step, parallel, cross-agent     ║\n║ orchestration, error injection, and viral patching.          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+    blueprint = JeevesBlueprint(blueprint_id="ultimate-limit-test")
     async def run_limit_test():
         tasks = []
-        # Step 1: Parallel task delegation with error injection and rollback
         for butler in ["Jeeves", "Mycroft", "Gutenberg"]:
             messages = [
                 {"role": "user", "content": f"Have {butler} perform a complex task, inject an error, trigger rollback, and log all steps."}
             ]
             tasks.append(blueprint.run(messages))
-        # Step 2: Multi-agent workflow with viral patching
         messages = [
             {"role": "user", "content": "Jeeves delegates to Mycroft, who injects a bug, Gutenberg detects and patches it, Jeeves verifies the patch. Log all agent handoffs and steps."}
         ]
