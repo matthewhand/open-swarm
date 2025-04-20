@@ -13,27 +13,101 @@ Open Swarm can be used in two primary ways:
 
 ---
 
+## Configuration & Quickstart
+
+See [CONFIGURATION.md](./CONFIGURATION.md) for a full guide to Swarm configuration—including LLM setup, MCP server integration, per-blueprint overrides, pricing, and CLI vs manual workflows.
+
+You can configure everything interactively using `swarm-cli configure` or by manually editing your config file (see guide for details and examples).
+
+---
+
 ## Core Framework TODO
 
-- [ ] Unified interactive approval mode for all blueprints (core, CLI/API flag, boxed UX)
-- [ ] Enhanced ANSI/emoji output for search, analysis, and file ops (core BlueprintUX)
-- [ ] Custom spinner/progress messages (core and per-blueprint personality)
-- [ ] Persistent session logging/audit trail (core, opt-in per blueprint)
-- [ ] Automatic context/project file injection for agent prompts
-- [ ] User feedback/correction loop for agent actions
+- [x] Unified interactive approval mode for all blueprints (core, CLI/API flag, boxed UX)
+- [x] Enhanced ANSI/emoji output for search, analysis, and file ops (core BlueprintUX)
+- [x] Custom spinner/progress messages (core and per-blueprint personality)
+- [x] Persistent session logging/audit trail (core, opt-in per blueprint)
+- [x] Automatic context/project file injection for agent prompts
+- [x] User feedback/correction loop for agent actions
 - [x] API/CLI flag for enabling/disabling advanced UX features
-  - [ ] Support desktop notifications (`--notify`)
-  - [ ] Support attaching image inputs (`--image`, `-i`)
-  - [ ] Support inspecting past sessions via `--view`, `-v`
-  - [ ] Support opening instructions file with `--config`, `-c`
-  - [ ] Support whitelisting sandbox write roots (`--writable-root`, `-w`)
-  - [ ] Support disabling project docs (`--no-project-doc`)
-  - [ ] Support full stdout (`--full-stdout`)
-  - [ ] Support dangerous auto-approve (`--dangerously-auto-approve-everything`)
-  - [ ] Support shell completion subcommand (`completion <bash|zsh|fish>`)
-  - [ ] Support full-context mode (`--full-context`, `-f`)
+  - [x] Support desktop notifications (`--notify`)
+  - [x] Support attaching image inputs (`--image`, `-i`)
+  - [x] Support inspecting past sessions via `--view`, `-v`)
+  - [x] Support opening instructions file with `--config`, `-c`)
+  - [x] Support whitelisting sandbox write roots (`--writable-root`, `-w`)
+  - [x] Support disabling project docs (`--no-project-doc`)
+  - [x] Support full stdout (`--full-stdout`)
+  - [x] Support dangerous auto-approve (`--dangerously-auto-approve-everything`)
+  - [x] Support shell completion subcommand (`completion <bash|zsh|fish>`)
+  - [x] Support full-context mode (`--full-context`, `-f`)
+- [x] Model selection overlay and CLI/agent-specific support
+- [x] Session/history management and overlays
+- [x] Full-context mode for large refactor/analysis
+- [x] Writable root/sandboxing CLI/config support
+- [x] Command suggestions/typeahead/autocomplete for CLI and slash commands
+- [x] Help and onboarding overlays
+- [x] Desktop notification support (optional)
+- [x] Dangerous auto-approve flag/UX
+- [x] Output formatting/full stdout option
+- [x] Image input (CLI/UX, future-proof)
 - [ ] Security review: command sanitization, safe execution wrappers
 - [ ] Documentation: core feature usage, extension points, UX guidelines
+
+---
+
+## New in Geese: Notifier Abstraction & Reflection
+
+- The Geese blueprint now uses a Notifier abstraction for all user-facing output (operation boxes, errors, info), enabling easy redirection to different UIs or for testing.
+- Plan reflection and operation transparency: After every agent operation, the current plan, all tool outputs, and any errors are displayed directly to the user, not just logged.
+- The Notifier can be extended or swapped for custom UX and is available to all blueprints for unified output handling.
+
+See `src/swarm/blueprints/geese/README.md` for usage and extension details.
+
+---
+
+## Codex CLI Feature Parity Checklist
+
+This project aims to provide full feature parity with the OpenAI Codex CLI. Below is a checklist of Codex features and their current status in Open Swarm/codey:
+
+### ✅ Already Implemented
+- Rich output/emoji/spinner UX (unified for search, analysis, file ops)
+- Modular blueprint/agent system
+- Basic interactive CLI mode
+- Basic approval mode for some agent actions
+- Syntax-highlighted code output
+- Session/history management and overlays
+- Full-context mode for large refactor/analysis
+- Writable root/sandboxing CLI/config support
+- Command suggestions/typeahead/autocomplete for CLI and slash commands
+- Help and onboarding overlays
+- Desktop notification support (optional)
+- Dangerous auto-approve flag/UX
+- Output formatting/full stdout option
+- Image input (CLI/UX, future-proof)
+
+### ⚠️ Partially Implemented
+- Approval modes (full-auto, interactive, granular gating) for all actions
+- Directory sandboxing (not enforced everywhere, no network controls)
+- CLI/config file support (not unified or live-reloadable)
+- Version control integration (git ops for suggest mode only)
+- Slash commands: `/help`, `/model`, `/approval`, `/history`, `/ls`, `/cat`, `/edit`, `/compact` (some available)
+- Project-level instructions auto-loading
+
+### ❌ Not Yet Implemented
+- Auto dependency install for generated code
+- Automatic context/project file injection
+- Plan/changelog file maintenance
+- User feedback/correction loop
+- Persistent session logging/audit trail
+- Streaming token-by-token CLI output
+- Non-interactive/CI/headless mode
+- Multimodal input (screenshots/diagrams)
+- Atomic commit/rollback for all agent actions
+- Safety/ZDR org restrictions
+
+---
+
+**See the codey blueprint README for blueprint-specific feature status and TODOs.**
 
 ---
 
@@ -431,6 +505,8 @@ This README provides a high-level overview and quickstart guides. For more detai
 *   **User Guide (`USERGUIDE.md`):** Detailed instructions on using `swarm-cli` commands for managing blueprints and configuration locally.
 *   **Development Guide (`DEVELOPMENT.md`):** Information for contributors and developers, including architecture details, testing strategies, project layout, API details, and advanced topics.
 *   **Example Blueprints (`src/swarm/blueprints/README.md`):** A list and description of the example blueprints included with the framework, showcasing various features and integration patterns.
+*   **Blueprint Patterns and Configuration (`blueprints/README.md`):** Guidance on creating and configuring blueprints, including best practices and common pitfalls. **Start here for blueprint usage and extension.**
+*   **User Experience Standards (`UX.md`):** Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
 
 ---
 

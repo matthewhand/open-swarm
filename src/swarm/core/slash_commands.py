@@ -31,11 +31,38 @@ def _compact_command(blueprint=None, args=None):
 # Built-in '/model' slash command
 @slash_registry.register('/model')
 def _model_command(blueprint=None, args=None):
-    """Show or switch the current LLM model."""
-    if args:
-        return f"[slash command] model switch not implemented. Requested: {args}"
-    profile = getattr(blueprint, 'llm_profile_name', None)
-    return f"[slash command] current LLM profile: {profile or 'unknown'}"
+    """
+    /model                   Show current default and overrides
+    /model <profile>         Set session default LLM profile
+    /model <agent> <profile> Override model profile for specific agent
+    """
+    # Sanity: blueprint must be provided
+    if blueprint is None:
+        return "No blueprint context available."
+    profiles = list(blueprint.config.get('llm', {}).keys())
+    # No args: list current settings
+    if not args:
+        lines = [f"Session default: {blueprint._session_model_profile}"]
+        for agent, prof in blueprint._agent_model_overrides.items():
+            lines.append(f"Agent {agent}: {prof}")
+        lines.append("Available profiles: " + ", ".join(profiles))
+        return lines
+    parts = args.split()
+    # Set session default
+    if len(parts) == 1:
+        prof = parts[0]
+        if prof not in profiles:
+            return f"Unknown profile '{prof}'. Available: {', '.join(profiles)}"
+        blueprint._session_model_profile = prof
+        return f"Session default LLM profile set to '{prof}'"
+    # Override specific agent
+    if len(parts) == 2:
+        agent_name, prof = parts
+        if prof not in profiles:
+            return f"Unknown profile '{prof}'. Available: {', '.join(profiles)}"
+        blueprint._agent_model_overrides[agent_name] = prof
+        return f"Model for agent '{agent_name}' overridden to '{prof}'"
+    return "Usage: /model [agent_name] <profile_name>"
 
 # Built-in '/approval' slash command
 @slash_registry.register('/approval')
