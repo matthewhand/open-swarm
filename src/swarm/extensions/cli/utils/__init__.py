@@ -1,1 +1,1 @@
-from swarm.extensions.cli.utils.utils import prompt_user, log_and_exit
+from .prompt_user import prompt_user
