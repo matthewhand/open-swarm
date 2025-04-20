@@ -96,3 +96,55 @@ class TestBlueprintBaseConfigLoading:
         }
         blueprint4 = _TestableBlueprint(blueprint_id="bp4", config=config4)
         assert blueprint4.should_output_markdown is False, "Blueprint setting (False) should override global (True)"
+
+    def test_llm_profile_resolution_priority(self):
+        """Test LLM profile/model resolution order: programmatic > blueprint > global default_llm > env > fallback."""
+        # --- Case 1: Explicit override (programmatic)
+        config = {
+            "llm": {"foo": {"provider": "mock"}},
+            "settings": {"default_llm": "foo"},
+            "blueprints": {"bp": {"llm_profile": "foo"}}
+        }
+        bp = _TestableBlueprint(blueprint_id="bp", config=config)
+        bp.llm_profile_name = "foo"  # programmatic override using setter
+        assert bp._resolve_llm_profile() == "foo"
+
+        # --- Case 2: Blueprint config llm_profile
+        bp2 = _TestableBlueprint(blueprint_id="bp2", config={
+            "llm": {"bar": {"provider": "mock"}},
+            "settings": {"default_llm": "bar"},
+            "blueprints": {"bp2": {"llm_profile": "bar"}}
+        })
+        assert bp2._resolve_llm_profile() == "bar"
+
+        # --- Case 3: Global default_llm in settings
+        bp3 = _TestableBlueprint(blueprint_id="bp3", config={
+            "llm": {"baz": {"provider": "mock"}},
+            "settings": {"default_llm": "baz"},
+            "blueprints": {}})
+        assert bp3._resolve_llm_profile() == "baz"
+
+        # --- Case 4: Environment variable DEFAULT_LLM
+        os.environ["DEFAULT_LLM"] = "env_model"
+        bp4 = _TestableBlueprint(blueprint_id="bp4", config={
+            "llm": {"env_model": {"provider": "mock"}},
+            "settings": {},
+            "blueprints": {}})
+        # Simulate missing everything except env
+        bp4._config["settings"].pop("default_llm", None)
+        assert bp4._resolve_llm_profile() == "env_model"
+        del os.environ["DEFAULT_LLM"]
+
+        # --- Case 5: Fallback to 'default' if nothing else
+        bp5 = _TestableBlueprint(blueprint_id="bp5", config={
+            "llm": {"default": {"provider": "mock"}},
+            "settings": {},
+            "blueprints": {}})
+        assert bp5._resolve_llm_profile() == "default"
+
+    def test_missing_llm_profile_raises(self):
+        """Test that missing LLM profile raises a clear error."""
+        config = {"llm": {}, "settings": {}, "blueprints": {}}
+        bp = _TestableBlueprint(blueprint_id="bp", config=config)
+        with pytest.raises(ValueError):
+            _ = bp.llm_profile

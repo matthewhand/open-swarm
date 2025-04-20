@@ -3,6 +3,11 @@ import sys
 import os
 import tempfile
 import pytest
+import re
+
+def strip_ansi(text):
+    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+    return ansi_escape.sub('', text)
 
 def test_codey_suggest_skip(tmp_path):
     """Test that codey CLI in suggest mode skips git status when declined."""
@@ -18,15 +23,28 @@ def test_codey_suggest_skip(tmp_path):
     file_path.write_text("bar\n")
     subprocess.run(["git", "add", "foo.txt"], cwd=str(repo), check=True)
     # Run codey in suggest mode and decline approval
-    result = subprocess.run([
+    cmd = [
         sys.executable,
         codey_path,
-        "-a", "suggest",
+        "--approval", "suggest",
         "Show me the git status."
-    ], cwd=str(repo), input="n\n", capture_output=True, text=True)
+    ]
+    result = subprocess.run(cmd, cwd=str(repo), input="n\n", capture_output=True, text=True)
+    out = strip_ansi(result.stdout + result.stderr)
+    found = False
+    import ast
+    try:
+        parsed = ast.literal_eval(out)
+        for msg in parsed.get('messages', []):
+            content = msg.get('content', '').lower()
+            if "skipped git status" in content:
+                found = True
+                break
+    except Exception:
+        if "skipped git status" in out.lower():
+            found = True
     assert result.returncode == 0
-    # Should indicate skip
-    assert "Skipped git status" in result.stdout
+    assert found
 
 def test_codey_suggest_execute(tmp_path):
     """Test that codey CLI in suggest mode executes git status when approved."""
@@ -42,12 +60,25 @@ def test_codey_suggest_execute(tmp_path):
     file_path.write_text("baz\n")
     subprocess.run(["git", "add", "foo2.txt"], cwd=str(repo), check=True)
     # Run codey in suggest mode and approve execution
-    result = subprocess.run([
+    cmd = [
         sys.executable,
         codey_path,
-        "-a", "suggest",
+        "--approval", "suggest",
         "Show me the git status."
-    ], cwd=str(repo), input="y\n", capture_output=True, text=True)
+    ]
+    result = subprocess.run(cmd, cwd=str(repo), input="y\n", capture_output=True, text=True)
+    out = strip_ansi(result.stdout + result.stderr)
+    found = False
+    import ast
+    try:
+        parsed = ast.literal_eval(out)
+        for msg in parsed.get('messages', []):
+            content = msg.get('content', '').lower()
+            if "foo2.txt" in content or "changes to be committed" in content:
+                found = True
+                break
+    except Exception:
+        if "foo2.txt" in out or "changes to be committed" in out.lower():
+            found = True
     assert result.returncode == 0
-    # Should show git status output containing the file name or changes
-    assert "foo2.txt" in result.stdout or "Changes to be committed" in result.stdout
+    assert found

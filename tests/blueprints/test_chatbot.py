@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
+from swarm.blueprints.chatbot.blueprint_chatbot import RunResult
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.chatbot.blueprint_chatbot import ChatbotBlueprint

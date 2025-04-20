@@ -16,14 +16,25 @@ def run_blueprint(blueprint_path):
     print(f"\033[1;36m\n╔══════════════════════════════════════════════════════════════╗")
     print(f"║   🚀 TESTING: {blueprint_path.name:<48} ║")
     print(f"╚══════════════════════════════════════════════════════════════╝\033[0m")
-    proc = subprocess.run([sys.executable, str(blueprint_path)], capture_output=True, text=True)
-    print(proc.stdout)
-    if proc.returncode == 0:
-        print(f"\033[1;32m✅ {blueprint_path.name} PASSED\033[0m")
-    else:
-        print(f"\033[1;31m❌ {blueprint_path.name} FAILED\033[0m")
-        print(proc.stderr)
-    return proc.returncode
+    try:
+        # Use Linux timeout command for a hard kill after 3 minutes
+        proc = subprocess.run(
+            ["timeout", "180s", sys.executable, str(blueprint_path)],
+            capture_output=True,
+            text=True
+        )
+        print(proc.stdout)
+        if proc.returncode == 0:
+            print(f"\033[1;32m✅ {blueprint_path.name} PASSED\033[0m")
+        elif proc.returncode == 124:
+            print(f"\033[1;33m⏰ {blueprint_path.name} TIMED OUT after 3 minutes (killed by timeout)\033[0m")
+        else:
+            print(f"\033[1;31m❌ {blueprint_path.name} FAILED\033[0m")
+            print(proc.stderr)
+        return proc.returncode
+    except Exception as e:
+        print(f"\033[1;31m⚠️ {blueprint_path.name} ERROR: {e}\033[0m")
+        return -1
 
 def main():
     print("\033[1;35m\n╔══════════════════════════════════════════════════════════════╗")
