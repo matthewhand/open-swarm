@@ -15,6 +15,8 @@ try:
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
     from rich.panel import Panel # Import Panel for splash screen
+    from swarm.core.blueprint_ux import BlueprintUXImproved
+    import time
 except ImportError as e:
     print(f"ERROR: Import failed in nebula_shellz: {e}. Ensure 'openai-agents' install and structure.")
     print(f"sys.path: {sys.path}")
@@ -35,14 +37,28 @@ def generate_documentation(code_snippet: str) -> str:
     first_line = code_snippet.splitlines()[0] if code_snippet else "N/A"; doc = f"/**\n * This code snippet starts with: {first_line}...\n * TODO: Add more detailed documentation.\n */"; logger.debug(f"Generated documentation:\n{doc}"); return doc
 @function_tool
 def execute_shell_command(command: str) -> str:
-    """Executes a shell command and returns its stdout and stderr."""
+    """Executes a shell command and returns its stdout and stderr. Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 60s)."""
     logger.info(f"Executing shell command: {command}")
-    if not command: logger.warning("execute_shell_command called with empty command."); return "Error: No command provided."
+    if not command:
+        logger.warning("execute_shell_command called with empty command.")
+        return "Error: No command provided."
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False, shell=True); output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"; logger.debug(f"Command '{command}' result:\n{output}"); return output
-    except FileNotFoundError: cmd_base = command.split()[0] if command else ""; logger.error(f"Command not found: {cmd_base}"); return f"Error: Command not found - {cmd_base}"
-    except subprocess.TimeoutExpired: logger.error(f"Command '{command}' timed out after 60 seconds."); return f"Error: Command '{command}' timed out."
-    except Exception as e: logger.error(f"Error executing command '{command}': {e}", exc_info=logger.level <= logging.DEBUG); return f"Error executing command: {e}"
+        import os
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False, shell=True)
+        output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
+        logger.debug(f"Command '{command}' result:\n{output}")
+        return output
+    except FileNotFoundError:
+        cmd_base = command.split()[0] if command else ""
+        logger.error(f"Command not found: {cmd_base}")
+        return f"Error: Command not found - {cmd_base}"
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command '{command}' timed out after configured timeout.")
+        return f"Error: Command '{command}' timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '60')} seconds."
+    except Exception as e:
+        logger.error(f"Error executing command '{command}': {e}", exc_info=logger.level <= logging.DEBUG)
+        return f"Error executing command: {e}"
 
 # --- Agent Definitions (Instructions remain the same) ---
 morpheus_instructions = """
@@ -77,16 +93,16 @@ class NebuchaShellzzarBlueprint(BlueprintBase):
     }
     _model_instance_cache: Dict[str, Model] = {}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
-                class DummyStream:
-                    def __aiter__(self): return self
-                    async def __anext__(self):
-                        raise StopAsyncIteration
-                return DummyStream()
-        self.llm = DummyLLM()
+    def __init__(self, blueprint_id: str = "nebula_shellzzar", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._config = config if config is not None else None
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for NebuchaShellzzar
+        # ...
 
     # --- ADDED: Splash Screen ---
     def display_splash_screen(self, animated: bool = False):
@@ -185,25 +201,56 @@ Initializing NebulaShellzzar Crew...
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     async def run(self, messages: List[dict], **kwargs):
-        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
-        if not last_user_message:
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
-            return
-        prompt_context = {
-            "user_request": last_user_message,
-            "history": messages[:-1],
-            "available_tools": ["nebula_shellz"]
-        }
-        rendered_prompt = self.render_prompt("nebula_shellz_prompt.j2", prompt_context)
-        yield {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": f"[NebulaShellz LLM] Would respond to: {rendered_prompt}"
-                }
-            ]
-        }
-        return
+        """Main execution entry point for the NebulaShellzzar blueprint."""
+        logger.info("NebuchaShellzzarBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        from agents import Runner
+        ux = BlueprintUXImproved(style="serious")
+        spinner_idx = 0
+        start_time = time.time()
+        spinner_yield_interval = 1.0  # seconds
+        last_spinner_time = start_time
+        yielded_spinner = False
+        result_chunks = []
+        try:
+            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
+            while True:
+                now = time.time()
+                try:
+                    chunk = next(runner_gen)
+                    result_chunks.append(chunk)
+                    # If chunk is a final result, wrap and yield
+                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
+                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
+                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
+                        box = ux.ansi_emoji_box(
+                            title="NebulaShellzzar Result",
+                            content=content,
+                            summary=summary,
+                            params={"instruction": instruction[:40]},
+                            result_count=len(result_chunks),
+                            op_type="run",
+                            status="success"
+                        )
+                        yield {"messages": [{"role": "assistant", "content": box}]}
+                    else:
+                        yield chunk
+                    yielded_spinner = False
+                except StopIteration:
+                    break
+                except Exception:
+                    if now - last_spinner_time >= spinner_yield_interval:
+                        taking_long = (now - start_time > 10)
+                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
+                        spinner_idx += 1
+                        last_spinner_time = now
+                        yielded_spinner = True
+            if not result_chunks and not yielded_spinner:
+                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
+        except Exception as e:
+            logger.error(f"Error during NebulaShellzzar run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":
     import asyncio

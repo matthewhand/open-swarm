@@ -67,28 +67,23 @@ Blueprints should support async user input:
 - See framework utilities (`src/swarm/extensions/cli/utils/async_input.py`) or blueprint examples (`codey`, `poets`) for implementation guidance.
 
 ### Example Usage (Codey/Poets)
+
 ```python
-from swarm.extensions.cli.utils.async_input import AsyncInputHandler
-handler = AsyncInputHandler()
-print("You: ", end="", flush=True)
-user_input = ""
-warned = False
-while True:
-    inp = handler.get_input(timeout=0.1)
-    if inp == 'warn' and not warned:
-        print("\n[!] Press Enter again to interrupt and send a new message.", flush=True)
-        warned = True
-    elif inp and inp != 'warn':
-        user_input = inp
-        break
-    await asyncio.sleep(0.05)
+import asyncio
+from swarm.extensions.cli.utils.async_input import async_cli_input
+
+async def main():
+    while True:
+        user_input = await async_cli_input()
+        print(f"You typed: {user_input}")
+        await asyncio.sleep(0.05)
 ```
 This pattern is now used in the `codey` and `poets` blueprints for unified, responsive CLI UX.
 
 ## TODO
 - [ ] Flesh out code examples for each config pattern.
-- [ ] Add screenshots or demos of ANSI/emoji boxes and spinner states.
 - [ ] Link to main README and ensure discoverability.
+- [ ] Document framework-wide async CLI input handler pattern.
 
 ---
 *This README documents implemented features and standards. For feature status, see the main project TODOs.*

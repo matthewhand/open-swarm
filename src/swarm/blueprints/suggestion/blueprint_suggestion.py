@@ -73,12 +73,29 @@ def list_files(directory: str = '.') -> str:
     except Exception as e:
         return f"ERROR: {e}"
 def execute_shell_command(command: str) -> str:
-    import subprocess
+    """
+    Executes a shell command and returns its stdout and stderr.
+    Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 60s).
+    """
+    logger.info(f"Executing shell command: {command}")
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout + result.stderr
+        import os
+        import subprocess
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        output = f"Exit Code: {result.returncode}\n"
+        if result.stdout:
+            output += f"STDOUT:\n{result.stdout}\n"
+        if result.stderr:
+            output += f"STDERR:\n{result.stderr}\n"
+        logger.info(f"Command finished. Exit Code: {result.returncode}")
+        return output.strip()
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command timed out: {command}")
+        return f"Error: Command timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '60')} seconds."
     except Exception as e:
-        return f"ERROR: {e}"
+        logger.error(f"Error executing command '{command}': {e}", exc_info=True)
+        return f"Error executing command: {e}"
 read_file_tool = PatchedFunctionTool(read_file, 'read_file')
 write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
@@ -112,41 +129,16 @@ class SuggestionBlueprint(BlueprintBase):
     # Caches
     _model_instance_cache: Dict[str, Model] = {}
 
-    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
-        if blueprint_id is None:
-            blueprint_id = "suggestion"
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
-                class DummyStream:
-                    def __aiter__(self): return self
-                    async def __anext__(self):
-                        raise StopAsyncIteration
-                return DummyStream()
-        self.llm = DummyLLM()
-
-    # --- Model Instantiation Helper --- (Standard helper)
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
-        # Remove redundant client instantiation; rely on framework-level default client
-        # All blueprints now use the default client set at framework init
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
-        try:
-            # Ensure the model selected supports structured output (most recent OpenAI do)
-            model_instance = OpenAIChatCompletionsModel(model=model_name)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+    def __init__(self, blueprint_id: str = "suggestion", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._config = config if config is not None else None
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for Suggestion
+        # ...
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Create the SuggestionAgent."""
@@ -192,6 +184,29 @@ class SuggestionBlueprint(BlueprintBase):
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+
+    # --- Model Instantiation Helper --- (Standard helper)
+    def _get_model_instance(self, profile_name: str) -> Model:
+        """Retrieves or creates an LLM Model instance."""
+        if profile_name in self._model_instance_cache:
+            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
+            return self._model_instance_cache[profile_name]
+        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
+        profile_data = self.get_llm_profile(profile_name)
+        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
+        provider = profile_data.get("provider", "openai").lower()
+        model_name = profile_data.get("model")
+        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
+        # Remove redundant client instantiation; rely on framework-level default client
+        # All blueprints now use the default client set at framework init
+        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
+        try:
+            # Ensure the model selected supports structured output (most recent OpenAI do)
+            model_instance = OpenAIChatCompletionsModel(model=model_name)
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
+        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
 
 if __name__ == "__main__":
     import asyncio

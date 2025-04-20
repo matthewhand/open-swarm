@@ -11,7 +11,6 @@
     {"name": "dilbot", "status": "unknown", "notes": "Needs audit"},
     {"name": "divine_code", "status": "unknown", "notes": "Needs audit"},
     {"name": "django_chat", "status": "unknown", "notes": "Needs audit"},
-    {"name": "family_ties", "status": "unknown", "notes": "Needs audit"},
     {"name": "flock", "status": "unknown", "notes": "Needs audit"},
     {"name": "gaggle", "status": "unknown", "notes": "Needs audit"},
     {"name": "gatcha", "status": "unknown", "notes": "Needs audit"},
@@ -21,6 +20,7 @@
     {"name": "nebula_shellz", "status": "unknown", "notes": "Needs audit"},
     {"name": "omniplex", "status": "unknown", "notes": "Needs audit"},
     {"name": "shell_demo", "status": "unknown", "notes": "Needs audit"},
+    {"name": "stewie", "status": "unknown", "notes": "Needs audit"},
     {"name": "unapologetic_press", "status": "unknown", "notes": "Needs audit"},
     {"name": "whiskeytango_foxtrot", "status": "unknown", "notes": "Needs audit"}
   ]

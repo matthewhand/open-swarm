@@ -148,33 +148,107 @@ def list_files(directory: str = '.') -> str:
         return f"ERROR: {e}"
 def execute_shell_command(command: str) -> str:
     """
-    Execute one or more shell commands.
-    Supports commands separated by '&&' or newlines for sequential execution.
-    Returns a JSON mapping of command to its combined stdout and stderr.
+    Executes a shell command and returns its stdout and stderr.
+    Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 60s).
     """
-    import subprocess
+    logger.info(f"Executing shell command: {command}")
     try:
-        # Split multiple commands
-        if '&&' in command:
-            cmds = [c.strip() for c in command.split('&&')]
-        elif '\n' in command:
-            cmds = [c.strip() for c in command.splitlines() if c.strip()]
-        else:
-            cmds = [command]
-        outputs: Dict[str, str] = {}
-        for cmd in cmds:
-            try:
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                outputs[cmd] = result.stdout + result.stderr
-            except Exception as e:
-                outputs[cmd] = f"ERROR: {e}"
-        return json.dumps(outputs)
+        import os
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        output = f"Exit Code: {result.returncode}\n"
+        if result.stdout:
+            output += f"STDOUT:\n{result.stdout}\n"
+        if result.stderr:
+            output += f"STDERR:\n{result.stderr}\n"
+        logger.info(f"Command finished. Exit Code: {result.returncode}")
+        return output.strip()
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command timed out: {command}")
+        return f"Error: Command timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '60')} seconds."
     except Exception as e:
-        return f"ERROR: {e}"
+        logger.error(f"Error executing command '{command}': {e}", exc_info=True)
+        return f"Error executing command: {e}"
 read_file_tool = PatchedFunctionTool(read_file, 'read_file')
 write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+
+# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
+from swarm.ux.ansi_box import ansi_box
+from rich.console import Console
+from rich.style import Style
+from rich.text import Text
+import threading
+import time
+
+class MCPDemoSpinner:
+    FRAMES = [
+        "Generating.", "Generating..", "Generating...", "Running...",
+        "⠋ Generating...", "⠙ Generating...", "⠹ Generating...", "⠸ Generating...",
+        "⠼ Generating...", "⠴ Generating...", "⠦ Generating...", "⠧ Generating...",
+        "⠇ Generating...", "⠏ Generating...", "🤖 Generating...", "💡 Generating...", "✨ Generating..."
+    ]
+    SLOW_FRAME = "Generating... Taking longer than expected"
+    INTERVAL = 0.12
+    SLOW_THRESHOLD = 10  # seconds
+
+    def __init__(self):
+        self._stop_event = threading.Event()
+        self._thread = None
+        self._start_time = None
+        self.console = Console()
+        self._last_frame = None
+        self._last_slow = False
+
+    def start(self):
+        self._stop_event.clear()
+        self._start_time = time.time()
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def _spin(self):
+        idx = 0
+        while not self._stop_event.is_set():
+            elapsed = time.time() - self._start_time
+            if elapsed > self.SLOW_THRESHOLD:
+                txt = Text(self.SLOW_FRAME, style=Style(color="yellow", bold=True))
+                self._last_frame = self.SLOW_FRAME
+                self._last_slow = True
+            else:
+                frame = self.FRAMES[idx % len(self.FRAMES)]
+                txt = Text(frame, style=Style(color="cyan", bold=True))
+                self._last_frame = frame
+                self._last_slow = False
+            self.console.print(txt, end="\r", soft_wrap=True, highlight=False)
+            time.sleep(self.INTERVAL)
+            idx += 1
+        self.console.print(" " * 40, end="\r")  # Clear line
+
+    def stop(self, final_message="Done!"):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join()
+        self.console.print(Text(final_message, style=Style(color="green", bold=True)))
+
+    def current_spinner_state(self):
+        if self._last_slow:
+            return self.SLOW_FRAME
+        return self._last_frame or self.FRAMES[0]
+
+
+def print_operation_box(op_type, results, params=None, result_type="mcp", taking_long=False):
+    emoji = "🧠" if result_type == "mcp" else "🔍"
+    style = 'success' if result_type == "mcp" else 'default'
+    box_title = op_type if op_type else ("MCPDemo Output" if result_type == "mcp" else "Results")
+    summary_lines = []
+    count = len(results) if isinstance(results, list) else 0
+    summary_lines.append(f"Results: {count}")
+    if params:
+        for k, v in params.items():
+            summary_lines.append(f"{k.capitalize()}: {v}")
+    box_content = "\n".join(summary_lines + ["\n".join(map(str, results))])
+    ansi_box(box_title, box_content, count=count, params=params, style=style if not taking_long else 'warning', emoji=emoji)
 
 # --- Define the Blueprint ---
 class MCPDemoBlueprint(BlueprintBase):
@@ -381,6 +455,19 @@ if __name__ == "__main__":
     ]
     blueprint = MCPDemoBlueprint(blueprint_id="demo-1")
     async def run_and_print():
-        async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
+        spinner = MCPDemoSpinner()
+        spinner.start()
+        try:
+            all_results = []
+            async for response in blueprint.run(messages):
+                content = response["messages"][0]["content"]
+                all_results.append(content)
+        finally:
+            spinner.stop()
+        print_operation_box(
+            op_type="MCPDemo Output",
+            results=all_results,
+            params={"prompt": messages[0]["content"]},
+            result_type="mcp"
+        )
     asyncio.run(run_and_print())

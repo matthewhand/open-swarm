@@ -3,6 +3,7 @@ import os
 import sys
 import shlex
 from typing import Dict, Any, List, ClassVar, Optional
+import time
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -16,6 +17,7 @@ try:
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
     print(f"ERROR: Import failed in OmniplexBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -81,18 +83,17 @@ class OmniplexBlueprint(BlueprintBase):
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
-                class DummyStream:
-                    def __aiter__(self): return self
-                    async def __anext__(self):
-                        raise StopAsyncIteration
-                return DummyStream()
-        self.llm = DummyLLM()
+    def __init__(self, blueprint_id: str = "omniplex", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._config = config if config is not None else None
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for Omniplex
+        # ...
 
-    # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
         """Retrieves or creates an LLM Model instance."""
         # ... (Implementation is the same as in previous refactors) ...
@@ -231,25 +232,56 @@ class OmniplexBlueprint(BlueprintBase):
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+    async def run(self, messages: List[Dict[str, Any]], **kwargs):
         """Main execution entry point for the Omniplex blueprint."""
         logger.info("OmniplexBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
-        async for chunk in self._run_non_interactive(instruction, **kwargs):
-            yield chunk
-        logger.info("OmniplexBlueprint run method finished.")
-
-    async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
-        logger.info(f"Running OmniplexBlueprint non-interactively with instruction: '{instruction[:100]}...'")
-        mcp_servers = kwargs.get("mcp_servers", [])
-        agent = self.create_starting_agent(mcp_servers=mcp_servers)
         from agents import Runner
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        ux = BlueprintUXImproved(style="serious")
+        spinner_idx = 0
+        start_time = time.time()
+        spinner_yield_interval = 1.0  # seconds
+        last_spinner_time = start_time
+        yielded_spinner = False
+        result_chunks = []
         try:
-            for chunk in Runner.run(agent, instruction):
-                yield chunk
+            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
+            while True:
+                now = time.time()
+                try:
+                    chunk = next(runner_gen)
+                    result_chunks.append(chunk)
+                    # If chunk is a final result, wrap and yield
+                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
+                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
+                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
+                        box = ux.ansi_emoji_box(
+                            title="Omniplex Result",
+                            content=content,
+                            summary=summary,
+                            params={"instruction": instruction[:40]},
+                            result_count=len(result_chunks),
+                            op_type="run",
+                            status="success"
+                        )
+                        yield {"messages": [{"role": "assistant", "content": box}]}
+                    else:
+                        yield chunk
+                    yielded_spinner = False
+                except StopIteration:
+                    break
+                except Exception:
+                    if now - last_spinner_time >= spinner_yield_interval:
+                        taking_long = (now - start_time > 10)
+                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
+                        spinner_idx += 1
+                        last_spinner_time = now
+                        yielded_spinner = True
+            if not result_chunks and not yielded_spinner:
+                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
         except Exception as e:
-            logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            logger.error(f"Error during Omniplex run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 # Standard Python entry point

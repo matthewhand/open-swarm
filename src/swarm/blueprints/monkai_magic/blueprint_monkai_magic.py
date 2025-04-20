@@ -17,6 +17,8 @@ import subprocess
 import sys
 import shlex # Import shlex
 from typing import Dict, Any, List, ClassVar, Optional
+import time
+from swarm.core.blueprint_ux import BlueprintUXImproved
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -40,13 +42,14 @@ logger = logging.getLogger(__name__)
 # --- Cloud CLI Function Tools ---
 @function_tool
 def aws_cli(command: str) -> str:
-    """Executes an AWS CLI command (e.g., 's3 ls', 'ec2 describe-instances'). Assumes pre-authentication."""
+    """Executes an AWS CLI command (e.g., 's3 ls', 'ec2 describe-instances'). Assumes pre-authentication. Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 120s)."""
     if not command: return "Error: No AWS command provided."
     try:
-        # Avoid shell=True if possible, split command carefully
+        import os
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "120"))
         cmd_parts = ["aws"] + shlex.split(command)
         logger.info(f"Executing AWS CLI: {' '.join(cmd_parts)}")
-        result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True, timeout=timeout)
         output = result.stdout.strip()
         logger.debug(f"AWS CLI success. Output:\n{output[:500]}...")
         return f"OK: AWS command successful.\nOutput:\n{output}"
@@ -59,19 +62,21 @@ def aws_cli(command: str) -> str:
         return f"Error executing AWS command '{command}': {error_output}"
     except subprocess.TimeoutExpired:
         logger.error(f"AWS CLI command '{command}' timed out.")
-        return f"Error: AWS CLI command '{command}' timed out."
+        return f"Error: AWS CLI command '{command}' timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '120')} seconds."
     except Exception as e:
         logger.error(f"Unexpected error during AWS CLI execution: {e}", exc_info=logger.level <= logging.DEBUG)
         return f"Error: Unexpected error during AWS CLI: {e}"
 
 @function_tool
 def fly_cli(command: str) -> str:
-    """Executes a Fly.io CLI command ('flyctl ...'). Assumes pre-authentication ('flyctl auth login')."""
+    """Executes a Fly.io CLI command ('flyctl ...'). Assumes pre-authentication ('flyctl auth login'). Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 120s)."""
     if not command: return "Error: No Fly command provided."
     try:
+        import os
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "120"))
         cmd_parts = ["flyctl"] + shlex.split(command)
         logger.info(f"Executing Fly CLI: {' '.join(cmd_parts)}")
-        result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True, timeout=timeout)
         output = result.stdout.strip()
         logger.debug(f"Fly CLI success. Output:\n{output[:500]}...")
         return f"OK: Fly command successful.\nOutput:\n{output}"
@@ -84,19 +89,21 @@ def fly_cli(command: str) -> str:
         return f"Error executing Fly command '{command}': {error_output}"
     except subprocess.TimeoutExpired:
         logger.error(f"Fly CLI command '{command}' timed out.")
-        return f"Error: Fly CLI command '{command}' timed out."
+        return f"Error: Fly CLI command '{command}' timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '120')} seconds."
     except Exception as e:
         logger.error(f"Unexpected error during Fly CLI execution: {e}", exc_info=logger.level <= logging.DEBUG)
         return f"Error: Unexpected error during Fly CLI: {e}"
 
 @function_tool
 def vercel_cli(command: str) -> str:
-    """Executes a Vercel CLI command ('vercel ...'). Assumes pre-authentication ('vercel login')."""
+    """Executes a Vercel CLI command ('vercel ...'). Assumes pre-authentication ('vercel login'). Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 120s)."""
     if not command: return "Error: No Vercel command provided."
     try:
+        import os
+        timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "120"))
         cmd_parts = ["vercel"] + shlex.split(command)
         logger.info(f"Executing Vercel CLI: {' '.join(cmd_parts)}")
-        result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True, timeout=timeout)
         output = result.stdout.strip()
         logger.debug(f"Vercel CLI success. Output:\n{output[:500]}...")
         return f"OK: Vercel command successful.\nOutput:\n{output}"
@@ -109,7 +116,7 @@ def vercel_cli(command: str) -> str:
         return f"Error executing Vercel command '{command}': {error_output}"
     except subprocess.TimeoutExpired:
         logger.error(f"Vercel CLI command '{command}' timed out.")
-        return f"Error: Vercel CLI command '{command}' timed out."
+        return f"Error: Vercel CLI command '{command}' timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '120')} seconds."
     except Exception as e:
         logger.error(f"Unexpected error during Vercel CLI execution: {e}", exc_info=logger.level <= logging.DEBUG)
         return f"Error: Unexpected error during Vercel CLI: {e}"
@@ -139,20 +146,20 @@ class MonkaiMagicBlueprint(BlueprintBase):
         "env_vars": ["AWS_REGION", "FLY_REGION", "VERCEL_ORG_ID"] # Optional vars for instruction hints
     }
 
+    def __init__(self, blueprint_id: str = "monkai_magic", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._config = config if config is not None else None
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for MonkaiMagic
+        # ...
+
     # Caches
     _openai_client_cache: Dict[str, AsyncOpenAI] = {}
     _model_instance_cache: Dict[str, Model] = {}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
-                class DummyStream:
-                    def __aiter__(self): return self
-                    async def __anext__(self):
-                        raise StopAsyncIteration
-                return DummyStream()
-        self.llm = DummyLLM()
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -187,26 +194,57 @@ class MonkaiMagicBlueprint(BlueprintBase):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: list) -> object:
-        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
-        if not last_user_message:
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
-            return
-        prompt_context = {
-            "user_request": last_user_message,
-            "history": messages[:-1],
-            "available_tools": ["monkai_magic"]
-        }
-        rendered_prompt = self.render_prompt("monkai_magic_prompt.j2", prompt_context)
-        yield {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": f"[MonkaiMagic LLM] Would respond to: {rendered_prompt}"
-                }
-            ]
-        }
-        return
+    async def run(self, messages: list, **kwargs):
+        """Main execution entry point for the MonkaiMagic blueprint."""
+        logger.info("MonkaiMagicBlueprint run method called.")
+        instruction = messages[-1].get("content", "") if messages else ""
+        from agents import Runner
+        ux = BlueprintUXImproved(style="serious")
+        spinner_idx = 0
+        start_time = time.time()
+        spinner_yield_interval = 1.0  # seconds
+        last_spinner_time = start_time
+        yielded_spinner = False
+        result_chunks = []
+        try:
+            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
+            while True:
+                now = time.time()
+                try:
+                    chunk = next(runner_gen)
+                    result_chunks.append(chunk)
+                    # If chunk is a final result, wrap and yield
+                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
+                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
+                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
+                        box = ux.ansi_emoji_box(
+                            title="MonkaiMagic Result",
+                            content=content,
+                            summary=summary,
+                            params={"instruction": instruction[:40]},
+                            result_count=len(result_chunks),
+                            op_type="run",
+                            status="success"
+                        )
+                        yield {"messages": [{"role": "assistant", "content": box}]}
+                    else:
+                        yield chunk
+                    yielded_spinner = False
+                except StopIteration:
+                    break
+                except Exception:
+                    if now - last_spinner_time >= spinner_yield_interval:
+                        taking_long = (now - start_time > 10)
+                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
+                        spinner_idx += 1
+                        last_spinner_time = now
+                        yielded_spinner = True
+            if not result_chunks and not yielded_spinner:
+                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
+        except Exception as e:
+            logger.error(f"Error during MonkaiMagic run: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
     def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
         """Creates the MonkaiMagic agent team and returns Tripitaka."""
