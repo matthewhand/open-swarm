@@ -90,6 +90,7 @@ This pattern is now used in the `codey` and `poets` blueprints for unified, resp
 - [ ] Flesh out code examples for each config pattern.
 - [ ] Add screenshots or demos of ANSI/emoji boxes and spinner states.
 - [ ] Link to main README and ensure discoverability.
+- [ ] Document framework-wide async CLI input handler pattern.
 
 ---
 *This README documents implemented features and standards. For feature status, see the main project TODOs.*
