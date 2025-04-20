@@ -22,4 +22,4 @@
 ## Code Fixes
 - [x] Add XDG path (`~/.config/swarm/swarm_config.json`) as the first search location in config discovery. (Already implemented)
 - [ ] Revise and update `blueprints/README.md` to reflect current blueprints, configuration, UX expectations, and modular/provider-agnostic patterns. Ensure it is discoverable and referenced from the main README.
-- [ ] Implement async CLI input handler for all blueprints: allow user to continue typing while previous response streams. If Enter is pressed once, warn: "Press Enter again to interrupt and send a new message." If Enter is pressed twice, interrupt the current operation and submit the new prompt. (Framework-wide, inspired by whinge_surf request)
+- [x] Implement async CLI input handler for all blueprints: allow user to continue typing while previous response streams. If Enter is pressed once, warn: "Press Enter again to interrupt and send a new message." If Enter is pressed twice, interrupt the current operation and submit the new prompt. (Framework-wide, inspired by whinge_surf request) [Implemented: see async_input.py, Codey, Poets]
