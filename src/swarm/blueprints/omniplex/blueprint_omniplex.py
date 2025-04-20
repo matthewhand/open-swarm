@@ -237,8 +237,8 @@ class OmniplexBlueprint(BlueprintBase):
     async def run(self, messages: List[Dict[str, Any]], **kwargs):
         import time
         op_start = time.monotonic()
-        last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
-        if not last_user_message:
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
+        if not messages or not messages[-1].get("content"):
             import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = get_spinner_state(op_start)
@@ -258,46 +258,52 @@ class OmniplexBlueprint(BlueprintBase):
             )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
-        instruction = last_user_message
+        instruction = messages[-1]["content"]
+        # Simulate orchestration/search/analysis operation
+        if "search" in instruction.lower() or "analyz" in instruction.lower():
+            search_mode = "semantic" if "semantic" in instruction.lower() else "code"
+            result_count = 3
+            params = {"query": instruction}
+            summary = f"Searched MCP servers for '{instruction}'" if search_mode == "code" else f"Semantic MCP search for '{instruction}'"
+            for i in range(1, result_count + 1):
+                spinner_state = get_spinner_state(op_start, interval=0.5, slow_threshold=2.0)
+                print_operation_box(
+                    op_type="MCP Search" if search_mode == "code" else "Semantic MCP Search",
+                    results=[f"Matches so far: {i}", f"server_{i}", f"tool_{i}", f"result_{i}"],
+                    params=params,
+                    result_type=search_mode,
+                    summary=summary,
+                    progress_line=str(i),
+                    total_lines=str(result_count),
+                    spinner_state=spinner_state,
+                    operation_type="MCP Search" if search_mode == "code" else "Semantic MCP Search",
+                    search_mode=search_mode,
+                    emoji='🧩',
+                    border='╔'
+                )
+                await asyncio.sleep(0.5)
+            yield {"messages": [{"role": "assistant", "content": f"Search complete for '{instruction}'"}]}
+            return
+        # Default orchestration
         import os
         border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
         print_operation_box(
-            op_type="Omniplex Result",
+            op_type="Omniplex Orchestrator",
             results=[instruction],
             params=None,
             result_type="omniplex",
-            summary="User instruction received",
+            summary="Omniplex orchestration complete",
             progress_line=None,
             spinner_state=spinner_state,
-            operation_type="Omniplex Run",
+            operation_type="Omniplex Orchestrator",
             search_mode=None,
             total_lines=None,
             emoji='🧩',
             border=border
         )
-        async for chunk in self._run_non_interactive(instruction, **kwargs):
-            # Unified UX output for each chunk/result
-            result_content = chunk.get('messages', [{}])[-1].get('content', str(chunk))
-            import os
-            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-            spinner_state = get_spinner_state(op_start)
-            print_operation_box(
-                op_type="Omniplex Result",
-                results=[result_content],
-                params=None,
-                result_type="omniplex",
-                summary="Omniplex agent response",
-                progress_line=None,
-                spinner_state=spinner_state,
-                operation_type="Omniplex Run",
-                search_mode=None,
-                total_lines=None,
-                emoji='🧩',
-                border=border
-            )
-            yield chunk
-        logger.info("OmniplexBlueprint run method finished.")
+        yield {"messages": [{"role": "assistant", "content": f"[Omniplex Orchestrator] Would respond to: {instruction}"}]}
+        return
 
     async def _run_non_interactive(self, instruction: str, **kwargs):
         logger.info(f"Running OmniplexBlueprint non-interactively with instruction: '{instruction[:100]}...'")

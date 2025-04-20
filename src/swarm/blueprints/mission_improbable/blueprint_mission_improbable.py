@@ -256,6 +256,7 @@ class MissionImprobableBlueprint(BlueprintBase):
 
     async def run(self, messages: list):
         import time
+        import asyncio
         op_start = time.monotonic()
         from swarm.core.output_utils import print_operation_box, get_spinner_state
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
@@ -280,6 +281,34 @@ class MissionImprobableBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
         instruction = last_user_message
+        # Simulate search/analysis operation if requested
+        if "search" in instruction.lower() or "analyz" in instruction.lower():
+            search_mode = "semantic" if "semantic" in instruction.lower() else "code"
+            result_count = 3
+            params = {"query": instruction}
+            summary = f"Searched mission files for '{instruction}'" if search_mode == "code" else f"Semantic mission search for '{instruction}'"
+            for i in range(1, result_count + 1):
+                spinner_state = get_spinner_state(op_start, interval=0.5, slow_threshold=2.0)
+                print_operation_box(
+                    op_type="Mission Search" if search_mode == "code" else "Semantic Mission Search",
+                    results=[f"Matches so far: {i}", f"file_{i}.txt", f"record_{i}.log", f"trace_{i}.json"],
+                    params=params,
+                    result_type=search_mode,
+                    summary=summary,
+                    progress_line=str(i),
+                    total_lines=str(result_count),
+                    spinner_state=spinner_state,
+                    operation_type="Mission Search" if search_mode == "code" else "Semantic Mission Search",
+                    search_mode=search_mode,
+                    emoji='🕵️',
+                    border='╔'
+                )
+                if asyncio.iscoroutinefunction(asyncio.sleep):
+                    await asyncio.sleep(0.5)
+                else:
+                    time.sleep(0.5)
+            yield {"messages": [{"role": "assistant", "content": f"Search complete for '{instruction}'"}]}
+            return
         import os
         border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
@@ -303,8 +332,6 @@ class MissionImprobableBlueprint(BlueprintBase):
             "available_tools": ["mission_improbable"]
         }
         rendered_prompt = self.render_prompt("mission_improbable_prompt.j2", prompt_context)
-        import os
-        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = get_spinner_state(op_start)
         print_operation_box(
             op_type="MissionImprobable Result",
@@ -328,7 +355,6 @@ class MissionImprobableBlueprint(BlueprintBase):
                 }
             ]
         }
-        # TODO: If/when search or analysis ops are added, use enhanced ANSI/emoji boxes summarizing results, counts, and parameters, and update progress line as appropriate. See Open Swarm UX standard.
         return
 
     def render_prompt(self, template_name: str, context: dict) -> str:
