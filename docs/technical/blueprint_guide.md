@@ -42,11 +42,10 @@ Located in `src/swarm/extensions/blueprint/blueprint_base.py`.
 ## Current Status & Known Issues
 
 -   **Pytest:** Broken via `uv` (environment mismatch). **IGNORE PYTEST.**
--   **Direct Execution:** `echocraft`, `suggestion` run. `rue_code`, `family_ties`, `gaggle`, `omniplex` refactored.
+-   **Direct Execution:** `echocraft`, `suggestion` run. `rue_code`, `stewie`, `gaggle`, `omniplex` refactored.
 -   **`Runner.run` Hang:** May occur on complex tasks.
 -   **`RunConfig`:** Unused by `Runner.run`.
 -   **MCP Servers:** Env var substitution fixed. Startup requires keys/paths in `.env`. Dynamic lookup from config implemented.
 -   **Markdown Rendering:** Flag exists but logic not implemented.
 -   **`max_llm_calls`:** Loaded but not enforced.
 -   **Unit Tests:** Old tests removed. New basic test `test_blueprint_base_new.py` added. Needs expansion.
-

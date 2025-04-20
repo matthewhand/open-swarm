@@ -247,18 +247,22 @@ Open Swarm and its blueprints use a variety of environment variables for configu
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF protection           | `http://localhost:8000,...`|
 | `ENABLE_ADMIN`           | Enable admin web interface                                      | `false`                    |
 | `ENABLE_API_AUTH`        | Require API authentication                                      | `true`                     |
+| `SWARM_COMMAND_TIMEOUT`  | Timeout in seconds for all shell commands run by blueprints       | Optional (recommended)     |
 
 #### Blueprint/Tool-Specific Variables
 - Some blueprints and MCP tools may require additional env vars (e.g., Google API keys, Slack tokens, etc.).
 - Refer to the blueprint's docstring or config for details.
 
-#### Usage Example
-```bash
-export OPENAI_API_KEY="sk-..."
-export SWARM_API_KEY="..."
-export LITELLM_BASE_URL="https://open-litellm.fly.dev/v1"
-# ... set other variables as needed
-```
+#### Timeout Configuration
+- **SWARM_COMMAND_TIMEOUT**: Controls the maximum time (in seconds) a shell command is allowed to run in any blueprint. If not set, defaults to 60 seconds for most commands, 120 seconds for cloud CLI tools (AWS, Fly.io, Vercel).
+- Set via environment variable: `export SWARM_COMMAND_TIMEOUT=90`
+- If a command exceeds the timeout, a clear error message will be shown in the CLI or operation box.
+- Applies to all blueprints and CLI tools that execute shell commands.
+- To override for a single run: `SWARM_COMMAND_TIMEOUT=30 swarm-cli run ...`
+
+#### Test Timeouts
+- All integration tests have a global timeout (30s) via pytest-timeout.
+- Some tests have explicit per-test timeouts (see test source for details).
 
 ---
 

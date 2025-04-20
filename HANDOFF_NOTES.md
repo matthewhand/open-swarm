@@ -4,11 +4,11 @@
 
 **Current Status:**
 
-*   **Core Refactoring Complete:** All major blueprints (`burnt_noodles`, `rue_code`, `nebula_shellz`, `digitalbutlers`, `dilbot_universe`, `gaggle`, `family_ties`, `mission_improbable`, `whiskeytango_foxtrot`, `divine_ops`, `omniplex`, `unapologetic_press`, `chatbot`, `echocraft`, `suggestion`, `monkai_magic`) have been refactored to inherit from `BlueprintBase`.
+*   **Core Refactoring Complete:** All major blueprints (`burnt_noodles`, `rue_code`, `nebula_shellz`, `dilbot_universe`, `gaggle`, `stewie`, `mission_improbable`, `whiskeytango_foxtrot`, `divine_ops`, `omniplex`, `unapologetic_press`, `chatbot`, `echocraft`, `suggestion`, `monkai_magic`) have been refactored to inherit from `BlueprintBase`.
 *   **Design Patterns:**
     *   Agent-as-tool delegation is the primary pattern for coordination.
     *   Direct `@function_tool` usage is employed for local CLI wrappers (`burnt_noodles`, `monkai_magic`).
-    *   MCP servers provide capabilities to specialist agents (`digitalbutlers`, `divine_ops`, `wtf`, `mission_improbable`, `omniplex`, `unapologetic_press`).
+    *   MCP servers provide capabilities to specialist agents (`divine_ops`, `wtf`, `mission_improbable`, `omniplex`, `unapologetic_press`).
     *   Dynamic configuration via SQLite demonstrated (`dilbot_universe`, `mission_improbable`, `unapologetic_press`).
     *   Structured output via `output_type` demonstrated (`suggestion`).
 *   **BlueprintBase Enhancements:**
