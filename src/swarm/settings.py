@@ -90,9 +90,9 @@ ASGI_APPLICATION = 'swarm.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR.parent / 'db.sqlite3',
+        'NAME': os.environ.get('DJANGO_DB_NAME', '/tmp/db.sqlite3'),
         'TEST': {
-            'NAME': BASE_DIR.parent / 'test_db.sqlite3',
+            'NAME': os.environ.get('DJANGO_TEST_DB_NAME', '/tmp/test_db.sqlite3'),
             'OPTIONS': {
                 'timeout': 20,
                 'init_command': "PRAGMA journal_mode=WAL;",

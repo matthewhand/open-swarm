@@ -11,18 +11,38 @@ DEFAULT_CONFIG_FILENAME = "swarm_config.json"
 # --- find_config_file, load_config, save_config, validate_config, get_profile_from_config, _substitute_env_vars_recursive ---
 # (Keep these functions as they were)
 def find_config_file( specific_path: Optional[str]=None, start_dir: Optional[Path]=None, default_dir: Optional[Path]=None,) -> Optional[Path]:
-    if specific_path: p=Path(specific_path); return p.resolve() if p.is_file() else logger.warning(f"Specified config path DNE: {specific_path}") or None # Fall through
+    # 1. XDG config path
+    xdg_config = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "swarm" / DEFAULT_CONFIG_FILENAME
+    if xdg_config.is_file():
+        logger.debug(f"Found config XDG: {xdg_config}")
+        return xdg_config.resolve()
+    # 2. User-specified path
+    if specific_path:
+        p = Path(specific_path)
+        return p.resolve() if p.is_file() else logger.warning(f"Specified config path DNE: {specific_path}") or None # Fall through
+    # 3. Upwards from start_dir
     if start_dir:
-        current=start_dir.resolve()
+        current = start_dir.resolve()
         while current != current.parent:
-            if (cp := current / DEFAULT_CONFIG_FILENAME).is_file(): logger.debug(f"Found config upwards: {cp}"); return cp.resolve()
+            if (cp := current / DEFAULT_CONFIG_FILENAME).is_file():
+                logger.debug(f"Found config upwards: {cp}")
+                return cp.resolve()
             current = current.parent
-        if (cp := current / DEFAULT_CONFIG_FILENAME).is_file(): logger.debug(f"Found config at root: {cp}"); return cp.resolve()
-    if default_dir and (cp := default_dir.resolve() / DEFAULT_CONFIG_FILENAME).is_file(): logger.debug(f"Found config default: {cp}"); return cp.resolve()
-    cwd=Path.cwd();
+        if (cp := current / DEFAULT_CONFIG_FILENAME).is_file():
+            logger.debug(f"Found config at root: {cp}")
+            return cp.resolve()
+    # 4. Default dir
+    if default_dir and (cp := default_dir.resolve() / DEFAULT_CONFIG_FILENAME).is_file():
+        logger.debug(f"Found config default: {cp}")
+        return cp.resolve()
+    # 5. CWD
+    cwd = Path.cwd()
     if start_dir is None or cwd != start_dir.resolve():
-        if (cp := cwd / DEFAULT_CONFIG_FILENAME).is_file(): logger.debug(f"Found config cwd: {cp}"); return cp.resolve()
-    logger.debug(f"Config '{DEFAULT_CONFIG_FILENAME}' not found."); return None
+        if (cp := cwd / DEFAULT_CONFIG_FILENAME).is_file():
+            logger.debug(f"Found config cwd: {cp}")
+            return cp.resolve()
+    logger.debug(f"Config '{DEFAULT_CONFIG_FILENAME}' not found.")
+    return None
 
 def load_config(config_path: Path) -> Dict[str, Any]:
     logger.debug(f"Loading config from {config_path}")
