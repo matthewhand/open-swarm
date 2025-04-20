@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 from typing import List, Dict, Any
+import re
 
 # Optional import for markdown rendering
 try:
@@ -106,7 +107,26 @@ def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = F
             if msg_content:
                 # --- DEBUG PRINT ---
                 print(f"\n[DEBUG Assistant content found, printing/rendering... Rich={RICH_AVAILABLE}, Markdown={use_markdown}]", flush=True)
-                if use_markdown and RICH_AVAILABLE:
+                # --- CODE FENCE HIGHLIGHTING ---
+                if RICH_AVAILABLE and '```' in msg_content:
+                    import re
+                    code_fence_pattern = r"```([\w\d]*)\n([\s\S]*?)```"
+                    matches = re.findall(code_fence_pattern, msg_content)
+                    if matches:
+                        from rich.syntax import Syntax
+                        from rich.console import Console
+                        console = Console()
+                        for lang, code in matches:
+                            syntax = Syntax(code, lang or "python", theme="monokai", line_numbers=False)
+                            console.print(syntax)
+                        # Optionally print any non-code parts
+                        non_code = re.split(code_fence_pattern, msg_content)
+                        for i, part in enumerate(non_code):
+                            if i % 3 == 0 and part.strip():
+                                print(part.strip(), flush=True)
+                    else:
+                        print(msg_content, flush=True)
+                elif use_markdown and RICH_AVAILABLE:
                     render_markdown(msg_content)
                 else:
                     print(msg_content, flush=True)
