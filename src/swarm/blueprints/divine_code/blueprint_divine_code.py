@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from typing import Dict, Any, List, ClassVar, Optional
+from swarm.core.output_utils import ansi_box, print_operation_box
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -120,9 +121,6 @@ You are Chronos, Technical Writer. You create documentation based on requests fr
 Available MCP Tools (if provided): sequential-thinking, filesystem.
 You also have fileops capabilities: read_file, write_file, list_files, execute_shell_command.
 """
-
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 
 # --- FileOps Tool Logic Definitions ---
  # Patch: Expose underlying fileops functions for direct testing
@@ -286,6 +284,20 @@ class DivineOpsBlueprint(BlueprintBase):
         logger.info("DivineOpsBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
         async for chunk in self._run_non_interactive(instruction, **kwargs):
+            # Print output in unified ansi_box UX
+            content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
+            print_operation_box(
+                op_type="DivineOps Result",
+                results=[content],
+                params={"messages": messages},
+                result_type="creative",
+                summary="SDLC orchestration / Zeus coordinator result",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="DivineOps Run",
+                search_mode=None,
+                total_lines=None
+            )
             yield chunk
         logger.info("DivineOpsBlueprint run method finished.")
 

@@ -45,9 +45,6 @@ class SuggestionsOutput(TypedDict):
     """Defines the expected structure for the agent's output."""
     suggestions: List[str]
 
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
-
 # Patch: Expose underlying fileops functions for direct testing
 class PatchedFunctionTool:
     def __init__(self, func, name):

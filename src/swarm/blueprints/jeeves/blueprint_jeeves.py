@@ -112,8 +112,8 @@ write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
+# --- Unified Operation/Result Box for UX ---
+from swarm.core.output_utils import print_operation_box
 
 # --- Define the Blueprint ---
 class JeevesBlueprint(BlueprintBase):
@@ -234,9 +234,35 @@ class JeevesBlueprint(BlueprintBase):
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             for chunk in Runner.run(agent, instruction):
+                # Unified UX output for each chunk
+                result_content = getattr(chunk, 'final_output', str(chunk))
+                print_operation_box(
+                    op_type="Jeeves Result",
+                    results=[result_content],
+                    params=None,
+                    result_type="jeeves",
+                    summary="Jeeves agent response",
+                    progress_line=None,
+                    spinner_state=None,
+                    operation_type="Jeeves Run",
+                    search_mode=None,
+                    total_lines=None
+                )
                 yield chunk
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
+            print_operation_box(
+                op_type="Jeeves Error",
+                results=[f"An error occurred: {e}"],
+                params=None,
+                result_type="jeeves",
+                summary="Jeeves agent error",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="Jeeves Run",
+                search_mode=None,
+                total_lines=None
+            )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 if __name__ == "__main__":

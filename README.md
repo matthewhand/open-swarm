@@ -507,6 +507,7 @@ This README provides a high-level overview and quickstart guides. For more detai
 *   **Example Blueprints (`src/swarm/blueprints/README.md`):** A list and description of the example blueprints included with the framework, showcasing various features and integration patterns.
 *   **Blueprint Patterns and Configuration (`blueprints/README.md`):** Guidance on creating and configuring blueprints, including best practices and common pitfalls. **Start here for blueprint usage and extension.**
 *   **User Experience Standards (`UX.md`):** Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
+*   **User Experience Standards (`UX.md`)**: Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
 
 ---
 

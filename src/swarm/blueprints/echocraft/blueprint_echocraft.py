@@ -8,6 +8,7 @@ import time # Import time for timestamp
 import os
 from datetime import datetime
 import pytz
+from swarm.core.output_utils import print_operation_box
 
 from swarm.core.blueprint_base import BlueprintBase
 from agents import function_tool
@@ -50,7 +51,7 @@ execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute
 logger = logging.getLogger(__name__)
 
 # Last swarm update: 2024-03-07T14:30:00Z (UTC)
-# Spinner UX enhancement (Open Swarm TODO)
+
 SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 
 """
@@ -168,6 +169,19 @@ class EchoCraftBlueprint(BlueprintBase):
         last_result = None
         async for result in self._original_run(messages):
             last_result = result
+            # Unified box UX for all user-facing results
+            print_operation_box(
+                op_type="Echo Result",
+                results=[result["messages"][0]["content"]] if isinstance(result, dict) and "messages" in result and result["messages"] else [str(result)],
+                params={"messages": messages},
+                result_type="creative",
+                summary="EchoCraft blueprint result",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="Echo Result",
+                search_mode=None,
+                total_lines=None
+            )
             yield result
         if last_result is not None:
             await self.reflect_and_learn(messages, last_result)

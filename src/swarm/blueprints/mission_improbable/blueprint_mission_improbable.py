@@ -28,6 +28,7 @@ try:
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.output_utils import print_operation_box
 except ImportError as e:
     print(f"ERROR: Import failed in MissionImprobableBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -76,9 +77,6 @@ execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute
 DB_FILE_NAME = "swarm_instructions.db"
 DB_PATH = Path(project_root) / DB_FILE_NAME
 TABLE_NAME = "agent_instructions" # agent_name TEXT PRIMARY KEY, instruction_text TEXT, model_profile TEXT
-
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 
 # --- Define the Blueprint ---
 # Renamed class for consistency
