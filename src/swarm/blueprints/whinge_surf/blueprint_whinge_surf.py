@@ -76,8 +76,63 @@ class WhingeSurfBlueprint(BlueprintBase):
             status = self.get_subprocess_status(proc_id)
             yield {"messages": [{"role": "assistant", "content": f"Subprocess status: {status}"}]}
             return
-        # Minimal canned response for test compliance
-        yield {"messages": [{"role": "assistant", "content": instruction}]}
+        # --- LLM Agent Integration (optional) ---
+        agent_supported = hasattr(self, "create_starting_agent")
+        try:
+            if agent_supported:
+                from agents import Runner
+                mcp_servers = kwargs.get("mcp_servers", [])
+                agent = self.create_starting_agent(mcp_servers=mcp_servers)
+                if agent is None:
+                    raise Exception("No agent available for LLM interaction. Implement create_starting_agent in this blueprint.")
+                result = await Runner.run(agent, instruction)
+                if hasattr(result, "__aiter__"):
+                    async for chunk in result:
+                        response = getattr(chunk, 'final_output', str(chunk))
+                        yield {"messages": [{"role": "assistant", "content": response}]}
+                else:
+                    response = getattr(result, 'final_output', str(result))
+                    yield {"messages": [{"role": "assistant", "content": response}]}
+                return
+        except Exception as e:
+            # If agent logic fails, fall back to UX-compliant output
+            from swarm.core.output_utils import print_operation_box, get_spinner_state
+            spinner_state = get_spinner_state(time.monotonic())
+            print_operation_box(
+                op_type="WhingeSurf Error",
+                results=[f"Operation failed: {e}", "Agent-based LLM not available."],
+                params=None,
+                result_type="whinge_surf",
+                summary="Blueprint operation error",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="WhingeSurf Run",
+                search_mode=None,
+                total_lines=None,
+                emoji='🌊',
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"[LLM ERROR] {e}\nAgent-based LLM not available."}]}
+            return
+        # Fallback: emit a UX-compliant box if no agent support
+        from swarm.core.output_utils import print_operation_box, get_spinner_state
+        spinner_state = get_spinner_state(time.monotonic())
+        print_operation_box(
+            op_type="WhingeSurf Not Implemented",
+            results=["This operation is not implemented in WhingeSurf.", "No agent logic present."],
+            params=None,
+            result_type="whinge_surf",
+            summary="Blueprint scaffold / UX demonstration",
+            progress_line=None,
+            spinner_state=spinner_state,
+            operation_type="WhingeSurf Run",
+            search_mode=None,
+            total_lines=None,
+            emoji='🌊',
+            border='╔'
+        )
+        yield {"messages": [{"role": "assistant", "content": "This operation is not implemented in WhingeSurf. No agent logic present."}]}
+        return
 
     async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
         import time
