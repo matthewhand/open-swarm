@@ -3,5 +3,3 @@
 git commit messages are to be conventional.
 functional swarm-cli and swarm-api cmds are the end game.
 blueprints demonstrate the framework capabilities.
-When not working away at the TODO.md list work on improving test coverage.
-When not working on test coverage chip away at the TODO.md list.
