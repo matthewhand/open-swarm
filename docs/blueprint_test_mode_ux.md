@@ -7,31 +7,38 @@ This document describes the standards and patterns for test-mode output, spinner
 - **Purpose:** Ensures that blueprint outputs are testable, visually consistent, and user-friendly.
 - **Key Patterns:**
   - Use ANSI/emoji boxes to summarize operation type, parameters, and results.
-  - For search and analysis operations, display spinner lines such as:
-    - `Generating.`
-    - `Generating..`
-    - `Generating...`
-    - `Running...`
-    - `Generating... Taking longer than expected`
+  - For search and analysis operations, display spinner lines using `get_spinner_sequence` from `swarm.core.spinner`.
   - Show progressive updates (e.g., line numbers, result counts) for long-running operations.
 - **Implementation Example:**
 
 ```python
-spinner_lines = [
-    "Generating.",
-    "Generating..",
-    "Generating...",
-    "Running...",
-    "Generating... Taking longer than expected"
-]
-for line in spinner_lines:
-    print(line)
+from swarm.core.spinner import get_spinner_sequence
+spinner_msgs = get_spinner_sequence('generating') + get_spinner_sequence('running')
+for msg in spinner_msgs:
+    print(msg, flush=True)
 print_search_progress_box(
     op_type="Semantic Search Spinner",
-    results=[*spinner_lines, "Found 7 matches", "Processed", "✨"],
+    results=["Found 7 matches", "Processed", "✨"],
     ... # other params
 )
 ```
+
+### Spinner and Progress Message Standardization
+
+All test mode spinner/progress output must use the centralized utility:
+
+- Use `from swarm.core.spinner import get_spinner_sequence` for spinner message sequences.
+- Do not hardcode spinner/progress messages in blueprints or tests.
+- Example:
+
+```python
+from swarm.core.spinner import get_spinner_sequence
+spinner_msgs = get_spinner_sequence('generating') + get_spinner_sequence('running')
+for msg in spinner_msgs:
+    print(msg, flush=True)
+```
+
+If a new spinner sequence is needed, add it to `Spinner.STATUS_SEQUENCES` in `swarm.core/spinner.py`.
 
 ## 2. Subprocess Simulation for Test Mode
 
@@ -91,6 +98,7 @@ async def test_subprocess_launch_and_status():
   - Use these patterns for test-mode UX and subprocess simulation.
   - Ensure test coverage for spinner/box/UX and subprocess scenarios.
   - Avoid ad-hoc or custom test-mode logic.
+- Blueprints should handle continuation commands (`continue`, `continuar`, `continuear`) in test mode, resuming from stored context if available, or notifying the user if not.
 
 ## 5. Automated Compliance Utility
 
