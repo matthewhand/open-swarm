@@ -197,3 +197,4 @@ openai-agents-python/*
 docker-compose.override.yml
 
 bin/*
+src/swarm/blueprints/**/session_logs/
