@@ -1,8 +1,10 @@
-# Rue Code Blueprint
+# RueCode Blueprint
 
-**Rue Code** is a blueprint that specializes in calculating token costs for LLM usage. Use it to estimate and manage your API expenses for OpenAI and other LLM providers.
+This is the README stub for the RueCode blueprint.
 
-## Special Feature
-- **Token Cost Calculation**: Instantly estimate how much your LLM calls will cost.
+- **Purpose:** Code review and analysis agent for Open Swarm.
+- **Required Env Vars:** _Document if any._
+- **Tests:** See `tests/blueprints/test_rue_code.py` (if exists).
+- **Usage:** `swarm-cli run rue_code --instruction "ping"`
 
----
+_Expand this README with configuration, usage, and extension details as needed._
