@@ -5,6 +5,7 @@ Output utilities for Swarm blueprints.
 import json
 import logging
 import os
+import shutil
 import sys
 import time
 from typing import List, Dict, Any
@@ -38,7 +39,7 @@ def ansi_box(
     color: str = "94",
     emoji: str = "🔎",
     border: str = None,
-    width: int = 70,
+    width: int = None,
     summary: str = None,
     result_count: int = None,
     params: dict = None,
@@ -49,6 +50,14 @@ def ansi_box(
     total_lines: int = None
 ) -> str:
     # Enhanced ANSI/emoji box for search/analysis UX
+    # Determine terminal width if not set
+    if width is None:
+        try:
+            width = shutil.get_terminal_size((70, 20)).columns
+            # Minimum width for box to look good
+            width = max(width, 40)
+        except Exception:
+            width = 70
     lines = []
     if border == '╔':
         border_line_top = f"\033[{color}m╔{'═' * (width - 4)}╗\033[0m"
@@ -108,6 +117,24 @@ def get_spinner_state(start_time, interval=0.5, slow_threshold=5.0):
     idx = int((elapsed / interval)) % len(frames)
     return frames[idx]
 
+def get_standard_spinner_lines():
+    """Return the standard spinner lines for blueprint progress output."""
+    return [
+        "Generating.",
+        "Generating..",
+        "Generating...",
+        "Running..."
+    ]
+
+def is_ansi_capable():
+    term = os.environ.get("TERM", "")
+    # List of common non-ANSI terminals
+    non_ansi_terms = {"dumb", "vt100", "cons25", "emacs", "unknown"}
+    # If not a tty or explicitly non-ansi, return False
+    if not sys.stdout.isatty() or term.lower() in non_ansi_terms:
+        return False
+    return True
+
 def print_operation_box(
     op_type,
     results,
@@ -121,54 +148,37 @@ def print_operation_box(
     search_mode=None,
     total_lines=None,
     emoji=None,
-    border=None
+    border=None,
+    ephemeral=False  # New: ephemeral status box (disappears in non-interactive mode)
 ):
     """
-    Print a unified ANSI/emoji box for any blueprint operation.
-    Args:
-        op_type (str): Operation type or title.
-        results (list): List of result strings to display.
-        params (dict, optional): Search/operation parameters.
-        result_type (str, optional): Used for coloring or summary.
-        taking_long (bool, optional): If True, show 'Taking longer than expected'.
-        summary (str, optional): Short summary line.
-        progress_line (str, optional): Progress string.
-        spinner_state (str, optional): Spinner/progress string.
-        operation_type (str, optional): Operation type for box.
-        search_mode (str, optional): Search mode for test.
-        total_lines (int, optional): Total lines for progress.
-        emoji (str, optional): Emoji for box branding.
-        border (str, optional): Custom border character for box.
+    Print a unified ANSI/emoji box for any blueprint operation, or plain output if not ansi capable.
     """
-    # Emoji selection logic
-    default_emojis = {
-        "code": "💻",
-        "creative": "📝",
-        "search": "🔎",
-        "analyze": "🧠",
-        "file": "📄",
-        "jeeves": "🤖",
-        "error": "❌",
-        "generic": "✨"
-    }
-    # Use result_type for emoji selection, fallback to generic
-    box_emoji = emoji or default_emojis.get(result_type, default_emojis["generic"])
-    print(f"[DEBUG] print_operation_box: emoji arg={emoji!r}, result_type={result_type!r}, box_emoji={box_emoji!r}")
-    # Detect spinner state for 'Taking longer' and colorize
-    if spinner_state and "Taking longer" in spinner_state:
-        spinner_color = "33"  # yellow
-    else:
-        spinner_color = "36"  # cyan
-    # Build summary and result count
+    # Robust ANSI detection: fallback for non-ANSI terminals
+    if not is_ansi_capable():
+        debug_env = os.environ.get("SWARM_DEBUG")
+        if debug_env:
+            print("[DEBUG] Non-ANSI terminal detected, using plain output.")
+        for r in results:
+            print(r)
+        return
+    # Otherwise, use the ansi box logic directly (not via patching)
     result_count = len(results) if results else 0
-    # Compose main content
     content = "\n".join(str(r) for r in results)
-    # Use ansi_box for unified formatting
     box = ansi_box(
         title=op_type,
         content=content,
         color="94",
-        emoji=box_emoji or "✨",
+        emoji=emoji or {
+            "code": "💻",
+            "creative": "📝",
+            "search": "🔎",
+            "analyze": "🧠",
+            "file": "📄",
+            "jeeves": "🤖",
+            "error": "❌",
+            "generic": "✨"
+        }.get(result_type, "✨"),
         summary=summary,
         result_count=result_count,
         params=params,
@@ -180,6 +190,8 @@ def print_operation_box(
         border=border
     )
     print(box, flush=True)
+    if ephemeral and is_non_interactive():
+        print("\n" * (box.count("\n") + 2), end="", flush=True)
 
 def print_search_box(title: str, content: str, color: str = "94", emoji: str = "🔎"):
     print_operation_box(title, [content], emoji=emoji)
@@ -196,7 +208,8 @@ def print_search_progress_box(
     search_mode=None,
     total_lines=None,
     emoji=None,
-    border=None
+    border=None,
+    ephemeral=False  # Add ephemeral param, pass to print_operation_box
 ):
     """
     Print a unified ANSI/emoji box for search/analysis progress/results.
@@ -205,38 +218,26 @@ def print_search_progress_box(
         op_type (str): Operation type or title.
         results (list): List of result strings to display.
         params (dict, optional): Search/operation parameters.
-        result_type (str, optional): Used for coloring or summary.
-        summary (str, optional): Optional summary line.
-        progress_line (str, optional): Progress indicator.
-        spinner_state (str, optional): Spinner indicator.
-        operation_type (str, optional): Operation type for test.
-        search_mode (str, optional): Search mode for test.
-        total_lines (int, optional): Total lines for progress.
-        emoji (str, optional): Emoji for the box.
+        result_type (str, optional): Result type.
+        summary (str, optional): Summary string.
+        progress_line (str, optional): Progress line string.
+        spinner_state (str, optional): Spinner state string.
+        operation_type (str, optional): Operation type string.
+        search_mode (str, optional): Search mode string.
+        total_lines (int, optional): Total lines processed.
+        emoji (str, optional): Emoji to use in box.
         border (str, optional): Border style.
+        ephemeral (bool, optional): If True, ephemeral box (disappears in non-interactive mode).
     """
+    # Compose the box content
     box_lines = []
-    if op_type:
-        box_lines.append(f"__NOBOX__:{op_type}")
     if progress_line:
-        box_lines.append(f"__NOBOX__:{progress_line}")
-    if spinner_state:
-        box_lines.append(f"__NOBOX__:{spinner_state}")
-    if summary:
-        box_lines.append(f"__NOBOX__:{summary}")
+        box_lines.append(progress_line)
     if results:
-        for r in results:
-            if str(r) not in box_lines:
-                box_lines.append(str(r))
-    # Always print 'Params:' line if params are present (even if empty)
-    if params is not None:
-        box_lines.append(f"Params: {params}")
-    # Print all __NOBOX__ lines directly and flush
-    nobox_lines = [line[len("__NOBOX__:"):] for line in box_lines if str(line).startswith("__NOBOX__:")]
-    for line in nobox_lines:
-        print(line, flush=True)
-    # Remove __NOBOX__ lines from box_lines before passing to print_operation_box
-    box_lines = [line for line in box_lines if not str(line).startswith("__NOBOX__:")]
+        if isinstance(results, list):
+            box_lines.extend(results)
+        else:
+            box_lines.append(str(results))
     # Ensure 'Results:' is present at the top of the box for test compliance
     if box_lines and not any(str(line).strip().startswith("Results:") for line in box_lines):
         box_lines = ["Results:"] + box_lines
@@ -252,7 +253,8 @@ def print_search_progress_box(
         search_mode=search_mode,
         total_lines=total_lines,
         emoji=emoji,
-        border=border
+        border=border,
+        ephemeral=ephemeral
     )
 
 def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str = None, _console=None) -> None:
@@ -389,3 +391,6 @@ This prevents disk overuse and allows debugging of HTTP requests when needed.
 Review this log for network issues, API errors, or LLM integration debugging.
 '''
     return doc
+
+def is_non_interactive():
+    return not sys.stdout.isatty()
