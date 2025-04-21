@@ -1,3 +1,25 @@
+# 🚀 Open Swarm — S-Tier Onboarding
+
+Welcome to Open Swarm! Orchestrate, manage, and run AI agent blueprints with S-tier onboarding and UX polish.
+
+## Quickstart
+
+1. List blueprints:
+   ```bash
+   swarm-cli list
+   ```
+2. Run the demo blueprint:
+   ```bash
+   swarm-cli run hello_world --instruction "Hello, world!"
+   ```
+3. Install as command:
+   ```bash
+   swarm-cli install hello_world
+   ./hello_world "Hello, world!"
+   ```
+
+For advanced features, see below or run `swarm-cli help`.
+
 # Open Swarm
 
 <div align="center">
@@ -13,11 +35,25 @@ Open Swarm can be used in two primary ways:
 
 ---
 
+## Development Setup (Editable Install)
+
+If you are working from a cloned repository or developing Open Swarm locally, you must install the package in editable mode before using the CLI or API tools:
+
+```bash
+pip install -e .
+```
+
+This ensures that the `swarm-cli` and `swarm-api` commands point to the latest source code and are available in your PATH. After running this, you can use the CLI commands as described below.
+
+---
+
 ## Configuration & Quickstart
 
 See [CONFIGURATION.md](./CONFIGURATION.md) for a full guide to Swarm configuration—including LLM setup, MCP server integration, per-blueprint overrides, pricing, and CLI vs manual workflows.
 
 You can configure everything interactively using `swarm-cli configure` or by manually editing your config file (see guide for details and examples).
+
+> **Note:** In development mode, some CLI commands or features may differ from the published PyPI version. If you encounter issues, ensure you have run `pip install -e .` and that your environment is activated.
 
 ---
 
@@ -55,59 +91,122 @@ You can configure everything interactively using `swarm-cli configure` or by man
 
 ---
 
-## New in Geese: Notifier Abstraction & Reflection
+## 🚀 Unified Blueprint Search & Analysis UX
 
-- The Geese blueprint now uses a Notifier abstraction for all user-facing output (operation boxes, errors, info), enabling easy redirection to different UIs or for testing.
-- Plan reflection and operation transparency: After every agent operation, the current plan, all tool outputs, and any errors are displayed directly to the user, not just logged.
-- The Notifier can be extended or swapped for custom UX and is available to all blueprints for unified output handling.
+Open Swarm blueprints now deliver a consistent, branded, and user-friendly experience for all search and analysis operations. Each blueprint leverages:
 
-See `src/swarm/blueprints/geese/README.md` for usage and extension details.
+- **ANSI/emoji result boxes** summarizing search/analysis results, parameters, and counts
+- **Progress spinners** ("Generating...", "Taking longer than expected") with live line/progress updates
+- **Distinct emoji branding** for each blueprint (e.g., 🌳 Family Ties, 🪶 Unapologetic Poets, 🦢 Gaggle)
+- **Clear feedback** for subprocess management and onboarding
 
----
+<!-- BLUEPRINT_TABLE_START -->
+<!-- The following table is auto-generated. Do not edit manually. Run scripts/gen_blueprint_table.py to update. -->
 
-## Codex CLI Feature Parity Checklist
+| Emoji | Name | Description | Example Commands | Branding |
+|-------|------|-------------|------------------|----------|
+|  | `ChatbotBlueprint` | A basic conversational agent that responds to user input. |  |  |
+|  | `ZeusBlueprint` | Zeus leads a pantheon for software dev & sysadmin tasks, coordinating via agent-as-tool delegation. (DivineOpsBlueprint merged into this) |  |  |
+|  | `FamilyTiesBlueprint` | Manages WordPress content using Peter (coordinator) and Brian (WP manager via MCP). |  |  |
+|  | `JeevesBlueprint` | Provides private web search (DuckDuckGo) and home automation (Home Assistant) via specialized agents (Jeeves, Mycroft, Gutenberg). |  |  |
+|  | `MCPDemoBlueprint` | A scalable agent (Sage) demonstrating interaction with filesystem and memory MCP servers, supporting horizontal scaling and viral file operations. |  |  |
+|  | `MissionImprobableBlueprint` | A cheeky team led by JimFlimsy (coordinator), CinnamonToast (strategist/filesystem), and RollinFumble (operative/shell). Uses SQLite for instructions. |  |  |
+|  | `MonkaiMagicBlueprint` | A *Monkai Magic*-inspired crew managing AWS, Fly.io, and Vercel with pre-authenticated CLI tools and agent-as-tool delegation. |  |  |
+|  | `NebulaShellzzarBlueprint` | A multi-agent blueprint inspired by The Matrix for system administration and coding tasks. |  |  |
+|  | `OmniplexBlueprint` | Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers. |  |  |
+|  | `PoetsBlueprint` | A swarm of agents embodying legendary poets, using SQLite for instructions, agent-as-tool for collaboration, and MCPs for creative augmentation. |  |  |
+|  | `RueCode` | Generates, executes code, and interacts with the file system. |  |  |
+|  | `SuggestionBlueprint` | An agent that provides structured suggestions using Agent(output_type=...). |  |  |
+|  | `UnapologeticPoetsBlueprint` | A swarm of agents embodying legendary poets, using SQLite for instructions, agent-as-tool for collaboration, and MCPs for creative augmentation. |  |  |
+|  | `WhiskeyTangoFoxtrotBlueprint` | Tracks free online services with SQLite and web search using a multi-tiered agent hierarchy. |  |  |
+| 🤖 | `codey` | Code and semantic code search/analysis. | swarm-cli codey /codesearch recursion . 5<br>swarm-cli codey /semanticsearch asyncio . 3 | Unified ANSI/emoji box UX, spinner, progress, summary |
+| 🦢 | `gaggle` | Minimal test/demo search blueprint. | swarm-cli gaggle /search alpha . 5<br>swarm-cli gaggle /analyze beta . 2 | Unified ANSI/emoji box UX, spinner, progress, summary |
+|  | `DivineOpsBlueprint` (historical, merged into ZeusBlueprint) |  |  |  |
+|  | `divine_code` (historical, merged into ZeusBlueprint) |  |  |  |
+<!-- BLUEPRINT_TABLE_END -->
 
-This project aims to provide full feature parity with the OpenAI Codex CLI. Below is a checklist of Codex features and their current status in Open Swarm/codey:
+- All commands support `/analyze` as well as `/search` (e.g., `/analyze beta . 5`).
+- Try the commands above to see the new UX in action!
 
-### ✅ Already Implemented
-- Rich output/emoji/spinner UX (unified for search, analysis, file ops)
-- Modular blueprint/agent system
-- Basic interactive CLI mode
-- Basic approval mode for some agent actions
-- Syntax-highlighted code output
-- Session/history management and overlays
-- Full-context mode for large refactor/analysis
-- Writable root/sandboxing CLI/config support
-- Command suggestions/typeahead/autocomplete for CLI and slash commands
-- Help and onboarding overlays
-- Desktop notification support (optional)
-- Dangerous auto-approve flag/UX
-- Output formatting/full stdout option
-- Image input (CLI/UX, future-proof)
-
-### ⚠️ Partially Implemented
-- Approval modes (full-auto, interactive, granular gating) for all actions
-- Directory sandboxing (not enforced everywhere, no network controls)
-- CLI/config file support (not unified or live-reloadable)
-- Version control integration (git ops for suggest mode only)
-- Slash commands: `/help`, `/model`, `/approval`, `/history`, `/ls`, `/cat`, `/edit`, `/compact` (some available)
-- Project-level instructions auto-loading
-
-### ❌ Not Yet Implemented
-- Auto dependency install for generated code
-- Automatic context/project file injection
-- Plan/changelog file maintenance
-- User feedback/correction loop
-- Persistent session logging/audit trail
-- Streaming token-by-token CLI output
-- Non-interactive/CI/headless mode
-- Multimodal input (screenshots/diagrams)
-- Atomic commit/rollback for all agent actions
-- Safety/ZDR org restrictions
+### Key Features
+- **Result counts** and summaries in every result box
+- **Live progress updates** during long-running operations
+- **Custom spinner messages** for clear feedback
+- **Fallback echo** for other commands, always in a result box
 
 ---
 
-**See the codey blueprint README for blueprint-specific feature status and TODOs.**
+## 🚀 Unified Spinner and Result Output for Blueprints
+
+All blueprints must use `print_search_progress_box` for spinner/progress/result output. See [`src/swarm/blueprints/blueprint_template.py`](src/swarm/blueprints/blueprint_template.py) for a canonical implementation.
+
+- Distinguish between code and semantic search.
+- Show spinner sequence: "Generating.", "Generating..", "Generating...", "Running...", and "Generating... Taking longer than expected".
+- Update line numbers and result counts during progress.
+- Always emit a summary/result box at the end.
+- Pass all test suite checks for spinner/result output.
+
+**Review Checklist:**
+- [ ] Uses `print_search_progress_box` for all output
+- [ ] Distinguishes code/semantic search
+- [ ] Shows spinner sequence and “Taking longer than expected”
+- [ ] Progress boxes update lines/results
+- [ ] Passes all tests
+
+---
+
+## Continuous Compliance
+
+This project uses an automated compliance audit for all blueprint metadata. Every push and pull request is checked for standards compliance via GitHub Actions. If any blueprint fails compliance, the build will fail.
+
+- Audit script: `scripts/audit_blueprint_compliance.py`
+- Workflow: `.github/workflows/compliance-audit.yml`
+
+To run the audit locally:
+
+```bash
+python3 scripts/audit_blueprint_compliance.py
+```
+
+---
+
+## Blueprint UX Compliance & Test Mode
+
+Open Swarm blueprints must provide a consistent, user-friendly CLI experience. All blueprints must:
+- Display custom spinner messages: `Generating.`, `Generating..`, `Generating...`, `Running...`, and `Generating... Taking longer than expected` for long operations.
+- Use ANSI/emoji boxes to summarize operations, results, and parameters (see `print_search_progress_box`).
+- Clearly distinguish between code search, semantic search, and analysis operations in the output.
+- In test mode (`SWARM_TEST_MODE=1`), output must be deterministic and include all spinner/box states for compliance tests.
+- For more, see `docs/blueprint_standards.md` and `docs/blueprint_test_mode_ux.md`.
+
+To check compliance or debug output, run:
+```bash
+uv run pytest -v tests/blueprints
+```
+
+For automated compliance checking, see `scripts/check_ux_compliance.py`.
+
+---
+
+## What to Try Next
+
+- **Try Code Search:**
+  - `swarm-cli codey /codesearch <keyword> <path> <max_results>`
+  - Example: `swarm-cli codey /codesearch recursion . 5`
+  - Try `/semanticsearch` for semantic code search with rich result boxes, result counts, and progressive spinner.
+
+- **Try WhingeSurf Async UX:**
+  - `swarm-cli whinge_surf !run sleep 2`
+  - Then: `swarm-cli whinge_surf !status <process_id>`
+  - Demonstrates async subprocess management and status polling.
+
+- **Discover Blueprints:**
+  - `swarm-cli info <blueprint>`
+  - Shows blueprint description, usage, and onboarding tips.
+
+- **Get Help:**
+  - `swarm-cli --help` or `swarm-cli codey --help`
+  - For onboarding, command list, and usage examples.
 
 ---
 
@@ -151,6 +250,9 @@ pip install -e .
 
 ```bash
 swarm-cli --help
+swarm-cli run hello_world --instruction "Hello from CLI!"
+python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
+./hello_world Hello from CLI!
 swarm-api --help
 ```
 
@@ -247,22 +349,18 @@ Open Swarm and its blueprints use a variety of environment variables for configu
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF protection           | `http://localhost:8000,...`|
 | `ENABLE_ADMIN`           | Enable admin web interface                                      | `false`                    |
 | `ENABLE_API_AUTH`        | Require API authentication                                      | `true`                     |
-| `SWARM_COMMAND_TIMEOUT`  | Timeout in seconds for all shell commands run by blueprints       | Optional (recommended)     |
 
 #### Blueprint/Tool-Specific Variables
 - Some blueprints and MCP tools may require additional env vars (e.g., Google API keys, Slack tokens, etc.).
 - Refer to the blueprint's docstring or config for details.
 
-#### Timeout Configuration
-- **SWARM_COMMAND_TIMEOUT**: Controls the maximum time (in seconds) a shell command is allowed to run in any blueprint. If not set, defaults to 60 seconds for most commands, 120 seconds for cloud CLI tools (AWS, Fly.io, Vercel).
-- Set via environment variable: `export SWARM_COMMAND_TIMEOUT=90`
-- If a command exceeds the timeout, a clear error message will be shown in the CLI or operation box.
-- Applies to all blueprints and CLI tools that execute shell commands.
-- To override for a single run: `SWARM_COMMAND_TIMEOUT=30 swarm-cli run ...`
-
-#### Test Timeouts
-- All integration tests have a global timeout (30s) via pytest-timeout.
-- Some tests have explicit per-test timeouts (see test source for details).
+#### Usage Example
+```bash
+export OPENAI_API_KEY="sk-..."
+export SWARM_API_KEY="..."
+export LITELLM_BASE_URL="https://open-litellm.fly.dev/v1"
+# ... set other variables as needed
+```
 
 ---
 
@@ -354,6 +452,110 @@ Commands:
 
 ---
 
+## Blueprint Metadata: Developer Guide
+
+All blueprints must define a class-level `metadata` property for onboarding, CLI discovery, and documentation automation. This property should be a Python dictionary and include the following keys:
+
+- `name`: The blueprint's canonical name (string)
+- `emoji`: The blueprint's emoji branding (string)
+- `description`: Short description for CLI/docs (string)
+- `examples`: List of CLI example commands (list of strings)
+- `commands`: List of supported commands (list of strings)
+- `branding`: Description of the UX/branding features (string)
+
+**Example:**
+```python
+class FamilyTiesBlueprint(BlueprintBase):
+    metadata = {
+        "name": "family_ties",
+        "emoji": "🌳",
+        "description": "Genealogy/family data search and analysis.",
+        "examples": [
+            "swarm-cli family_ties /search Smith . 5",
+            "swarm-cli family_ties /analyze Johnson . 3"
+        ],
+        "commands": ["/search", "/analyze"],
+        "branding": "Unified ANSI/emoji box UX, spinner, progress, summary"
+    }
+```
+
+This metadata is used by the CLI for `swarm-cli blueprint list` and `swarm-cli blueprint info <name>`, and for onboarding/documentation automation. **Always update the `metadata` property when adding or modifying a blueprint.**
+
+---
+
+## Test Database Setup (Django + SQLite)
+
+- The Django test database is configured to use a file in `/tmp` to avoid permission issues:
+  - Path: `/tmp/tmp.FwE9ucN97b/test_db.sqlite3`
+- Journal mode is set to `DELETE` for maximum compatibility and to avoid WAL file locking issues in CI and local runs.
+- Before running tests, the test DB file is deleted to prevent corruption or stale locks.
+- **Automated cleanup:** Use `make test` or run `bash scripts/pretest_cleanup.sh` before tests to automatically remove any stale test DB files in `/tmp`.
+- If you encounter `readonly database` or `disk I/O error` during tests:
+  1. Delete the test DB file manually: `rm -f /tmp/tmp.FwE9ucN97b/test_db.sqlite3`
+  2. Or use `make pretest-clean` to remove all test DBs.
+  3. Re-run your tests.
+- For CI, add a pre-test cleanup step to always remove the test DB file before running tests (see `scripts/pretest_cleanup.sh`).
+- To prevent DB lock/readonly errors, ensure `/tmp` has free space and is not mounted read-only.
+
+---
+
+## Troubleshooting
+- Ensure `/tmp` has free space and is not mounted read-only.
+- If you see persistent DB errors, check for OS-level security restrictions or concurrent test runs.
+
+---
+
+## Security
+- Never commit `.env` or sensitive config files to version control.
+- Review environment variable usage for API keys and secrets.
+
+---
+
+## Acknowledgements
+
+This project builds upon concepts and code from the `openai-agents` library and potentially other open-source projects. Specific acknowledgements can be found in `DEVELOPMENT.md` or individual source files.
+
+---
+
+## License
+
+Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) file for full details.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+
+---
+
+## Quickstart for Contributors
+
+- **Run all tests and check UX compliance:**
+  ```bash
+  uv run pytest -v tests/blueprints
+  python scripts/check_ux_compliance.py
+  ```
+- **Check code style (lint):**
+  ```bash
+  ruff check .
+  ```
+- **Check coverage:**
+  ```bash
+  uv run pytest --cov=src --cov-report=term-missing tests/blueprints
+  ```
+- **Add new blueprints:**
+  - Follow the standards in `docs/blueprint_standards.md` and `docs/blueprint_test_mode_ux.md`.
+  - Ensure spinner/box/emoji/summary output is present in test mode (`SWARM_TEST_MODE=1`).
+  - Add or update tests in `tests/blueprints/`.
+- **CI/CD:**
+  - All PRs are checked for spinner/box/emoji/summary compliance, lint, and coverage.
+  - Warnings are surfaced for missing UX elements in test mode, but do not block merges.
+
+See the docs and scripts for more details on compliance and extending Open Swarm.
+
+---
+
 ## Quickstart 1: Using `swarm-cli` Locally (via PyPI)
 
 This is the recommended way to use `swarm-cli` for managing and running blueprints on your local machine.
@@ -384,28 +586,33 @@ This is the recommended way to use `swarm-cli` for managing and running blueprin
     *   Add it using `swarm-cli`:
         ```bash
         # Example: Adding a downloaded blueprint file
-        swarm-cli add ./path/to/downloaded/blueprint_echocraft.py
+        swarm-cli add ./path/to/downloaded/blueprint_hello_world.py
 
         # Example: Adding a directory containing a blueprint
         swarm-cli add ./my_custom_blueprints/agent_smith --name agent_smith
         ```
 
 4.  **Run the Blueprint:**
-    *   **Single Instruction:**
+    *   **Single Instruction (recommended):**
         ```bash
-        swarm-cli run echocraft --instruction "Hello from CLI!"
+        swarm-cli run hello_world --instruction "Hello from CLI!"
         ```
     *   **Interactive Mode:**
         ```bash
-        swarm-cli run echocraft
+        swarm-cli run hello_world
         # Now you can chat with the blueprint interactively
+        ```
+    *   **Direct Python or Binary Execution:**
+        ```bash
+        python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
+        ./hello_world Hello from CLI!
         ```
 
 5.  **(Optional) Install as Command:**
     ```bash
-    swarm-cli install echocraft
+    swarm-cli install hello_world
     # Now run (ensure ~/.local/share/swarm/bin is in your PATH):
-    echocraft --instruction "I am a command now!"
+    ./hello_world Hello from CLI!
     ```
 
 ---
@@ -449,7 +656,7 @@ This method uses `docker-compose.yaml` and is best if you need to customize volu
 
 6.  **Verify API:** (Default port 8000)
     *   Models: `curl http://localhost:8000/v1/models`
-    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "echocraft", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
+    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "hello_world", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
 
 ### Option B: Direct `docker run` (Simpler for Single Container)
 
@@ -511,21 +718,69 @@ This README provides a high-level overview and quickstart guides. For more detai
 *   **Example Blueprints (`src/swarm/blueprints/README.md`):** A list and description of the example blueprints included with the framework, showcasing various features and integration patterns.
 *   **Blueprint Patterns and Configuration (`blueprints/README.md`):** Guidance on creating and configuring blueprints, including best practices and common pitfalls. **Start here for blueprint usage and extension.**
 *   **User Experience Standards (`UX.md`):** Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
+*   **User Experience Standards (`UX.md`)**: Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
 
 ---
+
+## Blueprint Compliance Report
+
+To generate a Markdown compliance report for all blueprints, run:
+
+```bash
+python3 scripts/generate_blueprint_report.py
+```
+
+This will output `BLUEPRINT_COMPLIANCE_REPORT.md` in the project root, summarizing compliance, test coverage, spinner/continuation command usage, and missing fields for every blueprint.
+
+---
+
+## Blueprint Scaffolding
+
+To create a new, fully compliant blueprint with metadata, README, and test stub, run:
+
+```bash
+python3 scripts/scaffold_blueprint.py
+```
+
+This script will prompt for the blueprint name and description, set up all required files, and ensure compliance fields are present from the start.
+
+---
+
+## Blueprint Compliance & Automation
+
+Open Swarm enforces high standards for all blueprints. The following scripts help automate compliance and quality:
+
+- `scripts/list_blueprints.py [--missing-descriptions]` — List all blueprints, or only those missing meaningful descriptions.
+- `scripts/check_blueprint_descriptions.py` — Check for missing or placeholder descriptions in blueprint metadata.
+- `scripts/fix_blueprint_descriptions.py [--auto-fill]` — Batch-remediate missing descriptions interactively or with an auto-filled template.
+- `scripts/check_blueprint_tests.py` — Ensure every blueprint has an associated test file.
+- `scripts/check_stub_tests.py` — Flag test files that only contain stubs (e.g., `assert True` or TODOs).
+- `scripts/check_spinner_compliance.py` — Verify required spinner messages and continuation commands are present.
+- `scripts/check_ux_compliance.py` — Ensure all blueprints have required UX/CLI compliance fields (`agentic`, `ux_ansi_emoji`, `spinner`, `fallback`).
+- `scripts/generate_blueprint_report.py` — Generate a Markdown compliance report including stub test and description status.
+
+### Continuous Integration
+
+All compliance scripts are integrated into CI via GitHub Actions. PRs and pushes are checked for:
+- Required blueprint metadata fields
+- Non-placeholder descriptions
+- Presence of test files
+- Required spinner/UX/CLI fields
+- Absence of stub-only tests (warning)
+
+### Improving Test Coverage
+Blueprints flagged with stub-only tests should have their test files expanded to cover real functionality. See the compliance report for guidance.
+
+## Blueprint Scaffolding
+
+Automate new blueprint creation with:
+- `scripts/scaffold_blueprint.py` — Scaffold a new, compliant blueprint with all required files and metadata.
+
+## CLI Tools
+
+- `scripts/list_blueprints.py` — Discover and filter blueprints.
+- `scripts/generate_blueprint_report.py` — Generate and review compliance status.
 
 ## Contributing
 
-Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
-
----
-
-## License
-
-Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) file for full details.
-
----
-
-## Acknowledgements
-
-This project builds upon concepts and code from the `openai-agents` library and potentially other open-source projects. Specific acknowledgements can be found in `DEVELOPMENT.md` or individual source files.
+Please ensure all blueprints and contributions pass compliance and quality checks before submitting PRs.
