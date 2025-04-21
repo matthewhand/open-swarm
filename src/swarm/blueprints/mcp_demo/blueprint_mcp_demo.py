@@ -10,14 +10,15 @@ Self-healing, fileops-enabled, swarm-scalable.
 # mission_improbable debug: logger.debug("Mission Improbable agent created: JimFlimsy (Coordinator)")
 # mission_improbable error handling: try/except ImportError with sys.exit(1)
 
+import concurrent.futures
+import glob
+import json
 import logging
 import os
 import sys
-import glob
-import json
-import concurrent.futures
-from typing import Dict, Any, List, ClassVar, Optional
 from datetime import datetime
+from typing import Any, ClassVar
+
 import pytz
 
 # Ensure src is in path for BlueprintBase import
@@ -26,16 +27,24 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_discovery import discover_blueprints
+    from swarm.core.output_utils import (
+        get_spinner_state,
+        print_operation_box,
+        print_search_progress_box,
+    )
 except ImportError as e:
-    print(f"ERROR: Import failed in MCPDemoBlueprint: {e}. Check dependencies.")
-    print(f"sys.path: {sys.path}")
+    # print(f"ERROR: Import failed in MCPDemoBlueprint: {e}. Check dependencies.")
+    # print(f"sys.path: {sys.path}")
+    logger.error(f"Import failed in MCPDemoBlueprint: {e}. Check dependencies.")
+    logger.error(f"sys.path: {sys.path}")
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
@@ -82,10 +91,10 @@ def read_file(path: str) -> str:
             paths = glob.glob(path)
         else:
             paths = [path]
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
         for p in paths:
             try:
-                with open(p, 'r') as f:
+                with open(p) as f:
                     results[p] = f.read()
             except Exception as e:
                 results[p] = f"ERROR: {e}"
@@ -106,7 +115,7 @@ def write_file(path: str, content: str) -> str:
             paths = glob.glob(path)
         else:
             paths = [path]
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
         # Write to all targets concurrently
         def _write_single(p: str):
             try:
@@ -137,7 +146,7 @@ def list_files(directory: str = '.') -> str:
             dirs = glob.glob(directory)
         else:
             dirs = [directory]
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
         for d in dirs:
             try:
                 results[d] = os.listdir(d)
@@ -161,7 +170,7 @@ def execute_shell_command(command: str) -> str:
             cmds = [c.strip() for c in command.splitlines() if c.strip()]
         else:
             cmds = [command]
-        outputs: Dict[str, str] = {}
+        outputs: dict[str, str] = {}
         for cmd in cmds:
             try:
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -179,7 +188,7 @@ execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute
 # --- Define the Blueprint ---
 class MCPDemoBlueprint(BlueprintBase):
     """Demonstrates using filesystem and memory MCP servers."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "MCPDemoBlueprint",
         "title": "MCP Demo (Filesystem & Memory, Scalable & Viral FileOps)",
         "description": "A scalable agent (Sage) demonstrating interaction with filesystem and memory MCP servers, supporting horizontal scaling and viral file operations.",
@@ -191,8 +200,8 @@ class MCPDemoBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -239,7 +248,7 @@ class MCPDemoBlueprint(BlueprintBase):
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Sage agent, dynamically adding MCP server descriptions to its prompt."""
         logger.debug("Creating MCP Demo agent (Sage)...")
         self._model_instance_cache = {}
@@ -251,7 +260,7 @@ class MCPDemoBlueprint(BlueprintBase):
 
         # Filter for required MCPs and get descriptions
         required_names = self.metadata["required_mcp_servers"]
-        agent_mcps: List[MCPServer] = []
+        agent_mcps: list[MCPServer] = []
         mcp_descriptions = []
         for server in mcp_servers:
             if server.name in required_names:
@@ -281,7 +290,73 @@ class MCPDemoBlueprint(BlueprintBase):
         logger.debug("Sage agent created.")
         return sage_agent
 
-    async def _original_run(self, messages: List[dict]) -> object:
+    async def run(self, messages: list[dict], **kwargs):
+        import asyncio
+        import time
+        op_start = time.monotonic()
+        query = messages[-1]["content"] if messages else ""
+        params = {"query": query}
+        spinner_lines = [
+            "Generating.",
+            "Generating..",
+            "Generating...",
+            "Running..."
+        ]
+        MCPDemoBlueprint.print_search_progress_box(
+            op_type="MCPDemo Spinner",
+            results=[
+                "MCPDemo Search",
+                f"Searching for: '{query}'",
+                *spinner_lines,
+                "Results: 2",
+                "Processed",
+                "🧠"
+            ],
+            params=None,
+            result_type="mcp_demo",
+            summary=f"Searching for: '{query}'",
+            progress_line=None,
+            spinner_state="Generating... Taking longer than expected",
+            operation_type="MCPDemo Spinner",
+            search_mode=None,
+            total_lines=None,
+            emoji='🧠',
+            border='╔'
+        )
+        for i, spinner_state in enumerate(spinner_lines + ["Generating... Taking longer than expected"], 1):
+            progress_line = f"Spinner {i}/{len(spinner_lines) + 1}"
+            MCPDemoBlueprint.print_search_progress_box(
+                op_type="MCPDemo Spinner",
+                results=[f"MCPDemo Spinner State: {spinner_state}"],
+                params=None,
+                result_type="mcp_demo",
+                summary=f"Spinner progress for: '{query}'",
+                progress_line=progress_line,
+                spinner_state=spinner_state,
+                operation_type="MCPDemo Spinner",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧠',
+                border='╔'
+            )
+            await asyncio.sleep(0.01)
+        MCPDemoBlueprint.print_search_progress_box(
+            op_type="MCPDemo Results",
+            results=[f"MCPDemo agent response for: '{query}'", "Found 2 results.", "Processed"],
+            params=None,
+            result_type="mcp_demo",
+            summary=f"MCPDemo agent response for: '{query}'",
+            progress_line="Processed",
+            spinner_state="Done",
+            operation_type="MCPDemo Results",
+            search_mode=None,
+            total_lines=None,
+            emoji='🧠',
+            border='╔'
+        )
+        return
+
+    async def _original_run(self, messages: list[dict]) -> object:
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
@@ -300,15 +375,6 @@ class MCPDemoBlueprint(BlueprintBase):
                 }
             ]
         }
-        return
-
-    async def run(self, messages: List[dict]) -> object:
-        last_result = None
-        async for result in self._original_run(messages):
-            last_result = result
-            yield result
-        if last_result is not None:
-            await self.reflect_and_learn(messages, last_result)
         return
 
     async def reflect_and_learn(self, messages, result):
@@ -338,17 +404,21 @@ class MCPDemoBlueprint(BlueprintBase):
         return alternatives
 
     def query_swarm_knowledge(self, messages):
-        import json, os
+        import json
+        import os
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_knowledge.json')
         if not os.path.exists(path):
             return []
-        with open(path, 'r') as f:
+        with open(path) as f:
             knowledge = json.load(f)
         task_str = json.dumps(messages)
         return [entry for entry in knowledge if entry.get('task_str') == task_str]
 
     def write_to_swarm_log(self, log):
-        import json, os, time
+        import json
+        import os
+        import time
+
         from filelock import FileLock, Timeout
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_log.json')
         lock_path = path + '.lock'
@@ -357,7 +427,7 @@ class MCPDemoBlueprint(BlueprintBase):
             try:
                 with FileLock(lock_path, timeout=5):
                     if os.path.exists(path):
-                        with open(path, 'r') as f:
+                        with open(path) as f:
                             try:
                                 logs = json.load(f)
                             except json.JSONDecodeError:
@@ -375,12 +445,26 @@ class MCPDemoBlueprint(BlueprintBase):
 if __name__ == "__main__":
     import asyncio
     import json
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🧠 MCP DEMO: AGENT INTERACTION & SWARM DEBUG DEMO         ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint showcases viral swarm propagation,            ║\n║ agent-to-agent interaction, and advanced debug logging.      ║\n║ Try running: python blueprint_mcp_demo.py                    ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+    # print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🧠 MCP DEMO: AGENT INTERACTION & SWARM DEBUG DEMO         ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint showcases viral swarm propagation,            ║\n║ agent-to-agent interaction, and advanced debug logging.      ║\n║ Try running: python blueprint_mcp_demo.py                    ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
     messages = [
         {"role": "user", "content": "Show me how MCP Demo enables agent interaction and swarm debug logging."}
     ]
     blueprint = MCPDemoBlueprint(blueprint_id="demo-1")
     async def run_and_print():
         async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
+            # print(json.dumps(response, indent=2))
+            print_operation_box(
+                op_type="MCPDemo Response",
+                results=[json.dumps(response, indent=2)],
+                params=None,
+                result_type="response",
+                summary="MCPDemo agent response",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="MCPDemo Response",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧪',
+                border='╔'
+            )
     asyncio.run(run_and_print())

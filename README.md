@@ -1,3 +1,25 @@
+# 🚀 Open Swarm — S-Tier Onboarding
+
+Welcome to Open Swarm! Orchestrate, manage, and run AI agent blueprints with S-tier onboarding and UX polish.
+
+## Quickstart
+
+1. List blueprints:
+   ```bash
+   swarm-cli list
+   ```
+2. Run the demo blueprint:
+   ```bash
+   swarm-cli run hello_world --instruction "Hello, world!"
+   ```
+3. Install as command:
+   ```bash
+   swarm-cli install hello_world
+   ./hello_world "Hello, world!"
+   ```
+
+For advanced features, see below or run `swarm-cli help`.
+
 # Open Swarm
 
 <div align="center">
@@ -13,11 +35,25 @@ Open Swarm can be used in two primary ways:
 
 ---
 
+## Development Setup (Editable Install)
+
+If you are working from a cloned repository or developing Open Swarm locally, you must install the package in editable mode before using the CLI or API tools:
+
+```bash
+pip install -e .
+```
+
+This ensures that the `swarm-cli` and `swarm-api` commands point to the latest source code and are available in your PATH. After running this, you can use the CLI commands as described below.
+
+---
+
 ## Configuration & Quickstart
 
 See [CONFIGURATION.md](./CONFIGURATION.md) for a full guide to Swarm configuration—including LLM setup, MCP server integration, per-blueprint overrides, pricing, and CLI vs manual workflows.
 
 You can configure everything interactively using `swarm-cli configure` or by manually editing your config file (see guide for details and examples).
+
+> **Note:** In development mode, some CLI commands or features may differ from the published PyPI version. If you encounter issues, ensure you have run `pip install -e .` and that your environment is activated.
 
 ---
 
@@ -55,59 +91,89 @@ You can configure everything interactively using `swarm-cli configure` or by man
 
 ---
 
-## New in Geese: Notifier Abstraction & Reflection
+## 🚀 Unified Blueprint Search & Analysis UX
 
-- The Geese blueprint now uses a Notifier abstraction for all user-facing output (operation boxes, errors, info), enabling easy redirection to different UIs or for testing.
-- Plan reflection and operation transparency: After every agent operation, the current plan, all tool outputs, and any errors are displayed directly to the user, not just logged.
-- The Notifier can be extended or swapped for custom UX and is available to all blueprints for unified output handling.
+Open Swarm blueprints now deliver a consistent, branded, and user-friendly experience for all search and analysis operations. Each blueprint leverages:
 
-See `src/swarm/blueprints/geese/README.md` for usage and extension details.
+- **ANSI/emoji result boxes** summarizing search/analysis results, parameters, and counts
+- **Progress spinners** ("Generating...", "Taking longer than expected") with live line/progress updates
+- **Distinct emoji branding** for each blueprint (e.g., 🌳 Family Ties, 🪶 Unapologetic Poets, 🦢 Gaggle)
+- **Clear feedback** for subprocess management and onboarding
 
----
+<!-- BLUEPRINT_TABLE_START -->
+<!-- The following table is auto-generated. Do not edit manually. Run scripts/gen_blueprint_table.py to update. -->
 
-## Codex CLI Feature Parity Checklist
+| Emoji | Name | Description | Example Commands | Branding |
+|-------|------|-------------|------------------|----------|
+|  | `ChatbotBlueprint` | A basic conversational agent that responds to user input. |  |  |
+|  | `ZeusBlueprint` | Zeus leads a pantheon for software dev & sysadmin tasks, coordinating via agent-as-tool delegation. (DivineOpsBlueprint merged into this) |  |  |
+|  | `FamilyTiesBlueprint` | Manages WordPress content using Peter (coordinator) and Brian (WP manager via MCP). |  |  |
+|  | `JeevesBlueprint` | Provides private web search (DuckDuckGo) and home automation (Home Assistant) via specialized agents (Jeeves, Mycroft, Gutenberg). |  |  |
+|  | `MCPDemoBlueprint` | A scalable agent (Sage) demonstrating interaction with filesystem and memory MCP servers, supporting horizontal scaling and viral file operations. |  |  |
+|  | `MissionImprobableBlueprint` | A cheeky team led by JimFlimsy (coordinator), CinnamonToast (strategist/filesystem), and RollinFumble (operative/shell). Uses SQLite for instructions. |  |  |
+|  | `MonkaiMagicBlueprint` | A *Monkai Magic*-inspired crew managing AWS, Fly.io, and Vercel with pre-authenticated CLI tools and agent-as-tool delegation. |  |  |
+|  | `NebulaShellzzarBlueprint` | A multi-agent blueprint inspired by The Matrix for system administration and coding tasks. |  |  |
+|  | `OmniplexBlueprint` | Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers. |  |  |
+|  | `PoetsBlueprint` | A swarm of agents embodying legendary poets, using SQLite for instructions, agent-as-tool for collaboration, and MCPs for creative augmentation. |  |  |
+|  | `RueCode` | Generates, executes code, and interacts with the file system. |  |  |
+|  | `SuggestionBlueprint` | An agent that provides structured suggestions using Agent(output_type=...). |  |  |
+|  | `UnapologeticPoetsBlueprint` | A swarm of agents embodying legendary poets, using SQLite for instructions, agent-as-tool for collaboration, and MCPs for creative augmentation. |  |  |
+|  | `WhiskeyTangoFoxtrotBlueprint` | Tracks free online services with SQLite and web search using a multi-tiered agent hierarchy. |  |  |
+| 🤖 | `codey` | Code and semantic code search/analysis. | swarm-cli codey /codesearch recursion . 5<br>swarm-cli codey /semanticsearch asyncio . 3 | Unified ANSI/emoji box UX, spinner, progress, summary |
+| 🦢 | `gaggle` | Minimal test/demo search blueprint. | swarm-cli gaggle /search alpha . 5<br>swarm-cli gaggle /analyze beta . 2 | Unified ANSI/emoji box UX, spinner, progress, summary |
+|  | `DivineOpsBlueprint` (historical, merged into ZeusBlueprint) |  |  |  |
+|  | `divine_code` (historical, merged into ZeusBlueprint) |  |  |  |
+<!-- BLUEPRINT_TABLE_END -->
 
-This project aims to provide full feature parity with the OpenAI Codex CLI. Below is a checklist of Codex features and their current status in Open Swarm/codey:
+- All commands support `/analyze` as well as `/search` (e.g., `/analyze beta . 5`).
+- Try the commands above to see the new UX in action!
 
-### ✅ Already Implemented
-- Rich output/emoji/spinner UX (unified for search, analysis, file ops)
-- Modular blueprint/agent system
-- Basic interactive CLI mode
-- Basic approval mode for some agent actions
-- Syntax-highlighted code output
-- Session/history management and overlays
-- Full-context mode for large refactor/analysis
-- Writable root/sandboxing CLI/config support
-- Command suggestions/typeahead/autocomplete for CLI and slash commands
-- Help and onboarding overlays
-- Desktop notification support (optional)
-- Dangerous auto-approve flag/UX
-- Output formatting/full stdout option
-- Image input (CLI/UX, future-proof)
-
-### ⚠️ Partially Implemented
-- Approval modes (full-auto, interactive, granular gating) for all actions
-- Directory sandboxing (not enforced everywhere, no network controls)
-- CLI/config file support (not unified or live-reloadable)
-- Version control integration (git ops for suggest mode only)
-- Slash commands: `/help`, `/model`, `/approval`, `/history`, `/ls`, `/cat`, `/edit`, `/compact` (some available)
-- Project-level instructions auto-loading
-
-### ❌ Not Yet Implemented
-- Auto dependency install for generated code
-- Automatic context/project file injection
-- Plan/changelog file maintenance
-- User feedback/correction loop
-- Persistent session logging/audit trail
-- Streaming token-by-token CLI output
-- Non-interactive/CI/headless mode
-- Multimodal input (screenshots/diagrams)
-- Atomic commit/rollback for all agent actions
-- Safety/ZDR org restrictions
+### Key Features
+- **Result counts** and summaries in every result box
+- **Live progress updates** during long-running operations
+- **Custom spinner messages** for clear feedback
+- **Fallback echo** for other commands, always in a result box
 
 ---
 
-**See the codey blueprint README for blueprint-specific feature status and TODOs.**
+## 🚀 Unified Spinner and Result Output for Blueprints
+
+All blueprints must use `print_search_progress_box` for spinner/progress/result output. See [`src/swarm/blueprints/blueprint_template.py`](src/swarm/blueprints/blueprint_template.py) for a canonical implementation.
+
+- Distinguish between code and semantic search.
+- Show spinner sequence: "Generating.", "Generating..", "Generating...", "Running...", and "Generating... Taking longer than expected".
+- Update line numbers and result counts during progress.
+- Always emit a summary/result box at the end.
+- Pass all test suite checks for spinner/result output.
+
+**Review Checklist:**
+- [ ] Uses `print_search_progress_box` for all output
+- [ ] Distinguishes code/semantic search
+- [ ] Shows spinner sequence and “Taking longer than expected”
+- [ ] Progress boxes update lines/results
+- [ ] Passes all tests
+
+---
+
+## What to Try Next
+
+- **Try Code Search:**
+  - `swarm-cli codey /codesearch <keyword> <path> <max_results>`
+  - Example: `swarm-cli codey /codesearch recursion . 5`
+  - Try `/semanticsearch` for semantic code search with rich result boxes, result counts, and progressive spinner.
+
+- **Try WhingeSurf Async UX:**
+  - `swarm-cli whinge_surf !run sleep 2`
+  - Then: `swarm-cli whinge_surf !status <process_id>`
+  - Demonstrates async subprocess management and status polling.
+
+- **Discover Blueprints:**
+  - `swarm-cli info <blueprint>`
+  - Shows blueprint description, usage, and onboarding tips.
+
+- **Get Help:**
+  - `swarm-cli --help` or `swarm-cli codey --help`
+  - For onboarding, command list, and usage examples.
 
 ---
 
@@ -151,6 +217,9 @@ pip install -e .
 
 ```bash
 swarm-cli --help
+swarm-cli run hello_world --instruction "Hello from CLI!"
+python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
+./hello_world Hello from CLI!
 swarm-api --help
 ```
 
@@ -350,6 +419,83 @@ Commands:
 
 ---
 
+## Blueprint Metadata: Developer Guide
+
+All blueprints must define a class-level `metadata` property for onboarding, CLI discovery, and documentation automation. This property should be a Python dictionary and include the following keys:
+
+- `name`: The blueprint's canonical name (string)
+- `emoji`: The blueprint's emoji branding (string)
+- `description`: Short description for CLI/docs (string)
+- `examples`: List of CLI example commands (list of strings)
+- `commands`: List of supported commands (list of strings)
+- `branding`: Description of the UX/branding features (string)
+
+**Example:**
+```python
+class FamilyTiesBlueprint(BlueprintBase):
+    metadata = {
+        "name": "family_ties",
+        "emoji": "🌳",
+        "description": "Genealogy/family data search and analysis.",
+        "examples": [
+            "swarm-cli family_ties /search Smith . 5",
+            "swarm-cli family_ties /analyze Johnson . 3"
+        ],
+        "commands": ["/search", "/analyze"],
+        "branding": "Unified ANSI/emoji box UX, spinner, progress, summary"
+    }
+```
+
+This metadata is used by the CLI for `swarm-cli blueprint list` and `swarm-cli blueprint info <name>`, and for onboarding/documentation automation. **Always update the `metadata` property when adding or modifying a blueprint.**
+
+---
+
+## Test Database Setup (Django + SQLite)
+
+- The Django test database is configured to use a file in `/tmp` to avoid permission issues:
+  - Path: `/tmp/tmp.FwE9ucN97b/test_db.sqlite3`
+- Journal mode is set to `DELETE` for maximum compatibility and to avoid WAL file locking issues in CI and local runs.
+- Before running tests, the test DB file is deleted to prevent corruption or stale locks.
+- **Automated cleanup:** Use `make test` or run `bash scripts/pretest_cleanup.sh` before tests to automatically remove any stale test DB files in `/tmp`.
+- If you encounter `readonly database` or `disk I/O error` during tests:
+  1. Delete the test DB file manually: `rm -f /tmp/tmp.FwE9ucN97b/test_db.sqlite3`
+  2. Or use `make pretest-clean` to remove all test DBs.
+  3. Re-run your tests.
+- For CI, add a pre-test cleanup step to always remove the test DB file before running tests (see `scripts/pretest_cleanup.sh`).
+- To prevent DB lock/readonly errors, ensure `/tmp` has free space and is not mounted read-only.
+
+---
+
+## Troubleshooting
+- Ensure `/tmp` has free space and is not mounted read-only.
+- If you see persistent DB errors, check for OS-level security restrictions or concurrent test runs.
+
+---
+
+## Security
+- Never commit `.env` or sensitive config files to version control.
+- Review environment variable usage for API keys and secrets.
+
+---
+
+## Acknowledgements
+
+This project builds upon concepts and code from the `openai-agents` library and potentially other open-source projects. Specific acknowledgements can be found in `DEVELOPMENT.md` or individual source files.
+
+---
+
+## License
+
+Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) file for full details.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+
+---
+
 ## Quickstart 1: Using `swarm-cli` Locally (via PyPI)
 
 This is the recommended way to use `swarm-cli` for managing and running blueprints on your local machine.
@@ -380,28 +526,33 @@ This is the recommended way to use `swarm-cli` for managing and running blueprin
     *   Add it using `swarm-cli`:
         ```bash
         # Example: Adding a downloaded blueprint file
-        swarm-cli add ./path/to/downloaded/blueprint_echocraft.py
+        swarm-cli add ./path/to/downloaded/blueprint_hello_world.py
 
         # Example: Adding a directory containing a blueprint
         swarm-cli add ./my_custom_blueprints/agent_smith --name agent_smith
         ```
 
 4.  **Run the Blueprint:**
-    *   **Single Instruction:**
+    *   **Single Instruction (recommended):**
         ```bash
-        swarm-cli run echocraft --instruction "Hello from CLI!"
+        swarm-cli run hello_world --instruction "Hello from CLI!"
         ```
     *   **Interactive Mode:**
         ```bash
-        swarm-cli run echocraft
+        swarm-cli run hello_world
         # Now you can chat with the blueprint interactively
+        ```
+    *   **Direct Python or Binary Execution:**
+        ```bash
+        python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
+        ./hello_world Hello from CLI!
         ```
 
 5.  **(Optional) Install as Command:**
     ```bash
-    swarm-cli install echocraft
+    swarm-cli install hello_world
     # Now run (ensure ~/.local/share/swarm/bin is in your PATH):
-    echocraft --instruction "I am a command now!"
+    ./hello_world Hello from CLI!
     ```
 
 ---
@@ -445,7 +596,7 @@ This method uses `docker-compose.yaml` and is best if you need to customize volu
 
 6.  **Verify API:** (Default port 8000)
     *   Models: `curl http://localhost:8000/v1/models`
-    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "echocraft", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
+    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "hello_world", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
 
 ### Option B: Direct `docker run` (Simpler for Single Container)
 
@@ -511,9 +662,9 @@ This README provides a high-level overview and quickstart guides. For more detai
 
 ---
 
-## Contributing
+## Acknowledgements
 
-Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+This project builds upon concepts and code from the `openai-agents` library and potentially other open-source projects. Specific acknowledgements can be found in `DEVELOPMENT.md` or individual source files.
 
 ---
 
@@ -523,6 +674,192 @@ Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) fi
 
 ---
 
+## Contributing
+
+Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+
+---
+
+## Quickstart 1: Using `swarm-cli` Locally (via PyPI)
+
+This is the recommended way to use `swarm-cli` for managing and running blueprints on your local machine.
+
+**Prerequisites:**
+*   Python 3.10+
+*   `pip` (Python package installer)
+
+**Steps:**
+
+1.  **Install `open-swarm` from PyPI:**
+    ```bash
+    pip install open-swarm
+    ```
+    *(Using a virtual environment is recommended: `python -m venv .venv && source .venv/bin/activate`)*
+
+2.  **Initial Configuration (First Run):**
+    *   The first time you run a `swarm-cli` command that requires configuration (like `run` or `config`), it will automatically create a default `swarm_config.json` at `~/.config/swarm/swarm_config.json` if one doesn't exist.
+    *   You **must** set the required environment variables (like `OPENAI_API_KEY`) in your shell for the configuration to work. Create a `.env` file in your working directory or export them:
+        ```bash
+        export OPENAI_API_KEY="sk-..."
+        # Add other keys as needed (GROQ_API_KEY, etc.)
+        ```
+    *   You can customize the configuration further using `swarm-cli config` commands (see `USERGUIDE.md`).
+
+3.  **Add a Blueprint:**
+    *   Download or create a blueprint file (e.g., `my_blueprint.py`). Example blueprints are available in the [project repository](https://github.com/matthewhand/open-swarm/tree/main/src/swarm/blueprints).
+    *   Add it using `swarm-cli`:
+        ```bash
+        # Example: Adding a downloaded blueprint file
+        swarm-cli add ./path/to/downloaded/blueprint_hello_world.py
+
+        # Example: Adding a directory containing a blueprint
+        swarm-cli add ./my_custom_blueprints/agent_smith --name agent_smith
+        ```
+
+4.  **Run the Blueprint:**
+    *   **Single Instruction (recommended):**
+        ```bash
+        swarm-cli run hello_world --instruction "Hello from CLI!"
+        ```
+    *   **Interactive Mode:**
+        ```bash
+        swarm-cli run hello_world
+        # Now you can chat with the blueprint interactively
+        ```
+    *   **Direct Python or Binary Execution:**
+        ```bash
+        python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
+        ./hello_world Hello from CLI!
+        ```
+
+5.  **(Optional) Install as Command:**
+    ```bash
+    swarm-cli install hello_world
+    # Now run (ensure ~/.local/share/swarm/bin is in your PATH):
+    ./hello_world Hello from CLI!
+    ```
+
+---
+
+## Quickstart 2: Deploying `swarm-api` Service (via Docker)
+
+This section covers deploying the API service using Docker.
+
+### Option A: Docker Compose (Recommended for Flexibility)
+
+This method uses `docker-compose.yaml` and is best if you need to customize volumes, environment variables easily, or manage related services (like Redis).
+
+**Prerequisites:**
+*   Docker ([Install Docker](https://docs.docker.com/engine/install/))
+*   Docker Compose ([Install Docker Compose](https://docs.docker.com/compose/install/))
+*   Git
+
+**Steps:**
+
+1.  **Clone the Repository:** (Needed for `docker-compose.yaml` and config files)
+    ```bash
+    git clone https://github.com/matthewhand/open-swarm.git
+    cd open-swarm
+    ```
+
+2.  **Configure Environment:**
+    *   Copy `cp .env.example .env` and edit `.env` with your API keys (e.g., `OPENAI_API_KEY`, `SWARM_API_KEY`).
+
+3.  **Prepare Blueprints & Config:**
+    *   Place blueprints in `./blueprints`.
+    *   Ensure `./swarm_config.json` exists and is configured.
+
+4.  **Configure Overrides (Optional):**
+    *   Copy `cp docker-compose.override.yaml.example docker-compose.override.yaml`.
+    *   Edit the override file to mount additional volumes, change ports, etc.
+
+5.  **Start the Service:**
+    ```bash
+    docker compose up -d
+    ```
+
+6.  **Verify API:** (Default port 8000)
+    *   Models: `curl http://localhost:8000/v1/models`
+    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "hello_world", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
+
+### Option B: Direct `docker run` (Simpler for Single Container)
+
+This method runs the pre-built image directly from Docker Hub. Good for quick tests or simple deployments without cloning the repo. Customization requires careful use of `-v` (volume) and `-e` (environment) flags.
+
+**Prerequisites:**
+*   Docker ([Install Docker](https://docs.docker.com/engine/install/))
+
+**Steps:**
+
+1.  **Prepare Local Files (If Customizing):**
+    *   Create a directory for your blueprints (e.g., `~/my_swarm_blueprints`).
+    *   Create your `swarm_config.json` file locally (e.g., `~/my_swarm_config.json`).
+    *   Create a `.env` file locally (e.g., `~/swarm.env`) with your API keys (`OPENAI_API_KEY`, `SWARM_API_KEY`, etc.).
+
+2.  **Run the Container:**
+    ```bash
+    docker run -d \
+      --name open-swarm-api \
+      -p 8000:8000 \
+      --env-file ~/swarm.env \
+      -v ~/my_swarm_blueprints:/app/blueprints:ro \
+      -v ~/my_swarm_config.json:/app/swarm_config.json:ro \
+      -v open_swarm_db:/app/db.sqlite3 \
+      --restart unless-stopped \
+      mhand79/open-swarm:latest
+    ```
+    *   `-d`: Run detached (in background).
+    *   `--name`: Assign a name to the container.
+    *   `-p 8000:8000`: Map host port 8000 to container port 8000 (adjust if needed).
+    *   `--env-file`: Load environment variables from your local file.
+    *   `-v ...:/app/blueprints:ro`: Mount your local blueprints directory (read-only). **Required** if you want to use custom blueprints.
+    *   `-v ...:/app/swarm_config.json:ro`: Mount your local config file (read-only). **Required** for custom LLM/MCP settings.
+    *   `-v open_swarm_db:/app/db.sqlite3`: Use a named Docker volume for the database to persist data.
+    *   `--restart unless-stopped`: Automatically restart the container unless manually stopped.
+    *   `mhand79/open-swarm:latest`: The image name on Docker Hub.
+
+3.  **Verify API:** (Same as Docker Compose)
+    *   Models: `curl http://localhost:8000/v1/models`
+    *   Chat: `curl http://localhost:8000/v1/chat/completions ...` (Add `-H "Authorization: Bearer <key>"` if needed).
+
+---
+
+## Usage Modes Summary
+
+*   **`swarm-api` (via Docker or `manage.py runserver`):** Exposes blueprints as an OpenAI-compatible REST API. Ideal for integrations. Requires `SWARM_API_KEY` for security in non-local deployments.
+*   **`swarm-cli run` (via PyPI install):** Executes managed blueprints locally, either with a single instruction or in interactive chat mode. Good for testing and local tasks.
+*   **`swarm-cli install` (via PyPI install):** Creates standalone command-line executables from managed blueprints.
+*   **Direct Python Execution (via Git clone):** Running `uv run python <blueprint_file.py>` is mainly for development and testing individual files.
+
+---
+
+## Further Documentation
+
+This README provides a high-level overview and quickstart guides. For more detailed information, please refer to:
+
+*   **User Guide (`USERGUIDE.md`):** Detailed instructions on using `swarm-cli` commands for managing blueprints and configuration locally.
+*   **Development Guide (`DEVELOPMENT.md`):** Information for contributors and developers, including architecture details, testing strategies, project layout, API details, and advanced topics.
+*   **Example Blueprints (`src/swarm/blueprints/README.md`):** A list and description of the example blueprints included with the framework, showcasing various features and integration patterns.
+*   **Blueprint Patterns and Configuration (`blueprints/README.md`):** Guidance on creating and configuring blueprints, including best practices and common pitfalls. **Start here for blueprint usage and extension.**
+*   **User Experience Standards (`UX.md`):** Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
+*   **User Experience Standards (`UX.md`)**: Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
+
+---
+
 ## Acknowledgements
 
 This project builds upon concepts and code from the `openai-agents` library and potentially other open-source projects. Specific acknowledgements can be found in `DEVELOPMENT.md` or individual source files.
+
+---
+
+## License
+
+Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) file for full details.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+
+---
