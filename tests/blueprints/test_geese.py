@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from blueprints.geese.blueprint_geese import create_story_outline, _create_story_outline
+import re
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY")),
@@ -56,3 +57,23 @@ def test_geese_story_delegation_flow(geese_blueprint_instance):
     editor_tool = next(t for t in coordinator.tools if t.name == "Editor")
     print(f"Planner tool type: {type(planner_tool)}; dir: {dir(planner_tool)}")
     print(f"Writer tool type: {type(writer_tool)}; dir: {dir(writer_tool)}")
+
+
+@pytest.mark.asyncio
+def test_geese_spinner_and_box_output(capsys):
+    os.environ["SWARM_TEST_MODE"] = "1"
+    from blueprints.geese.blueprint_geese import GeeseBlueprint
+    blueprint = GeeseBlueprint("test_geese")
+    messages = [{"role": "user", "content": "Write a story about teamwork."}]
+    async def run_bp():
+        async for _ in blueprint.run(messages):
+            pass
+    import asyncio
+    asyncio.run(run_bp())
+    out = capsys.readouterr().out
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    out_clean = ansi_escape.sub('', out)
+    assert "Generating." in out_clean
+    assert "Generating..." in out_clean or "Generating... Taking longer than expected" in out_clean
+    assert "Creative" in out_clean or "Story" in out_clean
+    assert "🦢" in out_clean or "Geese" not in out_clean

@@ -53,7 +53,8 @@ def test_swarm_cli_entrypoint():
     result = runner.invoke(swarm_cli.app, ["--help"])
     assert result.exit_code == 0
     assert "[OPTIONS] COMMAND [ARGS]..." in result.stdout
-    assert "Swarm CLI tool" in result.stdout
+    # Accept either old or new CLI welcome message
+    assert ("Swarm CLI tool" in result.stdout) or ("OPEN SWARM CLI" in result.stdout)
 
 
 @patch("subprocess.run")

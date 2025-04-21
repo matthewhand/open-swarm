@@ -2,6 +2,9 @@ import os
 import json
 import click
 from pathlib import Path
+import glob
+import importlib.util
+import inspect
 
 CONFIG_DEFAULT_PATH = os.environ.get("SWARM_CONFIG_PATH", "swarm_config.json")
 
@@ -110,6 +113,85 @@ def list(config_path):
     llms = data.get('llms', {})
     for name, llm in llms.items():
         click.echo(f"{name}: {llm['provider']} {llm['model']}")
+
+# --- Blueprint Metadata Loader (from class property) ---
+def load_blueprint_metadata():
+    blueprint_modules = glob.glob("src/swarm/blueprints/*/blueprint_*.py")
+    blueprints = []
+    for mod_path in blueprint_modules:
+        module_name = mod_path.replace("/", ".").rstrip(".py")
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, mod_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            # Find the blueprint class (first class with a 'metadata' property)
+            for name, obj in inspect.getmembers(mod, inspect.isclass):
+                if hasattr(obj, "metadata") and isinstance(getattr(obj, "metadata"), dict):
+                    meta = getattr(obj, "metadata").copy()
+                    # Docstring fallback for description
+                    if not meta.get("description"):
+                        doc = inspect.getdoc(obj)
+                        if doc:
+                            meta["description"] = doc.split("\n")[0]  # Use first line of docstring
+                    blueprints.append(meta)
+        except Exception as e:
+            continue
+    return blueprints
+
+@click.group()
+def blueprint():
+    """Discover and get info about available blueprints."""
+    pass
+
+@blueprint.command()
+def list():
+    """List available blueprints with emoji and description."""
+    blueprints = load_blueprint_metadata()
+    click.echo("\nAvailable Blueprints:")
+    for bp in blueprints:
+        click.echo(f"  {bp.get('emoji','')}  {bp.get('name',''):<20}  {bp.get('description','')}")
+    click.echo("\nRun 'swarm-cli blueprint info <name>' for details and examples.")
+
+@blueprint.command()
+@click.argument('name')
+def info(name):
+    """Show onboarding info, emoji, and example commands for a blueprint."""
+    blueprints = load_blueprint_metadata()
+    bp = next((b for b in blueprints if b.get('name') == name), None)
+    if not bp:
+        click.echo(f"Blueprint '{name}' not found.", err=True)
+        return
+    click.echo(f"\n{bp.get('emoji','')}  \033[1m{name}\033[0m — {bp.get('description','')}")
+    click.echo("\nUnified Search & Analysis UX:")
+    click.echo(f"  • {bp.get('branding','')}")
+    click.echo(f"  • Try these commands: {', '.join(bp.get('commands', []))}")
+    click.echo("\nExample Commands:")
+    for ex in bp.get('examples', []):
+        click.echo(f"  {ex}")
+    click.echo("\nSee README for more onboarding tips and a full quickstart table.")
+
+@blueprint.command()
+def lint():
+    """Validate blueprint metadata for all blueprints."""
+    blueprints = load_blueprint_metadata()
+    required_fields = ["name", "emoji", "description", "examples", "commands", "branding"]
+    failed = False
+    for bp in blueprints:
+        missing = [f for f in required_fields if not bp.get(f)]
+        if missing:
+            click.echo(f"❌ {bp.get('name','<unknown>')}: Missing fields: {', '.join(missing)}", err=True)
+            failed = True
+        if not bp.get("description"):
+            click.echo(f"⚠️  {bp.get('name','<unknown>')}: No description. Consider adding a class docstring.", err=True)
+    if not blueprints:
+        click.echo("❌ No blueprints found!", err=True)
+        failed = True
+    if not failed:
+        click.echo("✅ All blueprints have valid metadata.")
+    else:
+        exit(1)
+
+cli.add_command(blueprint)
 
 if __name__ == "__main__":
     cli()

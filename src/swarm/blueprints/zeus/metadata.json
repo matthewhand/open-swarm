@@ -1,0 +1,24 @@
+{
+  "name": "ZeusBlueprint",
+  "title": "Zeus: Multi-Agent DevOps & Delegation",
+  "description": "Demonstrates multi-agent delegation, coordination, and agent tool specialization with robust ANSI/emoji UX, spinner feedback, and agent/LLM fallback.",
+  "author": "Open Swarm Team",
+  "version": "1.1.0",
+  "tags": ["agentic", "multi-agent", "delegation", "UX", "fallback", "demo"],
+  "demonstrates": [
+    "Multi-agent delegation and coordination",
+    "Specialist agent tools",
+    "LLM fallback and error handling",
+    "Unified ANSI/emoji output and spinner",
+    "Operation summaries and fallback",
+    "Test mode for robust testing"
+  ],
+  "compliance": {
+    "agentic": true,
+    "ux_ansi_emoji": true,
+    "spinner": true,
+    "fallback": true,
+    "test_coverage": true
+  },
+  "last_updated": "2025-04-21T04:44:16Z"
+}

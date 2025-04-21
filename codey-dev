@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# Wrapper to run the latest codey_cli.py directly from source, bypassing stale venv entrypoints
+export PYTHONPATH="$(pwd)/src"
+export SWARM_TEST_MODE=1
+export API_KEY=dummy
+export MCP_SERVER=dummy
+python3 src/swarm/blueprints/codey/codey_cli.py "$@"

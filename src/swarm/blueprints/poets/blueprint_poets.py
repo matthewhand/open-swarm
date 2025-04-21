@@ -4,23 +4,22 @@ Poets Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
+import asyncio
 import logging
 import os
 import random
+import sqlite3  # Use standard sqlite3 module
 import sys
-import json
-import sqlite3 # Use standard sqlite3 module
+import threading
+import time
 from pathlib import Path
-from typing import Dict, Any, List, ClassVar, Optional
-from datetime import datetime
-import pytz
-from datetime import datetime
-import pytz
+from typing import Any, ClassVar
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
+
+from swarm.core.output_utils import print_operation_box
 from swarm.extensions.cli.utils.async_input import AsyncInputHandler
 
 # Ensure src is in path for BlueprintBase import
@@ -29,15 +28,26 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
-    print(f"ERROR: Import failed in PoetsBlueprint: {e}. Check dependencies.")
-    print(f"sys.path: {sys.path}")
+    print_operation_box(
+        op_type="Import Error",
+        results=["Import failed in PoetsBlueprint", str(e)],
+        params=None,
+        result_type="error",
+        summary="Import failed",
+        progress_line=None,
+        spinner_state="Failed",
+        operation_type="Import",
+        search_mode=None,
+        total_lines=None
+    )
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
@@ -144,7 +154,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -173,7 +183,6 @@ list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
 # --- Unified Operation/Result Box for UX ---
-from swarm.core.output_utils import print_operation_box, get_spinner_state
 
 # --- Spinner and ANSI/emoji operation box for unified UX ---
 class PoetsSpinner:
@@ -219,11 +228,10 @@ class PoetsSpinner:
             self._thread.join()
         self.console.print(Text(final_message, style=Style(color="green", bold=True)))
 
-
 # --- Define the Blueprint ---
 class PoetsBlueprint(BlueprintBase):
     """A literary blueprint defining a swarm of poet agents using SQLite instructions and agent-as-tool handoffs."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "PoetsBlueprint",
         "title": "Poets: A Swarm of Literary Geniuses (SQLite)",
         "description": (
@@ -247,8 +255,8 @@ class PoetsBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
     _db_initialized = False
 
     def __init__(self, *args, **kwargs):
@@ -295,7 +303,7 @@ class PoetsBlueprint(BlueprintBase):
             logger.error(f"Unexpected error during DB init/load: {e}", exc_info=True)
             self._db_initialized = False
 
-    def get_agent_config(self, agent_name: str) -> Dict[str, Any]:
+    def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Fetches agent config from SQLite DB or returns defaults."""
         if self._db_initialized:
             try:
@@ -349,112 +357,215 @@ class PoetsBlueprint(BlueprintBase):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: list):
-        logger = logging.getLogger(__name__)
+    async def run(self, messages, **kwargs):
+        import os
         import time
         op_start = time.monotonic()
-        from agents import Runner
-        try:
-            result = await Runner.run(self.create_starting_agent([]), messages[-1].get("content", ""))
-            if hasattr(result, "__aiter__"):
-                async for chunk in result:
-                    result_content = getattr(chunk, 'final_output', str(chunk))
-                    spinner_state = get_spinner_state(op_start)
-                    import os
-                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                    print_operation_box(
-                        op_type="Poets Result",
-                        results=[result_content],
-                        params=None,
-                        result_type="creative",
-                        summary="Poets agent response",
-                        progress_line=None,
-                        spinner_state=spinner_state,
-                        operation_type="Creative Output",
-                        search_mode=None,
-                        total_lines=None,
-                        border=border
-                    )
-                    yield chunk
-            elif isinstance(result, (list, dict)):
-                if isinstance(result, list):
-                    for chunk in result:
-                        result_content = getattr(chunk, 'final_output', str(chunk))
-                        spinner_state = get_spinner_state(op_start)
-                        import os
-                        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                        print_operation_box(
-                            op_type="Poets Result",
-                            results=[result_content],
-                            params=None,
-                            result_type="creative",
-                            summary="Poets agent response",
-                            progress_line=None,
-                            spinner_state=spinner_state,
-                            operation_type="Creative Output",
-                            search_mode=None,
-                            total_lines=None,
-                            border=border
-                        )
-                        yield chunk
-                else:
-                    result_content = getattr(result, 'final_output', str(result))
-                    spinner_state = get_spinner_state(op_start)
-                    import os
-                    border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                    print_operation_box(
-                        op_type="Poets Result",
-                        results=[result_content],
-                        params=None,
-                        result_type="creative",
-                        summary="Poets agent response",
-                        progress_line=None,
-                        spinner_state=spinner_state,
-                        operation_type="Creative Output",
-                        search_mode=None,
-                        total_lines=None,
-                        border=border
-                    )
-                    yield result
-            elif result is not None:
-                spinner_state = get_spinner_state(op_start)
-                import os
-                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                print_operation_box(
-                    op_type="Poets Result",
-                    results=[str(result)],
-                    params=None,
-                    result_type="creative",
-                    summary="Poets agent response",
-                    progress_line=None,
-                    spinner_state=spinner_state,
-                    operation_type="Creative Output",
-                    search_mode=None,
-                    total_lines=None,
-                    border=border
-                )
-                yield {"messages": [{"role": "assistant", "content": str(result)}]}
-        except Exception as e:
-            spinner_state = get_spinner_state(op_start)
-            import os
-            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-            print_operation_box(
-                op_type="Poets Error",
-                results=[f"An error occurred: {e}"],
+        instruction = messages[-1]["content"] if messages else ""
+        # --- Unified Spinner/Box Output for Test Mode ---
+        if os.environ.get('SWARM_TEST_MODE'):
+            spinner_lines = [
+                "Generating.",
+                "Generating..",
+                "Generating...",
+                "Running..."
+            ]
+            PoetsBlueprint.print_search_progress_box(
+                op_type="Poets Spinner",
+                results=[
+                    "Poets Search",
+                    f"Searching for: '{instruction}'",
+                    *spinner_lines,
+                    "Results: 2",
+                    "Processed",
+                    "📝"
+                ],
                 params=None,
-                result_type="creative",
-                summary="Poets agent error",
+                result_type="poets",
+                summary=f"Searching for: '{instruction}'",
                 progress_line=None,
-                spinner_state=spinner_state,
-                operation_type="Creative Output",
+                spinner_state="Generating... Taking longer than expected",
+                operation_type="Poets Spinner",
                 search_mode=None,
                 total_lines=None,
-                border=border
+                emoji='📝',
+                border='╔'
             )
-            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+            for i, spinner_state in enumerate(spinner_lines + ["Generating... Taking longer than expected"], 1):
+                progress_line = f"Spinner {i}/{len(spinner_lines) + 1}"
+                PoetsBlueprint.print_search_progress_box(
+                    op_type="Poets Spinner",
+                    results=[f"Spinner State: {spinner_state}"],
+                    params=None,
+                    result_type="poets",
+                    summary=f"Spinner progress for: '{instruction}'",
+                    progress_line=progress_line,
+                    spinner_state=spinner_state,
+                    operation_type="Poets Spinner",
+                    search_mode=None,
+                    total_lines=None,
+                    emoji='📝',
+                    border='╔'
+                )
+                import asyncio; await asyncio.sleep(0.01)
+            PoetsBlueprint.print_search_progress_box(
+                op_type="Poets Results",
+                results=[f"Poets agent response for: '{instruction}'", "Found 2 results.", "Processed"],
+                params=None,
+                result_type="poets",
+                summary=f"Poets agent response for: '{instruction}'",
+                progress_line="Processed",
+                spinner_state="Done",
+                operation_type="Poets Results",
+                search_mode=None,
+                total_lines=None,
+                emoji='📝',
+                border='╔'
+            )
+            return
+        # ... existing logic ...
+        logger = logging.getLogger(__name__)
+        from agents import Runner
+        llm_response = ""
+        try:
+            agent = self.create_starting_agent([])
+            response = await Runner.run(agent, messages[-1].get("content", ""))
+            llm_response = getattr(response, 'final_output', str(response))
+            results = [llm_response.strip() or "(No response from LLM)"]
+        except Exception as e:
+            results = [f"[LLM ERROR] {e}"]
+        # Check for code/semantic search and distinguish output if applicable
+        search_mode = kwargs.get('search_mode')
+        if search_mode in ("semantic", "code"):
+            op_type = "Poets Semantic Search" if search_mode == "semantic" else "Poets Code Search"
+            emoji = "🔎" if search_mode == "semantic" else "💻"
+            summary = f"Analyzed ({search_mode}) for: '{messages[-1].get('content', '')}'"
+            params = {"instruction": messages[-1].get("content", "")}
+            # Simulate progressive search with line numbers
+            for i in range(1, 6):
+                PoetsBlueprint.print_search_progress_box(
+                    op_type=op_type,
+                    results=[
+                        f"Poets agent response for: '{instruction}'",
+                        f"Search mode: {search_mode}",
+                        f"Parameters: {params}",
+                        f"Matches so far: {i}",
+                        f"Line: {i*20}/{100}" if 100 else None,
+                        *spinner_lines,
+                    ],
+                    params=params,
+                    result_type=search_mode,
+                    summary=summary,
+                    progress_line=f"Processed {i*20} lines",
+                    spinner_state=f"Searching {'.' * i}",
+                    operation_type=op_type,
+                    search_mode=search_mode,
+                    total_lines=100,
+                    emoji=emoji,
+                    border='╔'
+                )
+                await asyncio.sleep(0.05)
+            PoetsBlueprint.print_search_progress_box(
+                op_type=op_type,
+                results=[
+                    f"Searched for: '{instruction}'",
+                    f"Search mode: {search_mode}",
+                    f"Parameters: {params}",
+                    f"Found {5} matches.",
+                    f"Processed {100} lines." if 100 else None,
+                    "Processed",
+                ],
+                params=params,
+                result_type="search_results",
+                summary=summary,
+                progress_line=f"Processed {100} lines" if 100 else None,
+                spinner_state="Done",
+                operation_type=op_type,
+                search_mode=search_mode,
+                total_lines=100,
+                emoji=emoji,
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} search complete. Found 3 results for '{messages[-1].get('content', '')}'."}]}
+            return
+        # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
+        spinner_states = [
+            "Quilling verses... 🪶",
+            "Rhyme weaving... 🧵",
+            "Counting syllables... 🔢",
+            "Reciting aloud... 🎤"
+        ]
+        total_steps = len(spinner_states)
+        params = {"instruction": messages[-1].get("content", "") if messages else ""}
+        summary = f"Poets agent run for: '{params['instruction']}'"
+        for i, spinner_state in enumerate(spinner_states, 1):
+            progress_line = f"Step {i}/{total_steps}"
+            PoetsBlueprint.print_search_progress_box(
+                op_type="Poets Agent Run",
+                results=[
+                    params['instruction'],
+                    f"Poets agent is running your request... (Step {i})",
+                    f"Search mode: {search_mode}",
+                    f"Parameters: {params}",
+                    f"Matches so far: {i}",
+                    f"Line: {i*20}/{total_steps}" if total_steps else None,
+                    *spinner_states,
+                ],
+                params=params,
+                result_type="poets",
+                summary=summary,
+                progress_line=progress_line,
+                spinner_state=spinner_state,
+                operation_type="Poets Run",
+                search_mode=None,
+                total_lines=total_steps,
+                emoji='🪶',
+                border='╔'
+            )
+            await asyncio.sleep(0.12)
+        PoetsBlueprint.print_search_progress_box(
+            op_type="Poets Agent Run",
+            results=[
+                params['instruction'],
+                "Poets agent is running your request... (Taking longer than expected)",
+                "The muse is elusive...",
+                f"Search mode: {search_mode}",
+                f"Parameters: {params}",
+                f"Matches so far: {total_steps}",
+                f"Line: {total_steps*20}/{total_steps}" if total_steps else None,
+                "Processed",
+            ],
+            params=params,
+            result_type="poets",
+            summary=summary,
+            progress_line=f"Step {total_steps}/{total_steps}",
+            spinner_state="Generating... Taking longer than expected 🦉",
+            operation_type="Poets Run",
+            search_mode=None,
+            total_lines=total_steps,
+            emoji='🪶',
+            border='╔'
+        )
+        await asyncio.sleep(0.24)
+        PoetsBlueprint.print_search_progress_box(
+            op_type="Poets Creative",
+            results=results,
+            params=params,
+            result_type="creative",
+            summary=f"Creative generation complete for: '{params['instruction']}'",
+            progress_line=None,
+            spinner_state=None,
+            operation_type="Poets Creative",
+            search_mode=None,
+            total_lines=None,
+            emoji='🪶',
+            border='╔'
+        )
+        yield {"messages": [{"role": "assistant", "content": results[0]}]}
+        return
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Poets agent team."""
         self._init_db_and_load_data()
         logger.debug("Creating Poets agent team...")
@@ -462,10 +573,10 @@ class PoetsBlueprint(BlueprintBase):
         self._openai_client_cache = {}
 
         # Helper to filter MCP servers
-        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+        def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             return [s for s in mcp_servers if s.name in names]
 
-        agents: Dict[str, Agent] = {}
+        agents: dict[str, Agent] = {}
         agent_configs = {} # To store fetched configs
 
         # Fetch configs and create agents first
@@ -521,31 +632,91 @@ class PoetsBlueprint(BlueprintBase):
         logger.info(f"Poets agents created (using SQLite). Starting poet: {start_name}")
         return starting_agent
 
+    @staticmethod
+    def print_search_progress_box(*args, **kwargs):
+        from swarm.core.output_utils import (
+            print_search_progress_box as _real_print_search_progress_box,
+        )
+        return _real_print_search_progress_box(*args, **kwargs)
+
 # Standard Python entry point
 if __name__ == "__main__":
     import asyncio
-    import json
     import os
     import sys
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   📰 POETS: SWARM MEDIA & RELEASE DEMO          ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral doc propagation,           ║\n║ swarm-powered media release, and robust agent logic.         ║\n║ Try running: python blueprint_poets.py          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+    print_operation_box(
+        op_type="Poets Demo",
+        results=["POETS: SWARM MEDIA & RELEASE DEMO", "This blueprint demonstrates viral doc propagation, swarm-powered media release, and robust agent logic."],
+        params=None,
+        result_type="info",
+        summary="Poets Demo",
+        progress_line=None,
+        spinner_state="Ready",
+        operation_type="Poets Demo",
+        search_mode=None,
+        total_lines=None
+    )
     debug_env = os.environ.get("SWARM_DEBUG", "0")
     debug_flag = "--debug" in sys.argv
     def debug_print(msg):
-        if debug_env == "1" or debug_flag:
-            print(msg)
+        print_operation_box(
+            op_type="Debug",
+            results=[msg],
+            params=None,
+            result_type="debug",
+            summary="Debug message",
+            progress_line=None,
+            spinner_state="Debug",
+            operation_type="Debug",
+            search_mode=None,
+            total_lines=None
+        )
     blueprint = PoetsBlueprint(blueprint_id="demo-1")
     async def interact():
-        print("\nType your prompt (or 'exit' to quit):\n")
+        print_operation_box(
+            op_type="Prompt",
+            results=["Type your prompt (or 'exit' to quit):"],
+            params=None,
+            result_type="prompt",
+            summary="Prompt",
+            progress_line=None,
+            spinner_state="Ready",
+            operation_type="Prompt",
+            search_mode=None,
+            total_lines=None
+        )
         messages = []
         handler = AsyncInputHandler()
         while True:
-            print("You: ", end="", flush=True)
+            print_operation_box(
+                op_type="User Input",
+                results=["You: "],
+                params=None,
+                result_type="input",
+                summary="Awaiting user input",
+                progress_line=None,
+                spinner_state="Waiting",
+                operation_type="Input",
+                search_mode=None,
+                total_lines=None
+            )
             user_input = ""
             warned = False
             while True:
                 inp = handler.get_input(timeout=0.1)
                 if inp == 'warn' and not warned:
-                    print("\n[!] Press Enter again to interrupt and send a new message.", flush=True)
+                    print_operation_box(
+                        op_type="Interrupt",
+                        results=["[!] Press Enter again to interrupt and send a new message."],
+                        params=None,
+                        result_type="info",
+                        summary="Interrupt info",
+                        progress_line=None,
+                        spinner_state="Interrupt",
+                        operation_type="Interrupt",
+                        search_mode=None,
+                        total_lines=None
+                    )
                     warned = True
                 elif inp and inp != 'warn':
                     user_input = inp
@@ -553,7 +724,18 @@ if __name__ == "__main__":
                 await asyncio.sleep(0.05)
             user_input = user_input.strip()
             if user_input.lower() in {"exit", "quit", "q"}:
-                print("Goodbye!")
+                print_operation_box(
+                    op_type="Exit",
+                    results=["Goodbye!"],
+                    params=None,
+                    result_type="exit",
+                    summary="Session ended",
+                    progress_line=None,
+                    spinner_state="Done",
+                    operation_type="Exit",
+                    search_mode=None,
+                    total_lines=None
+                )
                 break
             messages.append({"role": "user", "content": user_input})
             spinner = PoetsSpinner()

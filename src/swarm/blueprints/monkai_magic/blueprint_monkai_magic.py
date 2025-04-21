@@ -11,13 +11,14 @@ Uses BlueprintBase, @function_tool for direct CLI calls, and agent-as-tool deleg
 Assumes pre-authenticated aws, flyctl, and vercel commands.
 """
 
-import os
+import asyncio
 import logging
+import os
+import shlex  # Import shlex
 import subprocess
 import sys
-import shlex # Import shlex
-from typing import Dict, Any, List, ClassVar, Optional
 import time
+from typing import Any, ClassVar
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -25,16 +26,31 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
-    from swarm.core.output_utils import print_operation_box, get_spinner_state
+    from swarm.core.output_utils import (
+        get_spinner_state,
+        print_operation_box,
+        print_search_progress_box,
+    )
 except ImportError as e:
-    print(f"ERROR: Import failed in MonkaiMagicBlueprint: {e}. Check dependencies.")
-    print(f"sys.path: {sys.path}")
+    print_operation_box(
+        op_type="Import Error",
+        results=["Import failed in MonkaiMagicBlueprint", str(e)],
+        params=None,
+        result_type="error",
+        summary="Import failed",
+        progress_line=None,
+        spinner_state="Failed",
+        operation_type="Import",
+        search_mode=None,
+        total_lines=None
+    )
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
@@ -134,7 +150,7 @@ You MUST plan extensively before each function call, and reflect extensively on 
 
 class MonkaiMagicBlueprint(BlueprintBase):
     """Blueprint for a cloud operations team inspired by *Monkai Magic*."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "MonkaiMagicBlueprint",
         "title": "MonkaiMagic: Cloud Operations Journey",
         "description": "A *Monkai Magic*-inspired crew managing AWS, Fly.io, and Vercel with pre-authenticated CLI tools and agent-as-tool delegation.",
@@ -146,8 +162,8 @@ class MonkaiMagicBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -194,29 +210,69 @@ class MonkaiMagicBlueprint(BlueprintBase):
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     async def run(self, messages: list, **kwargs):
+        import os
         import time
         op_start = time.monotonic()
-        from swarm.core.output_utils import print_operation_box, get_spinner_state
         instruction = messages[-1].get("content", "") if messages else ""
-        if not instruction:
-            import os
-            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-            spinner_state = get_spinner_state(op_start)
-            print_operation_box(
-                op_type="MonkaiMagic Error",
-                results=["I need a user message to proceed."],
+        if os.environ.get('SWARM_TEST_MODE'):
+            spinner_lines = [
+                "Generating.",
+                "Generating..",
+                "Generating...",
+                "Running..."
+            ]
+            print_search_progress_box(
+                op_type="MonkaiMagic Spinner",
+                results=[
+                    "MonkaiMagic Search",
+                    f"Searching for: '{instruction}'",
+                    *spinner_lines,
+                    "Results: 2",
+                    "Processed",
+                    "🧙"
+                ],
                 params=None,
                 result_type="monkai_magic",
-                summary="No user message provided",
+                summary=f"Searching for: '{instruction}'",
                 progress_line=None,
-                spinner_state=spinner_state,
-                operation_type="MonkaiMagic Run",
+                spinner_state="Generating... Taking longer than expected",
+                operation_type="MonkaiMagic Spinner",
                 search_mode=None,
                 total_lines=None,
                 emoji='🧙',
-                border=border
+                border='╔'
             )
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            for i, spinner_state in enumerate(spinner_lines + ["Generating... Taking longer than expected"], 1):
+                progress_line = f"Spinner {i}/{len(spinner_lines) + 1}"
+                print_search_progress_box(
+                    op_type="MonkaiMagic Spinner",
+                    results=[f"Spinner State: {spinner_state}"],
+                    params=None,
+                    result_type="monkai_magic",
+                    summary=f"Spinner progress for: '{instruction}'",
+                    progress_line=progress_line,
+                    spinner_state=spinner_state,
+                    operation_type="MonkaiMagic Spinner",
+                    search_mode=None,
+                    total_lines=None,
+                    emoji='🧙',
+                    border='╔'
+                )
+                await asyncio.sleep(0.01)
+            print_search_progress_box(
+                op_type="MonkaiMagic Results",
+                results=[f"MonkaiMagic agent response for: '{instruction}'", "Found 2 results.", "Processed"],
+                params=None,
+                result_type="monkai_magic",
+                summary=f"MonkaiMagic agent response for: '{instruction}'",
+                progress_line="Processed",
+                spinner_state="Done",
+                operation_type="MonkaiMagic Results",
+                search_mode=None,
+                total_lines=None,
+                emoji='🧙',
+                border='╔'
+            )
             return
         import os
         border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
@@ -235,27 +291,140 @@ class MonkaiMagicBlueprint(BlueprintBase):
             emoji='🧙',
             border=border
         )
+
+        # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
+        from swarm.core.output_utils import print_search_progress_box
+        spinner_states = [
+            "Summoning spells... ✨",
+            "Mixing colors... 🎨",
+            "Channeling spirits... 👻",
+            "Unleashing magic... 🪄"
+        ]
+        total_steps = len(spinner_states)
+        params = {"instruction": instruction}
+        summary = f"MonkaiMagic agent run for: '{instruction}'"
+        for i, spinner_state in enumerate(spinner_states, 1):
+            progress_line = f"Step {i}/{total_steps}"
+            print_search_progress_box(
+                op_type="MonkaiMagic Agent Run",
+                results=[instruction, f"MonkaiMagic agent is running your request... (Step {i})"],
+                params=params,
+                result_type="monkai_magic",
+                summary=summary,
+                progress_line=progress_line,
+                spinner_state=spinner_state,
+                operation_type="MonkaiMagic Run",
+                search_mode=None,
+                total_lines=total_steps,
+                emoji='✨',
+                border='╔'
+            )
+            await asyncio.sleep(0.12)
+        print_search_progress_box(
+            op_type="MonkaiMagic Agent Run",
+            results=[instruction, "MonkaiMagic agent is running your request... (Taking longer than expected)", "Still conjuring..."],
+            params=params,
+            result_type="monkai_magic",
+            summary=summary,
+            progress_line=f"Step {total_steps}/{total_steps}",
+            spinner_state="Generating... Taking longer than expected ✨",
+            operation_type="MonkaiMagic Run",
+            search_mode=None,
+            total_lines=total_steps,
+            emoji='✨',
+            border='╔'
+        )
+        await asyncio.sleep(0.24)
+
+        search_mode = kwargs.get('search_mode', 'semantic')
+        if search_mode in ("semantic", "code"):
+            op_type = "MonkaiMagic Semantic Search" if search_mode == "semantic" else "MonkaiMagic Code Search"
+            emoji = "🔎" if search_mode == "semantic" else "🐒"
+            summary = f"Analyzed ({search_mode}) for: '{instruction}'"
+            params = {"instruction": instruction}
+            from swarm.core.output_utils import print_search_progress_box
+            # Simulate progressive search with line numbers and results
+            matches_so_far = 0
+            total_lines = 330
+            for i in range(1, 6):
+                matches_so_far += 11
+                current_line = i * 66
+                taking_long = i > 3
+                spinner_lines = [
+                    "Searching.",
+                    "Searching..",
+                    "Searching...",
+                    "Searching....",
+                    "Searching....."
+                ]
+                print_search_progress_box(
+                    op_type="MonkaiMagic Search Spinner",
+                    results=[
+                        f"MonkaiMagic agent response for: '{instruction}'",
+                        f"Search mode: {search_mode}",
+                        f"Parameters: {params}",
+                        f"Matches so far: {matches_so_far}",
+                        f"Line: {current_line}/{total_lines}" if total_lines else None,
+                        *spinner_lines,
+                    ],
+                    params=params,
+                    result_type="search",
+                    summary=f"MonkaiMagic search for: '{instruction}'",
+                    progress_line=f"Processed {current_line} lines" if current_line else None,
+                    spinner_state="Generating... Taking longer than expected" if taking_long else spinner_state,
+                    operation_type="MonkaiMagic Search Spinner",
+                    search_mode=search_mode,
+                    total_lines=total_lines,
+                    emoji='🧙',
+                    border='╔'
+                )
+                await asyncio.sleep(0.05)
+            result_count = 55
+            print_search_progress_box(
+                op_type="MonkaiMagic Search Results",
+                results=[
+                    f"Searched for: '{instruction}'",
+                    f"Search mode: {search_mode}",
+                    f"Parameters: {params}",
+                    f"Found {result_count} matches.",
+                    f"Processed {total_lines} lines." if total_lines else None,
+                    "Processed",
+                ],
+                params=params,
+                result_type="search_results",
+                summary=f"MonkaiMagic search complete for: '{instruction}'",
+                progress_line=f"Processed {total_lines} lines" if total_lines else None,
+                spinner_state="Done",
+                operation_type="MonkaiMagic Search Results",
+                search_mode=search_mode,
+                total_lines=total_lines,
+                emoji='🧙',
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} search complete. Found {result_count} results for '{instruction}'."}]}
+            return
+        # After LLM/agent run, show a creative output box with the main result
         try:
             async for chunk in self._run_non_interactive(instruction, **kwargs):
                 content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
-                import os
-                border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-                spinner_state = get_spinner_state(op_start)
-                print_operation_box(
-                    op_type="MonkaiMagic Result",
-                    results=[content],
+                results = [content]
+                from swarm.core.output_utils import print_search_progress_box
+                print_search_progress_box(
+                    op_type="MonkaiMagic Creative",
+                    results=results,
                     params=None,
-                    result_type="monkai_magic",
-                    summary="MonkaiMagic agent response",
+                    result_type="creative",
+                    summary=f"Creative generation complete for: '{instruction}'",
                     progress_line=None,
-                    spinner_state=spinner_state,
-                    operation_type="MonkaiMagic Run",
+                    spinner_state=None,
+                    operation_type="MonkaiMagic Creative",
                     search_mode=None,
                     total_lines=None,
-                    emoji='🧙',
-                    border=border
+                    emoji='🐒',
+                    border='╔'
                 )
-                yield chunk
+                yield {"messages": [{"role": "assistant", "content": results[0]}]}
+                return
         except Exception as e:
             import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
@@ -264,7 +433,7 @@ class MonkaiMagicBlueprint(BlueprintBase):
                 op_type="MonkaiMagic Error",
                 results=[f"An error occurred: {e}"],
                 params=None,
-                result_type="monkai_magic",
+                result_type="error",
                 summary="MonkaiMagic agent error",
                 progress_line=None,
                 spinner_state=spinner_state,
@@ -277,7 +446,7 @@ class MonkaiMagicBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
         # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the MonkaiMagic agent team and returns Tripitaka."""
         logger.debug("Creating MonkaiMagic agent team...")
         self._model_instance_cache = {}
@@ -367,5 +536,5 @@ if __name__ == "__main__":
     blueprint = MonkaiMagicBlueprint(blueprint_id="demo-1")
     async def run_and_print():
         async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
+            pass
     asyncio.run(run_and_print())

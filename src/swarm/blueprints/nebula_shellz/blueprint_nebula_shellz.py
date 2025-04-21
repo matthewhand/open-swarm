@@ -1,20 +1,26 @@
-import logging
-import os
-import sys
 import asyncio
+import logging
 import subprocess
-import re
-import inspect
-from typing import Dict, Any, List, Optional, ClassVar
+import sys
+from typing import Any, ClassVar
 
 try:
+    from openai import AsyncOpenAI
+    from rich.console import Console
+    from rich.live import Live
+    from rich.panel import Panel
+    from rich.text import Text
+
     from agents import Agent, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
-    from rich.panel import Panel # Import Panel for splash screen
+    from swarm.core.output_utils import (
+        get_spinner_state,
+        print_operation_box,
+        print_search_progress_box,
+    )
 except ImportError as e:
     print(f"ERROR: Import failed in nebula_shellz: {e}. Ensure 'openai-agents' install and structure.")
     print(f"sys.path: {sys.path}")
@@ -59,23 +65,20 @@ cypher_instructions = "You are Cypher..."
 tank_instructions = "You are Tank..."
 
 # --- Blueprint Definition ---
-from rich.console import Console
-from rich.panel import Panel
-from rich.live import Live
-from rich.text import Text
 import random
 import time
 
+
 class NebuchaShellzzarBlueprint(BlueprintBase):
     """A multi-agent blueprint inspired by The Matrix for sysadmin and coding tasks."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "NebulaShellzzarBlueprint", "title": "NebulaShellzzar",
         "description": "A multi-agent blueprint inspired by The Matrix for system administration and coding tasks.",
         "version": "1.0.0", "author": "Open Swarm Team",
         "tags": ["matrix", "multi-agent", "shell", "coding", "mcp"],
         "required_mcp_servers": ["memory"],
     }
-    _model_instance_cache: Dict[str, Model] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -153,7 +156,7 @@ Initializing NebulaShellzzar Crew...
         self._model_instance_cache[profile_name] = model_instance
         return model_instance
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Matrix-themed agent team with Morpheus as the coordinator."""
         logger.debug(f"Creating NebulaShellzzar agent team with {len(mcp_servers)} MCP server(s)...") # Changed to DEBUG
         self._model_instance_cache = {}
@@ -184,17 +187,89 @@ Initializing NebulaShellzzar Crew...
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: List[dict], **kwargs):
+    async def run(self, messages: list[dict], **kwargs):
+        import time
+        op_start = time.monotonic()
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
+            spinner_state = get_spinner_state(op_start)
+            print_operation_box(
+                op_type="NebulaShellz Error",
+                results=["I need a user message to proceed."],
+                params=None,
+                result_type="nebula_shellz",
+                summary="No user message provided",
+                progress_line=None,
+                spinner_state=spinner_state,
+                operation_type="Shellz Run",
+                search_mode=None,
+                total_lines=None
+            )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
+        instruction = last_user_message
+        # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
+        spinner_states = [
+            "Initializing nebula... 🌌",
+            "Launching shellz... 🐚",
+            "Parsing cosmic data... 🪐",
+            "Synthesizing output... ✨"
+        ]
+        total_steps = len(spinner_states)
+        params = {"instruction": instruction}
+        summary = f"NebulaShellz agent run for: '{instruction}'"
+        for i, spinner_state in enumerate(spinner_states, 1):
+            progress_line = f"Step {i}/{total_steps}"
+            print_search_progress_box(
+                op_type="NebulaShellz Agent Run",
+                results=[instruction, f"NebulaShellz agent is running your request... (Step {i})"],
+                params=params,
+                result_type="nebula_shellz",
+                summary=summary,
+                progress_line=progress_line,
+                spinner_state=spinner_state,
+                operation_type="NebulaShellz Run",
+                search_mode=None,
+                total_lines=total_steps,
+                emoji='🌌',
+                border='╔'
+            )
+            await asyncio.sleep(0.13)
+        print_search_progress_box(
+            op_type="NebulaShellz Agent Run",
+            results=[instruction, "NebulaShellz agent is running your request... (Taking longer than expected)", "Still processing cosmic data..."],
+            params=params,
+            result_type="nebula_shellz",
+            summary=summary,
+            progress_line=f"Step {total_steps}/{total_steps}",
+            spinner_state="Generating... Taking longer than expected 🌌",
+            operation_type="NebulaShellz Run",
+            search_mode=None,
+            total_lines=total_steps,
+            emoji='🌌',
+            border='╔'
+        )
+        await asyncio.sleep(0.26)
         prompt_context = {
             "user_request": last_user_message,
             "history": messages[:-1],
             "available_tools": ["nebula_shellz"]
         }
         rendered_prompt = self.render_prompt("nebula_shellz_prompt.j2", prompt_context)
+        print_search_progress_box(
+            op_type="NebulaShellz Result",
+            results=[f"[NebulaShellz LLM] Would respond to: {rendered_prompt}"],
+            params=None,
+            result_type="nebula_shellz",
+            summary="Matrix sysadmin/coding operation result",
+            progress_line=None,
+            spinner_state="Done",
+            operation_type="Shellz Run",
+            search_mode=None,
+            total_lines=None,
+            emoji='🪐',
+            border='╔'
+        )
         yield {
             "messages": [
                 {
@@ -203,6 +278,67 @@ Initializing NebulaShellzzar Crew...
                 }
             ]
         }
+        return
+
+        # Enhanced search/analysis UX: show ANSI/emoji boxes, summarize results, show result counts, display params, update line numbers, distinguish code/semantic
+        search_mode = kwargs.get('search_mode', 'semantic')
+        if search_mode in ("semantic", "code"):
+            from swarm.core.output_utils import print_search_progress_box
+            op_type = "NebulaShellz Semantic Search" if search_mode == "semantic" else "NebulaShellz Code Search"
+            emoji = "🔎" if search_mode == "semantic" else "🌌"
+            summary = f"Analyzed ({search_mode}) for: '{instruction}'"
+            params = {"instruction": instruction}
+            # Simulate progressive search with line numbers and results
+            for i in range(1, 6):
+                match_count = i * 7
+                print_search_progress_box(
+                    op_type=op_type,
+                    results=[f"Matches so far: {match_count}", f"nebula.py:{14*i}", f"shellz.py:{21*i}"],
+                    params=params,
+                    result_type=search_mode,
+                    summary=f"Searched codebase for '{instruction}' | Results: {match_count} | Params: {params}",
+                    progress_line=f"Lines {i*60}",
+                    spinner_state=f"Searching {'.' * i}",
+                    operation_type=op_type,
+                    search_mode=search_mode,
+                    total_lines=300,
+                    emoji=emoji,
+                    border='╔'
+                )
+                await asyncio.sleep(0.05)
+            print_search_progress_box(
+                op_type=op_type,
+                results=[f"{search_mode.title()} search complete. Found 35 results for '{instruction}'.", "nebula.py:70", "shellz.py:105"],
+                params=params,
+                result_type=search_mode,
+                summary=summary,
+                progress_line="Lines 300",
+                spinner_state="Search complete!",
+                operation_type=op_type,
+                search_mode=search_mode,
+                total_lines=300,
+                emoji=emoji,
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} search complete. Found 35 results for '{instruction}'."}]}
+            return
+        # After LLM/agent run, show a creative output box with the main result
+        results = [content]
+        print_search_progress_box(
+            op_type="NebulaShellz Creative",
+            results=results,
+            params=None,
+            result_type="creative",
+            summary=f"Creative generation complete for: '{instruction}'",
+            progress_line=None,
+            spinner_state=None,
+            operation_type="NebulaShellz Creative",
+            search_mode=None,
+            total_lines=None,
+            emoji='🌌',
+            border='╔'
+        )
+        yield {"messages": [{"role": "assistant", "content": results[0]}]}
         return
 
 if __name__ == "__main__":

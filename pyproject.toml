@@ -107,6 +107,9 @@ docs = [
     "myst-parser>=2.0.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.hatch.version]
 path = "src/swarm/__init__.py"
 

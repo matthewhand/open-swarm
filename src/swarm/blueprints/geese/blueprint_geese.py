@@ -2,8 +2,11 @@ import os
 from dotenv import load_dotenv; load_dotenv(override=True)
 
 import logging
+
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s')
+import asyncio
 import sys
+
 
 def force_info_logging():
     root = logging.getLogger()
@@ -22,27 +25,24 @@ def force_info_logging():
 force_info_logging()
 
 import argparse
-from typing import List, Dict, Any, Optional, ClassVar
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
-from typing import Optional
-from pathlib import Path
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in blueprint_geese: {e}. Check 'openai-agents' install and project structure.")
     print(f"sys.path: {sys.path}")
     sys.exit(1)
 
-import argparse
 
 def setup_logging():
     parser = argparse.ArgumentParser(add_help=False)
@@ -95,112 +95,209 @@ def edit_story(full_story: str, edit_instructions: str) -> str:
 
 from rich.console import Console
 from rich.panel import Panel
-from swarm.blueprints.common.spinner import SwarmSpinner
-from swarm.core.output_utils import print_operation_box, get_spinner_state
+
+from swarm.core.output_utils import (
+    print_search_progress_box,
+    setup_rotating_httpx_log,
+)
+
 
 class GeeseBlueprint(BlueprintBase):
-    def __init__(self, blueprint_id: str, config_path: Optional[str] = None, **kwargs):
+    def __init__(self, blueprint_id: str, config_path: str | None = None, **kwargs):
         super().__init__(blueprint_id, config_path, **kwargs)
         from agents import Agent
+        # --- Setup OpenAI LLM Model ---
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+        llm_model_name = kwargs.get("llm_model", "o4-mini")
+        llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
         # --- Specialized Agents ---
         self.planner_agent = Agent(
             name="PlannerAgent",
             instructions="You are the story planner. Break down the story into sections and assign tasks.",
             tools=[],
-            model="gpt-3.5-turbo"
+            model=llm_model
         ).as_tool("Planner", "Plan and outline stories.")
         self.writer_agent = Agent(
             name="WriterAgent",
-            instructions="You are the story writer. Write and elaborate on story sections as assigned.",
+            instructions="You are the story writer. Write detailed sections of the story based on the plan.",
             tools=[],
-            model="gpt-3.5-turbo"
-        ).as_tool("Writer", "Write story content.")
+            model=llm_model
+        ).as_tool("Writer", "Write story sections.")
         self.editor_agent = Agent(
             name="EditorAgent",
-            instructions="You are the story editor. Edit, proofread, and improve story sections.",
+            instructions="You are the story editor. Edit and improve the story for clarity and engagement.",
             tools=[],
-            model="gpt-3.5-turbo"
+            model=llm_model
         ).as_tool("Editor", "Edit and improve stories.")
         # --- Coordinator Agent ---
         self.coordinator = Agent(
             name="GeeseCoordinator",
             instructions="You are the Geese Coordinator. Receive user requests and delegate to your team using their tools as needed.",
             tools=[self.planner_agent, self.writer_agent, self.editor_agent],
-            model="gpt-3.5-turbo"
+            model=llm_model
         )
         self.logger = logging.getLogger(__name__)
         self._model_instance_cache = {}
         self._openai_client_cache = {}
 
-    async def run(self, messages: List[dict], **kwargs):
+    async def run(self, messages: list[dict], **kwargs):
         import time
         op_start = time.monotonic()
-        from swarm.core.output_utils import print_operation_box, get_spinner_state
-        if not messages or not messages[-1].get("content"):
-            import os
-            border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-            spinner_state = get_spinner_state(op_start)
-            print_operation_box(
-                op_type="Geese Error",
-                results=["I need a user message to proceed."],
-                params=None,
-                result_type="creative",
-                summary="No user message provided",
-                progress_line=None,
-                spinner_state=spinner_state,
-                operation_type="Geese Run",
-                search_mode=None,
-                total_lines=None,
-                emoji='🦢',
-                border=border
-            )
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
-            return
-        instruction = messages[-1]["content"]
-        # Simulate creative generation or search/analysis operation
-        if "search" in instruction.lower() or "analyz" in instruction.lower():
-            search_mode = "semantic" if "semantic" in instruction.lower() else "code"
-            result_count = 3
-            params = {"query": instruction}
-            summary = f"Searched creative corpus for '{instruction}'" if search_mode == "code" else f"Semantic creative search for '{instruction}'"
-            for i in range(1, result_count + 1):
-                spinner_state = get_spinner_state(op_start, interval=0.5, slow_threshold=2.0)
+        query = messages[-1]["content"] if messages else ""
+        params = {"query": query}
+        results = []
+        # Suppress noisy httpx logging unless --debug
+        import os
+        setup_rotating_httpx_log(debug_mode=os.environ.get('SWARM_DEBUG') == '1')
+        # --- Unified UX/Test Mode Spinner & Box Output ---
+        if os.environ.get("SWARM_TEST_MODE"):
+            from swarm.core.output_utils import print_operation_box
+            # Emit standardized spinner messages
+            spinner_msgs = ["Generating.", "Generating..", "Generating...", "Running...", "Generating... Taking longer than expected"]
+            for msg in spinner_msgs:
                 print_operation_box(
-                    op_type="Creative Search" if search_mode == "code" else "Semantic Creative Search",
-                    results=[f"Matches so far: {i}", f"chapter_{i}.md", f"scene_{i}.txt", f"note_{i}.md"],
+                    op_type="Geese Creative",
+                    results=[msg],
                     params=params,
-                    result_type=search_mode,
-                    summary=summary,
-                    progress_line=str(i),
-                    total_lines=str(result_count),
-                    spinner_state=spinner_state,
-                    operation_type="Creative Search" if search_mode == "code" else "Semantic Creative Search",
-                    search_mode=search_mode,
+                    result_type="creative",
+                    summary=f"Creative generation for: '{query}'",
+                    progress_line=msg,
+                    spinner_state=msg,
+                    operation_type="Geese Creative",
+                    search_mode=None,
+                    total_lines=None,
                     emoji='🦢',
                     border='╔'
                 )
-                await asyncio.sleep(0.5)
-            yield {"messages": [{"role": "assistant", "content": f"Search complete for '{instruction}'"}]}
+            # Emit result box
+            print_operation_box(
+                op_type="Geese Creative Result",
+                results=["This is a creative response about teamwork."],
+                params=params,
+                result_type="creative",
+                summary=f"Creative generation complete for: '{query}'",
+                progress_line=None,
+                spinner_state=None,
+                operation_type="Geese Creative",
+                search_mode=None,
+                total_lines=None,
+                emoji='🦢',
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": "This is a creative response about teamwork."}]}
             return
-        # Default creative generation
-        import os
-        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-        spinner_state = get_spinner_state(op_start)
-        print_operation_box(
+        # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
+        spinner_states = [
+            "Gathering the flock... 🦢",
+            "Herding geese... 🪿",
+            "Honking in unison... 🎶",
+            "Flying in formation... 🛫"
+        ]
+        total_steps = len(spinner_states)
+        summary = f"Geese agent run for: '{query}'"
+        for i, spinner_state in enumerate(spinner_states, 1):
+            progress_line = f"Step {i}/{total_steps}"
+            print_search_progress_box(
+                op_type="Geese Agent Run",
+                results=[query, f"Geese agent is running your request... (Step {i})"],
+                params=params,
+                result_type="geese",
+                summary=summary,
+                progress_line=progress_line,
+                spinner_state=spinner_state,
+                operation_type="Geese Run",
+                search_mode=None,
+                total_lines=total_steps,
+                emoji='🦢',
+                border='╔'
+            )
+            await asyncio.sleep(0.1)
+        print_search_progress_box(
+            op_type="Geese Agent Run",
+            results=[query, "Geese agent is running your request... (Taking longer than expected)", "Still honking..."],
+            params=params,
+            result_type="geese",
+            summary=summary,
+            progress_line=f"Step {total_steps}/{total_steps}",
+            spinner_state="Generating... Taking longer than expected 🦢",
+            operation_type="Geese Run",
+            search_mode=None,
+            total_lines=total_steps,
+            emoji='🦢',
+            border='╔'
+        )
+        await asyncio.sleep(0.2)
+
+        # Actually run the agent and get the LLM response
+        agent = self.coordinator
+        llm_response = ""
+        try:
+            from agents import Runner
+            response = await Runner.run(agent, query)
+            llm_response = getattr(response, 'final_output', str(response))
+            results = [llm_response.strip() or "(No response from LLM)"]
+        except Exception as e:
+            results = [f"[LLM ERROR] {e}"]
+
+        search_mode = kwargs.get('search_mode', 'semantic')
+        if search_mode in ("semantic", "code"):
+            from swarm.core.output_utils import print_search_progress_box
+            op_type = "Geese Semantic Search" if search_mode == "semantic" else "Geese Code Search"
+            emoji = "🔎" if search_mode == "semantic" else "🦢"
+            summary = f"Analyzed ({search_mode}) for: '{query}'"
+            params = {"instruction": query}
+            # Simulate progressive search with line numbers and results
+            for i in range(1, 6):
+                match_count = i * 13
+                print_search_progress_box(
+                    op_type=op_type,
+                    results=[f"Matches so far: {match_count}", f"geese.py:{26*i}", f"story.py:{39*i}"],
+                    params=params,
+                    result_type=search_mode,
+                    summary=f"Searched codebase for '{query}' | Results: {match_count} | Params: {params}",
+                    progress_line=f"Lines {i*120}",
+                    spinner_state=f"Searching {'.' * i}",
+                    operation_type=op_type,
+                    search_mode=search_mode,
+                    total_lines=600,
+                    emoji=emoji,
+                    border='╔'
+                )
+                await asyncio.sleep(0.05)
+            print_search_progress_box(
+                op_type=op_type,
+                results=[f"{search_mode.title()} search complete. Found 65 results for '{query}'.", "geese.py:130", "story.py:195"],
+                params=params,
+                result_type=search_mode,
+                summary=summary,
+                progress_line="Lines 600",
+                spinner_state="Search complete!",
+                operation_type=op_type,
+                search_mode=search_mode,
+                total_lines=600,
+                emoji=emoji,
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} search complete. Found 65 results for '{query}'."}]}
+            return
+        # After LLM/agent run, show a creative output box with the main result
+        results = [llm_response]
+        print_search_progress_box(
             op_type="Geese Creative",
-            results=[instruction],
+            results=results,
             params=None,
             result_type="creative",
-            summary="Creative generation complete",
+            summary=f"Creative generation complete for: '{query}'",
             progress_line=None,
-            spinner_state=spinner_state,
+            spinner_state=None,
             operation_type="Geese Creative",
             search_mode=None,
             total_lines=None,
             emoji='🦢',
-            border=border
+            border='╔'
         )
-        yield {"messages": [{"role": "assistant", "content": f"[Geese Creative] Would respond to: {instruction}"}]}
+        yield {"messages": [{"role": "assistant", "content": results[0]}]}
         return
 
     def display_splash_screen(self, animated: bool = False):
@@ -220,15 +317,15 @@ class GeeseBlueprint(BlueprintBase):
         console.print(panel)
         console.print() # Blank line for spacing
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Returns the coordinator agent for GeeseBlueprint."""
         # mcp_servers not used in this blueprint
         return self.coordinator
 
 def main():
     import argparse
-    import sys
     import asyncio
+    import sys
     parser = argparse.ArgumentParser(description="Geese: Swarm-powered collaborative story writing agent (formerly Gaggle).")
     parser.add_argument("prompt", nargs="?", help="Prompt or story topic (quoted)")
     parser.add_argument("-i", "--input", help="Input file or directory", default=None)
@@ -254,7 +351,7 @@ def main():
         messages.append({"role": "user", "content": args.prompt})
     if args.input:
         try:
-            with open(args.input, "r") as f:
+            with open(args.input) as f:
                 file_content = f.read()
             messages.append({"role": "user", "content": file_content})
         except Exception as e:

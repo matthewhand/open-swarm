@@ -1,0 +1,32 @@
+name: Blueprint UX Compliance
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  ux-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint with ruff
+        run: ruff check .
+      - name: Run blueprint tests
+        run: uv run pytest -v tests/blueprints
+      - name: Run coverage
+        run: uv run pytest --cov=src --cov-report=term-missing tests/blueprints
+      - name: Run UX compliance utility
+        run: python scripts/check_ux_compliance.py

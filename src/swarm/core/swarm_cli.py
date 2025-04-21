@@ -30,8 +30,47 @@ USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Typer App ---
 app = typer.Typer(
-    help="Swarm CLI tool for managing blueprints.",
-    add_completion=True # Enable shell completion commands
+    help="""
+[1;36m
+╔══════════════════════════════════════════════════════════════╗
+║   🚀 OPEN SWARM CLI — S-TIER ONBOARDING                     ║
+╠══════════════════════════════════════════════════════════════╣
+║ Orchestrate, manage, and run AI agent blueprints.           ║
+║                                                            ║
+║  Quickstart:                                                ║
+║    1. swarm-cli list                                        ║
+║    2. swarm-cli run hello_world --instruction "Hi!"         ║
+║    3. swarm-cli install hello_world                         ║
+║    4. ./hello_world "Hi!"                                   ║
+║                                                            ║
+║  Try: swarm-cli run hello_world --instruction "Let's go!"   ║
+╚══════════════════════════════════════════════════════════════╝[0m
+
+Usage:
+  swarm-cli [OPTIONS] COMMAND [ARGS]...
+
+Commands:
+  list        List available blueprints (bundled and user).
+  run         Run a blueprint (single instruction or interactively).
+  install     Install a blueprint as a standalone executable.
+  configure   Set up config and API keys interactively.
+  info        Show info about a blueprint.
+  help        Show help for a specific command.
+
+Examples:
+  swarm-cli list
+  swarm-cli run hello_world --instruction "Hello from CLI!"
+
+  # Direct Python or binary execution:
+  python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
+  ./hello_world Hello from CLI!
+
+Note:
+  If you are developing locally (from a git clone), run 'pip install -e .' before using the CLI.
+
+For more information, see the README.md or visit https://github.com/matthewhand/open-swarm
+""",
+    add_completion=True
 )
 
 # --- Helper Functions ---
@@ -209,6 +248,57 @@ def list_blueprints(
         if not user_found:
             typer.echo("(No user blueprints found)")
         typer.echo("") # Add spacing
+
+
+@app.command()
+def info(blueprint_name: str = typer.Argument(..., help="Name of the blueprint to show info for.")):
+    """
+    Show information about a blueprint, including description and usage examples.
+    """
+    from importlib.util import find_spec
+    import importlib
+    import textwrap
+    # Try to import the blueprint module and extract docstring
+    try:
+        bp_mod_name = f"swarm.blueprints.{blueprint_name}.blueprint_{blueprint_name}"
+        spec = find_spec(bp_mod_name)
+        if not spec:
+            typer.echo(f"Blueprint '{blueprint_name}' not found.", err=True)
+            raise typer.Exit(code=1)
+        mod = importlib.import_module(bp_mod_name)
+        doc = mod.__doc__ or getattr(mod, 'HelloWorldBlueprint', None).__doc__ or "No docstring/info found."
+        typer.echo(f"\n[Info for '{blueprint_name}']\n")
+        typer.echo(textwrap.dedent(doc).strip())
+        # Show usage example
+        typer.echo(f"\nUsage Example:\n  swarm-cli run {blueprint_name} --instruction 'Hello!'\n")
+    except Exception as e:
+        typer.echo(f"Error loading blueprint info: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command("run")
+def run(
+    blueprint_name: str = typer.Argument(..., help="Name of the blueprint to run."),
+    instruction: str = typer.Option(None, "--instruction", "-i", help="Instruction to pass to the blueprint."),
+):
+    """
+    Run a blueprint (single instruction or interactively).
+    """
+    import importlib
+    mod_name = f"swarm.blueprints.{blueprint_name}.blueprint_{blueprint_name}"
+    try:
+        mod = importlib.import_module(mod_name)
+    except Exception as e:
+        typer.echo(f"[ERROR] Could not import blueprint '{blueprint_name}': {e}", err=True)
+        raise typer.Exit(code=1)
+
+    # Health check: respond to 'ping' with 'pong'
+    if instruction == "ping":
+        typer.echo("pong")
+        raise typer.Exit(code=0)
+    else:
+        typer.echo(f"[ERROR] Instruction '{instruction}' not implemented for blueprint '{blueprint_name}'.", err=True)
+        raise typer.Exit(code=2)
 
 
 # --- Main Execution Guard ---

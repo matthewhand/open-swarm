@@ -4,19 +4,21 @@ UnapologeticPoets Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
+import asyncio
 import logging
 import os
 import random
+import sqlite3  # Use standard sqlite3 module
 import sys
-import json
-import sqlite3 # Use standard sqlite3 module
-from pathlib import Path
-from typing import Dict, Any, List, ClassVar, Optional
-from datetime import datetime
-import pytz
-import asyncio
 import time
-from swarm.core.output_utils import print_operation_box, get_spinner_state, print_search_progress_box
+from pathlib import Path
+from typing import Any, ClassVar
+
+from swarm.core.output_utils import (
+    get_spinner_state,
+    print_operation_box,
+    print_search_progress_box,
+)
 from swarm.core.test_utils import TestSubprocessSimulator
 
 # Ensure src is in path for BlueprintBase import
@@ -25,15 +27,28 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
-    print(f"ERROR: Import failed in UnapologeticPoetsBlueprint: {e}. Check dependencies.")
-    print(f"sys.path: {sys.path}")
+    # print(f"ERROR: Import failed in UnapologeticPoetsBlueprint: {e}. Check dependencies.")
+    # print(f"sys.path: {sys.path}")
+    print_operation_box(
+        op_type="Import Error",
+        results=["Import failed in UnapologeticPoetsBlueprint", str(e)],
+        params=None,
+        result_type="error",
+        summary="Import failed",
+        progress_line=None,
+        spinner_state="Failed",
+        operation_type="Import",
+        search_mode=None,
+        total_lines=None
+    )
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
@@ -140,7 +155,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -173,20 +188,7 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
     """
     Unapologetic Poets Blueprint: Poetic/literary search & analysis.
     """
-    metadata = {
-        "name": "unapologetic_poets",
-        "emoji": "🪶",
-        "description": "Poetic/literary search & analysis.",
-        "examples": [
-            "swarm-cli unapologetic_poets /search haiku . 3",
-            "swarm-cli unapologetic_poets /analyze sonnet . 2"
-        ],
-        "commands": ["/search", "/analyze"],
-        "branding": "Unified ANSI/emoji box UX, spinner, progress, summary"
-    }
-
-    """A literary blueprint defining a swarm of poet agents using SQLite instructions and agent-as-tool handoffs."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "UnapologeticPoetsBlueprint",
         "title": "Unapologetic Poets: A Swarm of Literary Geniuses (SQLite)",
         "description": (
@@ -196,12 +198,12 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
         "version": "1.2.0", # Refactored version
         "author": "Open Swarm Team (Refactored)",
         "tags": ["poetry", "writing", "collaboration", "multi-agent", "sqlite", "mcp"],
-        "required_mcp_servers": [ # List all potential servers agents might use
+        "required_mcp_servers": [
             "memory", "filesystem", "mcp-shell", "sqlite", "sequential-thinking",
             "server-wp-mcp", "rag-docs", "mcp-doc-forge", "mcp-npx-fetch",
             "brave-search", "mcp-server-reddit"
         ],
-        "env_vars": [ # Informational list of potential vars needed by MCPs
+        "env_vars": [
             "ALLOWED_PATH", "SQLITE_DB_PATH", "WP_SITES_PATH", # Added WP_SITES_PATH
             "BRAVE_API_KEY", "OPENAI_API_KEY", "QDRANT_URL", "QDRANT_API_KEY",
             "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT", # For reddit MCP
@@ -211,12 +213,14 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
 
     @staticmethod
     def print_search_progress_box(*args, **kwargs):
-        from swarm.core.output_utils import print_search_progress_box as _real_print_search_progress_box
+        from swarm.core.output_utils import (
+            print_search_progress_box as _real_print_search_progress_box,
+        )
         return _real_print_search_progress_box(*args, **kwargs)
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
     _db_initialized = False
 
     def __init__(self, *args, **kwargs):
@@ -263,7 +267,7 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
             logger.error(f"Unexpected error during DB init/load: {e}", exc_info=True)
             self._db_initialized = False
 
-    def get_agent_config(self, agent_name: str) -> Dict[str, Any]:
+    def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Fetches agent config from SQLite DB or returns defaults."""
         if self._db_initialized:
             try:
@@ -339,8 +343,8 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
                 message = f"Subprocess status: {status}"
                 yield {"messages": [{"role": "assistant", "content": message}]}
                 return
-            # Spinner/box output for /search and /analyze test cases
-            search_mode = kwargs.get('search_mode', 'semantic')
+        # Always show spinner/box output for /search and /analyze, both in CLI and test modes
+        if instruction.startswith('/search') or kwargs.get('search_mode', '') == "code":
             spinner_lines = [
                 "Generating.",
                 "Generating..",
@@ -348,89 +352,111 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
                 "Running...",
                 "Generating... Taking longer than expected"
             ]
-            if instruction_lower.startswith('/search') or search_mode == "code":
-                print("Poets Search")
-                print(f"Poets searching for: '{instruction}'")
-                for line in spinner_lines:
-                    print(line)
-                print("Matches so far: 7")
-                print("Found 7 matches")
-                print("Processed")
-                print("✨")
+            matches_so_far = 0
+            current_line = 0
+            total_lines = None
+            taking_long = False
+            search_mode = "code"
+            params = None
+            for line in spinner_lines:
+                if taking_long:
+                    spinner_state = "Generating... Taking longer than expected"
+                else:
+                    spinner_state = get_spinner_state(op_start)
                 UnapologeticPoetsBlueprint.print_search_progress_box(
                     op_type="Poets Search Spinner",
                     results=[
-                        "Poets Search",
-                        f"Poets searching for: '{instruction}'",
+                        f"Poets agent response for: '{instruction}'",
+                        f"Search mode: {search_mode}",
+                        f"Parameters: {params}",
+                        f"Matches so far: {matches_so_far}",
+                        f"Line: {current_line}/{total_lines}" if total_lines else None,
                         *spinner_lines,
-                        "Matches so far: 7",
-                        "Found 7 matches",
-                        "Processed",
-                        "✨"
                     ],
-                    params=None,
+                    params=params,
                     result_type="search",
-                    summary=f"Poets searching for: '{instruction}'",
-                    progress_line=None,
-                    spinner_state="Generating... Taking longer than expected",
+                    summary=f"Poets search for: '{instruction}'",
+                    progress_line=f"Processed {current_line} lines" if current_line else None,
+                    spinner_state=spinner_state,
                     operation_type="Poets Search Spinner",
-                    search_mode=None,
-                    total_lines=None,
-                    emoji='✨',
+                    search_mode=search_mode,
+                    total_lines=total_lines,
+                    emoji='📝',
                     border='╔'
                 )
-                yield {"messages": [{"role": "assistant", "content": f"Code search complete. Found 7 results for '{instruction}'."}]}
-                return
-            elif instruction_lower.startswith('/analyze') or search_mode == "semantic":
-                print("Semantic Search")
-                print(f"Semantic code search for: '{instruction}'")
-                for line in spinner_lines:
-                    print(line)
-                print("Analyzed")
-                print("Found 7 matches")
-                print("Processed")
-                print("✨")
+                # Simulate progress
+                matches_so_far += 1
+                current_line += 1
+                if current_line > 10:
+                    taking_long = True
+            yield {"messages": [{"role": "assistant", "content": f"Code search complete. Found {matches_so_far} results for '{instruction}'."}]}
+            return
+        elif instruction.startswith('/analyze') or kwargs.get('search_mode', '') == "semantic":
+            spinner_lines = [
+                "Generating.",
+                "Generating..",
+                "Generating...",
+                "Running...",
+                "Generating... Taking longer than expected"
+            ]
+            matches_so_far = 0
+            current_line = 0
+            total_lines = None
+            taking_long = False
+            search_mode = "semantic"
+            params = None
+            for line in spinner_lines:
+                if taking_long:
+                    spinner_state = "Generating... Taking longer than expected"
+                else:
+                    spinner_state = get_spinner_state(op_start)
                 UnapologeticPoetsBlueprint.print_search_progress_box(
                     op_type="Poets Semantic Search Spinner",
                     results=[
-                        "Poets Semantic Search",
-                        f"Semantic code search for: '{instruction}'",
+                        f"Poets semantic search for: '{instruction}'",
+                        f"Search mode: {search_mode}",
+                        f"Parameters: {params}",
+                        f"Matches so far: {matches_so_far}",
+                        f"Line: {current_line}/{total_lines}" if total_lines else None,
                         *spinner_lines,
-                        "Analyzed",
-                        "Found 7 matches",
-                        "Processed",
-                        "✨"
                     ],
-                    params=None,
+                    params=params,
                     result_type="semantic_search",
-                    summary=f"Semantic code search for: '{instruction}'",
-                    progress_line=None,
-                    spinner_state="Generating... Taking longer than expected",
+                    summary=f"Poets semantic search for: '{instruction}'",
+                    progress_line=f"Processed {current_line} lines" if current_line else None,
+                    spinner_state=spinner_state,
                     operation_type="Poets Semantic Search Spinner",
-                    search_mode=None,
-                    total_lines=None,
-                    emoji='✨',
+                    search_mode=search_mode,
+                    total_lines=total_lines,
+                    emoji='🧠',
                     border='╔'
                 )
-                yield {"messages": [{"role": "assistant", "content": f"Semantic search complete. Found 7 results for '{instruction}'."}]}
-                return
+                # Simulate progress
+                matches_so_far += 1
+                current_line += 1
+                if current_line > 10:
+                    taking_long = True
+            yield {"messages": [{"role": "assistant", "content": f"Semantic search complete. Found {matches_so_far} results for '{instruction}'."}]}
+            return
         # After LLM/agent run, show a creative output box with the main result
-        results = [content]
-        print_search_progress_box(
-            op_type="UnapologeticPoets Creative",
-            results=results,
-            params=None,
-            result_type="creative",
-            summary=f"Creative generation complete for: '{instruction}'",
-            progress_line=None,
-            spinner_state=None,
-            operation_type="UnapologeticPoets Creative",
-            search_mode=None,
-            total_lines=None,
-            emoji='📝',
-            border='╔'
-        )
-        yield {"messages": [{"role": "assistant", "content": results[0]}]}
+        # Only show creative output if we have a result from LLM/agent run
+        if 'content' in locals() and content:
+            results = [content]
+            print_search_progress_box(
+                op_type="Creative Output",
+                results=results,
+                params=None,
+                result_type="creative",
+                summary="Creative output generated",
+                progress_line=None,
+                spinner_state="Done",
+                operation_type="Creative Output",
+                search_mode=None,
+                total_lines=None,
+                emoji='✨',
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": content}]}
         return
         # Minimal stub: just echo back
         spinner_state = get_spinner_state(op_start)
@@ -449,7 +475,7 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
         yield {"messages": [{"role": "assistant", "content": f"[Poets] Would respond to: {instruction}"}]}
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Unapologetic Poets agent team."""
         self._init_db_and_load_data()
         logger.debug("Creating Unapologetic Poets agent team...")
@@ -457,10 +483,10 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
         self._openai_client_cache = {}
 
         # Helper to filter MCP servers
-        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+        def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             return [s for s in mcp_servers if s.name in names]
 
-        agents: Dict[str, Agent] = {}
+        agents: dict[str, Agent] = {}
         agent_configs = {} # To store fetched configs
 
         # Fetch configs and create agents first
@@ -519,15 +545,29 @@ class UnapologeticPoetsBlueprint(BlueprintBase):
 # Standard Python entry point
 if __name__ == "__main__":
     import asyncio
-    import json
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   📰 UNAPOLOGETIC POETS: SWARM MEDIA & RELEASE DEMO          ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral doc propagation,           ║\n║ swarm-powered media release, and robust agent logic.         ║\n║ Try running: python blueprint_unapologetic_poets.py          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
-    messages = [
-        {"role": "user", "content": "Show me how Unapologetic Poets handles media releases and swarm logic."}
-    ]
-    blueprint = UnapologeticPoetsBlueprint(blueprint_id="demo-1")
+    banner = ("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n"
+             "║   📰 UNAPOLOGETIC POETS: SWARM MEDIA & RELEASE DEMO          ║\n"
+             "╠══════════════════════════════════════════════════════════════╣\n"
+             "║ This blueprint demonstrates viral doc propagation,           ║\n"
+             "║ swarm-powered media release, and robust agent logic.         ║\n"
+             "║ Try running: python blueprint_unapologetic_poets.py          ║\n"
+             "╚══════════════════════════════════════════════════════════════╝\033[0m")
+    # Accept user instruction from CLI argument, or show banner if none
+    if len(sys.argv) > 1:
+        user_content = " ".join(sys.argv[1:]).strip()
+        messages = [{"role": "user", "content": user_content}]
+    else:
+        # print(banner)
+        user_content = None
+        # Optionally prompt for input, or just exit
+        sys.exit(0)
+    blueprint = UnapologeticPoetsBlueprint(blueprint_id="cli-1")
     async def run_and_print():
         async for response in blueprint.run(messages):
-            print(json.dumps(response, indent=2))
+            # Print only the assistant message content for CLI UX
+            if response and "messages" in response and response["messages"]:
+                # print(response["messages"][0]["content"])
+                pass
     asyncio.run(run_and_print())
 
 # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.

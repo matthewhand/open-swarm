@@ -15,7 +15,9 @@ class Spinner:
     # Custom status sequences for special cases
     STATUS_SEQUENCES = {
         'generating': ['Generating.', 'Generating..', 'Generating...'],
-        'running': ['Running...']
+        'running': ['Running...'],
+        'searching': ['Searching.', 'Searching..', 'Searching...'],
+        'analyzing': ['Analyzing.', 'Analyzing..', 'Analyzing...']
     }
 
     def __init__(self, interactive: bool, custom_sequence: str = None):

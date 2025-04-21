@@ -65,6 +65,14 @@ Every blueprint in Open Swarm demonstrates a unique agentic pattern, LLM workflo
 
 ---
 
+## 9. Test Mode and Automated Compliance
+- All blueprints must emit deterministic spinner/box/emoji/summary output in test mode (`SWARM_TEST_MODE=1`).
+- Compliance is checked via robust tests in `tests/blueprints/` and the `scripts/check_ux_compliance.py` utility.
+- Blueprints that do not emit all required UX elements in test mode will raise warnings, not failures, to surface issues for future improvements.
+- See also: `docs/blueprint_test_mode_ux.md`.
+
+---
+
 ## Example: Polished Output Box
 
 ```

@@ -12,6 +12,32 @@ def _framework_print(*args, **kwargs):
     if _should_debug():
         print(*args, **kwargs)
 
+# --- PATCH: Always set OpenAI API to chat_completions unless overridden in config ---
+try:
+    from agents import set_default_openai_api
+    import swarm.core.config_loader as config_loader
+    import os
+    # Try to find the config path (env, default, or fallback)
+    config_path = os.environ.get("SWARM_CONFIG_PATH") or os.path.expanduser("~/.swarm/swarm_config.json")
+    config = {}
+    if os.path.isfile(config_path):
+        try:
+            import json
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception:
+            pass
+    openai_api_override = None
+    # Check for explicit openai_api override in config (top-level or defaults)
+    if config:
+        openai_api_override = config.get("openai_api") or config.get("defaults", {}).get("openai_api")
+    if not openai_api_override:
+        set_default_openai_api("chat_completions")
+except Exception as e:
+    # Fail silently if SDK or config not present
+    import logging
+    logging.getLogger("swarm.core").debug(f"[OpenAI API Patch] Could not set default openai_api: {e}")
+
 # --- Content for src/swarm/extensions/blueprint/blueprint_base.py ---
 import logging
 import json
@@ -374,7 +400,7 @@ class BlueprintBase(ABC):
             from agents.models.openai_responses import OpenAIResponsesModel
             model_instance = OpenAIResponsesModel(model=model_name, openai_client=client)
         else:
-            from agents.models.openai_completions import OpenAIChatCompletionsModel
+            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
         self._model_instance_cache[profile_name] = model_instance
         return model_instance

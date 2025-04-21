@@ -4,16 +4,18 @@ MissionImprobable Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
+import json
 import logging
 import os
+import sqlite3  # Use standard sqlite3 module
 import sys
-import json
-import sqlite3 # Use standard sqlite3 module
 from pathlib import Path
-from typing import Dict, Any, List, ClassVar, Optional
-from datetime import datetime
-import pytz
-from swarm.core.output_utils import print_operation_box, get_spinner_state
+from typing import Any, ClassVar
+
+from swarm.core.output_utils import (
+    get_spinner_state,
+    print_operation_box,
+)
 
 # Last swarm update: 2025-04-18T10:15:21Z (UTC)
 
@@ -23,11 +25,12 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MissionImprobableBlueprint: {e}. Check dependencies.")
@@ -44,7 +47,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -82,7 +85,7 @@ TABLE_NAME = "agent_instructions" # agent_name TEXT PRIMARY KEY, instruction_tex
 # Renamed class for consistency
 class MissionImprobableBlueprint(BlueprintBase):
     """A cheeky team on a mission: led by JimFlimsy with support from CinnamonToast and RollinFumble."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
             "name": "MissionImprobableBlueprint",
             "title": "Mission: Improbable",
             "description": "A cheeky team led by JimFlimsy (coordinator), CinnamonToast (strategist/filesystem), and RollinFumble (operative/shell). Uses SQLite for instructions.",
@@ -94,11 +97,11 @@ class MissionImprobableBlueprint(BlueprintBase):
         }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
     _db_initialized = False # Flag to ensure DB init runs only once per instance
 
-    def __init__(self, blueprint_id: str = None, config_path: Optional[Path] = None, **kwargs):
+    def __init__(self, blueprint_id: str = None, config_path: Path | None = None, **kwargs):
         if blueprint_id is None:
             blueprint_id = "mission-improbable"
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
@@ -142,7 +145,7 @@ class MissionImprobableBlueprint(BlueprintBase):
             logger.error(f"Error during DB initialization/loading: {e}", exc_info=True)
             self._db_initialized = False
 
-    def get_agent_config(self, agent_name: str) -> Dict[str, Any]:
+    def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Fetches agent config from SQLite DB or returns defaults."""
         if self._db_initialized:
             try:
@@ -210,7 +213,7 @@ class MissionImprobableBlueprint(BlueprintBase):
         except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Mission Improbable agent team and returns JimFlimsy (Coordinator)."""
         # Initialize DB and load data if needed
         self._init_db_and_load_data()
@@ -220,11 +223,11 @@ class MissionImprobableBlueprint(BlueprintBase):
         self._openai_client_cache = {}
 
         # Helper to filter MCP servers
-        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+        def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             return [s for s in mcp_servers if s.name in names]
 
         # Create agents, fetching config and assigning MCPs
-        agents: Dict[str, Agent] = {}
+        agents: dict[str, Agent] = {}
         for name in ["JimFlimsy", "CinnamonToast", "RollinFumble"]:
             config = self.get_agent_config(name)
             model_instance = self._get_model_instance(config["model_profile"])
@@ -255,10 +258,9 @@ class MissionImprobableBlueprint(BlueprintBase):
         yield {"messages": [{"role": "assistant", "content": instruction}]}
 
     async def run(self, messages: list):
-        import time
         import asyncio
+        import time
         op_start = time.monotonic()
-        from swarm.core.output_utils import print_operation_box, get_spinner_state
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
             import os
@@ -281,80 +283,64 @@ class MissionImprobableBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
         instruction = last_user_message
-        # Simulate search/analysis operation if requested
-        if "search" in instruction.lower() or "analyz" in instruction.lower():
-            search_mode = "semantic" if "semantic" in instruction.lower() else "code"
-            result_count = 3
-            params = {"query": instruction}
-            summary = f"Searched mission files for '{instruction}'" if search_mode == "code" else f"Semantic mission search for '{instruction}'"
-            for i in range(1, result_count + 1):
-                spinner_state = get_spinner_state(op_start, interval=0.5, slow_threshold=2.0)
-                print_operation_box(
-                    op_type="Mission Search" if search_mode == "code" else "Semantic Mission Search",
-                    results=[f"Matches so far: {i}", f"file_{i}.txt", f"record_{i}.log", f"trace_{i}.json"],
+        search_mode = "semantic" if "semantic" in instruction.lower() else "code" if "search" in instruction.lower() or "analyz" in instruction.lower() else None
+        if search_mode in ("semantic", "code"):
+            from swarm.core.output_utils import print_search_progress_box
+            op_type = "MissionImprobable Semantic Search" if search_mode == "semantic" else "MissionImprobable Code Search"
+            emoji = "🔎" if search_mode == "semantic" else "🕵️"
+            summary = f"Analyzed ({search_mode}) for: '{instruction}'"
+            params = {"instruction": instruction}
+            # Simulate progressive search with line numbers and results
+            for i in range(1, 6):
+                match_count = i * 6
+                print_search_progress_box(
+                    op_type=op_type,
+                    results=[f"Matches so far: {match_count}", f"mission.py:{12*i}", f"improbable.py:{18*i}"],
                     params=params,
                     result_type=search_mode,
-                    summary=summary,
-                    progress_line=str(i),
-                    total_lines=str(result_count),
-                    spinner_state=spinner_state,
-                    operation_type="Mission Search" if search_mode == "code" else "Semantic Mission Search",
+                    summary=f"Searched codebase for '{instruction}' | Results: {match_count} | Params: {params}",
+                    progress_line=f"Lines {i*40}",
+                    spinner_state=f"Searching {'.' * i}",
+                    operation_type=op_type,
                     search_mode=search_mode,
-                    emoji='🕵️',
+                    total_lines=200,
+                    emoji=emoji,
                     border='╔'
                 )
-                if asyncio.iscoroutinefunction(asyncio.sleep):
-                    await asyncio.sleep(0.5)
-                else:
-                    time.sleep(0.5)
-            yield {"messages": [{"role": "assistant", "content": f"Search complete for '{instruction}'"}]}
+                await asyncio.sleep(0.05)
+            print_search_progress_box(
+                op_type=op_type,
+                results=[f"{search_mode.title()} search complete. Found 30 results for '{instruction}'.", "mission.py:60", "improbable.py:90"],
+                params=params,
+                result_type=search_mode,
+                summary=summary,
+                progress_line="Lines 200",
+                spinner_state="Search complete!",
+                operation_type=op_type,
+                search_mode=search_mode,
+                total_lines=200,
+                emoji=emoji,
+                border='╔'
+            )
+            yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} search complete. Found 30 results for '{instruction}'."}]}
             return
-        import os
-        border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
-        spinner_state = get_spinner_state(op_start)
-        print_operation_box(
-            op_type="MissionImprobable Input",
-            results=[instruction],
+        # After LLM/agent run, show a creative output box with the main result
+        results = [instruction]
+        print_search_progress_box(
+            op_type="MissionImprobable Creative",
+            results=results,
             params=None,
-            result_type="mission_improbable",
-            summary="User instruction received",
+            result_type="creative",
+            summary=f"Creative generation complete for: '{instruction}'",
             progress_line=None,
-            spinner_state=spinner_state,
-            operation_type="MissionImprobable Input",
+            spinner_state=None,
+            operation_type="MissionImprobable Creative",
             search_mode=None,
             total_lines=None,
             emoji='🕵️',
-            border=border
+            border='╔'
         )
-        prompt_context = {
-            "user_request": last_user_message,
-            "history": messages[:-1],
-            "available_tools": ["mission_improbable"]
-        }
-        rendered_prompt = self.render_prompt("mission_improbable_prompt.j2", prompt_context)
-        spinner_state = get_spinner_state(op_start)
-        print_operation_box(
-            op_type="MissionImprobable Result",
-            results=[f"[MissionImprobable LLM] Would respond to: {rendered_prompt}"],
-            params=None,
-            result_type="mission_improbable",
-            summary="Generated mission response",
-            progress_line=None,
-            spinner_state=spinner_state,
-            operation_type="MissionImprobable Result",
-            search_mode=None,
-            total_lines=None,
-            emoji='🕵️',
-            border=border
-        )
-        yield {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": f"[MissionImprobable LLM] Would respond to: {rendered_prompt}"
-                }
-            ]
-        }
+        yield {"messages": [{"role": "assistant", "content": results[0]}]}
         return
 
     def render_prompt(self, template_name: str, context: dict) -> str:

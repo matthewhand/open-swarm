@@ -24,7 +24,9 @@ def discover_commands(commands_dir):
                 continue
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-            commands[module_name] = {
+            # Use the filename (without .py) as the command name
+            command_name = filename[:-3]
+            commands[command_name] = {
                 "description": getattr(module, "description", "No description provided."),
                 "usage": getattr(module, "usage", "No usage available."),
                 "execute": getattr(module, "execute", None),

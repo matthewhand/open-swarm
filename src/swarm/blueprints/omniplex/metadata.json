@@ -1,0 +1,24 @@
+{
+  "name": "OmniplexBlueprint",
+  "title": "Omniplex: Dynamic MCP Orchestrator",
+  "description": "Demonstrates dynamic delegation to agents for npx, uvx, and other MCP tools, with ANSI/emoji UX, spinner feedback, and robust fallback for agent/LLM errors.",
+  "author": "Open Swarm Team",
+  "version": "1.1.0",
+  "tags": ["agentic", "mcp", "orchestration", "UX", "fallback", "demo"],
+  "demonstrates": [
+    "Dynamic multi-agent orchestration",
+    "Delegation to specialized agent tools",
+    "LLM fallback and error handling",
+    "Unified ANSI/emoji output and spinner",
+    "Operation summaries and fallback",
+    "Test mode for robust testing"
+  ],
+  "compliance": {
+    "agentic": true,
+    "ux_ansi_emoji": true,
+    "spinner": true,
+    "fallback": true,
+    "test_coverage": true
+  },
+  "last_updated": "2025-04-21T04:44:16Z"
+}

@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: lint-blueprints
+        name: Lint Blueprints for Spinner/Result UX
+        entry: python scripts/lint_blueprints.py
+        language: system
+        files: ^src/swarm/blueprints/blueprint_.*\.py$

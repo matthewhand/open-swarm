@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Proper shell wrapper for codey CLI
+export PYTHONPATH="$(pwd)/src"
+export SWARM_TEST_MODE=1
+export API_KEY=dummy
+export MCP_SERVER=dummy
+python3 src/swarm/blueprints/codey/codey_cli.py "$@"

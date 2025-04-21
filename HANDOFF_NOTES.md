@@ -4,12 +4,12 @@
 
 **Current Status:**
 
-*   **Core Refactoring Complete:** All major blueprints (`burnt_noodles`, `rue_code`, `nebula_shellz`, `digitalbutlers`, `dilbot_universe`, `gaggle`, `family_ties`, `mission_improbable`, `whiskeytango_foxtrot`, `divine_ops`, `omniplex`, `unapologetic_press`, `chatbot`, `echocraft`, `suggestion`, `monkai_magic`) have been refactored to inherit from `BlueprintBase`.
+*   **Core Refactoring Complete:** All major blueprints (`burnt_noodles`, `rue_code`, `nebula_shellz`, `digitalbutlers`, `dilbot_universe`, `gaggle`, `family_ties`, `mission_improbable`, `whiskeytango_foxtrot`, `divine_ops`, `omniplex`, `unapologetic_poets`, `chatbot`, `echocraft`, `suggestion`, `monkai_magic`) have been refactored to inherit from `BlueprintBase`.
 *   **Design Patterns:**
     *   Agent-as-tool delegation is the primary pattern for coordination.
     *   Direct `@function_tool` usage is employed for local CLI wrappers (`burnt_noodles`, `monkai_magic`).
-    *   MCP servers provide capabilities to specialist agents (`digitalbutlers`, `divine_ops`, `wtf`, `mission_improbable`, `omniplex`, `unapologetic_press`).
-    *   Dynamic configuration via SQLite demonstrated (`dilbot_universe`, `mission_improbable`, `unapologetic_press`).
+    *   MCP servers provide capabilities to specialist agents (`digitalbutlers`, `divine_ops`, `wtf`, `mission_improbable`, `omniplex`, `unapologetic_poets`).
+    *   Dynamic configuration via SQLite demonstrated (`dilbot_universe`, `mission_improbable`, `unapologetic_poets`).
     *   Structured output via `output_type` demonstrated (`suggestion`).
 *   **BlueprintBase Enhancements:**
     *   Added MCP server `description` field support in config (`get_mcp_server_description` helper).
@@ -18,6 +18,10 @@
     *   Added (then reverted due to errors) MCP startup timeout logic. **The timeout logic caused `TypeError: '_GeneratorContextManager' object does not support the asynchronous context manager protocol` and was removed.** This needs further investigation, possibly using `asyncio.wait_for` instead of `anyio.fail_after` around the `stack.enter_async_context` call.
 *   **Configuration:** `swarm_config.json` updated with new `git` and `google-cse` servers and example `description` / `startup_timeout` fields. Syntax error fixed.
 *   **Testing:** Placeholder test files created for all refactored blueprints. Most tests are currently skipped (`reason="...not yet implemented"`). Existing config tests pass.
+*   - Renamed unapologetic_press blueprint to unapologetic_poets (directory, class, and all references).
+    - File is now blueprint_unapologetic_poets.py.
+    - All code, test, and documentation references updated accordingly.
+*   - All DivineOpsBlueprint and divine_code functionality has been merged into ZeusBlueprint. All references, tests, and documentation should now use ZeusBlueprint exclusively. Any mention of DivineOps or divine_code is for historical context only.
 
 **Immediate Issues:**
 
@@ -34,7 +38,7 @@
     *   `messenger` (Implement based on original intent).
 3.  **Implement Guardrails:**
     *   Research `openai-agents`'s intended guardrail mechanism (likely via config).
-    *   **Target Blueprints:** `DivineOps`, `MonkaiMagic`, `WhiskeyTangoFoxtrot` (due to shell/fs/web access).
+    *   **Target Blueprints:** `MonkaiMagic`, `WhiskeyTangoFoxtrot` (due to shell/fs/web access).
     *   Define basic guardrail configs (e.g., prevent dangerous shell commands, filter topics).
     *   Modify `create_starting_agent` in target blueprints to potentially load and pass guardrail configs to relevant `Agent` instances.
 4.  **Enhance Agent Synergy / Dynamic Prompts:**

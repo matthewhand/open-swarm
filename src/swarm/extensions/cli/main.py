@@ -17,16 +17,17 @@ def parse_args(commands):
     for cmd_name, metadata in commands.items():
         subparsers.add_parser(cmd_name, help=metadata["description"])
 
-    return parser.parse_args()
+    # Use parse_known_args to allow subcommands to parse their own args
+    return parser.parse_known_args()
 
 def main():
     commands = discover_commands(COMMANDS_DIR)
-    args = parse_args(commands)
+    args, extra_args = parse_args(commands)
 
     if args.command:
         command = commands.get(args.command, {}).get("execute")
         if command:
-            command()
+            command(extra_args)
         else:
             print(f"Command '{args.command}' is not executable.")
     else:

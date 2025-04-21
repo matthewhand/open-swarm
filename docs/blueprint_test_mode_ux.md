@@ -92,6 +92,13 @@ async def test_subprocess_launch_and_status():
   - Ensure test coverage for spinner/box/UX and subprocess scenarios.
   - Avoid ad-hoc or custom test-mode logic.
 
+## 5. Automated Compliance Utility
+
+- Use `scripts/check_ux_compliance.py` to scan all blueprints for spinner/box/emoji/summary compliance in test mode.
+- This utility supplements the robust compliance tests in `tests/blueprints/`.
+- Blueprints that do not emit all required UX elements will log warnings but will not block development.
+- Review test logs for details and update blueprints as needed for full compliance.
+
 ---
 
 For questions or further improvements, see `swarm/core/test_utils.py` and blueprint test files for reference implementations.

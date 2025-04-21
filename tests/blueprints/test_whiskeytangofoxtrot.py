@@ -88,14 +88,4 @@ def test_wtf_db_initialization(wtf_blueprint_instance): # Use the blueprint inst
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='services';")
         assert cursor.fetchone() is not None, "Table 'services' should exist"
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
-@pytest.mark.asyncio
-async def test_wtf_delegation_flow(wtf_blueprint_instance):
-    """Test a multi-level delegation (e.g., Valory -> Tray -> Vanna)."""
-    # Needs extensive Runner mocking.
-    assert False
-
-@pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
-def test_wtf_cli_execution():
-    """Test running the blueprint via CLI."""
-    assert False
+# REMOVE: Skipped tests; interaction and CLI tests not yet implemented and not actionable. Restore if/when features are added.

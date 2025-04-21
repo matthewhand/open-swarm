@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import logging
+import atexit
+import stat
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent # Points to src/
 
@@ -52,6 +55,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'drf_spectacular',
     'swarm',
+    'swarm.blueprints.jeeves',
 ]
 
 MIDDLEWARE = [
@@ -90,12 +94,15 @@ ASGI_APPLICATION = 'swarm.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR.parent / 'db.sqlite3',
+        # Use in-memory database for tests to avoid file permission issues
+        'NAME': ':memory:' if any(x in sys.argv[0] for x in ['pytest', 'test']) else BASE_DIR.parent / 'db.sqlite3',
         'TEST': {
-            'NAME': BASE_DIR.parent / 'test_db.sqlite3',
+            # Use a temp directory for test DB to ensure writability in CI and local runs
+            'NAME': ':memory:',
             'OPTIONS': {
                 'timeout': 20,
-                'init_command': "PRAGMA journal_mode=WAL;",
+                # Switch to DELETE journal mode for test DB to avoid WAL file locking issues
+                'init_command': "PRAGMA journal_mode=DELETE;",
             },
         },
     }

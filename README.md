@@ -155,6 +155,24 @@ All blueprints must use `print_search_progress_box` for spinner/progress/result 
 
 ---
 
+## Blueprint UX Compliance & Test Mode
+
+Open Swarm blueprints must provide a consistent, user-friendly CLI experience. All blueprints must:
+- Display custom spinner messages: `Generating.`, `Generating..`, `Generating...`, `Running...`, and `Generating... Taking longer than expected` for long operations.
+- Use ANSI/emoji boxes to summarize operations, results, and parameters (see `print_search_progress_box`).
+- Clearly distinguish between code search, semantic search, and analysis operations in the output.
+- In test mode (`SWARM_TEST_MODE=1`), output must be deterministic and include all spinner/box states for compliance tests.
+- For more, see `docs/blueprint_standards.md` and `docs/blueprint_test_mode_ux.md`.
+
+To check compliance or debug output, run:
+```bash
+uv run pytest -v tests/blueprints
+```
+
+For automated compliance checking, see `scripts/check_ux_compliance.py`.
+
+---
+
 ## What to Try Next
 
 - **Try Code Search:**
@@ -493,6 +511,33 @@ Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) fi
 ## Contributing
 
 Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+
+---
+
+## Quickstart for Contributors
+
+- **Run all tests and check UX compliance:**
+  ```bash
+  uv run pytest -v tests/blueprints
+  python scripts/check_ux_compliance.py
+  ```
+- **Check code style (lint):**
+  ```bash
+  ruff check .
+  ```
+- **Check coverage:**
+  ```bash
+  uv run pytest --cov=src --cov-report=term-missing tests/blueprints
+  ```
+- **Add new blueprints:**
+  - Follow the standards in `docs/blueprint_standards.md` and `docs/blueprint_test_mode_ux.md`.
+  - Ensure spinner/box/emoji/summary output is present in test mode (`SWARM_TEST_MODE=1`).
+  - Add or update tests in `tests/blueprints/`.
+- **CI/CD:**
+  - All PRs are checked for spinner/box/emoji/summary compliance, lint, and coverage.
+  - Warnings are surfaced for missing UX elements in test mode, but do not block merges.
+
+See the docs and scripts for more details on compliance and extending Open Swarm.
 
 ---
 

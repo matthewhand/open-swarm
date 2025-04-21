@@ -1,5 +1,7 @@
 from rest_framework import serializers
+
 from blueprints.chc.models import AgentInstruction
+
 
 class AgentInstructionSerializer(serializers.ModelSerializer):
     class Meta:

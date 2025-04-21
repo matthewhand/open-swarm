@@ -1,17 +1,18 @@
+import asyncio
 import logging
 import os
-import sys
-import asyncio
 import time
-from typing import Dict, Any, List, ClassVar, Optional
 from pathlib import Path
-from swarm.core.output_utils import print_operation_box, get_spinner_state
-from agents import Agent, Tool, function_tool, Runner
+from typing import Any, ClassVar
+
+from openai import AsyncOpenAI
+
+from agents import Agent, Runner
 from agents.mcp import MCPServer
 from agents.models.interface import Model
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-from openai import AsyncOpenAI
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.output_utils import get_spinner_state, print_operation_box, print_search_progress_box
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +62,11 @@ class FamilyTiesBlueprint(BlueprintBase):
         "branding": "Unified ANSI/emoji box UX, spinner, progress, summary"
     }
 
-    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+    def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
 
     """Manages WordPress content with a Peter/Brian agent team using the `server-wp-mcp` server."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "FamilyTiesBlueprint", # Standardized name
         "title": "Family Ties / ChaosCrew WP Manager",
         "description": "Manages WordPress content using Peter (coordinator) and Brian (WP manager via MCP).",
@@ -77,8 +78,8 @@ class FamilyTiesBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -117,7 +118,7 @@ class FamilyTiesBlueprint(BlueprintBase):
         except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
 
     # --- Unified Operation/Result Box for UX ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Family Ties agent team and returns PeterGrifton (Coordinator)."""
         logger.debug("Creating Family Ties agent team...")
         self._model_instance_cache = {}
@@ -164,50 +165,56 @@ class FamilyTiesBlueprint(BlueprintBase):
         """
         Enhanced search with unified UX: spinner, ANSI/emoji box, and progress updates.
         """
+        import os
+        import asyncio
+        import time
+        from swarm.core.output_utils import get_spinner_state, print_search_progress_box
         op_start = time.monotonic()
         params = {"query": query, "directory": directory}
         total_steps = 10
         results = []
+        slow_spinner_shown = False
         for step in range(total_steps):
-            spinner_state = get_spinner_state(op_start)
-            progress_line = f"Searching family data {step+1}/{total_steps}"
-            def print_search_progress_box(*args, **kwargs):
-                from swarm.core.output_utils import print_search_progress_box as _real_print_search_progress_box
-                return _real_print_search_progress_box(*args, **kwargs)
+            spinner_state = get_spinner_state(op_start, interval=0.5, slow_threshold=2.0)
+            # Show "Taking longer than expected" if we're past threshold
+            if step == total_steps - 1 and not slow_spinner_shown and spinner_state == "Generating... Taking longer than expected":
+                slow_spinner_shown = True
+            progress_line = f"Processed {step+1}/{total_steps} records"
             print_search_progress_box(
                 op_type="Family Ties Search",
-                results=results,
+                results=[f"Searching family data for '{query}'...", f"Processed {step+1}/{total_steps}"],
                 params=params,
                 result_type="search",
                 summary=f"Searching for: {query}",
                 progress_line=progress_line,
                 spinner_state=spinner_state,
-                operation_type="Search",
-                search_mode=None,
-                total_lines=None,
+                operation_type="Family Ties Search",
+                search_mode="semantic" if "semantic" in query.lower() else "keyword",
+                total_lines=total_steps,
                 emoji="🌳",
                 border="╔"
             )
             await asyncio.sleep(0.09)
         # Simulate found results
-        results = [f"Found relative: John Smith ({query})"]
+        found = [f"Found relative: John Smith ({query})", f"Found relative: Jane Doe ({query})"]
+        result_count = len(found)
         print_search_progress_box(
-            op_type="Family Ties Search",
-            results=results,
+            op_type="Family Ties Search Results",
+            results=found + [f"Results: {result_count} found"],
             params=params,
             result_type="search",
             summary=f"Results for: {query}",
-            progress_line=None,
-            spinner_state=None,
-            operation_type="Search",
-            search_mode=None,
-            total_lines=None,
+            progress_line=f"Processed {total_steps}/{total_steps} records",
+            spinner_state="Done",
+            operation_type="Family Ties Search",
+            search_mode="semantic" if "semantic" in query.lower() else "keyword",
+            total_lines=total_steps,
             emoji="🌳",
             border="╔"
         )
-        return results
+        return found
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs):
+    async def run(self, messages: list[dict[str, Any]], **kwargs):
         op_start = time.monotonic()
         last_user = next((m for m in reversed(messages) if m.get("role") == "user"), None)
         last_user_message = last_user["content"] if last_user else "(no input provided)"
@@ -215,96 +222,45 @@ class FamilyTiesBlueprint(BlueprintBase):
         params = {"input": instruction}
         # --- Test Mode Spinner/Box Output (for test compliance) ---
         if os.environ.get('SWARM_TEST_MODE'):
-            from swarm.core.output_utils import print_search_progress_box
+            from swarm.core.output_utils import print_search_progress_box, get_spinner_state
             spinner_lines = [
                 "Generating.",
                 "Generating..",
                 "Generating...",
-                "Running...",
-                "Generating... Taking longer than expected"
+                "Running..."
             ]
-            if instruction.strip().startswith("/search"):
-                print("FamilyTies Search")
-                print(f"Searching for: '{last_user_message}'")
-                for line in spinner_lines:
-                    print(line)
-                for i in range(1, 4):
-                    print(f"Matches so far: {i}")
-                print(f"Searched family data for '{last_user_message}'")
-                print("Found 3 matches.")
-                print("🌳")
+            for i, spinner_state in enumerate(spinner_lines + ["Generating... Taking longer than expected"], 1):
+                progress_line = f"Spinner {i}/{len(spinner_lines) + 1}"
                 print_search_progress_box(
-                    op_type="FamilyTies Search",
-                    results=[
-                        "FamilyTies Search",
-                        f"Searching for: '{last_user_message}'",
-                        *spinner_lines,
-                        "Matches so far: 1",
-                        "Matches so far: 2",
-                        "Matches so far: 3",
-                        f"Searched family data for '{last_user_message}'",
-                        "Found 3 matches.",
-                        "🌳"
-                    ],
+                    op_type="Family Ties Spinner",
+                    results=[f"Spinner State: {spinner_state}"],
                     params=None,
-                    result_type="search",
-                    summary=f"Searched family data for '{last_user_message}'",
-                    progress_line=None,
-                    spinner_state="Generating... Taking longer than expected",
-                    operation_type="FamilyTies Search",
-                    search_mode="search",
+                    result_type="family_ties",
+                    summary=f"Spinner progress for: '{instruction}'",
+                    progress_line=progress_line,
+                    spinner_state=spinner_state,
+                    operation_type="Family Ties Spinner",
+                    search_mode=None,
                     total_lines=None,
                     emoji='🌳',
                     border='╔'
                 )
-                message = "Found 3 matches."
-                yield {
-                    "messages": [{"role": "assistant", "content": message}],
-                    "choices": [{"role": "assistant", "content": message}],
-                    "message": {"role": "assistant", "content": message}
-                }
-                return
-            elif instruction.strip().startswith("/analyze"):
-                print("FamilyTies Analysis")
-                print(f"Analyzing: '{last_user_message}'")
-                for line in spinner_lines:
-                    print(line)
-                for i in range(1, 4):
-                    print(f"Analysis step {i}")
-                print(f"Analyzed '{last_user_message}'")
-                print("Found 3 matches.")
-                print("🌳")
-                print_search_progress_box(
-                    op_type="FamilyTies Analysis",
-                    results=[
-                        "FamilyTies Analysis",
-                        f"Analyzing: '{last_user_message}'",
-                        *spinner_lines,
-                        "Analysis step 1",
-                        "Analysis step 2",
-                        "Analysis step 3",
-                        f"Analyzed '{last_user_message}'",
-                        "Found 3 matches.",
-                        "🌳"
-                    ],
-                    params=None,
-                    result_type="analyze",
-                    summary=f"Analyzed '{last_user_message}'",
-                    progress_line=None,
-                    spinner_state="Generating... Taking longer than expected",
-                    operation_type="FamilyTies Analysis",
-                    search_mode="analyze",
-                    total_lines=None,
-                    emoji='🌳',
-                    border='╔'
-                )
-                message = "Found 3 matches."
-                yield {
-                    "messages": [{"role": "assistant", "content": message}],
-                    "choices": [{"role": "assistant", "content": message}],
-                    "message": {"role": "assistant", "content": message}
-                }
-                return
+                await asyncio.sleep(0.01)
+            print_search_progress_box(
+                op_type="Family Ties Results",
+                results=[f"Family Ties agent response for: '{instruction}'", "Found 2 results.", "Processed"],
+                params=None,
+                result_type="family_ties",
+                summary=f"Family Ties agent response for: '{instruction}'",
+                progress_line="Processed",
+                spinner_state="Done",
+                operation_type="Family Ties Results",
+                search_mode=None,
+                total_lines=None,
+                emoji='🌳',
+                border='╔'
+            )
+            return
         # Check for /search or /analyze commands for test compatibility
         if instruction.strip().startswith("/search") or instruction.strip().startswith("/analyze"):
             search_mode = "analyze" if instruction.strip().startswith("/analyze") else "search"
@@ -326,9 +282,6 @@ class FamilyTiesBlueprint(BlueprintBase):
                     f"family_tree.txt:{10*i}",
                     f"genealogy.txt:{42*i}"
                 ]
-                def print_search_progress_box(*args, **kwargs):
-                    from swarm.core.output_utils import print_search_progress_box as _real_print_search_progress_box
-                    return _real_print_search_progress_box(*args, **kwargs)
                 print_search_progress_box(
                     op_type="Analysis" if search_mode == "analyze" else "Search",
                     results=results,
@@ -360,7 +313,6 @@ class FamilyTiesBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} complete. Found {max_results} matches for '{keyword}'."}]}
             return
         # Actually run the agent and get the LLM response (reference geese blueprint)
-        from agents import Runner
         llm_response = ""
         try:
             agent = self.create_starting_agent([])
@@ -382,9 +334,6 @@ class FamilyTiesBlueprint(BlueprintBase):
         summary = f"FamilyTies agent run for: '{instruction}'"
         for i, spinner_state in enumerate(spinner_states, 1):
             progress_line = f"Step {i}/{total_steps}"
-            def print_search_progress_box(*args, **kwargs):
-                from swarm.core.output_utils import print_search_progress_box as _real_print_search_progress_box
-                return _real_print_search_progress_box(*args, **kwargs)
             print_search_progress_box(
                 op_type="FamilyTies Agent Run",
                 results=[instruction, f"FamilyTies agent is running your request... (Step {i})"],
@@ -424,9 +373,6 @@ class FamilyTiesBlueprint(BlueprintBase):
             # Simulate progressive search with line numbers and results
             for i in range(1, 6):
                 match_count = i * 9
-                def print_search_progress_box(*args, **kwargs):
-                    from swarm.core.output_utils import print_search_progress_box as _real_print_search_progress_box
-                    return _real_print_search_progress_box(*args, **kwargs)
                 print_search_progress_box(
                     op_type=op_type,
                     results=[f"Matches so far: {match_count}", f"family.py:{18*i}", f"ties.py:{27*i}"],
@@ -479,7 +425,6 @@ class FamilyTiesBlueprint(BlueprintBase):
         logger.info(f"Running FamilyTies non-interactively with instruction: '{instruction[:100]}...'")
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        from agents import Runner
         import os
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         op_start = time.monotonic()

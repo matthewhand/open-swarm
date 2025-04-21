@@ -354,6 +354,7 @@ class MCPDemoBlueprint(BlueprintBase):
             emoji='🧠',
             border='╔'
         )
+        yield {"messages": [{"role": "assistant", "content": f"Test mode complete for '{query}'."}]}
         return
 
     async def _original_run(self, messages: list[dict]) -> object:
