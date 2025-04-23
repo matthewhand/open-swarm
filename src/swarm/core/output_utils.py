@@ -191,3 +191,24 @@ def print_terminal_command_result(cmd: str, result: dict, max_lines: int = 10):
     console.print(header)
     console.print(subheader)
     console.print(panel)
+
+# Add stubs for missing utility functions to satisfy imports
+
+def get_spinner_state(spinner):
+    """Return the current spinner state, or None if unavailable."""
+    return spinner.current_spinner_state() if hasattr(spinner, 'current_spinner_state') else None
+
+
+def print_search_progress_box(*args, **kwargs):
+    """Stub for search progress box printing."""
+    return
+
+
+def print_operation_box(*args, **kwargs):
+    """Stub for operation box printing."""
+    return
+
+
+def setup_rotating_httpx_log(*args, **kwargs):
+    """Stub for rotating HTTPX log setup."""
+    return None
