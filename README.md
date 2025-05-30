@@ -1,3 +1,7 @@
+> **DISCLAIMER:** This project is no longer relevant. OpenAI has released **openai-agents**, the successor to **swarm**.
+>
+> For experimental integration of Open Swarm features with OpenAI Agents (hosting agents as completion endpoints, running the same blueprints from the CLI, per-agent model/provider configuration, etc.), see the `experimental` branch.
+
 # Open Swarm
 
 <div align="center">
