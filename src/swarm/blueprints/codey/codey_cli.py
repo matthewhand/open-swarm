@@ -1,14 +1,18 @@
 import os
 import sys
+from rich.console import Console
+from rich.syntax import Syntax
 
-print("DEBUG: os module id:", id(os))
-print("DEBUG: sys.path:", sys.path)
+# Rich console for styled CLI output and ANSI detection
+console = Console()
+def supports_ansi() -> bool:
+    return console.is_terminal and console.color_system is not None
+
 import argparse
 import asyncio
 
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 from swarm.blueprints.common.audit import AuditLogger
-from swarm.blueprints.common.notifier import Notifier
 from swarm.blueprints.common.spinner import SwarmSpinner
 from swarm.core.output_utils import (
     print_search_progress_box,
@@ -18,7 +22,6 @@ from swarm.extensions.cli.utils.env_setup import validate_env
 
 
 def main():
-    notifier = Notifier()
     # Validate environment, exit if not valid
     if not validate_env():
         print("Environment validation failed. Exiting.")
