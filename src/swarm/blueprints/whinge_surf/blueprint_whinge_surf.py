@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import threading
 import os
 import signal
@@ -13,27 +14,41 @@ from swarm.blueprints.common.operation_box_utils import display_operation_box
 class WhingeSpinner:
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
     LONG_WAIT_MSG = "Generating... Taking longer than expected"
-    INTERVAL = 0.12
     SLOW_THRESHOLD = 10
 
     def __init__(self):
-        self._idx = 0
-        self._start_time = None
-        self._last_frame = self.FRAMES[0]
+        self._running = False
+        self._current_frame = 0
+        self._thread: Optional[threading.Thread] = None
+        self._start_time: Optional[float] = None
 
-    def start(self):
+    def start(self) -> None:
+        self._running = True
         self._start_time = time.time()
-        self._idx = 0
-        self._last_frame = self.FRAMES[0]
+        self._thread = threading.Thread(target=self._spin)
+        self._thread.daemon = True
+        self._thread.start()
 
-    def _spin(self):
-        self._idx = (self._idx + 1) % len(self.FRAMES)
-        self._last_frame = self.FRAMES[self._idx]
+    def stop(self) -> None:
+        self._running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join()
 
-    def current_spinner_state(self):
-        if self._start_time and (time.time() - self._start_time) > self.SLOW_THRESHOLD:
-            return self.LONG_WAIT_MSG
-        return self._last_frame
+    def _spin(self) -> None:
+        while self._running:
+            elapsed = time.time() - self._start_time if self._start_time else 0
+            frame = self.LONG_WAIT_MSG if elapsed > self.SLOW_THRESHOLD else self.FRAMES[self._current_frame]
+
+            sys.stdout.write(f"\r{frame}")
+            sys.stdout.flush()
+            self._current_frame = (self._current_frame + 1) % len(self.FRAMES)
+            time.sleep(0.5)
+        sys.stdout.write("\r")
+        sys.stdout.flush()
+
+    def current_spinner_state(self) -> str:
+        elapsed = time.time() - self._start_time if self._start_time else 0
+        return self.LONG_WAIT_MSG if elapsed > self.SLOW_THRESHOLD else self.FRAMES[self._current_frame]
 
 class WhingeSurfBlueprint(BlueprintBase):
     """
@@ -46,7 +61,10 @@ class WhingeSurfBlueprint(BlueprintBase):
     VERSION = "0.3.0"
     JOBS_FILE = os.path.expanduser("~/.whinge_surf_jobs.json")
 
-    def __init__(self, blueprint_id: str = "whinge_surf", config=None, config_path=None, **kwargs):
+    def __init__(self, blueprint_id: str = "whinge_surf", config=None, config_path=None,
+                 job_service=None, monitor_service=None, **kwargs):
+        from swarm.services.job import DefaultJobService
+        from swarm.services.monitor import DefaultMonitorService
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
         self.config_path = config_path
@@ -57,6 +75,8 @@ class WhingeSurfBlueprint(BlueprintBase):
         self.spinner = WhingeSpinner()
         self._procs: Dict[int, Dict] = {}  # pid -> {proc, output, thread, status}
         self.ux = BlueprintUXImproved(style="serious")
+        self.job_service = job_service or DefaultJobService()
+        self.monitor_service = monitor_service or DefaultMonitorService()
         self._load_jobs()
 
     def _load_jobs(self):
@@ -73,14 +93,15 @@ class WhingeSurfBlueprint(BlueprintBase):
         with open(self.JOBS_FILE, "w") as f:
             json.dump(self._jobs, f, indent=2)
 
-    def _display_job_status(self, job_id, status, output=None, progress=None, total=None):
+    def _display_job_status(self, job_id: str, status: str, output: Optional[str] = None,
+                            progress: Optional[int] = None, total: Optional[int] = None) -> None:
         self.spinner._spin()
         display_operation_box(
             title=f"WhingeSurf Job {job_id}",
-            content=f"Status: {status}\nOutput: {output if output else ''}",
+            content=f"Status: {status}\nOutput: {output or ''}",
             spinner_state=self.spinner.current_spinner_state(),
-            progress_line=progress,
-            total_lines=total,
+            progress_line=progress or 0,
+            total_lines=total or 1,
             emoji="🌊"
         )
 
@@ -93,9 +114,10 @@ class WhingeSurfBlueprint(BlueprintBase):
         # --- PATCH: Ensure instant jobs finalize output and status ---
         def reader():
             try:
-                for line in proc.stdout:
-                    output.append(line)
-                proc.stdout.close()
+                if proc.stdout:
+                    for line in proc.stdout:
+                        output.append(line)
+                    proc.stdout.close()
                 proc.wait()
             finally:
                 status['finished'] = True
@@ -127,12 +149,13 @@ class WhingeSurfBlueprint(BlueprintBase):
             self._jobs[str(proc.pid)]["exit_code"] = proc.returncode
             self._jobs[str(proc.pid)]["status"] = "finished"
             try:
-                proc.stdout.close()
+                if proc.stdout:
+                    proc.stdout.close()
             except Exception:
                 pass
             self._jobs[str(proc.pid)]["output"] = ''.join(output)
             self._save_jobs()
-        self._display_job_status(proc.pid, "Started")
+        self._display_job_status(str(proc.pid), "Started")
         return proc.pid
 
     def list_jobs(self):
@@ -155,8 +178,8 @@ class WhingeSurfBlueprint(BlueprintBase):
         job = self._jobs.get(str(pid))
         if not job:
             return self.ux.ansi_emoji_box("Show Output", f"No such job: {pid}", op_type="show_output", params={"pid": pid}, result_count=0)
-        out = job.get("output")
-        if out is None:
+        out = job.output
+        if not out:
             return self.ux.ansi_emoji_box("Show Output", f"Job {pid} still running.", op_type="show_output", params={"pid": pid}, result_count=0)
         return self.ux.ansi_emoji_box("Show Output", out[-1000:], summary="Last 1000 chars of output.", op_type="show_output", params={"pid": pid}, result_count=len(out))
 
@@ -173,8 +196,8 @@ class WhingeSurfBlueprint(BlueprintBase):
         last_len = 0
         spinner_message = next(spinner_cycle)
         while True:
-            job = self._jobs.get(str(pid))
-            out = job.get("output")
+            job = self.job_service.get_status(str(pid))
+            out = job.output
             lines = out.splitlines()[-10:] if out else []
             elapsed = int(time.time() - start)
             # Spinner escalation if taking long
@@ -189,7 +212,7 @@ class WhingeSurfBlueprint(BlueprintBase):
                 params={"pid": pid, "elapsed": elapsed},
                 result_count=len(lines)
             ))
-            if job["status"] == "finished":
+            if job.status == "finished":
                 break
             time.sleep(1)
         return "[Tail finished]"
@@ -409,157 +432,126 @@ class WhingeSurfBlueprint(BlueprintBase):
             result_count=len(to_remove)
         )
 
-    async def run_and_print(self, messages):
+    async def run(self, messages, **kwargs):
+        """Concrete implementation of BlueprintBase async run method"""
         spinner = WhingeSpinner()
         spinner.start()
+        all_results = []
+
         try:
-            all_results = []
-            async for response in self.run(messages):
-                content = response["messages"][0]["content"] if (isinstance(response, dict) and "messages" in response and response["messages"]) else str(response)
+            async for response in self._process_messages(messages):
+                # Process response content
+                content = ""
+                if isinstance(response, dict):
+                    if "messages" in response and response["messages"]:
+                        content = response["messages"][0].get("content", "")
+                    # Display progressive output
+                    if response.get("progress") or response.get("matches"):
+                        display_operation_box(
+                            title="Progressive Operation",
+                            content="\n".join(response.get("matches", [])),
+                            style="bold cyan" if response.get("type") == "code_search" else "bold magenta",
+                            result_count=len(response.get("matches", [])),
+                            params={k: v for k, v in response.items()
+                                  if k not in {'matches', 'progress', 'total', 'truncated', 'done'}},
+                            progress_line=response.get('progress', 0),
+                            total_lines=response.get('total', 1),
+                            spinner_state=spinner.current_spinner_state(),
+                            op_type=response.get("type", "search"),
+                            emoji="🔍" if response.get("type") == "code_search" else "🧠"
+                        )
+                else:
+                    content = str(response)
+
                 all_results.append(content)
-                # Enhanced progressive output
-                if isinstance(response, dict) and (response.get("progress") or response.get("matches")):
-                    display_operation_box(
-                        title="Progressive Operation",
-                        content="\n".join(response.get("matches", [])),
-                        style="bold cyan" if response.get("type") == "code_search" else "bold magenta",
-                        result_count=len(response.get("matches", [])) if response.get("matches") is not None else None,
-                        params={k: v for k, v in response.items() if k not in {'matches', 'progress', 'total', 'truncated', 'done'}},
-                        progress_line=response.get('progress'),
-                        total_lines=response.get('total'),
-                        spinner_state=spinner.current_spinner_state() if hasattr(spinner, 'current_spinner_state') else None,
-                        op_type=response.get("type", "search"),
-                        emoji="🔍" if response.get("type") == "code_search" else "🧠"
-                    )
+                yield response
+
         finally:
             spinner.stop()
+
+        # Display final output after processing completes
+        prompt_content_for_display = "N/A"
+        if messages and isinstance(messages, list) and len(messages) > 0 and isinstance(messages[0], dict):
+            prompt_content_for_display = messages[0].get("content", "N/A")
+
         display_operation_box(
             title="WhingeSurf Output",
             content="\n".join(all_results),
             style="bold green",
             result_count=len(all_results),
-            params={"prompt": messages[0]["content"]},
+            params={"prompt": prompt_content_for_display},
             op_type="whinge_surf"
         )
 
-# SELF-IMPROVEMENT: add a proof of self-improvement (2025-04-19 05:17:27)
+    async def _process_messages(self, messages):
+        """Core message processing logic with proper error handling"""
+        try:
+            if not hasattr(self, 'llm_client') or self.llm_client is None:
+                # Attempt to get llm_client from config if not present
+                if self._config and 'llm_profile' in self._config:
+                    from swarm.core.llm_client_factory import LLMClientFactory
+                    self.llm_client = LLMClientFactory.create_llm_client(
+                        self._config['llm_profile'], self._config
+                    )
+                if not hasattr(self, 'llm_client') or self.llm_client is None: # Recheck after attempt
+                    self.logger.error("llm_client is not initialized and could not be created from config in WhingeSurfBlueprint.")
+                    yield {"error": "LLM client not available", "status": "failed"}
+                    return
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:20:22)
+            async for llm_response_item in self.llm_client.stream_chat(messages):
+                if not llm_response_item:
+                    continue
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:22:57)
+                content_text = ""
+                if hasattr(llm_response_item, 'content'):
+                    content_text = llm_response_item.content
+                elif isinstance(llm_response_item, str):
+                    content_text = llm_response_item
+                else:
+                    content_text = str(llm_response_item)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:24:30)
+                yield {
+                    "messages": [{"content": content_text}],
+                    "matches": [],
+                    "progress": 0,
+                    "total": 1,
+                    "type": "llm_chunk"
+                }
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:26:19)
+        except Exception as e:
+            self.logger.error(f"Error during LLM stream processing in _process_messages: {str(e)}", exc_info=True)
+            yield {"error": f"LLM stream processing error: {str(e)}", "status": "failed"}
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:28:02)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 07:56:41)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:30:18)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 07:58:47)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:31:26)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:01:01)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:32:37)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:20:21)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:35:24)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:22:15)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:36:26)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:24:44)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:39:09)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:27:41)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:40:10)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:30:53)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:43:04)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:33:17)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 20:44:05)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:41:39)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:34:27)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:46:34)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:36:05)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:51:31)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:36:58)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:54:19)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:38:09)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 08:57:54)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:39:00)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 09:19:17)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:41:18)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 09:23:35)
 
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:42:13)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:44:26)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:45:29)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:54:16)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 21:59:18)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:00:25)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:02:11)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:04:15)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:05:25)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:06:26)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:07:26)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:09:13)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:10:29)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:13:18)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:13:42)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:16:03)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:18:39)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:20:36)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:25:35)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:26:31)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:30:05)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:33:27)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:33:50)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:35:57)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:37:40)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:40:29)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:42:50)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:52:23)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:53:37)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:54:56)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:58:00)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 22:59:01)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:00:03)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:01:06)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:02:36)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:09:42)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:10:42)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:17:37)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:32:39)
-
-# SELF-IMPROVEMENT: Add a test comment (2025-04-19 23:36:00)
+# SELF-IMPROVEMENT: Add a test comment (2025-06-01 09:32:18)
