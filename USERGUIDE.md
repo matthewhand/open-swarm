@@ -6,10 +6,17 @@ This guide provides detailed instructions for using the `swarm-cli` command-line
 
 ## Overview
 
-`swarm-cli` is your primary tool for interacting with Open Swarm from the command line. It allows you to:
+`swarm-cli` is your primary tool for interacting with Open Swarm from the command line. It supports:
 
-*   Manage **Blueprints**: Add blueprints from your local filesystem, list available blueprints, run them directly, install them as standalone commands, and remove them.
-*   Manage **Configuration**: View, add, update, and remove LLM profiles and MCP server definitions in your central `swarm_config.json` file.
+- **Blueprint Management**
+  * **list**: List available and installed blueprints
+  * **install**: Build a standalone CLI executable for a blueprint
+  * **launch**: Run an installed blueprint with options for pre-/post-/listener hooks
+  * **add**: Add new blueprint source code to the managed directory
+  * **delete**: Remove blueprint source from the managed directory
+  * **uninstall**: Remove installed executables and/or source
+- **Configuration Management**
+  * **config**: Subcommands to create, list, update, and delete LLM profiles and MCP servers in `~/.config/swarm/swarm_config.json`
 
 ---
 
@@ -67,29 +74,29 @@ swarm-cli list
 # - special_task (entry: special_task.py)
 ```
 
-### Running Blueprints (`swarm-cli run`)
+### Launching Blueprints (`swarm-cli launch`)
 
 Executes a blueprint directly from the managed directory using the configuration found in `~/.config/swarm/swarm_config.json`.
 
 *   **Single Instruction Run:**
     ```bash
-    swarm-cli run echocraft --instruction "Repeat this message."
+    swarm-cli launch echocraft --message "Repeat this message."
     ```
 *   **Interactive Chat Mode:** (Omit `--instruction`)
     ```bash
-    swarm-cli run echocraft
+    swarm-cli launch echocraft
     ```
 *   **Run with specific LLM profile:** (Assumes 'local_llm' is defined in `swarm_config.json`)
     ```bash
-    swarm-cli run cool_agent --profile local_llm --instruction "Summarize /data/report.txt"
+    swarm-cli launch cool_agent --profile local_llm --message "Summarize /data/report.txt"
     ```
 *   **Passing blueprint-specific arguments:** (Arguments after known CLI options are passed to the blueprint)
     ```bash
-    swarm-cli run special_task --instruction "Process file" --input-file /path/to/data --output-dir /results
+    swarm-cli launch special_task --message "Process file" --input-file /path/to/data --output-dir /results
     ```
 *   **Using a different config file:**
     ```bash
-    swarm-cli run cool_agent --config-path /alt/swarm_config.json --instruction "Do something"
+    swarm-cli launch cool_agent --config-path /alt/swarm_config.json --message "Do something"
     ```
 
 ### Installing Blueprints as Commands (`swarm-cli install`)
@@ -177,6 +184,32 @@ If `~/.config/swarm/swarm_config.json` doesn't exist when `swarm-cli` needs it (
     swarm-cli config list --section mcpServers
     ```
 
+### Example: Multiple LLM Profiles & MCP Server Configuration
+
+Configure multiple LLM profiles in your `swarm_config.json`:
+```bash
+swarm-cli config add --section llm --name openai_default \
+  --json '{"provider":"openai","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}"}'
+swarm-cli config add --section llm --name ollama_llama2 \
+  --json '{"provider":"ollama","model":"llama2","base_url":"http://localhost:11434","api_key":"${OLLAMA_API_KEY}"}'
+```
+
+Configure a filesystem-based MCP tool:
+```bash
+swarm-cli config add --section mcpServers --name filesystem \
+  --json '{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","${ALLOWED_PATH}"],"env":{"ALLOWED_PATH":"${ALLOWED_PATH}"}}'
+```
+
+Now select a profile for your run via environment or inline flag:
+```bash
+export DEFAULT_LLM=ollama_llama2
+swarm-cli launch codey --message "Test Llama2 performance"
+```
+Or override inline (Codey example):
+```bash
+swarm-cli launch codey --message "Test Llama2 performance" --model llama2
+```
+
 ### Adding/Updating Configuration Entries (`swarm-cli config add`)
 
 Adds a new entry or updates an existing one within a specified section.
@@ -224,7 +257,7 @@ Deletes an entry from a specified section.
     *   Ensure `pip install open-swarm` completed successfully.
     *   Verify that Python's user script directory (e.g., `~/.local/bin`) is in your system's `PATH`. You might need to add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile (`.bashrc`, `.zshrc`, etc.) and restart your shell.
     *   For installed blueprints, check that `~/.local/share/swarm/bin/` is also in your `PATH`.
-*   **Blueprint Not Found (`swarm-cli run`):** Make sure the blueprint was added using `swarm-cli add` and appears in `swarm-cli list`. Check the spelling.
+*   **Blueprint Not Found (`swarm-cli launch`):** Make sure the blueprint was added using `swarm-cli add`, installed via `swarm-cli install`, or exists as a bundled blueprint in `swarm-cli list`. Check the spelling.
 *   **Configuration Errors:**
     *   Verify `~/.config/swarm/swarm_config.json` exists and is valid JSON.
     *   Ensure environment variables (like `OPENAI_API_KEY`) referenced in `swarm_config.json` are set correctly in your current shell session (`export OPENAI_API_KEY=sk-...` or via a `.env` file).

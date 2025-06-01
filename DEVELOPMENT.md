@@ -136,6 +136,11 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Commands:** Implemented in `src/swarm/extensions/cli/commands/`.
 *   **Installation (`swarm-cli install`):** Uses `PyInstaller` to create standalone executables from managed blueprints.
 *   **User Data Management:** Uses XDG paths (`platformdirs`).
+*   **ANSI/Styling & Terminal Support:** Use Rich's `Console` to detect terminal capabilities (`console.is_terminal` and `console.color_system`) and apply ANSI color/styling when supported, with graceful fallback.
+*   **Hook Flags:** The `launch` command supports `--pre`, `--listen`, and `--post` flags to run additional blueprints before, during, and after the main invocation.
+*   **Slash Commands:** Define slash commands in `swarm_config.json` under the `slashCommands` section; they’re available in the interactive shell for templated prompt invocations.
+*   **Blueprint as Tool:** Use `blueprint_tool('name')` from `swarm.core.blueprint_utils` to invoke one blueprint from another synchronously, enabling composite workflows and guardrails.
+*   **Unified UX Base:** All blueprints should use `print_search_progress_box` from `swarm.core.output_utils` for consistent spinners, progress updates, and result boxes, ensuring compliance under `SWARM_TEST_MODE`.
 
 ---
 
@@ -242,4 +247,44 @@ sequenceDiagram
 
 ---
 
-*This document is a work in progress. Contributions and corrections are welcome.*
+### UX Improvements & Design Decisions
+
+- **ANSI/Styling & Terminal Support:** Use Rich's `Console` for reliable detection of ANSI-capable terminals (`Console().is_terminal` and `Console().color_system`), enabling styled, colored CLI output when supported.
+- **CLI Framework:** Built with Typer. We leverage `context_settings` (`allow_extra_args`, `ignore_unknown_options`) to support slash commands, pre-listen-post hooks, and other advanced UX features.
+- **Pre-/Listener-/Post- Hooks:** The `launch` command accepts `--pre`, `--listen`, and `--post` flags (comma-separated blueprint names) to chain multiple blueprint invocations in a single CLI call.
+- **Slash Commands:** Defined under `slashCommands` in `swarm_config.json`. Slash command definitions contain:
+  - `blueprint`: target blueprint name
+  - `promptTemplate`: Jinja-style template for the prompt (e.g. `"Compact: {{ history }}"`)
+  - `llmProfile`: which LLM profile to use (defaults to `default`)
+  
+- **Blueprint as Tool:** `blueprint_tool(name)` returns a callable that wraps a blueprint as a sync tool; useful for injecting one blueprint’s logic into another.
+   - **Unified UX Utilities:** All blueprints should use `print_search_progress_box` from `swarm.core.output_utils` for spinners, progress updates, and final result boxes. Under `SWARM_TEST_MODE`, outputs are deterministic for automated compliance.
+
+   ---
+   ## Multi-Agent Orchestration Workflows
+
+   Blueprints can be composed into multi-agent pipelines:
+   1. **Discovery:** Coordinator reads tasks (e.g., `TODO.md`) via `read_file_tool`.
+   2. **Planning:** Coordinator uses `Runner.run()` to select the next task.
+   3. **Dispatch:** Invoke a worker blueprint via `blueprint_tool('worker')`.
+   4. **Verification:** Use another blueprint to verify results.
+   5. **Update:** Coordinator writes back to `TODO.md` via `write_file_tool`.
+
+   Example skeleton in ZeusBlueprint:
+   ```python
+   from swarm.core.blueprint_utils import blueprint_tool
+   from swarm.core.blueprint_base import BlueprintBase
+
+   class ZeusBlueprint(BlueprintBase):
+       async def run(self, messages, **kwargs):
+           todo = self.read_file_tool.func('TODO.md')
+           task = blueprint_tool('suggestion')(f"Select one TODO: {todo}")
+           result = blueprint_tool('codey')(task)
+           verify = blueprint_tool('suggestion')(f"Verify '{task}': {result}")
+           if 'yes' in verify.lower():
+               updated = todo.replace(task, f"~{task}~ (done)")
+               self.write_file_tool.func('TODO.md', updated)
+           yield { 'messages': [{ 'role': 'assistant', 'content': "Task completed and TODO updated." }] }
+   ```
+
+   *This document is a work in progress. Contributions and corrections are welcome.*

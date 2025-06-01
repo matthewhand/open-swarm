@@ -4,21 +4,47 @@ Welcome to Open Swarm! Orchestrate, manage, and run AI agent blueprints with S-t
 
 ## Quickstart
 
-1. List blueprints:
+1. List available blueprints:
    ```bash
    swarm-cli list
    ```
-2. Run the demo blueprint:
+2. Install a blueprint as a standalone CLI executable (e.g., Codey):
    ```bash
-   swarm-cli run hello_world --instruction "Hello, world!"
+   swarm-cli install codey
    ```
-3. Install as command:
+3. Launch the installed blueprint (and optionally use pre-, listen-, and post- hooks):
    ```bash
-   swarm-cli install hello_world
-   ./hello_world "Hello, world!"
+   # Basic launch with a message
+   swarm-cli launch codey --message "Hello, world!"
+
+   # Composite workflow: run suggestion first, codey main task, then post-process with rue_code
+   swarm-cli launch codey \
+     --message "Generate a recursive algorithm example" \
+     --pre suggestion \
+     --listen suggestion \
+     --post rue_code
    ```
 
 For advanced features, see below or run `swarm-cli help`.
+
+## Using Blueprints as Tools
+
+Blueprints can now be invoked programmatically as tools within other blueprints. Use the `blueprint_tool` helper in your blueprint’s `tools` list:
+```python
+from swarm.core.blueprint_utils import blueprint_tool
+
+class MyBlueprint(BlueprintBase):
+    def create_starting_agent(...):
+        suggestion_tool = blueprint_tool('suggestion')
+        agent = Agent(
+            name='MyAgent',
+            model=..., 
+            tools=[suggestion_tool],
+            ...
+        )
+        return agent
+```
+This allows you to route sub-instructions to other blueprints and integrate their output seamlessly into your workflows.
 
 # Open Swarm
 
@@ -37,11 +63,93 @@ Open Swarm can be used in two primary ways:
 
 ## Development Setup (Editable Install)
 
-If you are working from a cloned repository or developing Open Swarm locally, you must install the package in editable mode before using the CLI or API tools:
+If you are working from a cloned repository or developing Open Swarm locally, install the package and its extras before using the CLI or API tools:
 
 ```bash
-pip install -e .
+# Using pip:
+pip install -e .[all-extras]
+
+# Or, if you manage environments with the 'uv' tool:
+uv add .[all-extras]
+uv sync --all-extras
 ```
+
+## Environment Variables
+
+Open Swarm uses a `.env` file for runtime configuration. To get started:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and fill in the required values, such as:
+
+- **Core Configuration**
+  - `DEBUG`                — "True" or "False" for verbose logging
+  - `HOST`                 — network interface (e.g., "0.0.0.0")
+  - `PORT`                 — port number (e.g., "8000")
+
+- **Database Configuration**
+  - `DJANGO_DATABASE`      — e.g., "sqlite" or "postgres"
+  - `SQLITE_DB_PATH`       — path to SQLite database file
+  - (Postgres only) `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`
+
+- **Core API Keys**
+  - `OPENAI_API_KEY`       — your OpenAI API key
+  - `BRAVE_API_KEY`        — (optional) API key for Brave search
+
+- **Blueprint-specific Variables**
+  - `WEATHER_API_KEY`      — (optional) weather blueprint key
+  - `QDRANT_URL`           — (optional) Qdrant vector DB endpoint
+  - `QDRANT_API_KEY`       — (optional) Qdrant API key
+  - `FLOWISE_API_KEY`      — (optional) Flowise integration key
+  - `FLOWISE_API_ENDPOINT` — (optional) Flowise service URL
+  - `SERPAPI_API_KEY`      — (optional) SerpAPI key for search operations
+  - `WP_SITES_PATH`        — (optional) path to WordPress sites JSON
+
+- **Miscellaneous / Operational**
+  - `ENABLE_ADMIN`         — "true"/"false" to enable Django admin UI
+  - `ENABLE_WEBUI`         — "true"/"false" to enable web frontend
+  - `STATEFUL_CHAT_ID_PATH`— JMESPath/file path for stateful chat IDs
+  - `SWARM_BLUEPRINTS`     — comma-separated list of blueprints to enable
+  - `DEFAULT_LLM`          — default LLM profile name (e.g., "default")
+  - `SUPPRESS_DUMMY_KEY`   — "true"/"false" to suppress dummy-key warnings
+
+Refer to `.env.example` for a full list of supported variables and blueprint-specific requirements.
+
+## Building Standalone CLI Executables
+
+You can generate standalone executables for your blueprints in one of three ways:
+
+1. Using the built-in CLI installer:
+   ```bash
+   swarm-cli install <blueprint_name>
+   # Installs a one-file executable in your user bin dir (e.g., ~/.local/share/swarm/bin/<blueprint_name>)
+   ```
+
+2. Using the provided helper script (example builds the `codey` blueprint):
+   ```bash
+   python build_blueprint_executables.py
+   # By default this script packages the 'codey' blueprint into a standalone binary
+   ```
+
+3. Manually via PyInstaller:
+   ```bash
+   pip install pyinstaller
+   pyinstaller --onefile --name <blueprint_name> \
+       --distpath dist \
+       --workpath build \
+       --specpath . \
+       src/swarm/blueprints/<blueprint_name>/blueprint_<blueprint_name>.py
+   # Executable output: ./dist/<blueprint_name>
+   ```
+   
+   Or use the provided PyInstaller spec files under `pyinstaller_specs/`. For example, to build `codey`:
+   ```bash
+   pyinstaller --onefile --specpath pyinstaller_specs \
+       --distpath . pyinstaller_specs/codey.spec
+   # Executable output: ./codey
+   ```
 
 This ensures that the `swarm-cli` and `swarm-api` commands point to the latest source code and are available in your PATH. After running this, you can use the CLI commands as described below.
 
@@ -51,7 +159,118 @@ This ensures that the `swarm-cli` and `swarm-api` commands point to the latest s
 
 See [CONFIGURATION.md](./CONFIGURATION.md) for a full guide to Swarm configuration—including LLM setup, MCP server integration, per-blueprint overrides, pricing, and CLI vs manual workflows.
 
-You can configure everything interactively using `swarm-cli configure` or by manually editing your config file (see guide for details and examples).
+You can configure everything interactively using `swarm-cli config` subcommands or by manually editing your config file (see guide for details and examples).
+
+---
+
+## Advanced Configuration
+
+Open Swarm supports multiple LLM profiles and MCP server definitions in your central config (`~/.config/swarm/swarm_config.json`).
+
+Example configuration:
+```json
+{
+  "llm": {
+    "openai_default": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "${OPENAI_API_KEY}"
+    },
+    "ollama_llama2": {
+      "provider": "ollama",
+      "model": "llama2",
+      "base_url": "http://localhost:11434",
+      "api_key": "${OLLAMA_API_KEY}"
+    }
+  },
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATH}"],
+      "env": { "ALLOWED_PATH": "${ALLOWED_PATH}" }
+    }
+  }
+}
+```
+
+Add or update via CLI:
+```bash
+swarm-cli config add --section llm --name openai_default --json '{"provider":"openai","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}"}'
+swarm-cli config add --section llm --name ollama_llama2 --json '{"provider":"ollama","model":"llama2","base_url":"http://localhost:11434","api_key":"${OLLAMA_API_KEY}"}'
+swarm-cli config add --section mcpServers --name filesystem --json '{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","${ALLOWED_PATH}"],"env":{"ALLOWED_PATH":"${ALLOWED_PATH}"}}'
+```
+
+Select a profile for a run by setting the `DEFAULT_LLM` env var:
+```bash
+export DEFAULT_LLM=ollama_llama2
+swarm-cli launch codey --message "Test with Llama2"
+```
+Or override at launch via blueprint-specific flags (e.g., Codey’s `--model`):
+```bash
+swarm-cli launch codey --message "Test with Llama2" --model llama2
+```
+
+---
+
+## Slash Commands
+
+You can define **slash commands** in your `swarm_config.json` to invoke blueprints or custom prompts directly from the CLI chat interface. Slash commands are top-level lines beginning with `/`, e.g. `/compact`.
+
+Schema in `swarm_config.json`:
+```json
+{
+  "slashCommands": {
+    "compact": {
+      "blueprint": "suggestion",
+      "promptTemplate": "Compact the following conversation history:\n{{history}}",
+      "llmProfile": "default"
+    }
+  }
+}
+```
+
+Add a slash command via CLI:
+```bash
+swarm-cli config add \
+  --section slashCommands \
+  --name compact \
+  --json '{  
+    "blueprint":"suggestion",  
+    "promptTemplate":"Compact the following conversation history:\n{{history}}",  
+    "llmProfile":"default"  
+}'
+```
+
+Usage example in interactive chat (after running `swarm-cli run <blueprint>` without `--message`):
+```
+swarm> Hello, world!
+<assistant> [normal response]
+swarm> /compact
+<assistant> [compact summary of conversation]
+```
+
+Slash commands use the configured `llmProfile` (defaulting to `default`) and apply the `promptTemplate`, injecting the current conversation history. You can override per-command or globally via environment variables.
+  
+# Bundled vs. Custom Blueprints
+
+Open Swarm ships with **bundled blueprints** (e.g., `codey`, `suggestion`, `poets`) that you can run directly. To list, install, and launch these:
+```bash
+swarm-cli list
+swarm-cli install codey
+swarm-cli launch codey --message "Hello from bundled Codey"
+```
+
+To use your own custom blueprint source, add and launch from the managed blueprints directory:
+```bash
+swarm-cli add ./path/to/blueprint_custom.py --name custom
+swarm-cli launch custom --message "Run custom logic"
+```
+
+If you prefer to invoke uninstalled REST or Python scripts directly:
+```bash
+python -m swarm.blueprints.custom.blueprint_custom --message "Hello direct"
+```
 
 > **Note:** In development mode, some CLI commands or features may differ from the published PyPI version. If you encounter issues, ensure you have run `pip install -e .` and that your environment is activated.
 
@@ -176,7 +395,7 @@ Open Swarm blueprints must provide a consistent, user-friendly CLI experience. A
 - Display custom spinner messages: `Generating.`, `Generating..`, `Generating...`, `Running...`, and `Generating... Taking longer than expected` for long operations.
 - Use ANSI/emoji boxes to summarize operations, results, and parameters (see `print_search_progress_box`).
 - Clearly distinguish between code search, semantic search, and analysis operations in the output.
-- In test mode (`SWARM_TEST_MODE=1`), output must be deterministic and include all spinner/box states for compliance tests.
+- Test mode (`SWARM_TEST_MODE=1`) is only required for automated compliance tests; normal usage omits this.
 - For more, see `docs/blueprint_standards.md` and `docs/blueprint_test_mode_ux.md`.
 
 To check compliance or debug output, run:
