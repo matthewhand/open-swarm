@@ -1,5 +1,5 @@
 import pytest
-from swarm.blueprints.jeeves.blueprint_jeeves import display_operation_box
+from swarm.core.output_utils import print_operation_box as display_operation_box
 
 # Use a local spinner states definition matching the new JeevesSpinner standard
 JEEVES_SPINNER_STATES = [

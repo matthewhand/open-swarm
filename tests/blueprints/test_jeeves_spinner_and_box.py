@@ -1,5 +1,5 @@
 import pytest
-from swarm.blueprints.jeeves.blueprint_jeeves import JeevesSpinner
+from swarm.core.output_utils import JeevesSpinner
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 import sys
 import io
