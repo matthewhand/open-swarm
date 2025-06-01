@@ -4,10 +4,20 @@ Output utilities for Swarm blueprints.
 
 import json
 import logging
+import time
 import os
 import sys
 from typing import List, Dict, Any
 import re
+
+from enum import Enum
+
+class SpinnerState(Enum):
+    GENERATING_1 = "Generating."
+    GENERATING_2 = "Generating.."
+    GENERATING_3 = "Generating..."
+    RUNNING = "Running..."
+    LONG_WAIT = "Generating... Taking longer than expected"
 
 # Optional import for markdown rendering
 try:
@@ -19,6 +29,46 @@ try:
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
+
+if RICH_AVAILABLE:
+    from rich.console import Console
+    from rich.panel import Panel
+
+from enum import Enum
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.rule import Rule
+from rich.text import Text
+
+class JeevesSpinner:
+    def __init__(self):
+        self._frame_idx = 0
+        self._running = False
+        self._start_time = 0.0
+        self.frames = [
+            "Generating.",
+            "Generating..",
+            "Generating...",
+            "Running..."
+        ]
+    
+    def start(self):
+        self._running = True
+        self._start_time = time.time()
+    
+    def stop(self):
+        self._running = False
+    
+    def _spin(self):
+        self._frame_idx = (self._frame_idx + 1) % len(self.frames)
+    
+    def current_spinner_state(self):
+        if time.time() - self._start_time > 10:
+            return "Generating... Taking longer than expected"
+        return self.frames[self._frame_idx]
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +121,7 @@ def ansi_box(title: str, content: str, color: str = "94", emoji: str = "🔎", b
 def print_search_box(title: str, content: str, color: str = "94", emoji: str = "🔎"):
     print(ansi_box(title, content, color=color, emoji=emoji))
 
-def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str = None) -> None:
+def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str | None = None) -> None:
     """Format and print messages, optionally rendering assistant content as markdown, and always prefixing agent responses with the agent's name."""
     # --- DEBUG PRINT ---
     print(f"\n[DEBUG pretty_print_response called with {len(messages)} messages, use_markdown={use_markdown}, agent_name={agent_name}]", flush=True)
@@ -147,9 +197,13 @@ def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = F
         elif role == "tool":
             tool_name = msg.get("tool_name", msg.get("name", "tool"))
             tool_id = msg.get("tool_call_id", "N/A")
-            try: content_obj = json.loads(msg_content); pretty_content = json.dumps(content_obj, indent=2)
-            except (json.JSONDecodeError, TypeError): pretty_content = msg_content
-            print(f"  \033[93m[{tool_name} Result ID: {tool_id}]\033[0m:\n    {pretty_content.replace(chr(10), chr(10) + '    ')}", flush=True)
+            if msg_content:
+                try:
+                    content_obj = json.loads(str(msg_content))
+                    pretty_content = json.dumps(content_obj, indent=2)
+                except (json.JSONDecodeError, TypeError):
+                    pretty_content = str(msg_content)
+                print(f"  \033[93m[{tool_name} Result ID: {tool_id}]\033[0m:\n    {pretty_content.replace(chr(10), chr(10) + '    ')}", flush=True)
         else:
             # --- DEBUG PRINT ---
             print(f"[DEBUG Skipping message {i} with role '{role}']", flush=True)
@@ -204,9 +258,36 @@ def print_search_progress_box(*args, **kwargs):
     return
 
 
-def print_operation_box(*args, **kwargs):
-    """Stub for operation box printing."""
-    return
+def print_operation_box(
+    title: str,
+    content: str,
+    result_count: int,
+    params: dict,
+    progress_line: int,
+    total_lines: int,
+    spinner_state: str,
+    emoji: str = "🤖"
+):
+    """Display an operation progress box with Rich."""
+    if not RICH_AVAILABLE:
+        return
+        
+    console = Console()
+    panel_content = Text.from_markup(
+        f"{emoji} {content}\n\n"
+        f"Results: {result_count}\n"
+        f"Progress: {progress_line}/{total_lines}\n"
+        f"Params: {json.dumps(params, indent=2)}\n"
+        f"Status: {spinner_state}"
+    )
+    
+    panel = Panel(
+        panel_content,
+        title=f"{emoji} {title} {emoji}",
+        border_style="bright_blue",
+        width=80
+    )
+    console.print(panel)
 
 
 def setup_rotating_httpx_log(*args, **kwargs):
