@@ -70,8 +70,9 @@ Changelog = "https://github.com/yourusername/open-swarm/blob/main/CHANGELOG.md"
 
 [project.scripts]
 swarm-api = "swarm.extensions.launchers.swarm_api:main"
-swarm-cli = "swarm.extensions.launchers.swarm_cli:app"
-codey = "swarm.blueprints.codey.blueprint_codey:main"
+ swarm-cli = "swarm.core.swarm_cli:app"
+codey = "swarm.blueprints.codey.codey_cli:main"
+suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
 [project.optional-dependencies]
 dev = [
