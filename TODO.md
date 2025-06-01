@@ -1,5 +1,13 @@
 # Swarm Configuration & System TODOs
 
+## Multi-Agent Orchestration (Zeus) Tasks
+- [ ] Implement Zeus blueprint to read `TODO.md` via `read_file_tool` and parse tasks.
+- [ ] Add planning step in Zeus using `blueprint_tool('suggestion')` to select the next task.
+- [ ] Dispatch tasks to a worker blueprint (e.g., Codey) via `blueprint_tool('codey')` and capture results.
+- [ ] Implement verification step using `blueprint_tool('suggestion')` to confirm task completion.
+- [ ] Use `write_file_tool` in Zeus to update `TODO.md`, marking completed tasks.
+- [ ] Write integration tests in `tests/blueprints/test_zeus_workflow.py` covering end-to-end orchestration.
+
 ## Critical Missing Tests
 - [x] Test XDG config discovery and fallback order.
 - [x] Test default config auto-generation when no config is found.
@@ -36,7 +44,37 @@
 - [ ] Ensure all blueprints pass spinner state/progress to `print_operation_box` (messages: Generating., Generating.., Generating..., Running..., Generating... Taking longer than expected).
 - [ ] Refactor shared spinner logic if needed for easier blueprint adoption.
 - [ ] Add/expand tests for spinner state and output UX in all blueprints.
-- [ ] Document unified UX pattern and next blueprints to enhance in `docs/UX.md` or similar.
+ - [ ] Implement command stdout rendering:
+   - Style stdout headings in pink and content in dull grey.
+   - Truncate long outputs: show only the first 4 lines followed by "... (<n> more lines)".
+   - Fallback to generic message "[Output truncated: too many lines or bytes]" for large content.
+   - Add helper in `swarm.core.output_utils` and update CLI wrappers (e.g., `codey_cli.py`) to use it.
+ - [ ] Document unified UX pattern and next blueprints to enhance in `docs/UX.md` or similar.
+  - [ ] Refactor Codey CLI wrapper to use Rich Console for ANSI detection and styled I/O:
+   - Bordered box for user input with blue `user:` label.
+   - Indented, pink `codey:` label for AI responses with inline stats `(code:<exit>, duration:<secs>)`.
+   - Default grey `Done!` if no stdout, with codeblock highlighting via Rich `Syntax`.
+  - [ ] Add CLI flags to override hook messages separately (`--pre-msg`, `--listen-msg`, `--post-msg`).
+## Documentation Updates
+- [ ] Document `--pre`, `--listen`, and `--post` flags in USERGUIDE.md and README.md with comprehensive examples and edge cases. (# Investigation/Implementation)
+- [ ] Document slash-command REPL behavior in USERGUIDE.md and README.md; specify how `/compact` and other slash commands map to config entries. (# Investigation/Spec)
+- [ ] Document Rich-styled Codey CLI UX in Developer docs: ANSI detection, boxed user input, styled AI responses, inline stats, and codeblock highlighting via Rich. (# Spec/Implementation)
+- [ ] Document blueprint-as-tool pattern in USERGUIDE.md as an advanced recipe; include sample code. (# Confirm)
+- [ ] Add publishing instructions for TestPyPI and PyPI in README.md, including secrets setup (`TEST_PYPI_API_TOKEN`). (# Confirm)
+## CLI Enhancements
+- [ ] Port legacy LLM/MCP config subcommands (`config add/read/update/delete`) from click script into Typer-based `swarm-cli config`. (# Investigation/Implementation)
+- [ ] Extend interactive shell (`src/swarm/extensions/cli/interactive_shell.py`) to support slash commands:
+    - Parse lines starting with `/` and lookup `slashCommands` in config
+    - Render `promptTemplate` and dispatch to blueprint via `blueprint_tool()` (# Spec/Implementation)
+- [ ] Add support for per-hook message overrides in `swarm-cli launch` via `--pre-msg`, `--listen-msg`, and `--post-msg` flags. (# Spec/Implementation)
+- [ ] Implement `swarm-cli session list` and `swarm-cli session show` to inspect past chat sessions from `~/.cache/swarm/sessions`. (# Spec/Implementation)
+- [ ] Create `swarm-cli onboarding` command to display UX-rich welcome, Quickstart, and blueprint discovery hints. (# Spec/Implementation)
+## Testing & Verification
+- [ ] Add integration tests under `tests/cli/` for hook chaining (`--pre`, `--listen`, `--post`), verifying correct order and outputs. (# Implementation)
+- [ ] Add system/integration tests that exercise Rich-styled CLI (ANSI vs no-ANSI modes) using `pytest capfd` to capture styled output. (# Implementation)
+- [ ] Add unit tests for `BlueprintFunctionTool` and `blueprint_tool()` in `tests/unit/test_blueprint_tools.py`. (# Implementation)
+- [ ] Add tests for slash-command REPL parsing in `tests/cli/test_slash_commands.py`. (# Implementation)
+- [ ] Add tests for publishing workflows (TestPyPI / PyPI) via dry-run flags. (# Spec)
 
 ## CLI & Onboarding S-Tier Polish (2025-04-20)
 - [ ] Refactor CLI help output for S-tier onboarding:
@@ -50,6 +88,10 @@
     - If they run `swarm-cli list`, show the demo blueprint and a tip to try it
 - [ ] Ensure all CLI commands are obvious, memorable, and functional
 - [ ] Add or stub `configure` and `info` commands if not present
+ - [ ] Port legacy `config` subcommands (LLM and MCP server management) into the Typer-based `swarm-cli config` group
+ - [ ] Add slash-command support in the interactive shell:
+   - Parse inputs starting with `/`, map to `slashCommands` in config
+   - Render `promptTemplate` (e.g., `"Compact: {{ history }}"`) and invoke blueprint via `blueprint_tool()`
 - [ ] README and CLI help should always match actual CLI usage
 - [ ] After first five minutes, user should be able to:
     - Instantly understand what Open Swarm is and does
