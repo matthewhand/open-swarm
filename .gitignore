@@ -198,3 +198,6 @@ docker-compose.override.yml
 
 bin/*
 src/swarm/blueprints/**/session_logs/
+# Ignore top-level Swarm logs (may contain credentials)
+src/swarm_log.json
+src/swarm_log.json.lock
