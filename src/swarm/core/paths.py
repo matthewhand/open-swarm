@@ -8,50 +8,39 @@ APP_AUTHOR = "OpenSwarm" # Using OpenSwarm as author for platformdirs
 def get_user_data_dir_for_swarm() -> Path:
     """
     Returns the user-specific data directory for swarm.
-    Example: ~/.local/share/swarm/ on Linux.
+    Example: ~/.local/share/OpenSwarm/swarm/ (or similar based on APP_AUTHOR)
     """
     return Path(platformdirs.user_data_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
 def get_user_blueprints_dir() -> Path:
     """
     Returns the directory where user-installed blueprint sources are stored.
-    Example: ~/.local/share/swarm/blueprints/
+    Example: ~/.local/share/OpenSwarm/swarm/blueprints/
     """
     return get_user_data_dir_for_swarm() / "blueprints"
 
 def get_user_bin_dir() -> Path:
     """
-    Returns the user-specific binary directory, typically in the user's PATH.
-    Example: ~/.local/bin/ on Linux.
-    For Windows, this might point to a location like %APPDATA%\\swarm\\bin
-    as a fallback if a more standard user script directory isn't easily determined
-    or guaranteed to be in PATH by platformdirs.
+    Returns the user-specific directory for Swarm's managed executables/launchers.
+    This will be a 'bin' subdirectory within the application's user data directory.
+    Example: ~/.local/share/OpenSwarm/swarm/bin/ on Linux
+             %APPDATA%\\OpenSwarm\\swarm\\bin on Windows
+    Users may need to add this location to their PATH if they wish to run these
+    executables directly from any terminal location.
     """
-    # Use sys.platform to check the operating system
-    if sys.platform == "win32":
-        # For Windows, platformdirs.user_data_dir() often points to APPDATA.
-        # We'll create a 'bin' subdirectory within our app's user data directory.
-        # Users might need to add this to their PATH manually.
-        # An alternative could be platformdirs.user_scripts_dir(appname=APP_NAME, appauthor=APP_AUTHOR)
-        # but that can vary. Sticking to a subdir of user_data_dir for consistency.
-        return get_user_data_dir_for_swarm() / "bin"
-    else:
-        # For non-Windows systems (Linux, macOS), ~/.local/bin is a strong convention.
-        # platformdirs.user_bin_dir() could also be used, but it might resolve to
-        # different paths on different Unix-like systems. ~/.local/bin is common.
-        return Path.home() / ".local" / "bin"
+    return get_user_data_dir_for_swarm() / "bin"
 
 def get_user_cache_dir_for_swarm() -> Path:
     """
     Returns the user-specific cache directory for swarm.
-    Example: ~/.cache/swarm/ on Linux.
+    Example: ~/.cache/OpenSwarm/swarm/ on Linux.
     """
     return Path(platformdirs.user_cache_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
 def get_user_config_dir_for_swarm() -> Path:
     """
     Returns the user-specific config directory for swarm.
-    Example: ~/.config/swarm/ on Linux.
+    Example: ~/.config/OpenSwarm/swarm/ on Linux.
     """
     return Path(platformdirs.user_config_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
@@ -62,9 +51,17 @@ def get_swarm_config_file(config_filename: str = "config.yaml") -> Path:
     """
     return get_user_config_dir_for_swarm() / config_filename
 
+def get_project_root_dir() -> Path:
+    """
+    Returns the project root directory.
+    This assumes the script is located at <project_root>/src/swarm/core/paths.py.
+    Useful for development, testing, or accessing project-relative resources.
+    """
+    return Path(__file__).resolve().parent.parent.parent.parent
+
 def ensure_swarm_directories_exist():
     """
-    Ensures all standard Swarm XDG directories exist.
+    Ensures all standard Swarm XDG directories and the user bin directory exist.
     Call this early in application startup.
     """
     get_user_data_dir_for_swarm().mkdir(parents=True, exist_ok=True)
@@ -75,6 +72,7 @@ def ensure_swarm_directories_exist():
 
 if __name__ == "__main__":
     print(f"Current sys.platform: {sys.platform}")
+    print(f"Project Root Dir:   {get_project_root_dir()}")
     print(f"User Data Dir:      {get_user_data_dir_for_swarm()}")
     print(f"User Blueprints Dir: {get_user_blueprints_dir()}")
     print(f"User Bin Dir:       {get_user_bin_dir()}")
@@ -83,4 +81,5 @@ if __name__ == "__main__":
     print(f"Swarm Config File:  {get_swarm_config_file()}")
     print("\nEnsuring directories exist...")
     ensure_swarm_directories_exist()
+    print("All listed directories should now exist.")
     print("Done.")

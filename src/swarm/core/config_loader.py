@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from dotenv import load_dotenv
+from .paths import get_project_root_dir, get_swarm_config_file # Import XDG path functions
 
 logger = logging.getLogger("swarm.config")
 
 def _substitute_env_vars(value: Any) -> Any:
-    import os
+    import os # Keep local import for this utility function
     if isinstance(value, str):
         # Always expand env vars in any string
         return os.path.expandvars(value)
@@ -19,8 +20,9 @@ def _substitute_env_vars(value: Any) -> Any:
         return {k: _substitute_env_vars(v) for k, v in value.items()}
     return value
 
-def load_environment(project_root: Path):
+def load_environment():
     """Loads environment variables from a `.env` file located at the project root."""
+    project_root = get_project_root_dir() # Use XDG utility to find project root
     dotenv_path = project_root / ".env"
     logger.debug(f"Checking for .env file at: {dotenv_path}")
     try:
@@ -35,20 +37,25 @@ def load_environment(project_root: Path):
 
 def load_full_configuration(
     blueprint_class_name: str,
-    default_config_path: Path,
     config_path_override: Optional[Union[str, Path]] = None,
     profile_override: Optional[str] = None,
     cli_config_overrides: Optional[Dict[str, Any]] = None,
+    # default_config_path is now primarily for specific overrides or testing;
+    # if None, get_swarm_config_file() from paths.py will be used.
+    default_config_path_for_tests: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """
     Loads and merges configuration settings from base file, blueprint specifics, profiles, and CLI overrides.
+    Uses XDG-compliant config path by default.
 
     Args:
         blueprint_class_name (str): The name of the blueprint class (e.g., "MyBlueprint").
-        default_config_path (Path): The default path to the swarm_config.json file.
         config_path_override (Optional[Union[str, Path]]): Path specified via CLI argument.
         profile_override (Optional[str]): Profile specified via CLI argument.
         cli_config_overrides (Optional[Dict[str, Any]]): Overrides provided via CLI argument.
+        default_config_path_for_tests (Optional[Path]): Explicit path to a config file,
+                                                        primarily for testing or specific scenarios.
+                                                        If None, uses XDG default path.
 
     Returns:
         Dict[str, Any]: The final, merged configuration dictionary.
@@ -57,8 +64,18 @@ def load_full_configuration(
         ValueError: If the configuration file has JSON errors or cannot be read.
         FileNotFoundError: If a specific config_path_override is given but the file doesn't exist.
     """
-    config_path = Path(config_path_override) if config_path_override else default_config_path
-    logger.debug(f"Attempting to load base configuration from: {config_path}")
+    # Determine the configuration file path to use
+    # Priority: CLI override > test/specific override > XDG default
+    if config_path_override:
+        config_path = Path(config_path_override)
+        logger.debug(f"Using CLI overridden configuration path: {config_path}")
+    elif default_config_path_for_tests:
+        config_path = default_config_path_for_tests
+        logger.debug(f"Using test/specific default configuration path: {config_path}")
+    else:
+        config_path = get_swarm_config_file() # Default to XDG config file
+        logger.debug(f"Using XDG default configuration path: {config_path}")
+
     base_config = {}
     if config_path.is_file():
         try:
@@ -70,6 +87,8 @@ def load_full_configuration(
         except Exception as e:
             raise ValueError(f"Config Error: Failed to read {config_path}: {e}") from e
     else:
+        # Only raise FileNotFoundError if a specific override was given and not found.
+        # If the XDG default or test default isn't found, it's a warning, not an error.
         if config_path_override:
             raise FileNotFoundError(f"Configuration Error: Specified config file not found: {config_path}")
         else:
