@@ -1,295 +1,235 @@
-"""
-Output utilities for Swarm blueprints.
-"""
-
-import json
-import logging
-import time
-import os
 import sys
-from typing import List, Dict, Any
-import re
+import threading
+import time
+import itertools
+import os 
+from typing import Optional, Dict, Any, Union, List 
 
-from enum import Enum
-
-class SpinnerState(Enum):
-    GENERATING_1 = "Generating."
-    GENERATING_2 = "Generating.."
-    GENERATING_3 = "Generating..."
-    RUNNING = "Running..."
-    LONG_WAIT = "Generating... Taking longer than expected"
-
-# Optional import for markdown rendering
-try:
-    from rich.markdown import Markdown
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.text import Text
-    from rich.rule import Rule
-    RICH_AVAILABLE = True
-except ImportError:
-    RICH_AVAILABLE = False
-
-if RICH_AVAILABLE:
-    from rich.console import Console
-    from rich.panel import Panel
-
-from enum import Enum
 from rich.console import Console
 from rich.panel import Panel
-from rich.markdown import Markdown
-from rich.rule import Rule
 from rich.text import Text
+from rich.live import Live
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn, TimeElapsedColumn
+from rich.markdown import Markdown
+from rich.syntax import Syntax
+import re 
+
+RICH_AVAILABLE = True # Module level
+
+SPINNER_MESSAGES = {
+    "default": ["Generating.", "Generating..", "Generating...", "Running..."],
+    "search": ["Searching.", "Searching..", "Searching...", "Analyzing..."],
+    "code": ["Analyzing.", "Analyzing..", "Compiling...", "Executing..."],
+    "creative": ["Thinking.", "Thinking..", "Creating...", "Polishing..."]
+}
+SLOW_THRESHOLD = 5.0
+LONG_WAIT_MSG = "Taking longer than expected"
 
 class JeevesSpinner:
+    SPINNER_STATES = ["Polishing the silver", "Generating.", "Generating..", "Generating...", "Running..."]
+    SLOW_THRESHOLD = 7.0
+    LONG_WAIT_MSG = "This is taking a while, sir/madam."
+
     def __init__(self):
-        self._frame_idx = 0
         self._running = False
-        self._start_time = 0.0
-        self.frames = [
-            "Generating.",
-            "Generating..",
-            "Generating...",
-            "Running..."
-        ]
-    
+        self._thread = None
+        self._current_frame = 0
+        self._start_time = None
+        self.is_test_mode = bool(os.environ.get("SWARM_TEST_MODE"))
+
     def start(self):
+        if self._running: return
         self._running = True
         self._start_time = time.time()
-    
+        if not self.is_test_mode:
+            self._thread = threading.Thread(target=self._spin, daemon=True)
+            self._thread.start()
+        else: 
+            print(f"[SPINNER] {self.SPINNER_STATES[0]}")
+            sys.stdout.flush() 
+
+    def _spin(self):
+        while self._running:
+            elapsed = time.time() - self._start_time if self._start_time else 0
+            if elapsed > self.SLOW_THRESHOLD:
+                frame = self.LONG_WAIT_MSG
+            else:
+                frame = self.SPINNER_STATES[self._current_frame % len(self.SPINNER_STATES)]
+            
+            if self.is_test_mode: 
+                pass 
+            else: 
+                sys.stdout.write(f"\r{frame}  ") 
+                sys.stdout.flush()
+            
+            self._current_frame += 1
+            time.sleep(0.5)
+        
+        if not self.is_test_mode:
+            sys.stdout.write("\r" + " " * (len(self.LONG_WAIT_MSG) + 5) + "\r") 
+            sys.stdout.flush()
+
     def stop(self):
         self._running = False
-    
-    def _spin(self):
-        self._frame_idx = (self._frame_idx + 1) % len(self.frames)
-    
-    def current_spinner_state(self):
-        if time.time() - self._start_time > 10:
-            return "Generating... Taking longer than expected"
-        return self.frames[self._frame_idx]
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+        if not self.is_test_mode:
+            sys.stdout.write("\r" + " " * (len(self.LONG_WAIT_MSG) + 5) + "\r")
+            sys.stdout.flush()
 
+    def current_spinner_state(self) -> str:
+        if not self._start_time: return self.SPINNER_STATES[0]
+        elapsed = time.time() - self._start_time
+        if elapsed > self.SLOW_THRESHOLD:
+            return self.LONG_WAIT_MSG
+        idx = self._current_frame % len(self.SPINNER_STATES)
+        return self.SPINNER_STATES[idx]
 
+def get_spinner_state(start_time, interval=0.5, states=None, slow_threshold=None, long_wait_msg=None):
+    states = states or SPINNER_MESSAGES["default"]
+    slow_threshold = slow_threshold or SLOW_THRESHOLD
+    long_wait_msg = long_wait_msg or LONG_WAIT_MSG
+    elapsed = time.monotonic() - start_time
+    if elapsed > slow_threshold:
+        return long_wait_msg
+    idx = int(elapsed / interval) % len(states)
+    return states[idx]
 
-logger = logging.getLogger(__name__)
+def pretty_print_response(messages: List[Dict[str, str]], use_markdown: bool = True, console: Optional[Console] = None):
+    print(f"DEBUG_PPRINT: Entered pretty_print_response. RICH_AVAILABLE={RICH_AVAILABLE}, use_markdown={use_markdown}", file=sys.stderr) # DEBUG
+    _console = console or Console()
+    print(f"DEBUG_PPRINT: _console type: {type(_console)}", file=sys.stderr) # DEBUG
 
-def render_markdown(content: str) -> None:
-    """Render markdown content using rich, if available."""
-    # --- DEBUG PRINT ---
-    print(f"\n[DEBUG render_markdown called with rich={RICH_AVAILABLE}]", flush=True)
-    if not RICH_AVAILABLE:
-        print(content, flush=True) # Fallback print with flush
-        return
-    console = Console()
-    md = Markdown(content)
-    console.print(md) # Rich handles flushing
-
-def ansi_box(title: str, content: str, color: str = "94", emoji: str = "🔎", border: str = "─", width: int = 70) -> str:
-    """Return a string or Panel with ANSI box formatting for search/analysis results using Rich if available."""
-    if RICH_AVAILABLE:
-        console = Console()
-        # Rich supports color names or hex, map color code to name
-        color_map = {
-            "94": "bright_blue",
-            "96": "bright_cyan",
-            "92": "bright_green",
-            "93": "bright_yellow",
-            "91": "bright_red",
-            "95": "bright_magenta",
-            "90": "grey82",
-        }
-        style = color_map.get(color, "bright_blue")
-        panel = Panel(
-            content,
-            title=f"{emoji} {title} {emoji}",
-            border_style=style,
-            width=width
-        )
-        # Return the rendered panel as a string for testability
-        with console.capture() as capture:
-            console.print(panel)
-        return capture.get()
-    # Fallback: legacy manual ANSI box
-    top = f"\033[{color}m{emoji} {border * (width - 4)} {emoji}\033[0m"
-    mid_title = f"\033[{color}m│ {title.center(width - 6)} │\033[0m"
-    lines = content.splitlines()
-    boxed = [top, mid_title, top]
-    for line in lines:
-        boxed.append(f"\033[{color}m│\033[0m {line.ljust(width - 6)} \033[{color}m│\033[0m")
-    boxed.append(top)
-    return "\n".join(boxed)
-
-def print_search_box(title: str, content: str, color: str = "94", emoji: str = "🔎"):
-    print(ansi_box(title, content, color=color, emoji=emoji))
-
-def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str | None = None) -> None:
-    """Format and print messages, optionally rendering assistant content as markdown, and always prefixing agent responses with the agent's name."""
-    # --- DEBUG PRINT ---
-    print(f"\n[DEBUG pretty_print_response called with {len(messages)} messages, use_markdown={use_markdown}, agent_name={agent_name}]", flush=True)
-
-    if spinner:
-        spinner.stop()
-        sys.stdout.write("\r\033[K") # Clear spinner line
-        sys.stdout.flush()
-
-    if not messages:
-        logger.debug("No messages to print in pretty_print_response.")
-        return
-
-    for i, msg in enumerate(messages):
-        # --- DEBUG PRINT ---
-        print(f"\n[DEBUG Processing message {i}: type={type(msg)}]", flush=True)
-        if not isinstance(msg, dict):
-            print(f"[DEBUG Skipping non-dict message {i}]", flush=True)
+    for message_idx, message in enumerate(messages): # Added index for debugging
+        print(f"DEBUG_PPRINT: Processing message {message_idx + 1}/{len(messages)}: {message.get('sender')}", file=sys.stderr) # DEBUG
+        role = message.get("role", "unknown").capitalize()
+        sender = message.get("sender", role) 
+        content_to_print = message.get("content", "")
+        
+        if not content_to_print: 
+            print(f"DEBUG_PPRINT: Message {message_idx + 1} has empty content, skipping.", file=sys.stderr) # DEBUG
             continue
+        
+        print(f"DEBUG_PPRINT: Content for message {message_idx + 1}: {repr(content_to_print)}", file=sys.stderr) # DEBUG
+        prefix = f"[{sender}]: "
+        
+        code_block_pattern = r"```(\w*)?\s*\n?(.*?)\s*\n?```"
+        match = re.search(code_block_pattern, content_to_print, re.DOTALL | re.IGNORECASE)
+        
+        print(f"DEBUG_PPRINT: Regex match for message {message_idx + 1}: {match}", file=sys.stderr) # DEBUG
 
-        role = msg.get("role")
-        sender = msg.get("sender", role if role else "Unknown")
-        msg_content = msg.get("content")
-        tool_calls = msg.get("tool_calls")
-        # --- DEBUG PRINT ---
-        print(f"[DEBUG Message {i}: role={role}, sender={sender}, has_content={bool(msg_content)}, has_tools={bool(tool_calls)}]", flush=True)
+        if RICH_AVAILABLE and match: 
+            print(f"DEBUG_PPRINT: Message {message_idx + 1} - Code block matched!", file=sys.stderr) # DEBUG
+            text_before_match = content_to_print[:match.start()]
+            lang_from_match = match.group(1)
+            lang = lang_from_match.lower().strip() if lang_from_match else "text"
+            
+            code_in_block = match.group(2)
+            code_in_block = code_in_block.strip() if code_in_block is not None else ""
 
-        if role == "assistant":
-            # Use agent_name if provided, else sender, else 'assistant'
-            display_name = agent_name or sender or "assistant"
-            # Magenta for agent output
-            print(f"\033[95m[{display_name}]\033[0m: ", end="", flush=True)
-            if msg_content:
-                # --- DEBUG PRINT ---
-                print(f"\n[DEBUG Assistant content found, printing/rendering... Rich={RICH_AVAILABLE}, Markdown={use_markdown}]", flush=True)
-                # --- CODE FENCE HIGHLIGHTING ---
-                if RICH_AVAILABLE and '```' in msg_content:
-                    import re
-                    code_fence_pattern = r"```([\w\d]*)\n([\s\S]*?)```"
-                    matches = re.findall(code_fence_pattern, msg_content)
-                    if matches:
-                        from rich.syntax import Syntax
-                        from rich.console import Console
-                        console = Console()
-                        for lang, code in matches:
-                            syntax = Syntax(code, lang or "python", theme="monokai", line_numbers=False)
-                            console.print(syntax)
-                        # Optionally print any non-code parts
-                        non_code = re.split(code_fence_pattern, msg_content)
-                        for i, part in enumerate(non_code):
-                            if i % 3 == 0 and part.strip():
-                                print(part.strip(), flush=True)
-                    else:
-                        print(msg_content, flush=True)
-                elif use_markdown and RICH_AVAILABLE:
-                    render_markdown(msg_content)
+            text_after_match = content_to_print[match.end():]
+
+            printed_prefix = False
+            if text_before_match.strip():
+                print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing text_before_match.", file=sys.stderr) # DEBUG
+                _console.print(prefix + text_before_match.strip(), end="\n" if code_in_block or text_after_match.strip() else "")
+                printed_prefix = True
+            
+            if not printed_prefix:
+                print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing prefix only.", file=sys.stderr) # DEBUG
+                _console.print(prefix, end="")
+            
+            syntax_obj = Syntax(code_in_block, lang, theme="monokai", line_numbers=False, word_wrap=True)
+            print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing Syntax object: lang='{lang}', code='{repr(code_in_block)}'", file=sys.stderr) # DEBUG
+            _console.print(syntax_obj) 
+
+            if text_after_match.strip():
+                print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing text_after_match.", file=sys.stderr) # DEBUG
+                if use_markdown:
+                    _console.print(Markdown(text_after_match.strip()))
                 else:
-                    print(msg_content, flush=True)
-            elif not tool_calls:
-                print(flush=True)
-
-            if tool_calls and isinstance(tool_calls, list):
-                print("  \033[92mTool Calls:\033[0m", flush=True)
-                for tc in tool_calls:
-                    if not isinstance(tc, dict): continue
-                    func = tc.get("function", {})
-                    tool_name = func.get("name", "Unnamed Tool")
-                    args_str = func.get("arguments", "{}")
-                    try: args_obj = json.loads(args_str); args_pretty = ", ".join(f"{k}={v!r}" for k, v in args_obj.items())
-                    except json.JSONDecodeError: args_pretty = args_str
-                    print(f"    \033[95m{tool_name}\033[0m({args_pretty})", flush=True)
-
-        elif role == "tool":
-            tool_name = msg.get("tool_name", msg.get("name", "tool"))
-            tool_id = msg.get("tool_call_id", "N/A")
-            if msg_content:
-                try:
-                    content_obj = json.loads(str(msg_content))
-                    pretty_content = json.dumps(content_obj, indent=2)
-                except (json.JSONDecodeError, TypeError):
-                    pretty_content = str(msg_content)
-                print(f"  \033[93m[{tool_name} Result ID: {tool_id}]\033[0m:\n    {pretty_content.replace(chr(10), chr(10) + '    ')}", flush=True)
-        else:
-            # --- DEBUG PRINT ---
-            print(f"[DEBUG Skipping message {i} with role '{role}']", flush=True)
-
-def print_terminal_command_result(cmd: str, result: dict, max_lines: int = 10):
-    """
-    Render a terminal command result in the CLI with a shell prompt emoji, header, and Rich box.
-    - Header: 🐚 Ran terminal command
-    - Top line: colored, [basename(pwd)] > [cmd]
-    - Output: Rich Panel, max 10 lines, tailing if longer, show hint for toggle
-    """
-    if not RICH_AVAILABLE:
-        # Fallback to simple print
-        print(f"🐚 Ran terminal command\n[{os.path.basename(result['cwd'])}] > {cmd}")
-        lines = result['output'].splitlines()
-        if len(lines) > max_lines:
-            lines = lines[-max_lines:]
-            print("[Output truncated. Showing last 10 lines.]")
-        print("\n".join(lines))
-        return
-
-    console = Console()
-    cwd_base = os.path.basename(result['cwd'])
-    header = Text(f"🐚 Ran terminal command", style="bold yellow")
-    subheader = Rule(f"[{cwd_base}] > {cmd}", style="bright_black")
-    lines = result['output'].splitlines()
-    truncated = False
-    if len(lines) > max_lines:
-        lines = lines[-max_lines:]
-        truncated = True
-    output_body = "\n".join(lines)
-    panel = Panel(
-        output_body,
-        title="Output",
-        border_style="cyan",
-        subtitle="[Output truncated. Showing last 10 lines. Press [t] to expand.]" if truncated else "",
-        width=80
-    )
-    console.print(header)
-    console.print(subheader)
-    console.print(panel)
-
-# Add stubs for missing utility functions to satisfy imports
-
-def get_spinner_state(spinner):
-    """Return the current spinner state, or None if unavailable."""
-    return spinner.current_spinner_state() if hasattr(spinner, 'current_spinner_state') else None
-
-
-def print_search_progress_box(*args, **kwargs):
-    """Stub for search progress box printing."""
-    return
+                    _console.print(text_after_match.strip())
+        
+        elif RICH_AVAILABLE and use_markdown:
+            print(f"DEBUG_PPRINT: Message {message_idx + 1} - No code block, using Markdown.", file=sys.stderr) # DEBUG
+            _console.print(prefix, end="")
+            _console.print(Markdown(content_to_print))
+        else: 
+            print(f"DEBUG_PPRINT: Message {message_idx + 1} - Plain text printing.", file=sys.stderr) # DEBUG
+            _console.print(prefix + content_to_print)
 
 
 def print_operation_box(
     title: str,
-    content: str,
-    result_count: int,
-    params: dict,
-    progress_line: int,
-    total_lines: int,
-    spinner_state: str,
-    emoji: str = "🤖"
+    content: str, 
+    summary: Optional[str] = None,
+    params: Optional[Dict[str, Any]] = None,
+    result_count: Optional[int] = None,
+    op_type: Optional[str] = None, 
+    progress_line: Optional[Union[str, int]] = None, 
+    total_lines: Optional[int] = None,
+    spinner_state: Optional[str] = None, 
+    emoji: str = "💡", 
+    style: str = "default", 
+    console: Optional[Console] = None
 ):
-    """Display an operation progress box with Rich."""
-    if not RICH_AVAILABLE:
-        return
-        
-    console = Console()
-    panel_content = Text.from_markup(
-        f"{emoji} {content}\n\n"
-        f"Results: {result_count}\n"
-        f"Progress: {progress_line}/{total_lines}\n"
-        f"Params: {json.dumps(params, indent=2)}\n"
-        f"Status: {spinner_state}"
-    )
-    
-    panel = Panel(
-        panel_content,
-        title=f"{emoji} {title} {emoji}",
-        border_style="bright_blue",
-        width=80
-    )
-    console.print(panel)
+    _console = console or Console()
+    status_to_border_style = {
+        "info": "blue", "success": "green", "warning": "yellow",
+        "error": "red", "default": "dim" 
+    }
+    actual_border_style = status_to_border_style.get(style, status_to_border_style["default"])
+    panel_content = Text()
+    if op_type: panel_content.append(f"Operation: {op_type}\n", style="dim")
+    if params:
+        param_str = ", ".join(f"{k}={v}" for k, v in params.items())
+        panel_content.append(f"Parameters: {param_str}\n", style="dim")
+    panel_content.append(content if isinstance(content, (str, Text)) else str(content or "")) 
+    if summary: panel_content.append(f"\nSummary: {summary}", style="italic")
+    if result_count is not None: panel_content.append(f" | Results: {result_count}", style="italic")
+    if progress_line is not None:
+        prog_text = f"Progress: {progress_line}"
+        if total_lines is not None : prog_text += f"/{total_lines}"
+        panel_content.append(f"\n{prog_text}", style="magenta")
+    if spinner_state: panel_content.append(f" [{spinner_state}]", style="yellow")
+    box_title = f"{emoji} {title}"
+    _console.print(Panel(panel_content, title=box_title, border_style=actual_border_style, expand=False))
 
+display_operation_box = print_operation_box
 
-def setup_rotating_httpx_log(*args, **kwargs):
-    """Stub for rotating HTTPX log setup."""
-    return None
+def print_search_progress_box(op_type, results, params, result_type, summary, progress_line, spinner_state, operation_type, search_mode, total_lines, emoji="💡", border="─", console=None):
+    _console = console or Console()
+    status_to_border_style = {
+        "code": "cyan", "semantic": "magenta", "search": "blue",
+        "jeeves": "green", "default": "dim"
+    }
+    actual_border_style = status_to_border_style.get(result_type, status_to_border_style["default"])
+    title_str = f"{emoji} {op_type}"
+    if operation_type: title_str += f" | {operation_type}"
+    if search_mode: title_str += f" ({search_mode})"
+    content_text = Text()
+    if summary: content_text.append(summary + "\n", style="italic")
+    if params:
+        param_str = ", ".join(f"{k}={v!r}" for k,v in params.items())
+        content_text.append(f"Params: {param_str}\n", style="dim")
+    if isinstance(results, list):
+        for res_line in results: content_text.append(str(res_line) + "\n")
+    else: content_text.append(str(results or "") + "\n") 
+    if progress_line is not None:
+        prog_display = str(progress_line)
+        if total_lines: prog_display += f"/{total_lines}"
+        content_text.append(f"Progress: {prog_display}", style="magenta")
+    if spinner_state: content_text.append(f" [{spinner_state}]", style="yellow")
+    _console.print(Panel(content_text, title=title_str, border_style=actual_border_style, expand=False))
+
+def create_rich_progress_bar() -> Progress:
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeRemainingColumn(),
+        TimeElapsedColumn(),
+        console=Console(), 
+        transient=True 
+    )
