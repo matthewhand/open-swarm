@@ -1,6 +1,117 @@
-# Swarm Configuration & System TODOs
+# Swarm: Core Framework & Blueprint Management TODOs
 
-## Multi-Agent Orchestration (Zeus) Tasks
+## Phase 1: Core CLI & Blueprint Lifecycle Implementation
+
+### 1.1. XDG Path Management & Utilities
+- [ ] Implement robust XDG path helper functions using `platformdirs`:
+    - `get_user_data_dir_for_swarm()` -> `~/.local/share/swarm/`
+    - `get_user_blueprints_dir()` -> `~/.local/share/swarm/blueprints/`
+    - `get_user_bin_dir()` -> `~/.local/bin/` (or platform equivalent, ensure it's a common PATH location)
+    - `get_user_cache_dir_for_swarm()` -> `~/.cache/swarm/`
+    - `get_user_config_dir_for_swarm()` -> `~/.config/swarm/`
+- [ ] Ensure all file operations (config, blueprint source, compiled binaries, cache) use these XDG paths.
+
+### 1.2. Blueprint Metadata Enhancements
+- [ ] Add `abbreviation: Optional[str]` to `BlueprintBase` metadata.
+    - Update `blueprint_discovery.py` to extract `abbreviation`.
+    - Update a few example blueprints (e.g., `codey`, `chucks_angels`) with an `abbreviation`.
+- [ ] Enhance blueprint metadata loader to fall back to class docstring for `description` if not explicitly set in metadata. (Already noted as implemented, verify and document).
+- [ ] Remove legacy `metadata.json` files from all blueprints if they exist (now redundant).
+
+### 1.3. `swarm-cli install <name_or_path>` Command
+- [ ] Create `src/swarm/extensions/cli/commands/install_blueprint.py`.
+- [ ] Implement logic to:
+    - Identify if `<name_or_path>` is a prebuilt name, local file path (py, zip), or directory path. (URL support for later).
+    - Determine/derive `blueprint_name`.
+    - Create target directory: `get_user_blueprints_dir() / blueprint_name`.
+    - Copy source file(s) / extract zip contents into this target directory.
+    - Handle potential name conflicts or provide an `--overwrite` option.
+- [ ] Register `install` command in `src/swarm/extensions/cli/main.py`.
+- [ ] Add unit and integration tests for various installation sources and scenarios.
+
+### 1.4. `swarm-cli list` Command (Installed & Available)
+- [ ] Modify `src/swarm/extensions/cli/commands/list_blueprints.py`.
+- [ ] **Default `list` (Installed Blueprints):**
+    - Scan subdirectories in `get_user_blueprints_dir()`.
+    - For each, dynamically load its main Python file to extract metadata (name, version, description, abbreviation).
+        - Use `importlib.util.spec_from_file_location` and `importlib.util.module_from_spec`.
+    - Check if `get_user_bin_dir() / <abbreviation_or_name>` exists to indicate "compiled status."
+    - Display information clearly.
+- [ ] **`list --available` (or `search`) (Prebuilt/Bundled Blueprints):**
+    - Use existing `discover_blueprints()` from `swarm.core.blueprint_discovery` (which scans `src/swarm/blueprints/` in the project).
+    - Ensure this discovery picks up the new `abbreviation` metadata.
+- [ ] Update command registration in `main.py`.
+- [ ] Add tests for listing installed and available blueprints.
+
+### 1.5. `swarm-cli compile <blueprint_name>` Command
+- [ ] Create `src/swarm/extensions/cli/commands/compile_blueprint.py`.
+- [ ] Command takes `<blueprint_name>` (must be an *installed* blueprint, i.e., source exists in `get_user_blueprints_dir() / blueprint_name`).
+- [ ] Logic:
+    - Locate main Python file in `get_user_blueprints_dir() / blueprint_name`.
+    - Load metadata (especially `abbreviation`) from this installed Python file.
+    - Determine executable name (abbreviation or blueprint_name).
+    - Use `PyInstaller.__main__.run([...])` (similar to `src/swarm/core/build_launchers.py`):
+        - `script_name`: Path to the main `.py` file in the installed location.
+        - `--name <executable_name>`
+        - `--onefile`
+        - `--distpath get_user_bin_dir()`
+        - `--workpath get_user_cache_dir_for_swarm() / "build" / blueprint_name`
+        - `--specpath get_user_cache_dir_for_swarm() / "specs" / blueprint_name`
+        - `--noconfirm` or handle overwriting existing executables.
+- [ ] Register `compile` command in `main.py`.
+- [ ] Add tests for compiling blueprints, including checking output location and basic execution of the compiled binary.
+
+### 1.6. `swarm-cli launch <blueprint_name>` Command
+- [ ] Modify existing `launch` command (likely in `src/swarm/core/swarm_cli.py` or `src/swarm/extensions/cli/commands/`).
+- [ ] It should now primarily look for and execute the *compiled binary* from `get_user_bin_dir() / <abbreviation_or_name>`.
+- [ ] Retain support for `--pre`, `--listen`, `--post` hooks (these would also need to be compiled blueprints).
+- [ ] If a compiled binary is not found, it could offer to run `swarm-cli compile <blueprint_name>` or fall back to running from installed source (less ideal for "launch").
+- [ ] Update tests for launching compiled blueprints.
+
+### 1.7. `swarm-cli delete/uninstall` Commands
+- [ ] Review/Update `delete` and `uninstall` commands to correctly handle:
+    - Removing blueprint source from `get_user_blueprints_dir()`.
+    - Removing compiled binaries from `get_user_bin_dir()`.
+    - Options to remove only source, only binary, or both.
+
+## Phase 2: Documentation & Onboarding
+
+### 2.1. Core Documentation Updates
+- [x] **README.md:** Update Quickstart, Core Concepts, Building Standalone Executables, Installation, and CLI Reference to reflect the new `install` (source), `compile` (binary), `list --available` workflow. (Draft provided, pending review)
+- [ ] **USERGUIDE.md:**
+    - Detail the new XDG file locations.
+    - Provide comprehensive usage instructions for `list`, `list --available`, `install`, `compile`, `launch`, `delete`, `uninstall`.
+    - Include examples for each command and common troubleshooting tips (PATH issues, etc.).
+- [ ] **DEVELOPMENT.md:**
+    - Explain the internal architecture of the new blueprint management commands.
+    - Detail how PyInstaller is invoked by `swarm-cli compile`.
+    - Document the `abbreviation` metadata field and its use.
+    - Explain XDG path management within the codebase.
+    - Discuss implications for blueprint developers (e.g., ensuring their blueprints are PyInstaller-friendly if they have unusual dependencies).
+- [ ] **CONFIGURATION.md:** Review for any impacts from the new CLI structure (likely minimal, but check).
+
+### 2.2. CLI Onboarding & UX Polish
+- [ ] Refactor CLI help output (`swarm-cli --help`, `swarm-cli <command> --help`) for S-tier onboarding:
+    - Use color and emoji (if terminal supports).
+    - Add a prominent "Quickstart" section at the top of main help.
+    - List all commands with clear, one-line descriptions.
+    - Add usage examples for every command.
+    - Add a "What next?" section in main help.
+- [ ] If `swarm-cli` is run with no arguments, show a welcome message and quickstart hints.
+- [ ] If `swarm-cli run` (or `launch`) is run with no blueprint, suggest `swarm-cli list --available`.
+- [ ] If `swarm-cli list` (default) is empty, suggest `swarm-cli list --available` and `swarm-cli install <name>`.
+- [ ] Implement `swarm-cli onboarding` command to display UX-rich welcome, Quickstart, and blueprint discovery hints.
+- [ ] Add command suggestions/typeahead/autocomplete for CLI (stretch goal).
+
+## Phase 3: Advanced Features & Refinements
+
+### 3.1. `swarm-wrapper` (Alternative Compilation Strategy - Re-evaluate)
+- [ ] Re-evaluate the `swarm-wrapper` concept (`src/swarm/core/swarm_wrapper.py` and `build_swarm_wrapper.py`).
+    - **Current Plan:** Focus on compiling individual blueprints directly using PyInstaller via `swarm-cli compile`.
+    - **Alternative:** `swarm-wrapper` is a single PyInstaller-compiled binary that can run *any* installed blueprint source. `swarm-cli install <bp>` would then just create a symlink/shell script like `~/.local/bin/<bp> -> ~/bin/swarm-wrapper <bp>`.
+    - **Decision:** Stick with direct blueprint compilation for now unless `swarm-wrapper` offers significant advantages not yet realized (e.g., much faster "installs" after initial `swarm-wrapper` build, smaller total disk footprint if many blueprints). The current plan provides more isolation.
+
+### 3.2. Multi-Agent Orchestration (Zeus) Tasks
 - [ ] Implement Zeus blueprint to read `TODO.md` via `read_file_tool` and parse tasks.
 - [ ] Add planning step in Zeus using `blueprint_tool('suggestion')` to select the next task.
 - [ ] Dispatch tasks to a worker blueprint (e.g., Codey) via `blueprint_tool('codey')` and capture results.
@@ -8,258 +119,88 @@
 - [ ] Use `write_file_tool` in Zeus to update `TODO.md`, marking completed tasks.
 - [ ] Write integration tests in `tests/blueprints/test_zeus_workflow.py` covering end-to-end orchestration.
 
-## Critical Missing Tests
-- [x] Test XDG config discovery and fallback order.
-- [x] Test default config auto-generation when no config is found.
+### 3.3. API Enhancements
+- [ ] Expose blueprint metadata (including installed/compiled status) via a REST API endpoint for web UI/discovery.
+
+### 3.4. Code Quality & Automation
+- [ ] Add blueprint metadata linting as a required pre-commit hook (`swarm-cli blueprint lint` if such a command is created, or a custom script).
+- [ ] Add script to auto-generate a blueprint metadata table for README.md from class metadata.
+- [ ] Review codebase for stubs, TODOs, and placeholders; add actionable, specific items to this list for each.
+
+## Phase 4: Testing & CI
+
+### 4.1. Critical Missing Tests (from original TODO)
+- [x] Test XDG config discovery and fallback order. (Marked as done, verify)
+- [x] Test default config auto-generation when no config is found. (Marked as done, verify)
 - [x] Test envvar/placeholder substitution in config loader.
 - [ ] Test per-blueprint and per-agent model override logic.
 - [ ] Test fallback to default model/profile with warning if requested is missing.
 - [ ] Test MCP server config add/remove/parse.
 - [ ] Test redaction of secrets in logs and config dumps.
-- [x] Test Geese/Omniplex async generator mocking and execution flow.
-- [x] Test Geese splash screen and operation box display.
-- [x] Test WhingeSurf subprocess management and service integration.
-- [x] Test WTF blueprint config loading and agent hierarchy.
-- [x] Test Geese MCP assignment logic.
-- [x] Test Jeeves progressive tool and spinner/box UX.
+- [x] Test Geese/Omniplex async generator mocking and execution flow. (Marked as done, verify)
+- [x] Test Geese splash screen and operation box display. (Marked as done, verify)
+- [x] Test WhingeSurf subprocess management and service integration. (Marked as done, verify)
+- [x] Test WTF blueprint config loading and agent hierarchy. (Marked as done, verify)
+- [x] Test Geese MCP assignment logic. (Marked as done, verify)
+- [x] Test Jeeves progressive tool and spinner/box UX. (Marked as done, verify)
+- [x] Fix `TypeError: Can't instantiate abstract class BlueprintUXImproved/BlueprintUX` in various blueprint tests. (Marked as ongoing, verify status)
 
-## Unified UX Enhancements (Spinner, ANSI/Emoji Boxes)
-- [x] Implement and verify enhanced ANSI/emoji operation boxes for search and analysis operations across all blueprints. Boxes should:
-    - Summarize search/analysis results (e.g., 'Searched filesystem', 'Analyzed ...')
-    - Include result counts and display search parameters
-    - Update line numbers/progress during long operations
-    - Distinguish between code/semantic search output
-    - Use emojis and box formatting for clarity
-- [x] Implement spinner messages: 'Generating.', 'Generating..', 'Generating...', 'Running...', and 'Generating... Taking longer than expected' for Codey, Geese, RueCode. (Zeus, WhingeSurf not found in repo as of 2025-04-20)
-    - [x] Codey
-    - [x] Geese (Spinner logic updated, UX via `BlueprintUXImproved`)
-    - [x] Jeeves (migrated from DigitalButlers; all code, tests, and CLI updated; uses `JeevesSpinner`)
-    - [x] RueCode
-    - [x] Zeus (implemented as DivineOpsBlueprint in divine_code; spinner/UX standardized)
-    - [x] WhingeSurf (Spinner logic updated via `WhingeSpinner`, UX via `BlueprintUXImproved`)
-- [x] Codey CLI: Approval mode and github agent tests pass in all environments (test-mode exit code/output, simulated shell/git, robust sys import)
-- [x] Codey CLI: Unified, visually rich ANSI/emoji box output for code/semantic search and analysis (test-mode and real)
-- [x] Codey CLI: Progressive, live-updating search/analysis UX (matches, progress, spinner, slow-op feedback)
-- [x] output_utils: ansi_box prints spinner state in yellow when 'Generating... Taking longer than expected', cyan otherwise
-- [ ] [NEXT] Extend unified output/UX to other blueprints (e.g. divine_code, stewie, echocraft) and ensure all use ansi_box/print_operation_box for search/analysis. *Review `BlueprintUX` and `BlueprintUXImproved` instantiation in remaining failing blueprints.*
-- [ ] [NEXT] Refactor spinner/operation progress so that live line/progress updates are available in real (non-test) mode.
-- [ ] [NEXT] Add more result types, summaries, and param details to operation boxes (e.g. for file ops, chat, creative, etc.)
-- [ ] [NEXT] Add tests for output formatting and UX regressions (search/analysis, spinner, slow-op, etc.)
-- [ ] Add system/integration tests that objectively verify the above UX features in CLI output (spinner, boxes, progressive updates, emojis, etc.)
-- [ ] Enhance DivineCode and FamilyTies blueprints to display spinner state and "Taking longer than expected" in the output box using `print_operation_box`.
-- [ ] Ensure all blueprints pass spinner state/progress to `print_operation_box` (messages: Generating., Generating.., Generating..., Running..., Generating... Taking longer than expected).
-- [ ] Refactor shared spinner logic if needed for easier blueprint adoption.
-- [ ] Add/expand tests for spinner state and output UX in all blueprints.
- - [ ] Implement command stdout rendering:
-   - Style stdout headings in pink and content in dull grey.
-   - Truncate long outputs: show only the first 4 lines followed by "... (<n> more lines)".
-   - Fallback to generic message "[Output truncated: too many lines or bytes]" for large content.
-   - Add helper in `swarm.core.output_utils` and update CLI wrappers (e.g., `codey_cli.py`) to use it.
- - [ ] Document unified UX pattern and next blueprints to enhance in `docs/UX.md` or similar.
-  - [ ] Refactor Codey CLI wrapper to use Rich Console for ANSI detection and styled I/O:
-   - Bordered box for user input with blue `user:` label.
-   - Indented, pink `codey:` label for AI responses with inline stats `(code:<exit>, duration:<secs>)`.
-   - Default grey `Done!` if no stdout, with codeblock highlighting via Rich `Syntax`.
-  - [ ] Add CLI flags to override hook messages separately (`--pre-msg`, `--listen-msg`, `--post-msg`).
+### 4.2. New Tests for Blueprint Management
+- [ ] Comprehensive tests for `swarm-cli install` with different source types.
+- [ ] Tests for `swarm-cli compile`, checking for executable creation and basic functionality.
+- [ ] Tests for `swarm-cli list` (default and `--available`).
+- [ ] Tests for `swarm-cli launch` with compiled blueprints.
+- [ ] Tests for `swarm-cli delete/uninstall` ensuring correct removal of source/binaries.
 
-## Documentation Updates
-- [ ] Document `--pre`, `--listen`, and `--post` flags in USERGUIDE.md and README.md with comprehensive examples and edge cases. (# Investigation/Implementation)
-- [ ] Document slash-command REPL behavior in USERGUIDE.md and README.md; specify how `/compact` and other slash commands map to config entries. (# Investigation/Spec)
-- [ ] Document Rich-styled Codey CLI UX in Developer docs: ANSI detection, boxed user input, styled AI responses, inline stats, and codeblock highlighting via Rich. (# Spec/Implementation)
-- [ ] Document blueprint-as-tool pattern in USERGUIDE.md as an advanced recipe; include sample code. (# Confirm)
-- [ ] Add publishing instructions for TestPyPI and PyPI in README.md, including secrets setup (`TEST_PYPI_API_TOKEN`). (# Confirm)
+## Phase 5: Existing UX & Feature Polish (from original TODO)
 
-## CLI Enhancements
-- [ ] Port legacy LLM/MCP config subcommands (`config add/read/update/delete`) from click script into Typer-based `swarm-cli config`. (# Investigation/Implementation)
-- [ ] Extend interactive shell (`src/swarm/extensions/cli/interactive_shell.py`) to support slash commands:
-    - Parse lines starting with `/` and lookup `slashCommands` in config
-    - Render `promptTemplate` and dispatch to blueprint via `blueprint_tool()` (# Spec/Implementation)
-- [ ] Add support for per-hook message overrides in `swarm-cli launch` via `--pre-msg`, `--listen-msg`, and `--post-msg` flags. (# Spec/Implementation)
-- [ ] Implement `swarm-cli session list` and `swarm-cli session show` to inspect past chat sessions from `~/.cache/swarm/sessions`. (# Spec/Implementation)
-- [ ] Create `swarm-cli onboarding` command to display UX-rich welcome, Quickstart, and blueprint discovery hints. (# Spec/Implementation)
+### 5.1. Unified UX Enhancements (Spinner, ANSI/Emoji Boxes)
+- [x] Implement and verify enhanced ANSI/emoji operation boxes for search and analysis operations across all blueprints. (Marked as done, verify consistency)
+- [x] Implement spinner messages for Codey, Geese, Jeeves, RueCode, Zeus, WhingeSurf. (Marked as done, verify consistency)
+- [x] Codey CLI: Approval mode and github agent tests pass. (Marked as done, verify)
+- [x] Codey CLI: Unified, visually rich ANSI/emoji box output. (Marked as done, verify)
+- [x] Codey CLI: Progressive, live-updating search/analysis UX. (Marked as done, verify)
+- [x] `output_utils`: `ansi_box` prints spinner state correctly. (Marked as done, verify)
+- [ ] Extend unified output/UX to other blueprints (e.g., `django_chat`, `mcp_demo`, etc.) and ensure all use `ansi_box`/`print_operation_box`.
+- [ ] Refactor spinner/operation progress so that live line/progress updates are available in real (non-test) mode.
+- [ ] Add more result types, summaries, and param details to operation boxes.
+- [ ] Add tests for output formatting and UX regressions.
+- [ ] Implement command stdout rendering (styling, truncation).
+- [ ] Refactor Codey CLI wrapper to use Rich Console for styled I/O.
 
-## Testing & Verification
-- [ ] Add integration tests under `tests/cli/` for hook chaining (`--pre`, `--listen`, `--post`), verifying correct order and outputs. (# Implementation)
-- [ ] Add system/integration tests that exercise Rich-styled CLI (ANSI vs no-ANSI modes) using `pytest capfd` to capture styled output. (# Implementation)
-- [ ] Add unit tests for `BlueprintFunctionTool` and `blueprint_tool()` in `tests/unit/test_blueprint_tools.py`. (# Implementation)
-- [ ] Add tests for slash-command REPL parsing in `tests/cli/test_slash_commands.py`. (# Implementation)
-- [ ] Add tests for publishing workflows (TestPyPI / PyPI) via dry-run flags. (# Spec)
-- [x] Fix `TypeError: Can't instantiate abstract class BlueprintUXImproved/BlueprintUX` in various blueprint tests by ensuring concrete `run` methods or correct inheritance. (Ongoing - many fixed, others identified)
+### 5.2. Slash Commands & Hooks
+- [ ] Document `--pre`, `--listen`, and `--post` flags comprehensively.
+- [ ] Document slash-command REPL behavior.
+- [ ] Extend interactive shell to support slash commands from config.
+- [ ] Add support for per-hook message overrides (`--pre-msg`, etc.).
+- [ ] Add integration tests for hook chaining.
+- [ ] Add unit tests for `BlueprintFunctionTool` and `blueprint_tool()`.
+- [ ] Add tests for slash-command REPL parsing.
 
-## CLI & Onboarding S-Tier Polish (2025-04-20)
-- [ ] Refactor CLI help output for S-tier onboarding:
-    - Use color and emoji for visual clarity (if terminal supports)
-    - Add a prominent "Quickstart" section at the top
-    - List all commands with clear, one-line descriptions
-    - Add usage examples for every command
-    - Add a "What next?" section: how to see all blueprints, run advanced ones, and where to get help
-    - If the user runs `swarm-cli` with no arguments, show a beautiful welcome and the quickstart
-    - If they run `swarm-cli run` with no blueprint, suggest hello_world
-    - If they run `swarm-cli list`, show the demo blueprint and a tip to try it
-- [ ] Ensure all CLI commands are obvious, memorable, and functional
-- [ ] Add or stub `configure` and `info` commands if not present
- - [ ] Port legacy `config` subcommands (LLM and MCP server management) into the Typer-based `swarm-cli config` group
- - [ ] Add slash-command support in the interactive shell:
-   - Parse inputs starting with `/`, map to `slashCommands` in config
-   - Render `promptTemplate` (e.g., `"Compact: {{ history }}"`) and invoke blueprint via `blueprint_tool()`
-- [ ] README and CLI help should always match actual CLI usage
-- [ ] After first five minutes, user should be able to:
-    - Instantly understand what Open Swarm is and does
-    - See all available commands and what they do
-    - Run a demo blueprint without reading the docs
-    - Discover and try advanced features with confidence
-- [ ] Simulate and document the first five minutes as a new developer/user
-- [ ] Add onboarding messages and usage examples to CLI
-- [ ] Polish onboarding further based on real user feedback
+### 5.3. Session Management
+- [ ] Implement `swarm-cli session list` and `swarm-cli session show` to inspect past chat sessions from `~/.cache/swarm/sessions`.
 
-## Open Swarm UX Unification Progress (2025-04-20)
+### 5.4. Chatbot-Army Backlog Items (from original TODO)
+- [x] Session Audit Trail (`--audit`). (Marked as done, verify)
+- [x] Desktop Notifications. (Marked as done, verify)
+- [x] Granular Approval Hooks. (Marked as done, verify)
+- [ ] Write-Sandbox Enforcement.
+- [ ] git-diff Summariser tool.
+- [ ] Project Doc Loader for `--full-context`.
+- [ ] Autogen PyInstaller Spec Files script.
+- [ ] Flaky-Test Detector CI job.
+- [ ] MCP Mock Server fixture.
+- [ ] Multimodal Input Preview (`--image`).
+- [ ] Streaming Token Output mode.
+- [ ] WhingeSurf Async Subprocess UX (ensure LLM can yield control while process runs, add demo CLI).
 
-### Blueprints with Standardized Spinner/Progress and ANSI/Emoji Output
-- [x] DivineCode
-- [x] FamilyTies
-- [x] Suggestion
-- [x] Jeeves
-- [x] Codey
-- [x] MissionImprobable
-- [x] EchoCraft
-- [x] Geese
-- [x] Omniplex (UX via `BlueprintBase`, specific UX improvements can be added)
-- [x] WhingeSurf (UX via `BlueprintUXImproved`)
-- [x] WhiskeyTangoFoxtrot (UX via `BlueprintUXImproved`)
+### 5.5. Per-Blueprint QA & Packaging (from original TODO)
+- [ ] For **each** blueprint:
+    - [ ] Review docstring & README.
+    - [ ] Document required env vars.
+    - [ ] Run/update tests (aim for >=80% coverage).
+    - [ ] Verify `swarm-cli launch <compiled_name> --instruction "ping"` works.
+    - [ ] Confirm standalone run (direct execution of compiled binary) matches `swarm-cli launch`.
+    - [ ] (Optional) Add GitHub Action job for standalone binary smoke-test.
 
-
-### Blueprints Skipped or Deferred (Minimal/Stub, No Output Logic)
-- [ ] Gaggle (stub)
-
-### Remaining Blueprints To Review
-- [ ] django_chat
-- [ ] mcp_demo
-- [ ] monkai_magic
-- [ ] nebula_shellz
-- [ ] poets
-- [ ] rue_code
-- [ ] unapologetic_poets
-
-> All major agent blueprints now use unified spinner/progress and result/error boxes for operation output. Continue reviewing and enhancing remaining blueprints as needed for full UX parity. *Note: Several blueprints still fail tests due to `BlueprintUX/BlueprintUXImproved` instantiation issues.*
-
-## Code Fixes
-- [x] Add XDG path (`~/.config/swarm/swarm_config.json`) as the first search location in config discovery. (Already implemented)
-- [ ] Revise and update `blueprints/README.md` to reflect current blueprints, configuration, UX expectations, and modular/provider-agnostic patterns. Ensure it is discoverable and referenced from the main README.
-- [x] Implement async CLI input handler for all blueprints: allow user to continue typing while previous response streams. If Enter is pressed once, warn: "Press Enter again to interrupt and send a new message." If Enter is pressed twice, interrupt the current operation and submit the new prompt. (Framework-wide, inspired by whinge_surf request) [Implemented: see async_input.py, Codey, Poets]
-- [ ] [NEW] Add blueprint metadata linting as a required pre-commit hook for all contributors (run `swarm-cli blueprint lint` before merge).
-- [ ] [NEW] Enhance blueprint metadata loader to fallback to class docstring for description (implemented, document in README and TODO).
-- [ ] [NEW] Remove legacy metadata.json files from blueprints (now redundant).
-- [ ] [NEW] Add script to auto-generate a blueprint metadata table for the README from class metadata.
-- [ ] [NEW] Expose blueprint metadata via a REST API endpoint for web UI/discovery.
-- [ ] [NEW] Implement interactive CLI onboarding (`swarm-cli onboarding`) for blueprint discovery and quickstart.
-- [ ] [NEW] Review codebase for stubs, TODOs, and placeholders; add actionable, specific items to this list for each.
-- [x] Introduce `src/swarm/llm/` and `src/swarm/services/` modules.
-
----
-
-## 🛠️ Chatbot‑Army Backlog (Next 2 Weeks)
-
-> These items are phrased so an autonomous blueprint/agent can pick them up, create a branch, and open a PR. Every task **must ship with tests** and be guarded behind a feature‑flag that defaults to `false` (unless marked *docs only*).
-
-### 1 — Observable UX & Telemetry
-
-- [x] **Session Audit Trail** – Persist a timeline (`.jsonl`) of every agent action, tool call, completion, and error. Add CLI flag `--audit` to enable. Unit test: file created; entries appended in order. (2025-04-20)
-- [x] **Desktop Notifications** – Implement a notifier backend that uses `notify-send` (Linux) or `osascript` (macOS). Trigger on >30 s operations and failures. (2025-04-20)
-
-### 2 — Safety & Approval Modes
-
-- [x] **Granular Approval Hooks** – Allow per‑tool approval policies via blueprint config (`approval_policy: {tool.fs.write: "ask", tool.shell.exec: "deny"}`). (2025-04-20)
-- [ ] **Write‑Sandbox Enforcement** – Abort with clear error if an agent writes outside the configured writable root. Integration test attempts `../../etc/passwd`.
-
-### 3 — Automatic Context Injection
-
-- [ ] **git‑diff Summariser** – Toolbox util that summarises current diff (vs `origin/main`) in ≤50 words and injects into system prompt. Expose via MCP server.
-- [ ] **Project Doc Loader** – When `--full-context` is set and `README.md` >500 lines, chunk first 1 000 tokens into the prompt.
-
-### 4 — Documentation & Developer DX
-
-- [ ] **Revamp `docs/QUICKSTART.md`** (*docs only*) – Separate sections for CLI, API, extending blueprints; provide verified copy‑paste commands.
-- [ ] **Autogen Spec Files** – Script (`tools/generate_specs.py`) that emits deterministic PyInstaller spec files for every blueprint directory.
-
-### 5 — Reliability & Test Coverage
-
-- [ ] **Flaky‑Test Detector** – Nightly CI job that runs the suite 10× and flags tests that fail ≥2 times.
-- [ ] **MCP Mock Server** – Reusable fixture that imitates success/failure paths for FS and shell MCP calls; replace ad‑hoc mocks.
-
-### 6 — Stretch Goals (Optional, Reward ++💰)
-
-- [ ] **Multimodal Input Preview** – Pass `--image` attachments to models that support `image/*`.
-- [ ] **Streaming Token Output** – Optional raw token stream mode; flush tokens to stdout as they arrive.
-
-### 7 — WhingeSurf Async Subprocess UX
-
-- [x] **WhingeSurf Async Subprocess UX:** (Partially addressed by service integration)
-    - [x] Implement subprocesses that can run in the background (async). (via JobService)
-    - [ ] Blueprint yields control back to LLM while process runs. (Needs further agent logic)
-    - [x] Provide a function for LLM to query/check progress, exit status, and output of running subprocesses. (via JobService methods)
-    - [x] Show spinner messages: 'Generating.', 'Generating..', 'Generating...', 'Running...', and update to 'Taking longer than expected' if needed. (via WhingeSpinner)
-    - [x] Rich ANSI/emoji boxes for progress and result reporting. (via display_operation_box)
-    - [ ] Add demo/test CLI command for users to try this feature.
-
----
-
-Let’s build 🚀
-
-### 1 — Observable UX & Telemetry
-
-- [x] **Session Audit Trail** – Persist a timeline (`.jsonl`) of every agent action, tool call, completion, and error. Add CLI flag `--audit` to enable. Unit test: file created; entries appended in order. (2025-04-20)
-- [x] **Desktop Notifications** – Implement a notifier backend that uses `notify-send` (Linux) or `osascript` (macOS). Trigger on >30 s operations and failures. (2025-04-20)
-
-### 2 — Safety & Approval Modes
-
-- [x] **Granular Approval Hooks** – Allow per‑tool approval policies via blueprint config (`approval_policy: {tool.fs.write: "ask", tool.shell.exec: "deny"}`). (2025-04-20)
-- [ ] **Write‑Sandbox Enforcement** – Abort with clear error if an agent writes outside the configured writable root. Integration test attempts `../../etc/passwd`.
-
-### 3 — Automatic Context Injection
-
-- [ ] **git‑diff Summariser** – Toolbox util that summarises current diff (vs `origin/main`) in ≤50 words and injects into system prompt. Expose via MCP server.
-- [ ] **Project Doc Loader** – When `--full-context` is set and `README.md` >500 lines, chunk first 1 000 tokens into the prompt.
-
-### 4 — Documentation & Developer DX
-
-- [ ] **Revamp `docs/QUICKSTART.md`** (*docs only*) – Separate sections for CLI, API, extending blueprints; provide verified copy‑paste commands.
-- [ ] **Autogen Spec Files** – Script (`tools/generate_specs.py`) that emits deterministic PyInstaller spec files for every blueprint directory.
-
-### 5 — Reliability & Test Coverage
-
-- [ ] **Flaky‑Test Detector** – Nightly CI job that runs the suite 10× and flags tests that fail ≥2 times.
-- [ ] **MCP Mock Server** – Reusable fixture that imitates success/failure paths for FS and shell MCP calls; replace ad‑hoc mocks.
-
-### 6 — Stretch Goals (Optional, Reward ++💰)
-
-- [ ] **Multimodal Input Preview** – Pass `--image` attachments to models that support `image/*`.
-- [ ] **Streaming Token Output** – Optional raw token stream mode; flush tokens to stdout as they arrive.
-
-### 7 — WhingeSurf Async Subprocess UX
-
-- [x] **WhingeSurf Async Subprocess UX:** (Partially addressed by service integration)
-    - [x] Implement subprocesses that can run in the background (async). (via JobService)
-    - [ ] Blueprint yields control back to LLM while process runs. (Needs further agent logic)
-    - [x] Provide a function for LLM to query/check progress, exit status, and output of running subprocesses. (via JobService methods)
-    - [x] Show spinner messages: 'Generating.', 'Generating..', 'Generating...', 'Running...', and update to 'Taking longer than expected' if needed. (via WhingeSpinner)
-    - [x] Rich ANSI/emoji boxes for progress and result reporting. (via display_operation_box)
-    - [ ] Add demo/test CLI command for users to try this feature.
-
----
-
-Let’s build 🚀
-
-## 📑 Per‑Blueprint QA & Packaging
-
-For **each** blueprint listed under `src/swarm/blueprints/*/` (excluding `common/`):
-
-```text
-- [ ] <blueprint‑name>/
-    - [ ] Read docstring & README – update if stale (docs only).
-    - [ ] Ensure all required env vars are documented in `README.md`.
-    - [ ] Run existing tests; note current coverage.
-    - [ ] Add or update tests to reach ≥80 % coverage.
-    - [ ] Verify blueprint works via `swarm-cli run <name> --instruction "ping"`.
-    - [ ] Build standalone binary with `swarm-cli install` (PyInstaller) and run `--help`.
-    - [ ] Confirm standalone run creates identical output to CLI run.
-    - [ ] Add GitHub Action job `<name>-standalone-test` that builds + smoke‑tests binary.
+This revised TODO list prioritizes getting the new blueprint management lifecycle functional and documented.
