@@ -1,28 +1,39 @@
 import pytest
-from swarm.core.output_utils import print_operation_box as display_operation_box
+from swarm.core.output_utils import print_operation_box as display_operation_box_core
+from rich.panel import Panel 
+import io # <--- ADDED IMPORT IO
 
-# Use a local spinner states definition matching the new JeevesSpinner standard
-JEEVES_SPINNER_STATES = [
-    "Generating.",
-    "Generating..",
-    "Generating...",
-    "Running..."
-]
+# Define JEEVES_SPINNER_STATES if not easily importable or use a generic list
+JEEVES_SPINNER_STATES = ["Polishing the silver", "Generating.", "Generating..", "Generating...", "Running..."]
 
 def fake_progressive_tool():
-    # Simulate a progressive tool yielding 3 updates and a final done
-    yield {"matches": ["foo"], "progress": 1, "total": 3, "truncated": False, "done": False}
-    yield {"matches": ["foo", "bar"], "progress": 2, "total": 3, "truncated": False, "done": False}
-    yield {"matches": ["foo", "bar", "baz"], "progress": 3, "total": 3, "truncated": False, "done": True}
+    matches = []
+    total = 3
+    for i in range(1, total + 1):
+        matches.append(f"match{i}")
+        yield {
+            "matches": list(matches),
+            "progress": i,
+            "total": total,
+            "status": "running" if i < total else "complete"
+        }
 
-@pytest.mark.timeout(2)
+@pytest.mark.timeout(2) 
 def test_display_operation_box_progress(monkeypatch):
     calls = []
-    def fake_print(self, panel, *args, **kwargs):
-        calls.append(panel)
-    monkeypatch.setattr("rich.console.Console.print", fake_print)
+    def fake_console_print(panel_obj): 
+        calls.append(panel_obj)
+
+    from rich.console import Console
+    mock_console_instance = Console(file=io.StringIO(), width=120, color_system=None, legacy_windows=True) 
+    mock_console_instance.print = fake_console_print 
+    
+    # This monkeypatch ensures that if print_operation_box_core creates its own Console,
+    # it gets our mocked one.
+    monkeypatch.setattr("swarm.core.output_utils.Console", lambda: mock_console_instance)
+
     for idx, update in enumerate(fake_progressive_tool()):
-        display_operation_box(
+        display_operation_box_core( 
             title="Progressive Test",
             content=f"Matches so far: {len(update['matches'])}",
             result_count=len(update['matches']),
@@ -30,12 +41,26 @@ def test_display_operation_box_progress(monkeypatch):
             progress_line=update["progress"],
             total_lines=update["total"],
             spinner_state=JEEVES_SPINNER_STATES[idx % len(JEEVES_SPINNER_STATES)],
-            emoji="🤖"
+            emoji="🤖",
+            style="info", 
+            console=mock_console_instance 
         )
-    assert len(calls) == 3
-    for i, panel in enumerate(calls):
-        # Panel.renderable is the box content
-        content = str(panel.renderable)
-        assert f"Results: {i+1}" in content
-        assert f"Progress: {i+1}/3" in content
-        assert "🤖" in content
+    
+    assert len(calls) == 3, f"Expected 3 calls to console.print, got {len(calls)}"
+    for i, panel_obj in enumerate(calls):
+        assert isinstance(panel_obj, Panel), "Object printed should be a Rich Panel"
+        
+        panel_content_str = ""
+        if hasattr(panel_obj, 'renderable') and panel_obj.renderable:
+            if hasattr(panel_obj.renderable, 'plain'):
+                panel_content_str = panel_obj.renderable.plain
+            else: 
+                panel_content_str = str(panel_obj.renderable)
+
+        panel_title_str = str(panel_obj.title) if hasattr(panel_obj, 'title') else ""
+
+        assert f"Results: {i+1}" in panel_content_str
+        assert f"Progress: {i+1}/3" in panel_content_str
+        assert "🤖" in panel_title_str, f"Emoji not found in title. Title: '{panel_title_str}', Content: '{panel_content_str}'"
+        expected_spinner = JEEVES_SPINNER_STATES[i % len(JEEVES_SPINNER_STATES)]
+        assert f"[{expected_spinner}]" in panel_content_str
