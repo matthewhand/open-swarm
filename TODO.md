@@ -30,18 +30,18 @@
 - [ ] Add unit and integration tests for various installation sources and scenarios.
 
 ### 1.4. `swarm-cli list` Command (Installed & Available)
-- [ ] Modify `src/swarm/extensions/cli/commands/list_blueprints.py`.
-- [ ] **Default `list` (Installed Blueprints):**
-    - Scan subdirectories in `get_user_blueprints_dir()`.
-    - For each, dynamically load its main Python file to extract metadata (name, version, description, abbreviation).
-        - Use `importlib.util.spec_from_file_location` and `importlib.util.module_from_spec`.
-    - Check if `get_user_bin_dir() / <abbreviation_or_name>` exists to indicate "compiled status."
-    - Display information clearly.
-- [ ] **`list --available` (or `search`) (Prebuilt/Bundled Blueprints):**
-    - Use existing `discover_blueprints()` from `swarm.core.blueprint_discovery` (which scans `src/swarm/blueprints/` in the project).
-    - Ensure this discovery picks up the new `abbreviation` metadata.
-- [ ] Update command registration in `main.py`.
-- [ ] Add tests for listing installed and available blueprints.
+- [x] Modify `src/swarm/extensions/cli/commands/list_blueprints.py`.
+- [x] **Default `list` (Installed Blueprints):**
+    - [x] Scan subdirectories in `get_user_blueprints_dir()`.
+    - [x] For each, dynamically load its main Python file to extract metadata (name, version, description, abbreviation).
+        - [x] Use `importlib.util.spec_from_file_location` and `importlib.util.module_from_spec`.
+    - [x] Check if `get_user_bin_dir() / <abbreviation_or_name>` exists to indicate "compiled status."
+    - [x] Display information clearly.
+- [x] **`list --available` (or `search`) (Prebuilt/Bundled Blueprints):**
+    - [x] Use existing `discover_blueprints()` from `swarm.core.blueprint_discovery` (which scans `src/swarm/blueprints/` in the project).
+    - [x] Ensure this discovery picks up the new `abbreviation` metadata.
+- [x] Update command registration in `main.py`.
+- [x] Add tests for listing installed and available blueprints.
 
 ### 1.5. `swarm-cli compile <blueprint_name>` Command
 - [ ] Create `src/swarm/extensions/cli/commands/compile_blueprint.py`.
@@ -73,6 +73,11 @@
     - Removing blueprint source from `get_user_blueprints_dir()`.
     - Removing compiled binaries from `get_user_bin_dir()`.
     - Options to remove only source, only binary, or both.
+
+### 1.8. CLI Command Test Coverage
+- [ ] Ensure core CLI commands (`list`, `install`, `compile`, `launch`, `delete`) achieve at least 80% test coverage.
+    - [ ] Identify gaps using `coverage report`.
+    - [ ] Add missing unit and integration tests, particularly for edge cases and error handling.
 
 ## Phase 2: Documentation & Onboarding
 
@@ -148,7 +153,7 @@
 ### 4.2. New Tests for Blueprint Management
 - [ ] Comprehensive tests for `swarm-cli install` with different source types.
 - [ ] Tests for `swarm-cli compile`, checking for executable creation and basic functionality.
-- [ ] Tests for `swarm-cli list` (default and `--available`).
+- [x] Tests for `swarm-cli list` (default and `--available`).
 - [ ] Tests for `swarm-cli launch` with compiled blueprints.
 - [ ] Tests for `swarm-cli delete/uninstall` ensuring correct removal of source/binaries.
 
