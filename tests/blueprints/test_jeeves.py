@@ -45,20 +45,20 @@ def strip_ansi(text):
     return ansi_escape.sub('', text)
 
 @pytest.mark.integration
-@pytest.mark.asyncio 
+# Removed @pytest.mark.asyncio as the test function is synchronous
 def test_jeeves_cli_execution():
     """Test running the Jeeves blueprint via CLI and check for spinner/box output."""
     env = os.environ.copy()
-    env['DEFAULT_LLM'] = 'test' 
-    env['SWARM_TEST_MODE'] = '1' 
-    
+    env['DEFAULT_LLM'] = 'test'
+    env['SWARM_TEST_MODE'] = '1'
+
     cli_path = os.path.join(os.path.dirname(__file__), '../../src/swarm/blueprints/jeeves/jeeves_cli.py')
     cmd = [sys.executable, cli_path, '--instruction', 'Turn on the lights']
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=15)
     output = strip_ansi(result.stdout + result.stderr)
-    
-    print(f"CLI Output for Jeeves test:\n{output}") 
+
+    print(f"CLI Output for Jeeves test:\n{output}")
 
     # In SWARM_TEST_MODE=1, JeevesSpinner.start() prints the first state.
     # The JeevesBlueprint.run() in test mode then prints its own box outputs.

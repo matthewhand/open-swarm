@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 # We need MCPServerConfig
 from swarm.core.mcp_server_config import MCPServerConfig
@@ -13,7 +13,5 @@ class AgentConfig(BaseModel):
     tools: List[Dict[str, Any]] = Field(default_factory=list, description="List of tool schemas available to the agent.")
     model_profile: str = Field("default", description="LLM profile to use for this agent.")
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list, description="List of MCP server configurations relevant to this agent.")
-    
-    class Config:
-        extra = 'allow'
 
+    model_config = ConfigDict(extra='allow')
