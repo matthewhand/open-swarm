@@ -3,13 +3,14 @@
 ## Phase 1: Core CLI & Blueprint Lifecycle Implementation
 
 ### 1.1. XDG Path Management & Utilities
-- [ ] Implement robust XDG path helper functions using `platformdirs`:
-    - `get_user_data_dir_for_swarm()` -> `~/.local/share/swarm/`
-    - `get_user_blueprints_dir()` -> `~/.local/share/swarm/blueprints/`
-    - `get_user_bin_dir()` -> `~/.local/bin/` (or platform equivalent, ensure it's a common PATH location)
-    - `get_user_cache_dir_for_swarm()` -> `~/.cache/swarm/`
-    - `get_user_config_dir_for_swarm()` -> `~/.config/swarm/`
-- [ ] Ensure all file operations (config, blueprint source, compiled binaries, cache) use these XDG paths.
+- [x] Implement robust XDG path helper functions using `platformdirs`:
+    - `get_user_data_dir_for_swarm()` -> `~/.local/share/OpenSwarm/swarm/`
+    - `get_user_blueprints_dir()` -> `~/.local/share/OpenSwarm/swarm/blueprints/`
+    - `get_user_bin_dir()` -> `~/.local/share/OpenSwarm/swarm/bin/`
+    - `get_user_cache_dir_for_swarm()` -> `~/.cache/OpenSwarm/swarm/`
+    - `get_user_config_dir_for_swarm()` -> `~/.config/OpenSwarm/swarm/`
+- [x] Ensure all file operations (config, blueprint source, compiled binaries, cache) use these XDG paths.
+- [x] Updated `core.config_loader` to use new path functions.
 
 ### 1.2. Blueprint Metadata Enhancements
 - [ ] Add `abbreviation: Optional[str]` to `BlueprintBase` metadata.
@@ -135,20 +136,20 @@
 ## Phase 4: Testing & CI
 
 ### 4.1. Critical Missing Tests (from original TODO)
-- [x] Test XDG config discovery and fallback order. (Marked as done, verify)
-- [x] Test default config auto-generation when no config is found. (Marked as done, verify)
+- [x] Test XDG config discovery and fallback order.
+- [x] Test default config auto-generation when no config is found.
 - [x] Test envvar/placeholder substitution in config loader.
 - [ ] Test per-blueprint and per-agent model override logic.
 - [ ] Test fallback to default model/profile with warning if requested is missing.
 - [ ] Test MCP server config add/remove/parse.
 - [ ] Test redaction of secrets in logs and config dumps.
-- [x] Test Geese/Omniplex async generator mocking and execution flow. (Marked as done, verify)
-- [x] Test Geese splash screen and operation box display. (Marked as done, verify)
-- [x] Test WhingeSurf subprocess management and service integration. (Marked as done, verify)
-- [x] Test WTF blueprint config loading and agent hierarchy. (Marked as done, verify)
-- [x] Test Geese MCP assignment logic. (Marked as done, verify)
-- [x] Test Jeeves progressive tool and spinner/box UX. (Marked as done, verify)
-- [x] Fix `TypeError: Can't instantiate abstract class BlueprintUXImproved/BlueprintUX` in various blueprint tests. (Marked as ongoing, verify status)
+- [x] Test Geese/Omniplex async generator mocking and execution flow.
+- [x] Test Geese splash screen and operation box display.
+- [x] Test WhingeSurf subprocess management and service integration.
+- [x] Test WTF blueprint config loading and agent hierarchy.
+- [x] Test Geese MCP assignment logic.
+- [x] Test Jeeves progressive tool and spinner/box UX.
+- [x] Fix `TypeError: Can't instantiate abstract class BlueprintUXImproved/BlueprintUX` in various blueprint tests.
 
 ### 4.2. New Tests for Blueprint Management
 - [ ] Comprehensive tests for `swarm-cli install` with different source types.
@@ -160,12 +161,12 @@
 ## Phase 5: Existing UX & Feature Polish (from original TODO)
 
 ### 5.1. Unified UX Enhancements (Spinner, ANSI/Emoji Boxes)
-- [x] Implement and verify enhanced ANSI/emoji operation boxes for search and analysis operations across all blueprints. (Marked as done, verify consistency)
-- [x] Implement spinner messages for Codey, Geese, Jeeves, RueCode, Zeus, WhingeSurf. (Marked as done, verify consistency)
-- [x] Codey CLI: Approval mode and github agent tests pass. (Marked as done, verify)
-- [x] Codey CLI: Unified, visually rich ANSI/emoji box output. (Marked as done, verify)
-- [x] Codey CLI: Progressive, live-updating search/analysis UX. (Marked as done, verify)
-- [x] `output_utils`: `ansi_box` prints spinner state correctly. (Marked as done, verify)
+- [x] Implement and verify enhanced ANSI/emoji operation boxes for search and analysis operations across all blueprints.
+- [x] Implement spinner messages for Codey, Geese, Jeeves, RueCode, Zeus, WhingeSurf.
+- [x] Codey CLI: Approval mode and github agent tests pass.
+- [x] Codey CLI: Unified, visually rich ANSI/emoji box output.
+- [x] Codey CLI: Progressive, live-updating search/analysis UX.
+- [x] `output_utils`: `ansi_box` prints spinner state correctly.
 - [ ] Extend unified output/UX to other blueprints (e.g., `django_chat`, `mcp_demo`, etc.) and ensure all use `ansi_box`/`print_operation_box`.
 - [ ] Refactor spinner/operation progress so that live line/progress updates are available in real (non-test) mode.
 - [ ] Add more result types, summaries, and param details to operation boxes.
@@ -186,9 +187,9 @@
 - [ ] Implement `swarm-cli session list` and `swarm-cli session show` to inspect past chat sessions from `~/.cache/swarm/sessions`.
 
 ### 5.4. Chatbot-Army Backlog Items (from original TODO)
-- [x] Session Audit Trail (`--audit`). (Marked as done, verify)
-- [x] Desktop Notifications. (Marked as done, verify)
-- [x] Granular Approval Hooks. (Marked as done, verify)
+- [x] Session Audit Trail (`--audit`).
+- [x] Desktop Notifications.
+- [x] Granular Approval Hooks.
 - [ ] Write-Sandbox Enforcement.
 - [ ] git-diff Summariser tool.
 - [ ] Project Doc Loader for `--full-context`.
@@ -207,5 +208,32 @@
     - [ ] Verify `swarm-cli launch <compiled_name> --instruction "ping"` works.
     - [ ] Confirm standalone run (direct execution of compiled binary) matches `swarm-cli launch`.
     - [ ] (Optional) Add GitHub Action job for standalone binary smoke-test.
+
+## Phase 6: Advanced Agent Capabilities & Refinements
+
+### 6.1. Agent Configuration Review
+- [ ] **Investigate `AgentConfig` Redundancy:**
+    - Review the usage of `src/swarm/core/agent_config.py`.
+    - Evaluate if agent configuration within `open-swarm` can be simplified by aligning more closely with the `openai-agents` SDK's direct `Agent` class instantiation parameters (e.g., `instructions`, `model`, `model_settings`, `tools`) and its `context` mechanism.
+    - Goal: Reduce potential redundancy and simplify agent configuration if feasible, potentially removing `AgentConfig` if SDK patterns are sufficient.
+
+### 6.2. Implement Agent Feedback Loop via Hooks
+- [ ] **Develop Agent Feedback Mechanism using Hooks:**
+    - **Target Blueprint:** Start with `JeevesBlueprint`.
+    - **Scenario:** Intercept the output of the `Mycroft` agent (web search tool) using an agent hook on `Jeeves`.
+    - **Feedback Agent:**
+        - Create a new, simple "CritiqueAgent" or "FeedbackAgent".
+        - Its `instructions` will be to review provided input (original query + Mycroft's search results) and offer critical feedback (e.g., relevance, completeness, conciseness).
+    - **Hook Implementation:**
+        - The hook (e.g., `on_tool_result` for Mycroft, or `after_llm_call` if Jeeves processes Mycroft's raw output first) will:
+            - Receive Mycroft's output.
+            - Instantiate and run the `FeedbackAgent` with the original user query and Mycroft's results.
+            - Capture the critique from the `FeedbackAgent`.
+    - **Integration:**
+        - Decide how Jeeves will use the critique:
+            - Option A: Append the critique to Mycroft's results before Jeeves formulates its final response.
+            - Option B: Allow Jeeves to use the critique to potentially re-query Mycroft or adjust its final synthesis.
+    - **Goal:** Demonstrate how hooks can be used to introduce a review/feedback layer into an agent's workflow, potentially replacing or augmenting an "agent-as-tool" pattern with a more dynamic interaction.
+    - Add tests for the hook and feedback agent interaction.
 
 This revised TODO list prioritizes getting the new blueprint management lifecycle functional and documented.
