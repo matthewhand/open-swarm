@@ -1,7 +1,7 @@
 import asyncio
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, AsyncGenerator # Added AsyncGenerator
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.blueprint_ux import BlueprintUXImproved
 from swarm.core.interaction_types import AgentInteraction, StoryOutput
@@ -46,15 +46,14 @@ class GeeseBlueprint(BlueprintBase):
             style=_style, emoji="🦢"
         )
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[AgentInteraction, None]:
+    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[AgentInteraction, None]: # Type hint uses AsyncGenerator
         user_prompt = messages[-1]["content"] if messages and messages[-1]["role"] == "user" else "a generic story"
         logger.info(f"GeeseBlueprint run called with prompt: {user_prompt}")
 
         if os.environ.get("SWARM_TEST_MODE") == "1":
             test_spinner_messages = ["Generating.", "Generating..", "Generating...", "Running..."]
-            for msg_text in test_spinner_messages: # Renamed msg to msg_text
-                # Yielding dicts for spinner updates, not AgentInteraction
-                yield {"type": "spinner_update", "spinner_state": f"[SPINNER] {msg_text}"}
+            for msg_text in test_spinner_messages: 
+                yield {"type": "spinner_update", "spinner_state": f"[SPINNER] {msg_text}"} # type: ignore
                 await asyncio.sleep(0.01) 
             
             final_story_output = StoryOutput(
@@ -86,7 +85,6 @@ class GeeseBlueprint(BlueprintBase):
             yield AgentInteraction(type="error", error_message="Failed to create Coordinator agent.", final=True)
             return
             
-        # Corrected AgentInteraction yields for progress
         yield AgentInteraction(type="progress", progress_message=f"🦢 Orchestrating the flock... {self.spinner.next_state()}")
 
         try:
@@ -136,8 +134,8 @@ class GeeseBlueprint(BlueprintBase):
     def _get_agent_config(self, agent_name: str) -> Optional[AgentConfig]:
         if not hasattr(self, 'config') or not isinstance(self.config, dict):
             logger.error(f"GeeseBlueprint.config not loaded or not a dict. Type: {type(getattr(self, 'config', None))}")
-            if not hasattr(self, '_config_loaded_once_flag'): # Attempt to load only once if really needed
-                super()._load_configuration() # Call base loader
+            if not hasattr(self, '_config_loaded_once_flag'): 
+                super()._load_configuration() 
                 setattr(self, '_config_loaded_once_flag', True)
             if not hasattr(self, 'config') or not isinstance(self.config, dict):
                  logger.error("Failed to ensure config is loaded for _get_agent_config.")
@@ -174,7 +172,7 @@ class GeeseBlueprint(BlueprintBase):
                 logger.error(f"Failed to get model instance for agent {agent_config.name} using profile {agent_config.model_profile}")
                 return None
             
-            sdk_mcp_servers = [] # Placeholder for actual MCPServer SDK instances
+            sdk_mcp_servers = [] 
 
             return Agent(
                 name=agent_config.name,
@@ -191,7 +189,6 @@ class GeeseBlueprint(BlueprintBase):
             async def mock_run(*args, **kwargs): 
                 yield AgentInteraction(type="message", role="assistant", content=f"Mock response from {agent_config.name}", final=True)
             mock_agent.run = mock_run
-            # Add a mock model attribute for the metadata check in GeeseBlueprint.run
             mock_model_attr = MagicMock()
             mock_model_attr.model = "mock_sdk_model"
             mock_agent.model = mock_model_attr
@@ -224,8 +221,8 @@ if __name__ == "__main__":
                         print(f"(Title: {item.data.get('title')}, Word Count: {item.data.get('word_count')})")
                 elif item.type == "progress":
                     elapsed = time.time() - start_time
-                    spinner_char = item.progress_message # Progress message now contains spinner state
-                    sys.stdout.write(f"\r{spinner_char}   ") # Extra spaces to clear previous
+                    spinner_char = item.progress_message 
+                    sys.stdout.write(f"\r{spinner_char}   ") 
                     sys.stdout.flush()
                 elif item.type == "error":
                     print(f"\nError: {item.error_message}")
