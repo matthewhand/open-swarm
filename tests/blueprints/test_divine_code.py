@@ -4,29 +4,32 @@ import importlib
 import os
 import sys
 import types
+import inspect # For isasyncgenfunction
 
 # Patch import to point to zeus
 sys.modules['swarm.blueprints.divine_code'] = importlib.import_module('swarm.blueprints.zeus')
 sys.modules['swarm.blueprints.divine_code.blueprint_divine_code'] = importlib.import_module('swarm.blueprints.zeus.blueprint_zeus')
 
-from swarm.blueprints.zeus.blueprint_zeus import ZeusBlueprint
+from swarm.blueprints.zeus.blueprint_zeus import ZeusBlueprint, ZeusSpinner # Import ZeusSpinner for its FRAMES
 
 @pytest.fixture
 def zeus_blueprint_instance():
-    """Fixture to create a mocked instance of ZeusBlueprint."""
-    with patch('swarm.core.blueprint_base.BlueprintBase._load_and_process_config', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}):
+    mock_config = {
+        'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}},
+        'mcpServers': {},
+        'settings': {'default_llm_profile': 'default', 'default_markdown_output': False},
+        'blueprints': {'test_zeus': {'debug_mode': True}} 
+    }
+    with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=mock_config):
         with patch('swarm.core.blueprint_base.BlueprintBase._get_model_instance') as mock_get_model:
             mock_model_instance = MagicMock()
             mock_get_model.return_value = mock_model_instance
-            from swarm.blueprints.zeus.blueprint_zeus import ZeusBlueprint
-            instance = ZeusBlueprint(blueprint_id="test_zeus", debug=True)
-            instance._config = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}
-            instance.mcp_server_configs = {}
+            instance = ZeusBlueprint(blueprint_id="test_zeus", debug=True) 
+            instance._config = mock_config 
+            instance.mcp_server_configs = {} 
             return instance
 
-# --- Test Cases ---
 def test_zeus_agent_creation(zeus_blueprint_instance):
-    """Test if Zeus and the pantheon agents are created correctly."""
     blueprint = zeus_blueprint_instance
     m1 = MagicMock(); m1.name = "memory"
     m2 = MagicMock(); m2.name = "filesystem"
@@ -34,7 +37,6 @@ def test_zeus_agent_creation(zeus_blueprint_instance):
     agent = blueprint.create_starting_agent(mcp_servers=[m1, m2, m3])
     assert agent.name == "Zeus"
     assert hasattr(agent, "tools")
-    # Zeus agent's tools may be FunctionTool or dict, handle both
     tool_names = set()
     for t in agent.tools:
         if hasattr(t, "name"):
@@ -47,37 +49,43 @@ def test_zeus_agent_creation(zeus_blueprint_instance):
 @pytest.mark.asyncio
 async def test_zeus_run_method(zeus_blueprint_instance):
     messages = [{"role": "user", "content": "Hello Zeus!"}]
-    # Patch agent.run to yield a mock response
     with patch.object(zeus_blueprint_instance, "create_starting_agent") as mock_create:
         class DummyAgent:
             async def run(self, messages, **kwargs):
                 yield {"messages": [{"role": "assistant", "content": "Hi!"}]}
         mock_create.return_value = DummyAgent()
+        
         responses = []
         async for resp in zeus_blueprint_instance.run(messages):
             responses.append(resp)
-        assert responses
-        assert responses[0]["messages"][0]["content"] == "Hi!"
+        
+        assert len(responses) >= 2, f"Expected at least 2 responses (spinner + agent), got {len(responses)}. Responses: {responses}"
+        
+        initial_spinner_msg_content = responses[0]["messages"][0]["content"]
+        # BlueprintUXImproved.spinner(0) should return one of the initial spinner frames
+        # We can check against ZeusSpinner.FRAMES[0] or a more general check
+        assert initial_spinner_msg_content in ZeusSpinner.FRAMES or "Generating" in initial_spinner_msg_content, \
+               f"First response was not a recognized spinner message: '{initial_spinner_msg_content}'. Expected one of {ZeusSpinner.FRAMES} or containing 'Generating'."
+
+        # Second response should be the raw agent output because debug=True for the blueprint instance
+        agent_response_msg = responses[1]["messages"][0]["content"]
+        assert agent_response_msg == "Hi!", f"Agent response mismatch. Expected 'Hi!', got '{agent_response_msg}'"
 
 @pytest.mark.asyncio
 async def test_zeus_delegation_to_odin(zeus_blueprint_instance):
-    """Test if Zeus correctly delegates an architecture task to Odin."""
-    # Needs Runner mocking to trace agent calls and tool usage (Zeus -> Odin tool)
     assert True, "Patched: test now runs. Implement full test logic."
 
 def test_zeus_basic():
-    bp = ZeusBlueprint()
-    response = bp.assist("Hello")
-    assert "help" in response or "Hello" in response
+    bp = ZeusBlueprint(debug=False) 
+    with patch('swarm.blueprints.zeus.blueprint_zeus.display_operation_box') as mock_display_box:
+        response = bp.assist("Hello")
+        mock_display_box.assert_called_once()
+        assert "How can Zeus help you today? You said: Hello" in response
 
 @pytest.mark.asyncio
 async def test_zeus_full_flow_example(zeus_blueprint_instance):
-    """Test a hypothetical multi-step flow (e.g., Design -> Breakdown -> Implement)."""
-    # PATCH: Test stub now runs. Full logic needs implementation.
     assert True, "Patched: test now runs. Implement full test logic."
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_zeus_cli_execution():
-    """Test running the blueprint via CLI."""
-    # Needs subprocess testing or direct call to main with mocked Runner/Agents/MCPs.
     assert False

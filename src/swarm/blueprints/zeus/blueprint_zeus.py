@@ -6,6 +6,8 @@ A general-purpose coordinator agent using other gods as tools.
 from swarm.core.blueprint_base import BlueprintBase
 import os
 import time
+import sys 
+import inspect # For isasyncgenfunction and iscoroutinefunction
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_ux import BlueprintUXImproved
 
@@ -25,7 +27,7 @@ class ZeusSpinner:
         self._idx = 0
         self._last_frame = self.FRAMES[0]
 
-    def _spin(self):
+    def _spin(self): 
         self._idx = (self._idx + 1) % len(self.FRAMES)
         self._last_frame = self.FRAMES[self._idx]
 
@@ -42,8 +44,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
     CLI_NAME = "zeus"
     DESCRIPTION = "Zeus: The coordinator agent for Open Swarm, using all other gods as tools."
     VERSION = "1.0.0"
-    # Add more Zeus features here as needed
-
+    
     @classmethod
     def get_metadata(cls):
         return {
@@ -54,83 +55,70 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         }
 
     def __init__(self, blueprint_id: str = None, config_path=None, **kwargs):
-        # Allow blueprint_id to be optional for test compatibility
         if blueprint_id is None:
             blueprint_id = "zeus_test"
-
-        # Extract a `debug` flag (default False) from kwargs so that the test
-        # suite can request a simplified, decoration‑free output.
         self.debug = bool(kwargs.pop("debug", False))
-
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        # Initialize Zeus state/logic
-        self.spinner = ZeusSpinner()
+        self.cli_spinner = ZeusSpinner() 
 
     def assist(self, user_input, context=None):
-        """Handle general assistance requests."""
-        self.spinner.start()
+        self.cli_spinner.start() 
         display_operation_box(
             title="Zeus Assistance",
             content=f"How can Zeus help you today? You said: {user_input}",
-            spinner_state=self.spinner.current_spinner_state(),
+            spinner_state=self.cli_spinner.current_spinner_state(), 
             emoji="⚡"
         )
+        self.cli_spinner.stop()
         return f"How can Zeus help you today? You said: {user_input}"
 
     async def run(self, messages, **kwargs):
-        """Run inference using Zeus and the Pantheon team as tools."""
         logger = getattr(self, 'logger', None) or __import__('logging').getLogger(__name__)
         logger.info("ZeusCoordinatorBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
-        ux = BlueprintUXImproved(style="serious")
-        spinner_idx = 0
+        ux = BlueprintUXImproved(style="serious") 
+        
+        initial_spinner_content = ux.spinner(0, taking_long=False) 
+        yield {"messages": [{"role": "assistant", "content": initial_spinner_content}]}
+        
+        spinner_idx_loop = 0 
         start_time = time.time()
-        spinner_yield_interval = 1.0  # seconds
+        spinner_yield_interval = 1.0
         last_spinner_time = start_time
-        yielded_spinner = False
+        yielded_spinner_in_loop = False
         result_chunks = []
+        
         try:
             agent = self.create_starting_agent()
-
-            # If the underlying Agent instance doesn’t implement an async
-            # ``run`` method we try to fall back to the canonical Runner from
-            # the *agents* package.  This gives us real tool‑calling behaviour
-            # in environments where the SDK is available, while still
-            # avoiding crashes in lightweight CI runs.
-
-            if not hasattr(agent, "run") or not callable(getattr(agent, "run")):
-                try:
-                    from agents import Runner  # late import – optional dep
-
-                    runner_gen = Runner.run(agent, instruction=instruction)
-                    # Runner.run returns a sync generator – wrap into async
-                    async def _async_wrapper(gen):
-                        for item in gen:
-                            yield item
-                    runner_gen = _async_wrapper(runner_gen)
-                except Exception:
-                    # Final lightweight fallback – yield a canned test message
-                    yield {
-                        "messages": [{
-                            "role": "assistant",
-                            "content": "[TEST‑MODE] Zeus here – tooling layer is disabled but I'm alive ⚡"
-                        }]
-                    }
-                    return
-            else:
+            
+            # Check if agent.run is an async generator function or a coroutine function that returns an async generator
+            if inspect.isasyncgenfunction(getattr(agent, 'run', None)):
                 runner_gen = agent.run(messages, **kwargs)
+            elif inspect.iscoroutinefunction(getattr(agent, 'run', None)):
+                # If it's a coroutine function, it might return an async generator
+                # This path assumes it does, common for SDK Agent.run
+                # For DummyAgent in tests, its run is already an async gen function.
+                potential_gen = await agent.run(messages, **kwargs)
+                if inspect.isasyncgen(potential_gen):
+                    runner_gen = potential_gen
+                else: # Fallback if it's a coroutine that doesn't return a generator
+                    logger.warning("Agent's async run method did not return an async generator. Using fallback.")
+                    async def _single_item_gen(): yield potential_gen # Wrap single result
+                    runner_gen = _single_item_gen()
+            else: # Fallback for non-async or missing run
+                 logger.warning("Agent's run method is not an async generator or coroutine. Using test-mode fallback.")
+                 async def _dummy_agent_run_wrapper():
+                     yield {"messages": [{"role": "assistant", "content": "[TEST-MODE] Agent run method not suitable for async iteration."}]}
+                 runner_gen = _dummy_agent_run_wrapper()
+
             while True:
                 now = time.time()
                 try:
-                    chunk = await runner_gen.__anext__() if hasattr(runner_gen, '__anext__') else next(runner_gen)
+                    chunk = await runner_gen.__anext__()
                     result_chunks.append(chunk)
-                    # If chunk is a final result, wrap and yield
+                    
                     if chunk and isinstance(chunk, dict) and "messages" in chunk:
-                        # In debug / test mode we want the **raw** assistant content
-                        # without any ANSI boxes so that assertions such as
-                        # ``assert responses[0]["messages"][0]["content"] == "Hi!"``
-                        # hold true.
-                        if getattr(self, "debug", False) or os.environ.get("SWARM_TEST_MODE") == "1":
+                        if self.debug or os.environ.get("SWARM_TEST_MODE") == "1":
                             yield chunk
                         else:
                             content = chunk["messages"][0]["content"] if chunk["messages"] else ""
@@ -146,33 +134,57 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                             )
                             yield {"messages": [{"role": "assistant", "content": box}]}
                     else:
-                        yield chunk
-                    yielded_spinner = False
-                except (StopIteration, StopAsyncIteration):
+                        yield chunk 
+                    yielded_spinner_in_loop = False 
+                except StopAsyncIteration:
                     break
-                except Exception:
+                except Exception as e_inner_loop: 
+                    logger.error(f"Error from agent during run: {e_inner_loop}", exc_info=True)
                     if now - last_spinner_time >= spinner_yield_interval:
                         taking_long = (now - start_time > 10)
-                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
-                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
-                        spinner_idx += 1
+                        spinner_msg_content = ux.spinner(spinner_idx_loop, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg_content}]}
+                        spinner_idx_loop += 1
                         last_spinner_time = now
-                        yielded_spinner = True
-            if not result_chunks and not yielded_spinner:
-                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
-        except Exception as e:
-            logger.error(f"Error during Zeus run: {e}", exc_info=True)
-            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+                        yielded_spinner_in_loop = True
+            
+            if not result_chunks and not yielded_spinner_in_loop:
+                fallback_spinner_content = ux.spinner(0, taking_long=False) 
+                yield {"messages": [{"role": "assistant", "content": fallback_spinner_content}]}
+
+        except Exception as e_outer:
+            logger.error(f"Critical error during Zeus run setup or outer loop: {e_outer}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {str(e_outer)}"}]}
 
     def create_starting_agent(self, mcp_servers=None):
-        """Creates Zeus coordinator agent with Pantheon gods as tools."""
         from agents import Agent
         from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
         from openai import AsyncOpenAI
-        model_name = (self.config.get('llm_profile', 'default') if hasattr(self, 'config') and self.config else 'default')
-        api_key = os.environ.get('OPENAI_API_KEY', 'sk-test')
-        openai_client = AsyncOpenAI(api_key=api_key)
-        model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client)
+        
+        model_profile_name = "default"
+        if hasattr(self, 'config') and self.config:
+            blueprint_specific_settings = self.config.get("blueprints", {}).get(self.NAME, {})
+            model_profile_name = blueprint_specific_settings.get("model_profile", self.config.get('llm_profile', 'default'))
+        
+        llm_profile_data = {}
+        if hasattr(self, 'get_llm_profile'): # Ensure method exists
+             try:
+                 llm_profile_data = self.get_llm_profile(model_profile_name)
+             except ValueError as e: # Handle case where profile might not be found by get_llm_profile
+                 logger.warning(f"Could not get LLM profile '{model_profile_name}': {e}. Using fallbacks.")
+                 llm_profile_data = {}
+
+
+        model_name_to_use = llm_profile_data.get("model", os.environ.get("DEFAULT_LLM", "gpt-3.5-turbo")) 
+        api_key = llm_profile_data.get("api_key", os.environ.get('OPENAI_API_KEY', 'sk-test')) # Ensure sk-test is only for tests
+        base_url = llm_profile_data.get("base_url", os.environ.get("OPENAI_BASE_URL"))
+
+        client_params = {"api_key": api_key}
+        if base_url:
+            client_params["base_url"] = base_url
+        openai_client = AsyncOpenAI(**client_params)
+        
+        model_instance = OpenAIChatCompletionsModel(model=model_name_to_use, openai_client=openai_client)
 
         pantheon_names = [
             ("Odin", "Delegate architecture, design, and research tasks."),
@@ -199,18 +211,11 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         zeus_instructions = """
 You are Zeus, Product Owner and Coordinator of the Divine Ops team.
 Your goal is to manage the software development lifecycle based on user requests.
-1. Understand the user's request (e.g., 'design a user login system', 'deploy the latest changes', 'fix bug X').
-2. Delegate tasks to the appropriate specialist agent using their respective Agent Tool:
-    - Odin: For high-level architecture, design, research.
-    - Hermes: For breaking down features into technical tasks, system checks.
-    - Hephaestus: For primary coding and implementation.
-    - Hecate: For specific coding assistance requested by Hephaestus (via you).
-    - Thoth: For database and SQL tasks.
-    - Mnemosyne: For DevOps, deployment, and CI/CD.
-    - Chronos: For documentation and user guides.
-3. Review results from each specialist agent and provide feedback or request revisions as needed.
-4. Integrate all results and ensure the solution meets the user's requirements.
-5. Provide the final update or result to the user.
+1. Understand the user's request.
+2. Delegate tasks to the appropriate specialist agent using their Agent Tool.
+3. Review results and provide feedback or request revisions.
+4. Integrate results and ensure the solution meets requirements.
+5. Provide the final update to the user.
 Available Agent Tools: Odin, Hermes, Hephaestus, Hecate, Thoth, Mnemosyne, Chronos.
 """
         agent = Agent(
@@ -224,47 +229,34 @@ Available Agent Tools: Odin, Hermes, Hephaestus, Hecate, Thoth, Mnemosyne, Chron
 
 if __name__ == "__main__":
     import asyncio
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗")
-    print("║   ⚡ ZEUS: GENERAL-PURPOSE SWARM COORDINATOR AGENT DEMO   ║")
-    print("╠══════════════════════════════════════════════════════════════╣")
-    print("║ Zeus coordinates a team of specialist agents (the gods).     ║")
-    print("║ Try typing a message and get a helpful response!             ║")
-    print("╚══════════════════════════════════════════════════════════════╝\033[0m")
-    blueprint = ZeusCoordinatorBlueprint(blueprint_id="cli-demo")
-    messages = [{"role": "user", "content": "Hello, how can I assist you today?"}]
-    async def run_and_print():
-        spinner = ZeusSpinner()
-        spinner.start()
-        try:
-            all_results = []
-            async for response in blueprint.run(messages):
-                content = response["messages"][0]["content"] if (isinstance(response, dict) and "messages" in response and response["messages"]) else str(response)
-                all_results.append(content)
-                # Enhanced progressive output
-                if isinstance(response, dict) and (response.get("progress") or response.get("matches")):
-                    display_operation_box(
-                        title="Progressive Operation",
-                        content="\n".join(response.get("matches", [])),
-                        style="bold cyan" if response.get("type") == "code_search" else "bold magenta",
-                        result_count=len(response.get("matches", [])) if response.get("matches") is not None else None,
-                        params={k: v for k, v in response.items() if k not in {'matches', 'progress', 'total', 'truncated', 'done'}},
-                        progress_line=response.get('progress'),
-                        total_lines=response.get('total'),
-                        spinner_state=spinner.current_spinner_state() if hasattr(spinner, 'current_spinner_state') else None,
-                        op_type=response.get("type", "search"),
-                        emoji="🔍" if response.get("type") == "code_search" else "🧠"
-                    )
-        finally:
-            spinner.stop()
-        display_operation_box(
-            title="Zeus Output",
-            content="\n".join(all_results),
-            style="bold green",
-            result_count=len(all_results),
-            params={"prompt": messages[0]["content"]},
-            op_type="zeus"
-        )
-    asyncio.run(run_and_print())
+    print("\033[1;36m\nZeus CLI Demo\033[0m") # Simplified banner
+    # Ensure blueprint is initialized for CLI context (debug=True for raw output)
+    blueprint = ZeusCoordinatorBlueprint(blueprint_id="cli-demo", debug=True) 
+    
+    cli_spinner_instance = ZeusSpinner()
 
-# Backwards compatibility: ZeusBlueprint alias for ZeusCoordinatorBlueprint
+    async def run_and_print_demo():
+        cli_spinner_instance.start()
+        try:
+            # Use a more complex prompt for demo if desired
+            demo_messages = [{"role": "user", "content": "Hello Zeus, please outline a new feature: user authentication."}]
+            async for response_item in blueprint.run(demo_messages):
+                content_to_print = str(response_item) # Default to string representation
+                if isinstance(response_item, dict) and "messages" in response_item and response_item["messages"]:
+                    # Since debug=True for CLI demo, this should be the raw agent output
+                    content_to_print = response_item["messages"][0].get("content", str(response_item))
+                
+                sys.stdout.write(f"\r{' ' * 80}\r") 
+                sys.stdout.write(f"{content_to_print}\n")
+                sys.stdout.flush()
+        except Exception as e:
+            sys.stderr.write(f"Demo error: {e}\n")
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+        finally:
+            cli_spinner_instance.stop()
+            sys.stdout.write("Demo complete.\n")
+
+    asyncio.run(run_and_print_demo())
+
 ZeusBlueprint = ZeusCoordinatorBlueprint
