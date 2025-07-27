@@ -1,8 +1,10 @@
 import abc
-from typing import List, Dict, Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 # Assuming blueprint_base is in the same directory or accessible via installed package
 from .blueprint_base import BlueprintBase
+
 
 class RunnableBlueprint(BlueprintBase, abc.ABC):
     """
@@ -14,7 +16,7 @@ class RunnableBlueprint(BlueprintBase, abc.ABC):
     """
 
     @abc.abstractmethod
-    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: list[dict[str, Any]], **kwargs) -> AsyncGenerator[dict[str, Any], None]:
         """
         Abstract method defining the standard entry point for running the blueprint
         programmatically.

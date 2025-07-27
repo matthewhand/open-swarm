@@ -1,8 +1,9 @@
-from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
-from swarm.models import ChatConversation, ChatMessage
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+
+from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
 
 logger = setup_logger(__name__)

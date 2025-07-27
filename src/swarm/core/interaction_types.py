@@ -1,23 +1,25 @@
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field # Import Pydantic BaseModel and Field
+from typing import Any
+
+from pydantic import BaseModel, Field  # Import Pydantic BaseModel and Field
+
 
 @dataclass
 class ToolCallRequest:
     """Represents a tool call requested by an agent."""
-    id: str 
+    id: str
     tool_name: str
-    tool_args: Dict[str, Any] = field(default_factory=dict)
+    tool_args: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class ToolCallResponse:
     """Represents the result of a tool call."""
-    id: str 
+    id: str
     tool_name: str
     tool_result: Any
     is_error: bool = False
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 @dataclass
 class AgentInteraction:
@@ -25,18 +27,18 @@ class AgentInteraction:
     Represents a unit of interaction or output from an agent or blueprint.
     """
     type: str = "message"
-    role: Optional[str] = None 
-    content: Optional[Union[str, List[Dict[str, Any]]]] = None
-    tool_calls: Optional[List[ToolCallRequest]] = None
+    role: str | None = None
+    content: str | list[dict[str, Any]] | None = None
+    tool_calls: list[ToolCallRequest] | None = None
     final: bool = False
-    data: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-    error_type: Optional[str] = None
-    progress_message: Optional[str] = None
-    progress_percent: Optional[float] = None
+    data: dict[str, Any] | None = None
+    error_message: str | None = None
+    error_type: str | None = None
+    progress_message: str | None = None
+    progress_percent: float | None = None
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Converts the AgentInteraction to a dictionary."""
         # Note: If tool_calls contains Pydantic models, their .model_dump() might be preferred
         # For dataclasses, __dict__ is okay but might not handle nested Pydantic models correctly.
@@ -72,7 +74,7 @@ class StoryOutput(BaseModel):
     """
     title: str
     final_story: str
-    outline_json: str 
+    outline_json: str
     word_count: int
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: dict[str, Any] | None = Field(default_factory=dict)
 

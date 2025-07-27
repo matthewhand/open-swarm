@@ -2,7 +2,8 @@
 Common utilities potentially shared across blueprint extensions.
 """
 
-from typing import Any # Removed Dict, List as they weren't used
+from typing import Any  # Removed Dict, List as they weren't used
+
 
 def get_agent_name(agent: Any) -> str:
     """Return the name of an agent from its attributes ('name' or '__name__')."""

@@ -2,18 +2,26 @@
 Django integration utilities for blueprint extensions.
 """
 
+import importlib.util
+import inspect  # Import inspect
 import logging
 import os
-import importlib.util
 import sys  # Import sys
-import inspect # Import inspect
-from typing import Any, TYPE_CHECKING
-from django.conf import settings # Import settings directly
-# Import necessary URL handling functions
-from django.urls import clear_url_caches, get_resolver, get_urlconf, set_urlconf, URLPattern, URLResolver, path, include # Added path, include
-from django.utils.module_loading import import_module # More standard way to import
 from collections import OrderedDict
+from typing import TYPE_CHECKING
+
 from django.apps import apps as django_apps
+from django.conf import settings  # Import settings directly
+
+# Import necessary URL handling functions
+from django.urls import (  # Added path, include
+    URLResolver,
+    clear_url_caches,
+    include,
+    path,
+    set_urlconf,
+)
+from django.utils.module_loading import import_module  # More standard way to import
 
 # Use TYPE_CHECKING to avoid circular import issues if BlueprintBase imports this indirectly
 if TYPE_CHECKING:
@@ -70,7 +78,7 @@ def _load_local_settings(blueprint: 'BlueprintBase') -> None:
 
         if module_name == "__main__":
             # --- Handling direct script execution ---
-            logger.debug(f"Blueprint class module is '__main__'. Determining path from file location.")
+            logger.debug("Blueprint class module is '__main__'. Determining path from file location.")
             try:
                 # Get the path to the file where the blueprint class is defined
                 blueprint_file_path = inspect.getfile(blueprint.__class__)
@@ -82,11 +90,11 @@ def _load_local_settings(blueprint: 'BlueprintBase') -> None:
                 logger.debug(f"Derived potential local settings path for __main__: {local_settings_path}")
             except TypeError as e:
                 logger.error(f"Could not determine file path for blueprint class {blueprint.__class__.__name__} when run as __main__: {e}")
-                setattr(blueprint, 'local_settings', None) # Ensure attribute exists
+                blueprint.local_settings = None # Ensure attribute exists
                 return
             except Exception as e:
                 logger.error(f"Unexpected error getting blueprint file path for __main__: {e}", exc_info=True)
-                setattr(blueprint, 'local_settings', None)
+                blueprint.local_settings = None
                 return
         else:
             # --- Handling standard import execution ---
@@ -101,11 +109,11 @@ def _load_local_settings(blueprint: 'BlueprintBase') -> None:
                     logger.debug(f"Derived potential local settings path via importlib: {local_settings_path}")
                 else:
                     logger.debug(f"Could not find module spec or origin for '{module_name}'. Cannot determine local settings path.")
-                    setattr(blueprint, 'local_settings', None)
+                    blueprint.local_settings = None
                     return
             except Exception as e: # Catch potential errors during find_spec
                  logger.error(f"Error finding spec for module '{module_name}': {e}", exc_info=True)
-                 setattr(blueprint, 'local_settings', None)
+                 blueprint.local_settings = None
                  return
 
         # --- Common Loading Logic ---
@@ -130,17 +138,17 @@ def _load_local_settings(blueprint: 'BlueprintBase') -> None:
                 logger.debug(f"Finished executing local settings module '{settings_module_name}'.")
             else:
                 logger.warning(f"Could not create module spec/loader for local settings at '{local_settings_path}'")
-                setattr(blueprint, 'local_settings', None)
+                blueprint.local_settings = None
         else:
             logger.debug(f"No local settings file found at '{local_settings_path}' for {blueprint.__class__.__name__}.")
-            setattr(blueprint, 'local_settings', None)
+            blueprint.local_settings = None
 
     except Exception as e:
         logger.error(f"Error loading local settings for {blueprint.__class__.__name__}: {e}", exc_info=True)
         # Explicitly check for the original error if needed
         if isinstance(e, ValueError) and "__spec__ is None" in str(e):
             logger.critical("Original Error Context: Failed during importlib processing, likely due to __main__ module details.")
-        setattr(blueprint, 'local_settings', None) # Ensure attribute exists even on error
+        blueprint.local_settings = None # Ensure attribute exists even on error
 
 
 def _merge_installed_apps(blueprint: 'BlueprintBase') -> None:
@@ -293,7 +301,7 @@ def _register_blueprint_urls_generic(blueprint: 'BlueprintBase') -> None:
 
             # Explicitly reset the URLconf to force Django to re-read it
             set_urlconf(None)
-            logger.debug(f"Cleared URL caches and reset urlconf. Django should rebuild resolver on next request.")
+            logger.debug("Cleared URL caches and reset urlconf. Django should rebuild resolver on next request.")
 
         # Mark this blueprint instance as having its URLs registered (or attempted)
         blueprint._urls_registered = True

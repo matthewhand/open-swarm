@@ -2,6 +2,7 @@ import sys
 import threading
 import time
 
+
 class Spinner:
     """
     Displays spinner states: Generating., Generating.., Generating..., Running...,

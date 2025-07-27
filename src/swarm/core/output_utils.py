@@ -1,18 +1,23 @@
+import os
+import re
 import sys
 import threading
 import time
-import itertools
-import os 
-from typing import Optional, Dict, Any, Union, List 
+from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich.live import Live
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn, TimeElapsedColumn
 from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from rich.syntax import Syntax
-import re 
+from rich.text import Text
 
 RICH_AVAILABLE = True # Module level
 
@@ -44,9 +49,9 @@ class JeevesSpinner:
         if not self.is_test_mode:
             self._thread = threading.Thread(target=self._spin, daemon=True)
             self._thread.start()
-        else: 
+        else:
             print(f"[SPINNER] {self.SPINNER_STATES[0]}")
-            sys.stdout.flush() 
+            sys.stdout.flush()
 
     def _spin(self):
         while self._running:
@@ -55,18 +60,18 @@ class JeevesSpinner:
                 frame = self.LONG_WAIT_MSG
             else:
                 frame = self.SPINNER_STATES[self._current_frame % len(self.SPINNER_STATES)]
-            
-            if self.is_test_mode: 
-                pass 
-            else: 
-                sys.stdout.write(f"\r{frame}  ") 
+
+            if self.is_test_mode:
+                pass
+            else:
+                sys.stdout.write(f"\r{frame}  ")
                 sys.stdout.flush()
-            
+
             self._current_frame += 1
             time.sleep(0.5)
-        
+
         if not self.is_test_mode:
-            sys.stdout.write("\r" + " " * (len(self.LONG_WAIT_MSG) + 5) + "\r") 
+            sys.stdout.write("\r" + " " * (len(self.LONG_WAIT_MSG) + 5) + "\r")
             sys.stdout.flush()
 
     def stop(self):
@@ -95,7 +100,7 @@ def get_spinner_state(start_time, interval=0.5, states=None, slow_threshold=None
     idx = int(elapsed / interval) % len(states)
     return states[idx]
 
-def pretty_print_response(messages: List[Dict[str, str]], use_markdown: bool = True, console: Optional[Console] = None):
+def pretty_print_response(messages: list[dict[str, str]], use_markdown: bool = True, console: Console | None = None):
     print(f"DEBUG_PPRINT: Entered pretty_print_response. RICH_AVAILABLE={RICH_AVAILABLE}, use_markdown={use_markdown}", file=sys.stderr) # DEBUG
     _console = console or Console()
     print(f"DEBUG_PPRINT: _console type: {type(_console)}", file=sys.stderr) # DEBUG
@@ -103,27 +108,27 @@ def pretty_print_response(messages: List[Dict[str, str]], use_markdown: bool = T
     for message_idx, message in enumerate(messages): # Added index for debugging
         print(f"DEBUG_PPRINT: Processing message {message_idx + 1}/{len(messages)}: {message.get('sender')}", file=sys.stderr) # DEBUG
         role = message.get("role", "unknown").capitalize()
-        sender = message.get("sender", role) 
+        sender = message.get("sender", role)
         content_to_print = message.get("content", "")
-        
-        if not content_to_print: 
+
+        if not content_to_print:
             print(f"DEBUG_PPRINT: Message {message_idx + 1} has empty content, skipping.", file=sys.stderr) # DEBUG
             continue
-        
+
         print(f"DEBUG_PPRINT: Content for message {message_idx + 1}: {repr(content_to_print)}", file=sys.stderr) # DEBUG
         prefix = f"[{sender}]: "
-        
+
         code_block_pattern = r"```(\w*)?\s*\n?(.*?)\s*\n?```"
         match = re.search(code_block_pattern, content_to_print, re.DOTALL | re.IGNORECASE)
-        
+
         print(f"DEBUG_PPRINT: Regex match for message {message_idx + 1}: {match}", file=sys.stderr) # DEBUG
 
-        if RICH_AVAILABLE and match: 
+        if RICH_AVAILABLE and match:
             print(f"DEBUG_PPRINT: Message {message_idx + 1} - Code block matched!", file=sys.stderr) # DEBUG
             text_before_match = content_to_print[:match.start()]
             lang_from_match = match.group(1)
             lang = lang_from_match.lower().strip() if lang_from_match else "text"
-            
+
             code_in_block = match.group(2)
             code_in_block = code_in_block.strip() if code_in_block is not None else ""
 
@@ -134,14 +139,14 @@ def pretty_print_response(messages: List[Dict[str, str]], use_markdown: bool = T
                 print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing text_before_match.", file=sys.stderr) # DEBUG
                 _console.print(prefix + text_before_match.strip(), end="\n" if code_in_block or text_after_match.strip() else "")
                 printed_prefix = True
-            
+
             if not printed_prefix:
                 print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing prefix only.", file=sys.stderr) # DEBUG
                 _console.print(prefix, end="")
-            
+
             syntax_obj = Syntax(code_in_block, lang, theme="monokai", line_numbers=False, word_wrap=True)
             print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing Syntax object: lang='{lang}', code='{repr(code_in_block)}'", file=sys.stderr) # DEBUG
-            _console.print(syntax_obj) 
+            _console.print(syntax_obj)
 
             if text_after_match.strip():
                 print(f"DEBUG_PPRINT: Message {message_idx + 1} - Printing text_after_match.", file=sys.stderr) # DEBUG
@@ -149,34 +154,34 @@ def pretty_print_response(messages: List[Dict[str, str]], use_markdown: bool = T
                     _console.print(Markdown(text_after_match.strip()))
                 else:
                     _console.print(text_after_match.strip())
-        
+
         elif RICH_AVAILABLE and use_markdown:
             print(f"DEBUG_PPRINT: Message {message_idx + 1} - No code block, using Markdown.", file=sys.stderr) # DEBUG
             _console.print(prefix, end="")
             _console.print(Markdown(content_to_print))
-        else: 
+        else:
             print(f"DEBUG_PPRINT: Message {message_idx + 1} - Plain text printing.", file=sys.stderr) # DEBUG
             _console.print(prefix + content_to_print)
 
 
 def print_operation_box(
     title: str,
-    content: str, 
-    summary: Optional[str] = None,
-    params: Optional[Dict[str, Any]] = None,
-    result_count: Optional[int] = None,
-    op_type: Optional[str] = None, 
-    progress_line: Optional[Union[str, int]] = None, 
-    total_lines: Optional[int] = None,
-    spinner_state: Optional[str] = None, 
-    emoji: str = "💡", 
-    style: str = "default", 
-    console: Optional[Console] = None
+    content: str,
+    summary: str | None = None,
+    params: dict[str, Any] | None = None,
+    result_count: int | None = None,
+    op_type: str | None = None,
+    progress_line: str | int | None = None,
+    total_lines: int | None = None,
+    spinner_state: str | None = None,
+    emoji: str = "💡",
+    style: str = "default",
+    console: Console | None = None
 ):
     _console = console or Console()
     status_to_border_style = {
         "info": "blue", "success": "green", "warning": "yellow",
-        "error": "red", "default": "dim" 
+        "error": "red", "default": "dim"
     }
     actual_border_style = status_to_border_style.get(style, status_to_border_style["default"])
     panel_content = Text()
@@ -184,7 +189,7 @@ def print_operation_box(
     if params:
         param_str = ", ".join(f"{k}={v}" for k, v in params.items())
         panel_content.append(f"Parameters: {param_str}\n", style="dim")
-    panel_content.append(content if isinstance(content, (str, Text)) else str(content or "")) 
+    panel_content.append(content if isinstance(content, (str, Text)) else str(content or ""))
     if summary: panel_content.append(f"\nSummary: {summary}", style="italic")
     if result_count is not None: panel_content.append(f" | Results: {result_count}", style="italic")
     if progress_line is not None:
@@ -214,7 +219,7 @@ def print_search_progress_box(op_type, results, params, result_type, summary, pr
         content_text.append(f"Params: {param_str}\n", style="dim")
     if isinstance(results, list):
         for res_line in results: content_text.append(str(res_line) + "\n")
-    else: content_text.append(str(results or "") + "\n") 
+    else: content_text.append(str(results or "") + "\n")
     if progress_line is not None:
         prog_display = str(progress_line)
         if total_lines: prog_display += f"/{total_lines}"
@@ -230,6 +235,6 @@ def create_rich_progress_bar() -> Progress:
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeRemainingColumn(),
         TimeElapsedColumn(),
-        console=Console(), 
-        transient=True 
+        console=Console(),
+        transient=True
     )

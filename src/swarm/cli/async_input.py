@@ -1,7 +1,7 @@
 import asyncio
-import sys
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
+
 
 class AsyncInputHandler:
     """
@@ -10,7 +10,7 @@ class AsyncInputHandler:
         handler = AsyncInputHandler(on_interrupt=callback)
         await handler.get_input(prompt="You: ")
     """
-    def __init__(self, on_interrupt: Optional[Callable[[str], None]] = None):
+    def __init__(self, on_interrupt: Callable[[str], None] | None = None):
         self.on_interrupt = on_interrupt
         self._input_event = threading.Event()
         self._interrupt_event = threading.Event()

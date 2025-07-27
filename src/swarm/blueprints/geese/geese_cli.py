@@ -1,14 +1,12 @@
 import argparse
-from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 import asyncio
-import time
 import os
 import sys
-from swarm.core.output_utils import print_operation_box as display_operation_box 
-from swarm.core.interaction_types import AgentInteraction # For type checking
 
-SPINNER_STATES = ["Generating.", "Generating..", "Generating...", "Running..."] 
-SLOW_SPINNER = "Generating... Taking longer than expected" 
+from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
+
+SPINNER_STATES = ["Generating.", "Generating..", "Generating...", "Running..."]
+SLOW_SPINNER = "Generating... Taking longer than expected"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Geese Blueprint")
@@ -34,7 +32,7 @@ def main():
         blueprint_id='geese_cli',
         config_path=args.config,
         agent_mcp_assignments=agent_mcp_assignments,
-        llm_model=args.model 
+        llm_model=args.model
     )
 
     messages = []
@@ -51,16 +49,16 @@ def main():
         except EOFError:
             print("\nNo input. Exiting.")
             return
-            
+
     async def run_and_print():
         print(f"Running Geese blueprint with prompt: {messages[-1]['content'] if messages else 'N/A'}")
-        
+
         async for chunk in blueprint.run(messages):
             if isinstance(chunk, dict):
                 chunk_type = chunk.get("type")
                 if chunk_type == "spinner_update" and os.environ.get("SWARM_TEST_MODE") == "1":
                     # Test mode expects [SPINNER] prefix, which blueprint_geese.py now adds to spinner_state
-                    print(chunk.get("spinner_state", "Processing...")) 
+                    print(chunk.get("spinner_state", "Processing..."))
                 elif chunk_type == "progress":
                     # Normal progress update for non-test mode CLI
                     # This part would use display_operation_box or similar rich output
@@ -89,7 +87,7 @@ def main():
             else:
                 sys.stdout.write(f"\r{' ' * 80}\r")
                 print(f"Geese (unknown type): {chunk}")
-        
+
         sys.stdout.write(f"\r{' ' * 80}\r") # Clear any final spinner line
         print("Geese run complete.")
 

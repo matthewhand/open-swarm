@@ -6,13 +6,10 @@ Self-healing, fileops-enabled, swarm-scalable.
 """
 import logging
 import os
+import sqlite3  # Use standard sqlite3 module
 import sys
-import json
-import sqlite3 # Use standard sqlite3 module
 from pathlib import Path
-from typing import Dict, Any, List, ClassVar, Optional
-from datetime import datetime
-import pytz
+from typing import Any, ClassVar
 
 # Last swarm update: 2025-04-18T10:15:21Z (UTC)
 
@@ -22,11 +19,12 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
@@ -44,7 +42,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -101,7 +99,7 @@ SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 # Renamed class for consistency
 class MissionImprobableBlueprint(BlueprintBase):
     """A cheeky team on a mission: led by JimFlimsy with support from CinnamonToast and RollinFumble."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
             "name": "MissionImprobableBlueprint",
             "title": "Mission: Improbable",
             "description": "A cheeky team led by JimFlimsy (coordinator), CinnamonToast (strategist/filesystem), and RollinFumble (operative/shell). Uses SQLite for instructions.",
@@ -113,8 +111,8 @@ class MissionImprobableBlueprint(BlueprintBase):
         }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
     _db_initialized = False # Flag to ensure DB init runs only once per instance
 
     def __init__(self, blueprint_id: str = "mission_improbable", config=None, config_path=None, **kwargs):
@@ -159,7 +157,7 @@ class MissionImprobableBlueprint(BlueprintBase):
             logger.error(f"Error during DB initialization/loading: {e}", exc_info=True)
             self._db_initialized = False
 
-    def get_agent_config(self, agent_name: str) -> Dict[str, Any]:
+    def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Fetches agent config from SQLite DB or returns defaults."""
         if self._db_initialized:
             try:
@@ -227,7 +225,7 @@ class MissionImprobableBlueprint(BlueprintBase):
         except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Mission Improbable agent team and returns JimFlimsy (Coordinator)."""
         # Initialize DB and load data if needed
         self._init_db_and_load_data()
@@ -237,11 +235,11 @@ class MissionImprobableBlueprint(BlueprintBase):
         self._openai_client_cache = {}
 
         # Helper to filter MCP servers
-        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+        def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             return [s for s in mcp_servers if s.name in names]
 
         # Create agents, fetching config and assigning MCPs
-        agents: Dict[str, Agent] = {}
+        agents: dict[str, Agent] = {}
         for name in ["JimFlimsy", "CinnamonToast", "RollinFumble"]:
             config = self.get_agent_config(name)
             model_instance = self._get_model_instance(config["model_profile"])
@@ -320,12 +318,15 @@ class MissionImprobableBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 # --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-from swarm.ux.ansi_box import ansi_box
+import threading
+import time
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
+
+from swarm.ux.ansi_box import ansi_box
+
 
 class MissionImprobableSpinner:
     FRAMES = [
@@ -398,7 +399,6 @@ def print_operation_box(op_type, results, params=None, result_type="mission", ta
 # Standard Python entry point
 if __name__ == "__main__":
     import asyncio
-    import json
     print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🕵️ MISSION IMPROBABLE: SWARM STRATEGY & TASK DEMO         ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral swarm propagation,         ║\n║ strategic task planning, and agent collaboration.            ║\n║ Try running: python blueprint_mission_improbable.py          ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
     messages = [
         {"role": "user", "content": "Show me how Mission Improbable plans tasks and leverages swarm strategy."}

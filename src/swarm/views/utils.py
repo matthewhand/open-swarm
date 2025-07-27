@@ -1,6 +1,7 @@
 import logging
+
+from asgiref.sync import async_to_sync, sync_to_async
 from django.conf import settings
-from asgiref.sync import sync_to_async, async_to_sync
 
 # Assuming the discovery functions are correctly located now
 from swarm.core.blueprint_discovery import discover_blueprints
@@ -56,7 +57,7 @@ async def get_blueprint_instance(blueprint_id: str, params: dict = None):
         instance = blueprint_class()
         logger.info(f"Successfully instantiated blueprint: {blueprint_id}")
         # Optionally pass params later if needed, e.g., instance.set_params(params) if such a method exists
-        if hasattr(instance, 'set_params') and callable(getattr(instance, 'set_params')):
+        if hasattr(instance, 'set_params') and callable(instance.set_params):
              instance.set_params(params) # Example of setting params after init
 
         if params is None:

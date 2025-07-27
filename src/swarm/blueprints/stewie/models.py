@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class AgentInstruction(models.Model):
     agent_name = models.CharField(max_length=50, unique=True, help_text="Unique name (e.g., 'PeterGriffin').")
     instruction_text = models.TextField(help_text="Instructions for the agent.")

@@ -4,7 +4,9 @@ Main entry point for Swarm CLI using a declarative command structure.
 
 import argparse
 import os
-import inspect
+import sys
+from pathlib import Path
+
 from swarm.extensions.cli.utils.discover_commands import discover_commands
 
 COMMANDS_DIR = os.path.join(os.path.dirname(__file__), "commands")
@@ -134,7 +136,7 @@ def parse_args_and_get_executor(discovered_commands_map):
         args_definitions = cmd_def.get("args_def", []) # Ensure args_def exists
 
         full_module_key = f"swarm.extensions.cli.commands.{module_base_name}"
-        
+
         # The discover_commands utility should ideally return a map where keys are module_base_name
         # and values are dicts containing 'execute' and 'register_args' functions.
         # Let's adjust to expect this.
@@ -170,7 +172,7 @@ def parse_args_and_get_executor(discovered_commands_map):
     if not sys.argv[1:]: # No arguments provided after script name
         parser.print_help()
         sys.exit(0)
-        
+
     parsed_args, unknown_args = parser.parse_known_args() # Use parse_known_args if some commands take remainder
 
     # If a command was parsed, try to get its executor
@@ -199,7 +201,7 @@ def main():
     # Ensure COMMANDS_DIR is correct relative to this file's location
     current_file_dir = Path(__file__).parent.resolve()
     commands_module_dir = current_file_dir / "commands"
-    
+
     discovered_commands_map = discover_commands(str(commands_module_dir))
     args, executor = parse_args_and_get_executor(discovered_commands_map)
 
@@ -214,5 +216,5 @@ def main():
         # parser.print_help() # Consider printing help here too.
 
 if __name__ == "__main__":
-    from pathlib import Path # Add Path import for main execution context
+    from pathlib import Path  # Add Path import for main execution context
     main()

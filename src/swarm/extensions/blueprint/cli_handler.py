@@ -2,15 +2,15 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import signal
 import sys
-from dotenv import load_dotenv
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
 
 # Import BlueprintBase type hint carefully
 from typing import TYPE_CHECKING
+
+from dotenv import load_dotenv
+
 if TYPE_CHECKING:
     from .blueprint_base import BlueprintBase
 
@@ -74,7 +74,7 @@ async def _run_blueprint_async_with_shutdown(blueprint: 'BlueprintBase', instruc
 
 
 def run_blueprint_cli(
-    blueprint_cls: Type['BlueprintBase'],
+    blueprint_cls: type['BlueprintBase'],
     swarm_version: str,
     default_config_path: Path
 ):
@@ -124,7 +124,7 @@ def run_blueprint_cli(
         if config_override_path.is_file():
             temp_logger.info(f"Attempting to load CLI config overrides from file: {config_override_path}")
             try:
-                with open(config_override_path, "r", encoding="utf-8") as f:
+                with open(config_override_path, encoding="utf-8") as f:
                     cli_config_overrides = json.load(f)
                 temp_logger.debug(f"Loaded overrides keys: {list(cli_config_overrides.keys())}")
             except Exception as e:
@@ -142,7 +142,7 @@ def run_blueprint_cli(
                 sys.exit(f"Error: Invalid --config value: {e}")
 
     # --- Instantiate and Run Blueprint ---
-    blueprint_instance: Optional['BlueprintBase'] = None
+    blueprint_instance: BlueprintBase | None = None
     try:
         # Always provide a blueprint_id (use class name if not supplied by CLI args)
         blueprint_id = getattr(args, 'blueprint_id', None) or getattr(blueprint_cls, 'DEFAULT_BLUEPRINT_ID', None) or blueprint_cls.__name__

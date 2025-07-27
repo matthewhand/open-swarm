@@ -2,7 +2,8 @@
 import argparse
 import subprocess
 import sys
-from os import path, listdir, makedirs
+from os import listdir, makedirs, path
+
 
 def main():
     parser = argparse.ArgumentParser(description="Swarm REST Launcher")
@@ -53,7 +54,7 @@ def main():
             f.write("{}")
         print("Default config file created at:", config_path)
 
-    print("Launching Django server on port 0.0.0.0:{}".format(args.port))
+    print(f"Launching Django server on port 0.0.0.0:{args.port}")
     try:
         if args.daemon:
             proc = subprocess.Popen(["python", "manage.py", "runserver", f"0.0.0.0:{args.port}"])

@@ -1,6 +1,8 @@
 # src/swarm/utils/color_utils.py
 
-from colorama import Fore, Style, init as colorama_init
+from colorama import Fore, Style
+from colorama import init as colorama_init
+
 
 def initialize_colorama():
     """
@@ -35,6 +37,6 @@ def color_text(text: str, color: str) -> str:
         "cyan": Fore.CYAN,
         "white": Fore.WHITE,
     }
-    
+
     color_code = color_mapping.get(color.lower(), Fore.WHITE)
     return f"{color_code}{text}{Style.RESET_ALL}"

@@ -1,6 +1,6 @@
+from agents.models.interface import Model
 from openai import OpenAI  # Changed from AsyncOpenAI to sync client
 
-from agents.models.interface import Model
 
 class OpenAIChatCompletionsModel(Model):
     def __init__(self, model: str, openai_client: OpenAI):
@@ -8,8 +8,9 @@ class OpenAIChatCompletionsModel(Model):
         self.model = model
         self.client = openai_client
 
+    from collections.abc import AsyncIterator
+
     from agents.models.interface import ModelResponse, TResponseStreamEvent
-    from typing import AsyncIterator
 
     async def get_response(self,
                          system_instructions: str,

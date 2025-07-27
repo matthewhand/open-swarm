@@ -1,8 +1,11 @@
 """
 Chucks Angels Blueprint
 """
-from typing import List, Dict, Any, AsyncGenerator
-from swarm.core.blueprint_base import BlueprintBase # Import the base class
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from swarm.core.blueprint_base import BlueprintBase  # Import the base class
+
 
 class ChucksAngelsBlueprint(BlueprintBase): # Inherit from BlueprintBase
     """
@@ -22,7 +25,7 @@ class ChucksAngelsBlueprint(BlueprintBase): # Inherit from BlueprintBase
     # version: str = "0.1.0"
     # description: str = "A blueprint for coordinating angelic tasks, Chuck Norris style."
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: list[dict[str, Any]]) -> AsyncGenerator[dict[str, Any], None]:
         """
         The main execution method for the Chuck's Angels blueprint.
         """

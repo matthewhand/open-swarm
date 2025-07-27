@@ -1,7 +1,8 @@
 import logging
 import os
 import sys
-from typing import Dict, Any, List, ClassVar, Optional
+from typing import Any, ClassVar
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 
 # Ensure src is in path for BlueprintBase import
@@ -9,14 +10,15 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
-from typing import Optional
 from pathlib import Path
+
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in StewieBlueprint: {e}. Check dependencies.")
@@ -67,7 +69,7 @@ class StewieBlueprint(BlueprintBase):
         # Add other attributes as needed for Stewie
         # ...
 
-    def __init__(self, blueprint_id: str, config_path: Optional[Path] = None, **kwargs):
+    def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
         import os
         # Try to force config_path to the correct file if not set
         if config_path is None:
@@ -94,7 +96,7 @@ class StewieBlueprint(BlueprintBase):
         pprint.pprint(self._config)
 
     """Manages WordPress content with a Stewie agent team using the `server-wp-mcp` server."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "StewieBlueprint", # Standardized name
         "title": "Stewie / ChaosCrew WP Manager",
         "description": "Manages WordPress content using Stewie (main agent) and other helpers as tools.",
@@ -106,8 +108,8 @@ class StewieBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -221,8 +223,9 @@ class StewieBlueprint(BlueprintBase):
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
         # Use Runner.run as a classmethod for portability
-        from agents import Runner
         import os
+
+        from agents import Runner
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             for chunk in Runner.run(agent, instruction):
@@ -232,12 +235,15 @@ class StewieBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
 # --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-from swarm.ux.ansi_box import ansi_box
+import threading
+import time
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
+
+from swarm.ux.ansi_box import ansi_box
+
 
 class FamilyTiesSpinner:
     FRAMES = [
@@ -309,7 +315,6 @@ def print_operation_box(op_type, results, params=None, result_type="family", tak
 
 if __name__ == "__main__":
     import asyncio
-    import json
     messages = [
         {"role": "user", "content": "Stewie, manage my WordPress sites."}
     ]

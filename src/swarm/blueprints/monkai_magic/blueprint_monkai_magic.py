@@ -11,13 +11,14 @@ Uses BlueprintBase, @function_tool for direct CLI calls, and agent-as-tool deleg
 Assumes pre-authenticated aws, flyctl, and vercel commands.
 """
 
-import os
 import logging
+import os
+import shlex  # Import shlex
 import subprocess
 import sys
-import shlex # Import shlex
-from typing import Dict, Any, List, ClassVar, Optional
 import time
+from typing import Any, ClassVar
+
 from swarm.core.blueprint_ux import BlueprintUXImproved
 
 # Ensure src is in path for BlueprintBase import
@@ -26,11 +27,12 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MonkaiMagicBlueprint: {e}. Check dependencies.")
@@ -135,7 +137,7 @@ You MUST plan extensively before each function call, and reflect extensively on 
 
 class MonkaiMagicBlueprint(BlueprintBase):
     """Blueprint for a cloud operations team inspired by *Monkai Magic*."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "MonkaiMagicBlueprint",
         "title": "MonkaiMagic: Cloud Operations Journey",
         "description": "A *Monkai Magic*-inspired crew managing AWS, Fly.io, and Vercel with pre-authenticated CLI tools and agent-as-tool delegation.",
@@ -158,8 +160,8 @@ class MonkaiMagicBlueprint(BlueprintBase):
         # ...
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -246,7 +248,7 @@ class MonkaiMagicBlueprint(BlueprintBase):
             logger.error(f"Error during MonkaiMagic run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the MonkaiMagic agent team and returns Tripitaka."""
         logger.debug("Creating MonkaiMagic agent team...")
         self._model_instance_cache = {}

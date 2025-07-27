@@ -14,19 +14,11 @@ import asyncio
 import logging
 import os
 import sys
-import threading
-import time
 from typing import TYPE_CHECKING
 
-from rich.console import Console
-from rich.style import Style
-from rich.text import Text
-
 from swarm.blueprints.common.audit import AuditLogger
-from swarm.blueprints.common.spinner import SwarmSpinner
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.output_utils import (
-    get_spinner_state,
     print_operation_box,
     print_search_progress_box,
 )
@@ -55,7 +47,7 @@ sammy_instructions = (
 class DummyTool:
     def __init__(self, name):
         self.name = name
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *_, **__):
         return f"[DummyTool: {self.name} called]"
     def __repr__(self):
         return f"<DummyTool {self.name}>"
@@ -121,8 +113,7 @@ def _cli_main():
             )
             sys.exit(1)
     if args.full_context:
-        project_files = []
-        for root, dirs, files in os.walk("."):
+        for root, _, files in os.walk("."):
             for file in files:
                 if file.endswith(('.py', '.js', '.ts', '.tsx', '.md', '.txt')) and not file.startswith('.'):
                     try:
@@ -238,7 +229,9 @@ if __name__ == "__main__":
 
 # --- Main entry point for CLI ---
 def main():
-    from swarm.blueprints.codey.codey_cli import main as cli_main # Assuming codey_cli.py exists
+    from swarm.blueprints.codey.codey_cli import (
+        main as cli_main,  # Assuming codey_cli.py exists
+    )
     cli_main()
 
 # Resolve all merge conflicts by keeping the main branch's logic for agent creation, UX, and error handling, as it is the most up-to-date and tested version. Integrate any unique improvements from the feature branch only if they do not conflict with stability or UX.
@@ -265,7 +258,7 @@ class CodeyBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, config_path: str | None = None, audit_logger: AuditLogger = None, approval_policy: dict = None, **kwargs):
         super().__init__(blueprint_id, config_path=config_path, **kwargs) # Pass config_path correctly
         class DummyLLM: # This should ideally use the framework's LLM provisioning
-            def chat_completion_stream(self, messages, **_):
+            def chat_completion_stream(self, **_):
                 class DummyStream:
                     def __aiter__(self): return self
                     async def __anext__(self):
@@ -274,12 +267,12 @@ class CodeyBlueprint(BlueprintBase):
         self.llm = DummyLLM() # Placeholder
         self.logger = logging.getLogger(__name__)
         # Caches should be initialized in BlueprintBase or a common utility if shared
-        # self._model_instance_cache = {} 
+        # self._model_instance_cache = {}
         # self._openai_client_cache = {}
         self.audit_logger = audit_logger or AuditLogger(enabled=False)
         self.approval_policy = approval_policy or {}
 
-    def render_prompt(self, template_name: str, context: dict) -> str:
+    def render_prompt(self, _: str, context: dict) -> str:
         # Simplified for now, actual templating (e.g. Jinja2) would be better
         user_request = context.get('user_request', '')
         history_str = "\n".join([f"{msg['role']}: {msg['content']}" for msg in context.get('history', [])])
@@ -288,13 +281,13 @@ class CodeyBlueprint(BlueprintBase):
 
     def create_starting_agent(self, mcp_servers: "list[MCPServer]", no_tools: bool = False) -> "Agent":
         test_mode = os.environ.get("SWARM_TEST_MODE", "0") == "1" or no_tools
-        
+
         # Tools should be defined or imported properly, not as DummyTool instances for production
         # For now, keeping DummyTool for consistency with provided code
         tools_lin = [] if test_mode else [git_status_tool, git_diff_tool, read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool]
         tools_fiona = [] if test_mode else [git_status_tool, git_diff_tool, git_add_tool, git_commit_tool, git_push_tool, read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool]
         tools_sammy = [] if test_mode else [run_npm_test_tool, run_pytest_tool, read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool]
-        
+
         linus_corvalds = self.make_agent( # make_agent is from BlueprintBase
             name="Linus_Corvalds",
             instructions=linus_corvalds_instructions,
@@ -313,21 +306,21 @@ class CodeyBlueprint(BlueprintBase):
             tools=tools_sammy,
             mcp_servers=mcp_servers
         )
-        
+
         if not test_mode:
             # Ensure as_tool method exists on agent instances or handle appropriately
             if hasattr(fiona_flame, 'as_tool'):
                 linus_corvalds.tools.append(fiona_flame.as_tool(tool_name="Fiona_Flame", tool_description="Delegate git actions to Fiona."))
             else:
                 self.logger.warning("Fiona_Flame agent does not have 'as_tool' method.")
-            
+
             if hasattr(sammy_script, 'as_tool'):
                 linus_corvalds.tools.append(sammy_script.as_tool(tool_name="SammyScript", tool_description="Delegate testing tasks to Sammy."))
             else:
                 self.logger.warning("SammyScript agent does not have 'as_tool' method.")
         return linus_corvalds
 
-    async def _original_run(self, messages: list[dict], **kwargs): # Kept for reference
+    async def _original_run(self, messages: list[dict], **_): # Kept for reference
         self.audit_logger.log_event("completion", {"event": "start", "messages": messages})
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
@@ -354,13 +347,13 @@ class CodeyBlueprint(BlueprintBase):
     async def run(self, messages: list[dict], **kwargs):
         import os
         instruction = messages[-1].get("content", "") if messages else ""
-        
+
         # Test mode behavior for consistent test output
         if os.environ.get('SWARM_TEST_MODE'):
             search_mode = kwargs.get('search_mode', 'semantic') # Default to semantic for test
             op_type_display = "Code Search" if search_mode == "code" else "Semantic Search"
             spinner_lines_test = ["Generating.", "Generating..", "Generating...", "Running...", "Generating... Taking longer than expected"]
-            
+
             # Initial box
             print_search_progress_box(
                 op_type=op_type_display,
@@ -370,7 +363,7 @@ class CodeyBlueprint(BlueprintBase):
                 spinner_state=spinner_lines_test[0], operation_type=op_type_display,
                 search_mode=search_mode, total_lines=70, emoji='🤖', border='╔'
             )
-            
+
             for i, spinner_state_val in enumerate(spinner_lines_test, 1):
                 await asyncio.sleep(0.01) # Simulate work
                 print_search_progress_box(
@@ -382,7 +375,7 @@ class CodeyBlueprint(BlueprintBase):
                     operation_type=op_type_display, search_mode=search_mode,
                     total_lines=70, emoji='🤖', border='╔'
                 )
-            
+
             # Final results box for test mode
             final_message_content = f"Found 10 matches for '{instruction}'."
             print_search_progress_box(
@@ -400,11 +393,11 @@ class CodeyBlueprint(BlueprintBase):
         # Non-test mode execution (simplified for this example)
         # This part would involve actual agent execution, tool calls, etc.
         # For now, it simulates a search and creative generation.
-        
+
         search_mode_actual = kwargs.get('search_mode', 'semantic')
         op_type_actual = "Semantic Search" if search_mode_actual == "semantic" else "Codey Code Search"
         emoji_actual = "🔎" if search_mode_actual == "semantic" else "🤖"
-        
+
         # Simulate search progress
         print_search_progress_box(
             op_type=op_type_actual, results=[f"Searching for '{instruction}'..."],
@@ -414,7 +407,7 @@ class CodeyBlueprint(BlueprintBase):
             search_mode=search_mode_actual, total_lines=250, emoji=emoji_actual, border='╔'
         )
         await asyncio.sleep(0.1) # Simulate initial work
-        
+
         for i in range(1, 3): # Simulate a few progress updates
             await asyncio.sleep(0.1)
             match_count = i * 5
@@ -423,9 +416,10 @@ class CodeyBlueprint(BlueprintBase):
                 params={"instruction": instruction}, result_type=search_mode_actual,
                 summary=f"Progress: {match_count} matches found.", progress_line=f"Lines {i*50}",
                 spinner_state=f"Searching {'.' * i}", operation_type=op_type_actual,
-                search_mode=search_mode_actual, total_lines=250, emoji=emoji_actual, border='╔'
+                search_mode=search_mode_actual,
+                total_lines=250, emoji=emoji_actual, border='╔'
             )
-        
+
         # Simulate creative generation after search
         creative_result_content = f"Creative generation based on search for '{instruction}': Here's a summary..."
         print_search_progress_box(
@@ -465,12 +459,12 @@ class CodeyBlueprint(BlueprintBase):
         )
         return matches
 
-    async def _run_non_interactive(self, instruction: str, **kwargs):
+    async def _run_non_interactive(self, instruction: str, **_):
         # Simplified non-interactive run for this example
         # This would typically involve the Agent.run() or Runner.run()
         self.audit_logger.log_event("non_interactive_run_start", {"instruction": instruction})
         await asyncio.sleep(0.1) # Simulate agent work
-        
+
         # Example: if instruction is a command
         if instruction.startswith("/codesearch"):
             query = instruction.split(" ", 1)[1] if " " in instruction else "default_query"
@@ -498,7 +492,8 @@ class CodeyBlueprint(BlueprintBase):
     def request_approval(self, action_type, action_summary, action_details=None):
         # Simplified from original for brevity
         print(f"[APPROVAL] Action: {action_type} - Summary: {action_summary}")
-        if action_details: print(f"Details: {action_details}")
+        if action_details:
+            print(f"Details: {action_details}")
         resp = input("Approve? [y/N]: ").strip().lower()
         return resp == "y"
 
@@ -513,10 +508,11 @@ class CodeyBlueprint(BlueprintBase):
                 self.audit_logger.log_event("approval_user_denied", {"tool": tool_name, "kwargs": kwargs})
                 raise PermissionError(f"Tool '{tool_name}' not approved by user.")
             self.audit_logger.log_event("approval_user_approved", {"tool": tool_name, "kwargs": kwargs})
-    
+
     def write_file_with_approval(self, path, content):
         self.check_approval("tool.fs.write", path=path, content_length=len(content))
-        with open(path, "w") as f: f.write(content)
+        with open(path, "w") as f:
+            f.write(content)
         print(f"[INFO] File written: {path}")
 
     def shell_exec_with_approval(self, command):
@@ -531,13 +527,16 @@ class CodeyBlueprint(BlueprintBase):
 
     # Placeholder learning methods
     async def reflect_and_learn(self, messages, result): pass
-    def success_criteria(self, result): return True
-    def consider_alternatives(self, messages, result): return []
-    def query_swarm_knowledge(self, messages): return []
+    def success_criteria(self, _):
+        return True
+    def consider_alternatives(self, _, __):
+        return []
+    def query_swarm_knowledge(self, _):
+        return []
     def write_to_swarm_log(self, log): pass
 
 
-# SwarmSpinner class seems to be duplicated, ensure it's defined once, 
+# SwarmSpinner class seems to be duplicated, ensure it's defined once,
 # likely in swarm.blueprints.common.spinner or a utility module.
 # For this file, we'll assume it's imported if needed, or remove if not directly used by CodeyBlueprint itself.
 # If CodeyBlueprint uses a spinner directly, it should instantiate it.

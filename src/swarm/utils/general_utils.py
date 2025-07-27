@@ -1,12 +1,11 @@
 """
 General utility functions for the Swarm framework.
 """
-import os
-import logging
-import jmespath
-import json
 import datetime
-from typing import Optional, List, Dict, Any
+import json
+import os
+
+import jmespath
 
 from swarm.utils.logger_setup import setup_logger
 
@@ -147,7 +146,7 @@ def extract_chat_id(payload: dict) -> str:
     Returns the first valid chat ID found, or empty string ("").
     """
     path_expr_env = os.getenv("STATEFUL_CHAT_ID_PATH", "").strip()
-    paths_to_try: List[str] = []
+    paths_to_try: list[str] = []
     source = ""
 
     if path_expr_env:

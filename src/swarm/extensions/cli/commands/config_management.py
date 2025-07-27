@@ -1,8 +1,7 @@
 # Handles configuration management workflows (e.g., LLM, MCP servers)
 
-from swarm.core import config_loader
-from swarm.core import config_manager
-from swarm.core import server_config
+from swarm.core import config_loader, config_manager
+
 
 def add_llm(model_name, api_key):
     """Add a new LLM configuration."""

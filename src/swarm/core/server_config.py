@@ -5,8 +5,9 @@ Provides utilities to save configurations to disk and ensure integrity of data.
 """
 
 import json
-import os
 import logging
+import os
+
 from swarm.utils.redact import redact_sensitive_data
 
 # Initialize logger for this module
@@ -66,14 +67,14 @@ def load_server_config(file_path: str = None) -> dict:
         file_path = os.path.join(os.getcwd(), "swarm_settings.json")
     logger.debug(f"Loading server configuration from {file_path}")
     try:
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             config = json.load(file)
             if not isinstance(config, dict):
                 logger.error("Loaded configuration is not a dictionary.")
                 raise ValueError("Configuration must be a dictionary.")
             logger.debug(f"Loaded configuration: {redact_sensitive_data(config)}")
             return config
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         logger.error(f"Configuration file not found: {file_path}")
         raise
     except json.JSONDecodeError as e:

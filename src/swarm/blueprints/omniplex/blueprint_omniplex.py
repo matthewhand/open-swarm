@@ -1,19 +1,19 @@
+import asyncio
 import logging
 import os
-import sys
 import shlex
-from typing import Dict, Any, List, ClassVar, Optional, AsyncGenerator
-import time
-import asyncio 
+import sys
+from collections.abc import AsyncGenerator
+from typing import Any, ClassVar
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')) 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
-from swarm.core.blueprint_base import BlueprintBase 
+from swarm.core.blueprint_base import BlueprintBase
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
@@ -30,19 +30,19 @@ sylar_instructions = """Sylar: You are a general-purpose specialist. You handle 
 coordinator_instructions = """Omniplex Coordinator: Your role is to analyze user requests and delegate them to the appropriate specialized agent: Amazo (for npx tasks), Rogue (for Python/uvx tasks), or Sylar (for other tasks). Provide clear instructions to the chosen agent. If unsure, ask for clarification. You have tools representing these agents."""
 
 class OmniplexBlueprint(BlueprintBase):
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
             "name": "OmniplexBlueprint",
             "title": "Omniplex MCP Orchestrator",
             "description": "Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers.",
-            "version": "1.1.2", 
+            "version": "1.1.2",
             "author": "Open Swarm Team (Refactored)",
             "tags": ["orchestration", "mcp", "dynamic", "multi-agent"],
         }
 
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {} 
-    _model_instance_cache: Dict[str, Model] = {}   
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
-    def __init__(self, blueprint_id: str = "omniplex", config_path: Optional[str] = None, **kwargs: Any):
+    def __init__(self, blueprint_id: str = "omniplex", config_path: str | None = None, **kwargs: Any):
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
         # self.config is a property that accesses self._config.
         # self._config is set by _load_configuration in BlueprintBase's __init__.
@@ -58,19 +58,19 @@ class OmniplexBlueprint(BlueprintBase):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         logger.debug("Dynamically creating agents for OmniplexBlueprint...")
 
         if self.config is None: # Access via property, which will raise error if _config is still None
             raise RuntimeError("Configuration could not be loaded in create_starting_agent for Omniplex.")
 
-        default_profile_name = self.llm_profile_name 
+        default_profile_name = self.llm_profile_name
         logger.debug(f"Using LLM profile '{default_profile_name}' for Omniplex agents.")
         model_instance = self._get_model_instance(default_profile_name) # Inherited
 
-        npx_started_servers: List[MCPServer] = []
-        uvx_started_servers: List[MCPServer] = []
-        other_started_servers: List[MCPServer] = []
+        npx_started_servers: list[MCPServer] = []
+        uvx_started_servers: list[MCPServer] = []
+        other_started_servers: list[MCPServer] = []
 
         for server_instance in mcp_servers:
             server_name = server_instance.name
@@ -79,15 +79,15 @@ class OmniplexBlueprint(BlueprintBase):
             command_name = ""
             if isinstance(command_def, list) and command_def:
                 command_name = os.path.basename(command_def[0]).lower()
-            elif isinstance(command_def, str) and command_def: 
+            elif isinstance(command_def, str) and command_def:
                  command_name = os.path.basename(shlex.split(command_def)[0]).lower()
-            
+
             if "npx" in command_name: npx_started_servers.append(server_instance)
             elif "uvx" in command_name: uvx_started_servers.append(server_instance)
             else: other_started_servers.append(server_instance)
 
         logger.debug(f"Categorized MCPs - NPX: {[s.name for s in npx_started_servers]}, UVX: {[s.name for s in uvx_started_servers]}, Other: {[s.name for s in other_started_servers]}")
-        team_tools: List[Tool] = []
+        team_tools: list[Tool] = []
 
         if npx_started_servers:
             logger.info(f"Creating Amazo for npx servers: {[s.name for s in npx_started_servers]}")
@@ -111,20 +111,20 @@ class OmniplexBlueprint(BlueprintBase):
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         logger.info("OmniplexBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
         mcp_servers_for_run = kwargs.get("mcp_servers_override", [])
 
         try:
             starting_agent = self.create_starting_agent(mcp_servers=mcp_servers_for_run)
-            
+
             if 'Runner' not in globals() or not callable(getattr(Runner, 'run', None)):
                 raise RuntimeError("agents.Runner is not available or not callable.")
 
-            async for chunk in Runner.run(starting_agent, instruction): 
+            async for chunk in Runner.run(starting_agent, instruction):
                 yield chunk
-        except Exception as e: 
+        except Exception as e:
             logger.error(f"Error during Omniplex run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
@@ -132,8 +132,8 @@ if __name__ == "__main__":
     # ... (main example as before) ...
     import asyncio
     import json
-    from pathlib import Path 
-    from unittest.mock import MagicMock 
+    from pathlib import Path
+    from unittest.mock import MagicMock
 
     dummy_omniplex_config = {
         "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.getenv("OPENAI_API_KEY")}},

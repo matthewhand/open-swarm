@@ -2,23 +2,23 @@
 Web UI views for Open Swarm MCP Core.
 Handles rendering index, blueprint pages, login, and serving config.
 """
-import os
 import json
+import os
 from pathlib import Path
-from django.shortcuts import render, redirect
-from django.http import JsonResponse, HttpResponse
-from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.models import User
 
-from swarm.utils.logger_setup import setup_logger
+from django.conf import settings
+from django.contrib.auth import authenticate, login
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
+
+# Import config loader if needed, or assume config is loaded elsewhere
 # Import the function to discover blueprints dynamically
 from swarm.core.blueprint_discovery import discover_blueprints
+
 # Import the setting for the blueprints directory
 from swarm.settings import BLUEPRINTS_DIR
-# Import config loader if needed, or assume config is loaded elsewhere
-from swarm.core import config_loader, server_config
+from swarm.utils.logger_setup import setup_logger
 
 logger = setup_logger(__name__)
 

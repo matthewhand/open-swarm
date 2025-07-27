@@ -1,7 +1,9 @@
 import argparse
 import shutil
 from pathlib import Path
-from swarm.core import paths # Assuming paths.py is accessible
+
+from swarm.core import paths  # Assuming paths.py is accessible
+
 
 def execute(args: argparse.Namespace):
     """
@@ -23,7 +25,7 @@ def execute(args: argparse.Namespace):
     # If source_path is a file like 'my_bp.py', blueprint_name = 'my_bp'
     # If source_path is a dir like './my_blueprint_project', blueprint_name = 'my_blueprint_project'
     blueprint_name = source_path.stem if source_path.is_file() else source_path.name
-    
+
     # TODO: Handle if blueprint_name is not a valid directory name (e.g. contains slashes if source_path_str was complex)
     # For now, assume simple name.
 
@@ -68,7 +70,7 @@ def execute(args: argparse.Namespace):
         else:
             print(f"Error: Source path '{source_path}' is not a recognized type (directory, .py file). ZIP support pending.")
             return
-            
+
         print(f"Blueprint '{blueprint_name}' installed successfully to your user blueprints directory.")
         print(f"You can now try to compile it using 'swarm-cli compile {blueprint_name}' (if that command exists)")
         print(f"or use it if other commands load from '{user_blueprints_dir}'.")

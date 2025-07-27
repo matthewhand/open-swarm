@@ -1,6 +1,8 @@
 import argparse
-from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint
+
 
 def main():
     parser = argparse.ArgumentParser(description="RueCode: LLM code search/cost demo")

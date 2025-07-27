@@ -1,7 +1,7 @@
-import threading
 import queue
 import sys
-import time
+import threading
+
 
 class AsyncInputHandler:
     """

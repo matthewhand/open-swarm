@@ -1,6 +1,7 @@
-import os
 import importlib.util
 import inspect
+import os
+
 
 def discover_commands(commands_dir):
     commands = {}

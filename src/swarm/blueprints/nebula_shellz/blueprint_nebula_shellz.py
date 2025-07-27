@@ -1,22 +1,21 @@
-import logging
-import os
-import sys
 import asyncio
+import logging
 import subprocess
-import re
-import inspect
-from typing import Dict, Any, List, Optional, ClassVar
+import sys
+from typing import Any, ClassVar
 
 try:
+    import time
+
     from agents import Agent, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+    from rich.panel import Panel  # Import Panel for splash screen
+
     from swarm.core.blueprint_base import BlueprintBase
-    from rich.panel import Panel # Import Panel for splash screen
     from swarm.core.blueprint_ux import BlueprintUXImproved
-    import time
 except ImportError as e:
     print(f"ERROR: Import failed in nebula_shellz: {e}. Ensure 'openai-agents' install and structure.")
     print(f"sys.path: {sys.path}")
@@ -75,23 +74,25 @@ cypher_instructions = "You are Cypher..."
 tank_instructions = "You are Tank..."
 
 # --- Blueprint Definition ---
-from rich.console import Console
-from rich.panel import Panel
-from rich.live import Live
-from rich.text import Text
 import random
 import time
 
+from rich.console import Console
+from rich.live import Live
+from rich.panel import Panel
+from rich.text import Text
+
+
 class NebuchaShellzzarBlueprint(BlueprintBase):
     """A multi-agent blueprint inspired by The Matrix for sysadmin and coding tasks."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "NebulaShellzzarBlueprint", "title": "NebulaShellzzar",
         "description": "A multi-agent blueprint inspired by The Matrix for system administration and coding tasks.",
         "version": "1.0.0", "author": "Open Swarm Team",
         "tags": ["matrix", "multi-agent", "shell", "coding", "mcp"],
         "required_mcp_servers": ["memory"],
     }
-    _model_instance_cache: Dict[str, Model] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, blueprint_id: str = "nebula_shellzzar", config=None, config_path=None, **kwargs):
         super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
@@ -169,7 +170,7 @@ Initializing NebulaShellzzar Crew...
         self._model_instance_cache[profile_name] = model_instance
         return model_instance
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Matrix-themed agent team with Morpheus as the coordinator."""
         logger.debug(f"Creating NebulaShellzzar agent team with {len(mcp_servers)} MCP server(s)...") # Changed to DEBUG
         self._model_instance_cache = {}
@@ -200,7 +201,7 @@ Initializing NebulaShellzzar Crew...
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: List[dict], **kwargs):
+    async def run(self, messages: list[dict], **kwargs):
         """Main execution entry point for the NebulaShellzzar blueprint."""
         logger.info("NebuchaShellzzarBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""

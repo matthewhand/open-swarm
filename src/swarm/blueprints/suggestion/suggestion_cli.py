@@ -5,13 +5,14 @@ Suggestion Blueprint CLI wrapper.
 Usage:
   suggestion --message "Your prompt here"
 """
-import os
-import sys
 import argparse
 import asyncio
 import json
+import os
+import sys
 
 from swarm.blueprints.suggestion.blueprint_suggestion import SuggestionBlueprint
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Suggestion Blueprint CLI — structured JSON suggestions")

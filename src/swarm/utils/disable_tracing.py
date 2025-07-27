@@ -1,8 +1,8 @@
 """
 Utility to disable OpenAI Agents Python tracing by default unless explicitly enabled in config.
 """
-import os
 import json
+
 
 def traces_enabled_from_config(config_path="swarm_config.json"):
     try:

@@ -1,4 +1,3 @@
-import sys
 
 def ansi_box(title, content, count=None, params=None, style='default', emoji=None):
     """

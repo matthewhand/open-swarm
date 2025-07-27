@@ -1,12 +1,12 @@
-import os
-import typer
-import subprocess
-import sys
-from pathlib import Path
 import importlib.resources as pkg_resources
-import swarm # Import the main package to access its resources
-from typing import List
-from swarm.core import paths # Import the new paths module
+import os
+import subprocess
+from pathlib import Path
+
+import typer
+
+import swarm  # Import the main package to access its resources
+from swarm.core import paths  # Import the new paths module
 
 # Ensure all standard Swarm XDG directories exist
 paths.ensure_swarm_directories_exist()
@@ -63,7 +63,7 @@ def install_executable(
         raise typer.Exit(code=1)
 
     entry_point_path = source_dir / entry_point
-    
+
     # Using new XDG paths
     output_bin_name = blueprint_name # The name of the executable file
     output_bin_dir = paths.get_user_bin_dir()
@@ -72,7 +72,7 @@ def install_executable(
     # PyInstaller specific paths using XDG cache directory
     pyinstaller_workpath = paths.get_user_cache_dir_for_swarm() / "build" / blueprint_name
     pyinstaller_specpath = paths.get_user_cache_dir_for_swarm() / "specs" # Specs can go in a general specs dir
-    
+
     # Ensure PyInstaller specific cache subdirectories exist
     pyinstaller_workpath.mkdir(parents=True, exist_ok=True)
     (paths.get_user_cache_dir_for_swarm() / "specs").mkdir(parents=True, exist_ok=True)
@@ -105,7 +105,7 @@ def install_executable(
         except Exception as e:
             typer.echo(f"Error installing test-mode shim: {e}", err=True)
             raise typer.Exit(code=1)
-            
+
     # Production: build with PyInstaller
     typer.echo(f"Running PyInstaller: {' '.join(map(str, pyinstaller_cmd))}")
     try:
@@ -155,7 +155,7 @@ def launch(
                 subprocess.run(cmd_pre)
             else:
                 typer.echo(f"Pre-hook executable '{bp_pre_name}' not found in {user_bin_dir}; skipping.", err=True)
-    
+
     cmd = [str(executable_path)] + extra
     typer.echo(f"Launching '{blueprint_name}' with: {' '.join(cmd)}")
     try:
@@ -169,7 +169,7 @@ def launch(
     except Exception as e:
         typer.echo(f"Error launching blueprint: {e}", err=True)
         raise typer.Exit(code=1)
-        
+
     # Invoke listener blueprints if configured
     if listen:
         for listener_name in [bp.strip() for bp in listen.split(',') if bp.strip()]:
@@ -221,7 +221,7 @@ def list_blueprints(
                 typer.echo(f"(Warning: Could not read installed directory: {e})", err=True)
         if not found_installed:
             typer.echo(f"(No installed blueprint executables found in {user_bin_dir})")
-            typer.echo(f"Try 'swarm-cli install-executable <blueprint_name>' or see 'swarm-cli list --available'.")
+            typer.echo("Try 'swarm-cli install-executable <blueprint_name>' or see 'swarm-cli list --available'.")
         typer.echo("")
 
     # --- List Available Blueprints (Bundled and User) ---
@@ -249,7 +249,7 @@ def list_blueprints(
         typer.echo(f"--- User Blueprint Sources (in {user_blueprints_src_dir}) ---")
         user_found = False
         # user_blueprints_src_dir is ensured by paths.ensure_swarm_directories_exist()
-        if user_blueprints_src_dir.is_dir(): 
+        if user_blueprints_src_dir.is_dir():
             try:
                 for item in user_blueprints_src_dir.iterdir():
                     if item.is_dir():
@@ -262,7 +262,7 @@ def list_blueprints(
 
         if not user_found:
             typer.echo(f"(No user blueprint sources found in {user_blueprints_src_dir})")
-            typer.echo(f"You can add blueprints by copying their source folders to this directory.")
+            typer.echo("You can add blueprints by copying their source folders to this directory.")
         typer.echo("")
 
 

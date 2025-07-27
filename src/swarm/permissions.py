@@ -1,7 +1,8 @@
 import logging
+
 from rest_framework.permissions import BasePermission
-from django.conf import settings
-from swarm.auth import StaticTokenAuthentication # Import for type checking
+
+from swarm.auth import StaticTokenAuthentication  # Import for type checking
 
 logger = logging.getLogger(__name__)
 

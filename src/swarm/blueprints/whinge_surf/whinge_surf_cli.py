@@ -1,8 +1,8 @@
 import argparse
-import os
 import sys
-import asyncio
+
 from swarm.blueprints.whinge_surf.blueprint_whinge_surf import WhingeSurfBlueprint
+
 
 def main():
     parser = argparse.ArgumentParser(description="whinge-surf: background subprocess butler & self-updater")

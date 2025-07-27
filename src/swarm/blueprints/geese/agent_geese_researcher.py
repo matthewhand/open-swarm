@@ -1,13 +1,15 @@
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
-from agents import Agent, Model # Assuming Model is the base type for self.llm
+from agents import Agent, Model  # Assuming Model is the base type for self.llm
 from agents.mcp import MCPServer
+
 # from agents.tools import Tool # If the SDK provides a base Tool class for tools used by agents
 
 # If ResearcherAgent uses specific tools, they might be defined here or imported
 # For example, a hypothetical WebSearchTool
-# from .geese_tools import WebSearchTool 
+# from .geese_tools import WebSearchTool
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,10 @@ class ResearcherAgent(Agent):
         name: str,
         model: Model, # SDK Model instance
         instructions: str, # System prompt (e.g., "You are a helpful research assistant...")
-        mcp_servers: Optional[List[MCPServer]] = None,
-        tools: Optional[List[Any]] = None, # Placeholder for SDK Tool instances
-        blueprint_id: Optional[str] = None,
-        max_llm_calls: int = 3, 
+        mcp_servers: list[MCPServer] | None = None,
+        tools: list[Any] | None = None, # Placeholder for SDK Tool instances
+        blueprint_id: str | None = None,
+        max_llm_calls: int = 3,
         **kwargs: Any
     ):
         # If the SDK Agent takes tools in its __init__, pass them here.
@@ -37,7 +39,7 @@ class ResearcherAgent(Agent):
             instructions=instructions,
             mcp_servers=mcp_servers or [],
             tools=tools or [], # Pass tools to the SDK Agent
-            **kwargs 
+            **kwargs
         )
         self.blueprint_id = blueprint_id
         self.max_llm_calls = max_llm_calls
@@ -45,7 +47,7 @@ class ResearcherAgent(Agent):
 
     async def run(
         self,
-        messages: List[Dict[str, Any]], # Should contain the research query
+        messages: list[dict[str, Any]], # Should contain the research query
         **kwargs: Any
     ) -> AsyncGenerator[Any, None]: # Yields SDK interaction objects or strings
         """
@@ -54,7 +56,7 @@ class ResearcherAgent(Agent):
         """
         research_query = messages[-1]["content"] if messages and messages[-1]["role"] == "user" else "What is the capital of France?"
         self.logger.info(f"ResearcherAgent run initiated. Query: {research_query[:100]}...")
-        
+
         # This agent might use tools. The SDK Agent base class usually handles tool
         # detection in prompts and tool execution if tools are correctly registered.
         # If a tool is called, the SDK Agent would typically:

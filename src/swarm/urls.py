@@ -2,17 +2,22 @@
 Swarm URL Configuration
 """
 import logging
-from django.contrib import admin
-from django.urls import path, include, reverse_lazy
+
 from django.conf import settings
-from django.views.generic import RedirectView
+from django.contrib import admin
 from django.contrib.auth import views as auth_views
+from django.urls import include, path, reverse_lazy
+from django.views.generic import RedirectView
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
-from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-
-from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
 # *** Uncomment and correct the import path ***
 from swarm.views.api_views import ModelsListView
+from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
+
 # from swarm.views.webui_views import index as webui_index # Rename to avoid conflict
 
 logger = logging.getLogger(__name__)

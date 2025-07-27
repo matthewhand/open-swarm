@@ -1,8 +1,8 @@
 import json
+import logging
 import os
 from pathlib import Path
-import logging
-from typing import Dict, Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +10,7 @@ DEFAULT_CONFIG_FILENAME = "swarm_config.json"
 
 # --- find_config_file, load_config, save_config, validate_config, get_profile_from_config, _substitute_env_vars_recursive ---
 # (Keep these functions as they were)
-def find_config_file( specific_path: Optional[str]=None, start_dir: Optional[Path]=None, default_dir: Optional[Path]=None,) -> Optional[Path]:
+def find_config_file( specific_path: str | None=None, start_dir: Path | None=None, default_dir: Path | None=None,) -> Path | None:
     # 1. XDG config path
     xdg_config = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "swarm" / DEFAULT_CONFIG_FILENAME
     if xdg_config.is_file():
@@ -44,28 +44,28 @@ def find_config_file( specific_path: Optional[str]=None, start_dir: Optional[Pat
     logger.debug(f"Config '{DEFAULT_CONFIG_FILENAME}' not found.")
     return None
 
-def load_config(config_path: Path) -> Dict[str, Any]:
+def load_config(config_path: Path) -> dict[str, Any]:
     logger.debug(f"Loading config from {config_path}")
     try:
-        with open(config_path, 'r') as f: config = json.load(f)
+        with open(config_path) as f: config = json.load(f)
         logger.info(f"Loaded config from {config_path}"); validate_config(config); return config
     except FileNotFoundError: logger.error(f"Config DNE: {config_path}"); raise
     except json.JSONDecodeError as e: logger.error(f"JSON error {config_path}: {e}"); raise ValueError(f"Invalid JSON: {config_path}") from e
     except Exception as e: logger.error(f"Load error {config_path}: {e}"); raise
 
-def save_config(config: Dict[str, Any], config_path: Path):
+def save_config(config: dict[str, Any], config_path: Path):
     logger.info(f"Saving config to {config_path}")
     try: config_path.parent.mkdir(parents=True,exist_ok=True); f = config_path.open('w'); json.dump(config, f, indent=4); f.close(); logger.debug("Save OK.")
     except Exception as e: logger.error(f"Save failed {config_path}: {e}", exc_info=True); raise
 
-def validate_config(config: Dict[str, Any]):
+def validate_config(config: dict[str, Any]):
     logger.debug("Validating config structure...")
     if "llm" not in config or not isinstance(config["llm"],dict): raise ValueError("Config 'llm' section missing/malformed.")
     for name, prof in config.get("llm",{}).items():
         if not isinstance(prof,dict): raise ValueError(f"LLM profile '{name}' not dict.")
     logger.debug("Config basic structure OK.")
 
-def get_profile_from_config(config: Dict[str, Any], profile_name: str) -> Dict[str, Any]:
+def get_profile_from_config(config: dict[str, Any], profile_name: str) -> dict[str, Any]:
     profile_data = config.get("llm", {}).get(profile_name)
     if profile_data is None: raise ValueError(f"LLM profile '{profile_name}' not found.")
     if not isinstance(profile_data, dict): raise ValueError(f"LLM profile '{profile_name}' not dict.")

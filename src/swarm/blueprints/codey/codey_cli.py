@@ -1,15 +1,9 @@
-import os
-import sys
-from rich.console import Console
-from rich.syntax import Syntax
-
-# Rich console for styled CLI output and ANSI detection
-console = Console()
-def supports_ansi() -> bool:
-    return console.is_terminal and console.color_system is not None
-
 import argparse
 import asyncio
+import os
+import sys
+
+from rich.console import Console
 
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 from swarm.blueprints.common.audit import AuditLogger
@@ -19,6 +13,11 @@ from swarm.core.output_utils import (
 )
 from swarm.extensions.cli.utils.async_input import AsyncInputHandler
 from swarm.extensions.cli.utils.env_setup import validate_env
+
+# Rich console for styled CLI output and ANSI detection
+console = Console()
+def supports_ansi() -> bool:
+    return console.is_terminal and console.color_system is not None
 
 
 def main():
@@ -224,19 +223,17 @@ def main():
                     )
                     # Notify if >30s elapsed
                     if time.time() - op_start > 30:
-                        notifier.notify("Codey", "Operation taking longer than 30 seconds...")
+                        pass
                 return results
             try:
                 asyncio.run(run_and_print())
             except Exception as e:
-                notifier.notify("Codey Error", f"Operation failed: {e}")
                 print(f"error: {e}")
             return
         else:
             try:
                 print(bp.assist(user_message))
             except Exception as e:
-                notifier.notify("Codey Error", f"Operation failed: {e}")
                 print(f"error: {e}")
         return
 

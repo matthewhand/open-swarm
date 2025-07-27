@@ -4,21 +4,16 @@ RueCode Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
+import asyncio  # Added import for asyncio.sleep
 import logging
 import os
-import sys
-import json
 import subprocess
-import asyncio # Added import for asyncio.sleep
-from typing import Dict, List, Any, AsyncGenerator, Optional
+import time
 from pathlib import Path
-import re
-from datetime import datetime
-import pytz
+
+from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_ux import BlueprintUX
 from swarm.core.config_loader import load_full_configuration
-import time
-from swarm.blueprints.common.operation_box_utils import display_operation_box
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
@@ -33,7 +28,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -218,7 +213,7 @@ class RueCodeBlueprint(BlueprintBase):
     def summary(self, label, count, params):
         return f"{label} ({count} results) for: {params}"
 
-    async def run(self, messages: List[Dict[str, str]]):
+    async def run(self, messages: list[dict[str, str]]):
         logger.info("RueCodeBlueprint run method called.")
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
@@ -231,7 +226,7 @@ class RueCodeBlueprint(BlueprintBase):
         self.spinner.start()
         prompt_tokens = len(rendered_prompt) // 4
         completion_tokens = 64
-        
+
         # Resolve LLM profile name (example, might be more sophisticated in BlueprintBase)
         llm_profile_to_use = self.metadata.get("llm_profile") or self._config.get("settings", {}).get("default_llm_profile") or "default"
         model_config = self._config.get('llm', {}).get(llm_profile_to_use, {})

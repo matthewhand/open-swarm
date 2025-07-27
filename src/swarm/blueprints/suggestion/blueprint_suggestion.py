@@ -13,10 +13,10 @@ Self-healing, fileops-enabled, swarm-scalable.
 import logging
 import os
 import sys
-from typing import Dict, Any, List, TypedDict, ClassVar, Optional
 from datetime import datetime
+from typing import Any, ClassVar, TypedDict
+
 import pytz
-from pathlib import Path
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -24,11 +24,12 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
      print(f"ERROR: Failed to import 'agents' or 'BlueprintBase'. Is 'openai-agents' installed and src in PYTHONPATH? Details: {e}")
@@ -43,7 +44,7 @@ print(f"# Last swarm update: {last_swarm_update}")
 # --- Define the desired output structure ---
 class SuggestionsOutput(TypedDict):
     """Defines the expected structure for the agent's output."""
-    suggestions: List[str]
+    suggestions: list[str]
 
 # Spinner UX enhancement (Open Swarm TODO)
 SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
@@ -56,7 +57,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -115,7 +116,7 @@ You MUST plan extensively before each function call, and reflect extensively on 
 class SuggestionBlueprint(BlueprintBase):
     """A blueprint defining an agent that generates structured JSON suggestions using output_type."""
 
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "SuggestionBlueprint",
         "title": "Suggestion Blueprint (Structured Output)",
         "description": "An agent that provides structured suggestions using Agent(output_type=...).",
@@ -127,7 +128,7 @@ class SuggestionBlueprint(BlueprintBase):
     }
 
     # Caches
-    _model_instance_cache: Dict[str, Model] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, blueprint_id: str = "suggestion", config=None, config_path=None, **kwargs):
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
@@ -140,7 +141,7 @@ class SuggestionBlueprint(BlueprintBase):
         # Add other attributes as needed for Suggestion
         # ...
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Create the SuggestionAgent."""
         logger.debug("Creating SuggestionAgent...")
         self._model_instance_cache = {}
@@ -163,7 +164,7 @@ class SuggestionBlueprint(BlueprintBase):
         logger.debug("SuggestionAgent created with output_type enforcement.")
         return suggestion_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+    async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         """Main execution entry point for the Suggestion blueprint."""
         logger.info("SuggestionBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
@@ -175,8 +176,9 @@ class SuggestionBlueprint(BlueprintBase):
         logger.info(f"Running SuggestionBlueprint non-interactively with instruction: '{instruction[:100]}...'")
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        from agents import Runner
         import os
+
+        from agents import Runner
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             for chunk in Runner.run(agent, instruction):
@@ -209,9 +211,9 @@ class SuggestionBlueprint(BlueprintBase):
         except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
 
 if __name__ == "__main__":
-    import os
     import asyncio
     import json
+    import os
     # Test-mode fallback: output canned JSON without invoking LLM
     if os.environ.get('SWARM_TEST_MODE'):
         example = {

@@ -1,8 +1,10 @@
 import threading
 import time
+
 from rich.console import Console
-from rich.text import Text
 from rich.style import Style
+from rich.text import Text
+
 
 class SwarmSpinner:
     """Spinner for CLI blueprints, producing standard frames."""

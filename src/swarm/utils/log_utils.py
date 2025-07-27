@@ -1,7 +1,8 @@
 import logging
+import os  # Added for os.getenv
 import sys
-import os # Added for os.getenv
-from enum import Enum # Added for LogFormat
+from enum import Enum  # Added for LogFormat
+
 
 # Define LogFormat enum here as it's not in swarm.settings
 class LogFormat(str, Enum):
@@ -71,16 +72,16 @@ def setup_logging(logger_name: str | None = None, level: str | int | None = None
     if not logger.handlers: # Add handler only if none exist
         handler = logging.StreamHandler(sys.stdout) # Changed from sys.stderr to sys.stdout
         log_format_enum_val = get_env_log_format()
-        
+
         # Use style='{' for format strings that use {}
         formatter_style = '{' if '{' in log_format_enum_val.value else '%'
-        
+
         formatter = logging.Formatter(log_format_enum_val.value, style=formatter_style)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
     _initialized_loggers.add(logger_id)
-    
+
     # Example of setting specific levels for noisy loggers, can be expanded
     # logging.getLogger('some_noisy_library').setLevel(logging.WARNING)
 

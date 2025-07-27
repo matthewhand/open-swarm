@@ -5,31 +5,32 @@ This file was moved from digitalbutlers/blueprint_digitalbutlers.py
 # print("[DEBUG] Loaded JeevesBlueprint from:", __file__)
 assert hasattr(__file__, "__str__")
 
-# [Swarm Propagation] Next Blueprint: divine_code
-# divine_code key vars: logger, project_root, src_path
-# divine_code guard: if src_path not in sys.path: sys.path.insert(0, src_path)
-# divine_code debug: logger.debug("Divine Ops Team (Zeus & Pantheon) created successfully. Zeus is starting agent.")
-# divine_code error handling: try/except ImportError with sys.exit(1)
+# [Swarm Propagation] Next Blueprint: gawd
+# gawd key vars: logger, project_root, src_path
+# gawd guard: if src_path not in sys.path: sys.path.insert(0, src_path)
+# gawd debug: logger.debug("Divine Ops Team (Zeus & Pantheon) created successfully. Zeus is starting agent.")
+# gawd error handling: try/except ImportError with sys.exit(1)
 
 import logging
 import os
-import random
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, List, Dict, Optional # Added Optional
+from typing import Any, ClassVar  # Added Optional
 
 import pytz
 
-from swarm.core.output_utils import get_spinner_state, print_search_progress_box, print_operation_box as core_print_operation_box # Aliased to avoid conflict
+from swarm.core.output_utils import print_operation_box as core_print_operation_box
 
 try:
+    from agents import Agent, Model, Runner, Tool, function_tool  # Added Model
+    from agents.mcp import MCPServer
+    from agents.models.interface import (
+        Model,  # Redundant if imported above, but kept for safety
+    )
+    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
 
-    from agents import Agent, Runner, Tool, function_tool, Model # Added Model
-    from agents.mcp import MCPServer
-    from agents.models.interface import Model # Redundant if imported above, but kept for safety
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from swarm.core.blueprint_base import BlueprintBase
     # TEMPORARILY COMMENTED OUT HOOK IMPORTS
     # from agents.hooks import AgentHooks, ToolCallContext # Added for hook type hinting
@@ -507,13 +508,13 @@ class JeevesBlueprint(BlueprintBase):
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             instruction_string = messages[-1].get("content", "") if messages else ""
-            async for chunk in Runner.run(agent, instruction_string): 
-                content_to_yield = str(chunk) 
+            async for chunk in Runner.run(agent, instruction_string):
+                content_to_yield = str(chunk)
                 if isinstance(chunk, dict) and chunk.get("choices"):
                     delta_content = chunk["choices"][0].get("delta", {}).get("content")
                     if delta_content:
                         content_to_yield = delta_content
-                    elif chunk["choices"][0].get("message", {}).get("content"): 
+                    elif chunk["choices"][0].get("message", {}).get("content"):
                         content_to_yield = chunk["choices"][0]["message"]["content"]
                 yield {"messages": [{"role": "assistant", "content": content_to_yield}]}
 
@@ -522,9 +523,9 @@ class JeevesBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}\nAgent-based LLM not available."}]}
 
     async def search(self, query, directory="."):
+        import asyncio
         import os
         import time
-        import asyncio
         from glob import glob
         # from swarm.core.output_utils import get_spinner_state, print_search_progress_box # Already imported at class level
         op_start = time.monotonic()
@@ -567,9 +568,9 @@ class JeevesBlueprint(BlueprintBase):
         return matches
 
     async def semantic_search(self, query, directory="."):
+        import asyncio
         import os
         import time
-        import asyncio
         from glob import glob
         # from swarm.core.output_utils import get_spinner_state, print_search_progress_box # Already imported at class level
         op_start = time.monotonic()

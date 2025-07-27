@@ -7,11 +7,12 @@ Description: Lists blueprints. By default, lists user-installed blueprint source
 
 import argparse
 import importlib.util
-from pathlib import Path
 import logging
-import os # For os.access
-from swarm.core.blueprint_discovery import discover_blueprints, DiscoveredBlueprintInfo
-from swarm.core import paths # Import our XDG paths module
+import os  # For os.access
+from pathlib import Path
+
+from swarm.core import paths  # Import our XDG paths module
+from swarm.core.blueprint_discovery import DiscoveredBlueprintInfo, discover_blueprints
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ def execute(args=None):
                 print(f"\nFound {len(available_blueprints)} available blueprint(s):")
                 for bp_key, bp_info in available_blueprints.items():
                     print_blueprint_details(bp_key, bp_info)
-                print(f"\nUse 'swarm-cli install <Key/ID>' to install a blueprint's source.")
+                print("\nUse 'swarm-cli install <Key/ID>' to install a blueprint's source.")
             else:
                 print("No available blueprints found in package or development source.")
         except Exception as e:
@@ -141,11 +142,11 @@ def execute(args=None):
                     compiled_path = user_bin_dir / exe_name
                     status = "Compiled" if compiled_path.is_file() and os.access(compiled_path, os.X_OK) else "Source only"
                     print_blueprint_details(bp_key, bp_info, compiled_status=status)
-                print(f"\nUse 'swarm-cli compile <Key/ID>' to compile a blueprint.")
+                print("\nUse 'swarm-cli compile <Key/ID>' to compile a blueprint.")
                 print(f"Compiled executables are placed in {user_bin_dir}.")
             else:
                 print(f"No user-installed blueprints found in {paths.get_user_blueprints_dir()}.")
-                print(f"Use 'swarm-cli list --available' to see blueprints you can install, then 'swarm-cli install <name_or_path>'.")
+                print("Use 'swarm-cli list --available' to see blueprints you can install, then 'swarm-cli install <name_or_path>'.")
 
         except Exception as e:
             print(f"An error occurred while listing user-installed blueprints: {e}")
@@ -164,7 +165,7 @@ def register_args(parser: argparse.ArgumentParser):
 if __name__ == '__main__':
     # For direct testing of this script
     logging.basicConfig(level=logging.DEBUG)
-    
+
     parser = argparse.ArgumentParser()
     register_args(parser)
 

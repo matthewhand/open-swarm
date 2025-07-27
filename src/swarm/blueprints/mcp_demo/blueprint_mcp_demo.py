@@ -10,14 +10,15 @@ Self-healing, fileops-enabled, swarm-scalable.
 # mission_improbable debug: logger.debug("Mission Improbable agent created: JimFlimsy (Coordinator)")
 # mission_improbable error handling: try/except ImportError with sys.exit(1)
 
+import concurrent.futures
+import glob
+import json
 import logging
 import os
 import sys
-import glob
-import json
-import concurrent.futures
-from typing import Dict, Any, List, ClassVar, Optional
 from datetime import datetime
+from typing import Any, ClassVar
+
 import pytz
 
 # Ensure src is in path for BlueprintBase import
@@ -26,11 +27,12 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_discovery import discover_blueprints
 except ImportError as e:
@@ -82,10 +84,10 @@ def read_file(path: str) -> str:
             paths = glob.glob(path)
         else:
             paths = [path]
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
         for p in paths:
             try:
-                with open(p, 'r') as f:
+                with open(p) as f:
                     results[p] = f.read()
             except Exception as e:
                 results[p] = f"ERROR: {e}"
@@ -106,7 +108,7 @@ def write_file(path: str, content: str) -> str:
             paths = glob.glob(path)
         else:
             paths = [path]
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
         # Write to all targets concurrently
         def _write_single(p: str):
             try:
@@ -137,7 +139,7 @@ def list_files(directory: str = '.') -> str:
             dirs = glob.glob(directory)
         else:
             dirs = [directory]
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
         for d in dirs:
             try:
                 results[d] = os.listdir(d)
@@ -175,12 +177,15 @@ list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
 # --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-from swarm.ux.ansi_box import ansi_box
+import threading
+import time
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
+
+from swarm.ux.ansi_box import ansi_box
+
 
 class MCPDemoSpinner:
     FRAMES = [
@@ -253,7 +258,7 @@ def print_operation_box(op_type, results, params=None, result_type="mcp", taking
 # --- Define the Blueprint ---
 class MCPDemoBlueprint(BlueprintBase):
     """Demonstrates using filesystem and memory MCP servers."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "MCPDemoBlueprint",
         "title": "MCP Demo (Filesystem & Memory, Scalable & Viral FileOps)",
         "description": "A scalable agent (Sage) demonstrating interaction with filesystem and memory MCP servers, supporting horizontal scaling and viral file operations.",
@@ -265,8 +270,8 @@ class MCPDemoBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -313,7 +318,7 @@ class MCPDemoBlueprint(BlueprintBase):
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Sage agent, dynamically adding MCP server descriptions to its prompt."""
         logger.debug("Creating MCP Demo agent (Sage)...")
         self._model_instance_cache = {}
@@ -325,7 +330,7 @@ class MCPDemoBlueprint(BlueprintBase):
 
         # Filter for required MCPs and get descriptions
         required_names = self.metadata["required_mcp_servers"]
-        agent_mcps: List[MCPServer] = []
+        agent_mcps: list[MCPServer] = []
         mcp_descriptions = []
         for server in mcp_servers:
             if server.name in required_names:
@@ -355,7 +360,7 @@ class MCPDemoBlueprint(BlueprintBase):
         logger.debug("Sage agent created.")
         return sage_agent
 
-    async def _original_run(self, messages: List[dict]) -> object:
+    async def _original_run(self, messages: list[dict]) -> object:
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
@@ -376,7 +381,7 @@ class MCPDemoBlueprint(BlueprintBase):
         }
         return
 
-    async def run(self, messages: List[dict]) -> object:
+    async def run(self, messages: list[dict]) -> object:
         last_result = None
         async for result in self._original_run(messages):
             last_result = result
@@ -412,17 +417,21 @@ class MCPDemoBlueprint(BlueprintBase):
         return alternatives
 
     def query_swarm_knowledge(self, messages):
-        import json, os
+        import json
+        import os
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_knowledge.json')
         if not os.path.exists(path):
             return []
-        with open(path, 'r') as f:
+        with open(path) as f:
             knowledge = json.load(f)
         task_str = json.dumps(messages)
         return [entry for entry in knowledge if entry.get('task_str') == task_str]
 
     def write_to_swarm_log(self, log):
-        import json, os, time
+        import json
+        import os
+        import time
+
         from filelock import FileLock, Timeout
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_log.json')
         lock_path = path + '.lock'
@@ -431,7 +440,7 @@ class MCPDemoBlueprint(BlueprintBase):
             try:
                 with FileLock(lock_path, timeout=5):
                     if os.path.exists(path):
-                        with open(path, 'r') as f:
+                        with open(path) as f:
                             try:
                                 logs = json.load(f)
                             except json.JSONDecodeError:

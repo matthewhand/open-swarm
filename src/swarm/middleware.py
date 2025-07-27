@@ -1,10 +1,10 @@
 # src/swarm/middleware.py
+import asyncio  # Import asyncio
 import logging
-import asyncio # Import asyncio
+
 from asgiref.sync import sync_to_async
-from django.utils.functional import SimpleLazyObject
 from django.utils.decorators import sync_and_async_middleware
-from django.contrib.auth.middleware import AuthenticationMiddleware
+from django.utils.functional import SimpleLazyObject
 
 logger = logging.getLogger(__name__)
 

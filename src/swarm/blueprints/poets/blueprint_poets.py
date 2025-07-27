@@ -1,23 +1,26 @@
+import json
 import os
 import sqlite3
-import json
-import random
-from typing import List, Dict, Tuple, Optional, Any
-from agents import Agent, Model, Tool # type: ignore
-from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel # type: ignore
-from openai import AsyncOpenAI # type: ignore
+from typing import Any
+
+from agents import Agent, Model, Tool  # type: ignore
+from agents.models.openai_chatcompletions import (
+    OpenAIChatCompletionsModel,  # type: ignore
+)
+from openai import AsyncOpenAI  # type: ignore
 
 from swarm.core.blueprint_base import BlueprintBase
-from swarm.utils.log_utils import logger 
+from swarm.utils.log_utils import logger
+
 # REMOVED: from swarm.core.common_utils import get_mcp_tool_names_from_servers # This was the problematic line
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "swarm_instructions.db")
 
-DEFAULT_POET_PROFILES: Dict[str, Dict[str, Any]] = {
+DEFAULT_POET_PROFILES: dict[str, dict[str, Any]] = {
     "Gritty Buk": {
         "instructions": "You are Charles Bukowski incarnate: A gutter philosopher documenting life's raw truths.\n- Channel alcoholic despair & blue-collar rage through unfiltered verse\n- Find beauty in dirty apartments and whiskey-stained pages\n- MCP Tools: memory, mcp-doc-forge, mcp-npx-fetch, brave-search, rag-docs\nWhen adding: Barfly wisdom | Blue-collar lyricism | Unflinching vulgarity",
-        "model_profile": "default", 
-        "tools": [] 
+        "model_profile": "default",
+        "tools": []
     },
     "Raven Poe": {
         "instructions": "You are Edgar Allan Poe: Master of the macabre and melancholic.\n- Weave tales of gothic horror and psychological dread\n- Explore themes of death, decay, and lost love with poetic despair\n- MCP Tools: memory, mcp-doc-forge, mcp-npx-fetch, brave-search, rag-docs\nWhen adding: Gothic horror | Melancholic verse | Psychological dread",
@@ -63,40 +66,40 @@ DEFAULT_POET_PROFILES: Dict[str, Dict[str, Any]] = {
 
 
 class PoetsBlueprint(BlueprintBase):
-    NAME = "poets-society" 
+    NAME = "poets-society"
     DESCRIPTION = "A collaborative swarm of specialized poet agents, each with a unique style and voice, managed by a Poet Laureate coordinator."
-    VERSION = "0.2.1" 
+    VERSION = "0.2.1"
     IS_ASYNC = True
 
-    _model_instance_cache: Dict[str, Model] = {}
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
 
-    def __init__(self, blueprint_id: Optional[str] = None, config_path=None, db_path_override=None, **kwargs):
+    def __init__(self, blueprint_id: str | None = None, config_path=None, db_path_override=None, **kwargs):
         effective_blueprint_id = blueprint_id or self.NAME
         super().__init__(effective_blueprint_id, config_path=config_path, **kwargs)
-        
+
         self.db_path = db_path_override if db_path_override is not None else DB_PATH
         logger.info(f"Initializing SQLite database at: {self.db_path} for PoetsBlueprint '{self.blueprint_id}'")
 
         self._init_db()
         if not self._check_if_instructions_exist():
             self._insert_default_instructions()
-        
+
         self.poet_config = self.config.get("blueprints", {}).get(self.blueprint_id, {})
-        
-        self.agents: Dict[str, Agent] = {}
-        self.tools: List[Tool] = [] 
-        
+
+        self.agents: dict[str, Agent] = {}
+        self.tools: list[Tool] = []
+
         self.starting_agent_name = self.poet_config.get("starting_poet", "Gritty Buk")
         logger.info(f"PoetsBlueprint '{self.blueprint_id}' configured. Starting poet: {self.starting_agent_name}")
 
 
-    def _get_db_conn_cursor(self, db_path: Optional[str] = None):
+    def _get_db_conn_cursor(self, db_path: str | None = None):
         path_to_use = db_path or self.db_path
         conn = sqlite3.connect(path_to_use)
         return conn, conn.cursor()
 
-    def _init_db(self, db_path: Optional[str] = None):
+    def _init_db(self, db_path: str | None = None):
         path_to_use = db_path or self.db_path
         conn, cursor = None, None
         try:
@@ -119,7 +122,7 @@ class PoetsBlueprint(BlueprintBase):
             if conn:
                 conn.close()
 
-    def _check_if_instructions_exist(self, db_path: Optional[str] = None) -> bool:
+    def _check_if_instructions_exist(self, db_path: str | None = None) -> bool:
         path_to_use = db_path or self.db_path
         conn, cursor = None, None
         try:
@@ -129,12 +132,12 @@ class PoetsBlueprint(BlueprintBase):
             return count > 0
         except sqlite3.Error as e:
             logger.error(f"SQLite error checking instructions at {path_to_use}: {e}")
-            return False 
+            return False
         finally:
             if conn:
                 conn.close()
 
-    def _insert_default_instructions(self, db_path: Optional[str] = None):
+    def _insert_default_instructions(self, db_path: str | None = None):
         path_to_use = db_path or self.db_path
         conn, cursor = None, None
         try:
@@ -159,7 +162,7 @@ class PoetsBlueprint(BlueprintBase):
             if conn:
                 conn.close()
 
-    def _load_agent_config_from_db(self, agent_name: str, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def _load_agent_config_from_db(self, agent_name: str, db_path: str | None = None) -> dict[str, Any] | None:
         path_to_use = db_path or self.db_path
         conn, cursor = None, None
         try:
@@ -190,16 +193,16 @@ class PoetsBlueprint(BlueprintBase):
         if profile_name in self._model_instance_cache:
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
-        
+
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         if self.config is None:
             logger.error("self.config is None in _get_model_instance. Attempting to load default config.")
-            from swarm.core.config_loader import load_config 
-            self.config = load_config(None) 
+            from swarm.core.config_loader import load_config
+            self.config = load_config(None)
             if self.config is None:
                  raise ValueError("Blueprint configuration (self.config) is not loaded and fallback failed.")
 
-        profile_data = self.get_llm_profile(profile_name) 
+        profile_data = self.get_llm_profile(profile_name)
         if not profile_data:
             raise ValueError(f"Missing LLM profile '{profile_name}'. Ensure it's defined in the main swarm_config.json. Current profiles: {self.config.get('llm', {}).keys() if self.config else 'None'}")
 
@@ -207,8 +210,8 @@ class PoetsBlueprint(BlueprintBase):
         provider = profile_data.get("provider", "openai")
         api_key = profile_data.get("api_key", os.environ.get("OPENAI_API_KEY"))
         base_url = profile_data.get("base_url")
-        
-        client_key = f"{provider}_{api_key}_{base_url}" 
+
+        client_key = f"{provider}_{api_key}_{base_url}"
 
         if provider.lower() == "openai":
             if client_key not in self._openai_client_cache:
@@ -216,7 +219,7 @@ class PoetsBlueprint(BlueprintBase):
                 client_params = {"api_key": api_key}
                 if base_url: client_params["base_url"] = base_url
                 self._openai_client_cache[client_key] = AsyncOpenAI(**client_params)
-            
+
             openai_client = self._openai_client_cache[client_key]
             logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client)
@@ -225,20 +228,20 @@ class PoetsBlueprint(BlueprintBase):
         else:
             raise ValueError(f"Unsupported LLM provider: {provider} in profile '{profile_name}'")
 
-    def _create_poet_agent(self, name: str, agent_config: Dict[str, Any], mcp_servers: Optional[List[Any]] = None) -> Agent:
+    def _create_poet_agent(self, name: str, agent_config: dict[str, Any], mcp_servers: list[Any] | None = None) -> Agent:
         model_instance = self._get_model_instance(agent_config.get("model_profile", "default"))
         return Agent(
             name=name,
             instructions=agent_config["instructions"],
             model=model_instance,
-            tools=[], 
-            mcp_servers=mcp_servers or [] 
+            tools=[],
+            mcp_servers=mcp_servers or []
         )
 
-    def create_agents_and_tools(self, mcp_servers: Optional[List[Any]] = None) -> Tuple[Dict[str, Agent], List[Tool]]:
+    def create_agents_and_tools(self, mcp_servers: list[Any] | None = None) -> tuple[dict[str, Agent], list[Tool]]:
         logger.debug(f"Creating Poets agent team. Received mcp_servers: {mcp_servers}")
-        agents_dict: Dict[str, Agent] = {}
-        
+        agents_dict: dict[str, Agent] = {}
+
         poet_names_from_db = []
         conn, cursor = None, None
         try:
@@ -256,46 +259,46 @@ class PoetsBlueprint(BlueprintBase):
 
         for name in all_poet_names:
             agent_config = self._load_agent_config_from_db(name)
-            if not agent_config: 
+            if not agent_config:
                 agent_config = DEFAULT_POET_PROFILES.get(name)
-            
+
             if agent_config:
                 agents_dict[name] = self._create_poet_agent(name, agent_config, mcp_servers)
             else:
                 logger.warning(f"Could not find or load profile for poet: {name}")
 
-        agent_tools: List[Tool] = []
+        agent_tools: list[Tool] = []
         for name, agent_instance in agents_dict.items():
             tool_desc = f"Pass the current work to {name} for refinement or tasks requiring their specific style (Y)."
             agent_tools.append(agent_instance.as_tool(tool_name=name, tool_description=tool_desc))
-        
+
         for name, agent_instance in agents_dict.items():
             other_poet_tools = [tool for tool in agent_tools if tool.name != name]
             agent_instance.tools = other_poet_tools # type: ignore
         return agents_dict, agent_tools
 
-    def create_starting_agent(self, mcp_servers: Optional[List[Any]] = None) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[Any] | None = None) -> Agent:
         if not self.agents or (mcp_servers and not all(s in getattr(self.agents.get(self.starting_agent_name, object()), 'mcp_servers', []) for s in mcp_servers)):
              self.agents, self.tools = self.create_agents_and_tools(mcp_servers)
 
-        start_agent_name = self.starting_agent_name 
+        start_agent_name = self.starting_agent_name
         if start_agent_name not in self.agents:
             logger.warning(f"Starting poet '{start_agent_name}' not found in self.agents. Available: {list(self.agents.keys())}. Defaulting to first available poet.")
             if not self.agents:
                 raise ValueError("No poet agents available to select as starting agent.")
             start_agent_name = list(self.agents.keys())[0]
-        
+
         return self.agents[start_agent_name]
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> Any: # Changed type hint for messages
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any: # Changed type hint for messages
         user_message = ""
         if messages and isinstance(messages[-1], dict) and "content" in messages[-1]:
             user_message = messages[-1]["content"]
-        
+
         mcp_servers_from_kwargs = kwargs.get("mcp_servers")
-        
+
         starting_agent = self.create_starting_agent(mcp_servers=mcp_servers_from_kwargs)
-        
+
         logger.info(f"PoetsBlueprint run: Starting with poet '{starting_agent.name}' for input: '{str(user_message)[:50]}...'")
-        async for response_chunk in starting_agent.run(messages=messages, **kwargs): 
+        async for response_chunk in starting_agent.run(messages=messages, **kwargs):
             yield response_chunk

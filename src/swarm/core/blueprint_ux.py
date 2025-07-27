@@ -1,6 +1,6 @@
 # UX utilities for Swarm blueprints
-import time
 import itertools
+
 # REMOVE: from swarm.core.blueprint_base import BlueprintBase # Import BlueprintBase
 
 # Style presets
@@ -35,7 +35,7 @@ class BlueprintUXImproved: # REMOVE: (BlueprintBase)
         self._spinner_cycle = itertools.cycle(self._style_conf["spinner"])
         self._spinner_start = None
         # Ensure console is available
-        from rich.console import Console # Moved import here
+        from rich.console import Console  # Moved import here
         self.console = Console()
 
 

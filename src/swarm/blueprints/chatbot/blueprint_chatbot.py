@@ -1,15 +1,13 @@
-import os
-from dotenv import load_dotenv; load_dotenv(override=True)
-
 import logging
+import os
 import sys
+from pathlib import Path
 from typing import Any, ClassVar
 
-# Set logging to WARNING by default unless SWARM_DEBUG=1
-if not os.environ.get("SWARM_DEBUG"):
-    logging.basicConfig(level=logging.WARNING)
-else:
-    logging.basicConfig(level=logging.DEBUG)
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
+
 
 # Set logging to WARNING by default unless SWARM_DEBUG=1
 if not os.environ.get("SWARM_DEBUG"):
@@ -17,23 +15,18 @@ if not os.environ.get("SWARM_DEBUG"):
 else:
     logging.basicConfig(level=logging.DEBUG)
 
-# Set logging to WARNING by default unless SWARM_DEBUG=1
-if not os.environ.get("SWARM_DEBUG"):
-    logging.basicConfig(level=logging.WARNING)
-else:
-    logging.basicConfig(level=logging.DEBUG)
 
 # Ensure src is in path for BlueprintBase import
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+src_path = os.path.join(project_root, "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
-from pathlib import Path
 
 try:
     # Patch: If MCPServer import fails, define a dummy MCPServer for demo/test
     try:
-        from agents import Agent, MCPServer, function_tool
+        from agents import Agent, MCPServer
         # Patch: Expose underlying fileops functions for direct testing
         class PatchedFunctionTool:
             def __init__(self, func, name):
@@ -42,15 +35,15 @@ try:
     except ImportError:
         class MCPServer:
             pass
-        from agents import Agent, function_tool
+        from agents import Agent
     try:
         from agents.mcp import MCPServer as MCPServer2
     except ImportError:
         MCPServer2 = MCPServer
-    from openai import AsyncOpenAI
-
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in ChatbotBlueprint: {e}. Check dependencies.")
@@ -59,14 +52,16 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
+
 # --- Define the Blueprint ---
 class ChatbotBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
         class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
+            def chat_completion_stream(self, **_):
                 class DummyStream:
-                    def __aiter__(self): return self
+                    def __aiter__(self):
+                        return self
                     async def __anext__(self):
                         raise StopAsyncIteration
                 return DummyStream()
@@ -140,8 +135,10 @@ class ChatbotBlueprint(BlueprintBase):
         import os
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model")
         profile_data["model"] = model_name
-        if profile_data.get("provider", "openai").lower() != "openai": raise ValueError(f"Unsupported provider: {profile_data.get('provider')}")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if profile_data.get("provider", "openai").lower() != "openai":
+            raise ValueError(f"Unsupported provider: {profile_data.get('provider')}")
+        if not model_name:
+            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
 
         # REMOVE PATCH: env expansion is now handled globally in config loader
         client_cache_key = f"{profile_data.get('provider', 'openai')}_{profile_data.get('base_url')}"
@@ -150,15 +147,18 @@ class ChatbotBlueprint(BlueprintBase):
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
+             try:
+                self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e:
+                raise ValueError(f"Failed to init client: {e}") from e
         client = self._openai_client_cache[client_cache_key]
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM: {e}") from e
 
     def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the single Chatbot agent."""
@@ -171,7 +171,14 @@ class ChatbotBlueprint(BlueprintBase):
         model_instance = self._get_model_instance(default_profile_name)
 
         chatbot_instructions = """
-You are a helpful and friendly chatbot. Respond directly to the user's input in a conversational manner.\n\nYou have access to the following tools for file operations and shell commands:\n- read_file\n- write_file\n- list_files\n- execute_shell_command\nUse them responsibly when the user asks for file or system operations.
+You are a helpful and friendly chatbot. Respond directly to the user's input in a conversational manner.
+
+You have access to the following tools for file operations and shell commands:
+- read_file
+- write_file
+- list_files
+- execute_shell_command
+Use them responsibly when the user asks for file or system operations.
 """
 
         chatbot_agent = Agent(
@@ -188,8 +195,6 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         """Main execution entry point for the Chatbot blueprint."""
         logger.info("ChatbotBlueprint run method called.")
-        import time
-        op_start = time.monotonic()
         from swarm.core.output_utils import print_search_progress_box
         instruction = messages[-1].get("content", "") if messages else ""
         if not instruction:
@@ -228,7 +233,9 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
             border=border
         )
         if os.environ.get('SWARM_TEST_MODE'):
-            from swarm.core.output_utils import print_search_progress_box, get_spinner_state
+            from swarm.core.output_utils import (
+                print_search_progress_box,
+            )
             spinner_lines = [
                 "Generating.",
                 "Generating..",
@@ -272,7 +279,8 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
                     emoji='🤖',
                     border='╔'
                 )
-                import asyncio; await asyncio.sleep(0.01)
+                import asyncio
+                await asyncio.sleep(0.01)
             print_search_progress_box(
                 op_type="Chatbot Results",
                 results=[f"Chatbot agent response for: '{instruction}'", "Found 2 results.", "Processed"],
@@ -400,7 +408,6 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
         import os
 
         from agents import Runner
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             result = await Runner.run(agent, instruction)
             response = getattr(result, 'final_output', str(result))
@@ -425,6 +432,8 @@ You are a helpful and friendly chatbot. Respond directly to the user's input in 
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
             import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
+            import time
+
             from swarm.core.output_utils import (
                 get_spinner_state,
                 print_search_progress_box,

@@ -1,6 +1,8 @@
-from rest_framework import serializers
-from swarm.models import ChatMessage
 import logging
+
+from rest_framework import serializers
+
+from swarm.models import ChatMessage
 
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_debug')

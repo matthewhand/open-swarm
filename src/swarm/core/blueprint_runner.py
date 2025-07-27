@@ -1,10 +1,10 @@
-import sys
+import inspect
 import traceback
 import types
-from typing import AsyncGenerator
-import inspect
+from collections.abc import AsyncGenerator
 
 from .blueprint_base import Spinner
+
 
 class BlueprintRunner:
     @staticmethod

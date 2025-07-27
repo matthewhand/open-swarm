@@ -1,15 +1,18 @@
 import logging
-import os
-from rest_framework.authentication import BaseAuthentication, SessionAuthentication
-# Import BasePermission for creating custom permissions
-from rest_framework.permissions import BasePermission
-from rest_framework import exceptions
+
 from django.conf import settings
-from django.utils.translation import gettext_lazy as _
-# Import AnonymousUser
-from django.contrib.auth.models import AnonymousUser
+
 # Keep get_user_model if CustomSessionAuthentication needs it or for future user mapping
 from django.contrib.auth import get_user_model
+
+# Import AnonymousUser
+from django.contrib.auth.models import AnonymousUser
+from django.utils.translation import gettext_lazy as _
+from rest_framework import exceptions
+from rest_framework.authentication import BaseAuthentication, SessionAuthentication
+
+# Import BasePermission for creating custom permissions
+from rest_framework.permissions import BasePermission
 
 logger = logging.getLogger('swarm.auth')
 User = get_user_model()
@@ -69,7 +72,7 @@ class StaticTokenAuthentication(BaseAuthentication):
             return (AnonymousUser(), provided_token)
         else:
             # Token was provided but did not match. Raise AuthenticationFailed.
-            logger.warning(f"[Auth][StaticToken] Invalid static token provided.")
+            logger.warning("[Auth][StaticToken] Invalid static token provided.")
             raise exceptions.AuthenticationFailed(_("Invalid API Key."))
 
 # --- Custom *Synchronous* Session Authentication ---
@@ -96,7 +99,7 @@ class HasValidTokenOrSession(BasePermission):
     """
     message = 'Authentication credentials were not provided or are invalid (Requires valid API Key or active session).'
 
-    def has_permission(self, request, view):
+    def has_permission(self, request, _view):
         """
         Checks if the request has valid authentication via token or session.
         """

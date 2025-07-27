@@ -2,8 +2,9 @@
 Interactive CLI shell for dynamic commands.
 """
 
-from swarm.extensions.cli.utils.discover_commands import discover_commands
 import os
+
+from swarm.extensions.cli.utils.discover_commands import discover_commands
 
 COMMANDS_DIR = os.path.join(os.path.dirname(__file__), "commands")
 

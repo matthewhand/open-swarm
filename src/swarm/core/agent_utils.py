@@ -8,6 +8,7 @@ instead, it now imports Agent from the openai-agents SDK.
 
 from blueprint_agents.agent import Agent  # Updated import
 
+
 def get_agent_name(agent: Agent) -> str:
     """
     Returns the name of the agent.

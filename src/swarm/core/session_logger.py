@@ -1,9 +1,9 @@
-import os
 import datetime
-from typing import Optional, List, Dict
+import os
+
 
 class SessionLogger:
-    def __init__(self, blueprint_name: str, log_dir: Optional[str] = None):
+    def __init__(self, blueprint_name: str, log_dir: str | None = None):
         if log_dir is None:
             base_dir = os.path.dirname(__file__)
             log_dir = os.path.join(base_dir, f"../blueprints/{blueprint_name}/session_logs")
@@ -18,7 +18,7 @@ class SessionLogger:
         self.log_file.write(f"# Session Log\n\nStarted: {self.session_time}\n\n")
         self.log_file.flush()
 
-    def log_instructions(self, global_instructions: Optional[str], project_instructions: Optional[str]):
+    def log_instructions(self, global_instructions: str | None, project_instructions: str | None):
         self.log_file.write("## Instructions\n")
         if global_instructions:
             self.log_file.write("### Global Instructions\n" + global_instructions + "\n\n")

@@ -1,7 +1,9 @@
 # Handles .env management and environment validation for the CLI
 
 import os
+
 from dotenv import load_dotenv
+
 
 def validate_env():
     """Ensure all required environment variables are set."""

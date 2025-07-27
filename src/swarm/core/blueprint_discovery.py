@@ -1,11 +1,10 @@
-import os
 import importlib
 import importlib.util
 import inspect
 import logging
 import sys
-from typing import Dict, Type, Any, Optional, TypedDict
 from pathlib import Path
+from typing import TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +20,15 @@ except ImportError:
 class BlueprintMetadata(TypedDict, total=False):
     """Structure for metadata extracted from a blueprint."""
     name: str
-    version: Optional[str]
-    description: Optional[str]
-    author: Optional[str]
-    abbreviation: Optional[str]
+    version: str | None
+    description: str | None
+    author: str | None
+    abbreviation: str | None
     # Add other common metadata fields here if needed for typing
 
 class DiscoveredBlueprintInfo(TypedDict):
     """Structure for the information returned by discover_blueprints for each blueprint."""
-    class_type: Type[BlueprintBase]
+    class_type: type[BlueprintBase]
     metadata: BlueprintMetadata
 
 
@@ -46,7 +45,7 @@ class BlueprintLoadError(Exception):
 #         return dir_name[len(prefix):]
 #     return dir_name
 
-def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo]:
+def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo]:
     """
     Discovers blueprints by looking for Python files within subdirectories
     of the given blueprint directory. Extracts metadata including name, version,
@@ -60,7 +59,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
         DiscoveredBlueprintInfo objects containing the blueprint class and its metadata.
     """
     logger.info(f"Starting blueprint discovery in directory: {blueprint_dir}")
-    blueprints: Dict[str, DiscoveredBlueprintInfo] = {}
+    blueprints: dict[str, DiscoveredBlueprintInfo] = {}
     base_dir = Path(blueprint_dir).resolve()
 
     if not base_dir.is_dir():
@@ -78,7 +77,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
         # Standard search: blueprint_{blueprint_key_name}.py or {blueprint_key_name}.py
         # (Adjusted to prioritize {blueprint_key_name}.py as per common practice,
         # then blueprint_{blueprint_key_name}.py if that's a convention)
-        
+
         # Attempt 1: {blueprint_key_name}.py (e.g., codey.py in codey/ directory)
         py_file_path = subdir / f"{blueprint_key_name}.py"
         py_file_name = py_file_path.name
@@ -91,7 +90,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
                 logger.warning(f"Skipping directory '{subdir.name}': No suitable main Python file "
                                f"('{blueprint_key_name}.py' or 'blueprint_{blueprint_key_name}.py') found.")
                 continue
-        
+
         logger.debug(f"Found blueprint file: {py_file_name} in {subdir}")
 
         # Construct module import path. Example: swarm.blueprints.codey.codey
@@ -119,7 +118,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
             if module_spec and module_spec.loader:
                 module = importlib.util.module_from_spec(module_spec)
                 # Register module before execution to handle circular imports within blueprint
-                sys.modules[module_import_path] = module 
+                sys.modules[module_import_path] = module
                 module_spec.loader.exec_module(module)
                 logger.debug(f"Successfully loaded module: {module_import_path}")
 
@@ -137,7 +136,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
                             continue # Stick with the first one
 
                         logger.debug(f"Found Blueprint class '{member_name}' in module '{module_import_path}'")
-                        
+
                         # Extract metadata
                         class_metadata_attr = getattr(member_obj, 'metadata', {})
                         if not isinstance(class_metadata_attr, dict):
@@ -152,7 +151,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
                             if docstring:
                                 description = docstring.strip()
                                 logger.debug(f"Using class docstring for description of '{member_name}'.")
-                        
+
                         current_blueprint_metadata: BlueprintMetadata = {
                             'name': class_metadata_attr.get('name', blueprint_key_name), # Fallback to dir name
                             'version': class_metadata_attr.get('version'),
@@ -179,7 +178,7 @@ def discover_blueprints(blueprint_dir: str) -> Dict[str, DiscoveredBlueprintInfo
             # Clean up sys.modules if import failed partway
             if module_import_path in sys.modules:
                 del sys.modules[module_import_path]
-    
+
     logger.info(f"Blueprint discovery complete. Found {len(blueprints)} blueprints: {list(blueprints.keys())}")
     return blueprints
 
@@ -190,7 +189,7 @@ if __name__ == '__main__':
 
     # Create dummy structure for testing
     Path("src/swarm/blueprints/example_bp").mkdir(parents=True, exist_ok=True)
-    
+
     # Dummy swarm.core.blueprint_base
     Path("src/swarm/core").mkdir(parents=True, exist_ok=True)
     with open("src/swarm/core/blueprint_base.py", "w") as f:
@@ -215,7 +214,7 @@ if __name__ == '__main__':
         f.write("    }\n")
         f.write("    def run(self):\n")
         f.write("        print('ExampleBP running')\n")
-    
+
     # Test discovery (assuming 'src' is in PYTHONPATH or script is run from project root)
     # The script assumes blueprint_dir is relative to where Python resolves 'swarm.blueprints'
     # For this test, let's point to 'src/swarm/blueprints'
@@ -223,7 +222,7 @@ if __name__ == '__main__':
     for name, info in discovered.items():
         print(f"\nDiscovered Blueprint Key: {name}")
         print(f"  Class: {info['class_type'].__name__}")
-        print(f"  Metadata:")
+        print("  Metadata:")
         for meta_key, meta_val in info['metadata'].items():
             print(f"    {meta_key}: {meta_val}")
 

@@ -1,24 +1,20 @@
 """
 Core/UI related views for the Swarm framework.
 """
-import os
-import json
 import logging
 from pathlib import Path
 
-from django.shortcuts import render, redirect
-from django.http import JsonResponse, HttpResponse
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login
-from django.contrib.auth.forms import AuthenticationForm # Use standard auth form
-
+from django.contrib.auth.forms import AuthenticationForm  # Use standard auth form
+from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
 
 # Assuming blueprint discovery happens elsewhere and results are available if needed
 # from .utils import blueprints_metadata # Or however metadata is accessed
-
 # Use the current config loader
-from swarm.core import config_loader, server_config
+from swarm.core import config_loader
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +95,9 @@ def serve_swarm_config(request):
 def list_available_blueprints_api(request):
      """API endpoint to list discoverable blueprints."""
      # Re-use discovery logic if possible, or adapt from CLI
-     from swarm.extensions.blueprint.discovery import discover_blueprints # Assuming this exists
+     from swarm.extensions.blueprint.discovery import (
+         discover_blueprints,  # Assuming this exists
+     )
      try:
         bp_dir = Path(settings.BLUEPRINTS_DIR) # Assuming settings has BLUEPRINTS_DIR
         discovered = discover_blueprints(directories=[str(bp_dir)])

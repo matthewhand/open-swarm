@@ -3,7 +3,7 @@ Interactive mode logic for blueprint extensions.
 """
 
 import logging
-from typing import List, Dict, Any # Added Any
+from typing import Any  # Added Any
 
 # Import the standalone output function
 from .output_utils import pretty_print_response
@@ -27,7 +27,7 @@ ance's methods.
         # --- End FIX ---
 
     print("Blueprint Interactive Mode 🐝")
-    messages: List[Dict[str, Any]] = []
+    messages: list[dict[str, Any]] = []
     first_input = True
     message_count = 0
     while True:

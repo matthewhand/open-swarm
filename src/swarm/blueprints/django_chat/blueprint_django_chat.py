@@ -6,12 +6,14 @@ HTTP-only; not intended for CLI use.
 """
 
 import logging
-import sys
 import os
-from typing import Dict, Any, List
+import sys
+import time
+from typing import Any
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_ux import BlueprintUXImproved
-import time
+
 
 # --- Logging Setup ---
 def setup_logging():
@@ -40,25 +42,27 @@ if __name__ == "__main__":
 # Django imports after CLI rejection
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
 import django
+
 django.setup()
 
-from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
-from swarm.models import ChatConversation, ChatMessage
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
+from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
 
 logger = setup_logger(__name__)
 
 # --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-from swarm.ux.ansi_box import ansi_box
+import threading
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
+
 
 class DjangoChatSpinner:
     FRAMES = [
@@ -134,7 +138,7 @@ class DjangoChatBlueprint(Blueprint):
         self.llm = DummyLLM()
 
     @property
-    def metadata(self) -> Dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         logger.debug("Fetching metadata")
         return {
             "title": "Django Chat Interface",
@@ -172,7 +176,7 @@ class DjangoChatBlueprint(Blueprint):
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: List[Dict[str, str]]):
+    async def run(self, messages: list[dict[str, str]]):
         """Main execution entry point for the DjangoChat blueprint."""
         logger.info("DjangoChatBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
@@ -218,7 +222,7 @@ class DjangoChatBlueprint(Blueprint):
             logger.error(f"Error during DjangoChat run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
-    def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
+    def run_with_context(self, messages: list[dict[str, str]], context_variables: dict) -> dict:
         """Minimal implementation for CLI compatibility without agents."""
         logger.debug("Running with context (UI-focused implementation)")
         return {
@@ -228,7 +232,6 @@ class DjangoChatBlueprint(Blueprint):
 
 if __name__ == "__main__":
     import asyncio
-    import json
     messages = [
         {"role": "user", "content": "Start a chat session about Django."}
     ]

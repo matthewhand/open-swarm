@@ -1,10 +1,12 @@
 import json
 import os
 import uuid
-from channels.generic.websocket import AsyncWebsocketConsumer
-from openai import AsyncOpenAI
-from django.template.loader import render_to_string
+
 from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
+from django.template.loader import render_to_string
+from openai import AsyncOpenAI
+
 from swarm.models import ChatConversation, ChatMessage
 
 # In-memory conversation storage (populated lazily)
@@ -62,9 +64,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=system_message_html)
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
+
         # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
-        import os, logging
+        import logging
+        import os
         if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
             logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
             try:
@@ -80,7 +83,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 import traceback
                 raise RuntimeError(f"Attempted fallback to OpenAI API when custom base_url is set! base_url={base_url}\n{traceback.format_stack()}")
         _enforce_litellm_only(client)
-        
+
         stream = await client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL"),
             messages=self.messages,

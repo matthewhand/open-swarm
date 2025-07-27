@@ -1,6 +1,8 @@
-from swarm.core.blueprint_discovery import discover_blueprints
-from swarm.core import config_loader, config_manager, server_config
 import argparse
+
+from swarm.core import config_loader, config_manager
+from swarm.core.blueprint_discovery import discover_blueprints
+
 
 def validate_envvars(blueprint_name=None):
     """

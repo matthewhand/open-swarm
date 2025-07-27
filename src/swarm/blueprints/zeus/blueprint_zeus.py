@@ -3,13 +3,15 @@ Zeus Blueprint
 A general-purpose coordinator agent using other gods as tools.
 """
 
-from swarm.core.blueprint_base import BlueprintBase
+import inspect  # For isasyncgenfunction and iscoroutinefunction
 import os
+import sys
 import time
-import sys 
-import inspect # For isasyncgenfunction and iscoroutinefunction
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.blueprint_ux import BlueprintUXImproved
+
 
 class ZeusSpinner:
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
@@ -27,7 +29,7 @@ class ZeusSpinner:
         self._idx = 0
         self._last_frame = self.FRAMES[0]
 
-    def _spin(self): 
+    def _spin(self):
         self._idx = (self._idx + 1) % len(self.FRAMES)
         self._last_frame = self.FRAMES[self._idx]
 
@@ -44,7 +46,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
     CLI_NAME = "zeus"
     DESCRIPTION = "Zeus: The coordinator agent for Open Swarm, using all other gods as tools."
     VERSION = "1.0.0"
-    
+
     @classmethod
     def get_metadata(cls):
         return {
@@ -59,14 +61,14 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
             blueprint_id = "zeus_test"
         self.debug = bool(kwargs.pop("debug", False))
         super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        self.cli_spinner = ZeusSpinner() 
+        self.cli_spinner = ZeusSpinner()
 
     def assist(self, user_input, context=None):
-        self.cli_spinner.start() 
+        self.cli_spinner.start()
         display_operation_box(
             title="Zeus Assistance",
             content=f"How can Zeus help you today? You said: {user_input}",
-            spinner_state=self.cli_spinner.current_spinner_state(), 
+            spinner_state=self.cli_spinner.current_spinner_state(),
             emoji="⚡"
         )
         self.cli_spinner.stop()
@@ -76,21 +78,21 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         logger = getattr(self, 'logger', None) or __import__('logging').getLogger(__name__)
         logger.info("ZeusCoordinatorBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
-        ux = BlueprintUXImproved(style="serious") 
-        
-        initial_spinner_content = ux.spinner(0, taking_long=False) 
+        ux = BlueprintUXImproved(style="serious")
+
+        initial_spinner_content = ux.spinner(0, taking_long=False)
         yield {"messages": [{"role": "assistant", "content": initial_spinner_content}]}
-        
-        spinner_idx_loop = 0 
+
+        spinner_idx_loop = 0
         start_time = time.time()
         spinner_yield_interval = 1.0
         last_spinner_time = start_time
         yielded_spinner_in_loop = False
         result_chunks = []
-        
+
         try:
             agent = self.create_starting_agent()
-            
+
             # Check if agent.run is an async generator function or a coroutine function that returns an async generator
             if inspect.isasyncgenfunction(getattr(agent, 'run', None)):
                 runner_gen = agent.run(messages, **kwargs)
@@ -116,7 +118,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                 try:
                     chunk = await runner_gen.__anext__()
                     result_chunks.append(chunk)
-                    
+
                     if chunk and isinstance(chunk, dict) and "messages" in chunk:
                         if self.debug or os.environ.get("SWARM_TEST_MODE") == "1":
                             yield chunk
@@ -134,11 +136,11 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                             )
                             yield {"messages": [{"role": "assistant", "content": box}]}
                     else:
-                        yield chunk 
-                    yielded_spinner_in_loop = False 
+                        yield chunk
+                    yielded_spinner_in_loop = False
                 except StopAsyncIteration:
                     break
-                except Exception as e_inner_loop: 
+                except Exception as e_inner_loop:
                     logger.error(f"Error from agent during run: {e_inner_loop}", exc_info=True)
                     if now - last_spinner_time >= spinner_yield_interval:
                         taking_long = (now - start_time > 10)
@@ -147,9 +149,9 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                         spinner_idx_loop += 1
                         last_spinner_time = now
                         yielded_spinner_in_loop = True
-            
+
             if not result_chunks and not yielded_spinner_in_loop:
-                fallback_spinner_content = ux.spinner(0, taking_long=False) 
+                fallback_spinner_content = ux.spinner(0, taking_long=False)
                 yield {"messages": [{"role": "assistant", "content": fallback_spinner_content}]}
 
         except Exception as e_outer:
@@ -160,12 +162,12 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         from agents import Agent
         from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
         from openai import AsyncOpenAI
-        
+
         model_profile_name = "default"
         if hasattr(self, 'config') and self.config:
             blueprint_specific_settings = self.config.get("blueprints", {}).get(self.NAME, {})
             model_profile_name = blueprint_specific_settings.get("model_profile", self.config.get('llm_profile', 'default'))
-        
+
         llm_profile_data = {}
         if hasattr(self, 'get_llm_profile'): # Ensure method exists
              try:
@@ -175,7 +177,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                  llm_profile_data = {}
 
 
-        model_name_to_use = llm_profile_data.get("model", os.environ.get("DEFAULT_LLM", "gpt-3.5-turbo")) 
+        model_name_to_use = llm_profile_data.get("model", os.environ.get("DEFAULT_LLM", "gpt-3.5-turbo"))
         api_key = llm_profile_data.get("api_key", os.environ.get('OPENAI_API_KEY', 'sk-test')) # Ensure sk-test is only for tests
         base_url = llm_profile_data.get("base_url", os.environ.get("OPENAI_BASE_URL"))
 
@@ -183,7 +185,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         if base_url:
             client_params["base_url"] = base_url
         openai_client = AsyncOpenAI(**client_params)
-        
+
         model_instance = OpenAIChatCompletionsModel(model=model_name_to_use, openai_client=openai_client)
 
         pantheon_names = [
@@ -206,7 +208,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                     mcp_servers=mcp_servers or []
                 )
             )
-        pantheon_tools = [a.as_tool(tool_name=a.name, tool_description=desc) for a, (_, desc) in zip(pantheon_agents, pantheon_names)]
+        pantheon_tools = [a.as_tool(tool_name=a.name, tool_description=desc) for a, (_, desc) in zip(pantheon_agents, pantheon_names, strict=False)]
 
         zeus_instructions = """
 You are Zeus, Product Owner and Coordinator of the Divine Ops team.
@@ -231,8 +233,8 @@ if __name__ == "__main__":
     import asyncio
     print("\033[1;36m\nZeus CLI Demo\033[0m") # Simplified banner
     # Ensure blueprint is initialized for CLI context (debug=True for raw output)
-    blueprint = ZeusCoordinatorBlueprint(blueprint_id="cli-demo", debug=True) 
-    
+    blueprint = ZeusCoordinatorBlueprint(blueprint_id="cli-demo", debug=True)
+
     cli_spinner_instance = ZeusSpinner()
 
     async def run_and_print_demo():
@@ -245,8 +247,8 @@ if __name__ == "__main__":
                 if isinstance(response_item, dict) and "messages" in response_item and response_item["messages"]:
                     # Since debug=True for CLI demo, this should be the raw agent output
                     content_to_print = response_item["messages"][0].get("content", str(response_item))
-                
-                sys.stdout.write(f"\r{' ' * 80}\r") 
+
+                sys.stdout.write(f"\r{' ' * 80}\r")
                 sys.stdout.write(f"{content_to_print}\n")
                 sys.stdout.flush()
         except Exception as e:

@@ -1,7 +1,9 @@
+import inspect
+
+from rich import box as rich_box
 from rich.console import Console
 from rich.panel import Panel
-from rich import box as rich_box
-import inspect
+
 
 # --- Enhanced display_operation_box for unified UX (spinner, ANSI/emoji, progress, params, etc.) ---
 def display_operation_box(

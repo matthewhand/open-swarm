@@ -1,14 +1,11 @@
-import subprocess
+import json
 import sys
 import threading
-import os
-import signal
 import time
-import json
-from typing import List, Dict, Any, Optional
 
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.blueprint_ux import BlueprintUXImproved
+
 # Assuming display_operation_box is now print_operation_box from output_utils
 # and BlueprintUXImproved provides self.ux.ansi_emoji_box
 # from swarm.blueprints.common.operation_box_utils import display_operation_box
@@ -22,8 +19,8 @@ class WhingeSpinner:
     def __init__(self):
         self._running = False
         self._current_frame = 0
-        self._thread: Optional[threading.Thread] = None
-        self._start_time: Optional[float] = None
+        self._thread: threading.Thread | None = None
+        self._start_time: float | None = None
 
     def start(self) -> None:
         self._running = True
@@ -69,8 +66,8 @@ class WhingeSurfBlueprint(BlueprintBase):
 
     def __init__(self, blueprint_id: str = "whinge_surf", config=None, config_path=None,
                  job_service=None, monitor_service=None, **kwargs):
-        from swarm.services.job import DefaultJobService # Moved import
-        from swarm.services.monitor import DefaultMonitorService # Moved import
+        from swarm.services.job import DefaultJobService  # Moved import
+        from swarm.services.monitor import DefaultMonitorService  # Moved import
 
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
         # self.blueprint_id, self.config_path, self._config, etc. are set by BlueprintBase
@@ -85,8 +82,8 @@ class WhingeSurfBlueprint(BlueprintBase):
 
     # _load_jobs and _save_jobs removed
 
-    def _display_job_status(self, job_id: str, status: str, output: Optional[str] = None,
-                            progress: Optional[int] = None, total: Optional[int] = None) -> None:
+    def _display_job_status(self, job_id: str, status: str, output: str | None = None,
+                            progress: int | None = None, total: int | None = None) -> None:
         # self.spinner._spin() # Spinner runs in its own thread now
 
         # Use self.ux for displaying boxes
@@ -175,22 +172,22 @@ class WhingeSurfBlueprint(BlueprintBase):
 
         try:
             instruction = messages[-1].get("content", "").lower() if messages else ""
-            response_content = "WhingeSurf processed the request." 
+            response_content = "WhingeSurf processed the request."
 
             if "list jobs" in instruction:
                 response_content = self.list_jobs()
             elif "prune jobs" in instruction:
                 response_content = self.prune_jobs()
-            elif "run " in instruction: 
+            elif "run " in instruction:
                 cmd_str = instruction.replace("run ", "").strip()
                 cmd_parts = cmd_str.split()
                 if cmd_parts:
                     job_id = self.job_service.launch(cmd_parts, f"cli_job_{cmd_parts[0]}")
                     response_content = f"Launched job {job_id} for command: {' '.join(cmd_parts)}"
-                    self._display_job_status(job_id, "LAUNCHED") 
+                    self._display_job_status(job_id, "LAUNCHED")
                 else:
                     response_content = "No command provided to run."
-            
+
             final_response_message = {"role": "assistant", "content": response_content}
             yield {"messages": [final_response_message]}
             all_results_content.append(response_content)

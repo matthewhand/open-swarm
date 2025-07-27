@@ -2,8 +2,6 @@
 Utilities for redacting sensitive data.
 """
 
-import re
-from typing import Union, Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,11 +9,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_SENSITIVE_KEYS = ["secret", "password", "api_key", "apikey", "token", "access_token", "client_secret"]
 
 def redact_sensitive_data(
-    data: Union[str, Dict, List],
-    sensitive_keys: Optional[List[str]] = None,
+    data: str | dict | list,
+    sensitive_keys: list[str] | None = None,
     reveal_chars: int = 0,
     mask: str = "[REDACTED]"
-) -> Union[str, Dict, List]:
+) -> str | dict | list:
     """
     Recursively redact sensitive information from dictionaries or lists based on keys.
     By default, fully masks sensitive values (returns only the mask).
@@ -23,7 +21,7 @@ def redact_sensitive_data(
     If a custom mask is provided, always use it (for test compatibility).
     Does NOT redact standalone strings.
     """
-    keys_to_redact = set((k.lower() for k in (sensitive_keys or DEFAULT_SENSITIVE_KEYS)))
+    keys_to_redact = set(k.lower() for k in (sensitive_keys or DEFAULT_SENSITIVE_KEYS))
     def smart_mask(val: str) -> str:
         if not isinstance(val, str):
             return val

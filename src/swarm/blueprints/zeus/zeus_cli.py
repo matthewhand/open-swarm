@@ -1,5 +1,7 @@
 import argparse
+
 from swarm.blueprints.zeus.blueprint_zeus import ZeusCoordinatorBlueprint
+
 
 def main():
     parser = argparse.ArgumentParser(description="Zeus: Coordinator agent demo")

@@ -1,12 +1,13 @@
 import argparse
 import json
+
 from swarm.core import (
     config_loader,
     # config_manager, # Not used in this file
     # server_config,  # Not used in this file
     # setup_wizard,   # Not used in this file
+    paths,  # Import the new paths module
 )
-from swarm.core import paths # Import the new paths module
 
 # Use the new paths module to get the config file path
 # This will default to ~/.config/swarm/config.yaml (or platform equivalent)
@@ -81,7 +82,7 @@ def edit_config_field(config, field, value_str):
             print(f"Field path '{field}' not found or not a nested dictionary at '{key_part}'.")
             return
         current_level = current_level[key_part]
-    
+
     final_key = keys[-1]
     if final_key not in current_level and not isinstance(current_level, dict): # Check if current_level is a dict before assignment
         print(f"Field '{final_key}' not found in the specified path or path is invalid.")
@@ -127,7 +128,7 @@ def main():
             config = {}
         else: # No action specified, and file not found
             print(f"Error: Configuration file '{CONFIG_PATH}' not found.")
-            print(f"You can create one by running with --interactive or by setting a --field and --value.")
+            print("You can create one by running with --interactive or by setting a --field and --value.")
             return
     except Exception as e: # Catch other potential loading errors (e.g., malformed JSON/YAML)
         print(f"Error loading configuration from '{CONFIG_PATH}': {e}")

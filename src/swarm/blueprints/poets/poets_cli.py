@@ -1,6 +1,8 @@
 import argparse
 import asyncio
+
 from swarm.blueprints.poets.blueprint_poets import PoetsBlueprint
+
 
 def main():
     parser = argparse.ArgumentParser(description="Poets: LLM creative code poetry assistant")

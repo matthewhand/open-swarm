@@ -6,8 +6,7 @@ ensuring compatibility with OpenAI API requirements and robust handling of agent
 """
 
 import inspect
-import json
-from datetime import datetime
+
 from .types import Tool  # Adjust import as needed if 'Tool' is in a different location
 
 
@@ -80,7 +79,7 @@ def function_to_json(func, truncate_desc: bool = False) -> dict:
             signature = inspect.signature(func)
         except ValueError as e:
             raise ValueError(f"Failed to get signature for function {func.__name__}: {str(e)}")
-        
+
         name = getattr(func, "__name__", "unnamed_function")
         description = (func.__doc__ or "").strip() or f"Calls {name}"
         type_map = {
@@ -100,7 +99,7 @@ def function_to_json(func, truncate_desc: bool = False) -> dict:
             parameters[param.name] = {"type": param_type}
             if param.default == inspect.Parameter.empty:
                 required.append(param.name)
-        
+
         final_type = "object"
         final_properties = parameters
         final_required = required

@@ -1,38 +1,48 @@
 
 # --- Content for src/swarm/views/chat_views.py ---
-import logging
-import json
-import uuid
-import time
 import asyncio
-from typing import Dict, Any, AsyncGenerator, List, Optional
-
-from django.shortcuts import render
-from django.http import StreamingHttpResponse, JsonResponse, Http404, HttpRequest, HttpResponse, HttpResponseBase
-from django.views import View
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-from django.conf import settings
-from django.urls import reverse # Needed for reverse() used in tests
-
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound, APIException, ParseError, NotAuthenticated
-from rest_framework.request import Request # Import DRF Request
+import json
+import logging
+import time
+import uuid
+from typing import Any
 
 # Utility to wrap sync functions for async execution
 from asgiref.sync import sync_to_async
+from django.contrib.auth.decorators import login_required
+from django.http import (
+    HttpRequest,
+    HttpResponseBase,
+    StreamingHttpResponse,
+)
+from django.shortcuts import render
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework import status
+from rest_framework.exceptions import (
+    APIException,
+    NotFound,
+    ParseError,
+    PermissionDenied,
+    ValidationError,
+)
+from rest_framework.permissions import AllowAny
+from rest_framework.request import Request  # Import DRF Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
+# Import custom permission
 # Assuming serializers are in the same app
 from swarm.serializers import ChatCompletionRequestSerializer
+
 # Assuming utils are in the same app/directory level
 # Make sure these utils are async-safe or wrapped if they perform sync I/O
-from .utils import get_blueprint_instance, validate_model_access, get_available_blueprints
-# Import custom permission
-from swarm.auth import HasValidTokenOrSession # Keep this import
+from .utils import (
+    get_available_blueprints,
+    get_blueprint_instance,
+    validate_model_access,
+)
 
 logger = logging.getLogger(__name__)
 # Specific logger for debug prints, potentially configured differently
@@ -62,7 +72,7 @@ class ChatCompletionsView(APIView):
 
     # --- Internal Helper Methods (Unchanged) ---
 
-    async def _handle_non_streaming(self, blueprint_instance, messages: List[Dict[str, str]], request_id: str, model_name: str) -> Response:
+    async def _handle_non_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> Response:
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
         final_response_data = None; start_time = time.time()
@@ -92,7 +102,7 @@ class ChatCompletionsView(APIView):
         except APIException: raise
         except Exception as e: logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True); raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
-    async def _handle_streaming(self, blueprint_instance, messages: List[Dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
+    async def _handle_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """
         logger.info(f"[ReqID: {request_id}] Processing streaming request for model '{model_name}'.")
         async def event_stream():

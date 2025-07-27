@@ -1,9 +1,10 @@
 import functools
 import inspect
-import json
-from typing import Callable, Any, Dict, List, Optional, get_type_hints, Union
+from collections.abc import Callable
+from typing import Any, Union, get_type_hints
 
-def get_function_schema(func: Callable) -> Dict[str, Any]:
+
+def get_function_schema(func: Callable) -> dict[str, Any]:
     """
     Generates a JSON schema for a function's parameters.
     This is a simplified version. A more robust version would handle
@@ -17,12 +18,12 @@ def get_function_schema(func: Callable) -> Dict[str, Any]:
     except Exception: # Broad except for cases where type hints can't be resolved (e.g. complex forward refs)
         type_hints = {}
 
-    parameters_schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": []}
-    
+    parameters_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
+
     for name, param in sig.parameters.items():
         if name == 'self' or name == 'cls': # Skip self/cls for methods
             continue
-            
+
         param_type_annotation = type_hints.get(name)
         schema_type = "string" # Default type
         description = f"Parameter {name}" # Placeholder for descriptions from docstrings
@@ -66,7 +67,7 @@ def get_function_schema(func: Callable) -> Dict[str, Any]:
 
         if param.default == inspect.Parameter.empty:
             parameters_schema["required"].append(name)
-            
+
     func_description = inspect.getdoc(func)
     if func_description:
         func_description = func_description.split('\n\n')[0].replace('\n', ' ') # First paragraph
@@ -77,19 +78,19 @@ def get_function_schema(func: Callable) -> Dict[str, Any]:
         "parameters": parameters_schema,
     }
 
-def tool(name: Optional[str] = None, description: Optional[str] = None) -> Callable:
+def tool(name: str | None = None, description: str | None = None) -> Callable:
     """
     Decorator to mark a function as a tool and attach schema information.
     The schema is used by LLMs to understand how to call the function.
     """
     def decorator(func: Callable) -> Callable:
         actual_name = name or func.__name__
-        
+
         try:
             schema = get_function_schema(func)
-            if description: 
+            if description:
                 schema["description"] = description
-            if name: 
+            if name:
                 schema["name"] = actual_name # Ensure the name in schema matches actual_name
 
         except Exception as e:
@@ -100,9 +101,9 @@ def tool(name: Optional[str] = None, description: Optional[str] = None) -> Calla
                 "parameters": {"type": "object", "properties": {}}, # Minimal fallback
             }
 
-        setattr(func, '_tool_schema', schema)
-        setattr(func, '_is_tool', True)
-        setattr(func, '_tool_name', actual_name)
+        func._tool_schema = schema
+        func._is_tool = True
+        func._tool_name = actual_name
 
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -113,10 +114,10 @@ def tool(name: Optional[str] = None, description: Optional[str] = None) -> Calla
                 # by the agent framework, this might need adjustment.
                 # For now, just call it.
                 return func(*args, **kwargs)
-        
-        setattr(wrapper, '_tool_schema', schema)
-        setattr(wrapper, '_is_tool', True)
-        setattr(wrapper, '_tool_name', actual_name)
+
+        wrapper._tool_schema = schema
+        wrapper._is_tool = True
+        wrapper._tool_name = actual_name
 
         return wrapper
     return decorator

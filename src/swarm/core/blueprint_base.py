@@ -1,6 +1,8 @@
 # --- REMOVE noisy debug/framework prints unless SWARM_DEBUG=1 ---
 import os
+
 from swarm.utils.general_utils import is_debug_enabled
+
 
 def _should_debug():
     # Standardize debug detection: SWARM_DEBUG, SWARM_LOGLEVEL, LOGLEVEL, LOG_LEVEL, DEBUG
@@ -29,26 +31,27 @@ def _framework_print(*args, **kwargs):
         print(*args, **kwargs)
 
 # --- Content for src/swarm/extensions/blueprint/blueprint_base.py ---
-import logging
 import json
+import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, AsyncGenerator
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from django.apps import apps # Import Django apps registry
+from typing import Any
+
+from agents import set_default_openai_client
+from django.apps import apps  # Import Django apps registry
+from openai import AsyncOpenAI
 
 # Keep the function import
 from swarm.core.config_loader import _substitute_env_vars
 
-from openai import AsyncOpenAI
-from agents import set_default_openai_client
-
 logger = logging.getLogger(__name__)
-from rich.console import Console
-import traceback
-
 # --- PATCH: Suppress OpenAI tracing/telemetry errors if using LiteLLM/custom endpoint ---
 import logging
-import os
+import traceback
+
+from rich.console import Console
+
 if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
     # Silence openai.agents tracing/telemetry errors
     logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
@@ -64,6 +67,7 @@ import itertools
 import sys
 import threading
 import time
+
 
 class Spinner:
     def __init__(self, message_sequence=None, interval=0.3, slow_threshold=10):
@@ -114,8 +118,6 @@ def configure_openai_client_from_env():
     Prints out the config being used for debug.
     """
     import os
-    from agents import set_default_openai_client
-    from openai import AsyncOpenAI
     base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
     api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
     _debug_print(f"[DEBUG] Using OpenAI client config: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
@@ -160,8 +162,6 @@ class BlueprintBase(ABC):
         In production, configuration is loaded via _load_and_process_config.
         """
         import os
-        import json
-        from pathlib import Path
         def redact(val):
             if not isinstance(val, str) or len(val) <= 4:
                 return "****"
@@ -195,7 +195,7 @@ class BlueprintBase(ABC):
                             logger.warning(f"Unable to determine CWD for config lookup: {e}")
                     if cwd_config and cwd_config.exists():
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
-                        with open(cwd_config, 'r') as f:
+                        with open(cwd_config) as f:
                             self._config = json.load(f)
                     # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
                     elif os.environ.get("XDG_CONFIG_HOME"):
@@ -203,18 +203,18 @@ class BlueprintBase(ABC):
                         print(f"[SWARM_CONFIG_DEBUG] Trying: {xdg_config}")
                         if xdg_config.exists():
                             print(f"[SWARM_CONFIG_DEBUG] Loaded: {xdg_config}")
-                            with open(xdg_config, 'r') as f:
+                            with open(xdg_config) as f:
                                 self._config = json.load(f)
                     elif (Path.home() / ".config/swarm/swarm_config.json").exists():
                         home_config = Path.home() / ".config/swarm/swarm_config.json"
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {home_config}")
-                        with open(home_config, 'r') as f:
+                        with open(home_config) as f:
                             self._config = json.load(f)
                     # 4. Legacy fallback: ~/.swarm/swarm_config.json
                     elif (Path.home() / ".swarm/swarm_config.json").exists():
                         legacy_config = Path.home() / ".swarm/swarm_config.json"
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
-                        with open(legacy_config, 'r') as f:
+                        with open(legacy_config) as f:
                             self._config = json.load(f)
                     # 5. Fallback: OPENAI_API_KEY envvar
                     elif os.environ.get("OPENAI_API_KEY"):
@@ -254,8 +254,8 @@ class BlueprintBase(ABC):
                     var = api_key[2:-1]
                     api_key = os.environ.get(var, api_key)
                 if base_url and api_key:
-                    from openai import AsyncOpenAI
                     from agents import set_default_openai_client
+                    from openai import AsyncOpenAI
                     _debug_print(f"[DEBUG] (config) Setting OpenAI client: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
                     client = AsyncOpenAI(base_url=base_url, api_key=api_key)
                     set_default_openai_client(client)
@@ -291,8 +291,6 @@ class BlueprintBase(ABC):
     def _load_and_process_config(self):
         """Loads the main Swarm config and extracts relevant settings. Falls back to empty config if Django unavailable or not found."""
         import os
-        import json
-        from pathlib import Path
         def redact(val):
             if not isinstance(val, str) or len(val) <= 4:
                 return "****"
@@ -326,7 +324,7 @@ class BlueprintBase(ABC):
                             logger.warning(f"Unable to determine CWD for config lookup: {e}")
                     if cwd_config and cwd_config.exists():
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
-                        with open(cwd_config, 'r') as f:
+                        with open(cwd_config) as f:
                             self._config = json.load(f)
                     # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
                     elif os.environ.get("XDG_CONFIG_HOME"):
@@ -334,18 +332,18 @@ class BlueprintBase(ABC):
                         print(f"[SWARM_CONFIG_DEBUG] Trying: {xdg_config}")
                         if xdg_config.exists():
                             print(f"[SWARM_CONFIG_DEBUG] Loaded: {xdg_config}")
-                            with open(xdg_config, 'r') as f:
+                            with open(xdg_config) as f:
                                 self._config = json.load(f)
                     elif (Path.home() / ".config/swarm/swarm_config.json").exists():
                         home_config = Path.home() / ".config/swarm/swarm_config.json"
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {home_config}")
-                        with open(home_config, 'r') as f:
+                        with open(home_config) as f:
                             self._config = json.load(f)
                     # 4. Legacy fallback: ~/.swarm/swarm_config.json
                     elif (Path.home() / ".swarm/swarm_config.json").exists():
                         legacy_config = Path.home() / ".swarm/swarm_config.json"
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
-                        with open(legacy_config, 'r') as f:
+                        with open(legacy_config) as f:
                             self._config = json.load(f)
                     # 5. Fallback: OPENAI_API_KEY envvar
                     elif os.environ.get("OPENAI_API_KEY"):
@@ -385,8 +383,8 @@ class BlueprintBase(ABC):
                     var = api_key[2:-1]
                     api_key = os.environ.get(var, api_key)
                 if base_url and api_key:
-                    from openai import AsyncOpenAI
                     from agents import set_default_openai_client
+                    from openai import AsyncOpenAI
                     _debug_print(f"[DEBUG] (config) Setting OpenAI client: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
                     client = AsyncOpenAI(base_url=base_url, api_key=api_key)
                     set_default_openai_client(client)
@@ -462,7 +460,8 @@ class BlueprintBase(ABC):
         else:
             global_config = None
             try:
-                import json, os
+                import json
+                import os
                 from pathlib import Path
                 config_paths = [Path.cwd() / 'swarm_config.json', Path.home() / '.config/swarm/swarm_config.json']
                 for path in config_paths:
@@ -491,14 +490,14 @@ class BlueprintBase(ABC):
         return profile
 
     @property
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         """Returns the loaded and processed Swarm configuration."""
         if self._config is None:
             raise RuntimeError("Configuration accessed before initialization or after failure.")
         return self._config
 
     @property
-    def llm_profile(self) -> Dict[str, Any]:
+    def llm_profile(self) -> dict[str, Any]:
         """
         Returns the LLM profile dict for this blueprint.
         Raises a clear error if provider is missing.
@@ -692,7 +691,7 @@ class BlueprintBase(ABC):
         print(f"  {blueprint_name} --approval full-auto \"Upgrade all dependencies and update the changelog.\"")
 
     @abstractmethod
-    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         """
         The main execution method for the blueprint.
         """
@@ -709,9 +708,6 @@ class BlueprintBase(ABC):
         In production, configuration is loaded via _load_and_process_config.
         """
         import os
-        import json
-        from pathlib import Path
-        import traceback
         try:
             if self._config is None:
                 try:

@@ -4,10 +4,10 @@ Utilities for managing context in message histories, including token counting
 and truncation strategies.
 """
 
+import json
 import logging
 import os
-import json
-from typing import List, Dict, Any
+from typing import Any
 
 try:
     import tiktoken
@@ -24,9 +24,7 @@ def _is_valid_message(msg: Any) -> bool:
     if not role or not isinstance(role, str): logger.warning(f"Skipping msg missing role: {str(msg)[:150]}"); return False
     content = msg.get("content"); tool_calls = msg.get("tool_calls"); tool_call_id = msg.get("tool_call_id")
     # Validate based on role: content must be a string for system/user/tool; assistant may have tool calls
-    if role == "system":
-        is_valid = isinstance(content, str)
-    elif role == "user":
+    if role == "system" or role == "user":
         is_valid = isinstance(content, str)
     elif role == "assistant":
         # Assistant valid if it has string content or at least one tool call
@@ -59,7 +57,7 @@ def get_token_count(text: Any, model: str) -> int:
     return len(processed_text.split()) + 5
 
 # --- Truncation Strategies (v5.1 logic base + multi-tool deferral) ---
-def _truncate_sophisticated(messages: List[Dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> List[Dict[str, Any]]:
+def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> list[dict[str, Any]]:
     system_msgs = []; non_system_msgs = []; system_found = False
     valid_messages = [msg for msg in messages if _is_valid_message(msg)]
     if len(valid_messages) != len(messages): logger.info(f"Filtered {len(messages) - len(valid_messages)} invalid msgs.")
@@ -69,18 +67,18 @@ def _truncate_sophisticated(messages: List[Dict[str, Any]], model: str, max_toke
     try: system_tokens = sum(get_token_count(msg, model) for msg in system_msgs)
     except Exception as e: logger.error(f"Error calc system tokens: {e}."); system_tokens = 0
     target_msg_count = max(0, max_messages - len(system_msgs)); target_token_count = max(0, max_tokens - system_tokens)
-    if len(system_msgs) > max_messages or system_tokens > max_tokens: logger.warning(f"System msgs exceed limits."); return []
+    if len(system_msgs) > max_messages or system_tokens > max_tokens: logger.warning("System msgs exceed limits."); return []
     if not non_system_msgs: logger.info("No valid non-system msgs."); return system_msgs
     try: msg_tokens = [(msg, get_token_count(msg, model)) for msg in non_system_msgs]
     except Exception as e: logger.critical(f"Error preparing msg_tokens: {e}", exc_info=True); return system_msgs
     current_total_tokens = sum(t for _, t in msg_tokens)
-    if len(non_system_msgs) <= target_msg_count and current_total_tokens <= target_token_count: logger.info(f"History fits."); return system_msgs + non_system_msgs
+    if len(non_system_msgs) <= target_msg_count and current_total_tokens <= target_token_count: logger.info("History fits."); return system_msgs + non_system_msgs
     logger.info(f"Sophisticated truncation. Target: {target_msg_count} msgs, {target_token_count} tokens.")
     truncated = []; total_tokens = 0; kept_indices = set(); i = len(msg_tokens) - 1
 
     while i >= 0:
         if i in kept_indices: logger.debug(f"  [Loop Skip] Idx {i} already kept."); i -= 1; continue
-        if len(truncated) >= target_msg_count: logger.debug(f"  [Loop Stop] Msg limit reached."); break
+        if len(truncated) >= target_msg_count: logger.debug("  [Loop Stop] Msg limit reached."); break
 
         try: msg, tokens = msg_tokens[i]; assert isinstance(tokens, (int, float)) and tokens >= 0
         except (IndexError, AssertionError): tokens = 9999; logger.warning(f"Bad tokens at {i}")
@@ -133,8 +131,8 @@ def _truncate_sophisticated(messages: List[Dict[str, Any]], model: str, max_toke
                                    logger.debug("        Pair doesn't fit budget.")
                           break # Stop inner search (found the relevant assistant)
                  assistant_idx -= 1; search_depth += 1
-            if not pair_found: logger.debug(f"    -> Case 1 Result: Pair not found.")
-            elif not action_taken_for_i: logger.debug(f"    -> Case 1 Result: Pair found but deferred or didn't fit.")
+            if not pair_found: logger.debug("    -> Case 1 Result: Pair not found.")
+            elif not action_taken_for_i: logger.debug("    -> Case 1 Result: Pair found but deferred or didn't fit.")
 
 
         # Case 2: Assistant message with tool calls
@@ -166,7 +164,7 @@ def _truncate_sophisticated(messages: List[Dict[str, Any]], model: str, max_toke
                   logger.info(f"    -> Action: KEEPING Pair A(idx {i})+Tools({found_indices})")
                   truncated.insert(0, msg); kept_indices.add(i)
                   insert_idx = 1; added_tool_count = 0
-                  sorted_tools = sorted(zip(found_indices, found_tools), key=lambda x: x[0])
+                  sorted_tools = sorted(zip(found_indices, found_tools, strict=False), key=lambda x: x[0])
                   for tool_idx, tool_item in sorted_tools:
                       if tool_idx not in kept_indices:
                            truncated.insert(insert_idx, tool_item); kept_indices.add(tool_idx)
@@ -174,7 +172,7 @@ def _truncate_sophisticated(messages: List[Dict[str, Any]], model: str, max_toke
                       else: logger.error(f"      Consistency Error! Tool index {tool_idx} already kept.")
                   total_tokens += pair_total_tokens; i -= 1; action_taken_for_i = True
              else:
-                  logger.debug(f"      Pair doesn't fit or not all tools found.")
+                  logger.debug("      Pair doesn't fit or not all tools found.")
                   single_token_fits = total_tokens + tokens <= target_token_count
                   single_msg_fits = len(truncated) + 1 <= target_msg_count
                   if single_token_fits and single_msg_fits:
@@ -209,7 +207,7 @@ def _truncate_sophisticated(messages: List[Dict[str, Any]], model: str, max_toke
     return final_messages
 
 
-def _truncate_simple(messages: List[Dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> List[Dict[str, Any]]:
+def _truncate_simple(messages: list[dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> list[dict[str, Any]]:
     # --- Simple Truncation (Unchanged) ---
     system_msgs = []; non_system_msgs = []; system_found = False
     valid_messages = [msg for msg in messages if _is_valid_message(msg)]
@@ -220,7 +218,7 @@ def _truncate_simple(messages: List[Dict[str, Any]], model: str, max_tokens: int
     try: system_tokens = sum(get_token_count(msg, model) for msg in system_msgs)
     except Exception as e: logger.error(f"Simple Mode: Error calc system tokens: {e}."); system_tokens = 0
     target_msg_count = max(0, max_messages - len(system_msgs)); target_token_count = max(0, max_tokens - system_tokens)
-    if len(system_msgs) > max_messages or system_tokens > max_tokens: logger.warning(f"Simple Mode: System msgs exceed limits."); return []
+    if len(system_msgs) > max_messages or system_tokens > max_tokens: logger.warning("Simple Mode: System msgs exceed limits."); return []
     if not non_system_msgs: logger.info("Simple Mode: No valid non-system messages."); return system_msgs
     result_non_system = []; current_tokens = 0; current_msg_count = 0
     for msg_index, msg in reversed(list(enumerate(non_system_msgs))):
@@ -236,11 +234,11 @@ def _truncate_simple(messages: List[Dict[str, Any]], model: str, max_tokens: int
     return final_result
 
 
-def truncate_message_history(messages: List[Dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> List[Dict[str, Any]]:
+def truncate_message_history(messages: list[dict[str, Any]], model: str, max_tokens: int, max_messages: int) -> list[dict[str, Any]]:
     # --- Main function (unchanged) ---
     if not isinstance(messages, list) or not messages: logger.debug("Truncate called with empty/invalid list."); return []
     truncation_mode = os.getenv("SWARM_TRUNCATION_MODE", "pairs").lower()
-    mode_name = f"Sophisticated (Pair-Preserving)" if truncation_mode == "pairs" else "Simple (Recent Only)"
+    mode_name = "Sophisticated (Pair-Preserving)" if truncation_mode == "pairs" else "Simple (Recent Only)"
     logger.info(f"--- Starting Truncation --- Mode: {mode_name}, Max Tokens: {max_tokens}, Max Messages: {max_messages}, Input Msgs: {len(messages)}")
     result = []
     try:

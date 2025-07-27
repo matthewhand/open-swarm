@@ -1,6 +1,7 @@
-import platformdirs
+import sys  # Import sys module for platform checking
 from pathlib import Path
-import sys # Import sys module for platform checking
+
+import platformdirs
 
 APP_NAME = "swarm"
 APP_AUTHOR = "OpenSwarm" # Using OpenSwarm as author for platformdirs

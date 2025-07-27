@@ -1,9 +1,10 @@
-import os
 import logging
-from django.core.management.commands.runserver import Command as RunserverCommand
-from django.conf import settings
-from dotenv import load_dotenv
+import os
 from pathlib import Path
+
+from django.conf import settings
+from django.core.management.commands.runserver import Command as RunserverCommand
+from dotenv import load_dotenv
 
 # Load .env from project root relative to this file's location
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent

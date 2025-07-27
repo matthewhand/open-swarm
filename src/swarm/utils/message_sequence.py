@@ -2,9 +2,9 @@
 Utilities for validating and repairing message sequences.
 """
 
-from typing import List, Dict, Any
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ except ImportError:
                      output.append(msg)
             return output
 
-def validate_message_sequence(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Ensure tool messages correspond to valid tool calls in the sequence.
     Also filters out non-dictionary items.
@@ -74,7 +74,7 @@ def validate_message_sequence(messages: List[Dict[str, Any]]) -> List[Dict[str, 
 
     return validated_messages
 
-def repair_message_payload(messages: List[Dict[str, Any]], debug: bool = False) -> List[Dict[str, Any]]:
+def repair_message_payload(messages: list[dict[str, Any]], debug: bool = False) -> list[dict[str, Any]]:
     """
     Repair the message sequence by potentially inserting dummy messages for missing pairs.
     Filters invalid messages and orphan tools first.
@@ -120,9 +120,9 @@ def repair_message_payload(messages: List[Dict[str, Any]], debug: bool = False) 
                     final_sequence.append(tool_msg)
                     found_ids_for_this_call.add(tool_call_id)
                     processed_tool_ids.add(tool_call_id)
-                    logger.debug(f"    Found and appended expected tool response.")
+                    logger.debug("    Found and appended expected tool response.")
                 else:
-                    logger.debug(f"    Tool ID does not match current assistant call. Stopping lookahead.")
+                    logger.debug("    Tool ID does not match current assistant call. Stopping lookahead.")
                     break
                 j += 1
 

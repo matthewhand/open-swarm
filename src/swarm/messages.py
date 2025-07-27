@@ -6,7 +6,7 @@ Defines the ChatMessage structure.
 import json
 import logging
 from types import SimpleNamespace
-from typing import Optional, List, Dict, Any, Union
+from typing import Any
 
 # Import the specific Pydantic model used for tool calls
 from .types import ChatCompletionMessageToolCall
@@ -86,13 +86,13 @@ class ChatMessage(SimpleNamespace):
                  logger.debug(f"Validated {len(self.tool_calls)} tool calls for ChatMessage (sender: '{self.sender}')")
 
 
-    def model_dump(self) -> Dict[str, Any]:
+    def model_dump(self) -> dict[str, Any]:
          """
          Serialize the message attributes relevant for the OpenAI API into a dictionary.
          Excludes custom fields like 'sender'. Handles optional fields correctly.
          """
          # Start with required 'role'
-         d: Dict[str, Any] = {"role": self.role}
+         d: dict[str, Any] = {"role": self.role}
 
          # Include 'content' only if it's not None
          # OpenAI API allows null content for assistant messages with tool_calls

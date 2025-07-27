@@ -1,10 +1,11 @@
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
-from agents import Agent, Model # Assuming Model is the base type for self.llm
+from agents import Agent, Model  # Assuming Model is the base type for self.llm
 from agents.mcp import MCPServer
 
-from .geese_memory_objects import StoryContext # If needed by the writer
+from .geese_memory_objects import StoryContext  # If needed by the writer
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,8 @@ class WriterAgent(Agent):
         name: str,
         model: Model, # SDK Model instance
         instructions: str, # System prompt (e.g., "You are a creative writer...")
-        mcp_servers: Optional[List[MCPServer]] = None,
-        blueprint_id: Optional[str] = None,
+        mcp_servers: list[MCPServer] | None = None,
+        blueprint_id: str | None = None,
         max_llm_calls: int = 5, # Writer might have fewer calls than coordinator
         **kwargs: Any
     ):
@@ -28,7 +29,7 @@ class WriterAgent(Agent):
             model=model,
             instructions=instructions,
             mcp_servers=mcp_servers or [],
-            **kwargs 
+            **kwargs
         )
         self.blueprint_id = blueprint_id
         self.max_llm_calls = max_llm_calls
@@ -36,8 +37,8 @@ class WriterAgent(Agent):
 
     async def run(
         self,
-        messages: List[Dict[str, Any]], # Should contain the writing prompt
-        story_context: Optional[StoryContext] = None, # Optional context
+        messages: list[dict[str, Any]], # Should contain the writing prompt
+        story_context: StoryContext | None = None, # Optional context
         **kwargs: Any
     ) -> AsyncGenerator[Any, None]: # Yields SDK interaction objects or strings
         """
@@ -46,16 +47,16 @@ class WriterAgent(Agent):
         """
         writing_prompt = messages[-1]["content"] if messages and messages[-1]["role"] == "user" else "Write a short story."
         self.logger.info(f"WriterAgent run initiated. Prompt: {writing_prompt[:100]}...")
-        
+
         # Use self.model (the SDK model instance) to generate text
         # The SDK's model instance (e.g., OpenAIChatCompletionsModel) has methods like
         # chat_completion_stream or similar.
-        
+
         # Example of streaming content directly from the LLM:
         # This assumes self.model has a method like chat_completion_stream
         # and yields objects/dicts from which content can be extracted.
         # The exact structure depends on your SDK's Model implementation.
-        
+
         llm_call_count = 0
         if llm_call_count < self.max_llm_calls:
             try:

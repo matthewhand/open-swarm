@@ -1,6 +1,7 @@
 import asyncio
-import time
+
 from async_input import AsyncInputHandler
+
 
 def on_interrupt(_):
     print("\n[!] Interrupted! Submitting new prompt...")

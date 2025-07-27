@@ -4,8 +4,9 @@ Main entry point for Swarm CLI (core).
 
 import argparse
 import os
-from swarm.core.cli.utils.discover_commands import discover_commands
+
 from swarm.core.cli.interactive_shell import interactive_shell
+from swarm.core.cli.utils.discover_commands import discover_commands
 
 COMMANDS_DIR = os.path.join(os.path.dirname(__file__), "commands")
 

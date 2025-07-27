@@ -1,9 +1,12 @@
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import AllowAny
 import os
-from swarm.auth import EnvOrTokenAuthentication
+
+from rest_framework.permissions import AllowAny
+from rest_framework.viewsets import ModelViewSet
+
 from blueprints.chc.models import AgentInstruction
 from blueprints.chc.serializers import AgentInstructionSerializer
+from swarm.auth import EnvOrTokenAuthentication
+
 
 class AgentInstructionViewSet(ModelViewSet):
     authentication_classes = [EnvOrTokenAuthentication]

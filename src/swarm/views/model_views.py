@@ -2,24 +2,18 @@
 Views related to listing and describing available models (Blueprints).
 """
 import logging
-from django.conf import settings
-from django.http import JsonResponse # Not used directly, Response is preferred
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework import status
-
-from drf_spectacular.utils import extend_schema
 
 # *** Import async_to_sync ***
 from asgiref.sync import async_to_sync
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from ..permissions import HasValidTokenOrSession
 
 # Import the utility function
 from .utils import get_available_blueprints
-from ..permissions import HasValidTokenOrSession
 
 logger = logging.getLogger(__name__)
 

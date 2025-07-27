@@ -2,15 +2,18 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from dotenv import load_dotenv
-from .paths import get_project_root_dir, get_swarm_config_file # Import XDG path functions
+
+from .paths import (  # Import XDG path functions
+    get_project_root_dir,
+    get_swarm_config_file,
+)
 
 logger = logging.getLogger("swarm.config")
 
 def _substitute_env_vars(value: Any) -> Any:
-    import os # Keep local import for this utility function
     if isinstance(value, str):
         # Always expand env vars in any string
         return os.path.expandvars(value)
@@ -37,13 +40,13 @@ def load_environment():
 
 def load_full_configuration(
     blueprint_class_name: str,
-    config_path_override: Optional[Union[str, Path]] = None,
-    profile_override: Optional[str] = None,
-    cli_config_overrides: Optional[Dict[str, Any]] = None,
+    config_path_override: str | Path | None = None,
+    profile_override: str | None = None,
+    cli_config_overrides: dict[str, Any] | None = None,
     # default_config_path is now primarily for specific overrides or testing;
     # if None, get_swarm_config_file() from paths.py will be used.
-    default_config_path_for_tests: Optional[Path] = None,
-) -> Dict[str, Any]:
+    default_config_path_for_tests: Path | None = None,
+) -> dict[str, Any]:
     """
     Loads and merges configuration settings from base file, blueprint specifics, profiles, and CLI overrides.
     Uses XDG-compliant config path by default.
@@ -79,7 +82,7 @@ def load_full_configuration(
     base_config = {}
     if config_path.is_file():
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 base_config = json.load(f)
             logger.debug(f"Successfully loaded base configuration from: {config_path}")
         except json.JSONDecodeError as e:

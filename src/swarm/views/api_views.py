@@ -1,11 +1,12 @@
-import time
 import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+import time
+
 # *** Import async_to_sync ***
 from asgiref.sync import async_to_sync
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from swarm.views.utils import get_available_blueprints
 
@@ -46,7 +47,7 @@ class ModelsListView(APIView):
             }
             return Response(response_payload, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error retrieving available models.")
             return Response(
                 {"error": "Failed to retrieve models list."},

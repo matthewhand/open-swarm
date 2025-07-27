@@ -2,8 +2,9 @@
 Utility to discover and load CLI commands dynamically.
 """
 
-import os
 import importlib.util
+import os
+
 
 def discover_commands(commands_dir):
     """

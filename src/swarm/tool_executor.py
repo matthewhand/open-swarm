@@ -3,19 +3,20 @@ Tool execution utilities for the Swarm framework.
 Handles invoking agent functions/tools based on LLM requests.
 """
 
+import inspect  # To check for awaitables
 import json
 import logging
-import inspect # To check for awaitables
-from typing import List, Dict, Any, Optional, Union
+from typing import Any
 
 # Import necessary types from the Swarm framework
 from .types import (
-    ChatCompletionMessageToolCall,
     Agent,
-    AgentFunction, # Type hint for functions/tools
-    Response, # Structure for returning results of multiple tool calls
-    Result # Structure for returning result of a single tool call
+    AgentFunction,  # Type hint for functions/tools
+    ChatCompletionMessageToolCall,
+    Response,  # Structure for returning results of multiple tool calls
+    Result,  # Structure for returning result of a single tool call
 )
+
 # Utility to convert function signatures to JSON schema (if needed, though less common now with direct calls)
 # from .util import function_to_json # Commented out if not used directly here
 
@@ -87,8 +88,8 @@ def handle_function_result(result: Any, debug: bool) -> Result:
 
 
 async def handle_tool_calls(
-    tool_calls: List[ChatCompletionMessageToolCall], # Expect list of Pydantic models
-    functions: List[AgentFunction], # Available functions/tools for the agent
+    tool_calls: list[ChatCompletionMessageToolCall], # Expect list of Pydantic models
+    functions: list[AgentFunction], # Available functions/tools for the agent
     context_variables: dict, # Current context
     debug: bool # Debug logging flag
 ) -> Response:
@@ -115,7 +116,7 @@ async def handle_tool_calls(
     logger.debug(f"Handling {len(tool_calls)} tool calls.")
 
     # Create a mapping from function/tool name to the actual callable object
-    function_map: Dict[str, AgentFunction] = {}
+    function_map: dict[str, AgentFunction] = {}
     for func in functions:
          # Get name robustly (prefer 'name' attribute, fallback to __name__)
          func_name = getattr(func, 'name', getattr(func, '__name__', None))
@@ -164,7 +165,7 @@ async def handle_tool_calls(
 
         # Parse arguments string into a dictionary
         try:
-            args: Dict[str, Any] = json.loads(raw_arguments)
+            args: dict[str, Any] = json.loads(raw_arguments)
             if not isinstance(args, dict):
                 logger.warning(f"Parsed arguments for tool '{tool_name}' is not a dictionary ({type(args)}). Using empty dict.")
                 args = {}

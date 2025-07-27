@@ -1,16 +1,14 @@
 # --- Content for src/swarm/blueprints/echocraft/blueprint_echocraft.py ---
 import logging
-from typing import Optional
-from pathlib import Path
-from typing import List, Dict, Any, AsyncGenerator
-import uuid # Import uuid to generate IDs
-import time # Import time for timestamp
 import os
-from datetime import datetime
-import pytz
+import time  # Import time for timestamp
+import uuid  # Import uuid to generate IDs
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from swarm.core.blueprint_base import BlueprintBase
-from agents import function_tool
+
+
  # Patch: Expose underlying fileops functions for direct testing
 class PatchedFunctionTool:
     def __init__(self, func, name):
@@ -19,7 +17,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -107,7 +105,7 @@ class EchoCraftBlueprint(BlueprintBase):
     # --- FileOps Tool Logic Definitions ---
     def read_file(path: str) -> str:
         try:
-            with open(path, 'r') as f:
+            with open(path) as f:
                 return f.read()
         except Exception as e:
             return f"ERROR: {e}"
@@ -151,7 +149,7 @@ class EchoCraftBlueprint(BlueprintBase):
     list_files_tool = PatchedFunctionTool(list_files, 'list_files')
     execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
-    async def _original_run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _original_run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         """
         Echoes the content of the last message with role 'user'.
         Yields a final message in OpenAI ChatCompletion format.
@@ -204,7 +202,7 @@ class EchoCraftBlueprint(BlueprintBase):
 
         logger.info("EchoCraftBlueprint run finished.")
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         last_result = None
         async for result in self._original_run(messages):
             last_result = result
@@ -239,17 +237,21 @@ class EchoCraftBlueprint(BlueprintBase):
         return alternatives
 
     def query_swarm_knowledge(self, messages):
-        import json, os
+        import json
+        import os
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_knowledge.json')
         if not os.path.exists(path):
             return []
-        with open(path, 'r') as f:
+        with open(path) as f:
             knowledge = json.load(f)
         task_str = json.dumps(messages)
         return [entry for entry in knowledge if entry.get('task_str') == task_str]
 
     def write_to_swarm_log(self, log):
-        import json, os, time
+        import json
+        import os
+        import time
+
         from filelock import FileLock, Timeout
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_log.json')
         lock_path = path + '.lock'
@@ -258,7 +260,7 @@ class EchoCraftBlueprint(BlueprintBase):
             try:
                 with FileLock(lock_path, timeout=5):
                     if os.path.exists(path):
-                        with open(path, 'r') as f:
+                        with open(path) as f:
                             try:
                                 logs = json.load(f)
                             except json.JSONDecodeError:
@@ -282,12 +284,14 @@ class EchoCraftBlueprint(BlueprintBase):
         return echo_agent
 
 # --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-from swarm.ux.ansi_box import ansi_box
+import threading
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
+
+from swarm.ux.ansi_box import ansi_box
+
 
 class EchoCraftSpinner:
     FRAMES = [
@@ -359,7 +363,6 @@ def print_operation_box(op_type, results, params=None, result_type="echo", takin
 
 if __name__ == "__main__":
     import asyncio
-    import json
     print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🗣️ ECHOCRAFT: MESSAGE MIRROR & SWARM UX DEMO              ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint echoes user messages, demonstrates swarm UX,  ║\n║ and showcases viral docstring propagation.                   ║\n║ Try running: python blueprint_echocraft.py                   ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
     messages = [
         {"role": "user", "content": "Show me how EchoCraft mirrors messages and benefits from swarm UX patterns."}

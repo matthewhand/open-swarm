@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
@@ -28,19 +28,19 @@ class Job:
     Represents a job managed by the DefaultJobService.
     """
     id: str
-    command_list: List[str] # The command and its arguments as a list
+    command_list: list[str] # The command and its arguments as a list
     command_str: str = "" # User-friendly string representation of the command
     status: str = "PENDING"  # PENDING, RUNNING, COMPLETED, FAILED, TERMINATED
-    pid: Optional[int] = None
-    exit_code: Optional[int] = None
-    output_file_path: Optional[Path] = None # Path to the file storing stdout/stderr
-    tracking_label: Optional[str] = None
+    pid: int | None = None
+    exit_code: int | None = None
+    output_file_path: Path | None = None # Path to the file storing stdout/stderr
+    tracking_label: str | None = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    
+
     # This field is for the Popen object, not for serialization.
     # It's managed by the service during the job's lifecycle.
-    _process_handle: Optional[subprocess.Popen] = field(default=None, repr=False, compare=False)
+    _process_handle: subprocess.Popen | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         # Ensure command_str is populated if not provided
@@ -50,7 +50,7 @@ class Job:
         if not self.output_file_path:
             self.output_file_path = JOB_OUTPUTS_DIR / f"{self.id}.log"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serializes the job to a dictionary for persistence, excluding runtime handles."""
         return {
             "id": self.id,
@@ -66,7 +66,7 @@ class Job:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Job':
+    def from_dict(cls, data: dict[str, Any]) -> 'Job':
         """Deserializes a job from a dictionary."""
         output_file_path_str = data.get("output_file_path")
         return cls(
@@ -90,13 +90,13 @@ class DefaultJobService:
     Output for jobs is streamed to individual log files.
     """
     def __init__(self):
-        self._jobs: Dict[str, Job] = {}
-        self._threads: Dict[str, threading.Thread] = {}
+        self._jobs: dict[str, Job] = {}
+        self._threads: dict[str, threading.Thread] = {}
         self._lock = threading.Lock() # For thread-safe access to _jobs
         self._load_jobs_from_disk()
         logger.info(f"DefaultJobService initialized. Loaded {len(self._jobs)} jobs from disk.")
 
-    def _generate_job_id(self, base_name: Optional[str] = None) -> str:
+    def _generate_job_id(self, base_name: str | None = None) -> str:
         """Generates a unique job ID."""
         timestamp_ms = int(time.time() * 1000)
         base = base_name or "job"
@@ -130,7 +130,7 @@ class DefaultJobService:
                                 logger.warning(f"Job {job_id} was RUNNING on disk; actual status unknown without re-check.")
                                 # For simplicity, we might mark as UNKNOWN or COMPLETED if PID is old.
                                 # A more robust system would try to re-attach or verify.
-                                job.status = "UNKNOWN_STALE" 
+                                job.status = "UNKNOWN_STALE"
                             self._jobs[job_id] = job
                     logger.info(f"Loaded {len(self._jobs)} job metadata entries from {JOBS_METADATA_FILE}")
                 except json.JSONDecodeError:
@@ -161,7 +161,7 @@ class DefaultJobService:
                         f_out.flush() # Ensure output is written promptly
                         # Optionally, could store recent lines in memory in Job object if needed
                     job._process_handle.stdout.close()
-            
+
             job._process_handle.wait() # Wait for the process to complete
             job.exit_code = job._process_handle.returncode
             job.status = "COMPLETED" if job.exit_code == 0 else "FAILED"
@@ -182,7 +182,7 @@ class DefaultJobService:
                 del self._threads[job.id]
 
 
-    def launch(self, command: List[str], tracking_label: Optional[str] = None) -> str:
+    def launch(self, command: list[str], tracking_label: str | None = None) -> str:
         """
         Launches a command as a background job.
         Args:
@@ -197,7 +197,7 @@ class DefaultJobService:
 
         job_id_base = tracking_label or command[0]
         job_id = self._generate_job_id(job_id_base)
-        
+
         job = Job(id=job_id, command_list=command, tracking_label=tracking_label)
         logger.info(f"Launching job {job.id}: {' '.join(job.command_list)}")
 
@@ -216,16 +216,16 @@ class DefaultJobService:
             job._process_handle = process
             job.status = "RUNNING"
             job.updated_at = time.time()
-            
+
             with self._lock:
                 self._jobs[job_id] = job
-            
+
             # Start a thread to monitor the process and stream its output
             monitor_thread = threading.Thread(target=self._monitor_job_process, args=(job,))
             monitor_thread.daemon = True # Allow main program to exit even if threads are running
             self._threads[job_id] = monitor_thread
             monitor_thread.start()
-            
+
             self._save_jobs_to_disk()
             logger.info(f"Job {job.id} (PID: {job.pid}) launched successfully and is being monitored.")
             return job_id
@@ -246,7 +246,7 @@ class DefaultJobService:
             self._save_jobs_to_disk()
             raise
 
-    def get_status(self, job_id: str) -> Optional[Job]:
+    def get_status(self, job_id: str) -> Job | None:
         """Retrieves the current status of a job."""
         with self._lock:
             job = self._jobs.get(job_id)
@@ -263,7 +263,7 @@ class DefaultJobService:
             logger.warning(f"Job ID {job_id} not found.")
         return job
 
-    def get_full_log(self, job_id: str, max_chars: Optional[int] = None) -> str:
+    def get_full_log(self, job_id: str, max_chars: int | None = None) -> str:
         """
         Retrieves the full captured output (stdout/stderr) for a job.
         Args:
@@ -288,7 +288,7 @@ class DefaultJobService:
         logger.warning(f"Full log requested for non-existent job ID {job_id}")
         return "[Job not found]"
 
-    def get_log_tail(self, job_id: str, n_lines: int = 20) -> List[str]:
+    def get_log_tail(self, job_id: str, n_lines: int = 20) -> list[str]:
         """
         Retrieves the last N lines of captured output for a job.
         Args:
@@ -303,7 +303,7 @@ class DefaultJobService:
         lines = full_log.splitlines()
         return lines[-n_lines:]
 
-    def list_all(self) -> List[Job]:
+    def list_all(self) -> list[Job]:
         """Lists all jobs currently managed by the service."""
         with self._lock:
             # Return copies to prevent external modification of internal state
@@ -336,7 +336,7 @@ class DefaultJobService:
                     logger.warning(f"Job {job.id} (PID: {job.pid}) did not terminate gracefully, sending SIGKILL.")
                     job._process_handle.kill() # Force kill
                     job._process_handle.wait(timeout=1) # Wait for kill
-                
+
                 job.status = "TERMINATED"
                 job.exit_code = job._process_handle.returncode if hasattr(job._process_handle, 'returncode') else -9 # SIGKILL often -9
                 job.updated_at = time.time()
@@ -360,9 +360,9 @@ class DefaultJobService:
             self._save_jobs_to_disk()
             return "TERMINATED" # Or "UNKNOWN_STATE_STOPPED"
 
-    def prune_completed(self) -> List[str]:
+    def prune_completed(self) -> list[str]:
         """Removes all jobs that are in a terminal state (COMPLETED, FAILED, TERMINATED)."""
-        pruned_ids: List[str] = []
+        pruned_ids: list[str] = []
         with self._lock:
             job_ids_to_prune = [
                 job_id for job_id, job in self._jobs.items()
@@ -379,7 +379,7 @@ class DefaultJobService:
                 if job:
                     pruned_ids.append(job_id)
                     logger.info(f"Pruned job {job_id} with status {job.status}.")
-        
+
         if pruned_ids:
             self._save_jobs_to_disk() # Save changes after pruning
         logger.info(f"Pruned {len(pruned_ids)} jobs: {pruned_ids}")

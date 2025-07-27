@@ -167,7 +167,17 @@
 - [x] Codey CLI: Unified, visually rich ANSI/emoji box output.
 - [x] Codey CLI: Progressive, live-updating search/analysis UX.
 - [x] `output_utils`: `ansi_box` prints spinner state correctly.
+- [x] GAWD CLI: Implement Shift-Tab toggle for auto-accept edits
+- [x] GAWD CLI: Add light purple status bar for auto-accept mode
+- [x] GAWD CLI: Show '? for shortcuts' in dark grey when auto-accept off
+- [x] GAWD CLI: Implement terminal-width responsive input box
+- [x] GAWD CLI: Add input history display in grey
+- [x] GAWD CLI: Add response generation status line with timer and token count
+- [x] GAWD CLI: Handle multi-line pasted content with line count display
+  (shows first 4 lines + "... +X lines" indicator for longer outputs)
+- [ ] GAWD CLI: Implement solid block input marker
 - [ ] Extend unified output/UX to other blueprints (e.g., `django_chat`, `mcp_demo`, etc.) and ensure all use `ansi_box`/`print_operation_box`.
+- [ ] GAWD CLI: Add tests for new input/output features
 - [ ] Refactor spinner/operation progress so that live line/progress updates are available in real (non-test) mode.
 - [ ] Add more result types, summaries, and param details to operation boxes.
 - [ ] Add tests for output formatting and UX regressions.

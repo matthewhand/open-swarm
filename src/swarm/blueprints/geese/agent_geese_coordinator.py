@@ -1,7 +1,8 @@
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
-from agents import Agent, Model # Assuming Model is the base type for self.llm
+from agents import Agent, Model  # Assuming Model is the base type for self.llm
 from agents.mcp import MCPServer
 
 # Assuming these are also Agent subclasses, they'll be defined in their own files
@@ -13,7 +14,11 @@ WriterAgent = Any
 EditorAgent = Any
 ResearcherAgent = Any
 
-from .geese_memory_objects import StoryContext, StoryOutline, StoryOutput # These need to exist
+from .geese_memory_objects import (  # These need to exist
+    StoryContext,
+    StoryOutline,
+    StoryOutput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +32,11 @@ class GooseCoordinator(Agent):
         name: str,
         model: Model, # SDK Model instance (e.g., OpenAIChatCompletionsModel)
         instructions: str, # System prompt
-        mcp_servers: Optional[List[MCPServer]] = None,
-        blueprint_id: Optional[str] = None, # Custom param
+        mcp_servers: list[MCPServer] | None = None,
+        blueprint_id: str | None = None, # Custom param
         max_llm_calls: int = 10, # Custom param
         # Potentially other kwargs if SDK Agent or this class needs them
-        **kwargs: Any 
+        **kwargs: Any
     ):
         super().__init__(
             name=name,
@@ -45,17 +50,17 @@ class GooseCoordinator(Agent):
         self.logger = logging.getLogger(f"swarm.geese.agent.{self.name}") # More specific logger
 
         # Sub-agents will be assigned by GeeseBlueprint after initialization
-        self.writer_agent: Optional[WriterAgent] = None
-        self.editor_agent: Optional[EditorAgent] = None
-        self.researcher_agent: Optional[ResearcherAgent] = None
-        
-        self._current_story_output: Optional[StoryOutput] = None
+        self.writer_agent: WriterAgent | None = None
+        self.editor_agent: EditorAgent | None = None
+        self.researcher_agent: ResearcherAgent | None = None
+
+        self._current_story_output: StoryOutput | None = None
 
 
     async def run(
         self,
-        messages: List[Dict[str, Any]], # Standard messages for an agent run
-        story_context: Optional[StoryContext] = None, # Custom parameter for Geese
+        messages: list[dict[str, Any]], # Standard messages for an agent run
+        story_context: StoryContext | None = None, # Custom parameter for Geese
         **kwargs: Any
     ) -> AsyncGenerator[Any, None]: # SDK Agent.run usually yields its own interaction objects
         """
@@ -66,7 +71,7 @@ class GooseCoordinator(Agent):
             # Fallback if story_context isn't provided, though GeeseBlueprint should provide it
             user_prompt = messages[-1]["content"] if messages and messages[-1]["role"] == "user" else "A default story prompt."
             story_context = StoryContext(user_prompt=user_prompt)
-        
+
         self.logger.info(f"GooseCoordinator run initiated. User prompt: {story_context.user_prompt}")
         yield f"Coordinator: Starting story generation for: {story_context.user_prompt}"
 
@@ -74,7 +79,7 @@ class GooseCoordinator(Agent):
         # In a real scenario, this might involve calling self.llm (the SDK model) directly
         # or delegating to a specialized "OutlinerAgent".
         # For now, let's assume the coordinator handles it or it's simple.
-        
+
         yield "Coordinator: Generating story outline..."
         # This would be an LLM call using self.model (which is the SDK model instance)
         # Example:
@@ -84,7 +89,7 @@ class GooseCoordinator(Agent):
         #    if chunk.get("choices", [{}])[0].get("delta", {}).get("content"):
         #        outline_response_str += chunk["choices"][0]["delta"]["content"]
         # story_outline = StoryOutline(title="Generated Outline", acts=["Act 1: ...", "Act 2: ...", "Act 3: ..."]) # Parsed from outline_response_str
-        
+
         # Placeholder outline
         story_outline = StoryOutline(
             title=f"Story for: {story_context.user_prompt[:30]}...",
@@ -107,7 +112,7 @@ class GooseCoordinator(Agent):
             for act_num, act_details in enumerate(story_outline.acts):
                 act_summary = act_details.get("summary", f"Act {act_num + 1}")
                 yield {"current_part_title": f"Writing Act {act_num + 1}", "progress_message": f"Coordinator: Delegating writing of '{act_summary}' to WriterAgent."}
-                
+
                 # Delegate to WriterAgent
                 # writer_prompt = f"Write {act_summary}. Key scenes: {act_details.get('key_scenes', [])}"
                 # written_part = ""
@@ -118,9 +123,9 @@ class GooseCoordinator(Agent):
 
                 # Placeholder written part
                 written_part = f"This is Act {act_num + 1}: {act_summary}. It was very exciting. {act_details.get('key_scenes', [])} happened."
-                
+
                 yield {"current_part_title": f"Editing Act {act_num + 1}", "progress_message": f"Coordinator: Delegating editing of Act {act_num + 1} to EditorAgent."}
-                
+
                 # Delegate to EditorAgent
                 # editor_prompt = f"Edit the following story part for clarity, grammar, and engagement:\n{written_part}"
                 # edited_part = ""
@@ -128,7 +133,7 @@ class GooseCoordinator(Agent):
                 #    # Process editor_chunk
                 #    if isinstance(editor_chunk, str): edited_part += editor_chunk
                 #    elif isinstance(editor_chunk, dict) and "content" in editor_chunk: edited_part += editor_chunk["content"]
-                
+
                 # Placeholder edited part
                 edited_part = f"(Edited) Act {act_num + 1}: {written_part} It is now much improved!"
                 final_story_parts.append(edited_part)
@@ -141,7 +146,7 @@ class GooseCoordinator(Agent):
             final_story=final_story_text,
             word_count=len(final_story_text.split())
         )
-        
+
         self.logger.info("GooseCoordinator: Story generation process complete.")
         # The SDK Agent's run method should yield objects that the calling Blueprint can understand.
         # Or, the blueprint might access a final result property on the agent.
@@ -151,7 +156,7 @@ class GooseCoordinator(Agent):
             "final": True # Indicate completion
         }
 
-    def get_final_story_output(self) -> Optional[StoryOutput]:
+    def get_final_story_output(self) -> StoryOutput | None:
         """Allows GeeseBlueprint to retrieve the final result if not caught in the run loop."""
         return self._current_story_output
 

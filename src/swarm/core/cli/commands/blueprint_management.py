@@ -1,5 +1,6 @@
 from swarm.core.blueprint_utils import list_blueprints
 
+
 def execute():
     """Manage blueprints (list, add, remove, etc)."""
     print("Blueprints:")

@@ -1,6 +1,7 @@
 # Handles blueprint discovery and validation for the CLI
 
 from swarm.core.blueprint_discovery import discover_blueprints
+
 # from swarm.core.config_loader import load_server_config  # Removed: function does not exist
 
 def list_blueprints():
@@ -19,14 +20,13 @@ def enable_blueprint(blueprint_name):
     """
     import json
     import os
-    from pathlib import Path
     CONFIG_PATH = os.path.expanduser("~/.config/swarm/swarm_config.json")
     BIN_DIR = os.path.expanduser("~/.local/bin")
-    BP_RUNNER = os.path.join(os.path.dirname(__file__), "../../../../src/swarm/blueprints/{}/blueprint_{}.py".format(blueprint_name, blueprint_name))
+    BP_RUNNER = os.path.join(os.path.dirname(__file__), f"../../../../src/swarm/blueprints/{blueprint_name}/blueprint_{blueprint_name}.py")
     CLI_SYMLINK = os.path.join(BIN_DIR, blueprint_name)
 
     # Load config
-    with open(CONFIG_PATH, "r") as f:
+    with open(CONFIG_PATH) as f:
         config = json.load(f)
     enabled = config.get("blueprints", {}).get("enabled", [])
     if blueprint_name in enabled:
