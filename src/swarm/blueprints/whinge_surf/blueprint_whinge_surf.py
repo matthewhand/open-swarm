@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import threading
 import time
@@ -14,13 +15,17 @@ from swarm.core.blueprint_ux import BlueprintUXImproved
 class WhingeSpinner:
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
     LONG_WAIT_MSG = "Generating... Taking longer than expected"
-    SLOW_THRESHOLD = 10
 
     def __init__(self):
         self._running = False
         self._current_frame = 0
         self._thread: threading.Thread | None = None
         self._start_time: float | None = None
+        # Allow tuning via environment without breaking defaults
+        try:
+            self._slow_threshold = int(os.getenv("WHINGE_SPINNER_SLOW_THRESHOLD", "10"))
+        except Exception:
+            self._slow_threshold = 10
 
     def start(self) -> None:
         self._running = True
@@ -41,7 +46,7 @@ class WhingeSpinner:
     def _spin(self) -> None:
         while self._running:
             elapsed = time.time() - self._start_time if self._start_time else 0
-            frame = self.LONG_WAIT_MSG if elapsed > self.SLOW_THRESHOLD else self.FRAMES[self._current_frame]
+            frame = self.LONG_WAIT_MSG if elapsed > self._slow_threshold else self.FRAMES[self._current_frame]
 
             # Use \r to return to the beginning of the line and overwrite
             sys.stdout.write(f"\r{frame} \033[K") # Added space and clear to end of line
@@ -54,7 +59,7 @@ class WhingeSpinner:
 
     def current_spinner_state(self) -> str:
         elapsed = time.time() - self._start_time if self._start_time else 0
-        return self.LONG_WAIT_MSG if elapsed > self.SLOW_THRESHOLD else self.FRAMES[self._current_frame]
+        return self.LONG_WAIT_MSG if elapsed > self._slow_threshold else self.FRAMES[self._current_frame]
 
 
 class WhingeSurfBlueprint(BlueprintBase):
@@ -155,6 +160,18 @@ class WhingeSurfBlueprint(BlueprintBase):
         return self.ux.ansi_emoji_box(title="WhingeSurf Self-Update", content="Self-update initiated. Please restart if necessary.", op_type="self_update")
 
     def analyze_self(self, output_format="json"):
+        """Return a quick self-analysis in either JSON or text form without changing test behavior."""
+        if (output_format or "").lower() == "json":
+            payload = {
+                "blueprint": self.blueprint_id,
+                "version": getattr(self, "VERSION", None),
+                "status": "ok",
+            }
+            return self.ux.ansi_emoji_box(
+                title="WhingeSurf Self-Analysis",
+                content=json.dumps(payload, indent=2),
+                op_type="analyze_self",
+            )
         analysis_content = "Ultra-enhanced code analysis complete. All systems nominal. 🌊"
         return self.ux.ansi_emoji_box(title="WhingeSurf Self-Analysis", content=analysis_content, op_type="analyze_self")
 
@@ -178,6 +195,17 @@ class WhingeSurfBlueprint(BlueprintBase):
                 response_content = self.list_jobs()
             elif "prune jobs" in instruction:
                 response_content = self.prune_jobs()
+            elif instruction.startswith("show output"):
+                parts = instruction.split()
+                job_id = parts[-1] if len(parts) > 2 else ""
+                response_content = self.show_output(job_id)
+            elif instruction.startswith("tail output"):
+                parts = instruction.split()
+                job_id = parts[-1] if len(parts) > 2 else ""
+                response_content = self.tail_output(job_id)
+            elif instruction.startswith("kill "):
+                job_id = instruction.replace("kill ", "").strip()
+                response_content = self.kill_subprocess(job_id)
             elif "run " in instruction:
                 cmd_str = instruction.replace("run ", "").strip()
                 cmd_parts = cmd_str.split()
