@@ -81,6 +81,7 @@ SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 EchoCraft Blueprint
 
 Viral docstring update: Operational as of {} (UTC).
+Expertise list: echo, demo
 Self-healing, fileops-enabled, swarm-scalable.
 """
 
@@ -109,6 +110,11 @@ class EchoCraftSpinner:
         self.console = Console()
         self._last_frame = None
         self._last_slow = False
+        # Allow tuning via environment variable; fallback to default
+        try:
+            self._slow_threshold = int(os.getenv("ECHOCRAFT_SPINNER_SLOW_THRESHOLD", str(self.SLOW_THRESHOLD)))
+        except Exception:
+            self._slow_threshold = self.SLOW_THRESHOLD
 
     def start(self):
         self._stop_event.clear()
@@ -120,7 +126,7 @@ class EchoCraftSpinner:
         idx = 0
         while not self._stop_event.is_set():
             elapsed = time.time() - self._start_time
-            if elapsed > self.SLOW_THRESHOLD:
+            if elapsed > self._slow_threshold:
                 txt = Text(self.SLOW_FRAME, style=Style(color="yellow", bold=True))
                 self._last_frame = self.SLOW_FRAME
                 self._last_slow = True
