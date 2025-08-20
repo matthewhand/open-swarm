@@ -46,13 +46,7 @@ build-shim:
 # Build shims for all detected blueprint_*.py modules
 build-all-shims:
 	@echo "Building shims for all blueprints..."
-	@SWARM_TEST_MODE=1 bash -c '
-		set -euo pipefail; \
-		mods=$$(find src/swarm/blueprints -type f -name "blueprint_*.py" | sed -E "s#.*/blueprint_([^.]+)\.py#\1#" | sort -u); \
-		for m in $$mods; do \
-			echo "==> Installing shim: $$m"; \
-			$(PY) $(CLI) install-executable $$m; \
-		done'
+	@SWARM_TEST_MODE=1 bash -c 'set -euo pipefail; for f in $$(find src/swarm/blueprints -type f -name "blueprint_*.py"); do m=$$(basename $$f .py | sed "s/blueprint_//"); echo "==> Installing shim: $$m"; $(PY) $(CLI) install-executable $$m || echo "Failed to install $$m, continuing..."; done'
 
 launch:
 	@if [ -z "$(NAME)" ]; then echo "ERROR: Set NAME=<blueprint_name>"; exit 1; fi
