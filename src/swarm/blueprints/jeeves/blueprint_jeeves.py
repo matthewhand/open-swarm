@@ -698,7 +698,14 @@ if __name__ == "__main__":
         messages = [
             {"role": "user", "content": "Jeeves delegates to Mycroft, who injects a bug, Gutenberg detects and patches it, Jeeves verifies the patch. Log all agent handoffs and steps."}
         ]
-        tasks.append(blueprint.run(messages))
+        # Convert async generator to list first, then run
+        async def collect_responses(blueprint_run):
+            responses = []
+            async for response in blueprint_run:
+                responses.append(response)
+            return responses
+        
+        tasks.append(collect_responses(blueprint.run(messages)))
         results = await asyncio.gather(*[asyncio.create_task(t) for t in tasks], return_exceptions=True)
         for idx, result in enumerate(results):
             print(f"\n[PARALLEL TASK {idx+1}] Result:")

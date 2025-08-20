@@ -9,9 +9,11 @@ Welcome to Open Swarm! Orchestrate, manage, and run AI agent blueprints with S-t
    swarm-cli list
    ```
 2. Install a blueprint as a standalone CLI executable (e.g., Codey):
-   ```bash
-   swarm-cli install codey
-   ```
+```bash
+swarm-cli install codey
+# or install and manage via uv-run if developing locally:
+# uv run swarm-cli install codey
+```
 3. Launch the installed blueprint (and optionally use pre-, listen-, and post- hooks):
    ```bash
    # Basic launch with a message
@@ -26,6 +28,45 @@ Welcome to Open Swarm! Orchestrate, manage, and run AI agent blueprints with S-t
    ```
 
 For advanced features, see below or run `swarm-cli help`.
+
+### Team Wizard (Create a New Team)
+
+Open Swarm includes an interactive wizard to scaffold a new team blueprint and optionally install a CLI shortcut.
+
+- Interactive:
+
+  ```bash
+  swarm-cli wizard
+  ```
+
+  Prompts for team name, description, agents, and whether to create a shortcut. If an LLM is configured (`OPENAI_API_KEY` or `LITELLM_API_KEY`), you may opt to refine the spec using a constrained JSON step.
+
+- Non-interactive:
+
+  ```bash
+  swarm-cli wizard --non-interactive \
+    -n "Demo Team" \
+    -r "Coordinator:lead, Engineer:code" \
+    --output-dir ./my_blueprints \
+    --bin-dir ./my_bin
+  ```
+
+  Flags:
+  - `--name/-n`: Team name
+  - `--description/-d`: One-line description
+  - `--abbreviation/-a`: CLI shortcut name (defaults to slugified name)
+  - `--agents/-r`: Comma-separated `Name:role` entries
+  - `--use-llm [--model]`: Use LLM with constrained JSON to refine the spec (requires API key)
+  - `--no-shortcut`: Skip creating the CLI shortcut
+  - `--output-dir`, `--bin-dir`: Control output locations (useful in sandboxes/CI)
+
+Outputs:
+- A Python file at `<output-dir>/<slug>/blueprint_<slug>.py` that subclasses `BlueprintBase`.
+- Optionally a CLI shortcut at `<bin-dir>/<abbreviation>` that runs the blueprint.
+
+Tips:
+- If you’re new or don’t have config keys set yet, the launcher will hint: `swarm-cli wizard`.
+- For reproducible paths in CI/containers, set `SWARM_USER_DATA_DIR` to override default platformdirs locations or use `--output-dir/--bin-dir`.
 
 ## Using Blueprints as Tools
 
@@ -242,13 +283,32 @@ swarm-cli config add \
 }'
 ```
 
-Usage example in interactive chat (after running `swarm-cli run <blueprint>` without `--message`):
+Usage example in interactive chat (after launching without a message):
 ```
+# Installed executable:
+codey
+# Or launch without installing an executable:
+swarm-cli launch codey
 swarm> Hello, world!
 <assistant> [normal response]
 swarm> /compact
 <assistant> [compact summary of conversation]
 ```
+
+Tip (development with uv):
+- List: `uv run swarm-cli list`
+- Install: `uv run swarm-cli install codey`
+- Launch: `uv run swarm-cli launch codey --message "..."`
+
+Tip (development with uv):
+- List: `uv run swarm-cli list`
+- Install: `uv run swarm-cli install codey`
+- Launch: `uv run swarm-cli launch codey --message "..."`
+
+Tip: If you prefer uv in development:
+- List: `uv run swarm-cli list`
+- Install: `uv run swarm-cli install codey`
+- Launch: `uv run swarm-cli launch codey --message "..."`
 
 Slash commands use the configured `llmProfile` (defaulting to `default`) and apply the `promptTemplate`, injecting the current conversation history. You can override per-command or globally via environment variables.
   
@@ -469,10 +529,13 @@ pip install -e .
 
 ```bash
 swarm-cli --help
-swarm-cli run hello_world --instruction "Hello from CLI!"
-python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
-./hello_world Hello from CLI!
-swarm-api --help
+# Use the current commands:
+swarm-cli list
+swarm-cli install hello_world
+swarm-cli launch hello_world --message "Hello from CLI!"
+python src/swarm/blueprints/hello_world/blueprint_hello_world.py "Hello from CLI!"
+./hello_world "Hello from CLI!"
+# API usage documented in the Docker section below
 ```
 
 If you do not see the commands in your PATH, ensure `~/.local/bin` is in your PATH:
@@ -640,6 +703,10 @@ remove_at_job(job_id)
 
 ### swarm-cli Usage
 
+Note on legacy commands:
+- `swarm-cli blueprints list` → use `swarm-cli list`
+- `swarm-cli run <name> [--instruction ...]` → use `swarm-cli launch <name> [--message ...]`
+
 ```shell
 Usage: swarm-cli [OPTIONS] COMMAND [ARGS]...
 
@@ -652,9 +719,12 @@ Options:
 
 Commands:
   install   Install a blueprint by creating a standalone executable using PyInstaller.
-  launch    Launch a previously installed blueprint executable.
-  list      Lists available blueprints (bundled and user-provided) and/or installed executables.
+  launch    Launch a blueprint (works with installed executables or directly without install).
+  list      List available blueprints (bundled, user-provided) and installed executables.
 ```
+
+Legacy note:
+- Older docs may reference `swarm-cli blueprints list` and `swarm-cli run`. Use `swarm-cli list` and `swarm-cli launch` instead.
 
 ### swarm-api Usage
 
@@ -698,7 +768,7 @@ class FamilyTiesBlueprint(BlueprintBase):
     }
 ```
 
-This metadata is used by the CLI for `swarm-cli blueprint list` and `swarm-cli blueprint info <name>`, and for onboarding/documentation automation. **Always update the `metadata` property when adding or modifying a blueprint.**
+This metadata is used by the CLI for discovery and docs automation. Ensure the metadata stays in sync with README examples and CLI output. **Always update the `metadata` property when adding or modifying a blueprint.**
 
 ---
 
@@ -745,6 +815,10 @@ Open Swarm is provided under the MIT License. Refer to the [LICENSE](LICENSE) fi
 ## Contributing
 
 Contributions are welcome! Please refer to the `CONTRIBUTING.md` file (if available) or open an issue/pull request on the repository.
+
+> Note: Some older docs or blog posts may reference legacy commands:
+> - `swarm-cli blueprints list` → use `swarm-cli list`
+> - `swarm-cli run <name> [--instruction ...]` → use `swarm-cli launch <name> [--message ...]`
 
 ---
 
@@ -812,19 +886,22 @@ This is the recommended way to use `swarm-cli` for managing and running blueprin
         ```
 
 4.  **Run the Blueprint:**
-    *   **Single Instruction (recommended):**
+    *   **Single Instruction (recommended, no install required):**
         ```bash
-        swarm-cli run hello_world --instruction "Hello from CLI!"
+        swarm-cli launch hello_world --message "Hello from CLI!"
         ```
     *   **Interactive Mode:**
         ```bash
-        swarm-cli run hello_world
+        # Installed executable:
+        hello_world
+        # Or launch without installing:
+        swarm-cli launch hello_world
         # Now you can chat with the blueprint interactively
         ```
     *   **Direct Python or Binary Execution:**
         ```bash
-        python src/swarm/blueprints/hello_world/blueprint_hello_world.py Hello from CLI!
-        ./hello_world Hello from CLI!
+        python src/swarm/blueprints/hello_world/blueprint_hello_world.py "Hello from CLI!"
+        ./hello_world "Hello from CLI!"
         ```
 
 5.  **(Optional) Install as Command:**
@@ -871,11 +948,31 @@ This method uses `docker-compose.yaml` and is best if you need to customize volu
 5.  **Start the Service:**
     ```bash
     docker compose up -d
+    # Wait for healthcheck (or watch logs)
+    # docker compose logs -f open-swarm
     ```
 
 6.  **Verify API:** (Default port 8000)
-    *   Models: `curl http://localhost:8000/v1/models`
-    *   Chat: `curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "hello_world", ...}'` (Add `-H "Authorization: Bearer <key>"` if needed).
+    - Models:
+      ```bash
+      curl -sf http://localhost:8000/v1/models | jq .
+      ```
+    - Chat (non-streaming):
+      ```bash
+      curl -sf http://localhost:8000/v1/chat/completions \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${SWARM_API_KEY:-dev}" \
+        -d '{
+          "model": "echocraft",
+          "messages": [
+            {"role":"user","content":"ping"}
+          ]
+        }' | jq .
+      ```
+    Notes:
+    - docker-compose ships with a healthcheck that waits for `/v1/models`.
+    - Set `SWARM_API_KEY` in `.env` if API auth is enabled.
+    - The compose now exports `PORT` (default 8000) and an optional `SWARM_BLUEPRINTS` default of `echocraft`.
 
 ### Option B: Direct `docker run` (Simpler for Single Container)
 
@@ -919,12 +1016,35 @@ This method runs the pre-built image directly from Docker Hub. Good for quick te
 
 ---
 
+## scripts/smoke_api.sh (Optional)
+
+For repeatable verification of the Docker API:
+
+```bash
+bash scripts/smoke_api.sh
+```
+
+The script will:
+- Wait until http://localhost:${PORT:-8000}/v1/models is healthy
+- Print the models response (pretty-printed via jq if available)
+- Send a non-streaming /v1/chat/completions test to model "echocraft" with payload {"messages":[{"role":"user","content":"ping"}]}
+
+See the script header for overrides (PORT, HOST, SWARM_API_KEY, MODEL).
+
+---
+
 ## Usage Modes Summary
 
 *   **`swarm-api` (via Docker or `manage.py runserver`):** Exposes blueprints as an OpenAI-compatible REST API. Ideal for integrations. Requires `SWARM_API_KEY` for security in non-local deployments.
-*   **`swarm-cli run` (via PyPI install):** Executes managed blueprints locally, either with a single instruction or in interactive chat mode. Good for testing and local tasks.
+*   **`swarm-cli list` (via PyPI install):** Lists known and installed blueprints.
 *   **`swarm-cli install` (via PyPI install):** Creates standalone command-line executables from managed blueprints.
+*   **`swarm-cli launch` (via PyPI install):** Launches blueprints without requiring an installed executable.
 *   **Direct Python Execution (via Git clone):** Running `uv run python <blueprint_file.py>` is mainly for development and testing individual files.
+
+### Note on legacy commands in older docs or blog posts
+If you encounter old examples using:
+- `swarm-cli blueprints list` → use `swarm-cli list`
+- `swarm-cli run <name> [--instruction ...]` → use `swarm-cli launch <name> [--message ...]`
 
 ---
 

@@ -14,7 +14,8 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Any, ClassVar, TypedDict
+from typing import Any, ClassVar
+from typing_extensions import TypedDict
 
 import pytz
 
@@ -50,10 +51,7 @@ class SuggestionsOutput(TypedDict):
 SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
 
 # Patch: Expose underlying fileops functions for direct testing
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
+# PatchedFunctionTool removed - using @function_tool instead
 
 def read_file(path: str) -> str:
     try:
@@ -97,10 +95,26 @@ def execute_shell_command(command: str) -> str:
     except Exception as e:
         logger.error(f"Error executing command '{command}': {e}", exc_info=True)
         return f"Error executing command: {e}"
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+# Use proper function_tool decorator instead of PatchedFunctionTool
+@function_tool
+def read_file_tool(file_path: str) -> str:
+    """Read the contents of a file."""
+    return read_file(file_path)
+
+@function_tool  
+def write_file_tool(file_path: str, content: str) -> str:
+    """Write content to a file."""
+    return write_file(file_path, content)
+
+@function_tool
+def list_files_tool(directory: str = ".") -> str:
+    """List files in a directory."""
+    return list_files(directory)
+
+@function_tool
+def execute_shell_command_tool(command: str) -> str:
+    """Execute a shell command."""
+    return execute_shell_command(command)
 
 # --- Define the Blueprint ---
 # === OpenAI GPT-4.1 Prompt Engineering Guide ===
@@ -145,7 +159,11 @@ class SuggestionBlueprint(BlueprintBase):
         """Create the SuggestionAgent."""
         logger.debug("Creating SuggestionAgent...")
         self._model_instance_cache = {}
-        default_profile_name = self.config.get("llm_profile", "default")
+        try:
+            default_profile_name = self.config.get("llm_profile", "default")
+        except RuntimeError:
+            # Fallback if config not loaded
+            default_profile_name = "default"
         logger.debug(f"Using LLM profile '{default_profile_name}' for SuggestionAgent.")
         model_instance = self._get_model_instance(default_profile_name)
         suggestion_agent_instructions = (
@@ -181,8 +199,15 @@ class SuggestionBlueprint(BlueprintBase):
         from agents import Runner
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
-            for chunk in Runner.run(agent, instruction):
-                yield chunk
+            result = await Runner.run(agent, instruction)
+            yield {
+                "messages": [
+                    {
+                        "role": "assistant", 
+                        "content": str(result)
+                    }
+                ]
+            }
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
@@ -194,7 +219,23 @@ class SuggestionBlueprint(BlueprintBase):
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
+        
+        # Fallback to simple OpenAI model if config not available
+        try:
+            profile_data = self.get_llm_profile(profile_name)
+        except RuntimeError:
+            # Config not loaded, use environment fallback
+            import os
+            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("No OPENAI_API_KEY found and config not loaded")
+            logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=api_key)
+            model_instance = OpenAIChatCompletionsModel(model="gpt-4o-mini", openai_client=client)
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
         if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")

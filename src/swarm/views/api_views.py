@@ -54,3 +54,42 @@ class ModelsListView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+class BlueprintsListView(APIView):
+    """
+    API view to list available blueprints with richer metadata than /v1/models.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            available_blueprints = async_to_sync(get_available_blueprints)()
+            data = []
+            if isinstance(available_blueprints, dict):
+                for blueprint_id, info in available_blueprints.items():
+                    meta = info.get("metadata", {}) if isinstance(info, dict) else {}
+                    data.append({
+                        "id": blueprint_id,
+                        "object": "blueprint",
+                        "name": meta.get("name", blueprint_id),
+                        "description": meta.get("description"),
+                        "abbreviation": meta.get("abbreviation"),
+                        # Placeholders for future enrichment
+                        "tags": [],
+                        "installed": None,
+                        "compiled": None,
+                    })
+            else:
+                logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
+
+            response_payload = {
+                "object": "list",
+                "data": data,
+            }
+            return Response(response_payload, status=status.HTTP_200_OK)
+        except Exception:
+            logger.exception("Error retrieving blueprints list.")
+            return Response(
+                {"error": "Failed to retrieve blueprints list."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

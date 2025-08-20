@@ -109,6 +109,24 @@
 - [ ] Implement `swarm-cli onboarding` command to display UX-rich welcome, Quickstart, and blueprint discovery hints.
 - [ ] Add command suggestions/typeahead/autocomplete for CLI (stretch goal).
 
+### 2.3. Web UI — Team Launcher (High Priority)
+- [ ] Add a minimal Web UI to launch multi‑agent teams from a simple dialog.
+    - [ ] Page: `/teams/launch` with inputs: Team Blueprint (select), Task/Instruction (textarea), Model/Profile (select), Advanced (pre/listen/post hooks).
+    - [ ] List available team blueprints via `/v1/models` (temporary) or a new `/v1/blueprints` endpoint.
+    - [ ] Submit launches via OpenAI‑compatible `/v1/chat/completions` with `model=<blueprint>` and `messages=[...]`.
+    - [ ] Streaming: render incremental output via SSE from `/v1/chat/completions` when `stream=true`.
+    - [ ] Auth: respect `ENABLE_API_AUTH` (token header) and session login when enabled.
+    - [ ] Toggle by `ENABLE_WEBUI=true` in env and Docker compose; default off.
+- [ ] Add server routes to serve the Team Launcher and static assets (Django templates under `src/swarm/templates/`).
+- [ ] API support (if needed for richer metadata):
+    - [ ] `/v1/blueprints` returns id, description, tags (e.g., `team`), abbreviation, installed/compiled status.
+    - [ ] Optional: `/v1/blueprints/<id>` for details and example prompts.
+- [ ] Tests:
+    - [ ] View renders with and without auth enabled.
+    - [ ] Launch POST streams chunks and completes.
+    - [ ] Blueprint list is populated and filtered by `team` tag where present.
+- [ ] Docs: add a short “Web UI: Team Launcher” section to README + QUICKSTART.
+
 ## Phase 3: Advanced Features & Refinements
 
 ### 3.1. `swarm-wrapper` (Alternative Compilation Strategy - Re-evaluate)
@@ -126,7 +144,7 @@
 - [ ] Write integration tests in `tests/blueprints/test_zeus_workflow.py` covering end-to-end orchestration.
 
 ### 3.3. API Enhancements
-- [ ] Expose blueprint metadata (including installed/compiled status) via a REST API endpoint for web UI/discovery.
+- [ ] Expose blueprint metadata (including installed/compiled status, tags) via a REST API endpoint for Web UI/discovery (`/v1/blueprints`).
 
 ### 3.4. Code Quality & Automation
 - [ ] Add blueprint metadata linting as a required pre-commit hook (`swarm-cli blueprint lint` if such a command is created, or a custom script).

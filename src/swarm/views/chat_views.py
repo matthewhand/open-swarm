@@ -2,10 +2,12 @@
 # --- Content for src/swarm/views/chat_views.py ---
 import asyncio
 import json
+import sys
 import logging
 import time
 import uuid
 from typing import Any
+from django.conf import settings
 
 # Utility to wrap sync functions for async execution
 from asgiref.sync import sync_to_async
@@ -48,6 +50,15 @@ logger = logging.getLogger(__name__)
 # Specific logger for debug prints, potentially configured differently
 print_logger = logging.getLogger('print_debug')
 
+# Bridge module aliasing between 'swarm' and 'src.swarm' so test patches hit the correct module
+try:
+    if __name__ == 'swarm.views.chat_views':
+        sys.modules.setdefault('src.swarm.views.chat_views', sys.modules[__name__])
+    elif __name__ == 'src.swarm.views.chat_views':
+        sys.modules.setdefault('swarm.views.chat_views', sys.modules[__name__])
+except Exception:
+    pass
+
 # ==============================================================================
 # API Views (DRF based)
 # ==============================================================================
@@ -78,15 +89,22 @@ class ChatCompletionsView(APIView):
         final_response_data = None; start_time = time.time()
         try:
             # The blueprint's run method should be an async generator.
-            async_generator = blueprint_instance.run(messages)
+            async_generator = blueprint_instance.run(messages, stream=False)
             async for chunk in async_generator:
-                # Check if the chunk contains the expected final message list.
-                if isinstance(chunk, dict) and "messages" in chunk and isinstance(chunk["messages"], list):
-                    final_response_data = chunk["messages"]
-                    logger.debug(f"[ReqID: {request_id}] Received final data chunk.")
-                    break # Stop after getting the final data
-                else:
-                    logger.warning(f"[ReqID: {request_id}] Unexpected chunk format during non-streaming run: {chunk}")
+                # Accept either internal {messages:[{role,content}]} or OpenAI-like completion objects
+                if isinstance(chunk, dict):
+                    if "messages" in chunk and isinstance(chunk["messages"], list):
+                        final_response_data = chunk["messages"]
+                        logger.debug(f"[ReqID: {request_id}] Received final data chunk (messages list).")
+                        break
+                    if "choices" in chunk and isinstance(chunk.get("choices"), list) and chunk["choices"]:
+                        choice0 = chunk["choices"][0]
+                        message = choice0.get("message") or {}
+                        if isinstance(message, dict) and message.get("role") and (message.get("content") is not None):
+                            final_response_data = [message]
+                            logger.debug(f"[ReqID: {request_id}] Received final data chunk (OpenAI object).")
+                            break
+                logger.warning(f"[ReqID: {request_id}] Unexpected chunk format during non-streaming run: {chunk}")
 
             if not final_response_data or not isinstance(final_response_data, list) or not final_response_data:
                  logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not return a valid final message list. Got: {final_response_data}")
@@ -108,12 +126,26 @@ class ChatCompletionsView(APIView):
         async def event_stream():
             start_time = time.time(); chunk_index = 0
             try:
-                logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()..."); async_generator = blueprint_instance.run(messages); logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
+                logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()..."); async_generator = blueprint_instance.run(messages, stream=True); logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
-                    if not isinstance(chunk, dict) or "messages" not in chunk or not isinstance(chunk["messages"], list) or not chunk["messages"] or not isinstance(chunk["messages"][0], dict): logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}"); continue
-                    delta_content = chunk["messages"][0].get("content"); delta = {"role": "assistant"}
-                    if delta_content is not None: delta["content"] = delta_content
+                    delta = {"role": "assistant"}
+                    if isinstance(chunk, dict):
+                        if "messages" in chunk and isinstance(chunk["messages"], list) and chunk["messages"] and isinstance(chunk["messages"][0], dict):
+                            delta_content = chunk["messages"][0].get("content")
+                            if delta_content is not None:
+                                delta["content"] = delta_content
+                        elif "choices" in chunk and isinstance(chunk.get("choices"), list) and chunk["choices"]:
+                            # Handle OpenAI-like streaming or completion chunk shapes
+                            choice0 = chunk["choices"][0]
+                            if isinstance(choice0, dict):
+                                # delta content (streaming) or message content (completion)
+                                message = choice0.get("delta") or choice0.get("message") or {}
+                                if isinstance(message, dict) and (message.get("content") is not None):
+                                    delta["content"] = message.get("content")
+                    if "content" not in delta:
+                        logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}")
+                        continue
                     response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
                     logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}"); yield f"data: {json.dumps(response_chunk)}\n\n"; chunk_index += 1; await asyncio.sleep(0.01)
                 logger.debug(f"[ReqID: {request_id}] Finished iterating stream. Sending [DONE]."); yield "data: [DONE]\n\n"; end_time = time.time(); logger.info(f"[ReqID: {request_id}] Streaming request completed in {end_time - start_time:.2f}s.")
@@ -141,6 +173,14 @@ class ChatCompletionsView(APIView):
             await sync_to_async(self.perform_authentication)(drf_request)
             print_logger.debug(f"User after perform_authentication: {getattr(drf_request, 'user', 'N/A')}, Auth: {getattr(drf_request, 'auth', 'N/A')}")
             # --- End wrapping ---
+
+            # Enforce auth: if ENABLE_API_AUTH is True, require valid token or authenticated session
+            if bool(getattr(settings, 'ENABLE_API_AUTH', False)):
+                has_token = getattr(drf_request, 'auth', None) is not None
+                user_obj = getattr(drf_request, 'user', None)
+                is_authenticated = bool(user_obj and getattr(user_obj, 'is_authenticated', False))
+                if not (has_token or is_authenticated):
+                    raise PermissionDenied('Authentication credentials were not provided')
 
             # Run permission and throttle checks synchronously after auth.
             # These checks operate on the now-populated request.user/auth attributes.
@@ -209,12 +249,7 @@ class ChatCompletionsView(APIView):
             logger.error(f"[ReqID: {request_id}] Error during model access validation for model '{model_name}': {e}", exc_info=True)
             raise APIException("Error checking model permissions.", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
-        if not access_granted:
-             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
-             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
-        print_logger.debug(f"[ReqID: {request_id}] Model access granted.")
-
-        # --- Get Blueprint Instance ---
+        # --- Get Blueprint Instance (existence determines 404) ---
         # This function should ideally be async or sync-safe.
         print_logger.debug(f"[ReqID: {request_id}] Getting blueprint instance for '{model_name}' with params: {blueprint_params}")
         try:
@@ -226,6 +261,11 @@ class ChatCompletionsView(APIView):
         if blueprint_instance is None:
             logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (get_blueprint_instance returned None).")
             raise NotFound(f"The requested model (blueprint) '{model_name}' was not found or could not be initialized.")
+
+        # Only after confirming existence, enforce permission check result
+        if not access_granted:
+            logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
+            raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
         # --- Handle Streaming or Non-Streaming Response ---
         if stream:

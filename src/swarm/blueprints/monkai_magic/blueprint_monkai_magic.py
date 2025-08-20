@@ -171,7 +171,23 @@ class MonkaiMagicBlueprint(BlueprintBase):
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
+        
+        # Fallback to simple OpenAI model if config not available
+        try:
+            profile_data = self.get_llm_profile(profile_name)
+        except RuntimeError:
+            # Config not loaded, use environment fallback
+            import os
+            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+            from openai import AsyncOpenAI
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("No OPENAI_API_KEY found and config not loaded")
+            logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
+            client = AsyncOpenAI(api_key=api_key)
+            model_instance = OpenAIChatCompletionsModel(model="gpt-3.5-turbo", openai_client=client)
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
         if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
@@ -254,7 +270,10 @@ class MonkaiMagicBlueprint(BlueprintBase):
         self._model_instance_cache = {}
         self._openai_client_cache = {}
 
-        default_profile_name = self.config.get("llm_profile", "default")
+        try:
+            default_profile_name = self.config.get("llm_profile", "default")
+        except RuntimeError:
+            default_profile_name = "default"
         logger.debug(f"Using LLM profile '{default_profile_name}' for MonkaiMagic agents.")
         model_instance = self._get_model_instance(default_profile_name)
 

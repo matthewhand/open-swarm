@@ -32,6 +32,21 @@ See [BLUEPRINT_SPLASH.md](./BLUEPRINT_SPLASH.md) for how to implement and displa
 - CLI entrypoints may display a splash (see above); API endpoints must never emit splash or ANSI.
 - Always use metadata for programmatic or UI consumption.
 
+### Current CLI surface (replace legacy examples)
+Use these commands in docs, examples, and tests:
+- List blueprints: `swarm-cli list`
+- Install executable: `swarm-cli install <name>`
+- Launch blueprint: `swarm-cli launch <name> [--message "..."]`
+
+Development with uv:
+- `uv run swarm-cli list`
+- `uv run swarm-cli install codey`
+- `uv run swarm-cli launch codey --message "..."`
+
+Legacy commands to avoid:
+- `swarm-cli blueprints list` → use `swarm-cli list`
+- `swarm-cli run <name> [--instruction ...]` → use `swarm-cli launch <name> [--message ...]`
+
 ## Best Practices
 - Validate configs before running agents.
 - Never hardcode secrets; use environment variables and document them in the config docs.

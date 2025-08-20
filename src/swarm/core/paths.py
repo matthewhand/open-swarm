@@ -1,3 +1,4 @@
+import os
 import sys  # Import sys module for platform checking
 from pathlib import Path
 
@@ -11,6 +12,10 @@ def get_user_data_dir_for_swarm() -> Path:
     Returns the user-specific data directory for swarm.
     Example: ~/.local/share/OpenSwarm/swarm/ (or similar based on APP_AUTHOR)
     """
+    # Allow override for testing/sandboxes
+    override = os.environ.get("SWARM_USER_DATA_DIR")
+    if override:
+        return Path(override)
     return Path(platformdirs.user_data_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
 def get_user_blueprints_dir() -> Path:

@@ -38,6 +38,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
+
 from agents import set_default_openai_client
 from django.apps import apps  # Import Django apps registry
 from openai import AsyncOpenAI

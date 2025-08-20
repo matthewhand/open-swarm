@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">Teams Admin</h2>
+  {% if message %}
+  <div class="alert alert-success">{{ message }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <form method="post" class="col-12 col-md-8">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label" for="team_name">Team Name</label>
+        <input class="form-control" id="team_name" name="team_name" placeholder="e.g., my-team" required />
+        <div class="form-text">Used as the model id. Non-alphanumeric characters become dashes.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="llm_profile">LLM Profile</label>
+        <input class="form-control" id="llm_profile" name="llm_profile" list="profiles_list" placeholder="e.g., ollama_local" />
+        <datalist id="profiles_list">
+          {% for p in profiles %}
+          <option value="{{ p }}"></option>
+          {% endfor %}
+        </datalist>
+        <div class="form-text">Optional. Defaults to 'default' if omitted.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="description">Description</label>
+        <textarea class="form-control" id="description" name="description" rows="2" placeholder="Short description for this team"></textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">Add Team</button>
+      <a href="/teams/launch" class="btn btn-outline-secondary ms-2">Go to Launcher</a>
+      <a href="/profiles/" class="btn btn-outline-secondary ms-2">View Profiles</a>
+      <button type="button" class="btn btn-outline-success ms-2" data-bs-toggle="modal" data-bs-target="#importTeamsModal">Import</button>
+    </form>
+  </div>
+
+  <h5>Registered Teams</h5>
+  <table class="table table-sm">
+    <thead>
+      <tr><th>Model (Team)</th><th>LLM Profile</th><th>Description</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for t in teams %}
+      <tr>
+        <td><code>{{ t.id }}</code></td>
+        <td>{{ t.llm_profile|default:'default' }}</td>
+        <td>{{ t.description }}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal" data-team-id="{{ t.id }}">Delete</button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="text-muted">No teams yet. Add one above.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="alert alert-info mt-3">
+    Once added, teams appear in <code>/v1/models</code> and can be used as <code>model</code>
+    with OpenAI-compatible clients against <code>/v1/chat/completions</code>.
+  </div>
+
+  <div class="mt-3">
+    <a class="btn btn-outline-primary me-2" href="/teams/export?format=json">Export JSON</a>
+    <a class="btn btn-outline-primary me-2" href="/teams/export?format=csv">Export CSV</a>
+    <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#resetTeamsModal">Delete All Teams</button>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmDeleteLabel">Delete Team</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          Are you sure you want to delete team <code id="deleteTeamId"></code>?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete" />
+            <input type="hidden" id="deleteTeamIdInput" name="team_id" value="" />
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Teams Modal -->
+  <div class="modal fade" id="importTeamsModal" tabindex="-1" aria-labelledby="importTeamsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="importTeamsLabel">Import Teams</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Paste JSON (object of id→{llm_profile, description}) or CSV with headers <code>id,llm_profile,description</code>.</p>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import" />
+            <div class="mb-3">
+              <label class="form-label" for="import_format">Format</label>
+              <select id="import_format" name="import_format" class="form-select">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="import_data">Data</label>
+              <textarea id="import_data" name="import_data" class="form-control" rows="8" placeholder="Paste data here..."></textarea>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="overwrite" name="overwrite" checked />
+              <label class="form-check-label" for="overwrite">Overwrite existing teams if ids match</label>
+            </div>
+            <div class="modal-footer px-0">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-success">Import</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset All Teams Modal -->
+  <div class="modal fade" id="resetTeamsModal" tabindex="-1" aria-labelledby="resetTeamsLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="resetTeamsLabel">Delete All Teams</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          This will remove all dynamically-registered teams. Continue?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reset" />
+            <button type="submit" class="btn btn-warning">Delete All</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const modal = document.getElementById('confirmDeleteModal');
+    if (modal) {
+      modal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const teamId = button?.getAttribute('data-team-id') || '';
+        document.getElementById('deleteTeamId').textContent = teamId;
+        document.getElementById('deleteTeamIdInput').value = teamId;
+      });
+    }
+  </script>
+</div>
+{% endblock %}

@@ -36,7 +36,7 @@ def mission_blueprint_instance():
             return instance
 
 # Resolve merge conflicts by keeping the main branch's logic for mission_improbable blueprint tests. Integrate any unique improvements from the feature branch only if they do not conflict with stability or test coverage.
-@patch('swarm.blueprints.mission_improbable.blueprint_mission_improbable.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions_mission.db"))
+@patch('src.swarm.blueprints.mission_improbable.blueprint_mission_improbable.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions_mission.db"))
 @patch('swarm.blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}})
 @patch('swarm.blueprints.mission_improbable.blueprint_mission_improbable.BlueprintBase._get_model_instance')
 def test_mission_db_initialization(mock_get_model, mock_load_config, temporary_db_mission):

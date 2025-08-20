@@ -25,6 +25,12 @@ COMMAND_DEFINITIONS = [
         ]
     },
     {
+        "alias": "wizard",
+        "module_base_name": "team_wizard",
+        "description": "Interactive wizard to create a new team blueprint and optional CLI shortcut.",
+        "args_def": []  # team_wizard registers its own rich arguments
+    },
+    {
         # This is the NEW install command for installing blueprint SOURCE
         "alias": "install",
         "module_base_name": "install_blueprint", # Points to the new install_blueprint.py
@@ -121,7 +127,7 @@ COMMAND_DEFINITIONS = [
 ]
 
 def parse_args_and_get_executor(discovered_commands_map):
-    parser = argparse.ArgumentParser(description="Swarm CLI Utility")
+    parser = argparse.ArgumentParser(prog="swarm-cli", description="Swarm CLI Utility")
     subparsers = parser.add_subparsers(dest="user_command_alias", title="Commands",
                                        help="Available commands. Type <command> --help for more details.",
                                        metavar="<command>")
@@ -137,13 +143,11 @@ def parse_args_and_get_executor(discovered_commands_map):
 
         full_module_key = f"swarm.extensions.cli.commands.{module_base_name}"
 
-        # The discover_commands utility should ideally return a map where keys are module_base_name
-        # and values are dicts containing 'execute' and 'register_args' functions.
-        # Let's adjust to expect this.
-        # If discover_commands maps full module path to metadata:
-        # command_module_metadata = discovered_commands_map.get(full_module_key)
-        # If discover_commands maps module_base_name to metadata:
-        command_module_metadata = discovered_commands_map.get(module_base_name)
+        # Support both key styles from discover_commands: base name and full module path
+        command_module_metadata = (
+            discovered_commands_map.get(module_base_name)
+            or discovered_commands_map.get(full_module_key)
+        )
 
 
         if not command_module_metadata or not callable(command_module_metadata.get("execute")):

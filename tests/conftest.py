@@ -5,8 +5,22 @@ from pathlib import Path
 import os
 import django
 from django.apps import apps
+from asgiref.sync import sync_to_async
 
 # --- Fixtures ---
+
+def pytest_collection_modifyitems(config, items):
+    """Optionally skip asyncio-marked tests in restricted environments.
+
+    Set DISABLE_ASYNC_TESTS=1 to skip tests marked with @pytest.mark.asyncio.
+    This is useful in sandboxes that prohibit socketpair(), which
+    pytest-asyncio needs to create an event loop.
+    """
+    if os.getenv("DISABLE_ASYNC_TESTS", "").lower() in ("1", "true", "yes", "y"):
+        skip_async = pytest.mark.skip(reason="Async tests disabled in restricted env (socketpair not permitted)")
+        for item in items:
+            if "asyncio" in item.keywords:
+                item.add_marker(skip_async)
 
 @pytest.fixture(scope='session')
 def django_db_setup(django_db_setup, django_db_blocker):
@@ -76,3 +90,8 @@ def authenticated_client(api_client, test_user): # Relies on test_user, which re
     api_client.force_authenticate(user=test_user)
     return api_client
 
+
+@pytest.fixture
+async def authenticated_async_client(async_client, test_user):
+    await sync_to_async(async_client.force_login)(test_user)
+    return async_client

@@ -26,8 +26,82 @@ swarm-cli install codey
 
 To list available blueprints:
 ```bash
-swarm-cli blueprints list
+swarm-cli list
 ```
+
+---
+
+## 2b. Create Your Own Team (Wizard)
+
+Use the built-in wizard to scaffold a new team blueprint and optionally install a CLI shortcut.
+
+- Interactive:
+```bash
+swarm-cli wizard
+```
+
+- Non-interactive example:
+```bash
+swarm-cli wizard --non-interactive \
+  -n "Demo Team" \
+  -r "Coordinator:lead, Engineer:code" \
+  --output-dir ./my_blueprints \
+  --bin-dir ./my_bin
+```
+
+Flags:
+- `--name/-n`: Team name
+- `--description/-d`: One-line description
+- `--abbreviation/-a`: CLI shortcut name (defaults to slugified name)
+- `--agents/-r`: Comma-separated `Name:role` entries
+- `--use-llm [--model]`: Use LLM with constrained JSON to refine the spec (requires API key)
+- `--no-shortcut`: Skip creating the CLI shortcut
+- `--output-dir`, `--bin-dir`: Control output locations (useful in sandboxes/CI)
+
+Outputs:
+- Python file at `<output-dir>/<slug>/blueprint_<slug>.py`
+- Optional CLI shortcut at `<bin-dir>/<abbreviation>`
+
+Tip: If you are new or don’t have keys yet, the CLI can hint `swarm-cli wizard` at startup.
+
+---
+
+## 3. Deploy swarm-api via Docker (Optional)
+
+If you want to expose blueprints over an OpenAI-compatible REST API:
+
+1) Prepare environment
+```bash
+cp .env.example .env
+# Ensure OPENAI_API_KEY (and optional SWARM_API_KEY) are set in .env
+```
+
+2) Start the API
+```bash
+docker compose up -d
+# wait for the healthcheck to pass (or tail the logs)
+# docker compose logs -f open-swarm
+```
+
+3) Smoke-check the API
+```bash
+# Models
+curl -sf http://localhost:8000/v1/models | jq .
+
+# Chat (non-streaming)
+curl -sf http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${SWARM_API_KEY:-dev}" \
+  -d '{
+    "model": "echocraft",
+    "messages": [{"role":"user","content":"ping"}]
+  }' | jq .
+```
+
+Notes:
+- docker-compose includes a healthcheck for /v1/models
+- PORT defaults to 8000; SWARM_BLUEPRINTS defaults to echocraft
+- Adjust volumes in docker-compose.yaml to mount your blueprints and config
 
 ---
 
@@ -55,7 +129,7 @@ swarm-cli llm add --provider openai --api-key sk-... --base-url https://api.your
 
 ## 4. Run a Blueprint (e.g., Codey)
 
-To start Codey interactively:
+To start Codey interactively (installed executable):
 ```bash
 codey
 ```
@@ -63,34 +137,43 @@ codey
   - `~/.local/bin/codey`
   - Or add `~/.local/bin` to your `$PATH`.
 
-To run a one-off instruction (non-interactive):
+To run a one-off instruction (non-interactive) via installed executable:
 ```bash
 codey --message "Write a Python function to add two numbers"
+```
+
+To launch without installing the executable:
+```bash
+swarm-cli launch codey --message "Write a Python function to add two numbers"
 ```
 
 ---
 
 ## 5. Managing Blueprints
 
-- **List installed blueprints:**
+- **List known and installed blueprints:**
   ```bash
-  swarm-cli blueprints list
+  swarm-cli list
   ```
-- **Update a blueprint:**
+- **Install a blueprint executable:**
   ```bash
-  swarm-cli blueprints update codey
+  swarm-cli install codey
   ```
-- **Remove a blueprint:**
+- **Launch an installed blueprint executable:**
   ```bash
-  swarm-cli blueprints remove codey
+  swarm-cli launch codey --message "Hello from Codey"
   ```
 
 ---
 
 ## 6. Advanced: Configure swarm_config.json
 
-- The main config file is at `~/.swarm/swarm_config.json`.
-- Edit this to register agents, set defaults, or customize advanced options.
+- The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
+- Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
+- Manage via CLI:
+  ```bash
+  swarm-cli config add --section llm --name openai_default --json '{"provider":"openai","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}"}'
+  ```
 - See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) for details.
 
 ---
@@ -107,7 +190,7 @@ codey --message "Write a Python function to add two numbers"
 ## 8. Next Steps & Resources
 
 - Run `swarm-cli --help` and `codey --help` for usage info.
-- Explore more blueprints: `swarm-cli blueprints list`
+- Explore more blueprints: `swarm-cli list`
 - Read the [Developer Guide](./DEVELOPER_GUIDE.md) for advanced usage, customization, and contribution tips.
 - See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [docs/BLUEPRINT_SPLASH.md](./BLUEPRINT_SPLASH.md) for in-depth config and blueprint info.
 

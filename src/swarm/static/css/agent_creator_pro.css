@@ -1,0 +1,414 @@
+/* Agent Creator Pro - Competition-grade styling */
+
+/* Toast notifications */
+.toast {
+    position: relative;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    margin-bottom: 1rem;
+    overflow: hidden;
+    animation: slideInRight 0.3s ease;
+}
+
+.toast-success {
+    border-left: 4px solid #28a745;
+}
+
+.toast-error {
+    border-left: 4px solid #dc3545;
+}
+
+.toast-warning {
+    border-left: 4px solid #ffc107;
+}
+
+.toast-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.toast-header {
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toast-body {
+    padding: 1rem;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Form validation styles */
+.form-control.is-valid {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.form-control.is-invalid {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.valid-feedback {
+    color: #28a745;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.invalid-feedback {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Selection counter */
+.selection-counter {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+    text-align: right;
+}
+
+.selection-counter.has-selection {
+    color: #667eea;
+    font-weight: 600;
+}
+
+/* Template tooltip */
+.template-tooltip {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #667eea;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    z-index: 1000;
+    animation: fadeInUp 0.3s ease;
+}
+
+.template-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 20px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid #667eea;
+}
+
+@keyframes fadeInUp {
+    from {
+        transform: translateY(10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Validation grid */
+.validation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.validation-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.validation-item.valid {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.validation-item.invalid {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.validation-item.warning {
+    background: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+}
+
+/* Issues sections */
+.issues-section {
+    margin: 1rem 0;
+}
+
+.issues-section h6 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.issues-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.issues-list li {
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: 5px;
+    font-size: 0.875rem;
+}
+
+.issues-list.errors li {
+    background: rgba(220, 53, 69, 0.1);
+    border-left: 3px solid #dc3545;
+}
+
+.issues-list.warnings li {
+    background: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107;
+}
+
+/* Score styling */
+.score-value.excellent {
+    color: #28a745;
+}
+
+.score-value.good {
+    color: #17a2b8;
+}
+
+.score-value.fair {
+    color: #ffc107;
+}
+
+.score-value.poor {
+    color: #dc3545;
+}
+
+/* Code editor enhancements */
+.line-numbers {
+    background: #2d3748;
+    color: #a0aec0;
+    padding: 1rem 0.5rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    user-select: none;
+    border-right: 1px solid #4a5568;
+}
+
+.line-numbers span {
+    display: block;
+    text-align: right;
+    padding-right: 0.5rem;
+}
+
+#codeEditor {
+    display: flex;
+    background: #2d3748;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#codeContent {
+    flex: 1;
+    margin: 0;
+    padding: 1rem;
+    background: #2d3748;
+    color: #e2e8f0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    overflow-x: auto;
+}
+
+/* Capability items */
+.capability-item {
+    padding: 0.75rem;
+    background: white;
+    border-radius: 8px;
+    margin: 0.5rem 1rem;
+    border-left: 3px solid #667eea;
+    font-size: 0.9rem;
+}
+
+/* Enhanced button styles */
+.btn-lg .btn-icon {
+    font-size: 1.2rem;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Loading animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Responsive improvements */
+@media (max-width: 992px) {
+    .config-panel, .code-panel {
+        margin-bottom: 2rem;
+    }
+    
+    .hero-visual {
+        display: none;
+    }
+    
+    .validation-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .expertise-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .agent-creator-pro {
+        padding-top: 1rem;
+    }
+    
+    .hero-section {
+        padding: 2rem 0;
+    }
+    
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .progress-container {
+        gap: 1rem;
+    }
+    
+    .progress-step {
+        padding: 0.5rem;
+    }
+    
+    .step-icon {
+        font-size: 1.2rem;
+    }
+    
+    .step-label {
+        font-size: 0.8rem;
+    }
+    
+    .config-panel, .code-panel {
+        padding: 1.5rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .config-panel, .code-panel {
+        background: rgba(45, 55, 72, 0.95);
+        color: #e2e8f0;
+    }
+    
+    .form-section {
+        background: rgba(74, 85, 104, 0.3);
+    }
+    
+    .section-title {
+        color: #e2e8f0;
+    }
+    
+    .form-label {
+        color: #cbd5e0;
+    }
+    
+    .form-control.enhanced, .form-select.enhanced {
+        background: rgba(74, 85, 104, 0.5);
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .form-control.enhanced:focus, .form-select.enhanced:focus {
+        background: rgba(74, 85, 104, 0.7);
+        border-color: #667eea;
+    }
+    
+    .expertise-label {
+        background: rgba(74, 85, 104, 0.5);
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .empty-state {
+        color: #a0aec0;
+    }
+    
+    .agent-card {
+        background: rgba(74, 85, 104, 0.3);
+    }
+}
+
+/* Print styles */
+@media print {
+    .agent-creator-pro {
+        background: white !important;
+    }
+    
+    .hero-section, .progress-container, .action-buttons, .panel-actions {
+        display: none !important;
+    }
+    
+    .config-panel, .code-panel {
+        background: white !important;
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .code-display {
+        background: white !important;
+    }
+    
+    #codeContent {
+        background: white !important;
+        color: black !important;
+    }
+}

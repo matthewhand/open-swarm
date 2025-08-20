@@ -238,6 +238,26 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintUXImproved):
 
         logger.debug(f"Using LLM profile '{default_profile_name}' for WTF agents. (From BP config: {llm_profile_from_bp_config}, from settings: {settings_config.get('default_llm_profile')})")
         model_instance = self._get_model_instance(default_profile_name)
+        def _coerce_agent_model(candidate):
+            try:
+                from agents.models.interface import Model as _Model
+            except Exception:
+                _Model = None
+            if isinstance(candidate, str):
+                return candidate
+            if _Model is not None and isinstance(candidate, _Model):
+                return candidate
+            cand_model_name = getattr(candidate, "model", None)
+            if isinstance(cand_model_name, str):
+                return cand_model_name
+            try:
+                prof = self._config.get('llm', {}).get(default_profile_name, {}) if hasattr(self, '_config') else {}
+                if isinstance(prof, dict) and isinstance(prof.get("model"), str):
+                    return prof["model"]
+            except Exception:
+                pass
+            return "default"
+        model_param = _coerce_agent_model(model_instance)
 
         def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             started_names = {s.name for s in mcp_servers if hasattr(s, 'name')}
@@ -251,23 +271,23 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintUXImproved):
             return required_found_servers
 
         agents: dict[str, Agent] = {}
-        agents["Larry"] = Agent(name="Larry", model=model_instance, instructions=larry_instructions, tools=[], mcp_servers=get_agent_mcps(["filesystem"]))
-        agents["Kriegs"] = Agent(name="Kriegs", model=model_instance, instructions=kriegs_instructions, tools=[], mcp_servers=get_agent_mcps(["sqlite"]))
-        agents["Vanna"] = Agent(name="Vanna", model=model_instance, instructions=vanna_instructions, tools=[], mcp_servers=get_agent_mcps(["brave-search", "mcp-npx-fetch"]))
-        agents["Marcher"] = Agent(name="Marcher", model=model_instance, instructions=marcher_instructions, tools=[], mcp_servers=get_agent_mcps(["mcp-doc-forge"]))
+        agents["Larry"] = Agent(name="Larry", model=model_param, instructions=larry_instructions, tools=[], mcp_servers=get_agent_mcps(["filesystem"]))
+        agents["Kriegs"] = Agent(name="Kriegs", model=model_param, instructions=kriegs_instructions, tools=[], mcp_servers=get_agent_mcps(["sqlite"]))
+        agents["Vanna"] = Agent(name="Vanna", model=model_param, instructions=vanna_instructions, tools=[], mcp_servers=get_agent_mcps(["brave-search", "mcp-npx-fetch"]))
+        agents["Marcher"] = Agent(name="Marcher", model=model_param, instructions=marcher_instructions, tools=[], mcp_servers=get_agent_mcps(["mcp-doc-forge"]))
 
         agents["Tyril"] = Agent(
-            name="Tyril", model=model_instance, instructions=tyril_instructions,
+            name="Tyril", model=model_param, instructions=tyril_instructions,
             tools=[agents["Larry"].as_tool("Larry", "Delegate filesystem tasks."), agents["Kriegs"].as_tool("Kriegs", "Delegate SQLite DB ops.")],
             mcp_servers=get_agent_mcps(["sqlite"])
         )
         agents["Tray"] = Agent(
-            name="Tray", model=model_instance, instructions=tray_instructions,
+            name="Tray", model=model_param, instructions=tray_instructions,
             tools=[agents["Vanna"].as_tool("Vanna", "Delegate web search/fetch."), agents["Marcher"].as_tool("Marcher", "Delegate web data processing.")],
             mcp_servers=[]
         )
         agents["Valory"] = Agent(
-            name="Valory", model=model_instance, instructions=valory_instructions,
+            name="Valory", model=model_param, instructions=valory_instructions,
             tools=[agents["Tyril"].as_tool("Tyril", "Delegate DB/file tasks."), agents["Tray"].as_tool("Tray", "Delegate web tasks.")],
             mcp_servers=[]
         )

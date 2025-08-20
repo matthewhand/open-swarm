@@ -229,10 +229,16 @@ if __name__ == "__main__":
 
 # --- Main entry point for CLI ---
 def main():
-    from swarm.blueprints.codey.codey_cli import (
-        main as cli_main,  # Assuming codey_cli.py exists
-    )
-    cli_main()
+    """
+    Legacy shim: keep callable for module-level entry if referenced.
+    The canonical CLI entry lives in codey_cli.main().
+    """
+    try:
+        from swarm.blueprints.codey.codey_cli import main as cli_main
+        return cli_main()
+    except Exception as e:
+        print(f"[Codey] CLI bootstrap error: {e}")
+        raise
 
 # Resolve all merge conflicts by keeping the main branch's logic for agent creation, UX, and error handling, as it is the most up-to-date and tested version. Integrate any unique improvements from the feature branch only if they do not conflict with stability or UX.
 
@@ -343,6 +349,23 @@ class CodeyBlueprint(BlueprintBase):
         }
         self.audit_logger.log_event("completion", {"event": "end", "messages": messages})
         return
+
+    # Back-compat for packaged CLI expecting create_agents()
+    # Returns a mapping of logical agent names to Agent instances.
+    # This prevents AttributeError in packaged binary.
+    def create_agents(self, mcp_servers: "list[MCPServer]" = None, no_tools: bool = False) -> dict:
+        """
+        Create and return a dict of agents keyed by role.
+        Ensures compatibility with codey_cli which expects create_agents().
+        """
+        if mcp_servers is None:
+            mcp_servers = []
+        coordinator = self.create_starting_agent(mcp_servers=mcp_servers, no_tools=no_tools)
+        # Provide at least a 'codegen' key as used by codey_cli
+        return {
+            "coordinator": coordinator,
+            "codegen": coordinator,
+        }
 
     async def run(self, messages: list[dict], **kwargs):
         import os

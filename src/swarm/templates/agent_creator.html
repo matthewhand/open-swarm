@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">🤖 Agent Creator</h2>
+  <p class="text-muted">Create custom AI agent personas with Python code validation</p>
+
+  <div class="row">
+    <!-- Agent Form -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Agent Configuration</h5>
+        </div>
+        <div class="card-body">
+          <form id="agentForm">
+            <div class="mb-3">
+              <label for="agentName" class="form-label">Agent Name *</label>
+              <input type="text" class="form-control" id="agentName" name="name" required>
+            </div>
+            
+            <div class="mb-3">
+              <label for="agentDescription" class="form-label">Description *</label>
+              <textarea class="form-control" id="agentDescription" name="description" rows="3" required></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <label for="personality" class="form-label">Personality</label>
+              <select class="form-select" id="personality" name="personality">
+                {% for option in form_data.personality_options %}
+                <option value="{{ option }}">{{ option|title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label for="expertise" class="form-label">Areas of Expertise</label>
+              <select class="form-select" id="expertise" name="expertise" multiple>
+                {% for option in form_data.expertise_options %}
+                <option value="{{ option }}">{{ option|title }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="communicationStyle" class="form-label">Communication Style</label>
+              <select class="form-select" id="communicationStyle" name="communication_style">
+                {% for option in form_data.communication_options %}
+                <option value="{{ option }}">{{ option|title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label for="instructions" class="form-label">Special Instructions *</label>
+              <textarea class="form-control" id="instructions" name="instructions" rows="4" 
+                        placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <label for="tags" class="form-label">Tags</label>
+              <input type="text" class="form-control" id="tags" name="tags" 
+                     placeholder="custom, helpful, coding (comma-separated)">
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button type="button" class="btn btn-primary" onclick="generateAgentCode()">
+                🔧 Generate Agent Code
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                Clear Form
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Preview -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5>Generated Code</h5>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateCode()" id="validateBtn" disabled>
+              ✅ Validate
+            </button>
+            <button type="button" class="btn btn-sm btn-success" onclick="saveAgent()" id="saveBtn" disabled>
+              💾 Save Agent
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="codeContainer">
+            <div class="text-muted text-center p-4">
+              <i class="fas fa-code fa-3x mb-3"></i>
+              <p>Fill out the form and click "Generate Agent Code" to see the Python blueprint code.</p>
+            </div>
+          </div>
+          
+          <!-- Validation Results -->
+          <div id="validationResults" style="display: none;">
+            <hr>
+            <h6>Validation Results</h6>
+            <div id="validationContent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Messages -->
+  <div id="statusMessages" class="mt-3"></div>
+</div>
+
+<script>
+let generatedCode = '';
+let validationResult = null;
+
+function generateAgentCode() {
+    const form = document.getElementById('agentForm');
+    const formData = new FormData(form);
+    
+    // Convert form data to JSON
+    const data = {};
+    for (let [key, value] of formData.entries()) {
+        if (key === 'expertise') {
+            // Handle multiple select
+            const selected = Array.from(document.getElementById('expertise').selectedOptions)
+                                 .map(option => option.value);
+            data[key] = selected;
+        } else if (key === 'tags') {
+            // Handle comma-separated tags
+            data[key] = value.split(',').map(tag => tag.trim()).filter(tag => tag);
+        } else {
+            data[key] = value;
+        }
+    }
+    
+    // Validate required fields
+    if (!data.name || !data.description || !data.instructions) {
+        showMessage('Please fill in all required fields (marked with *)', 'danger');
+        return;
+    }
+    
+    showMessage('Generating agent code...', 'info');
+    
+    fetch('/agent-creator/generate/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            generatedCode = result.code;
+            validationResult = result.validation;
+            displayCode(result.code);
+            displayValidation(result.validation);
+            document.getElementById('validateBtn').disabled = false;
+            
+            if (result.validation.valid) {
+                document.getElementById('saveBtn').disabled = false;
+                showMessage('Agent code generated and validated successfully!', 'success');
+            } else {
+                showMessage('Agent code generated but has validation issues. Check the validation results.', 'warning');
+            }
+        } else {
+            showMessage('Error: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showMessage('Network error: ' + error.message, 'danger');
+    });
+}
+
+function displayCode(code) {
+    const container = document.getElementById('codeContainer');
+    container.innerHTML = `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
+}
+
+function displayValidation(validation) {
+    const container = document.getElementById('validationContent');
+    const resultsDiv = document.getElementById('validationResults');
+    
+    let html = '';
+    
+    // Overall status
+    if (validation.valid) {
+        html += '<div class="alert alert-success">✅ Code is valid and ready to use!</div>';
+    } else {
+        html += '<div class="alert alert-danger">❌ Code has validation issues</div>';
+    }
+    
+    // Detailed results
+    html += '<div class="row">';
+    html += `<div class="col-4"><strong>Syntax:</strong> ${validation.syntax_valid ? '✅' : '❌'}</div>`;
+    html += `<div class="col-4"><strong>Structure:</strong> ${validation.structure_valid ? '✅' : '❌'}</div>`;
+    html += `<div class="col-4"><strong>Linting:</strong> ${validation.lint_clean ? '✅' : '⚠️'}</div>`;
+    html += '</div>';
+    
+    // Errors
+    if (validation.errors.length > 0) {
+        html += '<div class="mt-3"><strong>Errors:</strong><ul class="text-danger">';
+        validation.errors.forEach(error => {
+            html += `<li>${escapeHtml(error)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    // Warnings
+    if (validation.warnings.length > 0) {
+        html += '<div class="mt-3"><strong>Warnings:</strong><ul class="text-warning">';
+        validation.warnings.forEach(warning => {
+            html += `<li>${escapeHtml(warning)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    container.innerHTML = html;
+    resultsDiv.style.display = 'block';
+}
+
+function validateCode() {
+    if (!generatedCode) {
+        showMessage('No code to validate. Generate code first.', 'warning');
+        return;
+    }
+    
+    showMessage('Validating code...', 'info');
+    
+    fetch('/agent-creator/validate/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({code: generatedCode})
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            validationResult = result.validation;
+            displayValidation(result.validation);
+            
+            if (result.validation.valid) {
+                document.getElementById('saveBtn').disabled = false;
+                showMessage('Code validation passed!', 'success');
+            } else {
+                showMessage('Code validation found issues. Check the results below.', 'warning');
+            }
+        } else {
+            showMessage('Validation error: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showMessage('Network error: ' + error.message, 'danger');
+    });
+}
+
+function saveAgent() {
+    if (!generatedCode || !validationResult || !validationResult.valid) {
+        showMessage('Cannot save invalid code. Please fix validation issues first.', 'danger');
+        return;
+    }
+    
+    const agentName = document.getElementById('agentName').value;
+    const agentDescription = document.getElementById('agentDescription').value;
+    
+    showMessage('Saving agent...', 'info');
+    
+    fetch('/agent-creator/save/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            code: generatedCode,
+            name: agentName,
+            description: agentDescription
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showMessage(`Agent "${agentName}" saved successfully! Path: ${result.path}`, 'success');
+        } else {
+            showMessage('Save error: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showMessage('Network error: ' + error.message, 'danger');
+    });
+}
+
+function clearForm() {
+    document.getElementById('agentForm').reset();
+    document.getElementById('codeContainer').innerHTML = `
+        <div class="text-muted text-center p-4">
+            <i class="fas fa-code fa-3x mb-3"></i>
+            <p>Fill out the form and click "Generate Agent Code" to see the Python blueprint code.</p>
+        </div>
+    `;
+    document.getElementById('validationResults').style.display = 'none';
+    document.getElementById('validateBtn').disabled = true;
+    document.getElementById('saveBtn').disabled = true;
+    generatedCode = '';
+    validationResult = null;
+    clearMessages();
+}
+
+function showMessage(message, type) {
+    const container = document.getElementById('statusMessages');
+    const alertClass = `alert-${type}`;
+    container.innerHTML = `<div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function clearMessages() {
+    document.getElementById('statusMessages').innerHTML = '';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

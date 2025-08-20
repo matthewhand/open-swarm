@@ -2,7 +2,7 @@
 import asyncio  # Import asyncio
 import logging
 
-from asgiref.sync import sync_to_async
+from asgiref.sync import sync_to_async, async_to_sync
 from django.utils.decorators import sync_and_async_middleware
 from django.utils.functional import SimpleLazyObject
 
@@ -22,7 +22,7 @@ def AsyncAuthMiddleware(get_response):
     # One-time configuration and initialization.
     # (Not needed for this simple middleware)
 
-    async def middleware(request):
+    async def async_middleware(request):
         # Code to be executed for each request before
         # the view (and later middleware) are called.
 
@@ -57,9 +57,17 @@ def AsyncAuthMiddleware(get_response):
 
     # Return the correct function based on whether get_response is async or sync
     if asyncio.iscoroutinefunction(get_response):
-        return middleware
+        return async_middleware
     else:
-        # If the next middleware/view is sync, we don't need our async wrapper
-        # However, the decorator handles this, so we just return the async version.
-        # For clarity, the decorator makes this middleware compatible either way.
+        # Provide a synchronous wrapper that evaluates lazy user and then
+        # calls the next sync middleware/view.
+        def middleware(request):
+            try:
+                if isinstance(request.user, SimpleLazyObject):
+                    # Force evaluation synchronously
+                    request.user._setup()  # noqa: WPS437 (accessing protected for perf)
+            except Exception as e:
+                logger.error(f"[AsyncAuthMiddleware] Sync path user load error: {e}", exc_info=True)
+            return get_response(request)
+
         return middleware

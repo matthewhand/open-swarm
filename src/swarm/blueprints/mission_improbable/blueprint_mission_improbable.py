@@ -196,7 +196,22 @@ class MissionImprobableBlueprint(BlueprintBase):
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
+        
+        # Fallback to simple OpenAI model if config not available
+        try:
+            profile_data = self.get_llm_profile(profile_name)
+        except RuntimeError:
+            # Config not loaded, use environment fallback
+            import os
+            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("No OPENAI_API_KEY found and config not loaded")
+            logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
+            client = AsyncOpenAI(api_key=api_key)
+            model_instance = OpenAIChatCompletionsModel(model="gpt-3.5-turbo", openai_client=client)
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
         if not profile_data:
              logger.critical(f"LLM profile '{profile_name}' (or 'default') not found.")
              raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
@@ -214,11 +229,16 @@ class MissionImprobableBlueprint(BlueprintBase):
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init OpenAI client: {e}") from e
+             try:
+                 from openai import AsyncOpenAI  # import where used to avoid shadowing issues
+                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e:
+                 raise ValueError(f"Failed to init OpenAI client: {e}") from e
         client = self._openai_client_cache[client_cache_key]
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
+            # Import here to avoid shadowing issues in certain test environments
+            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance

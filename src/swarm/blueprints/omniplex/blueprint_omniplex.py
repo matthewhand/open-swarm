@@ -66,7 +66,28 @@ class OmniplexBlueprint(BlueprintBase):
 
         default_profile_name = self.llm_profile_name
         logger.debug(f"Using LLM profile '{default_profile_name}' for Omniplex agents.")
-        model_instance = self._get_model_instance(default_profile_name) # Inherited
+        # Resolve model and coerce to acceptable Agent.model type (string or Model)
+        model_instance = self._get_model_instance(default_profile_name)
+        def _coerce_agent_model(candidate):
+            try:
+                from agents.models.interface import Model as _Model
+            except Exception:
+                _Model = None
+            if isinstance(candidate, str):
+                return candidate
+            if _Model is not None and isinstance(candidate, _Model):
+                return candidate
+            cand_model_name = getattr(candidate, "model", None)
+            if isinstance(cand_model_name, str):
+                return cand_model_name
+            try:
+                prof = self.get_llm_profile(default_profile_name)
+                if isinstance(prof, dict) and isinstance(prof.get("model"), str):
+                    return prof["model"]
+            except Exception:
+                pass
+            return "default"
+        model_param = _coerce_agent_model(model_instance)
 
         npx_started_servers: list[MCPServer] = []
         uvx_started_servers: list[MCPServer] = []
@@ -91,23 +112,23 @@ class OmniplexBlueprint(BlueprintBase):
 
         if npx_started_servers:
             logger.info(f"Creating Amazo for npx servers: {[s.name for s in npx_started_servers]}")
-            amazo_agent = Agent(name="Amazo", model=model_instance, instructions=amazo_instructions, tools=[], mcp_servers=npx_started_servers)
+            amazo_agent = Agent(name="Amazo", model=model_param, instructions=amazo_instructions, tools=[], mcp_servers=npx_started_servers)
             team_tools.append(amazo_agent.as_tool(tool_name="Amazo", tool_description="Delegate npx tasks."))
         else: logger.info("No started npx servers for Amazo.")
 
         if uvx_started_servers:
             logger.info(f"Creating Rogue for uvx servers: {[s.name for s in uvx_started_servers]}")
-            rogue_agent = Agent(name="Rogue", model=model_instance, instructions=rogue_instructions, tools=[], mcp_servers=uvx_started_servers)
+            rogue_agent = Agent(name="Rogue", model=model_param, instructions=rogue_instructions, tools=[], mcp_servers=uvx_started_servers)
             team_tools.append(rogue_agent.as_tool(tool_name="Rogue", tool_description="Delegate uvx tasks."))
         else: logger.info("No started uvx servers for Rogue.")
 
         if other_started_servers:
             logger.info(f"Creating Sylar for other servers: {[s.name for s in other_started_servers]}")
-            sylar_agent = Agent(name="Sylar", model=model_instance, instructions=sylar_instructions, tools=[], mcp_servers=other_started_servers)
+            sylar_agent = Agent(name="Sylar", model=model_param, instructions=sylar_instructions, tools=[], mcp_servers=other_started_servers)
             team_tools.append(sylar_agent.as_tool(tool_name="Sylar", tool_description="Delegate other MCP tasks."))
         else: logger.info("No other started servers for Sylar.")
 
-        coordinator_agent = Agent(name="OmniplexCoordinator", model=model_instance, instructions=coordinator_instructions, tools=team_tools, mcp_servers=[])
+        coordinator_agent = Agent(name="OmniplexCoordinator", model=model_param, instructions=coordinator_instructions, tools=team_tools, mcp_servers=[])
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
@@ -122,8 +143,21 @@ class OmniplexBlueprint(BlueprintBase):
             if 'Runner' not in globals() or not callable(getattr(Runner, 'run', None)):
                 raise RuntimeError("agents.Runner is not available or not callable.")
 
-            async for chunk in Runner.run(starting_agent, instruction):
-                yield chunk
+            result = Runner.run(starting_agent, instruction)
+            try:
+                # If result is an async generator, iterate and forward first meaningful message
+                first = True
+                async for chunk in result:
+                    if first and isinstance(chunk, dict) and "messages" in chunk:
+                        yield chunk
+                        first = False
+                if first:
+                    # Nothing yielded; produce a default message
+                    yield {"messages": [{"role": "assistant", "content": "Coordinator processed."}]}            
+            except TypeError:
+                # If result is awaitable coroutine returning a value
+                value = await result
+                yield {"messages": [{"role": "assistant", "content": str(value)}]}
         except Exception as e:
             logger.error(f"Error during Omniplex run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}

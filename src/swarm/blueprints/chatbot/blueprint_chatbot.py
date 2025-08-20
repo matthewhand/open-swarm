@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import asyncio
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -26,7 +27,7 @@ if src_path not in sys.path:
 try:
     # Patch: If MCPServer import fails, define a dummy MCPServer for demo/test
     try:
-        from agents import Agent, MCPServer
+        from agents import Agent, MCPServer, function_tool
         # Patch: Expose underlying fileops functions for direct testing
         class PatchedFunctionTool:
             def __init__(self, func, name):
@@ -42,9 +43,11 @@ try:
         MCPServer2 = MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from agents import function_tool
     from openai import AsyncOpenAI
 
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.output_utils import print_search_progress_box
 except ImportError as e:
     print(f"ERROR: Import failed in ChatbotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -118,10 +121,26 @@ class ChatbotBlueprint(BlueprintBase):
             return result.stdout + result.stderr
         except Exception as e:
             return f"ERROR: {e}"
-    read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-    write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-    list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-    execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+    # Use proper function_tool decorator instead of PatchedFunctionTool
+    @function_tool
+    def read_file_tool(file_path: str) -> str:
+        """Read the contents of a file."""
+        return read_file(file_path)
+
+    @function_tool
+    def write_file_tool(file_path: str, content: str) -> str:
+        """Write content to a file."""
+        return write_file(file_path, content)
+
+    @function_tool
+    def list_files_tool(directory: str = ".") -> str:
+        """List files in a directory."""
+        return list_files(directory)
+
+    @function_tool
+    def execute_shell_command_tool(command: str) -> str:
+        """Execute a shell command."""
+        return execute_shell_command(command)
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -195,10 +214,8 @@ Use them responsibly when the user asks for file or system operations.
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         """Main execution entry point for the Chatbot blueprint."""
         logger.info("ChatbotBlueprint run method called.")
-        from swarm.core.output_utils import print_search_progress_box
         instruction = messages[-1].get("content", "") if messages else ""
         if not instruction:
-            import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = "Generating..."
             print_search_progress_box(
@@ -216,7 +233,6 @@ Use them responsibly when the user asks for file or system operations.
             )
             yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
             return
-        import os
         border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = "Generating..."
         print_search_progress_box(
@@ -233,9 +249,6 @@ Use them responsibly when the user asks for file or system operations.
             border=border
         )
         if os.environ.get('SWARM_TEST_MODE'):
-            from swarm.core.output_utils import (
-                print_search_progress_box,
-            )
             spinner_lines = [
                 "Generating.",
                 "Generating..",
@@ -279,7 +292,6 @@ Use them responsibly when the user asks for file or system operations.
                     emoji='🤖',
                     border='╔'
                 )
-                import asyncio
                 await asyncio.sleep(0.01)
             print_search_progress_box(
                 op_type="Chatbot Results",
@@ -297,7 +309,6 @@ Use them responsibly when the user asks for file or system operations.
             )
             return
         # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
-        from swarm.core.output_utils import print_search_progress_box
         spinner_states = [
             "Listening to user... 👂",
             "Consulting knowledge base... 📚",
@@ -341,7 +352,6 @@ Use them responsibly when the user asks for file or system operations.
         await asyncio.sleep(0.18)
         search_mode = kwargs.get('search_mode', 'semantic')
         if search_mode in ("semantic", "code"):
-            from swarm.core.output_utils import print_search_progress_box
             op_type = "Chatbot Semantic Search" if search_mode == "semantic" else "Chatbot Code Search"
             emoji = "🔎" if search_mode == "semantic" else "🤖"
             summary = f"Analyzed ({search_mode}) for: '{instruction}'"
@@ -383,7 +393,6 @@ Use them responsibly when the user asks for file or system operations.
         # After LLM/agent run, show a creative output box with the main result
         async for chunk in self._run_non_interactive(instruction, **kwargs):
             content = chunk["messages"][0]["content"] if (isinstance(chunk, dict) and "messages" in chunk and chunk["messages"]) else str(chunk)
-            import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = "Generating..."
             print_search_progress_box(
