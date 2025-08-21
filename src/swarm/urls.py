@@ -1,4 +1,6 @@
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.api_views import BlueprintsListView
 from swarm.views.model_views import ListModelsView as ProtectedModelsView
@@ -16,7 +18,8 @@ from swarm.views.settings_views import (
 )
 from swarm.views.blueprint_library_views import (
     blueprint_library, blueprint_creator, my_blueprints,
-    add_blueprint_to_library, remove_blueprint_from_library
+    add_blueprint_to_library, remove_blueprint_from_library,
+    generate_avatar, check_comfyui_status
 )
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
@@ -50,4 +53,11 @@ urlpatterns = [
     path("blueprint-library/my-blueprints/", my_blueprints, name="my_blueprints"),
     path("blueprint-library/add/<str:blueprint_name>/", add_blueprint_to_library, name="add_blueprint_to_library"),
     path("blueprint-library/remove/<str:blueprint_name>/", remove_blueprint_from_library, name="remove_blueprint_from_library"),
+    # Avatar generation endpoints
+    path("blueprint-library/generate-avatar/<str:blueprint_name>/", generate_avatar, name="generate_avatar"),
+    path("blueprint-library/comfyui-status/", check_comfyui_status, name="check_comfyui_status"),
 ]
+
+# Serve avatar images in development
+if settings.DEBUG:
+    urlpatterns += static(settings.AVATAR_URL_PREFIX, document_root=settings.AVATAR_STORAGE_PATH)

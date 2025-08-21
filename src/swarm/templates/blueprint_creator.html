@@ -97,6 +97,47 @@ Examples:
                             <div class="form-text">Detailed requirements help generate more accurate blueprints</div>
                         </div>
 
+                        <!-- Avatar Generation -->
+                        <div class="mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-image me-2"></i>Avatar Generation (Optional)
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="generate_avatar" name="generate_avatar" value="true">
+                                        <label class="form-check-label" for="generate_avatar">
+                                            Generate an avatar image for this blueprint
+                                        </label>
+                                    </div>
+                                    
+                                    <div id="avatarOptions" class="d-none">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <label for="avatar_style" class="form-label">Avatar Style</label>
+                                                <select class="form-select" id="avatar_style" name="avatar_style">
+                                                    <option value="professional">Professional</option>
+                                                    <option value="cartoon">Cartoon</option>
+                                                    <option value="anime">Anime</option>
+                                                    <option value="realistic">Realistic</option>
+                                                    <option value="icon">Icon</option>
+                                                </select>
+                                                <div class="form-text">Choose the style for your avatar</div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="alert alert-info">
+                                                    <i class="fas fa-info-circle me-2"></i>
+                                                    <strong>ComfyUI Required:</strong> Avatar generation requires ComfyUI to be running and configured.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Submit Button -->
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             <button type="button" class="btn btn-outline-secondary me-md-2" onclick="resetForm()">
@@ -227,6 +268,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('blueprintCreatorForm');
     const createButton = document.getElementById('createButton');
     
+    // Check ComfyUI status on page load
+    checkComfyUIStatus();
+    
+    // Toggle avatar options visibility
+    const avatarCheckbox = document.getElementById('generate_avatar');
+    if (avatarCheckbox) {
+        avatarCheckbox.addEventListener('change', function() {
+            const avatarOptions = document.getElementById('avatarOptions');
+            if (this.checked) {
+                avatarOptions.classList.remove('d-none');
+            } else {
+                avatarOptions.classList.add('d-none');
+            }
+        });
+    }
+    
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         
@@ -306,6 +363,31 @@ function showSuccessModal(blueprint) {
 function showError(message) {
     // You can implement a toast or alert here
     alert('Error: ' + message);
+}
+
+async function checkComfyUIStatus() {
+    try {
+        const response = await fetch('/blueprint-library/comfyui-status/');
+        const status = await response.json();
+        
+        const avatarCheckbox = document.getElementById('generate_avatar');
+        const avatarOptions = document.getElementById('avatarOptions');
+        const comfyuiAlert = document.querySelector('.alert-info');
+        
+        if (avatarCheckbox && comfyuiAlert) {
+            if (status.available) {
+                avatarCheckbox.disabled = false;
+                comfyuiAlert.innerHTML = '<i class="fas fa-check-circle me-2 text-success"></i><strong>ComfyUI Available:</strong> Avatar generation is ready to use.';
+                comfyuiAlert.className = 'alert alert-success';
+            } else {
+                avatarCheckbox.disabled = true;
+                comfyuiAlert.innerHTML = '<i class="fas fa-exclamation-triangle me-2 text-warning"></i><strong>ComfyUI Not Available:</strong> Avatar generation requires ComfyUI to be running and configured.';
+                comfyuiAlert.className = 'alert alert-warning';
+            }
+        }
+    } catch (error) {
+        console.error('Error checking ComfyUI status:', error);
+    }
 }
 
 function resetForm() {

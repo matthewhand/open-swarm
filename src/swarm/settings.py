@@ -175,3 +175,18 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
+
+# --- ComfyUI Configuration for Avatar Generation ---
+COMFYUI_ENABLED = os.getenv('COMFYUI_ENABLED', 'False').lower() in ('true', '1', 't')
+COMFYUI_HOST = os.getenv('COMFYUI_HOST', 'http://localhost:8188')
+COMFYUI_API_ENDPOINT = f"{COMFYUI_HOST}/api"
+COMFYUI_QUEUE_ENDPOINT = f"{COMFYUI_HOST}/queue"
+COMFYUI_HISTORY_ENDPOINT = f"{COMFYUI_HOST}/history"
+
+# Avatar generation settings
+AVATAR_GENERATION_ENABLED = COMFYUI_ENABLED
+AVATAR_STORAGE_PATH = BASE_DIR.parent / 'avatars'
+AVATAR_URL_PREFIX = '/avatars/'
+
+# Ensure avatar storage directory exists
+AVATAR_STORAGE_PATH.mkdir(exist_ok=True)

@@ -18,6 +18,7 @@ from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.logger_setup import setup_logger
 from swarm.core.paths import get_user_config_dir_for_swarm
+from swarm.utils.comfyui_client import comfyui_client
 
 logger = setup_logger(__name__)
 
@@ -48,6 +49,15 @@ BLUEPRINT_CATEGORIES = {
         "description": "Web development and API tools",
         "icon": "🌐"
     }
+}
+
+# Avatar styles available for generation
+AVATAR_STYLES = {
+    "professional": "Professional headshot style",
+    "cartoon": "Cartoon character style", 
+    "anime": "Anime character style",
+    "realistic": "Realistic portrait style",
+    "icon": "Simple icon style"
 }
 
 # Blueprint metadata for the library
@@ -336,6 +346,16 @@ def blueprint_creator(request):
                 blueprint_name, description, category, tags, requirements
             )
             
+            # Generate avatar if requested and ComfyUI is available
+            avatar_path = None
+            avatar_style = request.POST.get("avatar_style", "professional")
+            generate_avatar = request.POST.get("generate_avatar", "false").lower() == "true"
+            
+            if generate_avatar and comfyui_client.is_available():
+                avatar_path = comfyui_client.generate_avatar(
+                    blueprint_name, description, category, avatar_style
+                )
+            
             # Save to user's custom blueprints
             library = get_user_blueprint_library()
             
@@ -347,6 +367,8 @@ def blueprint_creator(request):
                 "tags": [tag.strip() for tag in tags.split(",") if tag.strip()],
                 "requirements": requirements,
                 "code": blueprint_code,
+                "avatar_path": avatar_path,
+                "avatar_style": avatar_style if avatar_path else None,
                 "created_at": str(Path().cwd()),
                 "author": "User Generated"
             }
@@ -365,6 +387,62 @@ def blueprint_creator(request):
         except Exception as e:
             logger.error(f"Error creating blueprint: {e}")
             return JsonResponse({"error": "Internal server error"}, status=500)
+
+@csrf_exempt
+def generate_avatar(request, blueprint_name):
+    """Generate an avatar for an existing blueprint."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    
+    try:
+        # Get form data
+        avatar_style = request.POST.get("avatar_style", "professional")
+        
+        # Get blueprint metadata
+        metadata = BLUEPRINT_METADATA.get(blueprint_name)
+        if not metadata:
+            return JsonResponse({"error": "Blueprint not found"}, status=404)
+        
+        # Generate avatar
+        avatar_path = comfyui_client.generate_avatar(
+            metadata["name"],
+            metadata["description"], 
+            metadata["category"],
+            avatar_style
+        )
+        
+        if avatar_path:
+            return JsonResponse({
+                "success": True,
+                "message": f"Avatar generated successfully for {blueprint_name}",
+                "avatar_path": avatar_path
+            })
+        else:
+            return JsonResponse({
+                "error": "Failed to generate avatar. Check ComfyUI configuration."
+            }, status=500)
+            
+    except Exception as e:
+        logger.error(f"Error generating avatar: {e}")
+        return JsonResponse({"error": "Internal server error"}, status=500)
+
+@csrf_exempt
+def check_comfyui_status(request):
+    """Check if ComfyUI is available for avatar generation."""
+    try:
+        is_available = comfyui_client.is_available()
+        return JsonResponse({
+            "available": is_available,
+            "enabled": comfyui_client.enabled,
+            "styles": AVATAR_STYLES
+        })
+    except Exception as e:
+        logger.error(f"Error checking ComfyUI status: {e}")
+        return JsonResponse({
+            "available": False,
+            "enabled": False,
+            "styles": AVATAR_STYLES
+        })
 
 def generate_blueprint_code(name: str, description: str, category: str, tags: List[str], requirements: str) -> str:
     """Generate blueprint code using LLM (placeholder implementation)."""
