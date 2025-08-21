@@ -14,6 +14,10 @@ from src.swarm.views.agent_creator_pro import (
 from src.swarm.views.settings_views import (
     settings_dashboard, settings_api, environment_variables
 )
+from src.swarm.views.blueprint_library_views import (
+    blueprint_library, blueprint_creator, my_blueprints,
+    add_blueprint_to_library, remove_blueprint_from_library
+)
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
@@ -40,4 +44,10 @@ urlpatterns = [
     path("settings/", settings_dashboard, name="settings_dashboard"),
     path("settings/api/", settings_api, name="settings_api"),
     path("settings/environment/", environment_variables, name="environment_variables"),
+    # Blueprint Library endpoints
+    path("blueprint-library/", blueprint_library, name="blueprint_library"),
+    path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),
+    path("blueprint-library/my-blueprints/", my_blueprints, name="my_blueprints"),
+    path("blueprint-library/add/<str:blueprint_name>/", add_blueprint_to_library, name="add_blueprint_to_library"),
+    path("blueprint-library/remove/<str:blueprint_name>/", remove_blueprint_from_library, name="remove_blueprint_from_library"),
 ]

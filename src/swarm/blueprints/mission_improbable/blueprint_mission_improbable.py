@@ -366,6 +366,12 @@ class MissionImprobableSpinner:
         self.console = Console()
         self._last_frame = None
         self._last_slow = False
+        # Allow tuning via environment variable; fallback to default
+        try:
+            import os as _os
+            self._slow_threshold = int(_os.getenv("MISSION_SPINNER_SLOW_THRESHOLD", str(self.SLOW_THRESHOLD)))
+        except Exception:
+            self._slow_threshold = self.SLOW_THRESHOLD
 
     def start(self):
         self._stop_event.clear()
@@ -377,7 +383,7 @@ class MissionImprobableSpinner:
         idx = 0
         while not self._stop_event.is_set():
             elapsed = time.time() - self._start_time
-            if elapsed > self.SLOW_THRESHOLD:
+            if elapsed > self._slow_threshold:
                 txt = Text(self.SLOW_FRAME, style=Style(color="yellow", bold=True))
                 self._last_frame = self.SLOW_FRAME
                 self._last_slow = True

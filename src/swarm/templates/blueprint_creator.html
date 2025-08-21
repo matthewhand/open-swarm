@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Custom Blueprint - Open Swarm{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-5 mb-2">
+                <i class="fas fa-magic me-2"></i>Create Custom Blueprint
+            </h1>
+            <p class="lead text-muted">
+                Use AI to generate custom blueprints tailored to your needs. Describe what you want, and we'll create it for you.
+            </p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'blueprint_library' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back to Library
+            </a>
+        </div>
+    </div>
+
+    <!-- Creation Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>Blueprint Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="blueprintCreatorForm">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="blueprint_name" class="form-label">
+                                    <i class="fas fa-tag me-1"></i>Blueprint Name *
+                                </label>
+                                <input type="text" class="form-control" id="blueprint_name" name="blueprint_name" 
+                                       placeholder="e.g., Data Analyzer, Task Manager" required>
+                                <div class="form-text">Choose a descriptive name for your blueprint</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="category" class="form-label">
+                                    <i class="fas fa-folder me-1"></i>Category *
+                                </label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="">Select a category...</option>
+                                    {% for category_id, category_info in categories.items %}
+                                    <option value="{{ category_id }}">
+                                        {{ category_info.icon }} {{ category_info.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-4">
+                            <label for="description" class="form-label">
+                                <i class="fas fa-align-left me-1"></i>Description *
+                            </label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Describe what your blueprint should do..." required></textarea>
+                            <div class="form-text">Provide a clear description of the blueprint's purpose and functionality</div>
+                        </div>
+
+                        <!-- Tags -->
+                        <div class="mb-4">
+                            <label for="tags" class="form-label">
+                                <i class="fas fa-tags me-1"></i>Tags
+                            </label>
+                            <input type="text" class="form-control" id="tags" name="tags" 
+                                   placeholder="e.g., data, analysis, automation, api">
+                            <div class="form-text">Comma-separated tags to help categorize your blueprint</div>
+                        </div>
+
+                        <!-- Requirements -->
+                        <div class="mb-4">
+                            <label for="requirements" class="form-label">
+                                <i class="fas fa-list-check me-1"></i>Requirements & Features
+                            </label>
+                            <textarea class="form-control" id="requirements" name="requirements" rows="6" 
+                                      placeholder="Describe the specific features, capabilities, and requirements for your blueprint. Be as detailed as possible to help the AI generate better code.
+
+Examples:
+- Should connect to external APIs
+- Needs to process JSON data
+- Should have error handling
+- Must support async operations
+- Should include logging
+- Needs to validate input data"></textarea>
+                            <div class="form-text">Detailed requirements help generate more accurate blueprints</div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-md-2" onclick="resetForm()">
+                                <i class="fas fa-undo me-1"></i>Reset
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="createButton">
+                                <i class="fas fa-magic me-1"></i>Generate Blueprint
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Tips Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>Tips for Better Results
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Be specific about functionality
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Mention any external dependencies
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Describe error handling needs
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Specify input/output formats
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Include performance requirements
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Examples Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-book me-2"></i>Example Requirements
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-primary">Data Processor</h6>
+                        <small class="text-muted">
+                            "Process CSV files, validate data, generate reports, handle errors gracefully, support async operations"
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-primary">API Wrapper</h6>
+                        <small class="text-muted">
+                            "Connect to REST API, handle authentication, rate limiting, JSON parsing, error retry logic"
+                        </small>
+                    </div>
+                    <div>
+                        <h6 class="text-primary">Task Scheduler</h6>
+                        <small class="text-muted">
+                            "Schedule recurring tasks, store configuration, logging, notification system, status tracking"
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Generating Your Blueprint</h5>
+                <p class="text-muted mb-0">This may take a few moments...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>Blueprint Created Successfully!
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-success">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Your custom blueprint has been created and added to your library.
+                </div>
+                <div id="blueprintPreview">
+                    <!-- Generated blueprint details will be shown here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="{% url 'my_blueprints' %}" class="btn btn-primary">
+                    <i class="fas fa-bookmark me-1"></i>View My Library
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('blueprintCreatorForm');
+    const createButton = document.getElementById('createButton');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show loading modal
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+        
+        // Disable button
+        createButton.disabled = true;
+        createButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
+        
+        // Collect form data
+        const formData = new FormData(form);
+        
+        // Submit form
+        fetch('{% url "blueprint_creator" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingModal.hide();
+            
+            if (data.success) {
+                // Show success modal with blueprint details
+                showSuccessModal(data.blueprint);
+            } else {
+                showError(data.error || 'An error occurred while creating the blueprint');
+            }
+        })
+        .catch(error => {
+            loadingModal.hide();
+            console.error('Error:', error);
+            showError('An error occurred while creating the blueprint');
+        })
+        .finally(() => {
+            // Re-enable button
+            createButton.disabled = false;
+            createButton.innerHTML = '<i class="fas fa-magic me-1"></i>Generate Blueprint';
+        });
+    });
+});
+
+function showSuccessModal(blueprint) {
+    const previewDiv = document.getElementById('blueprintPreview');
+    previewDiv.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Blueprint Details</h6>
+                <ul class="list-unstyled">
+                    <li><strong>Name:</strong> ${blueprint.name}</li>
+                    <li><strong>Category:</strong> ${blueprint.category}</li>
+                    <li><strong>Author:</strong> ${blueprint.author}</li>
+                    <li><strong>Created:</strong> ${blueprint.created_at}</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6>Description</h6>
+                <p class="text-muted">${blueprint.description}</p>
+                ${blueprint.tags.length > 0 ? `
+                <h6>Tags</h6>
+                <div>
+                    ${blueprint.tags.map(tag => `<span class="badge bg-light text-dark me-1">${tag}</span>`).join('')}
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+    successModal.show();
+}
+
+function showError(message) {
+    // You can implement a toast or alert here
+    alert('Error: ' + message);
+}
+
+function resetForm() {
+    document.getElementById('blueprintCreatorForm').reset();
+}
+</script>
+
+<style>
+.form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+</style>
+{% endblock %}
