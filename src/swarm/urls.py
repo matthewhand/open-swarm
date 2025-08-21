@@ -1,20 +1,20 @@
 from django.urls import path
-from src.swarm.views.api_views import ModelsListView as OpenAIModelsView
-from src.swarm.views.api_views import BlueprintsListView
-from src.swarm.views.model_views import ListModelsView as ProtectedModelsView
-from src.swarm.views.chat_views import ChatCompletionsView
-from src.swarm.views.web_views import team_launcher, team_admin, teams_export, profiles_page
-from src.swarm.views.agent_creator_views import (
+from swarm.views.api_views import ModelsListView as OpenAIModelsView
+from swarm.views.api_views import BlueprintsListView
+from swarm.views.model_views import ListModelsView as ProtectedModelsView
+from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.web_views import team_launcher, team_admin, teams_export, profiles_page
+from swarm.views.agent_creator_views import (
     agent_creator_page, generate_agent_code, validate_agent_code, save_custom_agent,
     team_creator_page
 )
-from src.swarm.views.agent_creator_pro import (
+from swarm.views.agent_creator_pro import (
     agent_creator_pro_page
 )
-from src.swarm.views.settings_views import (
+from swarm.views.settings_views import (
     settings_dashboard, settings_api, environment_variables
 )
-from src.swarm.views.blueprint_library_views import (
+from swarm.views.blueprint_library_views import (
     blueprint_library, blueprint_creator, my_blueprints,
     add_blueprint_to_library, remove_blueprint_from_library
 )
