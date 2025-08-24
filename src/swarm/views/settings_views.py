@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List
 from django.conf import settings
+import sys
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -40,6 +41,17 @@ def load_config():
         # Fail gracefully; callers handle empty config or report errors
         return {}
 from swarm.core.paths import get_user_config_dir_for_swarm
+
+# Ensure module aliasing so tests patching either path work consistently
+# Some tests reference this module as 'src.swarm.views.settings_views' while
+# Django imports it as 'swarm.views.settings_views'. Create a sys.modules alias
+# so both names resolve to the same module object, allowing patches to apply.
+_this_mod = sys.modules.get(__name__)
+if _this_mod is not None:
+    if __name__.startswith("swarm."):
+        sys.modules.setdefault(f"src.{__name__}", _this_mod)
+    elif __name__.startswith("src."):
+        sys.modules.setdefault(__name__[4:], _this_mod)
 
 
 class SettingsManager:

@@ -22,28 +22,16 @@ def pytest_collection_modifyitems(config, items):
             if "asyncio" in item.keywords:
                 item.add_marker(skip_async)
 
-@pytest.fixture(scope='session')
-def django_db_setup(django_db_setup, django_db_blocker):
-    # Option 1: Default behavior (usually creates in-memory :memory: sqlite db)
-    # If settings.py DATABASES['default'] is already sqlite/:memory:, this is fine.
-    # If settings.py DATABASES['default'] is Postgres, pytest-django *should*
-    # create a test_yourdbname, but might fail due to permissions or config.
-    print("Allowing Django DB access for session...")
-    with django_db_blocker.unblock():
-         # If needed, force override here, but let's see settings first
-         # from django.conf import settings
-         # settings.DATABASES['default'] = {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}
-         pass # Rely on pytest-django for now
-    print("Django DB access allowed.")
+# Note: Avoid overriding pytest-django's internal django_db_setup fixture.
+# Doing so can lead to subtle ordering/teardown issues in large test runs.
+# If you need to perform session-wide DB tweaks, introduce a differently-named
+# fixture and depend on pytest-django's built-in setup implicitly.
 
 
-@pytest.fixture(autouse=True)
-def enable_db_access_for_all_tests(db):
-    # This fixture ensures that the database is available for any test
-    # that implicitly depends on it via other fixtures like test_user or client.
-    # The @pytest.mark.django_db on the test *class* or *function* is still
-    # the primary way to trigger DB setup for that specific test item.
-    pass
+# Avoid forcing DB access on every single test by default — this can interfere
+# with Django TestCase transaction management and increase flakiness. Tests
+# that need the DB should request the `db` fixture or subclass Django's
+# TestCase/TransactionTestCase explicitly.
 
 @pytest.fixture
 def mock_openai_client():
