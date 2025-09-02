@@ -79,3 +79,45 @@ def test_pretty_print_response_with_code_fence(monkeypatch):
         assert lexer_value_to_check is not None, "Lexer name string could not be determined."
         assert lexer_value_to_check.lower() == 'python', f"Syntax object language mismatch. Expected 'python', got '{lexer_value_to_check}' (from attribute: {actual_lexer_name_attr or 'lexer.name/aliases'})"
 
+
+@pytest.mark.skipif(not RICH_AVAILABLE, reason="Rich library not available")
+def test_pretty_print_response_markdown_path(monkeypatch):
+    """Ensure Markdown objects are used when use_markdown=True and no code fences."""
+    events = []
+
+    class DummyConsole:
+        def print(self, obj, end=None):
+            events.append(obj)
+
+    monkeypatch.setattr('swarm.core.output_utils.Console', lambda *args, **kwargs: DummyConsole())
+
+    messages = [{"role": "assistant", "sender": "Assistant", "content": "# Title\nSome text"}]
+    pretty_print_response(messages, use_markdown=True)
+
+    # Expect two prints: prefix string and a Markdown object
+    assert any(isinstance(e, Markdown) for e in events), f"Expected Markdown object in events; got {events}"
+    assert any(isinstance(e, str) and e.startswith("[Assistant]: ") for e in events)
+
+
+@pytest.mark.skipif(not RICH_AVAILABLE, reason="Rich library not available")
+def test_pretty_print_response_skips_empty_content(monkeypatch):
+    """Messages with empty or None content are skipped from printing."""
+    events = []
+
+    class DummyConsole:
+        def print(self, obj, end=None):
+            events.append(obj)
+
+    monkeypatch.setattr('swarm.core.output_utils.Console', lambda *args, **kwargs: DummyConsole())
+
+    messages = [
+        {"role": "assistant", "sender": "Assistant", "content": ""},
+        {"role": "assistant", "sender": "Assistant", "content": None},
+        {"role": "assistant", "sender": "Assistant", "content": "Hello"},
+    ]
+
+    pretty_print_response(messages, use_markdown=False)
+
+    # Only the non-empty message should be printed
+    assert any(isinstance(e, str) and e.endswith("Hello") for e in events)
+    assert sum(1 for e in events if isinstance(e, str) and e.startswith("[Assistant]: ")) == 1
