@@ -15,6 +15,8 @@ import sys
 def main() -> int:
     # Only set if not explicitly overridden by user
     os.environ.setdefault("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "1")
+    # Ensure Django allows async operations during tests without requiring pytest-env
+    os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
 
     try:
         import pytest  # noqa: WPS433
@@ -32,4 +34,3 @@ def main() -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-
