@@ -27,11 +27,24 @@ def main() -> int:
         print(f"Error: pytest not available: {exc}", file=sys.stderr)
         return 1
 
+    # Build plugin list explicitly; allow optional plugins when available
     args = [
         "-p", "django",
         "-p", "asyncio",
         "-p", "pytest_mock",
-    ] + sys.argv[1:]
+    ]
+
+    # If pytest-cov is installed, enable it so ini addopts like --cov work even with
+    # PYTEST_DISABLE_PLUGIN_AUTOLOAD=1.
+    try:
+        import pytest_cov  # noqa: F401,WPS433
+
+        args.extend(["-p", "pytest_cov"])
+    except Exception:
+        # Coverage plugin not available; proceed without it.
+        pass
+
+    args += sys.argv[1:]
     return int(pytest.main(args))
 
 
