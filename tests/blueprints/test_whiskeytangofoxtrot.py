@@ -67,6 +67,25 @@ def test_wtf_db_initialization(wtf_blueprint_instance, temporary_db_wtf):
     assert cursor.fetchone() is not None, "'services' table not found in DB"
     conn.close()
 
+def test_wtf_db_initialization_idempotent(wtf_blueprint_instance, temporary_db_wtf):
+    blueprint = wtf_blueprint_instance
+    # First initialization should create DB and schema
+    blueprint.initialize_db()
+    # Second initialization should be a no-op and not error
+    blueprint.initialize_db()
+
+    # Validate DB exists and schema remains correct
+    assert temporary_db_wtf.exists(), "Database file was not created after repeated initialization"
+    conn = sqlite3.connect(temporary_db_wtf)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='services';")
+    assert cursor.fetchone() is not None, "'services' table not found after repeated initialization"
+    # Ensure index declared in implementation exists as well
+    cursor.execute("PRAGMA index_list('services');")
+    indexes = [row[1] for row in cursor.fetchall()]  # row[1] is index name
+    assert 'idx_services_name' in indexes, "Expected index 'idx_services_name' missing"
+    conn.close()
+
 @pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
 def test_wtf_delegation_flow(wtf_blueprint_instance): pass
 
