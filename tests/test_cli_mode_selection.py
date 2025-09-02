@@ -93,3 +93,26 @@ def test_out_of_range_then_valid_selection():
                 call.args and isinstance(call.args[0], str) and "Please enter a number between" in call.args[0]
                 for call in mock_print.mock_calls
             )
+
+
+@patch("builtins.input", return_value=" 2 ")
+def test_selection_trims_whitespace_and_uses_fallbacks(mock_input):
+    """Ensure numeric input with surrounding whitespace is accepted and fallbacks are used.
+
+    When metadata is missing title/description, the key and a default description are used in output.
+    """
+    # Second item has no title/description to force fallback usage
+    blueprints_metadata = {
+        "alpha": {"title": "Alpha", "description": "First"},
+        "beta": {},
+    }
+
+    with patch("builtins.print") as mock_print:
+        result = prompt_user_to_select_blueprint(blueprints_metadata)
+        assert result == "beta"
+
+        # Verify listing included fallback title (key name) and default description string
+        printed_lines = [call.args[0] for call in mock_print.mock_calls if call.args]
+        assert any(line.strip().startswith("Available Blueprints:") for line in printed_lines)
+        # Expect a line like: "2. beta - No description available"
+        assert any("2." in line and "beta" in line and "No description available" in line for line in printed_lines)
