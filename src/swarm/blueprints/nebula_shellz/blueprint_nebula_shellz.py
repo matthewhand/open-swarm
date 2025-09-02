@@ -34,9 +34,8 @@ def generate_documentation(code_snippet: str) -> str:
     """Generates basic documentation string for the provided code snippet."""
     logger.info(f"Generating documentation for: {code_snippet[:50]}...")
     first_line = code_snippet.splitlines()[0] if code_snippet else "N/A"; doc = f"/**\n * This code snippet starts with: {first_line}...\n * TODO: Add more detailed documentation.\n */"; logger.debug(f"Generated documentation:\n{doc}"); return doc
-@function_tool
-def execute_shell_command(command: str) -> str:
-    """Executes a shell command and returns its stdout and stderr. Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 60s)."""
+def _execute_shell_command_raw(command: str) -> str:
+    """Internal helper to execute a shell command. Separated for testability."""
     logger.info(f"Executing shell command: {command}")
     if not command:
         logger.warning("execute_shell_command called with empty command.")
@@ -44,8 +43,19 @@ def execute_shell_command(command: str) -> str:
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False, shell=True)
-        output = f"Exit Code: {result.returncode}\nSTDOUT:\n{result.stdout.strip()}\nSTDERR:\n{result.stderr.strip()}"
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            shell=True,
+        )
+        output = (
+            f"Exit Code: {result.returncode}\n"
+            f"STDOUT:\n{result.stdout.strip()}\n"
+            f"STDERR:\n{result.stderr.strip()}"
+        )
         logger.debug(f"Command '{command}' result:\n{output}")
         return output
     except FileNotFoundError:
@@ -53,11 +63,21 @@ def execute_shell_command(command: str) -> str:
         logger.error(f"Command not found: {cmd_base}")
         return f"Error: Command not found - {cmd_base}"
     except subprocess.TimeoutExpired:
+        import os as _os
         logger.error(f"Command '{command}' timed out after configured timeout.")
-        return f"Error: Command '{command}' timed out after {os.getenv('SWARM_COMMAND_TIMEOUT', '60')} seconds."
+        return f"Error: Command '{command}' timed out after {_os.getenv('SWARM_COMMAND_TIMEOUT', '60')} seconds."
     except Exception as e:
-        logger.error(f"Error executing command '{command}': {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(
+            f"Error executing command '{command}': {e}",
+            exc_info=logger.level <= logging.DEBUG,
+        )
         return f"Error executing command: {e}"
+
+
+@function_tool
+def execute_shell_command(command: str) -> str:
+    """Executes a shell command and returns its stdout and stderr. Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 60s)."""
+    return _execute_shell_command_raw(command)
 
 # --- Agent Definitions (Instructions remain the same) ---
 morpheus_instructions = """
