@@ -69,13 +69,21 @@ def test_geese_agent_handoff_and_astool(geese_blueprint_instance):
 def test_agent_tool_creation(geese_blueprint_instance):
     pass
 
-@pytest.mark.skip(reason="Spinner tests need refactoring for GeeseSpinner class methods")
 def test_spinner_state_updates(geese_blueprint_instance):
-    pass
+    """GeeseSpinner.next_state should iterate through FRAMES in order."""
+    spinner = geese_blueprint_instance.spinner
+    frames = [spinner.next_state() for _ in range(len(spinner.FRAMES))]
+    assert frames == spinner.FRAMES
 
-@pytest.mark.skip(reason="Spinner tests need refactoring for GeeseSpinner class methods")
 def test_spinner_state_transitions(geese_blueprint_instance):
-    pass
+    """GeeseSpinner should cycle back to the first frame after completing a loop."""
+    spinner = geese_blueprint_instance.spinner
+    total = len(spinner.FRAMES)
+    # Advance exactly one full cycle
+    for _ in range(total):
+        spinner.next_state()
+    # Next state should be the first frame again
+    assert spinner.next_state() == spinner.FRAMES[0]
 
 @pytest.mark.skip(reason="Tool structure needs review with SDK Agent")
 def test_geese_story_delegation_flow(geese_blueprint_instance):
