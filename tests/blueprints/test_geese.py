@@ -53,17 +53,43 @@ def geese_blueprint_instance(mock_console_fixture, tmp_path):
         # but the test for splash screen relies on instance.ux.console.print
         return instance
 
-@pytest.mark.skip(reason="Test needs review for SDK Agent tool handling")
-def test_geese_agent_handoff_and_astool(geese_blueprint_instance):
+def test_geese_agent_creation_and_run_minimal(geese_blueprint_instance):
+    """
+    Validate that GeeseBlueprint can produce an agent from its own
+    Coordinator config and that the agent exposes an async run that yields
+    at least one AgentInteraction.
+    This works both with and without the openai-agents SDK available,
+    since the blueprint gracefully falls back to a MagicMock-based agent.
+    """
     blueprint = geese_blueprint_instance
-    # Agent creation is now more dynamic; this test needs rethinking
-    # For now, assert that create_agent_from_config can be called
-    mock_agent_config = MagicMock()
-    mock_agent_config.name = "MockAgent"
-    mock_agent_config.instructions = "Do something."
-    mock_agent_config.model_profile = "default"
-    agent = blueprint.create_agent_from_config(mock_agent_config)
-    assert agent is not None
+
+    # Fetch the Coordinator agent config from the injected test config
+    agent_cfg = blueprint._get_agent_config("Coordinator")
+    assert agent_cfg is not None, "Coordinator agent config missing in test setup"
+
+    # Create the agent and ensure it is constructed with key attributes
+    agent = blueprint.create_agent_from_config(agent_cfg)
+    assert agent is not None, "create_agent_from_config returned None"
+    assert getattr(agent, "name", None) == "Coordinator"
+    assert getattr(agent, "instructions", None)
+
+    # If the SDK exposes a 'run' coroutine, exercise it minimally; otherwise
+    # accept attribute checks as sufficient in this environment.
+    if hasattr(agent, "run"):
+        # Drive the agent's run coroutine minimally and validate yielded structure
+        async def _collect_one():
+            async for chunk in agent.run([{"role": "user", "content": "Quick ping"}]):
+                return chunk
+            return None
+
+        import asyncio
+        first_chunk = asyncio.run(_collect_one())
+        assert first_chunk is not None, "Agent.run did not yield any chunk"
+        # The fallback mock yields AgentInteraction with a final message
+        from swarm.core.interaction_types import AgentInteraction
+        assert isinstance(first_chunk, AgentInteraction)
+        assert first_chunk.type == "message"
+        assert first_chunk.role == "assistant"
 
 @pytest.mark.skip(reason="Test needs review for SDK Agent tool handling")
 def test_agent_tool_creation(geese_blueprint_instance):
