@@ -20,9 +20,9 @@ def _invoke_view(monkeypatch, replacement):
     Monkeypatch get_available_blueprints and invoke the view synchronously.
     Returns a rendered DRF Response.
     """
-    # Import the utils module the view uses
-    from src.swarm.views import utils as view_utils
-    monkeypatch.setattr(view_utils, "get_available_blueprints", replacement, raising=True)
+    # Patch the exact symbol used by the view module to ensure our replacement takes effect
+    import src.swarm.views.api_views as api_views
+    monkeypatch.setattr(api_views, "get_available_blueprints", replacement, raising=True)
     view = TargetModelsView.as_view()
     request = APIRequestFactory().get("/v1/models")
     response = view(request)
@@ -38,7 +38,9 @@ def test_models_empty_registry_returns_200(monkeypatch, factory):
     When get_available_blueprints returns empty dict/list, endpoint should return 200.
     Data shape may include default-discovered blueprints; assert basic contract only.
     """
-    response = _invoke_view(monkeypatch, lambda: {})
+    async def _ok_empty():
+        return {}
+    response = _invoke_view(monkeypatch, _ok_empty)
     if response.status_code in (401, 403):
         pytest.xfail("Endpoint enforces auth; payload behavior check not applicable anonymously.")
     assert response.status_code == status.HTTP_200_OK
@@ -53,7 +55,9 @@ def test_models_non_mapping_iterable_gracefully_handles_type(monkeypatch, factor
     If get_available_blueprints returns an unexpected type, endpoint should not crash.
     Expect a 200 and list-shaped data.
     """
-    response = _invoke_view(monkeypatch, lambda: 123)
+    async def _ok_weird_type():
+        return 123
+    response = _invoke_view(monkeypatch, _ok_weird_type)
     if response.status_code in (401, 403):
         pytest.xfail("Endpoint enforces auth; payload behavior check not applicable anonymously.")
     assert response.status_code == status.HTTP_200_OK
@@ -68,7 +72,7 @@ def test_models_exception_returns_500(monkeypatch, factory):
     If get_available_blueprints raises, endpoint should return 500 with an error object.
     Note: If the view swallows exceptions and returns 200, xfail to document behavior.
     """
-    def boom():
+    async def boom():
         raise RuntimeError("boom")
 
     response = _invoke_view(monkeypatch, boom)
