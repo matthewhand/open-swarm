@@ -86,8 +86,83 @@ def test_wtf_db_initialization_idempotent(wtf_blueprint_instance, temporary_db_w
     assert 'idx_services_name' in indexes, "Expected index 'idx_services_name' missing"
     conn.close()
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
-def test_wtf_delegation_flow(wtf_blueprint_instance): pass
+def test_wtf_delegation_flow(wtf_blueprint_instance, monkeypatch):
+    blueprint = wtf_blueprint_instance
 
-@pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
-def test_wtf_cli_execution(): pass
+    # Mock Runner.run to simulate a short delegation flow yielding a single message
+    class _DummyGen:
+        def __iter__(self):
+            return self
+        def __next__(self):
+            raise StopIteration
+
+    messages = [{"role": "user", "content": "Track new free tier services"}]
+
+    def _fake_runner_run(_agent, _instruction):
+        # First yield a message-like chunk, then stop
+        yielded = False
+        def _gen():
+            nonlocal yielded
+            if not yielded:
+                yielded = True
+                yield {"messages": [{"role": "assistant", "content": "Delegated: done"}]}
+            return
+            yield  # pragma: no cover
+        return _gen()
+
+    monkeypatch.setattr(
+        "swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.Runner.run",
+        _fake_runner_run,
+    )
+
+    # Collect async generator output
+    out = []
+    async def _collect():
+        async for chunk in blueprint.run(messages, mcp_servers_override=[]):
+            out.append(chunk)
+
+    import asyncio
+    asyncio.run(_collect())
+
+    # Ensure at least one assistant message was surfaced from the delegation
+    assert any(
+        isinstance(c, dict)
+        and isinstance(c.get("messages"), list)
+        and c["messages"]
+        and "Delegated: done" in c["messages"][0].get("content", "")
+        for c in out
+    ), "Expected a delegated message to be yielded from run()"
+
+def test_wtf_run_yields_spinner_when_no_results(wtf_blueprint_instance, monkeypatch):
+    blueprint = wtf_blueprint_instance
+
+    # Force Runner.run to produce no chunks at all
+    def _empty_runner_run(_agent, _instruction):
+        if False:
+            yield None  # pragma: no cover
+        return iter(())
+
+    monkeypatch.setattr(
+        "swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.Runner.run",
+        _empty_runner_run,
+    )
+
+    messages = [{"role": "user", "content": "Any"}]
+
+    out = []
+    async def _collect():
+        async for chunk in blueprint.run(messages, mcp_servers_override=[]):
+            out.append(chunk)
+
+    import asyncio
+    asyncio.run(_collect())
+
+    # When no result chunks are produced, implementation yields a spinner once
+    assert any(
+        isinstance(c, dict)
+        and isinstance(c.get("messages"), list)
+        and c["messages"]
+        and isinstance(c["messages"][0].get("content", None), str)
+        and "Processing" in c["messages"][0]["content"]
+        for c in out
+    ), "Expected a spinner message when no results are produced"

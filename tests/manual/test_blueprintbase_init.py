@@ -11,5 +11,4 @@ def test_init():
     # Avoid printing during tests to prevent environment-related I/O errors
     # and keep output clean.
 
-if __name__ == '__main__':
-    test_init()
+# No direct execution in test modules to avoid accidental side effects during discovery.
