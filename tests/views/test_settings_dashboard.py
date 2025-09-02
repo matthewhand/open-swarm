@@ -189,7 +189,8 @@ class TestSettingsDashboardViews(TestCase):
     
     def test_settings_dashboard_get(self):
         """Test GET request to settings dashboard"""
-        response = self.client.get('/settings/')
+        url = reverse('settings_dashboard')
+        response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Settings Dashboard')
@@ -198,7 +199,8 @@ class TestSettingsDashboardViews(TestCase):
     
     def test_settings_dashboard_context(self):
         """Test context data in settings dashboard"""
-        response = self.client.get('/settings/')
+        url = reverse('settings_dashboard')
+        response = self.client.get(url)
         
         context = response.context
         self.assertIn('page_title', context)
@@ -221,15 +223,16 @@ class TestSettingsDashboardViews(TestCase):
     def test_settings_dashboard_error_handling(self, mock_manager):
         """Test settings dashboard handles errors gracefully"""
         mock_manager.collect_all_settings.side_effect = Exception("Collection failed")
-        
-        response = self.client.get('/settings/')
+        url = reverse('settings_dashboard')
+        response = self.client.get(url)
         
         self.assertEqual(response.status_code, 500)
         self.assertIn(b"Error loading settings", response.content)
     
     def test_settings_api_get(self):
         """Test GET request to settings API"""
-        response = self.client.get('/settings/api/')
+        url = reverse('settings_api')
+        response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -241,7 +244,8 @@ class TestSettingsDashboardViews(TestCase):
     
     def test_settings_api_sensitive_data_filtering(self):
         """Test that settings API filters sensitive data"""
-        response = self.client.get('/settings/api/')
+        url = reverse('settings_api')
+        response = self.client.get(url)
         data = json.loads(response.content)
         
         # Check that sensitive values are hidden
@@ -253,7 +257,8 @@ class TestSettingsDashboardViews(TestCase):
     
     def test_environment_variables_get(self):
         """Test GET request to environment variables endpoint"""
-        response = self.client.get('/settings/environment/')
+        url = reverse('environment_variables')
+        response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -272,7 +277,8 @@ class TestSettingsDashboardViews(TestCase):
     })
     def test_environment_variables_filtering(self):
         """Test that environment variables are properly filtered"""
-        response = self.client.get('/settings/environment/')
+        url = reverse('environment_variables')
+        response = self.client.get(url)
         data = json.loads(response.content)
         
         env_vars = data['environment_variables']
@@ -363,16 +369,19 @@ class TestSettingsIntegration(TestCase):
     def test_full_settings_collection_workflow(self):
         """Test the complete settings collection and display workflow"""
         # Test dashboard page
-        response = self.client.get('/settings/')
+        dashboard_url = reverse('settings_dashboard')
+        response = self.client.get(dashboard_url)
         self.assertEqual(response.status_code, 200)
         
         # Test API endpoint
-        api_response = self.client.get('/settings/api/')
+        api_url = reverse('settings_api')
+        api_response = self.client.get(api_url)
         self.assertEqual(api_response.status_code, 200)
         api_data = json.loads(api_response.content)
         
         # Test environment endpoint
-        env_response = self.client.get('/settings/environment/')
+        env_url = reverse('environment_variables')
+        env_response = self.client.get(env_url)
         self.assertEqual(env_response.status_code, 200)
         env_data = json.loads(env_response.content)
         

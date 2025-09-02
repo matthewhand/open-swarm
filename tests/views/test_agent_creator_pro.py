@@ -275,7 +275,8 @@ class TestAgentCreatorProViews(TestCase):
     
     def test_agent_creator_pro_page_get(self):
         """Test GET request to agent creator pro page"""
-        response = self.client.get('/agent-creator-pro/')
+        url = reverse('agent_creator_pro')
+        response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Agent Creator Pro')
@@ -285,7 +286,8 @@ class TestAgentCreatorProViews(TestCase):
     
     def test_agent_creator_pro_page_context(self):
         """Test context data in agent creator pro page"""
-        response = self.client.get('/agent-creator-pro/')
+        url = reverse('agent_creator_pro')
+        response = self.client.get(url)
         
         context = response.context
         self.assertIn('page_title', context)
