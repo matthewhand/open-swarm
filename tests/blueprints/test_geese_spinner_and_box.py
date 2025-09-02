@@ -67,7 +67,6 @@ def test_display_operation_box_default_emoji(geese_blueprint_instance_ux):
     assert "Default Test" in printed_string
     assert "🦆" in printed_string # Expect silly emoji
 
-@pytest.mark.skip(reason="Test needs update for refactored GeeseBlueprint agent creation.")
 @pytest.mark.asyncio
 async def test_progressive_demo_operation_box(geese_blueprint_instance_ux, monkeypatch):
     blueprint = geese_blueprint_instance_ux
@@ -99,11 +98,18 @@ async def test_progressive_demo_operation_box(geese_blueprint_instance_ux, monke
             results.append(r_item)
 
         mock_create_agent.assert_called_once() # Ensure agent creation was attempted
-        blueprint.ux.ux_print_operation_box.assert_called_once() # The final story box should be printed
-        
+        # Splash screen plus final story box: at least one call expected
+        assert blueprint.ux.ux_print_operation_box.call_count >= 1
+
         assert len(results) > 0, "Expected at least one AgentInteraction from blueprint.run"
         # Further assertions on 'results' can be made if needed
         final_interaction = results[-1] # Assuming the last one is the final message
         assert isinstance(final_interaction, AgentInteraction), "Result should be AgentInteraction"
         assert final_interaction.type == "message"
         assert "mocked coordinator" in final_interaction.content
+
+        # Validate the final story box was printed with expected title
+        last_call = blueprint.ux.ux_print_operation_box.call_args_list[-1]
+        kwargs = last_call.kwargs
+        assert kwargs.get('title') == "📜 Your Generated Story 📜"
+        assert "creative response" in kwargs.get('content', '')

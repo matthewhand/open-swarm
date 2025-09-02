@@ -4,6 +4,7 @@ import os
 import sys
 
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
+from swarm.core.interaction_types import AgentInteraction
 
 SPINNER_STATES = ["Generating.", "Generating..", "Generating...", "Running..."]
 SLOW_SPINNER = "Generating... Taking longer than expected"
@@ -54,7 +55,25 @@ def main():
         print(f"Running Geese blueprint with prompt: {messages[-1]['content'] if messages else 'N/A'}")
 
         async for chunk in blueprint.run(messages):
-            if isinstance(chunk, dict):
+            if isinstance(chunk, AgentInteraction):
+                if chunk.type == "message" and chunk.role == "assistant":
+                    # Clear spinner line before printing final message
+                    sys.stdout.write(f"\r{' ' * 80}\r")
+                    print(f"Geese: {chunk.content}")
+                    if chunk.final and chunk.data and isinstance(chunk.data, dict):
+                        print(f"  (Title: {chunk.data.get('title', 'N/A')}, Word Count: {chunk.data.get('word_count', 0)})")
+                elif chunk.type == "progress":
+                    progress_msg = getattr(chunk, "progress_message", "Working...")
+                    spinner_char = getattr(chunk, "spinner_state", SPINNER_STATES[0])
+                    sys.stdout.write(f"\r{spinner_char} {progress_msg}   ")
+                    sys.stdout.flush()
+                elif chunk.type == "error":
+                    sys.stdout.write(f"\r{' ' * 80}\r")
+                    print(f"\nError: {getattr(chunk, 'error_message', 'Unknown error')}")
+                else:
+                    sys.stdout.write(f"\r{' ' * 80}\r")
+                    print(f"Geese (AgentInteraction): {chunk}")
+            elif isinstance(chunk, dict):
                 chunk_type = chunk.get("type")
                 if chunk_type == "spinner_update" and os.environ.get("SWARM_TEST_MODE") == "1":
                     # Test mode expects [SPINNER] prefix, which blueprint_geese.py now adds to spinner_state
