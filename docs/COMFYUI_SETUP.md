@@ -135,3 +135,4 @@ Avatars are stored in the `avatars/` directory in your project root. You can cus
 - Avatar generation typically takes 30-60 seconds
 - Consider implementing caching for generated avatars
 - Monitor ComfyUI resource usage during generation
+

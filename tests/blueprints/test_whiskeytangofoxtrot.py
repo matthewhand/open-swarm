@@ -22,47 +22,19 @@ def temporary_db_wtf(tmp_path):
 @pytest.fixture
 def wtf_blueprint_instance(temporary_db_wtf):
     with patch(SQLITE_MODULE_PATH, new=temporary_db_wtf):
-        # Patch _load_configuration on BlueprintBase.
-        # The WTFBlueprint.__init__ will call super().__init__(blueprint_id),
-        # then it will call self._load_configuration(config_path, **kwargs) itself.
-        # This second call is what we want our side_effect to respond to for setting _config.
-        with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration') as mock_load_config:
-            
-            def side_effect_for_manual_call(self_instance, config_path_arg, **kwargs_arg):
-                # This side_effect is for the WTFBlueprint's *direct call* to self._load_configuration.
-                # self_instance here will be the WTFBlueprint instance.
-                logger.debug(f"wtf_fixture: side_effect_for_manual_call on {type(self_instance)} with config_path='{config_path_arg}', kwargs={kwargs_arg}")
-                self_instance._config = {
-                    'llm': {'default': {'provider': 'mock', 'model': 'mock-model'}},
-                    'mcpServers': {}, 
-                    'settings': {'default_llm_profile': 'default'},
-                    'blueprints': {getattr(self_instance, 'blueprint_id', 'test_wtf'): {}}
-                }
-                self_instance._raw_config = self_instance._config.copy()
-                logger.debug(f"wtf_fixture: {type(self_instance)}._config set to {self_instance._config}")
-
-            mock_load_config.side_effect = side_effect_for_manual_call
-            
+        with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=None) as mock_load_config:
             with patch('swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.WhiskeyTangoFoxtrotBlueprint._get_model_instance') as mock_get_model:
                 mock_model_instance = MagicMock(name="MockModelInstance")
                 mock_get_model.return_value = mock_model_instance
-                
-                # When WTFBlueprint is instantiated, its __init__ will first call super().__init__(blueprint_id).
-                # If BlueprintUXImproved calls super().__init__(blueprint_id) which hits BlueprintBase.__init__(blueprint_id),
-                # BlueprintBase.__init__ will call self._load_configuration() (with no args other than self).
-                # This first call to the mock might not be what we want to set the config.
-                # The *second* call from WTFBlueprint's __init__ (self._load_configuration(config_path, **kwargs))
-                # is the one our side_effect is tailored for.
-                # To handle the first call (if it happens and if it's different):
-                # We can make the side_effect more robust or assume the test focuses on the manual call.
-                # For simplicity, let's assume the manual call is the primary one that sets config for the test.
 
                 instance = WhiskeyTangoFoxtrotBlueprint(blueprint_id="test_wtf", config_path="dummy_path_for_test.json")
-                
-                # Check if _config was set by the mock
-                assert hasattr(instance, '_config') and instance._config is not None, \
-                    "Fixture error: instance._config was not set by mocked _load_configuration"
-                logger.debug(f"wtf_fixture: Blueprint instance created, _config: {instance._config}")
+                instance._config = {
+                    'llm': {'default': {'provider': 'mock', 'model': 'mock-model'}},
+                    'mcpServers': {},
+                    'settings': {'default_llm_profile': 'default'},
+                    'blueprints': {getattr(instance, 'blueprint_id', 'test_wtf'): {}}
+                }
+                instance._raw_config = instance._config.copy()
                 yield instance
 
 def test_wtf_agent_creation(wtf_blueprint_instance):

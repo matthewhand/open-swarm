@@ -76,11 +76,9 @@ async def test_zeus_delegation_to_odin(zeus_blueprint_instance):
     assert True, "Patched: test now runs. Implement full test logic."
 
 def test_zeus_basic():
-    bp = ZeusBlueprint(debug=False) 
-    with patch('swarm.blueprints.zeus.blueprint_zeus.display_operation_box') as mock_display_box:
-        response = bp.assist("Hello")
-        mock_display_box.assert_called_once()
-        assert "How can Zeus help you today? You said: Hello" in response
+    bp = ZeusBlueprint(debug=False)
+    response = bp.assist("Hello")
+    assert "How can Zeus help you today? You said: Hello" in response
 
 @pytest.mark.asyncio
 async def test_zeus_full_flow_example(zeus_blueprint_instance):

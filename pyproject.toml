@@ -127,11 +127,7 @@ line-length = 88
 select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "ARG"]
 ignore = ["E501"]
 
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
+
 
 [tool.mypy]
 python_version = "3.10"

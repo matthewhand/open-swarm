@@ -274,3 +274,4 @@ class ComfyUIClient:
 
 # Global ComfyUI client instance
 comfyui_client = ComfyUIClient()
+
