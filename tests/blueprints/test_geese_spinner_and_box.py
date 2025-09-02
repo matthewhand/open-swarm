@@ -38,17 +38,14 @@ def geese_blueprint_instance_ux(tmp_path):
         # instance.spinner.console = MagicMock(spec=Console) # GeeseSpinner internal doesn't use console for print
         return instance
 
-@pytest.mark.skip(reason="GeeseSpinner internal API changed; test needs update or removal.")
-def test_geese_spinner_methods(geese_blueprint_instance_ux):
+def test_geese_spinner_next_state_cycles(geese_blueprint_instance_ux):
+    """Validate the lightweight GeeseSpinner cycles through expected frames."""
     blueprint = geese_blueprint_instance_ux
-    blueprint.spinner.start("Honking...") # This method does not exist
-    blueprint.spinner.console.print.assert_called_with(ANY)
-    blueprint.spinner.console.reset_mock()
-    with patch('sys.stdout.write') as mock_stdout_write:
-        blueprint.spinner.update_message("Still honking...") # This method does not exist
-        mock_stdout_write.assert_called_with(ANY)
-    blueprint.spinner.stop("All quiet now.") # This method does not exist
-    blueprint.spinner.console.print.assert_called_with(ANY)
+    frames = [blueprint.spinner.next_state() for _ in range(len(blueprint.spinner.FRAMES) * 2)]
+    # First cycle should match FRAMES exactly
+    assert frames[: len(blueprint.spinner.FRAMES)] == blueprint.spinner.FRAMES
+    # Second cycle should repeat starting from the beginning
+    assert frames[len(blueprint.spinner.FRAMES)] == blueprint.spinner.FRAMES[0]
 
 def test_display_operation_box_basic(geese_blueprint_instance_ux):
     blueprint = geese_blueprint_instance_ux
