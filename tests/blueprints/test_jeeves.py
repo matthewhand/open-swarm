@@ -32,8 +32,35 @@ def test_jeeves_agent_creation(jeeves_blueprint_instance):
     assert agent.name == "Jeeves"
 
 @pytest.mark.asyncio
-async def test_jeeves_delegation_to_mycroft():
-    assert True, "Patched: test now runs. Implement full test logic."
+async def test_jeeves_delegation_to_mycroft(monkeypatch, jeeves_blueprint_instance):
+    """In test mode, run() should route to search/semantic_search based on search_mode."""
+    os.environ['SWARM_TEST_MODE'] = '1'
+    bp = jeeves_blueprint_instance
+
+    called = {"search": False, "semantic": False}
+
+    async def fake_search(query, directory="."):
+        called["search"] = True
+        return ["match1"]
+
+    async def fake_semantic_search(query, directory="."):
+        called["semantic"] = True
+        return ["sem_match1"]
+
+    monkeypatch.setattr(bp, "search", fake_search)
+    monkeypatch.setattr(bp, "semantic_search", fake_semantic_search)
+
+    # Route to code search
+    messages = [{"role": "user", "content": "find foo"}]
+    async for _ in bp.run(messages, search_mode='code'):
+        pass
+    assert called["search"] and not called["semantic"], "Expected code search path to be taken"
+
+    # Reset and route to semantic search
+    called = {"search": False, "semantic": False}
+    async for _ in bp.run(messages, search_mode='semantic'):
+        pass
+    assert called["semantic"] and not called["search"], "Expected semantic search path to be taken"
 
 @pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio

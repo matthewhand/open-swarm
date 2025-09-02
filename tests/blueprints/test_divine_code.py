@@ -73,7 +73,16 @@ async def test_zeus_run_method(zeus_blueprint_instance):
 
 @pytest.mark.asyncio
 async def test_zeus_delegation_to_odin(zeus_blueprint_instance):
-    assert True, "Patched: test now runs. Implement full test logic."
+    """Ensure Odin appears as a delegatable tool in the created agent."""
+    blueprint = zeus_blueprint_instance
+    agent = blueprint.create_starting_agent(mcp_servers=[])
+    names = set()
+    for t in getattr(agent, 'tools', []):
+        if hasattr(t, 'name'):
+            names.add(t.name)
+        elif isinstance(t, dict) and 'tool_name' in t:
+            names.add(t['tool_name'])
+    assert 'Odin' in names, f"Expected 'Odin' tool in Zeus agent tools; got {names}"
 
 def test_zeus_basic():
     bp = ZeusBlueprint(debug=False)
@@ -82,7 +91,24 @@ def test_zeus_basic():
 
 @pytest.mark.asyncio
 async def test_zeus_full_flow_example(zeus_blueprint_instance):
-    assert True, "Patched: test now runs. Implement full test logic."
+    """End-to-end: run yields spinner first, then agent output (debug=True)."""
+    messages = [{"role": "user", "content": "Plan a release"}]
+    # Use a dummy agent to keep deterministic
+    with patch.object(zeus_blueprint_instance, "create_starting_agent") as mock_create:
+        class DummyAgent:
+            async def run(self, messages, **kwargs):
+                yield {"messages": [{"role": "assistant", "content": "Plan: 1) Scope 2) Cut notes"}]}
+        mock_create.return_value = DummyAgent()
+
+        outputs = []
+        async for item in zeus_blueprint_instance.run(messages):
+            outputs.append(item)
+
+        assert len(outputs) >= 2
+        first = outputs[0]["messages"][0]["content"]
+        second = outputs[1]["messages"][0]["content"]
+        assert any(frame in first for frame in ZeusSpinner.FRAMES) or "Generating" in first
+        assert "Plan:" in second
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_zeus_cli_execution():
