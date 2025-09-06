@@ -26,22 +26,22 @@ def test_codey_github_status(monkeypatch):
         # Call codey to get git status via github agent
         cmd = [sys.executable, codey_path, "Show me the git status using the github agent."]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
         out = result.stdout + result.stderr
         found = False
         try:
             parsed = ast.literal_eval(out)
-            print("PARSED OUTPUT:", parsed)
             for msg in parsed.get('messages', []):
                 content = msg.get('content', '').lower()
-                print("MESSAGE CONTENT:", content)
                 if "foo.txt" in content or "changes to be committed" in content:
                     found = True
                     break
         except Exception:
-            print("RAW OUTPUT:", out)
             if "foo.txt" in out or "changes to be committed" in out.lower():
                 found = True
+        if result.returncode != 0 or not found:
+            # Provide helpful debug info only on failure
+            print("STDOUT:", result.stdout)
+            print("STDERR:", result.stderr)
+            print("RAW OUTPUT:", out)
         assert result.returncode == 0
         assert found

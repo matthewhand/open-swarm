@@ -8,7 +8,7 @@ class Spinner:
     Displays spinner states: Generating., Generating.., Generating..., Running...,
     and switches to 'Taking longer than expected' after a timeout.
     """
-    def __init__(self, base_message="Generating", long_wait_timeout=8):
+    def __init__(self, base_message: str = "Generating", long_wait_timeout: float = 8.0):
         self.base_message = base_message
         self.states = [".", "..", "...", "..", "."]
         self.running = False

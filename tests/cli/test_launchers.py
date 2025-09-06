@@ -98,7 +98,8 @@ def test_swarm_cli_install_executable_creates_executable(mock_pyinstaller_run, m
     monkeypatch.setenv("SWARM_TEST_MODE", "1")
     # Invoke the renamed command "install-executable"
     result_test_mode = runner.invoke(swarm_cli.app, ["install-executable", blueprint_name])
-    print(f"CLI Output (Test Mode):\n{result_test_mode.stdout}") # Use stdout
+    if result_test_mode.exit_code != 0:
+        print(f"CLI Output (Test Mode):\n{result_test_mode.stdout}")
     assert result_test_mode.exit_code == 0, result_test_mode.stdout
     assert f"Installing blueprint '{blueprint_name}' as executable..." in result_test_mode.stdout
     assert f"Test-mode shim installed at: {target_path}" in result_test_mode.stdout
@@ -114,7 +115,8 @@ def test_swarm_cli_install_executable_creates_executable(mock_pyinstaller_run, m
     mock_pyinstaller_run.return_value = mock_pyinstaller_process
 
     result_prod_mode = runner.invoke(swarm_cli.app, ["install-executable", blueprint_name])
-    print(f"CLI Output (Prod Mode):\n{result_prod_mode.stdout}") # Use stdout
+    if result_prod_mode.exit_code != 0:
+        print(f"CLI Output (Prod Mode):\n{result_prod_mode.stdout}")
     assert result_prod_mode.exit_code == 0, result_prod_mode.stdout
     assert f"Installing blueprint '{blueprint_name}' as executable..." in result_prod_mode.stdout
     assert f"Successfully installed '{blueprint_name}' to {target_path}" in result_prod_mode.stdout
