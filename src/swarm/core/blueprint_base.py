@@ -210,14 +210,14 @@ class BlueprintBase(ABC):
                                 self._config = {}
                     if self._config is None:
                         # 1. CLI argument (not handled here, handled in cli_handler)
-                    # 2. Current working directory (guard against missing CWD)
-                    try:
-                        cwd_config = Path.cwd() / "swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Trying: {cwd_config}")
-                    except Exception as e:
-                        cwd_config = None
-                        if _should_debug():
-                            logger.warning(f"Unable to determine CWD for config lookup: {e}")
+                        # 2. Current working directory (guard against missing CWD)
+                        try:
+                            cwd_config = Path.cwd() / "swarm_config.json"
+                            print(f"[SWARM_CONFIG_DEBUG] Trying: {cwd_config}")
+                        except Exception as e:
+                            cwd_config = None
+                            if _should_debug():
+                                logger.warning(f"Unable to determine CWD for config lookup: {e}")
                     if cwd_config and cwd_config.exists():
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
                         with open(cwd_config) as f:
