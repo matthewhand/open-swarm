@@ -8,20 +8,17 @@ def strip_ansi(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     return ansi_escape.sub('', text)
 
-@pytest.mark.skip(reason="GeeseBlueprint functionality changed; CLI test needs review for story output vs search UX.")
 @pytest.mark.timeout(15)
-def test_geese_cli_search_ux(tmp_path):
-    # Create a dummy file structure to search
-    (tmp_path / "foo.py").write_text("print('hello world')\n")
-    (tmp_path / "bar.txt").write_text("not python\n")
-    # Run the geese CLI with a search prompt targeting the temp dir
+def test_geese_cli_story_ux(tmp_path):
+    # Run the geese CLI with a story prompt in test mode
     env = os.environ.copy()
-    env['SWARM_CONFIG_PATH'] = str(tmp_path / "dummy_swarm_config.json")
     env['SWARM_TEST_MODE'] = '1'
     # Minimal config to avoid config errors
-    (tmp_path / "dummy_swarm_config.json").write_text('{"llm": {"default": {"model": "gpt-4o", "provider": "openai", "api_key": "dummy", "base_url": "http://localhost"}}}')
+    config_path = tmp_path / "dummy_swarm_config.json"
+    env['SWARM_CONFIG_PATH'] = str(config_path)
+    config_path.write_text('{"llm": {"default": {"model": "gpt-4o", "provider": "openai", "api_key": "dummy", "base_url": "http://localhost"}}}')
     result = subprocess.run([
-        sys.executable, 'src/swarm/blueprints/geese/geese_cli.py', '--message', 'Find *.py files'],
+        sys.executable, 'src/swarm/blueprints/geese/geese_cli.py', '--message', 'Tell a short story about a goose.'],
         cwd=os.getcwd(),
         capture_output=True, text=True, env=env, timeout=30
     )
@@ -32,19 +29,12 @@ def test_geese_cli_search_ux(tmp_path):
         'Generating.', 'Generating..', 'Generating...', 'Running...'
     ]), f"Spinner messages not found in output: {output}"
 
-    # Check for operation box with emoji and title
-    assert '╭' in output and '╰' in output, "Box borders not found"
-    assert '🔍' in output or '💡' in output, "Expected emoji not found"
-    assert 'Searching Filesystem' in output or 'Geese Output' in output, "Expected box title not found"
+    # Check for multiple spinner updates
+    assert output.count('[SPINNER]') >= 2, "Not enough progressive spinner updates"
 
-    # Check for result count/progress
-    match = re.search(r'Matches so far: ?\d+', output)
-    if not match:
-        print('--- CLI OUTPUT FOR DEBUGGING ---')
-        print(output)
-    assert match, "Result count not found"
-
-    # Optionally: check for progressive updates (multiple boxes or lines)
-    assert output.count('╭') > 1, "No progressive updates detected"
+    # Check for final story output
+    assert "Geese:" in output, "Final story output not found"
+    assert "Title:" in output, "Story title not found"
+    assert "Word Count:" in output, "Story word count not found"
 
     assert result.returncode == 0
