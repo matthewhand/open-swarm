@@ -74,12 +74,12 @@ async def test_jeeves_delegation_to_gutenberg(monkeypatch, jeeves_blueprint_inst
         called["gutenberg"] = True
         return ["gutenberg_match1"]
 
-    monkeypatch.setattr(bp, "gutenberg_search", fake_gutenberg_search)
+    monkeypatch.setattr(bp, "semantic_search", fake_semantic_search)
 
     messages = [{"role": "user", "content": "What is the meaning of life?"}]
     async for _ in bp.run(messages, search_mode='semantic'):
         pass
-    assert called["gutenberg"], "Expected Gutenberg search to be taken for semantic query"
+    assert called["semantic"], "Expected semantic search to be taken for semantic query"
 
 def strip_ansi(text):
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
