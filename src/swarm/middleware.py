@@ -2,7 +2,7 @@
 import asyncio  # Import asyncio
 import logging
 
-from asgiref.sync import sync_to_async, async_to_sync
+from asgiref.sync import sync_to_async
 from django.utils.decorators import sync_and_async_middleware
 from django.utils.functional import SimpleLazyObject
 

@@ -1,8 +1,8 @@
-import sys
-import subprocess
-import pytest
-from unittest.mock import patch, MagicMock, call, mock_open
 import os
+import sys
+from unittest.mock import MagicMock, call, mock_open, patch
+
+import pytest
 
 # Assume the script is importable relative to the project structure
 # Adjust the import path if your test runner setup requires it

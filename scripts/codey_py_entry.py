@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
+
 
 def find_project_root(start_dir: Path, cli_rel_path: str) -> Path:
     """Traverse upward from start_dir to find a directory containing cli_rel_path."""

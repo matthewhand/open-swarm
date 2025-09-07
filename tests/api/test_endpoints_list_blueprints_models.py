@@ -1,8 +1,8 @@
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from src.swarm.views.utils import register_dynamic_team, deregister_dynamic_team
-from src.swarm.views.api_views import ModelsListView, BlueprintsListView
+from src.swarm.views.api_views import BlueprintsListView, ModelsListView
+from src.swarm.views.utils import deregister_dynamic_team, register_dynamic_team
 
 
 @pytest.mark.django_db(transaction=True)

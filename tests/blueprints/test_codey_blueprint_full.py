@@ -1,10 +1,10 @@
-import pytest
 import sys
 import types
-import asyncio
-from pathlib import Path
+
+import pytest
 from swarm.blueprints.codey import blueprint_codey
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
+
 
 # --- Dummy agent for fallback and patching ---
 class DummyAgent:
@@ -48,10 +48,10 @@ def test_approval_modes(monkeypatch, patch_create_agents, mode, approve):
     if mode == "auto-edit":
         action_type = "write"
         action_details = {"path": "./writable/test.txt"}
-        result = blueprint.execute_tool_with_approval(fake_tool, action_type, "summary", action_details)
+        blueprint.execute_tool_with_approval(fake_tool, action_type, "summary", action_details)
     else:
         action_type = "edit"
-        result = blueprint.execute_tool_with_approval(fake_tool, action_type, "summary")
+        blueprint.execute_tool_with_approval(fake_tool, action_type, "summary")
     if mode == "suggest" and not approve:
         assert "ok" not in called
     else:
@@ -80,7 +80,7 @@ def test_invalid_agent(monkeypatch, patch_create_agents):
 # --- Session & CLI Argument Handling ---
 def test_session_cli_args(monkeypatch, patch_create_agents):
     sys.modules["swarm.core.session_logger"] = types.SimpleNamespace(SessionLogger=type("SessionLogger", (), {"list_sessions": staticmethod(lambda x: None), "view_session": staticmethod(lambda x, y: None)}))
-    blueprint = CodeyBlueprint(blueprint_id="test")
+    CodeyBlueprint(blueprint_id="test")
     from swarm.core.session_logger import SessionLogger
     SessionLogger.list_sessions("codey")
     SessionLogger.view_session("codey", "dummy_id")
@@ -130,6 +130,8 @@ def test_missing_prompt(monkeypatch, patch_create_agents):
 
 # --- NEW: Async Entrypoint & Run Logic ---
 import pytest
+
+
 @pytest.mark.asyncio
 async def test_original_run_git_status(monkeypatch):
     import subprocess
@@ -279,6 +281,7 @@ def test_codey_create_starting_agent(monkeypatch):
 # --- NEW: Load Project Instructions, Inject Instructions, and Inject Context ---
 import builtins
 import os
+
 
 def test_codey_load_project_instructions(monkeypatch):
     bp = CodeyBlueprint(blueprint_id="dummy")

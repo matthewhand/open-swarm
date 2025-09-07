@@ -15,9 +15,9 @@ import os
 import sys
 from datetime import datetime
 from typing import Any, ClassVar
-from typing_extensions import TypedDict
 
 import pytz
+from typing_extensions import TypedDict
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -25,12 +25,9 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
      print(f"ERROR: Failed to import 'agents' or 'BlueprintBase'. Is 'openai-agents' installed and src in PYTHONPATH? Details: {e}")
@@ -65,7 +62,7 @@ class SuggestionSpinner:
         self.current_state = 0
         self.running = False
         self.suggestion_count = 0
-    
+
     async def start(self):
         self.running = True
         while self.running:
@@ -74,10 +71,10 @@ class SuggestionSpinner:
             print(f"\r{state} ({count} suggestions generated)", end='', flush=True)
             self.current_state += 1
             await asyncio.sleep(0.6)
-    
+
     def add_suggestion(self):
         self.suggestion_count += 1
-    
+
     def stop(self):
         self.running = False
         print("\r" + " " * 60 + "\r", end='', flush=True)
@@ -134,7 +131,7 @@ def read_file_tool(file_path: str) -> str:
     """Read the contents of a file."""
     return read_file(file_path)
 
-@function_tool  
+@function_tool
 def write_file_tool(file_path: str, content: str) -> str:
     """Write content to a file."""
     return write_file(file_path, content)
@@ -230,13 +227,13 @@ class SuggestionBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             result = await Runner.run(agent, instruction)
             yield {
                 "messages": [
                     {
-                        "role": "assistant", 
+                        "role": "assistant",
                         "content": str(result)
                     }
                 ]
@@ -252,13 +249,14 @@ class SuggestionBlueprint(BlueprintBase):
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        
+
         # Fallback to simple OpenAI model if config not available
         try:
             profile_data = self.get_llm_profile(profile_name)
         except RuntimeError:
             # Config not loaded, use environment fallback
             import os
+
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:

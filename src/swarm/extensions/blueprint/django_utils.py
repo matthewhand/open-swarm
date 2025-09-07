@@ -159,7 +159,7 @@ def _merge_installed_apps(blueprint: 'BlueprintBase') -> None:
     if hasattr(blueprint, "local_settings") and blueprint.local_settings and hasattr(blueprint.local_settings, "INSTALLED_APPS"):
         try:
             blueprint_apps = getattr(blueprint.local_settings, "INSTALLED_APPS", [])
-            if not isinstance(blueprint_apps, (list, tuple)):
+            if not isinstance(blueprint_apps, list | tuple):
                  logger.warning(f"Blueprint {blueprint.__class__.__name__}'s local INSTALLED_APPS is not a list or tuple.")
                  return
 

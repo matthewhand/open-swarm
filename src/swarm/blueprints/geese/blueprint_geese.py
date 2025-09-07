@@ -171,7 +171,7 @@ class GeeseBlueprint(BlueprintBase):
     def create_agent_from_config(self, agent_config: AgentConfig) -> Any | None:
         try:
             from agents import Agent
-            llm_profile_data = self.get_llm_profile(agent_config.model_profile)
+            self.get_llm_profile(agent_config.model_profile)
             model_instance = self._get_model_instance(agent_config.model_profile)
 
             if not model_instance:
@@ -235,7 +235,7 @@ if __name__ == "__main__":
                     if item.data and isinstance(item.data, dict):
                         print(f"(Title: {item.data.get('title')}, Word Count: {item.data.get('word_count')})")
                 elif item.type == "progress":
-                    elapsed = time.time() - start_time
+                    time.time() - start_time
                     spinner_char = item.progress_message
                     sys.stdout.write(f"\r{spinner_char}   ")
                     sys.stdout.flush()

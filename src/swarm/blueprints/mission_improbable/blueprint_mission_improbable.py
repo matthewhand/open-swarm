@@ -19,12 +19,10 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent
     from agents.mcp import MCPServer
     from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
@@ -113,7 +111,7 @@ class MissionSpinner:
         self.running = False
         self.mission_phases = ['Recon', 'Planning', 'Execution', 'Extraction']
         self.current_phase = 0
-    
+
     async def start(self):
         self.running = True
         while self.running:
@@ -124,7 +122,7 @@ class MissionSpinner:
             if self.current_state % 3 == 0:
                 self.current_phase += 1
             await asyncio.sleep(0.8)
-    
+
     def stop(self):
         self.running = False
         print("\r" + " " * 60 + "\r", end='', flush=True)
@@ -231,13 +229,14 @@ class MissionImprobableBlueprint(BlueprintBase):
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        
+
         # Fallback to simple OpenAI model if config not available
         try:
             profile_data = self.get_llm_profile(profile_name)
         except RuntimeError:
             # Config not loaded, use environment fallback
             import os
+
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
@@ -265,7 +264,9 @@ class MissionImprobableBlueprint(BlueprintBase):
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
              try:
-                 from openai import AsyncOpenAI  # import where used to avoid shadowing issues
+                 from openai import (
+                     AsyncOpenAI,  # import where used to avoid shadowing issues
+                 )
                  self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
              except Exception as e:
                  raise ValueError(f"Failed to init OpenAI client: {e}") from e
@@ -379,7 +380,6 @@ import time
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-
 from swarm.ux.ansi_box import ansi_box
 
 

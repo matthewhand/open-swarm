@@ -1,5 +1,5 @@
-import pytest
 from unittest.mock import MagicMock
+
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.agent_config import AgentConfig
 

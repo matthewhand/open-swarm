@@ -80,7 +80,7 @@ def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_toke
         if i in kept_indices: logger.debug(f"  [Loop Skip] Idx {i} already kept."); i -= 1; continue
         if len(truncated) >= target_msg_count: logger.debug("  [Loop Stop] Msg limit reached."); break
 
-        try: msg, tokens = msg_tokens[i]; assert isinstance(tokens, (int, float)) and tokens >= 0
+        try: msg, tokens = msg_tokens[i]; assert isinstance(tokens, int | float) and tokens >= 0
         except (IndexError, AssertionError): tokens = 9999; logger.warning(f"Bad tokens at {i}")
         except Exception as e: logger.error(f"  [Loop Error] {i}: {e}."); break
 
@@ -100,7 +100,7 @@ def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_toke
             assistant_idx = i - 1; pair_found = False; search_depth = 0; max_search_depth = 10
             while assistant_idx >= 0 and search_depth < max_search_depth:
                  if assistant_idx in kept_indices: assistant_idx -= 1; search_depth += 1; continue
-                 try: prev_msg, prev_tokens = msg_tokens[assistant_idx]; assert isinstance(prev_tokens, (int, float)) and prev_tokens >= 0
+                 try: prev_msg, prev_tokens = msg_tokens[assistant_idx]; assert isinstance(prev_tokens, int | float) and prev_tokens >= 0
                  except: prev_tokens = 9999
                  if prev_msg.get("role") == "assistant" and isinstance(prev_msg.get("tool_calls"), list):
                      assistant_tool_calls = prev_msg.get("tool_calls", [])
@@ -142,7 +142,7 @@ def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_toke
              found_tools = []; found_indices = []; found_tokens = 0; j = i + 1
              while j < len(non_system_msgs):
                   if j in kept_indices: j += 1; continue
-                  try: tool_msg, tool_tokens_fwd = msg_tokens[j]; assert isinstance(tool_tokens_fwd, (int, float)) and tool_tokens_fwd >= 0
+                  try: tool_msg, tool_tokens_fwd = msg_tokens[j]; assert isinstance(tool_tokens_fwd, int | float) and tool_tokens_fwd >= 0
                   except: tool_tokens_fwd = 9999
                   tool_msg_call_id = tool_msg.get("tool_call_id")
                   if tool_msg.get("role") == "tool" and tool_msg_call_id in expected_tool_ids:
@@ -222,7 +222,7 @@ def _truncate_simple(messages: list[dict[str, Any]], model: str, max_tokens: int
     if not non_system_msgs: logger.info("Simple Mode: No valid non-system messages."); return system_msgs
     result_non_system = []; current_tokens = 0; current_msg_count = 0
     for msg_index, msg in reversed(list(enumerate(non_system_msgs))):
-        try: msg_tokens = get_token_count(msg, model); assert isinstance(msg_tokens, (int, float)) and msg_tokens >= 0
+        try: msg_tokens = get_token_count(msg, model); assert isinstance(msg_tokens, int | float) and msg_tokens >= 0
         except Exception as e: logger.error(f"Simple Mode: Error token count msg idx {msg_index}: {e}. High cost."); msg_tokens = 9999
         if (current_msg_count + 1 <= target_msg_count and current_tokens + msg_tokens <= target_token_count):
             result_non_system.append(msg); current_tokens += msg_tokens; current_msg_count += 1

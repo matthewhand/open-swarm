@@ -1,9 +1,8 @@
-import os
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock
 
 # Ensure repo root is on sys.path for absolute imports if needed
 PYTEST_ROOT = Path(__file__).resolve().parents[2]
@@ -13,7 +12,6 @@ if str(PYTEST_ROOT) not in sys.path:
 # Prefer absolute import through project package
 from src.swarm.blueprints.suggestion.blueprint_suggestion import (
     SuggestionBlueprint,
-    SuggestionsOutput as BlueprintSuggestionsOutput,
 )
 
 

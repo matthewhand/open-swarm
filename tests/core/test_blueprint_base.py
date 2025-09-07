@@ -1,12 +1,9 @@
-import json
 import os
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from django.test import TestCase, override_settings
-
+from django.test import TestCase
 from swarm.core.blueprint_base import BlueprintBase
 
 
@@ -55,7 +52,6 @@ class TestBlueprintBase(TestCase):
 
     def test_init_with_config_path(self):
         """Test initialization with config path"""
-        from pathlib import Path
         config_path = '/path/to/config.json'
         blueprint = ConcreteBlueprint(self.blueprint_id, config_path=config_path)
         assert str(blueprint.config_path) == config_path

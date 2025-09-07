@@ -1,7 +1,5 @@
-import sys
-import io
-import pytest
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
+
 
 def test_inject_instructions(monkeypatch, tmp_path):
     # Setup fake CODEY.md and ~/.codey/instructions.md

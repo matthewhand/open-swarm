@@ -1,6 +1,7 @@
 import os
 import subprocess
 
+
 def test_zeus_cli_integration():
     env = os.environ.copy()
     env['DEFAULT_LLM'] = 'test'

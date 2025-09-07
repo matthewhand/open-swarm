@@ -6,15 +6,12 @@ Stronger smoke tests for blueprint discovery.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import inspect
 import textwrap
+from pathlib import Path
 
-import pytest
-
-from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.blueprint_discovery import discover_blueprints
 
 
 def test_discover_repo_blueprints_includes_codey():

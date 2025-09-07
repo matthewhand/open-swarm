@@ -1,5 +1,5 @@
-import pytest
 from swarm.utils.redact import redact_sensitive_data
+
 
 def test_redacts_api_keys_and_tokens():
     data = {

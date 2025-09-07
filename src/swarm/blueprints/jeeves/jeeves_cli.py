@@ -39,7 +39,7 @@ def main():
         spinner.start()
         try:
             messages = [{"role": "user", "content": instruction}]
-            spinner_start_time = time.time() # Renamed to avoid conflict
+            time.time() # Renamed to avoid conflict
 
             # The bp.run() for JeevesBlueprint might yield structured progress or final content.
             # The original CLI code was trying to interpret complex chunks.

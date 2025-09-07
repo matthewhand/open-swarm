@@ -1,6 +1,7 @@
-import pytest
 import os
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY")),
@@ -31,7 +32,9 @@ def mcp_demo_blueprint_instance():
         with patch('src.swarm.blueprints.mcp_demo.blueprint_mcp_demo.BlueprintBase._get_model_instance') as mock_get_model:
             mock_model_instance = MagicMock()
             mock_get_model.return_value = mock_model_instance
-            from src.swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
+            from src.swarm.blueprints.mcp_demo.blueprint_mcp_demo import (
+                MCPDemoBlueprint,
+            )
             instance = MCPDemoBlueprint(blueprint_id="mcp_demo", debug=True)
             # Manually set _config and mcp_server_configs so .config property and agent creation work
             instance._config = mock_config
@@ -133,19 +136,19 @@ def test_mcpdemo_cli_execution():
 @pytest.mark.skip(reason="Legacy CLI tests require specific old setup/mocking")
 def test_mcp_demo_cli_help():
     """Legacy test: Test running mcp_demo blueprint with --help."""
-    assert False
+    raise AssertionError()
 
 @pytest.mark.skip(reason="Legacy CLI tests require specific old setup/mocking")
 def test_mcp_demo_cli_simple_task():
     """Legacy test: Test running mcp_demo with a simple task."""
-    assert False
+    raise AssertionError()
 
 @pytest.mark.skip(reason="Legacy CLI tests require specific old setup/mocking")
 def test_mcp_demo_cli_time():
     """Legacy test: Test running mcp_demo asking for the time (uses shell)."""
-    assert False
+    raise AssertionError()
 
 @pytest.mark.skip(reason="Legacy CLI tests require specific old setup/mocking")
 def test_mcp_demo_cli_list_files():
      """Legacy test: Test running mcp_demo asking to list files (uses filesystem)."""
-     assert False
+     raise AssertionError()

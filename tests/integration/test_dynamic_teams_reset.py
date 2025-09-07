@@ -2,10 +2,10 @@ import pytest
 from asgiref.sync import async_to_sync
 
 from src.swarm.views.utils import (
+    get_available_blueprints,
+    load_dynamic_registry,
     register_dynamic_team,
     reset_dynamic_registry,
-    load_dynamic_registry,
-    get_available_blueprints,
 )
 
 

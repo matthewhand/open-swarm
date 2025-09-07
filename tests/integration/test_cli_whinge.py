@@ -1,7 +1,7 @@
 import os
-import subprocess
 import shlex
-import pytest
+import subprocess
+
 
 def test_whinge_cli_background_job():
     env = os.environ.copy()

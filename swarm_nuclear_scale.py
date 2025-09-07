@@ -1,10 +1,10 @@
+import json
 import multiprocessing
 import os
+import random
+import subprocess
 import sys
 import time
-import subprocess
-import json
-import random
 
 NUM_PROCESSES = max(8, multiprocessing.cpu_count() * 2)
 LOG_DIR = "swarm_nuclear_logs"
@@ -41,7 +41,7 @@ def main():
     all_logs = []
     all_green = True
     for res in results:
-        with open(res["log"], "r") as f:
+        with open(res["log"]) as f:
             log_content = f.read()
         all_logs.append({"proc_id": res["proc_id"], "exit_code": res["exit_code"], "log": log_content})
         if res["exit_code"] != 0:

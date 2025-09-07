@@ -1,8 +1,10 @@
-import subprocess
-import re
-import sys
 import os
+import re
+import subprocess
+import sys
+
 import pytest
+
 
 def strip_ansi(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')

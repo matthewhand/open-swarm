@@ -44,7 +44,7 @@ class AsyncInputHandler:
         self._input_event.clear()
         self._interrupt_event.clear()
         self._input_result = None
-        loop = asyncio.get_event_loop()
+        asyncio.get_event_loop()
         self._input_thread = threading.Thread(target=self._input_loop, args=(prompt,))
         self._input_thread.start()
         while not self._input_event.is_set() and not self._interrupt_event.is_set():

@@ -21,7 +21,7 @@ def redact_sensitive_data(
     If a custom mask is provided, always use it (for test compatibility).
     Does NOT redact standalone strings.
     """
-    keys_to_redact = set(k.lower() for k in (sensitive_keys or DEFAULT_SENSITIVE_KEYS))
+    keys_to_redact = {k.lower() for k in (sensitive_keys or DEFAULT_SENSITIVE_KEYS)}
     def smart_mask(val: str) -> str:
         if not isinstance(val, str):
             return val
@@ -37,7 +37,7 @@ def redact_sensitive_data(
         for k, v in data.items():
             if isinstance(k, str) and k.lower() in keys_to_redact:
                 redacted_dict[k] = smart_mask(v)
-            elif isinstance(v, (dict, list)):
+            elif isinstance(v, dict | list):
                 redacted_dict[k] = redact_sensitive_data(v, sensitive_keys, reveal_chars, mask)
             else:
                 redacted_dict[k] = v
@@ -45,7 +45,7 @@ def redact_sensitive_data(
     elif isinstance(data, list):
         processed_list = []
         for item in data:
-            if isinstance(item, (dict, list)):
+            if isinstance(item, dict | list):
                 processed_list.append(redact_sensitive_data(item, sensitive_keys, reveal_chars, mask))
             else:
                 processed_list.append(item)

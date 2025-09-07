@@ -1,9 +1,11 @@
-import pytest
-import asyncio
-from unittest.mock import MagicMock, patch
-import sys
+from unittest.mock import MagicMock
 
-from swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint, run_echocraft_cli, EchoCraftSpinner, print_operation_box
+import pytest
+from swarm.blueprints.echocraft.blueprint_echocraft import (
+    EchoCraftBlueprint,
+    run_echocraft_cli,
+)
+
 
 @pytest.fixture
 def mock_blueprint_run():
@@ -32,7 +34,7 @@ def mock_blueprint_run():
 async def test_run_echocraft_cli_success(mock_blueprint_run, capsys):
     """Tests that run_echocraft_cli correctly processes output from blueprint.run."""
     blueprint = EchoCraftBlueprint(blueprint_id="test_cli_run")
-    
+
     # Mock the blueprint.run method to return our controlled generator
     blueprint.run = MagicMock(return_value=mock_blueprint_run())
 
@@ -43,7 +45,7 @@ async def test_run_echocraft_cli_success(mock_blueprint_run, capsys):
 
     # Capture stdout
     captured = capsys.readouterr()
-    
+
     # Assert that the expected content was printed
     # We need to be careful about the exact output of print_operation_box
     # For now, let's just check for the key part of the echoed message
@@ -70,7 +72,7 @@ async def test_run_echocraft_cli_unexpected_response_format(mock_blueprint_run, 
     await run_echocraft_cli(blueprint, messages)
 
     captured = capsys.readouterr()
-    
+
     # Expect the string representation of the unexpected dict/string
     assert "'unexpected_key': 'unexpected_value'" in captured.out
     assert "plain string response" in captured.out

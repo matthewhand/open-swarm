@@ -1,17 +1,22 @@
 # tests/test_core_truncate_message_history.py
 
 import logging
+
 # ---> Explicitly set log level for the module being tested <---
 logging.getLogger('src.swarm.utils.context_utils').setLevel(logging.DEBUG)
 
-import pytest
-import os
+import datetime  # For non-serializable data test
 import json
-from typing import List, Dict, Any, Callable
-import datetime # For non-serializable data test
+import os
+from collections.abc import Callable
+from typing import Any
+
+import pytest
 
 # Import from the correct location
-from src.swarm.utils.context_utils import truncate_message_history, get_token_count, _truncate_simple
+from src.swarm.utils.context_utils import (
+    truncate_message_history,
+)
 
 # --- Setup logging for THIS test file ---
 logger = logging.getLogger('test_truncation_core')
@@ -53,9 +58,9 @@ MESSAGES_BASIC=[SYS_BASIC, USER_BASIC]; MESSAGES_COUNT=[SYS_BASIC, MSG1, MSG2, M
 def patch_get_token_count(monkeypatch):
     _mock_costs_map = {}
     def _calculate_and_store_cost(message_obj):
-        obj_id = id(message_obj); cost = 0;
+        obj_id = id(message_obj); cost = 0
         if obj_id in _mock_costs_map: return _mock_costs_map[obj_id]
-        input_summary = str(message_obj)[:60] + ('...' if len(str(message_obj)) > 60 else '')
+        str(message_obj)[:60] + ('...' if len(str(message_obj)) > 60 else '')
         try:
             processed_text = ""; cost = 5 # Base cost for dict
             if isinstance(message_obj, str): processed_text = message_obj; cost=0
@@ -74,7 +79,7 @@ def patch_get_token_count(monkeypatch):
         SYS, U1, A1_CALL_T1, T1_RESP, A2_RESP, U2, A3_CALL_T2, T2_RESP, A4_RESP, U3, A5_RESP,
         U_LONG, A_MULTI_CALL, T_MC1_RESP, T_MC2_RESP, A_MULTI_RESP, A_BACK2BACK_1, T_B2B_1_RESP,
         A_BACK2BACK_2, T_B2B_2_RESP, SYS_BASIC, USER_BASIC, MSG1, MSG2, MSG3, MSG4, SU1, LRA, SU2,
-        SYS_LONG, NON_SERIALIZABLE_MSG, U1_LONG_OBJ ];
+        SYS_LONG, NON_SERIALIZABLE_MSG, U1_LONG_OBJ ]
     for msg_obj in all_known:
         if isinstance(msg_obj, dict): _calculate_and_store_cost(msg_obj)
     _mock_costs_map.update({id(SYS_BASIC): 5, id(USER_BASIC): 6, id(MSG1): 6, id(MSG2): 6, id(MSG3): 6, id(MSG4): 6, id(SU1): 8, id(LRA): 10, id(SU2): 8, id(SYS_LONG): 100, id(SYS): 22, id(U1): 12, id(A1_CALL_T1): 33, id(T1_RESP): 24, id(A2_RESP): 20, id(U2): 22, id(A3_CALL_T2): 37, id(T2_RESP): 27, id(A4_RESP): 10, id(U3): 20, id(A5_RESP): 19, id(U_LONG): 224, id(A_MULTI_CALL): 59, id(T_MC1_RESP): 22, id(T_MC2_RESP): 22, id(A_MULTI_RESP): 25, id(A_BACK2BACK_1): 34, id(T_B2B_1_RESP): 21, id(A_BACK2BACK_2): 40, id(T_B2B_2_RESP): 23, id(U1_LONG_OBJ): 87})

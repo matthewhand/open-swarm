@@ -1,7 +1,5 @@
-import sys
-import io
-import pytest
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
+
 
 def test_inject_context(monkeypatch, tmp_path):
     # Setup fake files for context
@@ -12,9 +10,8 @@ def test_inject_context(monkeypatch, tmp_path):
     config_file.write_text("setting: true\n# pytest config\n")
     doc_file.write_text("# Project Readme\npytest usage\n")
     # Monkeypatch glob and open to use tmp_path
-    import glob, os
-    orig_glob = glob.glob
-    orig_exists = os.path.exists
+    import glob
+    import os
     orig_open = open
     def fake_glob(pattern, recursive=False):
         if pattern.endswith("*.py"): return [str(code_file)]

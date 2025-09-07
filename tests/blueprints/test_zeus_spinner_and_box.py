@@ -1,27 +1,30 @@
-import pytest
-import time
-from swarm.blueprints.zeus.blueprint_zeus import ZeusCoordinatorBlueprint, ZeusSpinner # Import ZeusSpinner for FRAMES
-from swarm.blueprints.common.operation_box_utils import display_operation_box
-import os 
-import sys 
 import inspect
+import time
+
+import pytest
+from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.blueprints.zeus.blueprint_zeus import (  # Import ZeusSpinner for FRAMES
+    ZeusCoordinatorBlueprint,
+    ZeusSpinner,
+)
+
 
 def test_zeus_spinner_states():
-    spinner = ZeusSpinner() 
+    spinner = ZeusSpinner()
     spinner.start()
     states = []
-    for _ in range(6): 
-        spinner._spin() 
+    for _ in range(6):
+        spinner._spin()
         states.append(spinner.current_spinner_state())
-    spinner.stop() 
-    
-    assert "Generating." in states or "Generating.." in states 
-    
-    spinner._start_time = time.time() - (ZeusSpinner.SLOW_THRESHOLD + 1) 
+    spinner.stop()
+
+    assert "Generating." in states or "Generating.." in states
+
+    spinner._start_time = time.time() - (ZeusSpinner.SLOW_THRESHOLD + 1)
     assert spinner.current_spinner_state() == spinner.LONG_WAIT_MSG
 
 def test_zeus_operation_box_output(capsys):
-    spinner = ZeusSpinner() 
+    spinner = ZeusSpinner()
     spinner.start()
     display_operation_box(
         title="Zeus Test",
@@ -37,7 +40,7 @@ def test_zeus_operation_box_output(capsys):
 
 def test_zeus_assist_box(monkeypatch, capsys):
     monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
-    blueprint = ZeusCoordinatorBlueprint(debug=False) 
+    blueprint = ZeusCoordinatorBlueprint(debug=False)
     monkeypatch.setattr(blueprint.cli_spinner, "current_spinner_state", lambda: "Generating...")
     blueprint.assist("hello world")
     captured = capsys.readouterr()
@@ -45,20 +48,20 @@ def test_zeus_assist_box(monkeypatch, capsys):
     assert "hello world" in captured.out
 
 @pytest.mark.asyncio
-async def test_zeus_run_empty(monkeypatch): 
+async def test_zeus_run_empty(monkeypatch):
     class DummyAgent:
-        async def run(self, messages, **kwargs): 
+        async def run(self, messages, **kwargs):
             yield {"messages": [{"role": "assistant", "content": "step 0"}]}
             yield {"messages": [{"role": "assistant", "content": "step 1"}]}
 
     monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
-    blueprint = ZeusCoordinatorBlueprint(debug=False) 
-    
+    blueprint = ZeusCoordinatorBlueprint(debug=False)
+
     dummy_agent_instance = DummyAgent()
     assert inspect.isasyncgenfunction(dummy_agent_instance.run), "Test's DummyAgent.run is not an async generator function!"
 
     monkeypatch.setattr(blueprint, "create_starting_agent", lambda *a, **k: dummy_agent_instance)
-    
+
     collected_outputs = []
     async for msg_dict in blueprint.run([{"role": "user", "content": "test"}]):
         if msg_dict and "messages" in msg_dict and msg_dict["messages"]:
@@ -73,6 +76,6 @@ async def test_zeus_run_empty(monkeypatch):
 
     step_0_found = any("Zeus Result" in output and "step 0" in output for output in collected_outputs[1:])
     step_1_found = any("Zeus Result" in output and "step 1" in output for output in collected_outputs[1:])
-    
+
     assert step_0_found, f"Expected 'Zeus Result' box containing 'step 0'. Outputs after spinner: {collected_outputs[1:]}"
     assert step_1_found, f"Expected 'Zeus Result' box containing 'step 1'. Outputs after spinner: {collected_outputs[1:]}"

@@ -1,7 +1,8 @@
-import os
 import json
-import click
+import os
 from pathlib import Path
+
+import click
 
 CONFIG_DEFAULT_PATH = os.environ.get("SWARM_CONFIG_PATH", "swarm_config.json")
 
@@ -52,7 +53,7 @@ def create(name, provider, model, api_key, api_key_file, api_key_env, api_key_st
         exit(1)
     if api_key_file:
         try:
-            with open(api_key_file, 'r') as f:
+            with open(api_key_file) as f:
                 api_key = f.read().strip()
         except Exception as e:
             click.echo(f"Failed to read API key from file: {e}", err=True)
@@ -100,7 +101,7 @@ def update(name, model, provider, api_key, api_key_file, api_key_env, api_key_st
         exit(1)
     if api_key_file:
         try:
-            with open(api_key_file, 'r') as f:
+            with open(api_key_file) as f:
                 api_key = f.read().strip()
         except Exception as e:
             click.echo(f"Failed to read API key from file: {e}", err=True)

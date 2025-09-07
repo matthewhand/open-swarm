@@ -1,10 +1,7 @@
-import pytest
-import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
-from pathlib import Path
 import os
-import django
-from django.apps import apps
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from asgiref.sync import sync_to_async
 
 # --- Fixtures ---

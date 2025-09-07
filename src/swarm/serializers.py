@@ -19,7 +19,7 @@ class MessageSerializer(serializers.Serializer):
         """Validate message structure based on role."""
         print_logger.debug(f"MessageSerializer.validate received data: {data}")
         role = data.get('role')
-        content = data.get('content', None)
+        data.get('content', None)
         name = data.get('name')
 
         # Role validation
@@ -30,9 +30,8 @@ class MessageSerializer(serializers.Serializer):
         content_required = role in ['system', 'user', 'assistant', 'tool']
         content_present = 'content' in data
 
-        if content_required:
-            if not content_present:
-                 raise serializers.ValidationError({"content": ["This field is required."]})
+        if content_required and not content_present:
+             raise serializers.ValidationError({"content": ["This field is required."]})
             # Null/Blank checks are handled by field definition (allow_null/allow_blank)
             # Type check will happen in ChatCompletionRequestSerializer.validate_messages
 

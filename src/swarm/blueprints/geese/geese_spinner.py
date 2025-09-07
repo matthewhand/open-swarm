@@ -22,7 +22,7 @@ class GeeseSpinner:
 
     def _spin(self):
         """Internal method to update the spinner display."""
-        with self.console.screen() as screen:
+        with self.console.screen():
             while not self._stop_event.is_set():
                 char = next(self._spinner_cycle)
                 text = Text.assemble(

@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+
 def check_blueprint_file(path):
     text = Path(path).read_text()
     errors = []

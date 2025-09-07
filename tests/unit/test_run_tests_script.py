@@ -1,7 +1,7 @@
 import importlib
+import os
 import sys
 from types import ModuleType
-import os
 
 
 def _reload_run_tests(monkeypatch):
@@ -90,7 +90,7 @@ def test_forwards_cli_args(monkeypatch):
         exit_code = run_tests.main()
         assert exit_code == 0
         # The forwarded args should be preserved (order among themselves retained)
-        forwarded = calls["args"][calls["args"].index("-q") : ] if "-q" in calls["args"] else calls["args"]
+        calls["args"][calls["args"].index("-q") : ] if "-q" in calls["args"] else calls["args"]
         # Ensure '-k' is present and immediately followed by the selection
         assert "-k" in calls["args"]
         k_index = calls["args"].index("-k")

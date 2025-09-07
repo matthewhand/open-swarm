@@ -1,7 +1,6 @@
-import pytest
+
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
-import os
-import tempfile
+
 
 def test_session_logging_and_history(tmp_path):
     blueprint = CodeyBlueprint(blueprint_id="test-logging")
@@ -16,7 +15,7 @@ def test_session_logging_and_history(tmp_path):
     # Check that a session log file was created
     logs = list(log_dir.glob("*.md"))
     assert logs, "No session log file found"
-    with open(logs[0], "r") as f:
+    with open(logs[0]) as f:
         content = f.read()
         assert "Hello!" in content
         assert "Hi there!" in content

@@ -3,11 +3,11 @@
 Auto-generates a markdown table of all blueprints and their metadata for the README.
 Run this after adding or updating any blueprint metadata.
 """
-import os
-import sys
 import glob
 import importlib.util
 import inspect
+import os
+import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 README_PATH = os.path.join(REPO_ROOT, "README.md")
@@ -22,9 +22,9 @@ def get_blueprint_metadata():
             spec = importlib.util.spec_from_file_location(module_name, mod_path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            for name, obj in inspect.getmembers(mod, inspect.isclass):
-                if hasattr(obj, "metadata") and isinstance(getattr(obj, "metadata"), dict):
-                    meta = getattr(obj, "metadata").copy()
+            for _name, obj in inspect.getmembers(mod, inspect.isclass):
+                if hasattr(obj, "metadata") and isinstance(obj.metadata, dict):
+                    meta = obj.metadata.copy()
                     # Docstring fallback for description
                     if not meta.get("description"):
                         doc = inspect.getdoc(obj)
@@ -51,7 +51,7 @@ def format_table(blueprints):
     return header + "\n".join(rows) + "\n"
 
 def update_readme(table_md):
-    with open(README_PATH, "r") as f:
+    with open(README_PATH) as f:
         readme = f.read()
     start = readme.find("<!-- BLUEPRINT_TABLE_START -->")
     end = readme.find("<!-- BLUEPRINT_TABLE_END -->")

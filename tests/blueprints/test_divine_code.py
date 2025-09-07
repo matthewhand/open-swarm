@@ -1,16 +1,18 @@
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 import importlib
-import os
 import sys
-import types
-import inspect # For isasyncgenfunction
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Patch import to point to zeus
 sys.modules['swarm.blueprints.divine_code'] = importlib.import_module('swarm.blueprints.zeus')
 sys.modules['swarm.blueprints.divine_code.blueprint_divine_code'] = importlib.import_module('swarm.blueprints.zeus.blueprint_zeus')
 
-from swarm.blueprints.zeus.blueprint_zeus import ZeusBlueprint, ZeusSpinner # Import ZeusSpinner for its FRAMES
+from swarm.blueprints.zeus.blueprint_zeus import (  # Import ZeusSpinner for its FRAMES
+    ZeusBlueprint,
+    ZeusSpinner,
+)
+
 
 @pytest.fixture
 def zeus_blueprint_instance():
@@ -18,15 +20,15 @@ def zeus_blueprint_instance():
         'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}},
         'mcpServers': {},
         'settings': {'default_llm_profile': 'default', 'default_markdown_output': False},
-        'blueprints': {'test_zeus': {'debug_mode': True}} 
+        'blueprints': {'test_zeus': {'debug_mode': True}}
     }
     with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=mock_config):
         with patch('swarm.core.blueprint_base.BlueprintBase._get_model_instance') as mock_get_model:
             mock_model_instance = MagicMock()
             mock_get_model.return_value = mock_model_instance
-            instance = ZeusBlueprint(blueprint_id="test_zeus", debug=True) 
-            instance._config = mock_config 
-            instance.mcp_server_configs = {} 
+            instance = ZeusBlueprint(blueprint_id="test_zeus", debug=True)
+            instance._config = mock_config
+            instance.mcp_server_configs = {}
             return instance
 
 def test_zeus_agent_creation(zeus_blueprint_instance):
@@ -54,13 +56,13 @@ async def test_zeus_run_method(zeus_blueprint_instance):
             async def run(self, messages, **kwargs):
                 yield {"messages": [{"role": "assistant", "content": "Hi!"}]}
         mock_create.return_value = DummyAgent()
-        
+
         responses = []
         async for resp in zeus_blueprint_instance.run(messages):
             responses.append(resp)
-        
+
         assert len(responses) >= 2, f"Expected at least 2 responses (spinner + agent), got {len(responses)}. Responses: {responses}"
-        
+
         initial_spinner_msg_content = responses[0]["messages"][0]["content"]
         # BlueprintUXImproved.spinner(0) should return one of the initial spinner frames
         # We can check against ZeusSpinner.FRAMES[0] or a more general check
@@ -112,4 +114,4 @@ async def test_zeus_full_flow_example(zeus_blueprint_instance):
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_zeus_cli_execution():
-    assert False
+    raise AssertionError()

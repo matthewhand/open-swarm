@@ -13,12 +13,10 @@ if src_path not in sys.path: sys.path.insert(0, src_path)
 from pathlib import Path
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
-    from agents.mcp import MCPServer
+    from agents import Agent
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in StewieBlueprint: {e}. Check dependencies.")
@@ -226,7 +224,7 @@ class StewieBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             for chunk in Runner.run(agent, instruction):
                 yield chunk
@@ -241,7 +239,6 @@ import time
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-
 from swarm.ux.ansi_box import ansi_box
 
 

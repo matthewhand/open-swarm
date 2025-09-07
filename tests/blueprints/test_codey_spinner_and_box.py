@@ -1,8 +1,10 @@
+import io
+import sys
+
 import pytest
 from swarm.blueprints.codey.blueprint_codey import CodeySpinner
 from swarm.blueprints.common.operation_box_utils import display_operation_box
-import sys
-import io
+
 
 @pytest.mark.parametrize("frame_idx,expected", [
     (0, "Generating."),

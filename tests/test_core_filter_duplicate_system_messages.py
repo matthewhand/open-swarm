@@ -1,6 +1,6 @@
-import pytest
 # Import from the correct location
 from src.swarm.utils.message_utils import filter_duplicate_system_messages
+
 
 def test_filter_duplicate_system_messages():
     messages = [
@@ -59,15 +59,6 @@ def test_filter_mixed_valid_invalid():
      ]
      # Function should now handle non-dict items gracefully
      filtered = filter_duplicate_system_messages(messages)
-     expected = [
-         {"role": "system", "content": "Valid System"},
-         # "invalid string" # Skipped
-         {"role": "user", "content": "User"},
-         # None # Skipped
-         # {"role": "system", "content": "Duplicate System"} # Skipped (duplicate)
-         {"not_a_role": "value"}, # Kept (assuming it passes if dict)
-         # 123 # Skipped
-     ]
      # Adjust expectation based on exact behavior for dicts without 'role'
      # If dicts without 'role' are kept:
      assert len(filtered) == 3

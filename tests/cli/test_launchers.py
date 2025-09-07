@@ -1,13 +1,12 @@
-import pytest
-import subprocess
-import sys
 import os
-import pathlib
-from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock
+import subprocess
+from unittest.mock import MagicMock, patch
 
-from swarm.core import swarm_cli # This is the Typer app instance
-from swarm.core import paths    # Import the paths module to patch its functions
+import pytest
+from swarm.core import (
+    swarm_cli,  # This is the Typer app instance
+)
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -23,7 +22,7 @@ def mock_dirs(tmp_path):
     mock_user_data_dir = tmp_path / "user_data_for_swarm"
     mock_user_config_dir = tmp_path / "user_config_for_swarm"
     mock_user_cache_dir = tmp_path / "user_cache_for_swarm"
-    
+
     # Derived paths based on the new structure in paths.py
     mock_user_blueprints_dir = mock_user_data_dir / "blueprints"
     # For non-Windows, get_user_bin_dir() returns Path.home() / ".local" / "bin"
@@ -38,7 +37,7 @@ def mock_dirs(tmp_path):
     mock_user_cache_dir.mkdir(parents=True, exist_ok=True)
     mock_user_blueprints_dir.mkdir(parents=True, exist_ok=True)
     mock_user_bin_dir_test.mkdir(parents=True, exist_ok=True)
-    
+
     return {
         "data_dir": mock_user_data_dir,
         "config_dir": mock_user_config_dir,
@@ -93,7 +92,7 @@ def test_swarm_cli_install_executable_creates_executable(mock_pyinstaller_run, m
 
     # Mock find_entry_point if its logic is complex or external
     mocker.patch("swarm.core.swarm_cli.find_entry_point", return_value=entry_point_name)
-    
+
     # Test mode (shim creation)
     monkeypatch.setenv("SWARM_TEST_MODE", "1")
     # Invoke the renamed command "install-executable"
@@ -153,18 +152,18 @@ def test_swarm_install_executable_failure(mock_run, mock_dirs, mocker, monkeypat
     entry_point_path.write_text("print('fail')")
 
     mocker.patch("swarm.core.swarm_cli.find_entry_point", return_value=entry_point_name)
-    
+
     error_stderr = "PyInstaller error: Build failed!"
     mock_run.side_effect = subprocess.CalledProcessError(
         returncode=1, cmd=["pyinstaller", "..."], stderr=error_stderr
     )
-    
+
     monkeypatch.delenv("SWARM_TEST_MODE", raising=False) # Ensure not in test mode
 
     result = runner.invoke(swarm_cli.app, ["install-executable", blueprint_name])
 
     assert result.exit_code == 1, result.stdout
-    assert f"Error during PyInstaller execution" in result.stdout
+    assert "Error during PyInstaller execution" in result.stdout
     assert error_stderr in result.stdout
 
 

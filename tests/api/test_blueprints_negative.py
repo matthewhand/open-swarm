@@ -1,7 +1,8 @@
 import json
+
 import pytest
-from rest_framework.test import APIRequestFactory
 from rest_framework import status
+from rest_framework.test import APIRequestFactory
 
 # Target the open (AllowAny) blueprints list view
 from src.swarm.views.api_views import BlueprintsListView as TargetBlueprintsView

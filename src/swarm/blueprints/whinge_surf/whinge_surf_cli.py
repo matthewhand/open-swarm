@@ -25,10 +25,7 @@ def main():
 
     if args.run:
         # If a single string is passed, treat it as a shell command
-        if len(args.run) == 1:
-            cmd = ["/bin/sh", "-c", args.run[0]]
-        else:
-            cmd = args.run
+        cmd = ["/bin/sh", "-c", args.run[0]] if len(args.run) == 1 else args.run
         pid = ws.run_subprocess_in_background(cmd)
         print(ws.ux.ansi_emoji_box(
             "Subprocess Started",

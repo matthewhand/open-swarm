@@ -3,22 +3,18 @@ Blueprint Library Views for Open Swarm MCP Core.
 Handles blueprint browsing, library management, and custom blueprint creation.
 """
 import json
-import os
-import logging
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
 
-from django.conf import settings
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib import messages
 
 from swarm.core.blueprint_discovery import discover_blueprints
-from swarm.settings import BLUEPRINT_DIRECTORY
-from swarm.utils.logger_setup import setup_logger
 from swarm.core.paths import get_user_config_dir_for_swarm
+from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.comfyui_client import comfyui_client
+from swarm.utils.logger_setup import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -30,7 +26,7 @@ BLUEPRINT_CATEGORIES = {
         "icon": "🤖"
     },
     "code_helpers": {
-        "name": "Code Helpers", 
+        "name": "Code Helpers",
         "description": "Programming and development assistants",
         "icon": "💻"
     },
@@ -54,7 +50,7 @@ BLUEPRINT_CATEGORIES = {
 # Avatar styles available for generation
 AVATAR_STYLES = {
     "professional": "Professional headshot style",
-    "cartoon": "Cartoon character style", 
+    "cartoon": "Cartoon character style",
     "anime": "Anime character style",
     "realistic": "Realistic portrait style",
     "icon": "Simple icon style"
@@ -74,7 +70,7 @@ BLUEPRINT_METADATA = {
     "gawd": {
         "name": "GAWD",
         "description": "General AI assistant for various tasks and conversations",
-        "category": "ai_assistants", 
+        "category": "ai_assistants",
         "tags": ["general", "conversation", "assistant"],
         "author": "Open Swarm Team",
         "version": "1.0.0",
@@ -85,7 +81,7 @@ BLUEPRINT_METADATA = {
         "description": "System monitoring and process management tool",
         "category": "system_tools",
         "tags": ["monitoring", "system", "processes"],
-        "author": "Open Swarm Team", 
+        "author": "Open Swarm Team",
         "version": "1.0.0",
         "difficulty": "intermediate"
     },
@@ -95,7 +91,7 @@ BLUEPRINT_METADATA = {
         "category": "content_creators",
         "tags": ["poetry", "writing", "creative"],
         "author": "Open Swarm Team",
-        "version": "1.0.0", 
+        "version": "1.0.0",
         "difficulty": "beginner"
     },
     "echocraft": {
@@ -154,29 +150,29 @@ BLUEPRINT_METADATA = {
     }
 }
 
-def get_user_blueprint_library() -> Dict[str, Any]:
+def get_user_blueprint_library() -> dict[str, Any]:
     """Get the user's personal blueprint library."""
     user_config_dir = get_user_config_dir_for_swarm()
     library_file = user_config_dir / "blueprint_library.json"
-    
+
     if library_file.exists():
         try:
-            with open(library_file, 'r') as f:
+            with open(library_file) as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Error loading blueprint library: {e}")
-    
+
     return {"installed": [], "custom": []}
 
-def save_user_blueprint_library(library: Dict[str, Any]) -> bool:
+def save_user_blueprint_library(library: dict[str, Any]) -> bool:
     """Save the user's blueprint library."""
     try:
         user_config_dir = get_user_config_dir_for_swarm()
         library_file = user_config_dir / "blueprint_library.json"
-        
+
         # Ensure directory exists
         library_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(library_file, 'w') as f:
             json.dump(library, f, indent=2)
         return True
@@ -191,12 +187,12 @@ def blueprint_library(request):
         # Get available blueprints
         discovered_metadata = discover_blueprints(BLUEPRINT_DIRECTORY)
         available_blueprints = list(discovered_metadata.keys())
-        
+
         # Get user's library
         user_library = get_user_blueprint_library()
         installed_blueprints = user_library.get("installed", [])
         custom_blueprints = user_library.get("custom", [])
-        
+
         # Prepare blueprint data with metadata
         blueprint_data = []
         for bp_name in available_blueprints:
@@ -209,7 +205,7 @@ def blueprint_library(request):
                 "version": "1.0.0",
                 "difficulty": "beginner"
             })
-            
+
             blueprint_data.append({
                 "id": bp_name,
                 "name": metadata["name"],
@@ -223,7 +219,7 @@ def blueprint_library(request):
                 "installed": bp_name in installed_blueprints,
                 "available": True
             })
-        
+
         # Group by category
         blueprints_by_category = {}
         for bp in blueprint_data:
@@ -231,7 +227,7 @@ def blueprint_library(request):
             if category not in blueprints_by_category:
                 blueprints_by_category[category] = []
             blueprints_by_category[category].append(bp)
-        
+
         context = {
             "blueprints_by_category": blueprints_by_category,
             "categories": BLUEPRINT_CATEGORIES,
@@ -239,9 +235,9 @@ def blueprint_library(request):
             "custom_count": len(custom_blueprints),
             "dark_mode": request.session.get('dark_mode', True),
         }
-        
+
         return render(request, "blueprint_library.html", context)
-        
+
     except Exception as e:
         logger.error(f"Error loading blueprint library: {e}")
         return HttpResponse("Error loading blueprint library", status=500)
@@ -251,20 +247,20 @@ def add_blueprint_to_library(request, blueprint_name):
     """Add a blueprint to the user's library."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
-    
+
     try:
         # Verify blueprint exists
         discovered_metadata = discover_blueprints(BLUEPRINT_DIRECTORY)
         if blueprint_name not in discovered_metadata:
             return JsonResponse({"error": "Blueprint not found"}, status=404)
-        
+
         # Get current library
         library = get_user_blueprint_library()
-        
+
         # Add to installed if not already there
         if blueprint_name not in library["installed"]:
             library["installed"].append(blueprint_name)
-            
+
             # Save library
             if save_user_blueprint_library(library):
                 return JsonResponse({
@@ -278,7 +274,7 @@ def add_blueprint_to_library(request, blueprint_name):
                 "success": True,
                 "message": f"Blueprint '{blueprint_name}' already in library"
             })
-            
+
     except Exception as e:
         logger.error(f"Error adding blueprint to library: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
@@ -288,15 +284,15 @@ def remove_blueprint_from_library(request, blueprint_name):
     """Remove a blueprint from the user's library."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
-    
+
     try:
         # Get current library
         library = get_user_blueprint_library()
-        
+
         # Remove from installed
         if blueprint_name in library["installed"]:
             library["installed"].remove(blueprint_name)
-            
+
             # Save library
             if save_user_blueprint_library(library):
                 return JsonResponse({
@@ -310,7 +306,7 @@ def remove_blueprint_from_library(request, blueprint_name):
                 "success": True,
                 "message": f"Blueprint '{blueprint_name}' not in library"
             })
-            
+
     except Exception as e:
         logger.error(f"Error removing blueprint from library: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
@@ -324,7 +320,7 @@ def blueprint_creator(request):
             "dark_mode": request.session.get('dark_mode', True),
         }
         return render(request, "blueprint_creator.html", context)
-    
+
     elif request.method == "POST":
         try:
             # Get form data
@@ -333,32 +329,32 @@ def blueprint_creator(request):
             category = request.POST.get("category", "ai_assistants")
             tags = request.POST.get("tags", "").strip()
             requirements = request.POST.get("requirements", "").strip()
-            
+
             # Validate required fields
             if not blueprint_name or not description:
                 return JsonResponse({
                     "error": "Blueprint name and description are required"
                 }, status=400)
-            
+
             # Generate blueprint code using LLM (simplified for now)
             # In a real implementation, you'd call an LLM API here
             blueprint_code = generate_blueprint_code(
                 blueprint_name, description, category, tags, requirements
             )
-            
+
             # Generate avatar if requested and ComfyUI is available
             avatar_path = None
             avatar_style = request.POST.get("avatar_style", "professional")
             generate_avatar = request.POST.get("generate_avatar", "false").lower() == "true"
-            
+
             if generate_avatar and comfyui_client.is_available():
                 avatar_path = comfyui_client.generate_avatar(
                     blueprint_name, description, category, avatar_style
                 )
-            
+
             # Save to user's custom blueprints
             library = get_user_blueprint_library()
-            
+
             custom_blueprint = {
                 "id": blueprint_name.lower().replace(" ", "_"),
                 "name": blueprint_name,
@@ -372,9 +368,9 @@ def blueprint_creator(request):
                 "created_at": str(Path().cwd()),
                 "author": "User Generated"
             }
-            
+
             library["custom"].append(custom_blueprint)
-            
+
             if save_user_blueprint_library(library):
                 return JsonResponse({
                     "success": True,
@@ -383,7 +379,7 @@ def blueprint_creator(request):
                 })
             else:
                 return JsonResponse({"error": "Failed to save blueprint"}, status=500)
-                
+
         except Exception as e:
             logger.error(f"Error creating blueprint: {e}")
             return JsonResponse({"error": "Internal server error"}, status=500)
@@ -393,24 +389,24 @@ def generate_avatar(request, blueprint_name):
     """Generate an avatar for an existing blueprint."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
-    
+
     try:
         # Get form data
         avatar_style = request.POST.get("avatar_style", "professional")
-        
+
         # Get blueprint metadata
         metadata = BLUEPRINT_METADATA.get(blueprint_name)
         if not metadata:
             return JsonResponse({"error": "Blueprint not found"}, status=404)
-        
+
         # Generate avatar
         avatar_path = comfyui_client.generate_avatar(
             metadata["name"],
-            metadata["description"], 
+            metadata["description"],
             metadata["category"],
             avatar_style
         )
-        
+
         if avatar_path:
             return JsonResponse({
                 "success": True,
@@ -421,7 +417,7 @@ def generate_avatar(request, blueprint_name):
             return JsonResponse({
                 "error": "Failed to generate avatar. Check ComfyUI configuration."
             }, status=500)
-            
+
     except Exception as e:
         logger.error(f"Error generating avatar: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
@@ -444,7 +440,7 @@ def check_comfyui_status(request):
             "styles": AVATAR_STYLES
         })
 
-def generate_blueprint_code(name: str, description: str, category: str, tags: List[str], requirements: str) -> str:
+def generate_blueprint_code(name: str, description: str, category: str, tags: list[str], requirements: str) -> str:
     """Generate blueprint code using LLM (placeholder implementation)."""
     # This is a simplified template - in reality you'd call an LLM API
     template = f'''#!/usr/bin/env python3
@@ -461,7 +457,7 @@ from swarm.core.blueprint_base import BlueprintBase
 
 class {name.replace(" ", "")}Blueprint(BlueprintBase):
     """{description}"""
-    
+
     metadata: ClassVar[dict[str, Any]] = {{
         "name": "{name}",
         "description": "{description}",
@@ -470,10 +466,10 @@ class {name.replace(" ", "")}Blueprint(BlueprintBase):
         "author": "User Generated",
         "version": "1.0.0"
     }}
-    
+
     def __init__(self, blueprint_id: str = "{name.lower().replace(' ', '_')}", **kwargs):
         super().__init__(blueprint_id, **kwargs)
-    
+
     async def run(self, args: list[str] = None) -> None:
         """Main blueprint execution."""
         # Implementation: Parse arguments and execute blueprint-specific logic
@@ -482,11 +478,11 @@ class {name.replace(" ", "")}Blueprint(BlueprintBase):
             print(f"Executing {self.blueprint_id} with instruction: {instruction}")
         else:
             print(f"Running {self.blueprint_id} blueprint in default mode...")
-        
+
         # Example logic: List available blueprints or execute a specific one
         from swarm.core.blueprint_base import BlueprintBase
         available_blueprints = BlueprintBase.list_available_blueprints()
-        
+
         if instruction and "list" in instruction.lower():
             print("Available blueprints:")
             for bp in available_blueprints:
@@ -505,7 +501,7 @@ class {name.replace(" ", "")}Blueprint(BlueprintBase):
             print(f"Category: {category}")
             print(f"Tags: {', '.join(tags)}")
             print("Use 'list' to see available blueprints or 'execute <name>' to run one.")
-        
+
         # Add your custom logic here based on specific requirements
 
 if __name__ == "__main__":
@@ -521,7 +517,7 @@ def my_blueprints(request):
         library = get_user_blueprint_library()
         installed = library.get("installed", [])
         custom = library.get("custom", [])
-        
+
         # Get metadata for installed blueprints
         installed_data = []
         for bp_name in installed:
@@ -538,15 +534,15 @@ def my_blueprints(request):
                 "category_info": BLUEPRINT_CATEGORIES.get(metadata["category"], {}),
                 "type": "installed"
             })
-        
+
         context = {
             "installed_blueprints": installed_data,
             "custom_blueprints": custom,
             "dark_mode": request.session.get('dark_mode', True),
         }
-        
+
         return render(request, "my_blueprints.html", context)
-        
+
     except Exception as e:
         logger.error(f"Error loading my blueprints: {e}")
         return HttpResponse("Error loading blueprints", status=500)

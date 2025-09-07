@@ -66,7 +66,7 @@ def parse_arguments() -> Namespace:
     config_subparsers = config_parser.add_subparsers(dest="config_command", help="Configuration commands")
 
     # Add LLM
-    add_llm_parser = config_subparsers.add_parser("add-llm", help="Add a new LLM.")
+    config_subparsers.add_parser("add-llm", help="Add a new LLM.")
     # No additional arguments; will use interactive prompts
 
     # Remove LLM
@@ -78,7 +78,7 @@ def parse_arguments() -> Namespace:
     )
 
     # Add MCP server
-    add_server_parser = config_subparsers.add_parser("add-server", help="Add a new MCP server.")
+    config_subparsers.add_parser("add-server", help="Add a new MCP server.")
     # No additional arguments; will use interactive prompts
 
     # Remove MCP server

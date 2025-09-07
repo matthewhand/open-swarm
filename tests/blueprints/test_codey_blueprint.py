@@ -1,10 +1,12 @@
-import pytest
+import asyncio
 import sys
 import types
-import asyncio
 from pathlib import Path
+
+import pytest
 from swarm.blueprints.codey import blueprint_codey
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
+
 
 @pytest.fixture
 def dummy_messages():
@@ -42,7 +44,7 @@ def test_create_agents_dummy():
     assert "codegen" in agents and "git" in agents
     async def collect(agent):
         return [item async for item in agent.run([{"role": "user", "content": "test"}])]
-    for name, agent in agents.items():
+    for _name, agent in agents.items():
         out = asyncio.run(collect(agent))
         assert any("Dummy" in str(x) or "Would respond" in str(x) for x in out)
 
@@ -72,7 +74,7 @@ def test_run_and_print_smoke(monkeypatch, tmp_path):
 
 def test_session_management_stubs(monkeypatch):
     sys.modules["swarm.core.session_logger"] = types.SimpleNamespace(SessionLogger=type("SessionLogger", (), {"list_sessions": staticmethod(lambda x: None), "view_session": staticmethod(lambda x, y: None)}))
-    blueprint = CodeyBlueprint(blueprint_id="test")
+    CodeyBlueprint(blueprint_id="test")
     from swarm.core.session_logger import SessionLogger
     SessionLogger.list_sessions("codey")
     SessionLogger.view_session("codey", "dummy_id")
@@ -81,7 +83,7 @@ def test_session_management_stubs(monkeypatch):
 async def test_multi_agent_selection():
     blueprint = CodeyBlueprint(blueprint_id="test")
     agents = blueprint.create_agents()
-    agent_names = list(agents.keys())
+    list(agents.keys())
     results = []
     for agent in agents.values():
         out = [item async for item in agent.run([{"role": "user", "content": "test"}])]

@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_pretty_print_response_mixed_text_code_markdown(monkeypatch):
@@ -16,9 +15,9 @@ def test_pretty_print_response_mixed_text_code_markdown(monkeypatch):
         raising=True,
     )
 
-    from swarm.core.output_utils import pretty_print_response
-    from rich.syntax import Syntax
     from rich.markdown import Markdown
+    from rich.syntax import Syntax
+    from swarm.core.output_utils import pretty_print_response
 
     content = (
         "Intro text before.\n\n"

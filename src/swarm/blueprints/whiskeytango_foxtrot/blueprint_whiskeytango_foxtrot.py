@@ -5,6 +5,7 @@ from agents.mcp import MCPServer
 import os
 from dotenv import load_dotenv; load_dotenv(override=True)
 
+import contextlib
 import logging
 import sqlite3
 import time
@@ -12,11 +13,10 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent, Runner
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
@@ -64,10 +64,9 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         self._llm_profile_data: dict[str, Any] | None = None
         self._markdown_output: bool | None = None
         # Snapshot the module-level DB path so tests can patch it reliably per-instance
-        try:
+        with contextlib.suppress(Exception):
             self.SQLITE_DB_PATH = SQLITE_DB_PATH
-        except Exception:
-            pass
+
 
     def initialize_db(self) -> None:
         # Resolve DB path with strong test override support
@@ -260,7 +259,7 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         model_param = _coerce_agent_model(model_instance)
 
         def get_agent_mcps(names: list[str]) -> list[MCPServer]:
-            started_names = {s.name for s in mcp_servers if hasattr(s, 'name')}
+            {s.name for s in mcp_servers if hasattr(s, 'name')}
             required_found_servers = [s for s in mcp_servers if hasattr(s, 'name') and s.name in names]
 
             if len(required_found_servers) != len(names):

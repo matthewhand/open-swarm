@@ -1,5 +1,4 @@
 import argparse
-import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -29,14 +28,13 @@ def execute(args: argparse.Namespace):
     blueprint_name = source_path.stem if source_path.is_file() else source_path.name
 
     import re
-    from pathlib import Path
 
     # Validate blueprint_name for directory safety
     invalid_pattern = re.compile(r'[\\/:*?"<>|]')
     if invalid_pattern.search(blueprint_name):
         print(f"Error: Invalid blueprint name '{blueprint_name}'. Directory names cannot contain characters: / \\ : * ? \" < > |")
         return
-    
+
     # Also check for absolute paths or parent directory references
     if blueprint_name.startswith('/') or blueprint_name.startswith('..') or '/' in blueprint_name or '\\' in blueprint_name:
         print(f"Error: Invalid blueprint name '{blueprint_name}'. Cannot contain path separators or parent references.")

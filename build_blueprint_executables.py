@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import os
 import glob
+import os
 import subprocess
+
 
 def main():
     blueprint_dir = "blueprints"

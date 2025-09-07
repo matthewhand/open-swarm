@@ -8,7 +8,6 @@ from agents.models.openai_chatcompletions import (
     OpenAIChatCompletionsModel,  # type: ignore
 )
 from openai import AsyncOpenAI  # type: ignore
-
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.utils.log_utils import logger
 
@@ -109,7 +108,7 @@ class PoetsBlueprint(BlueprintBase):
                     agent_name TEXT PRIMARY KEY,
                     instructions TEXT,
                     model_profile TEXT,
-                    tools_json TEXT, 
+                    tools_json TEXT,
                     meta_json TEXT
                 )
             """)
@@ -144,8 +143,8 @@ class PoetsBlueprint(BlueprintBase):
             conn, cursor = self._get_db_conn_cursor(path_to_use)
             for name, profile_data in DEFAULT_POET_PROFILES.items():
                 cursor.execute("""
-                    INSERT OR IGNORE INTO agent_instructions 
-                    (agent_name, instructions, model_profile, tools_json, meta_json) 
+                    INSERT OR IGNORE INTO agent_instructions
+                    (agent_name, instructions, model_profile, tools_json, meta_json)
                     VALUES (?, ?, ?, ?, ?)
                 """, (
                     name,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional, Protocol
+from typing import Any, Protocol
 
 
 class Hook(Protocol):
@@ -21,9 +21,9 @@ class Dispatcher:
         to vary if external registration order is non-deterministic (e.g., module import race).
     """
 
-    pre_hooks: List[Hook] = field(default_factory=list)
-    listen_hooks: List[Hook] = field(default_factory=list)
-    post_hooks: List[Hook] = field(default_factory=list)
+    pre_hooks: list[Hook] = field(default_factory=list)
+    listen_hooks: list[Hook] = field(default_factory=list)
+    post_hooks: list[Hook] = field(default_factory=list)
     _deterministic: bool = field(init=False)
 
     def __post_init__(self) -> None:
@@ -42,7 +42,7 @@ class Dispatcher:
         self.post_hooks.append(fn)
         return fn
 
-    def run(self, ctx: Optional[dict[str, Any]] = None) -> None:
+    def run(self, ctx: dict[str, Any] | None = None) -> None:
         """
         Execute hooks by phase. If deterministic mode is enabled, we make the order explicit.
         Otherwise, use the current registration order (which is already insertion order).
@@ -54,7 +54,7 @@ class Dispatcher:
         self._run_phase(self.post_hooks, context, "post")
 
     # Internal helpers
-    def _run_phase(self, hooks: List[Hook], ctx: dict, _phase: str) -> None:
+    def _run_phase(self, hooks: list[Hook], ctx: dict, _phase: str) -> None:
         # Insertion order is deterministic in Python 3.7+, so we only need to support
         # potential future variations; we keep the toggle for clarity and tests.
         ordered = list(hooks)

@@ -1,7 +1,8 @@
-import pytest
 import sqlite3
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Define paths relative to the test file if needed
 # Assuming tests run from project root
@@ -31,7 +32,9 @@ def temporary_db():
 @patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._get_model_instance') # Mock model instance creation
 def test_dilbot_db_initialization(mock_get_model, mock_load_config, temporary_db):
     """Test if the database and table are created and sample data loaded."""
-    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import (
+        DilbotUniverseBlueprint,
+    )
 
     # Arrange
     blueprint = DilbotUniverseBlueprint(debug=True) # Instantiation triggers init
@@ -54,15 +57,17 @@ def test_dilbot_db_initialization(mock_get_model, mock_load_config, temporary_db
 
 def test_dilbot_get_agent_config_from_db(temporary_db):
     """Test fetching config from a pre-populated test DB."""
-    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
-    
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import (
+        DilbotUniverseBlueprint,
+    )
+
     # Setup sample data in DB
     with sqlite3.connect(temporary_db) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS agent_instructions (agent_name TEXT, instruction_text TEXT)")
         conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Dilbot", "You are Dilbot, a helpful assistant."))
         conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Universe", "You manage the universe simulation."))
         conn.commit()
-    
+
     # Mock blueprint and call get_agent_config
     with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration') as mock_load_config:
         mock_load_config.return_value = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}}
@@ -75,18 +80,20 @@ def test_dilbot_get_agent_config_from_db(temporary_db):
 @pytest.mark.asyncio
 async def test_dilbot_delegation_flow_sqlite(temporary_db):
     """Test a simple delegation path using SQLite config."""
-    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
-    
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import (
+        DilbotUniverseBlueprint,
+    )
+
     # Setup sample data
     with sqlite3.connect(temporary_db) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS agent_instructions (agent_name TEXT, instruction_text TEXT)")
         conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Dilbot", "You are Dilbot, delegate tasks."))
         conn.commit()
-    
+
     with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration') as mock_load_config:
         mock_load_config.return_value = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}}
         blueprint = DilbotUniverseBlueprint(debug=True)
-        
+
         # Mock Runner.run to simulate delegation
         with patch('src.swarm.core.runner.Runner.run') as mock_runner:
             mock_runner.return_value = [{"role": "assistant", "content": "Delegated to Universe"}]
@@ -98,28 +105,30 @@ async def test_dilbot_delegation_flow_sqlite(temporary_db):
 @pytest.mark.asyncio
 async def test_dilbot_build_action_sqlite(temporary_db):
     """Test the build_product tool being called (SQLite based)."""
-    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
-    
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import (
+        DilbotUniverseBlueprint,
+    )
+
     # Setup sample data
     with sqlite3.connect(temporary_db) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS agent_instructions (agent_name TEXT, instruction_text TEXT)")
         conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Universe", "You build universes using build_product tool."))
         conn.commit()
-    
+
     with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration') as mock_load_config:
         mock_load_config.return_value = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}}
-        blueprint = DilbotUniverseBlueprint(debug=True)
-        
+        DilbotUniverseBlueprint(debug=True)
+
         # Mock agent tools to verify build_product call
         mock_agent = MagicMock()
         mock_build_tool = MagicMock(name="build_product")
         mock_agent.tools = [mock_build_tool]
-        
+
         with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.Agent') as mock_agent_class:
             mock_agent_class.return_value = mock_agent
             with patch('src.swarm.core.runner.Runner.run') as mock_runner:
                 messages = [{"role": "user", "content": "Build a new universe"}]
                 list(mock_runner(messages))  # Trigger run
-                
+
                 # Verify tool was called
                 mock_build_tool.func.assert_called_once()

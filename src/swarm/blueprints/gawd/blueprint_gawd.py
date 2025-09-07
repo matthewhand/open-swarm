@@ -213,9 +213,9 @@ class GAWDBlueprint(BlueprintBase):
             print("\033[K", end="\r")
 
             llm_response = getattr(response, 'final_output', str(response))
-            results = [llm_response.strip() or "(No response from LLM)"]
-        except Exception as e:
-            results = [f"[LLM ERROR] {e}"]
+            [llm_response.strip() or "(No response from LLM)"]
+        except Exception:
+            pass
 
         search_mode = kwargs.get('search_mode', 'semantic')
         if search_mode in ("semantic", "code"):
@@ -352,7 +352,7 @@ if __name__ == "__main__":
     ]
     blueprint = GAWDBlueprint(blueprint_id="demo-divine-code")
     async def run_and_print():
-        async for response in blueprint.run(messages):
+        async for _response in blueprint.run(messages):
             # print(json.dumps(response, indent=2))
             pass
     aio.run(run_and_print())

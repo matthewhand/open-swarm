@@ -1,14 +1,14 @@
-import pytest
-import json
 import asyncio
+import json
 import time
 from unittest.mock import AsyncMock, MagicMock
-from django.urls import reverse
+
+import pytest
 from django.contrib.auth import get_user_model
 from django.http import StreamingHttpResponse
-from rest_framework import status, exceptions
-from rest_framework.exceptions import APIException
-from asgiref.sync import sync_to_async
+from django.urls import reverse
+from rest_framework import status
+
 # Import the view to patch its method
 from swarm.views.chat_views import ChatCompletionsView
 

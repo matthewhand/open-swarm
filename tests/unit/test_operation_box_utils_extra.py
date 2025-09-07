@@ -1,4 +1,3 @@
-import pytest
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 
 

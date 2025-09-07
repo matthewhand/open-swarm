@@ -3,7 +3,11 @@ from unittest.mock import patch
 
 import pytest
 
-from src.swarm.utils.general_utils import is_debug_enabled, color_text, find_project_root
+from src.swarm.utils.general_utils import (
+    color_text,
+    find_project_root,
+    is_debug_enabled,
+)
 
 
 class TestIsDebugEnabled:

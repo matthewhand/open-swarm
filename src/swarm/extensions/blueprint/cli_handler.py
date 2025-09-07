@@ -158,7 +158,6 @@ def run_blueprint_cli(
 
         # Non-interactive slash-command handling
         if instruction.strip().startswith('/'):
-            from swarm.core.slash_commands import slash_registry
             parts = instruction.strip().split(maxsplit=1)
             cmd = parts[0]
             cmd_args = parts[1] if len(parts) > 1 else None

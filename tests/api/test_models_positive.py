@@ -1,13 +1,15 @@
 import json
-import pytest
-from rest_framework.test import APIRequestFactory
-from rest_framework import status
 
+import pytest
+from rest_framework import status
+from rest_framework.test import APIRequestFactory
 
 try:
     from src.swarm.views.api_views import ModelsListView as TargetModelsView
 except Exception:  # pragma: no cover - fallback path if module layout changes
-    from src.swarm.views.model_views import ListModelsView as TargetModelsView  # type: ignore
+    from src.swarm.views.model_views import (
+        ListModelsView as TargetModelsView,  # type: ignore
+    )
 
 
 def _invoke_view(monkeypatch, replacement):

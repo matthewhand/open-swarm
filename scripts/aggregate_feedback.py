@@ -1,6 +1,7 @@
+import re
 import sys
 from pathlib import Path
-import re
+
 
 def aggregate_feedback(feedback_dir):
     summary = {

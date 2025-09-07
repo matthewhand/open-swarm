@@ -4,10 +4,14 @@ import sys
 from asgiref.sync import async_to_sync, sync_to_async
 from django.conf import settings
 
+from swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlueprint
+
 # Assuming the discovery functions are correctly located now
 from swarm.core.blueprint_discovery import discover_blueprints
-from swarm.core.paths import get_user_config_dir_for_swarm, ensure_swarm_directories_exist
-from swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlueprint
+from swarm.core.paths import (
+    ensure_swarm_directories_exist,
+    get_user_config_dir_for_swarm,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +133,7 @@ def get_available_blueprints():
 async def get_blueprint_instance(blueprint_id: str, params: dict = None):
     """Asynchronously gets an instance of a specific blueprint."""
     logger.debug(f"Getting instance for blueprint: {blueprint_id} with params: {params}")
-    cache_key = (blueprint_id, tuple(sorted(params.items())) if isinstance(params, dict) else params)
+    (blueprint_id, tuple(sorted(params.items())) if isinstance(params, dict) else params)
 
     if params is None and blueprint_id in _blueprint_instance_cache:
          logger.debug(f"Returning cached instance for {blueprint_id}")

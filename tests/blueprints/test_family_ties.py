@@ -1,5 +1,6 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.stewie.blueprint_family_ties import StewieBlueprint
@@ -37,10 +38,10 @@ async def test_stewie_delegation_to_brian(stewie_blueprint_instance):
     """Test if Peter correctly delegates a WP task to Brian."""
     # Needs Runner mocking to trace agent calls (Peter -> Brian tool)
     # Also needs mocking of Brian's interaction with the MCP server
-    assert False
+    raise AssertionError()
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_stewie_cli_execution():
     """Test running the blueprint via CLI."""
     # Needs subprocess testing or direct call to main with mocked Runner/Agents/MCPs.
-    assert False
+    raise AssertionError()

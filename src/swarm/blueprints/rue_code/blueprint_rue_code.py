@@ -58,8 +58,7 @@ def execute_shell_command(command: str) -> str:
             command,
             shell=True,
             check=False, # Don't raise exception on non-zero exit code
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=timeout
         )

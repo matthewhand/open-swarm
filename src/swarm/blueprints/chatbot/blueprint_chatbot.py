@@ -1,7 +1,7 @@
+import asyncio
 import logging
 import os
 import sys
-import asyncio
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -41,11 +41,10 @@ try:
         from agents.mcp import MCPServer as MCPServer2
     except ImportError:
         MCPServer2 = MCPServer
+    from agents import function_tool
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from agents import function_tool
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.output_utils import print_search_progress_box
 except ImportError as e:

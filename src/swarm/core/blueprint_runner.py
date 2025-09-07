@@ -41,7 +41,7 @@ class BlueprintRunner:
                         if content and ("function call" in content or "args" in content):
                             continue
                     yield chunk
-            elif isinstance(result, (list, dict)):
+            elif isinstance(result, list | dict):
                 # If it's a list of chunks or a single chunk, yield directly
                 if isinstance(result, list):
                     for chunk in result:

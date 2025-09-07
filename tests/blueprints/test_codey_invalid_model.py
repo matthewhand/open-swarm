@@ -1,10 +1,10 @@
+import json
+import os
 import subprocess
 import sys
-import os
-import tempfile
-import re
-import json
+
 import pytest
+
 
 def strip_ansi(text):
     import re

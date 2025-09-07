@@ -1,5 +1,6 @@
 from swarm.core.blueprint_base import BlueprintBase
 
+
 class DummyBlueprint(BlueprintBase):
     def run(self, messages, **kwargs):
         yield {}

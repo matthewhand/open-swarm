@@ -6,7 +6,6 @@ import json
 import os
 
 import jmespath
-
 from swarm.utils.logger_setup import setup_logger
 
 # Initialize logger for this module
@@ -101,7 +100,7 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                            chat_id = id_val.strip()
                            if chat_id: return chat_id
                  return "" # Dict found, but no ID key
-            elif isinstance(extracted_value, (int, float, bool)):
+            elif isinstance(extracted_value, int | float | bool):
                  return str(extracted_value) # Convert simple types
             else:
                  logger.warning(f"Extracted value via '{expression}' is of unsupported type: {type(extracted_value)}. Returning empty string.")

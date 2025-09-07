@@ -1,5 +1,5 @@
-import pytest
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+
 
 def test_basic_box_output(capsys):
     display_operation_box(

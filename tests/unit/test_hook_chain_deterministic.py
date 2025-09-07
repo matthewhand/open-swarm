@@ -1,13 +1,10 @@
-import os
-from typing import List
 
-import pytest
 
 # Import the dispatcher we just created
 from src.swarm.utils.hook_dispatcher import Dispatcher
 
 
-def _register_dummy(dispatcher: Dispatcher, log: List[str]):
+def _register_dummy(dispatcher: Dispatcher, log: list[str]):
     @dispatcher.pre
     def pre_a(ctx):
         log.append("pre_a")
@@ -24,7 +21,7 @@ def _register_dummy(dispatcher: Dispatcher, log: List[str]):
 def test_deterministic_order_enabled(monkeypatch):
     monkeypatch.setenv("SWARM_DETERMINISTIC_HOOKS", "1")
     d = Dispatcher()
-    called: List[str] = []
+    called: list[str] = []
     _register_dummy(d, called)
 
     d.run({})
@@ -35,7 +32,7 @@ def test_deterministic_order_disabled(monkeypatch):
     # Ensure the env var is not set
     monkeypatch.delenv("SWARM_DETERMINISTIC_HOOKS", raising=False)
     d = Dispatcher()
-    called: List[str] = []
+    called: list[str] = []
     _register_dummy(d, called)
 
     d.run({})

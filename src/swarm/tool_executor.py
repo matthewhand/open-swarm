@@ -73,7 +73,7 @@ def handle_function_result(result: Any, debug: bool) -> Result:
         try:
             # Convert the result to a JSON string if possible, otherwise just stringify
             # JSON is generally preferred for structured tool responses
-            if isinstance(result, (dict, list, tuple)):
+            if isinstance(result, dict | list | tuple):
                  result_str = json.dumps(result)
             else:
                  result_str = str(result)

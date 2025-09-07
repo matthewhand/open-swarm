@@ -1,13 +1,9 @@
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock, Mock, ANY
-from rich.console import Console
-from rich.panel import Panel # Import Panel for type checking
-from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
-import time
-import asyncio
 import json
-import os # For os.path.exists
+from unittest.mock import MagicMock, patch
 
+import pytest
+from rich.console import Console
+from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.interaction_types import AgentInteraction
 
 
@@ -43,10 +39,10 @@ def geese_blueprint_instance(mock_console_fixture, tmp_path):
             json.dump(dummy_config_content, f)
 
         instance = GeeseBlueprint(blueprint_id="test_geese", config_path=str(dummy_config_path))
-        
+
         # Directly set _config to ensure it's a dict for tests, bypassing complex loading issues
         instance._config = dummy_config_content
-        
+
         # Ensure the ux object uses the mocked console
         instance.ux.console = mock_console_fixture
         # The internal spinner in GeeseBlueprint doesn't use a console directly for printing
@@ -99,11 +95,11 @@ def test_agent_tool_creation(geese_blueprint_instance):
     blueprint = geese_blueprint_instance
     # Add tools to dummy config for this test
     blueprint._config['agents']['Coordinator']['tools'] = [{"name": "mock_tool", "description": "Mock tool", "function": {"name": "mock", "description": "mock"}}]
-    
+
     agent_cfg = blueprint._get_agent_config("Coordinator")
     assert len(agent_cfg.tools) == 1
     assert agent_cfg.tools[0]['name'] == 'mock_tool'
-    
+
     agent = blueprint.create_agent_from_config(agent_cfg)
     # In SDK, agent.tools would be set; in mock, check via hasattr or mock
     if hasattr(agent, 'tools'):
@@ -148,12 +144,12 @@ async def test_geese_story_delegation_flow(geese_blueprint_instance):
             data=final_data, final=True
         )
     mock_coordinator_agent.run = mock_run
-    
+
     with patch.object(blueprint, 'create_agent_from_config', return_value=mock_coordinator_agent):
         results = []
         async for chunk in blueprint.run([{"role": "user", "content": "Delegate story"}]):
             results.append(chunk)
-        
+
         assert len(results) == 3
         assert results[0].type == "progress"
         assert "Orchestrating" in results[0].progress_message
@@ -178,11 +174,11 @@ def test_operation_box_styles(geese_blueprint_instance):
 def test_display_splash_screen_variants(geese_blueprint_instance):
     blueprint = geese_blueprint_instance
     # This now calls the overridden GeeseBlueprint.display_splash_screen
-    blueprint.display_splash_screen() 
-    blueprint.ux.console.print.assert_called_once() 
+    blueprint.display_splash_screen()
+    blueprint.ux.console.print.assert_called_once()
     call_args_non_animated = blueprint.ux.console.print.call_args
     assert call_args_non_animated is not None, "blueprint.ux.console.print was not called"
-    
+
     # The overridden method calls self.ux.ux_print_operation_box, which prints a string
     printed_splash_string = call_args_non_animated[0][0]
     assert isinstance(printed_splash_string, str), \
@@ -195,13 +191,13 @@ def test_main_entry(monkeypatch, tmp_path):
     """
     Test the main CLI entry point by monkeypatching sys.argv and capturing output from __main__ block.
     """
+    import json
+    import runpy
     import sys
     from io import StringIO
     from pathlib import Path
     from unittest.mock import patch
-    import runpy
-    import json
-    
+
     # Create dummy config with agents
     dummy_config_path = Path("dummy_geese_config.json")
     dummy_config_content = {
@@ -274,12 +270,12 @@ async def test_create_story_outline(geese_blueprint_instance):
             data=outline_data, final=True
         )
     mock_coordinator_agent.run = mock_run
-    
+
     with patch.object(blueprint, 'create_agent_from_config', return_value=mock_coordinator_agent):
         results = []
         async for chunk in blueprint.run([{"role": "user", "content": "Create outline"}]):
             results.append(chunk)
-        
+
         assert len(results) > 0
         final_result = results[-1]
         assert isinstance(final_result.data, dict)
@@ -307,12 +303,12 @@ async def test_write_story_part(geese_blueprint_instance):
             data=part_data, final=True
         )
     mock_coordinator_agent.run = mock_run
-    
+
     with patch.object(blueprint, 'create_agent_from_config', return_value=mock_coordinator_agent):
         results = []
         async for chunk in blueprint.run([{"role": "user", "content": "Write part"}]):
             results.append(chunk)
-        
+
         final_result = results[-1]
         assert isinstance(final_result.content, str)
         assert "Once upon a time" in final_result.content
@@ -340,12 +336,12 @@ async def test_edit_story(geese_blueprint_instance):
             data=edited_data, final=True
         )
     mock_coordinator_agent.run = mock_run
-    
+
     with patch.object(blueprint, 'create_agent_from_config', return_value=mock_coordinator_agent):
         results = []
         async for chunk in blueprint.run([{"role": "user", "content": "Edit story"}]):
             results.append(chunk)
-        
+
         final_result = results[-1]
         assert isinstance(final_result.content, str)
         assert "edited" in final_result.content
@@ -361,7 +357,7 @@ async def test_story_generation_flow(geese_blueprint_instance):
     # Ensure config is a dict and has 'llm'
     assert isinstance(blueprint.config, dict), f"Blueprint config is not a dict: {type(blueprint.config)}"
     assert "llm" in blueprint.config, f"LLM section missing in blueprint config. Keys: {blueprint.config.keys()}"
-    
+
     # Mock the agent creation and run process for a simplified flow
     mock_coordinator_agent = MagicMock()
     async def mock_agent_run(*args, **kwargs):
@@ -372,18 +368,18 @@ async def test_story_generation_flow(geese_blueprint_instance):
             "outline_json": "{}", "word_count": 9, "metadata": {}
         }
         yield AgentInteraction(
-            type="message", role="assistant", 
+            type="message", role="assistant",
             content=final_story_output_data["final_story"],
             data=final_story_output_data, # GeeseBlueprint.run expects data to be StoryOutput.model_dump()
             final=True
         )
     mock_coordinator_agent.run = mock_agent_run
-    
+
     with patch.object(blueprint, 'create_agent_from_config', return_value=mock_coordinator_agent) as mock_create_agent:
         results = []
         async for result_chunk in blueprint.run([{"role": "user", "content": "Tell a story"}]):
             results.append(result_chunk)
-        
+
         assert mock_create_agent.called, "create_agent_from_config was not called"
         # Check if called for "Coordinator"
         assert any(call_args[0][0].name == "Coordinator" for call_args in mock_create_agent.call_args_list if call_args[0]), \

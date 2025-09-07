@@ -1,13 +1,12 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
-import sqlite3
-import os
 import logging
+import sqlite3
+from unittest.mock import MagicMock, patch
 
-from swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot import WhiskeyTangoFoxtrotBlueprint
+import pytest
 from agents.mcp import MCPServer
-from agents import Agent 
+from swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot import (
+    WhiskeyTangoFoxtrotBlueprint,
+)
 
 SQLITE_MODULE_PATH = 'swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.SQLITE_DB_PATH'
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ def temporary_db_wtf(tmp_path):
 @pytest.fixture
 def wtf_blueprint_instance(temporary_db_wtf):
     with patch(SQLITE_MODULE_PATH, new=temporary_db_wtf):
-        with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=None) as mock_load_config:
+        with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=None):
             with patch('swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot.WhiskeyTangoFoxtrotBlueprint._get_model_instance') as mock_get_model:
                 mock_model_instance = MagicMock(name="MockModelInstance")
                 mock_get_model.return_value = mock_model_instance
@@ -57,9 +56,9 @@ def test_wtf_db_initialization(wtf_blueprint_instance, temporary_db_wtf):
     blueprint = wtf_blueprint_instance
     # Ensure _config is present for initialize_db if it relies on it (it doesn't directly, but create_starting_agent does)
     assert hasattr(blueprint, '_config') and blueprint._config is not None, "Pre-condition failed: blueprint._config is not set for DB initialization."
-    
-    blueprint.initialize_db() 
-    
+
+    blueprint.initialize_db()
+
     assert temporary_db_wtf.exists(), "Database file was not created"
     conn = sqlite3.connect(temporary_db_wtf)
     cursor = conn.cursor()

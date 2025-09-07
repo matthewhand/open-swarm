@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import os
-import glob
 import subprocess
 
 # List all blueprint directories
 blueprint_root = os.path.join(os.path.dirname(__file__), "src", "swarm", "blueprints")
 
-for dirpath, dirnames, filenames in os.walk(blueprint_root):
+for dirpath, _dirnames, filenames in os.walk(blueprint_root):
     for filename in filenames:
         if filename.startswith("blueprint_") and filename.endswith(".py"):
             blueprint_file = os.path.join(dirpath, filename)

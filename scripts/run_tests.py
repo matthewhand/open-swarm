@@ -12,6 +12,7 @@ Usage:
 import os
 import sys
 
+
 def main() -> int:
     # Only set if not explicitly overridden by user
     os.environ.setdefault("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "1")

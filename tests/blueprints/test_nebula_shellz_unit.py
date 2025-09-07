@@ -1,12 +1,9 @@
-import os
-import re
 import pytest
-
 
 # Target the internal helper and class for reliable unit coverage
 from src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
-    _execute_shell_command_raw,
     NebuchaShellzzarBlueprint,
+    _execute_shell_command_raw,
 )
 
 

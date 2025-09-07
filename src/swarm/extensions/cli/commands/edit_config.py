@@ -39,7 +39,7 @@ def edit_config_interactive(config):
     # Note: This simple input method might not be ideal for complex/nested JSON/YAML
     for key, value in config.items():
         # Represent existing value for editing complex types (dicts/lists)
-        current_value_display = json.dumps(value) if isinstance(value, (dict, list)) else value
+        current_value_display = json.dumps(value) if isinstance(value, dict | list) else value
         new_value_str = input(f"{key} [{current_value_display}]: ").strip()
         if new_value_str:
             try:
@@ -77,7 +77,7 @@ def edit_config_field(config, field, value_str):
     """
     keys = field.split('.')
     current_level = config
-    for i, key_part in enumerate(keys[:-1]):
+    for _i, key_part in enumerate(keys[:-1]):
         if key_part not in current_level or not isinstance(current_level[key_part], dict):
             print(f"Field path '{field}' not found or not a nested dictionary at '{key_part}'.")
             return

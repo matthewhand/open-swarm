@@ -1,10 +1,12 @@
+import ast
+import os
+import re
 import subprocess
 import sys
-import os
 import tempfile
+
 import pytest
-import re
-import ast
+
 
 def strip_ansi(text):
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')

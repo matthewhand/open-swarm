@@ -1,11 +1,11 @@
-import os
-import sys
 import platform
+
 import pytest
 
-
 # Import the shell execution tool directly for unit testing
-from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import _execute_shell_command_raw as execute_shell_command
+from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
+    _execute_shell_command_raw as execute_shell_command,
+)
 
 
 def test_execute_shell_command_empty_returns_error():

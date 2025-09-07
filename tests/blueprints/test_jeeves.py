@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import patch, MagicMock
 import os
-import sys
+import re  # For strip_ansi
 import subprocess
-import re # For strip_ansi
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # --- Placeholder Tests ---
 ## TODO: Implement tests for JeevesBlueprint

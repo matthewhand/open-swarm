@@ -63,10 +63,7 @@ def prompt_user(prompt: str, default: str | None = None) -> str:
     Returns:
         str: The user's input or the default value.
     """
-    if default:
-        prompt = f"{prompt} [{default}]: "
-    else:
-        prompt = f"{prompt}: "
+    prompt = f"{prompt} [{default}]: " if default else f"{prompt}: "
     user_input = input(prompt).strip()
     return user_input or default
 

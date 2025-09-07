@@ -2,25 +2,16 @@
 Competition-grade Agent Creator with advanced features
 """
 import ast
-import json
-import subprocess
-import tempfile
 import re
-from pathlib import Path
-from typing import Dict, List, Any, Tuple
-from datetime import datetime
+from typing import Any
 
-from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-
-from swarm.core.blueprint_base import BlueprintBase
 
 
 class AdvancedCodeValidator:
     """Enhanced code validation with security and performance checks"""
-    
+
     def __init__(self):
         self.security_patterns = [
             r'import\s+os',
@@ -36,73 +27,73 @@ class AdvancedCodeValidator:
             r'for.*in.*range\s*\(\s*\d{6,}',  # Large loops
             r'time\.sleep\s*\(\s*\d{3,}',      # Long sleeps
         ]
-    
-    def validate_security(self, code: str) -> Tuple[bool, List[str]]:
+
+    def validate_security(self, code: str) -> tuple[bool, list[str]]:
         """Check for security vulnerabilities"""
         issues = []
-        
+
         for pattern in self.security_patterns:
             if re.search(pattern, code, re.IGNORECASE):
                 issues.append(f"Security concern: Potentially dangerous pattern '{pattern}' found")
-        
+
         # Check for hardcoded secrets
         secret_patterns = [
             r'api_key\s*=\s*["\'][^"\']+["\']',
             r'password\s*=\s*["\'][^"\']+["\']',
             r'token\s*=\s*["\'][^"\']+["\']',
         ]
-        
+
         for pattern in secret_patterns:
             if re.search(pattern, code, re.IGNORECASE):
                 issues.append("Security: Hardcoded credentials detected")
-        
+
         return len(issues) == 0, issues
-    
-    def validate_performance(self, code: str) -> Tuple[bool, List[str]]:
+
+    def validate_performance(self, code: str) -> tuple[bool, list[str]]:
         """Check for performance issues"""
         issues = []
-        
+
         for pattern in self.performance_patterns:
             if re.search(pattern, code):
                 issues.append(f"Performance concern: Pattern '{pattern}' may cause issues")
-        
+
         return len(issues) == 0, issues
-    
-    def validate_blueprint_semantics(self, code: str) -> Tuple[bool, List[str]]:
+
+    def validate_blueprint_semantics(self, code: str) -> tuple[bool, list[str]]:
         """Advanced semantic validation"""
         issues = []
-        
+
         try:
             tree = ast.parse(code)
-            
+
             # Check for proper async/await usage
             has_async_run = False
             has_yield = False
-            
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.AsyncFunctionDef) and node.name == 'run':
                     has_async_run = True
                     # Check if it yields properly
                     for child in ast.walk(node):
-                        if isinstance(child, ast.Yield) or isinstance(child, ast.YieldFrom):
+                        if isinstance(child, ast.Yield | ast.YieldFrom):
                             has_yield = True
-            
+
             if has_async_run and not has_yield:
                 issues.append("Semantic: async run method should yield results")
-            
+
             # Check for proper error handling
             has_try_except = any(isinstance(node, ast.Try) for node in ast.walk(tree))
             if not has_try_except:
                 issues.append("Best practice: Add error handling with try/except blocks")
-            
+
         except Exception as e:
             issues.append(f"Semantic analysis failed: {e}")
-        
+
         return len(issues) == 0, issues
 
-    def validate_blueprint_code(self, code: str) -> Dict[str, Any]:
+    def validate_blueprint_code(self, code: str) -> dict[str, Any]:
         """Composite validator used by tests: runs syntax, security, performance, semantics."""
-        results: Dict[str, Any] = {
+        results: dict[str, Any] = {
             "valid": False,
             "syntax_valid": False,
             "structure_valid": False,
@@ -144,7 +135,7 @@ class AdvancedCodeValidator:
 
 class ProAgentGenerator:
     """Advanced agent code generator with multiple templates and patterns"""
-    
+
     def __init__(self):
         self.templates = {
             'conversational': self._get_conversational_template(),
@@ -153,7 +144,7 @@ class ProAgentGenerator:
             'tool_based': self._get_tool_based_template(),
             'multi_step': self._get_multi_step_template()
         }
-    
+
     def _get_conversational_template(self):
         return '''"""
 {description}
@@ -169,10 +160,10 @@ logger = logging.getLogger(__name__)
 class {class_name}(BlueprintBase):
     """
     {description}
-    
+
     This is a conversational agent optimized for natural dialogue and user engagement.
     """
-    
+
     metadata = {{
         "name": "{name}",
         "description": "{description}",
@@ -194,12 +185,12 @@ class {class_name}(BlueprintBase):
             "adaptive_responses"
         ]
     }}
-    
+
     def __init__(self, blueprint_id: str = None, config_path: str = None, **kwargs):
         super().__init__(blueprint_id or "{blueprint_id}", config_path=config_path, **kwargs)
         self.conversation_history = []
         self.user_preferences = {{}}
-        
+
     async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Enhanced conversational processing with context awareness and personality.
@@ -208,22 +199,22 @@ class {class_name}(BlueprintBase):
             # Extract user message and context
             user_message = messages[-1].get("content", "") if messages else ""
             conversation_context = self._analyze_conversation_context(messages)
-            
+
             # Build enhanced persona prompt
             persona_prompt = self._build_persona_prompt(user_message, conversation_context)
-            
+
             # Get model instance with error handling
             model_instance = self._get_model_instance(self.llm_profile_name)
             if not model_instance:
                 yield self._error_response("Model initialization failed")
                 return
-            
+
             # Prepare messages with system prompt
             enhanced_messages = [
                 {{"role": "system", "content": persona_prompt}},
                 *self._prepare_context_messages(messages[-5:])  # Last 5 messages for context
             ]
-            
+
             # Stream response with conversation tracking
             response_content = ""
             async for chunk in model_instance.chat_completion_stream(messages=enhanced_messages):
@@ -242,14 +233,14 @@ class {class_name}(BlueprintBase):
                                 }}
                             }}]
                         }}
-            
+
             # Update conversation history
             self._update_conversation_history(user_message, response_content)
-            
+
         except Exception as e:
             logger.error(f"Error in {self.__class__.__name__}: {{e}}", exc_info=True)
             yield self._error_response(f"Processing error: {{str(e)}}")
-    
+
     def _analyze_conversation_context(self, messages: List[Dict]) -> Dict[str, Any]:
         """Analyze conversation for context and patterns"""
         context = {{
@@ -259,16 +250,16 @@ class {class_name}(BlueprintBase):
             "sentiment": "neutral",
             "complexity": "medium"
         }}
-        
+
         for msg in messages:
             if msg.get("role") == "user":
                 content = msg.get("content", "")
                 if "?" in content:
                     context["user_questions"] += 1
                 # Add more sophisticated analysis here
-        
+
         return context
-    
+
     def _build_persona_prompt(self, user_message: str, context: Dict) -> str:
         """Build sophisticated persona prompt with context"""
         return f\"\"\"You are {name}, {description}
@@ -298,11 +289,11 @@ RESPONSE REQUIREMENTS:
 Current User Message: {{user_message}}
 
 Respond as {name} with your full personality and expertise:\"\"\"
-    
+
     def _prepare_context_messages(self, recent_messages: List[Dict]) -> List[Dict]:
         """Prepare recent messages for context"""
         return [msg for msg in recent_messages if msg.get("role") in ["user", "assistant"]]
-    
+
     def _update_conversation_history(self, user_msg: str, response: str):
         """Update internal conversation tracking"""
         self.conversation_history.append({{
@@ -310,16 +301,16 @@ Respond as {name} with your full personality and expertise:\"\"\"
             "user": user_msg[:100],  # Truncate for memory
             "assistant": response[:100]
         }})
-        
+
         # Keep only last 10 exchanges
         if len(self.conversation_history) > 10:
             self.conversation_history = self.conversation_history[-10:]
-    
+
     def _get_timestamp(self) -> str:
         """Get current timestamp"""
         from datetime import datetime
         return datetime.now().isoformat()
-    
+
     def _error_response(self, error_msg: str) -> Dict[str, Any]:
         """Generate standardized error response"""
         return {{
@@ -334,7 +325,7 @@ Respond as {name} with your full personality and expertise:\"\"\"
             }}]
         }}
 '''
-    
+
     def _get_analytical_template(self):
         return '''"""
 {description}
@@ -351,10 +342,10 @@ logger = logging.getLogger(__name__)
 class {class_name}(BlueprintBase):
     """
     {description}
-    
+
     This is an analytical agent optimized for data analysis, research, and systematic problem-solving.
     """
-    
+
     metadata = {{
         "name": "{name}",
         "description": "{description}",
@@ -377,36 +368,36 @@ class {class_name}(BlueprintBase):
             "structured_thinking"
         ]
     }}
-    
+
     async def run(self, messages: List[Dict[str, Any]], **kwargs: Any) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Analytical processing with structured thinking and comprehensive analysis.
         """
         try:
             user_message = messages[-1].get("content", "") if messages else ""
-            
+
             # Analyze the request type
             analysis_type = self._determine_analysis_type(user_message)
-            
+
             # Build analytical framework prompt
             framework_prompt = self._build_analytical_prompt(user_message, analysis_type)
-            
+
             model_instance = self._get_model_instance(self.llm_profile_name)
             if not model_instance:
                 yield self._error_response("Analysis engine unavailable")
                 return
-            
+
             # Multi-phase analytical approach
             yield from self._execute_analytical_process(model_instance, framework_prompt, user_message)
-            
+
         except Exception as e:
             logger.error(f"Analytical error in {{self.__class__.__name__}}: {{e}}", exc_info=True)
             yield self._error_response(f"Analysis failed: {{str(e)}}")
-    
+
     def _determine_analysis_type(self, message: str) -> str:
         """Determine the type of analysis needed"""
         message_lower = message.lower()
-        
+
         if any(word in message_lower for word in ['data', 'statistics', 'numbers', 'metrics']):
             return 'quantitative'
         elif any(word in message_lower for word in ['research', 'study', 'investigate', 'explore']):
@@ -417,7 +408,7 @@ class {class_name}(BlueprintBase):
             return 'comparative'
         else:
             return 'general_analysis'
-    
+
     def _build_analytical_prompt(self, user_message: str, analysis_type: str) -> str:
         """Build structured analytical prompt"""
         return f\"\"\"You are {name}, {description}
@@ -441,10 +432,10 @@ INSTRUCTIONS:
 ANALYSIS REQUEST: {{user_message}}
 
 Please provide a comprehensive analysis following the methodology above:\"\"\"
-    
+
     async def _execute_analytical_process(self, model_instance, prompt: str, user_message: str):
         """Execute multi-phase analytical process"""
-        
+
         # Phase 1: Initial Analysis
         yield {{
             "messages": [{{
@@ -453,10 +444,10 @@ Please provide a comprehensive analysis following the methodology above:\"\"\"
                 "metadata": {{"phase": "initialization", "agent": "{name}"}}
             }}]
         }}
-        
+
         # Main analytical processing
         messages = [{{"role": "system", "content": prompt}}, {{"role": "user", "content": user_message}}]
-        
+
         async for chunk in model_instance.chat_completion_stream(messages=messages):
             if hasattr(chunk, 'choices') and chunk.choices:
                 delta = chunk.choices[0].delta
@@ -472,20 +463,20 @@ Please provide a comprehensive analysis following the methodology above:\"\"\"
                             }}
                         }}]
                     }}
-        
+
         # Phase 2: Summary
         yield {{
             "messages": [{{
-                "role": "assistant", 
+                "role": "assistant",
                 "content": "\\n\\n📊 **Analysis Complete**\\n\\nI've provided a comprehensive analysis using systematic methodology. Would you like me to dive deeper into any specific aspect?",
                 "metadata": {{"phase": "completion", "agent": "{name}"}}
             }}]
         }}
-    
+
     def _get_timestamp(self) -> str:
         from datetime import datetime
         return datetime.now().isoformat()
-    
+
     def _error_response(self, error_msg: str) -> Dict[str, Any]:
         return {{
             "messages": [{{
@@ -495,20 +486,20 @@ Please provide a comprehensive analysis following the methodology above:\"\"\"
             }}]
         }}
 '''
-    
+
     def _get_creative_template(self):
         # Similar pattern for creative template
         return "# Creative template would go here with imagination-focused patterns"
-    
+
     def _get_tool_based_template(self):
         # Tool-based template with MCP integration
         return "# Tool-based template with MCP server integration"
-    
+
     def _get_multi_step_template(self):
         # Multi-step workflow template
         return "# Multi-step workflow template"
-    
-    def generate_agent_code(self, agent_spec: Dict[str, Any]) -> str:
+
+    def generate_agent_code(self, agent_spec: dict[str, Any]) -> str:
         """Generate agent code. Keep it simple and deterministic for tests."""
         name = agent_spec.get('name', 'Custom Agent')
         description = agent_spec.get('description', 'A custom AI agent')
@@ -561,12 +552,12 @@ class {class_name}(BlueprintBase):
             }}
 '''
         return code
-    
-    def _select_template(self, agent_spec: Dict[str, Any]) -> str:
+
+    def _select_template(self, agent_spec: dict[str, Any]) -> str:
         """Intelligently select the best template"""
         expertise = agent_spec.get('expertise', [])
         personality = agent_spec.get('personality', '').lower()
-        
+
         if any(skill in ['analysis', 'research', 'data'] for skill in expertise):
             return 'analytical'
         elif any(skill in ['creative', 'writing', 'design'] for skill in expertise):
@@ -575,7 +566,7 @@ class {class_name}(BlueprintBase):
             return 'analytical'
         else:
             return 'conversational'
-    
+
     def _sanitize_class_name(self, name: str) -> str:
         """Convert name to valid Python class name, removing leading digits and preserving camel case."""
         import re
@@ -583,7 +574,7 @@ class {class_name}(BlueprintBase):
         clean_name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
         clean_name = re.sub(r'^\d+', '', clean_name)
         parts = re.split(r"\s+|_+|-+", clean_name)
-        words: List[str] = []
+        words: list[str] = []
         for part in parts:
             if not part:
                 continue
@@ -611,13 +602,13 @@ def agent_creator_pro_page(request):
         'templates': list(pro_generator.templates.keys()),
         'form_data': {
             'personality_options': [
-                'helpful and professional', 'creative and enthusiastic', 
+                'helpful and professional', 'creative and enthusiastic',
                 'analytical and precise', 'friendly and casual', 'expert and authoritative',
                 'empathetic and supportive', 'innovative and forward-thinking',
                 'methodical and thorough', 'inspiring and motivational'
             ],
             'expertise_options': [
-                'coding', 'writing', 'analysis', 'research', 'design', 
+                'coding', 'writing', 'analysis', 'research', 'design',
                 'mathematics', 'science', 'business', 'education', 'psychology',
                 'data_science', 'machine_learning', 'cybersecurity', 'finance',
                 'marketing', 'project_management', 'consulting'

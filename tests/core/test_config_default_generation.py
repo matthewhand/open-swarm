@@ -1,7 +1,9 @@
 import os
 import tempfile
 from pathlib import Path
+
 from swarm.extensions.config import config_loader
+
 
 def test_default_config_generation(monkeypatch, caplog):
     # Patch XDG_CONFIG_HOME and CWD to temp dirs with no config present

@@ -4,6 +4,7 @@ Adds friendlier error hints for common configuration/key issues.
 Also provides a minimal 'config add' handler to persist secrets to ~/.config/swarm/.env
 without modifying the existing Typer app beyond adding this early-path.
 """
+import contextlib
 import logging
 import os
 import sys
@@ -22,10 +23,9 @@ def _emit_startup_hints():
     but only for obvious misconfigurations. Keep silent in normal/CI runs.
     """
     # Always print a stable help banner to satisfy tests looking for usage/help text
-    try:
+    with contextlib.suppress(Exception):
         print(HELP_BANNER)
-    except Exception:
-        pass
+
 
     # Only emit hints on interactive terminals or when explicitly requested
     if not sys.stdout.isatty() and not os.environ.get("SWARM_STARTUP_HINTS"):
@@ -108,15 +108,13 @@ def _maybe_handle_config_add(argv: list[str]) -> bool:
 
         # Support flag form
         if "--key" in argv:
-            try:
+            with contextlib.suppress(Exception):
                 key = argv[argv.index("--key") + 1]
-            except Exception:
-                pass
+
         if "--value" in argv:
-            try:
+            with contextlib.suppress(Exception):
                 value = argv[argv.index("--value") + 1]
-            except Exception:
-                pass
+
 
         # Support positional form: config add KEY VALUE
         if key is None and len(argv) >= 4 and argv[2] and argv[3]:

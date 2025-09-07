@@ -1,15 +1,15 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from rich.syntax import Syntax
-from rich.markdown import Markdown
-import sys # For printing to stderr
 
-# Assuming RICH_AVAILABLE is True for these tests. 
+import pytest
+from rich.markdown import Markdown
+from rich.syntax import Syntax
+
+# Assuming RICH_AVAILABLE is True for these tests.
 # If not, they'd be skipped by the decorator.
-RICH_AVAILABLE = True 
+RICH_AVAILABLE = True
 try:
     # Import the specific Console that pretty_print_response will use
-    from swarm.core.output_utils import pretty_print_response, RICH_AVAILABLE, Console as SwarmConsole
+    from swarm.core.output_utils import RICH_AVAILABLE, pretty_print_response
+    from swarm.core.output_utils import Console as SwarmConsole
 except ImportError:
     RICH_AVAILABLE = False # Fallback if import fails
     SwarmConsole = None # Define for static analysis if import fails
@@ -19,14 +19,14 @@ def test_pretty_print_response_plain_text(monkeypatch):
     """Ensure plain text is printed directly when use_markdown is False and no code fences."""
     events = []
     class DummyConsole:
-        def print(self, obj, end=None): 
+        def print(self, obj, end=None):
             events.append(obj)
-    
+
     monkeypatch.setattr('swarm.core.output_utils.Console', lambda *args, **kwargs: DummyConsole())
-    
+
     messages = [{"role": "assistant", "sender": "Assistant", "content": "Hello world"}]
     pretty_print_response(messages, use_markdown=False)
-    
+
     assert len(events) == 1, f"Expected 1 print event, got {len(events)}. Events: {events}"
     assert events[0] == "[Assistant]: Hello world", f"Unexpected event content: {events[0]}"
 
@@ -35,33 +35,33 @@ def test_pretty_print_response_with_code_fence(monkeypatch):
     """Ensure code fences are highlighted via rich.Syntax."""
     events = []
     class DummyConsole:
-        def print(self, obj, end=None): 
+        def print(self, obj, end=None):
             events.append(obj)
-            
+
     monkeypatch.setattr('swarm.core.output_utils.Console', lambda *args, **kwargs: DummyConsole())
 
     code_content = '```python\nprint("hello")\n```'
     messages = [{"role": "assistant", "sender": "Assistant", "content": code_content}]
     pretty_print_response(messages, use_markdown=False)
-    
+
     assert any(isinstance(e, Syntax) for e in events), f"Expected Syntax in events; got {events}"
-    
+
     syntax_event = next((e for e in events if isinstance(e, Syntax)), None)
     assert syntax_event is not None, "Syntax object not found in events"
 
     if syntax_event:
         assert syntax_event.code.strip() == 'print("hello")', "Syntax object code mismatch"
-        
+
         actual_lexer_name_attr = None
         lexer_value_to_check = None
 
-        if hasattr(syntax_event, 'language') and isinstance(getattr(syntax_event, 'language'), str):
+        if hasattr(syntax_event, 'language') and isinstance(syntax_event.language, str):
              actual_lexer_name_attr = 'language'
              lexer_value_to_check = getattr(syntax_event, actual_lexer_name_attr)
-        elif hasattr(syntax_event, 'lexer_name') and isinstance(getattr(syntax_event, 'lexer_name'), str):
+        elif hasattr(syntax_event, 'lexer_name') and isinstance(syntax_event.lexer_name, str):
              actual_lexer_name_attr = 'lexer_name'
              lexer_value_to_check = getattr(syntax_event, actual_lexer_name_attr)
-        elif hasattr(syntax_event, '_lexer_name') and isinstance(getattr(syntax_event, '_lexer_name'), str): # Less ideal, but possible
+        elif hasattr(syntax_event, '_lexer_name') and isinstance(syntax_event._lexer_name, str): # Less ideal, but possible
              actual_lexer_name_attr = '_lexer_name'
              lexer_value_to_check = getattr(syntax_event, actual_lexer_name_attr)
         elif hasattr(syntax_event, 'lexer') and hasattr(syntax_event.lexer, 'name') and isinstance(syntax_event.lexer.name, str):

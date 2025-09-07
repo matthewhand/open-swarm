@@ -2,15 +2,15 @@
 # --- Content for src/swarm/views/chat_views.py ---
 import asyncio
 import json
-import sys
 import logging
+import sys
 import time
 import uuid
 from typing import Any
-from django.conf import settings
 
 # Utility to wrap sync functions for async execution
 from asgiref.sync import sync_to_async
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import (
     HttpRequest,

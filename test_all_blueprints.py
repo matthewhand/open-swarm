@@ -7,15 +7,15 @@ BLUEPRINTS_DIR = Path(__file__).parent / "src" / "swarm" / "blueprints"
 
 # Discover blueprint files
 blueprint_files = []
-for root, dirs, files in os.walk(BLUEPRINTS_DIR):
+for root, _dirs, files in os.walk(BLUEPRINTS_DIR):
     for file in files:
         if file.startswith("blueprint_") and file.endswith(".py"):
             blueprint_files.append(Path(root) / file)
 
 def run_blueprint(blueprint_path):
-    print(f"\033[1;36m\n╔══════════════════════════════════════════════════════════════╗")
+    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗")
     print(f"║   🚀 TESTING: {blueprint_path.name:<48} ║")
-    print(f"╚══════════════════════════════════════════════════════════════╝\033[0m")
+    print("╚══════════════════════════════════════════════════════════════╝\033[0m")
     try:
         # Use Linux timeout command for a hard kill after 3 minutes
         proc = subprocess.run(

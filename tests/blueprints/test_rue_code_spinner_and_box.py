@@ -1,7 +1,7 @@
+
 import pytest
-import time
-from swarm.blueprints.rue_code.blueprint_rue_code import RueSpinner, RueCodeBlueprint
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint, RueSpinner
 
 
 def test_rue_spinner_states():

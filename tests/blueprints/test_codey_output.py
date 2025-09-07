@@ -1,7 +1,8 @@
-import sys
 import io
-import pytest
+import sys
+
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
+
 
 def test_codey_search_result_box_output(monkeypatch):
     # Capture stdout

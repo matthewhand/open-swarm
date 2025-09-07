@@ -1,5 +1,5 @@
-import pytest
 from swarm.utils.redact import redact_sensitive_data
+
 
 def test_redact_sensitive_data_basic():
     data = {

@@ -1,16 +1,11 @@
 
 # --- Content for tests/api/test_chat_completions_validation_async.py ---
-import pytest
 import json
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.permissions import AllowAny
-from rest_framework.exceptions import APIException, ParseError, ValidationError, PermissionDenied, NotFound
-
-from swarm.views.chat_views import ChatCompletionsView
-from swarm.auth import HasValidTokenOrSession # Assuming this exists now
 
 # Use pytest-django fixtures for async client and settings
 pytestmark = pytest.mark.django_db(transaction=True) # Ensure DB access and rollback

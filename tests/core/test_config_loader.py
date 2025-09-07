@@ -1,10 +1,11 @@
+import json
 import os
 import tempfile
-import json
-import pytest
 from pathlib import Path
+
+import pytest
 from swarm.core import config_loader
-from swarm.core.paths import get_project_root_dir # For load_environment test
+
 
 def make_temp_config(content):
     fd, path = tempfile.mkstemp(suffix='.json')
@@ -96,17 +97,17 @@ def test_load_environment(tmp_path, monkeypatch):
     # Temporarily monkeypatch get_project_root_dir to return tmp_path for this test
     # as load_environment now internally calls get_project_root_dir()
     monkeypatch.setattr(config_loader, 'get_project_root_dir', lambda: tmp_path)
-    
+
     env_file = tmp_path / ".env"
     env_file.write_text("MY_ENV_VAR=hello\n")
-    
+
     # Clear the env var if it exists from a previous run or environment
     if "MY_ENV_VAR" in os.environ:
         del os.environ["MY_ENV_VAR"]
-        
+
     config_loader.load_environment() # UPDATED - no arguments
     assert os.environ.get("MY_ENV_VAR") == "hello"
-    
+
     # Clean up env var after test
     if "MY_ENV_VAR" in os.environ:
         del os.environ["MY_ENV_VAR"]

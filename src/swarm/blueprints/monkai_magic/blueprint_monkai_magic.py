@@ -27,12 +27,10 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MonkaiMagicBlueprint: {e}. Check dependencies.")
@@ -171,13 +169,14 @@ class MonkaiMagicBlueprint(BlueprintBase):
             logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        
+
         # Fallback to simple OpenAI model if config not available
         try:
             profile_data = self.get_llm_profile(profile_name)
         except RuntimeError:
             # Config not loaded, use environment fallback
             import os
+
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             from openai import AsyncOpenAI
             api_key = os.environ.get("OPENAI_API_KEY")

@@ -1,14 +1,14 @@
-import pytest
 from unittest.mock import MagicMock
-from django.test import RequestFactory
-from django.contrib.auth.models import AnonymousUser
-from django.conf import settings
-from rest_framework import exceptions
 
+import pytest
+from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
+from django.test import RequestFactory
+from rest_framework import exceptions
 from swarm.auth import (
-    StaticTokenAuthentication,
     CustomSessionAuthentication,
-    HasValidTokenOrSession
+    HasValidTokenOrSession,
+    StaticTokenAuthentication,
 )
 
 

@@ -1,26 +1,33 @@
-from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from swarm.views.api_views import ModelsListView as OpenAIModelsView
-from swarm.views.api_views import BlueprintsListView
-from swarm.views.model_views import ListModelsView as ProtectedModelsView
-from swarm.views.chat_views import ChatCompletionsView
-from swarm.views.web_views import team_launcher, team_admin, teams_export, profiles_page
+from django.urls import path
+
+from swarm.views.agent_creator_pro import agent_creator_pro_page
 from swarm.views.agent_creator_views import (
-    agent_creator_page, generate_agent_code, validate_agent_code, save_custom_agent,
-    team_creator_page
+    agent_creator_page,
+    generate_agent_code,
+    save_custom_agent,
+    team_creator_page,
+    validate_agent_code,
 )
-from swarm.views.agent_creator_pro import (
-    agent_creator_pro_page
-)
-from swarm.views.settings_views import (
-    settings_dashboard, settings_api, environment_variables
-)
+from swarm.views.api_views import BlueprintsListView
+from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
-    blueprint_library, blueprint_creator, my_blueprints,
-    add_blueprint_to_library, remove_blueprint_from_library,
-    generate_avatar, check_comfyui_status
+    add_blueprint_to_library,
+    blueprint_creator,
+    blueprint_library,
+    check_comfyui_status,
+    generate_avatar,
+    my_blueprints,
+    remove_blueprint_from_library,
 )
+from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.settings_views import (
+    environment_variables,
+    settings_api,
+    settings_dashboard,
+)
+from swarm.views.web_views import profiles_page, team_admin, team_launcher, teams_export
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.

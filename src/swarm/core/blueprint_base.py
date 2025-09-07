@@ -1,8 +1,6 @@
 # --- REMOVE noisy debug/framework prints unless SWARM_DEBUG=1 ---
 import os
 
-from swarm.utils.general_utils import is_debug_enabled
-
 
 def _should_debug():
     # Standardize debug detection: SWARM_DEBUG, SWARM_LOGLEVEL, LOGLEVEL, LOG_LEVEL, DEBUG
@@ -38,7 +36,6 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-
 from agents import set_default_openai_client
 from django.apps import apps  # Import Django apps registry
 from openai import AsyncOpenAI
@@ -49,7 +46,6 @@ from swarm.core.config_loader import _substitute_env_vars
 logger = logging.getLogger(__name__)
 # --- PATCH: Suppress OpenAI tracing/telemetry errors if using LiteLLM/custom endpoint ---
 import logging
-import traceback
 
 from rich.console import Console
 

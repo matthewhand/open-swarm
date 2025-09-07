@@ -1,20 +1,18 @@
 # --- Content for src/swarm/blueprints/echocraft/blueprint_echocraft.py ---
+import json  # Import json for writing to file
 import logging
 import os
 import subprocess
+import sys  # Import sys for stderr
 import threading
 import time  # Import time for timestamp
 import uuid  # Import uuid to generate IDs
 from collections.abc import AsyncGenerator
 from typing import Any
-import json # Import json for writing to file
-import sys # Import sys for stderr
-import tempfile # Import tempfile for temporary directory
 
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.ux.ansi_box import ansi_box
 
@@ -92,14 +90,14 @@ class EnhancedSpinner:
         self.states = SPINNER_STATES
         self.current_state = 0
         self.running = False
-    
+
     async def start(self):
         self.running = True
         while self.running:
             print(f"\r{self.states[self.current_state % len(self.states)]}", end='', flush=True)
             self.current_state += 1
             await asyncio.sleep(0.5)
-    
+
     def stop(self):
         self.running = False
         print("\r" + " " * 50 + "\r", end='', flush=True)
@@ -364,8 +362,8 @@ class EchoCraftBlueprint(BlueprintBase):
     def write_to_swarm_log(self, log):
         import json
         import os
+        import tempfile  # Import tempfile
         import time
-        import tempfile # Import tempfile
 
         from filelock import FileLock, Timeout
         # Use a temporary directory for the log file

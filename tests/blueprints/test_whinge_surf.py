@@ -1,8 +1,8 @@
-import time
 import json
+from unittest.mock import MagicMock
+
 from swarm.blueprints.whinge_surf.blueprint_whinge_surf import WhingeSurfBlueprint
-import pytest 
-from unittest.mock import MagicMock 
+
 
 def test_run_and_check_status(mocker):
     ws = WhingeSurfBlueprint()
@@ -68,7 +68,7 @@ def test_kill_subprocess(mocker):
     # It should internally call self.job_service.terminate(job_id_from_pid)
     # and self.job_service.update_status(job_id_from_pid, "TERMINATED")
     # Let's assume ws.kill_subprocess is refactored to take job_id
-    
+
     # If testing ws.kill_subprocess(job_id) which uses the service:
     ws.kill_subprocess(job_id) # Assuming ws.kill_subprocess is refactored
     mock_terminate_method.assert_called_once_with(job_id)
@@ -126,47 +126,47 @@ def test_tail_and_show_output(mocker):
     mocker.patch.object(ws.job_service, 'get_status', return_value=None) # Simulate job not found
     # The ux.ansi_emoji_box is called by ws.tail_output if job_service.get_status returns None
     mock_tail_ux_box_call_notfound = mocker.patch.object(ws.ux, 'ansi_emoji_box', return_value="Mocked Box: No such job for tail")
-    
+
     ws.tail_output("nonexistent-job-tail") # Use a distinct ID
     mock_tail_ux_box_call_notfound.assert_called_once_with(
-        title="Tail Output", 
-        content="No such job: nonexistent-job-tail", 
+        title="Tail Output",
+        content="No such job: nonexistent-job-tail",
         op_type="tail_output", params={"pid": "nonexistent-job-tail"}, result_count=0
     )
-    mock_tail_ux_box_call_notfound.reset_mock() 
+    mock_tail_ux_box_call_notfound.reset_mock()
 
     # Test case where job is not found for show_output
     # get_status is already mocked to return None
     mock_show_ux_box_call_notfound = mocker.patch.object(ws.ux, 'ansi_emoji_box', return_value="Mocked Box: No such job for show")
     ws.show_output("nonexistent-job-show") # Use a distinct ID
     mock_show_ux_box_call_notfound.assert_called_once_with(
-        title="Show Output", 
-        content="No such job: nonexistent-job-show", 
+        title="Show Output",
+        content="No such job: nonexistent-job-show",
         op_type="show_output", params={"pid": "nonexistent-job-show"}, result_count=0
     )
 
 
-def test_list_and_prune_jobs(mocker): 
+def test_list_and_prune_jobs(mocker):
     ws = WhingeSurfBlueprint()
     mock_active_job = MagicMock(); mock_active_job.id="job1"; mock_active_job.command_str="cmd1"; mock_active_job.status = "RUNNING"; mock_active_job.pid=123
     mock_finished_job = MagicMock(); mock_finished_job.id="job2"; mock_finished_job.command_str="cmd2"; mock_finished_job.status = "COMPLETED"; mock_finished_job.pid=456
-    
+
     mocker.patch.object(ws.job_service, 'list_all', return_value=[mock_active_job, mock_finished_job])
-    mocker.patch.object(ws.job_service, 'prune_completed', return_value=["job2"]) 
+    mocker.patch.object(ws.job_service, 'prune_completed', return_value=["job2"])
     mock_ux_box_call = mocker.patch.object(ws.ux, 'ansi_emoji_box', return_value="Mocked Box")
 
 
     ws.list_jobs()
     mock_ux_box_call.assert_any_call(
         title="WhingeSurf Jobs",
-        content=mocker.ANY, 
+        content=mocker.ANY,
         op_type="list_jobs",
         result_count=2
     )
-    
+
     ws.prune_jobs()
     ws.job_service.prune_completed.assert_called_once()
-    mock_ux_box_call.assert_called_with( 
+    mock_ux_box_call.assert_called_with(
         title="Pruned Jobs",
         content="Removed 1 completed job(s): job2",
         op_type="prune_jobs",
@@ -182,7 +182,7 @@ def test_resource_usage_and_analyze_self(mocker):
         'threads': 2
     }
     mock_monitor_service.get_metrics.return_value = mock_metrics_data
-    
+
     ws = WhingeSurfBlueprint(monitor_service=mock_monitor_service)
     mock_ux_box_call = mocker.patch.object(ws.ux, 'ansi_emoji_box', return_value="Mocked Box")
 
@@ -193,21 +193,21 @@ def test_resource_usage_and_analyze_self(mocker):
 
     ws.resource_usage(job_id_for_usage)
     ws.monitor_service.get_metrics.assert_called_once_with(process_pid=12345)
-    mock_ux_box_call.assert_any_call( 
+    mock_ux_box_call.assert_any_call(
         title=f"Resource Usage for Job {job_id_for_usage} (PID: 12345)",
-        content=json.dumps(mock_metrics_data, indent=2), 
+        content=json.dumps(mock_metrics_data, indent=2),
         op_type="resource_usage"
     )
-    
+
     ws.analyze_self(output_format='text')
-    mock_ux_box_call.assert_called_with( 
+    mock_ux_box_call.assert_called_with(
         title="WhingeSurf Self-Analysis",
-        content="Ultra-enhanced code analysis complete. All systems nominal. 🌊", 
+        content="Ultra-enhanced code analysis complete. All systems nominal. 🌊",
         op_type="analyze_self"
     )
 
 
-def test_self_update(mocker): 
+def test_self_update(mocker):
     ws = WhingeSurfBlueprint()
     mock_ux_box_call = mocker.patch.object(ws.ux, 'ansi_emoji_box', return_value="Mocked Box")
     ws.self_update()

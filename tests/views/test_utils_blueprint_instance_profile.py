@@ -28,7 +28,7 @@ async def test_get_blueprint_instance_applies_llm_profile(monkeypatch):
     inst = await utils.get_blueprint_instance("team-pro")
     assert inst is not None
     # Should be applied to the property on the instance
-    assert getattr(inst, "llm_profile_name") == "pro"
+    assert inst.llm_profile_name == "pro"
 
 
 @pytest.mark.asyncio

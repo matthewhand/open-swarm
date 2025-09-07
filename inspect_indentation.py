@@ -24,7 +24,7 @@ else:
 
             # Replace spaces with dots and tabs with arrows for visual inspection
             visual_line = line_str.replace(' ', '.').replace('\t', '->').rstrip('\n')
-            
+
             # Get raw representation to show all escape sequences
             raw_line = repr(line_bytes)[2:-1] # Remove b'' and trailing newline repr
 

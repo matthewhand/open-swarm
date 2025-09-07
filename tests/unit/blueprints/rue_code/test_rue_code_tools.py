@@ -1,16 +1,8 @@
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-import asyncio
-import os
-from pathlib import Path
 
 # Corrected import path
-from swarm.blueprints.rue_code.blueprint_rue_code import (
-    RueCodeBlueprint,
-    # RueCodeAgent, # *** COMMENTED OUT - Assuming it's not defined in blueprint_rue_code.py ***
-    # Import specific tools if they are defined in blueprint_rue_code.py
-    # e.g., read_file_content, write_to_file, execute_python_code
-)
 
 # If the tools themselves are in a separate file like 'tools.py', import from there:
 # from swarm.blueprints.rue_code.tools import read_file_content, write_to_file, execute_python_code

@@ -1,7 +1,8 @@
-import pytest
 import sqlite3
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.mission_improbable.blueprint_mission_improbable import MissionImprobableBlueprint
@@ -27,7 +28,9 @@ def mission_blueprint_instance():
         with patch('swarm.core.blueprint_base.BlueprintBase._get_model_instance') as mock_get_model:
             mock_model_instance = MagicMock()
             mock_get_model.return_value = mock_model_instance
-            from swarm.blueprints.mission_improbable.blueprint_mission_improbable import MissionImprobableBlueprint
+            from swarm.blueprints.mission_improbable.blueprint_mission_improbable import (
+                MissionImprobableBlueprint,
+            )
             # Patch abstract methods to allow instantiation
             MissionImprobableBlueprint.__abstractmethods__ = set()
             instance = MissionImprobableBlueprint(blueprint_id="test_mission", debug=True)
@@ -45,7 +48,9 @@ def test_mission_db_initialization(mock_get_model, mock_load_config, temporary_d
     import os
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     os.chdir(project_root)
-    from swarm.blueprints.mission_improbable.blueprint_mission_improbable import MissionImprobableBlueprint
+    from swarm.blueprints.mission_improbable.blueprint_mission_improbable import (
+        MissionImprobableBlueprint,
+    )
 
     blueprint = MissionImprobableBlueprint(debug=True)
     blueprint._init_db_and_load_data() # Call directly
@@ -75,10 +80,10 @@ def test_mission_agent_creation(mission_blueprint_instance):
 async def test_mission_delegation_flow(temporary_db_mission):
     """Test a delegation flow, e.g., Jim -> Cinnamon."""
     # Needs Runner mocking, DB mocking/setup.
-    assert False
+    raise AssertionError()
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_mission_cli_execution():
     """Test running the blueprint via CLI."""
     # Needs subprocess testing or direct call to main with mocks.
-    assert False
+    raise AssertionError()

@@ -12,12 +12,13 @@ Flow:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import py_compile
 import re
 import sys
 import textwrap
-import py_compile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -150,7 +151,7 @@ def _collect_interactive(args: argparse.Namespace) -> TeamSpec:
         if not chunk.strip():
             continue
         if ":" in chunk:
-            nm, rl = [p.strip() for p in chunk.split(":", 1)]
+            nm, rl = (p.strip() for p in chunk.split(":", 1))
         else:
             nm, rl = chunk.strip(), ""
         tools = _default_tools_for_role(rl or nm)
@@ -175,7 +176,7 @@ def _collect_non_interactive(args: argparse.Namespace) -> TeamSpec:
         if not chunk.strip():
             continue
         if ":" in chunk:
-            nm, rl = [p.strip() for p in chunk.split(":", 1)]
+            nm, rl = (p.strip() for p in chunk.split(":", 1))
         else:
             nm, rl = chunk.strip(), ""
         tools = _default_tools_for_role(rl or nm)
@@ -650,10 +651,9 @@ def execute(args: argparse.Namespace) -> None:
         print(json.dumps(as_dict, indent=2))
 
     # Resolve dirs with env-aware fallbacks
-    try:
+    with contextlib.suppress(Exception):
         paths.ensure_swarm_directories_exist()
-    except Exception:
-        pass
+
     output_dir = args.output_dir or paths.get_user_blueprints_dir()
     bin_dir = args.bin_dir or paths.get_user_bin_dir()
 

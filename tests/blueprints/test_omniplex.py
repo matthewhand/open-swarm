@@ -1,39 +1,39 @@
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch  # Import call
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock, call # Import call
 from agents.mcp import MCPServer
 from swarm.blueprints.omniplex.blueprint_omniplex import OmniplexBlueprint
-import logging
-import asyncio 
 
 logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mock_mcp_servers():
-    npx_server = MagicMock(spec=MCPServer); npx_server.name = "npx_server" 
+    npx_server = MagicMock(spec=MCPServer); npx_server.name = "npx_server"
     uvx_server = MagicMock(spec=MCPServer); uvx_server.name = "uvx_server"
     other_server = MagicMock(spec=MCPServer); other_server.name = "other_server"
     return [npx_server, uvx_server, other_server]
 
 @pytest.fixture
 def omniplex_blueprint_mocked_config(mock_mcp_servers):
-    with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=None) as mock_load_config:
+    with patch('swarm.core.blueprint_base.BlueprintBase._load_configuration', return_value=None):
         with patch('swarm.blueprints.omniplex.blueprint_omniplex.OmniplexBlueprint._get_model_instance') as mock_get_model:
             mock_model_instance = MagicMock(name="MockModelInstance")
             mock_get_model.return_value = mock_model_instance
-            
+
             blueprint = OmniplexBlueprint(blueprint_id="omniplex_test")
-            
+
             mock_config_data = {
                 'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock-omniplex'}},
-                'mcpServers': { 
+                'mcpServers': {
                     "npx_server": {"command": "npx some-tool", "type": "npx"},
                     "uvx_server": {"command": "uvx another-tool", "type": "uvx"},
                     "other_server": {"command": "python script.py", "type": "other"}
                 },
                 'settings': {'default_llm_profile': 'default'},
-                'blueprints': {"omniplex_test": {}} 
+                'blueprints': {"omniplex_test": {}}
             }
-            blueprint._config = mock_config_data 
+            blueprint._config = mock_config_data
             if blueprint._config:
                  blueprint.mcp_server_configs = blueprint._config.get('mcpServers', {})
             else:
@@ -45,7 +45,7 @@ def omniplex_blueprint_mocked_config(mock_mcp_servers):
 @pytest.mark.asyncio
 async def test_omniplex_agent_creation_all_types(omniplex_blueprint_mocked_config, mock_mcp_servers):
     blueprint = omniplex_blueprint_mocked_config
-    agent = blueprint.create_starting_agent(mock_mcp_servers) 
+    agent = blueprint.create_starting_agent(mock_mcp_servers)
     assert agent is not None and agent.name == "OmniplexCoordinator"
     tool_names = {t.name for t in agent.tools}
     assert "Amazo" in tool_names and "Rogue" in tool_names and "Sylar" in tool_names
@@ -76,7 +76,7 @@ async def test_omniplex_cli_execution(omniplex_blueprint_mocked_config, mock_mcp
     # This function will replace agents.Runner.run
     # It must return an async generator instance when called.
     # We'll wrap it with a MagicMock to allow call assertions.
-    
+
     async def actual_async_generator_func(*args_inner, **kwargs_inner):
         # args_inner will be (starting_agent, instruction)
         logger.debug(f"actual_async_generator_func called with args: {args_inner}, kwargs: {kwargs_inner}")
@@ -90,10 +90,10 @@ async def test_omniplex_cli_execution(omniplex_blueprint_mocked_config, mock_mcp
         async for response in blueprint.run(messages, mcp_servers_override=mock_mcp_servers):
             logger.debug(f"Test received response: {response}")
             responses.append(response)
-        
+
         assert len(responses) > 0, "No responses received from blueprint run"
         assert "Coordinator processed" in responses[0]["messages"][0]["content"]
-        
+
         # Assert that our replacement was called
         patched_runner_run.assert_called_once()
         # Optionally, check arguments if needed:

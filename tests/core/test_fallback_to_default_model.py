@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
+
 from swarm.extensions.config import config_loader
+
 
 def test_fallback_to_default_model(monkeypatch, caplog):
     config = {

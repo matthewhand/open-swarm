@@ -19,18 +19,16 @@ from pathlib import Path
 from typing import Any, ClassVar  # Added Optional
 
 import pytz
-
 from swarm.core.output_utils import print_operation_box as core_print_operation_box
 
 try:
-    from agents import Agent, Model, Runner, Tool, function_tool  # Added Model
+    from agents import Agent, Model  # Added Model
     from agents.mcp import MCPServer
     from agents.models.interface import (
         Model,  # Redundant if imported above, but kept for safety
     )
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
     # TEMPORARILY COMMENTED OUT HOOK IMPORTS
     # from agents.hooks import AgentHooks, ToolCallContext # Added for hook type hinting
@@ -325,7 +323,7 @@ class JeevesBlueprint(BlueprintBase):
         import os
         import time
         # from swarm.core.output_utils import print_search_progress_box # Already imported at class level
-        op_start = time.monotonic()
+        time.monotonic()
         instruction = messages[-1]["content"] if messages else ""
         # --- Unified Spinner/Box Output for Test Mode ---
         if os.environ.get('SWARM_TEST_MODE'):
@@ -407,16 +405,13 @@ class JeevesBlueprint(BlueprintBase):
         if kwargs.get("search_mode") == "semantic":
             result_type = "semantic"
             kwargs["op_type"] = "Jeeves Semantic Search"
-            summary = "Processed"
             emoji = '🕵️'
         elif kwargs.get("search_mode") == "code":
             result_type = "code"
             kwargs["op_type"] = "Jeeves Search"
-            summary = "Processed"
             emoji = '🕵️'
         else:
             result_type = "jeeves"
-            summary = "User instruction received"
             emoji = '🤖'
         if not instruction:
             spinner_states = ["Generating.", "Generating..", "Generating...", "Running..."]
@@ -505,7 +500,7 @@ class JeevesBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             instruction_string = messages[-1].get("content", "") if messages else ""
             async for chunk in Runner.run(agent, instruction_string):
@@ -528,7 +523,7 @@ class JeevesBlueprint(BlueprintBase):
         import time
         from glob import glob
         # from swarm.core.output_utils import get_spinner_state, print_search_progress_box # Already imported at class level
-        op_start = time.monotonic()
+        time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py"}
@@ -573,7 +568,7 @@ class JeevesBlueprint(BlueprintBase):
         import time
         from glob import glob
         # from swarm.core.output_utils import get_spinner_state, print_search_progress_box # Already imported at class level
-        op_start = time.monotonic()
+        time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py", "semantic": True}
@@ -704,7 +699,7 @@ if __name__ == "__main__":
             async for response in blueprint_run:
                 responses.append(response)
             return responses
-        
+
         tasks.append(collect_responses(blueprint.run(messages)))
         results = await asyncio.gather(*[asyncio.create_task(t) for t in tasks], return_exceptions=True)
         for idx, result in enumerate(results):

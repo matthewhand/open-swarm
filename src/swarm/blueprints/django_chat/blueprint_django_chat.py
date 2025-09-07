@@ -49,7 +49,6 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
@@ -185,8 +184,6 @@ class DjangoChatBlueprint(Blueprint):
         start_time = time.time()
         spinner_yield_interval = 1.0  # seconds
         last_spinner_time = start_time
-        yielded_spinner = False
-        result_chunks = []
         try:
             # Simulate agent runner pattern (replace with actual agent logic if available)
             prompt_context = {
@@ -204,7 +201,6 @@ class DjangoChatBlueprint(Blueprint):
                     yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
                     spinner_idx += 1
                     last_spinner_time = now
-                    yielded_spinner = True
                     await asyncio.sleep(0.2)
             # Final result
             summary = ux.summary("Operation", 1, {"instruction": instruction[:40]})

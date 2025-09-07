@@ -1,11 +1,11 @@
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock, ANY
 import os
-from django.apps import apps # Import apps registry
+from unittest.mock import MagicMock
+
+import pytest
 
 # Assuming BlueprintBase is correctly importable now
 from swarm.core.blueprint_base import BlueprintBase
+
 
 # A minimal concrete implementation for testing
 class _TestableBlueprint(BlueprintBase):

@@ -1,5 +1,6 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.monkai_magic.blueprint_monkai_magic import MonkaiMagicBlueprint
@@ -12,7 +13,9 @@ def monkai_blueprint_instance():
          with patch('blueprints.monkai_magic.blueprint_monkai_magic.BlueprintBase._get_model_instance') as mock_get_model:
              mock_model_instance = MagicMock()
              mock_get_model.return_value = mock_model_instance
-             from blueprints.monkai_magic.blueprint_monkai_magic import MonkaiMagicBlueprint
+             from blueprints.monkai_magic.blueprint_monkai_magic import (
+                 MonkaiMagicBlueprint,
+             )
              instance = MonkaiMagicBlueprint(debug=True)
     return instance
 
@@ -59,9 +62,9 @@ def test_monkai_aws_cli_tool(mock_subprocess_run):
 async def test_monkai_delegation_flow(monkai_blueprint_instance):
     """Test a delegation flow, e.g., Tripitaka -> Monkey -> aws_cli."""
     # Needs Runner mocking and potentially subprocess mocking for the tool.
-    assert False
+    raise AssertionError()
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_monkai_cli_execution():
     """Test running the blueprint via CLI."""
-    assert False
+    raise AssertionError()

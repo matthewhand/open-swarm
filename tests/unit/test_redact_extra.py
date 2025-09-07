@@ -1,4 +1,3 @@
-import pytest
 from swarm.utils.redact import redact_sensitive_data
 
 

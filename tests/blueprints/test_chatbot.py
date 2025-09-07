@@ -1,7 +1,8 @@
 # print("[DEBUG][test_chatbot.py] Test file imported successfully.")
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 from swarm.blueprints.chatbot.blueprint_chatbot import RunResult
 
 # Assuming BlueprintBase and other necessary components are importable
@@ -12,8 +13,6 @@ from swarm.blueprints.chatbot.blueprint_chatbot import RunResult
 def chatbot_blueprint_instance():
     """Fixture to create a mocked instance of ChatbotBlueprint."""
     import sys
-    import types
-    import asyncio
     from unittest.mock import MagicMock
     # Patch sys.modules so blueprint_chatbot can import dependencies
     fake_modules = {
@@ -34,7 +33,9 @@ def chatbot_blueprint_instance():
                 with patch('swarm.blueprints.chatbot.blueprint_chatbot.ChatbotBlueprint._get_model_instance') as mock_get_model:
                     mock_model_instance = MagicMock()
                     mock_get_model.return_value = mock_model_instance
-                    from swarm.blueprints.chatbot.blueprint_chatbot import ChatbotBlueprint
+                    from swarm.blueprints.chatbot.blueprint_chatbot import (
+                        ChatbotBlueprint,
+                    )
                     # Patch a dummy async run method at the class level to satisfy ABC
                     async def dummy_run(self, messages, **kwargs):
                         yield {"messages": []}
@@ -55,6 +56,7 @@ def chatbot_blueprint_instance():
 
 import traceback
 
+
 def test_chatbot_agent_creation(chatbot_blueprint_instance):
     """Test that the ChatbotBlueprint creates a valid agent instance."""
     try:
@@ -62,7 +64,7 @@ def test_chatbot_agent_creation(chatbot_blueprint_instance):
         agent = blueprint.create_starting_agent(mcp_servers=[])
         assert agent is not None
         assert hasattr(agent, "run")
-    except Exception as e:
+    except Exception:
         # print("[DEBUG][test_chatbot_agent_creation] Exception:", e)
         traceback.print_exc()
         raise

@@ -1,10 +1,12 @@
 import asyncio
 import json
-import os
+
 from src.swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
-from src.swarm.blueprints.digitalbutlers.blueprint_digitalbutlers import DigitalButlersBlueprint
-from src.swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
+from src.swarm.blueprints.digitalbutlers.blueprint_digitalbutlers import (
+    DigitalButlersBlueprint,
+)
 from src.swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint
+from src.swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
 from src.swarm.blueprints.suggestion.blueprint_suggestion import SuggestionBlueprint
 
 REPORT = []

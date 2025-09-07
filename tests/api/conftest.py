@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.fixture(autouse=True, scope="function")
 def _set_root_urlconf(settings):
     """

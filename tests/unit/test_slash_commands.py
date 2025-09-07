@@ -1,6 +1,7 @@
 import pytest
 from swarm.core.slash_commands import slash_registry
 
+
 def test_help_and_compact_registered():
     help_fn = slash_registry.get('/help')
     compact_fn = slash_registry.get('/compact')

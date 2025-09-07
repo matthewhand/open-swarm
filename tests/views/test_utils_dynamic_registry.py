@@ -1,6 +1,4 @@
 import json
-import os
-from pathlib import Path
 
 import pytest
 
@@ -35,7 +33,7 @@ def _read_registry_file(tmp_path) -> dict:
 
 
 def test_register_and_persist_dynamic_team(tmp_path):
-    from src.swarm.views.utils import register_dynamic_team, load_dynamic_registry
+    from src.swarm.views.utils import load_dynamic_registry, register_dynamic_team
 
     register_dynamic_team("alpha-team", description="Alpha", llm_profile="default")
 
@@ -51,7 +49,7 @@ def test_register_and_persist_dynamic_team(tmp_path):
 
 
 def test_duplicate_register_overwrites(tmp_path):
-    from src.swarm.views.utils import register_dynamic_team, load_dynamic_registry
+    from src.swarm.views.utils import load_dynamic_registry, register_dynamic_team
 
     register_dynamic_team("dupe", description="v1", llm_profile="p1")
     register_dynamic_team("dupe", description="v2", llm_profile="p2")
@@ -61,7 +59,7 @@ def test_duplicate_register_overwrites(tmp_path):
 
 
 def test_deregister_updates_state_and_disk(tmp_path):
-    from src.swarm.views.utils import register_dynamic_team, deregister_dynamic_team
+    from src.swarm.views.utils import deregister_dynamic_team, register_dynamic_team
 
     # Remove non-existent -> False
     assert deregister_dynamic_team("ghost") is False
@@ -88,7 +86,9 @@ def test_available_blueprints_merge_in_dynamic(monkeypatch):
     assert "demo-api-team" in available
     info = available["demo-api-team"]
     # Class should be the dynamic team blueprint
-    from src.swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlueprint
+    from src.swarm.blueprints.dynamic_team.blueprint_dynamic_team import (
+        DynamicTeamBlueprint,
+    )
     # Module aliasing may load via 'swarm.' vs 'src.swarm.'; compare by name to avoid identity mismatch.
     assert info["class_type"].__name__ == DynamicTeamBlueprint.__name__
     assert info["metadata"]["name"] == "demo-api-team"

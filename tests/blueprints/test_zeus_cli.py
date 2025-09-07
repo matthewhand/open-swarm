@@ -1,8 +1,8 @@
-import pytest
 import subprocess
 import sys
-import os
 from pathlib import Path
+
+import pytest
 
 # Correctly determine project root and then path to blueprint_zeus.py
 # Assuming this test file is at tests/blueprints/test_zeus_cli.py
@@ -21,10 +21,10 @@ def test_zeus_cli_banner():
 
 @pytest.mark.skipif(not ZEUS_CLI_PATH.is_file(), reason=f"Zeus CLI script not found at {ZEUS_CLI_PATH}")
 def test_zeus_cli_multiple_inputs():
-    inputs = "How are you?\nWhat is your name?\nexit\n" 
+    inputs = "How are you?\nWhat is your name?\nexit\n"
     result = subprocess.run([sys.executable, str(ZEUS_CLI_PATH)], input=inputs, capture_output=True, text=True, timeout=30) # Increased timeout
     out = result.stdout + result.stderr
-    
+
     assert "Zeus CLI Demo" in out, f"Initial CLI demo banner missing. Output: {out}"
     # The __main__ block runs with debug=True, so it yields initial spinner, then raw agent output.
     # The agent is the full Zeus agent, which will try to use OpenAI.

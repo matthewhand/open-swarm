@@ -189,7 +189,7 @@ def print_operation_box(
     if params:
         param_str = ", ".join(f"{k}={v}" for k, v in params.items())
         panel_content.append(f"Parameters: {param_str}\n", style="dim")
-    panel_content.append(content if isinstance(content, (str, Text)) else str(content or ""))
+    panel_content.append(content if isinstance(content, str | Text) else str(content or ""))
     if summary: panel_content.append(f"\nSummary: {summary}", style="italic")
     if result_count is not None: panel_content.append(f" | Results: {result_count}", style="italic")
     if progress_line is not None:

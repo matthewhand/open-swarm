@@ -1,10 +1,7 @@
-import os
 import json
-import asyncio
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.interaction_types import AgentInteraction
 

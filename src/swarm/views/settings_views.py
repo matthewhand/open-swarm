@@ -3,12 +3,11 @@ Comprehensive Settings Management for Open Swarm
 Groups and displays all configuration options in a professional web UI
 """
 import os
-import json
-from pathlib import Path
-from typing import Dict, Any, List
-from django.conf import settings
 import sys
-from django.http import JsonResponse, HttpResponse
+from typing import Any
+
+from django.conf import settings
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -17,6 +16,8 @@ try:
     # Use the extensions config loader which provides discovery utilities
     from swarm.extensions.config.config_loader import (
         find_config_file as _find_config_file,
+    )
+    from swarm.extensions.config.config_loader import (
         load_config as _load_config,
     )
 except Exception:
@@ -40,7 +41,6 @@ def load_config():
     except Exception:
         # Fail gracefully; callers handle empty config or report errors
         return {}
-from swarm.core.paths import get_user_config_dir_for_swarm
 
 # Ensure module aliasing so tests patching either path work consistently
 # Some tests reference this module as 'src.swarm.views.settings_views' while
@@ -56,7 +56,7 @@ if _this_mod is not None:
 
 class SettingsManager:
     """Comprehensive settings management for Open Swarm"""
-    
+
     def __init__(self):
         self.settings_groups = {
             'django': {
@@ -120,42 +120,42 @@ class SettingsManager:
                 'settings': {}
             }
         }
-    
-    def collect_all_settings(self) -> Dict[str, Any]:
+
+    def collect_all_settings(self) -> dict[str, Any]:
         """Collect all settings from various sources"""
-        
+
         # Django settings
         self._collect_django_settings()
-        
+
         # Swarm core settings
         self._collect_swarm_core_settings()
-        
+
         # Authentication settings
         self._collect_auth_settings()
-        
+
         # LLM provider settings
         self._collect_llm_settings()
-        
+
         # Blueprint settings
         self._collect_blueprint_settings()
-        
+
         # MCP server settings
         self._collect_mcp_settings()
-        
+
         # Database settings
         self._collect_database_settings()
-        
+
         # Logging settings
         self._collect_logging_settings()
-        
+
         # Performance settings
         self._collect_performance_settings()
-        
+
         # UI feature settings
         self._collect_ui_settings()
-        
+
         return self.settings_groups
-    
+
     def _collect_django_settings(self):
         """Collect Django framework settings"""
         django_settings = {
@@ -201,7 +201,7 @@ class SettingsManager:
             }
         }
         self.settings_groups['django']['settings'] = django_settings
-    
+
     def _collect_swarm_core_settings(self):
         """Collect Swarm core settings"""
         swarm_settings = {
@@ -231,7 +231,7 @@ class SettingsManager:
             }
         }
         self.settings_groups['swarm_core']['settings'] = swarm_settings
-    
+
     def _collect_auth_settings(self):
         """Collect authentication and security settings"""
         auth_settings = {
@@ -279,16 +279,16 @@ class SettingsManager:
             auth_settings['CSRF_TRUSTED_ORIGINS']['value'] = []
 
         self.settings_groups['authentication']['settings'] = auth_settings
-    
+
     def _collect_llm_settings(self):
         """Collect LLM provider settings from swarm_config.json"""
         try:
             config = load_config()
             llm_config = config.get('llm', {})
             profiles_config = config.get('profiles', {})
-            
+
             llm_settings = {}
-            
+
             # LLM providers
             for provider, config_data in llm_config.items():
                 llm_settings[f'LLM_{provider.upper()}'] = {
@@ -299,7 +299,7 @@ class SettingsManager:
                     'category': 'provider',
                     'sensitive': 'api_key' in str(config_data).lower()
                 }
-            
+
             # LLM profiles
             for profile, profile_data in profiles_config.items():
                 llm_settings[f'PROFILE_{profile.upper()}'] = {
@@ -310,7 +310,7 @@ class SettingsManager:
                     'category': 'profile',
                     'sensitive': False
                 }
-            
+
             # Environment variables for common LLM providers
             env_llm_settings = {
                 'OPENAI_API_KEY': {
@@ -338,9 +338,9 @@ class SettingsManager:
                     'sensitive': False
                 }
             }
-            
+
             llm_settings.update(env_llm_settings)
-            
+
         except Exception as e:
             llm_settings = {
                 'CONFIG_ERROR': {
@@ -352,15 +352,15 @@ class SettingsManager:
                     'sensitive': False
                 }
             }
-        
+
         self.settings_groups['llm_providers']['settings'] = llm_settings
-    
+
     def _collect_blueprint_settings(self):
         """Collect blueprint-related settings"""
         try:
             config = load_config()
             blueprint_config = config.get('blueprints', {})
-            
+
             blueprint_settings = {
                 'BLUEPRINT_DEFAULTS': {
                     'value': blueprint_config.get('defaults', {}),
@@ -379,7 +379,7 @@ class SettingsManager:
                     'sensitive': False
                 }
             }
-            
+
             # Add environment variables related to blueprints
             env_blueprint_settings = {
                 'SWARM_DEBUG': {
@@ -399,9 +399,9 @@ class SettingsManager:
                     'sensitive': False
                 }
             }
-            
+
             blueprint_settings.update(env_blueprint_settings)
-            
+
         except Exception as e:
             blueprint_settings = {
                 'CONFIG_ERROR': {
@@ -413,17 +413,17 @@ class SettingsManager:
                     'sensitive': False
                 }
             }
-        
+
         self.settings_groups['blueprints']['settings'] = blueprint_settings
-    
+
     def _collect_mcp_settings(self):
         """Collect MCP server settings"""
         try:
             config = load_config()
             mcp_config = config.get('mcpServers', {})
-            
+
             mcp_settings = {}
-            
+
             for server_name, server_config in mcp_config.items():
                 mcp_settings[f'MCP_{server_name.upper()}'] = {
                     'value': server_config,
@@ -433,7 +433,7 @@ class SettingsManager:
                     'category': 'server',
                     'sensitive': False
                 }
-            
+
             if not mcp_settings:
                 mcp_settings['NO_MCP_SERVERS'] = {
                     'value': 'No MCP servers configured',
@@ -443,7 +443,7 @@ class SettingsManager:
                     'category': 'info',
                     'sensitive': False
                 }
-            
+
         except Exception as e:
             mcp_settings = {
                 'CONFIG_ERROR': {
@@ -455,13 +455,13 @@ class SettingsManager:
                     'sensitive': False
                 }
             }
-        
+
         self.settings_groups['mcp_servers']['settings'] = mcp_settings
-    
+
     def _collect_database_settings(self):
         """Collect database settings"""
         db_config = getattr(settings, 'DATABASES', {}).get('default', {})
-        
+
         database_settings = {
             'ENGINE': {
                 'value': db_config.get('ENGINE', 'Not Set'),
@@ -488,9 +488,9 @@ class SettingsManager:
                 'sensitive': False
             }
         }
-        
+
         self.settings_groups['database']['settings'] = database_settings
-    
+
     def _collect_logging_settings(self):
         """Collect logging and debug settings"""
         logging_settings = {
@@ -527,9 +527,9 @@ class SettingsManager:
                 'sensitive': False
             }
         }
-        
+
         self.settings_groups['logging']['settings'] = logging_settings
-    
+
     def _collect_performance_settings(self):
         """Collect performance and resource limit settings"""
         performance_settings = {
@@ -558,9 +558,9 @@ class SettingsManager:
                 'sensitive': False
             }
         }
-        
+
         self.settings_groups['performance']['settings'] = performance_settings
-    
+
     def _collect_ui_settings(self):
         """Collect UI feature toggle settings"""
         ui_settings = {
@@ -581,7 +581,7 @@ class SettingsManager:
                 'sensitive': False
             }
         }
-        
+
         self.settings_groups['ui_features']['settings'] = ui_settings
 
 
@@ -594,20 +594,20 @@ def settings_dashboard(request):
     """Render the comprehensive settings dashboard"""
     try:
         all_settings = settings_manager.collect_all_settings()
-        
+
         # Calculate statistics
         total_settings = sum(len(group['settings']) for group in all_settings.values())
         configured_settings = sum(
-            1 for group in all_settings.values() 
-            for setting in group['settings'].values() 
+            1 for group in all_settings.values()
+            for setting in group['settings'].values()
             if setting['value'] not in ['Not Set', None, '']
         )
         sensitive_settings = sum(
-            1 for group in all_settings.values() 
-            for setting in group['settings'].values() 
+            1 for group in all_settings.values()
+            for setting in group['settings'].values()
             if setting.get('sensitive', False)
         )
-        
+
         context = {
             'page_title': 'Settings Dashboard',
             'settings_groups': all_settings,
@@ -618,9 +618,9 @@ def settings_dashboard(request):
                 'completion_rate': round((configured_settings / total_settings) * 100) if total_settings > 0 else 0
             }
         }
-        
+
         return render(request, 'settings_dashboard.html', context)
-        
+
     except Exception as e:
         return HttpResponse(f"Error loading settings: {str(e)}", status=500)
 
@@ -631,7 +631,7 @@ def settings_api(request):
     """API endpoint to get all settings as JSON"""
     try:
         all_settings = settings_manager.collect_all_settings()
-        
+
         # Remove sensitive values for API response
         safe_settings = {}
         for group_name, group_data in all_settings.items():
@@ -641,18 +641,18 @@ def settings_api(request):
                 'icon': group_data['icon'],
                 'settings': {}
             }
-            
+
             for setting_name, setting_data in group_data['settings'].items():
                 safe_setting = setting_data.copy()
                 if setting_data.get('sensitive', False):
                     safe_setting['value'] = '***HIDDEN***'
                 safe_settings[group_name]['settings'][setting_name] = safe_setting
-        
+
         return JsonResponse({
             'success': True,
             'settings': safe_settings
         })
-        
+
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -667,10 +667,10 @@ def environment_variables(request):
     try:
         # Collect all environment variables that might be relevant
         relevant_prefixes = [
-            'DJANGO_', 'SWARM_', 'API_', 'ENABLE_', 'OPENAI_', 
+            'DJANGO_', 'SWARM_', 'API_', 'ENABLE_', 'OPENAI_',
             'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG'
         ]
-        
+
         env_vars = {}
         for key, value in os.environ.items():
             if any(key.startswith(prefix) for prefix in relevant_prefixes):
@@ -679,13 +679,13 @@ def environment_variables(request):
                     env_vars[key] = '***SET***' if value else 'Not Set'
                 else:
                     env_vars[key] = value
-        
+
         return JsonResponse({
             'success': True,
             'environment_variables': env_vars,
             'count': len(env_vars)
         })
-        
+
     except Exception as e:
         return JsonResponse({
             'success': False,

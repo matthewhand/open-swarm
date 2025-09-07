@@ -15,12 +15,18 @@ from django.views.decorators.csrf import csrf_exempt
 # Import config loader if needed, or assume config is loaded elsewhere
 # Import the function to discover blueprints dynamically
 from swarm.core.blueprint_discovery import discover_blueprints
+from swarm.core.paths import get_user_config_dir_for_swarm
 
 # Import the setting for the blueprints directory
 from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.logger_setup import setup_logger
-from .utils import load_dynamic_registry, register_dynamic_team, deregister_dynamic_team, reset_dynamic_registry
-from swarm.core.paths import get_user_config_dir_for_swarm
+
+from .utils import (
+    deregister_dynamic_team,
+    load_dynamic_registry,
+    register_dynamic_team,
+    reset_dynamic_registry,
+)
 
 logger = setup_logger(__name__)
 
@@ -54,7 +60,7 @@ def blueprint_webpage(request, blueprint_name):
         discovered_metadata = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
         if blueprint_name not in discovered_metadata:
             logger.warning(f"Blueprint '{blueprint_name}' not found during discovery.")
-            available_blueprints = "".join(f"<li>{bp}</li>" for bp in discovered_metadata.keys())
+            available_blueprints = "".join(f"<li>{bp}</li>" for bp in discovered_metadata)
             return HttpResponse(
                 f"<h1>Blueprint '{blueprint_name}' not found.</h1><p>Available blueprints:</p><ul>{available_blueprints}</ul>",
                 status=404,

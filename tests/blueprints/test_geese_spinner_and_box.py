@@ -1,11 +1,14 @@
-import pytest
-from unittest.mock import patch, MagicMock, ANY, AsyncMock
-from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
-from swarm.core.interaction_types import AgentInteraction
-from swarm.core.interaction_types import StoryOutput # Corrected import
-from rich.console import Console
 import json
-import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+from rich.console import Console
+from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
+from swarm.core.interaction_types import (
+    AgentInteraction,
+    StoryOutput,  # Corrected import
+)
+
 
 @pytest.fixture
 def geese_blueprint_instance_ux(tmp_path):
@@ -75,7 +78,7 @@ async def test_progressive_demo_operation_box(geese_blueprint_instance_ux, monke
     mock_coordinator_agent_instance = MagicMock() # Mock the agent instance itself
     async def mock_run_gen(*args, **kwargs):
         yield AgentInteraction(type="progress", progress_message="Coordinator planning...")
-        final_story_data_dict = { 
+        final_story_data_dict = {
             "title": "Story for: Test progressive demo",
             "final_story": "This is a creative response about teamwork from the mocked coordinator.",
             "outline_json": "{}", "word_count": 10, "metadata": {}

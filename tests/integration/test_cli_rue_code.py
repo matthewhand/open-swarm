@@ -1,8 +1,7 @@
-import pytest
 import os
-import sys
-import subprocess
 import re
+import subprocess
+
 
 def strip_ansi(text):
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
@@ -32,7 +31,7 @@ def test_rue_cli_ux():
     assert any(msg in output for msg in [
         'Generating.', 'Generating..', 'Generating...', 'Running...'
     ]), f"Spinner messages not found in output: {output}"
-    
+
     # Check for operation box with emoji and title
     assert '╭' in output and '╰' in output, "Box borders not found"
     # Rue code CLI uses 📝 for its boxes and 🦆 for its final summary banner

@@ -1,8 +1,8 @@
 import asyncio
-from django.test import TransactionTestCase
-from django.contrib.auth.models import User
 
-from swarm.consumers import DjangoChatConsumer, IN_MEMORY_CONVERSATIONS
+from django.contrib.auth.models import User
+from django.test import TransactionTestCase
+from swarm.consumers import IN_MEMORY_CONVERSATIONS, DjangoChatConsumer
 from swarm.models import ChatConversation, ChatMessage
 
 

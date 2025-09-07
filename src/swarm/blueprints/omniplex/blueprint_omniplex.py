@@ -13,10 +13,9 @@ if src_path not in sys.path: sys.path.insert(0, src_path)
 from swarm.core.blueprint_base import BlueprintBase
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent, Runner, Tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
 except ImportError as e:
     print(f"ERROR: Import failed in OmniplexBlueprint: {e}. Check dependencies.")
@@ -153,7 +152,7 @@ class OmniplexBlueprint(BlueprintBase):
                         first = False
                 if first:
                     # Nothing yielded; produce a default message
-                    yield {"messages": [{"role": "assistant", "content": "Coordinator processed."}]}            
+                    yield {"messages": [{"role": "assistant", "content": "Coordinator processed."}]}
             except TypeError:
                 # If result is awaitable coroutine returning a value
                 value = await result

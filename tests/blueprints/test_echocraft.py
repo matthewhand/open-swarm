@@ -1,11 +1,10 @@
 
 # --- Content for tests/blueprints/test_echocraft.py ---
-import pytest
-from typing import List, Dict, Any
-import asyncio
-from unittest.mock import patch, MagicMock # Import mock tools
+from unittest.mock import MagicMock  # Import mock tools
 
+import pytest
 from swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint
+
 
 # Helper to collect results from async generator
 async def collect_results(agen):

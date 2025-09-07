@@ -1,5 +1,5 @@
-import pytest
 from swarm.blueprints.rue_code.blueprint_rue_code import calculate_llm_cost
+
 
 def test_gpt4_cost():
     # Accept all known possible values due to implementation changes

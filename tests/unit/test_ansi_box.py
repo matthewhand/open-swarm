@@ -1,5 +1,6 @@
 from swarm.ux.ansi_box import ansi_box
 
+
 def test_ansi_box_basic(capsys):
     ansi_box('Searched filesystem', 'Found 12 files', count=12, params={'pattern': '*.py'}, style='success', emoji='💾')
     out = capsys.readouterr().out
