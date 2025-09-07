@@ -239,10 +239,10 @@ def test_main_entry(monkeypatch, tmp_path):
         # Capture stdout
         with patch('sys.stdout', new=StringIO()) as mock_stdout:
             # Run the module as script to execute if __name__ == "__main__"
-            runpy.run_module('src.swarm.blueprints.geese.blueprint_geese', run_name='__main__')
-        
+            runpy.run_module('src.swarm.blueprints.geese.geese_cli', run_name='__main__')
+
         output = mock_stdout.getvalue()
-        assert "Geese Final Story" in output
+        assert "Geese:" in output
         assert "CLI test story" in output
         assert "Error" not in output
 

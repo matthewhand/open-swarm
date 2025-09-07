@@ -314,55 +314,68 @@ class BlueprintBase(ABC):
                 except Exception as e:
                     if _should_debug():
                         logger.warning(f"Falling back to CLI/home config due to error: {e}")
-                    # 1. CLI argument (not handled here, handled in cli_handler)
-                    # 2. Current working directory (guard against missing CWD)
-                    try:
-                        cwd_config = Path.cwd() / "swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Trying: {cwd_config}")
-                    except Exception as e:
-                        cwd_config = None
-                        if _should_debug():
-                            logger.warning(f"Unable to determine CWD for config lookup: {e}")
-                    if cwd_config and cwd_config.exists():
-                        print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
-                        with open(cwd_config) as f:
-                            self._config = json.load(f)
-                    # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
-                    elif os.environ.get("XDG_CONFIG_HOME"):
-                        xdg_config = Path(os.environ["XDG_CONFIG_HOME"]) / "swarm" / "swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Trying: {xdg_config}")
-                        if xdg_config.exists():
-                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {xdg_config}")
-                            with open(xdg_config) as f:
+                    # Check SWARM_CONFIG_PATH env var
+                    swarm_config_path_env = os.environ.get("SWARM_CONFIG_PATH")
+                    if swarm_config_path_env:
+                        swarm_config_path = Path(swarm_config_path_env)
+                        print(f"[SWARM_CONFIG_DEBUG] Trying SWARM_CONFIG_PATH: {swarm_config_path}")
+                        if swarm_config_path.exists():
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {swarm_config_path}")
+                            with open(swarm_config_path) as f:
                                 self._config = json.load(f)
-                    elif (Path.home() / ".config/swarm/swarm_config.json").exists():
-                        home_config = Path.home() / ".config/swarm/swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Loaded: {home_config}")
-                        with open(home_config) as f:
-                            self._config = json.load(f)
-                    # 4. Legacy fallback: ~/.swarm/swarm_config.json
-                    elif (Path.home() / ".swarm/swarm_config.json").exists():
-                        legacy_config = Path.home() / ".swarm/swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
-                        with open(legacy_config) as f:
-                            self._config = json.load(f)
-                    # 5. Fallback: OPENAI_API_KEY envvar
-                    elif os.environ.get("OPENAI_API_KEY"):
-                        print("[SWARM_CONFIG_DEBUG] No config file found, using OPENAI_API_KEY from env.")
-                        self._config = {
-                            "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.environ["OPENAI_API_KEY"]}},
-                            "settings": {"default_llm_profile": "default", "default_markdown_output": True},
-                            "blueprints": {},
-                            "llm_profile": "default",
-                            "mcpServers": {}
-                        }
-                        logger.info("No config file found, using default config with OPENAI_API_KEY for CLI mode.")
-                    else:
-                        print("[SWARM_CONFIG_DEBUG] No config file found and OPENAI_API_KEY is not set. Using empty config.")
-                        self._config = {}
-                        logger.warning("No config file found and OPENAI_API_KEY is not set. Using empty config. CLI blueprints may fail if LLM config is required.")
-                if self._config is not None:
-                    self._config = _substitute_env_vars(self._config)
+                        else:
+                            logger.warning(f"SWARM_CONFIG_PATH {swarm_config_path} does not exist.")
+                            self._config = {}
+                    if self._config is None:
+                        # 1. CLI argument (not handled here, handled in cli_handler)
+                        # 2. Current working directory (guard against missing CWD)
+                        try:
+                            cwd_config = Path.cwd() / "swarm_config.json"
+                            print(f"[SWARM_CONFIG_DEBUG] Trying: {cwd_config}")
+                        except Exception as e:
+                            cwd_config = None
+                            if _should_debug():
+                                logger.warning(f"Unable to determine CWD for config lookup: {e}")
+                        if cwd_config and cwd_config.exists():
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
+                            with open(cwd_config) as f:
+                                self._config = json.load(f)
+                        # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
+                        elif os.environ.get("XDG_CONFIG_HOME"):
+                            xdg_config = Path(os.environ["XDG_CONFIG_HOME"]) / "swarm" / "swarm_config.json"
+                            print(f"[SWARM_CONFIG_DEBUG] Trying: {xdg_config}")
+                            if xdg_config.exists():
+                                print(f"[SWARM_CONFIG_DEBUG] Loaded: {xdg_config}")
+                                with open(xdg_config) as f:
+                                    self._config = json.load(f)
+                        elif (Path.home() / ".config/swarm/swarm_config.json").exists():
+                            home_config = Path.home() / ".config/swarm/swarm_config.json"
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {home_config}")
+                            with open(home_config) as f:
+                                self._config = json.load(f)
+                        # 4. Legacy fallback: ~/.swarm/swarm_config.json
+                        elif (Path.home() / ".swarm/swarm_config.json").exists():
+                            legacy_config = Path.home() / ".swarm/swarm_config.json"
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
+                            with open(legacy_config) as f:
+                                self._config = json.load(f)
+                        # 5. Fallback: OPENAI_API_KEY envvar
+                        elif os.environ.get("OPENAI_API_KEY"):
+                            print("[SWARM_CONFIG_DEBUG] No config file found, using OPENAI_API_KEY from env.")
+                            self._config = {
+                                "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.environ["OPENAI_API_KEY"]}},
+                                "settings": {"default_llm_profile": "default", "default_markdown_output": True},
+                                "blueprints": {},
+                                "llm_profile": "default",
+                                "mcpServers": {}
+                            }
+                            logger.info("No config file found, using default config with OPENAI_API_KEY for CLI mode.")
+                        else:
+                            print("[SWARM_CONFIG_DEBUG] No config file found and OPENAI_API_KEY is not set. Using empty config.")
+                            self._config = {}
+                            logger.warning("No config file found and OPENAI_API_KEY is not set. Using empty config. CLI blueprints may fail if LLM config is required.")
+                        if self._config is not None:
+                            self._config = _substitute_env_vars(self._config)
             # Ensure self._config is always a dict
             if self._config is None:
                 self._config = {}

@@ -4,7 +4,7 @@ import os
 import pytest
 import re
 
-BIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../.venv/bin'))
+BIN_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.venv/bin'))
 CODEY_BIN = os.path.join(BIN_DIR, 'codey')
 GEESE_BIN = os.path.join(BIN_DIR, 'geese') # This is likely src/swarm/blueprints/geese/geese_cli.py, not a bin installed file
 SWARM_CLI_BIN = os.path.join(BIN_DIR, 'swarm-cli')
