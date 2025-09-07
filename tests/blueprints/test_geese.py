@@ -197,12 +197,13 @@ def test_main_entry(monkeypatch, tmp_path):
     """
     import sys
     from io import StringIO
+    from pathlib import Path
     from unittest.mock import patch
     import runpy
     import json
     
     # Create dummy config with agents
-    dummy_config_path = tmp_path / "dummy_geese_config.json"
+    dummy_config_path = Path("dummy_geese_config.json")
     dummy_config_content = {
         "llm": {"default": {"provider": "mock", "model": "mock-model"}},
         "settings": {"default_llm_profile": "default"},
@@ -217,11 +218,11 @@ def test_main_entry(monkeypatch, tmp_path):
     }
     with open(dummy_config_path, "w") as f:
         json.dump(dummy_config_content, f)
-    
+
     # Set SWARM_CONFIG_PATH to use dummy config
     import os
     os.environ['SWARM_CONFIG_PATH'] = str(dummy_config_path)
-    
+
     # Monkeypatch sys.argv to include --config and --message
     monkeypatch.setattr(sys, 'argv', ['script.py', '--config', str(dummy_config_path), '--message', 'CLI test prompt'])
     
