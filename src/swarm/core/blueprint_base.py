@@ -725,8 +725,10 @@ class BlueprintBase(ABC):
         print("  -h, --help                  Show this help message and exit\n")
         print("Examples:")
         print(f"  {blueprint_name} \"Refactor all utils into a single module.\"")
-        print(f"  {blueprint_name} --full-context \"Summarize all TODOs in the project.\"")
-        print(f"  {blueprint_name} --approval full-auto \"Upgrade all dependencies and update the changelog.\"")
+        print(f"  {blueprint_name} --full-context \"Analyze and fix all TODOs across the codebase.\"")
+        print(f"  {blueprint_name} --approval full-auto \"Upgrade all dependencies, update changelog, and implement pending TODOs.\"")
+        print(f"  {blueprint_name} --full-context --approval suggest \"Review all TODO comments and provide implementation suggestions.\"")
+        print(f"  {blueprint_name} \"Generate documentation for functions with TODO comments.\"")
 
     @abstractmethod
     async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:

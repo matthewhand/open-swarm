@@ -74,8 +74,36 @@ execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute
 logger = logging.getLogger(__name__)
 
 # Last swarm update: 2024-03-07T14:30:00Z (UTC)
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
+# Enhanced spinner UX with more states and better visual feedback
+SPINNER_STATES = [
+    '🔄 Initializing EchoCraft...',
+    '✨ Analyzing requirements...',
+    '🔧 Setting up development environment...',
+    '📝 Generating code structure...',
+    '🧪 Running initial tests...',
+    '🚀 Building and compiling...',
+    '✅ Deployment ready!',
+    '🎉 EchoCraft complete!'
+]
+
+# Enhanced spinner class with better UX
+class EnhancedSpinner:
+    def __init__(self):
+        self.states = SPINNER_STATES
+        self.current_state = 0
+        self.running = False
+    
+    async def start(self):
+        self.running = True
+        while self.running:
+            print(f"\r{self.states[self.current_state % len(self.states)]}", end='', flush=True)
+            self.current_state += 1
+            await asyncio.sleep(0.5)
+    
+    def stop(self):
+        self.running = False
+        print("\r" + " " * 50 + "\r", end='', flush=True)
+        print("✅ EchoCraft process completed successfully!")
 
 """
 EchoCraft Blueprint

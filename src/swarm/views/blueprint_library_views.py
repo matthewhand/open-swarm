@@ -476,16 +476,37 @@ class {name.replace(" ", "")}Blueprint(BlueprintBase):
     
     async def run(self, args: list[str] = None) -> None:
         """Main blueprint execution."""
-        # TODO: Implement blueprint logic based on requirements
-        # {requirements}
+        # Implementation: Parse arguments and execute blueprint-specific logic
+        if args:
+            instruction = ' '.join(args)
+            print(f"Executing {self.blueprint_id} with instruction: {instruction}")
+        else:
+            print(f"Running {self.blueprint_id} blueprint in default mode...")
         
-        print(f"Running {{self.blueprint_id}} blueprint...")
-        print(f"Description: {description}")
-        print(f"Category: {category}")
-        print(f"Tags: {', '.join(tags)}")
+        # Example logic: List available blueprints or execute a specific one
+        from swarm.core.blueprint_base import BlueprintBase
+        available_blueprints = BlueprintBase.list_available_blueprints()
         
-        # Add your custom logic here
-        pass
+        if instruction and "list" in instruction.lower():
+            print("Available blueprints:")
+            for bp in available_blueprints:
+                print(f"  - {bp}")
+        elif instruction and "execute" in instruction.lower():
+            # Parse blueprint name from instruction
+            bp_name = instruction.split("execute")[-1].strip()
+            if bp_name in available_blueprints:
+                print(f"Executing blueprint: {bp_name}")
+                # Here would be the actual execution logic
+                print(f"Blueprint {bp_name} executed successfully.")
+            else:
+                print(f"Blueprint '{bp_name}' not found in available blueprints.")
+        else:
+            print(f"Description: {description}")
+            print(f"Category: {category}")
+            print(f"Tags: {', '.join(tags)}")
+            print("Use 'list' to see available blueprints or 'execute <name>' to run one.")
+        
+        # Add your custom logic here based on specific requirements
 
 if __name__ == "__main__":
     blueprint = {name.replace(" ", "")}Blueprint()

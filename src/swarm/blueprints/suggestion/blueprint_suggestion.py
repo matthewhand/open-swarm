@@ -47,8 +47,41 @@ class SuggestionsOutput(TypedDict):
     """Defines the expected structure for the agent's output."""
     suggestions: list[str]
 
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
+# Enhanced spinner UX for Suggestion Blueprint with creative suggestion themes
+SPINNER_STATES = [
+    '💡 Brainstorming ideas...',
+    '✨ Generating creative suggestions...',
+    '🎯 Refining recommendations...',
+    '📝 Compiling suggestion list...',
+    '🔍 Evaluating feasibility...',
+    '✅ Suggestions ready!',
+    '🎉 Delivering personalized recommendations...'
+]
+
+# Enhanced spinner class for suggestion generation
+class SuggestionSpinner:
+    def __init__(self):
+        self.states = SPINNER_STATES
+        self.current_state = 0
+        self.running = False
+        self.suggestion_count = 0
+    
+    async def start(self):
+        self.running = True
+        while self.running:
+            state = self.states[self.current_state % len(self.states)]
+            count = self.suggestion_count + 1
+            print(f"\r{state} ({count} suggestions generated)", end='', flush=True)
+            self.current_state += 1
+            await asyncio.sleep(0.6)
+    
+    def add_suggestion(self):
+        self.suggestion_count += 1
+    
+    def stop(self):
+        self.running = False
+        print("\r" + " " * 60 + "\r", end='', flush=True)
+        print(f"🎉 All {self.suggestion_count} suggestions generated successfully! 💡")
 
 # Patch: Expose underlying fileops functions for direct testing
 # PatchedFunctionTool removed - using @function_tool instead

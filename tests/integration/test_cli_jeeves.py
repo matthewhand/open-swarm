@@ -12,10 +12,14 @@ def strip_ansi(text):
 def test_jeeves_cli_ux():
     env = os.environ.copy()
     env['DEFAULT_LLM'] = 'test'
-    env['SWARM_TEST_MODE'] = '1' 
+    env['SWARM_TEST_MODE'] = '1'
     cmd = [sys.executable, 'src/swarm/blueprints/jeeves/jeeves_cli.py', '--instruction', 'Search for all TODOs in the repo']
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
     output = strip_ansi(result.stdout + result.stderr)
+    
+    # Verify the test handles TODO search instruction by checking for TODO-related output
+    assert "TODO" in output, f"Expected TODO mentions in output for search instruction, but found: {output[:200]}..."
+    assert result.returncode == 0, f"CLI execution failed with return code {result.returncode}"
 
     # Check for spinner messages (must match Jeeves SPINNER_STATES)
     # The initial "[SPINNER] Polishing the silver" is printed by JeevesSpinner.start()
@@ -31,3 +35,8 @@ def test_jeeves_cli_ux():
     assert '╭' in output and '╰' in output, "Box borders not found"
     # Jeeves CLI in test mode uses '🤖' for its boxes
     assert '🤖' in output, f"Expected emoji '🤖' not found in output: {output}"
+    
+    # Additional assertion for TODO handling: check if search results or processing is indicated
+    # In test mode, Jeeves should process the search instruction and show results or processing steps
+    assert any(keyword in output for keyword in ["search", "TODO", "found", "results", "processing"]) or "Jeeves Results" in output, \
+        f"Expected evidence of TODO search handling in output: {output[:200]}..."

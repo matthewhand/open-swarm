@@ -17,7 +17,7 @@ def jeeves_blueprint_instance():
             from swarm.blueprints.jeeves.blueprint_jeeves import JeevesBlueprint
             instance = JeevesBlueprint(blueprint_id="test_jeeves", config={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}} , debug=True)
             instance._config = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}
-            instance.mcp_server_configs = {}
+            # Note: mcp_server_configs may not be defined; skipping assignment to avoid AttributeError
             return instance
 
 def test_jeeves_agent_creation(jeeves_blueprint_instance):
@@ -62,10 +62,24 @@ async def test_jeeves_delegation_to_mycroft(monkeypatch, jeeves_blueprint_instan
         pass
     assert called["semantic"] and not called["search"], "Expected semantic search path to be taken"
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
 @pytest.mark.asyncio
-async def test_jeeves_delegation_to_gutenberg():
-    assert False
+async def test_jeeves_delegation_to_gutenberg(monkeypatch, jeeves_blueprint_instance):
+    """Test delegation to Gutenberg for semantic searches."""
+    os.environ['SWARM_TEST_MODE'] = '1'
+    bp = jeeves_blueprint_instance
+
+    called = {"gutenberg": False}
+
+    async def fake_gutenberg_search(query, directory="."):
+        called["gutenberg"] = True
+        return ["gutenberg_match1"]
+
+    monkeypatch.setattr(bp, "gutenberg_search", fake_gutenberg_search)
+
+    messages = [{"role": "user", "content": "What is the meaning of life?"}]
+    async for _ in bp.run(messages, search_mode='semantic'):
+        pass
+    assert called["gutenberg"], "Expected Gutenberg search to be taken for semantic query"
 
 def strip_ansi(text):
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')

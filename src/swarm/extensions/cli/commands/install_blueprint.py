@@ -1,5 +1,7 @@
 import argparse
+import re
 import shutil
+import zipfile
 from pathlib import Path
 
 from swarm.core import paths  # Assuming paths.py is accessible
@@ -26,8 +28,19 @@ def execute(args: argparse.Namespace):
     # If source_path is a dir like './my_blueprint_project', blueprint_name = 'my_blueprint_project'
     blueprint_name = source_path.stem if source_path.is_file() else source_path.name
 
-    # TODO: Handle if blueprint_name is not a valid directory name (e.g. contains slashes if source_path_str was complex)
-    # For now, assume simple name.
+    import re
+    from pathlib import Path
+
+    # Validate blueprint_name for directory safety
+    invalid_pattern = re.compile(r'[\\/:*?"<>|]')
+    if invalid_pattern.search(blueprint_name):
+        print(f"Error: Invalid blueprint name '{blueprint_name}'. Directory names cannot contain characters: / \\ : * ? \" < > |")
+        return
+    
+    # Also check for absolute paths or parent directory references
+    if blueprint_name.startswith('/') or blueprint_name.startswith('..') or '/' in blueprint_name or '\\' in blueprint_name:
+        print(f"Error: Invalid blueprint name '{blueprint_name}'. Cannot contain path separators or parent references.")
+        return
 
     target_blueprint_dir = user_blueprints_dir / blueprint_name
 
@@ -56,12 +69,17 @@ def execute(args: argparse.Namespace):
             shutil.copytree(source_path, target_blueprint_dir)
             print(f"Blueprint directory '{source_path.name}' copied to '{target_blueprint_dir}'")
         elif source_path.is_file():
-            # If it's a single .py file, create a directory for it and copy the file in.
-            # This matches the structure where each blueprint is in its own directory.
-            target_blueprint_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_path, target_blueprint_dir / source_path.name)
-            print(f"Blueprint file '{source_path.name}' copied to '{target_blueprint_dir / source_path.name}'")
-        # TODO: Add .zip file handling
+            if source_path.suffix == '.zip':
+                # Extract .zip file to target directory
+                target_blueprint_dir.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(source_path, 'r') as zip_ref:
+                    zip_ref.extractall(target_blueprint_dir)
+                print(f"Blueprint archive '{source_path.name}' extracted to '{target_blueprint_dir}'")
+            else:
+                # Handle other files (like .py)
+                target_blueprint_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, target_blueprint_dir / source_path.name)
+                print(f"Blueprint file '{source_path.name}' copied to '{target_blueprint_dir / source_path.name}'")
         # elif source_path.is_file() and source_path.suffix == '.zip':
         #     print(f"Extracting blueprint from zip file '{source_path.name}' to '{target_blueprint_dir}'")
         #     target_blueprint_dir.mkdir(parents=True, exist_ok=True)

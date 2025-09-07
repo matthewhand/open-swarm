@@ -92,8 +92,43 @@ DB_FILE_NAME = "swarm_instructions.db"
 DB_PATH = Path(project_root) / DB_FILE_NAME
 TABLE_NAME = "agent_instructions" # agent_name TEXT PRIMARY KEY, instruction_text TEXT, model_profile TEXT
 
-# Spinner UX enhancement (Open Swarm TODO)
-SPINNER_STATES = ['Generating.', 'Generating..', 'Generating...', 'Running...']
+# Enhanced spinner UX for Mission Improbable with mission-themed states
+SPINNER_STATES = [
+    '🕵️‍♂️ Analyzing mission parameters...',
+    '📡 Establishing secure connection...',
+    '🔐 Decrypting intelligence...',
+    '🎯 Planning operation sequence...',
+    '🚀 Executing mission phase 1...',
+    '⚡ Deploying specialized agents...',
+    '🔄 Coordinating field operations...',
+    '✅ Mission objectives achieved!',
+    '🎖️ Operation successful - extracting...'
+]
+
+# Enhanced spinner class with mission-style progress tracking
+class MissionSpinner:
+    def __init__(self):
+        self.states = SPINNER_STATES
+        self.current_state = 0
+        self.running = False
+        self.mission_phases = ['Recon', 'Planning', 'Execution', 'Extraction']
+        self.current_phase = 0
+    
+    async def start(self):
+        self.running = True
+        while self.running:
+            state = self.states[self.current_state % len(self.states)]
+            phase = self.mission_phases[self.current_phase % len(self.mission_phases)]
+            print(f"\r[{phase}] {state}", end='', flush=True)
+            self.current_state += 1
+            if self.current_state % 3 == 0:
+                self.current_phase += 1
+            await asyncio.sleep(0.8)
+    
+    def stop(self):
+        self.running = False
+        print("\r" + " " * 60 + "\r", end='', flush=True)
+        print("🎯 MISSION IMPROBABLE COMPLETED SUCCESSFULLY! 🕵️‍♂️")
 
 # --- Define the Blueprint ---
 # Renamed class for consistency

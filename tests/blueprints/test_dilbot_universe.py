@@ -26,13 +26,12 @@ def temporary_db():
     if test_db_path.exists():
         test_db_path.unlink()
 
-@pytest.mark.skip(reason="SQLite interaction testing needs refinement.")
-@patch('blueprints.dilbot_universe.blueprint_dilbot_universe.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions.db")) # Patch DB path
-@patch('blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}) # Mock config
-@patch('blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._get_model_instance') # Mock model instance creation
+@patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.DB_PATH', new_callable=lambda: Path("./test_swarm_instructions.db")) # Patch DB path
+@patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration', return_value={'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}, 'mcpServers': {}}) # Mock config
+@patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._get_model_instance') # Mock model instance creation
 def test_dilbot_db_initialization(mock_get_model, mock_load_config, temporary_db):
     """Test if the database and table are created and sample data loaded."""
-    from blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
 
     # Arrange
     blueprint = DilbotUniverseBlueprint(debug=True) # Instantiation triggers init
@@ -53,22 +52,74 @@ def test_dilbot_db_initialization(mock_get_model, mock_load_config, temporary_db
         dilbot_instr = cursor.fetchone()[0]
         assert "You are Dilbot" in dilbot_instr # Check if sample data looks right
 
-@pytest.mark.skip(reason="SQLite interaction testing needs refinement.")
-def test_dilbot_get_agent_config_from_db():
+def test_dilbot_get_agent_config_from_db(temporary_db):
     """Test fetching config from a pre-populated test DB."""
-    # Needs setup with a known test DB state and mocking BlueprintBase methods
-    assert False
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
+    
+    # Setup sample data in DB
+    with sqlite3.connect(temporary_db) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS agent_instructions (agent_name TEXT, instruction_text TEXT)")
+        conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Dilbot", "You are Dilbot, a helpful assistant."))
+        conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Universe", "You manage the universe simulation."))
+        conn.commit()
+    
+    # Mock blueprint and call get_agent_config
+    with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration') as mock_load_config:
+        mock_load_config.return_value = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}}
+        blueprint = DilbotUniverseBlueprint(debug=True)
+        config = blueprint.get_agent_config("Dilbot")
+        assert config is not None
+        assert "Dilbot" in config.get("name", "")
+        assert "helpful assistant" in config.get("instructions", "")
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented.")
 @pytest.mark.asyncio
-async def test_dilbot_delegation_flow_sqlite():
+async def test_dilbot_delegation_flow_sqlite(temporary_db):
     """Test a simple delegation path using SQLite config."""
-    # Needs Runner mocking and DB mocking/setup.
-    assert False
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
+    
+    # Setup sample data
+    with sqlite3.connect(temporary_db) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS agent_instructions (agent_name TEXT, instruction_text TEXT)")
+        conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Dilbot", "You are Dilbot, delegate tasks."))
+        conn.commit()
+    
+    with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration') as mock_load_config:
+        mock_load_config.return_value = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}}
+        blueprint = DilbotUniverseBlueprint(debug=True)
+        
+        # Mock Runner.run to simulate delegation
+        with patch('src.swarm.core.runner.Runner.run') as mock_runner:
+            mock_runner.return_value = [{"role": "assistant", "content": "Delegated to Universe"}]
+            messages = [{"role": "user", "content": "Build a universe"}]
+            result = [msg async for msg in blueprint.run(messages)]
+            assert len(result) > 0
+            assert "Delegated" in result[-1]["content"]
 
-@pytest.mark.skip(reason="Blueprint action tests not yet implemented")
 @pytest.mark.asyncio
-async def test_dilbot_build_action_sqlite():
+async def test_dilbot_build_action_sqlite(temporary_db):
     """Test the build_product tool being called (SQLite based)."""
-     # Needs Runner mocking to verify tool calls.
-    assert False
+    from src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe import DilbotUniverseBlueprint
+    
+    # Setup sample data
+    with sqlite3.connect(temporary_db) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS agent_instructions (agent_name TEXT, instruction_text TEXT)")
+        conn.execute("INSERT INTO agent_instructions VALUES (?, ?)", ("Universe", "You build universes using build_product tool."))
+        conn.commit()
+    
+    with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.BlueprintBase._load_configuration') as mock_load_config:
+        mock_load_config.return_value = {'llm': {'default': {'provider': 'openai', 'model': 'gpt-mock'}}}
+        blueprint = DilbotUniverseBlueprint(debug=True)
+        
+        # Mock agent tools to verify build_product call
+        mock_agent = MagicMock()
+        mock_build_tool = MagicMock(name="build_product")
+        mock_agent.tools = [mock_build_tool]
+        
+        with patch('src.swarm.blueprints.dilbot_universe.blueprint_dilbot_universe.Agent') as mock_agent_class:
+            mock_agent_class.return_value = mock_agent
+            with patch('src.swarm.core.runner.Runner.run') as mock_runner:
+                messages = [{"role": "user", "content": "Build a new universe"}]
+                list(mock_runner(messages))  # Trigger run
+                
+                # Verify tool was called
+                mock_build_tool.func.assert_called_once()
