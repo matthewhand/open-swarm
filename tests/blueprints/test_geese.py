@@ -219,34 +219,39 @@ def test_main_entry(monkeypatch, tmp_path):
     with open(dummy_config_path, "w") as f:
         json.dump(dummy_config_content, f)
 
-    # Set SWARM_CONFIG_PATH to use dummy config
-    import os
-    os.environ['SWARM_CONFIG_PATH'] = str(dummy_config_path)
+    try:
+        # Set SWARM_CONFIG_PATH to use dummy config
+        import os
+        os.environ['SWARM_CONFIG_PATH'] = str(dummy_config_path)
 
-    # Monkeypatch sys.argv to include --config and --message
-    monkeypatch.setattr(sys, 'argv', ['script.py', '--config', str(dummy_config_path), '--message', 'CLI test prompt'])
-    
-    # Mock GeeseBlueprint.run to yield simple output
-    with patch('src.swarm.blueprints.geese.blueprint_geese.GeeseBlueprint') as mock_bp_cls:
-        mock_bp = MagicMock()
-        async def mock_run():
-            yield AgentInteraction(
-                type="message", role="assistant",
-                content="CLI test story.",
-                data={"title": "CLI Test", "word_count": 3}, final=True
-            )
-        mock_bp.run.return_value = mock_run()
-        mock_bp_cls.return_value = mock_bp
-        
-        # Capture stdout
-        with patch('sys.stdout', new=StringIO()) as mock_stdout:
-            # Run the module as script to execute if __name__ == "__main__"
-            runpy.run_module('src.swarm.blueprints.geese.geese_cli', run_name='__main__')
+        # Monkeypatch sys.argv to include --config and --message
+        monkeypatch.setattr(sys, 'argv', ['script.py', '--config', str(dummy_config_path), '--message', 'CLI test prompt'])
 
-        output = mock_stdout.getvalue()
-        assert "Geese:" in output
-        assert "CLI test story" in output
-        assert "Error" not in output
+        # Mock GeeseBlueprint.run to yield simple output
+        with patch('src.swarm.blueprints.geese.blueprint_geese.GeeseBlueprint') as mock_bp_cls:
+            mock_bp = MagicMock()
+            async def mock_run():
+                yield AgentInteraction(
+                    type="message", role="assistant",
+                    content="CLI test story.",
+                    data={"title": "CLI Test", "word_count": 3}, final=True
+                )
+            mock_bp.run.return_value = mock_run()
+            mock_bp_cls.return_value = mock_bp
+
+            # Capture stdout
+            with patch('sys.stdout', new=StringIO()) as mock_stdout:
+                # Run the module as script to execute if __name__ == "__main__"
+                runpy.run_module('src.swarm.blueprints.geese.geese_cli', run_name='__main__')
+
+            output = mock_stdout.getvalue()
+            assert "Geese:" in output
+            assert "CLI test story" in output
+            assert "Error" not in output
+    finally:
+        # Clean up the dummy config file
+        if dummy_config_path.exists():
+            dummy_config_path.unlink()
 
 @pytest.mark.asyncio
 async def test_create_story_outline(geese_blueprint_instance):
