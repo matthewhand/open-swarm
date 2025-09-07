@@ -185,7 +185,31 @@ class BlueprintBase(ABC):
                 except Exception as e:
                     if _should_debug():
                         logger.warning(f"Falling back to CLI/home config due to error: {e}")
-                    # 1. CLI argument (not handled here, handled in cli_handler)
+                    # Check self.config_path
+                    if self.config_path is not None:
+                        config_path = Path(self.config_path)
+                        if config_path.exists():
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded from self.config_path: {config_path}")
+                            with open(config_path) as f:
+                                self._config = json.load(f)
+                        else:
+                            logger.warning(f"Config path {config_path} does not exist.")
+                            self._config = {}
+                    # Check SWARM_CONFIG_PATH env var
+                    if self._config is None:
+                        swarm_config_path_env = os.environ.get("SWARM_CONFIG_PATH")
+                        if swarm_config_path_env:
+                            swarm_config_path = Path(swarm_config_path_env)
+                            print(f"[SWARM_CONFIG_DEBUG] Trying SWARM_CONFIG_PATH: {swarm_config_path}")
+                            if swarm_config_path.exists():
+                                print(f"[SWARM_CONFIG_DEBUG] Loaded: {swarm_config_path}")
+                                with open(swarm_config_path) as f:
+                                    self._config = json.load(f)
+                            else:
+                                logger.warning(f"SWARM_CONFIG_PATH {swarm_config_path} does not exist.")
+                                self._config = {}
+                    if self._config is None:
+                        # 1. CLI argument (not handled here, handled in cli_handler)
                     # 2. Current working directory (guard against missing CWD)
                     try:
                         cwd_config = Path.cwd() / "swarm_config.json"
@@ -716,64 +740,3 @@ class BlueprintBase(ABC):
         raise NotImplementedError("Subclasses must implement the 'run' method.")
         yield {}
 
-    def _load_configuration(self):
-        """
-        Loads blueprint configuration. This method is a stub for compatibility with tests that patch it.
-        In production, configuration is loaded via _load_and_process_config.
-        """
-        import os
-        try:
-            if self._config is None:
-                try:
-                    if self.config_path is not None:
-                        self.config_path = Path(self.config_path)
-                        if self.config_path.exists():
-                            if is_debug_enabled():
-                                print(f"[DEBUG LOADER] Reading config from {self.config_path}")
-                            raw = self.config_path.read_text()
-                            if is_debug_enabled():
-                                print(f"[DEBUG LOADER] Raw config contents:\n{raw}")
-                            self._config = json.loads(raw)
-                            assert isinstance(self._config, dict), f"Config not a dict: {type(self._config)}"
-                            assert self._config, "Config loaded but is empty!"
-                        else:
-                            logger.warning(f"Config path {self.config_path} does not exist. Using empty config.")
-                            self._config = {}
-                    else:
-                        # Try cwd, then default, then /mnt/models/open-swarm-mcp/swarm_config.json
-                        cwd_path = Path(os.getcwd()) / "swarm_config.json"
-                        if cwd_path.exists():
-                            if is_debug_enabled():
-                                print(f"[DEBUG LOADER] Reading config from {cwd_path}")
-                            raw = cwd_path.read_text()
-                            if is_debug_enabled():
-                                print(f"[DEBUG LOADER] Raw config contents:\n{raw}")
-                            self._config = json.loads(raw)
-                            assert isinstance(self._config, dict), f"Config not a dict: {type(self._config)}"
-                            assert self._config, "Config loaded but is empty!"
-                        else:
-                            # Fallback to /mnt/models/open-swarm-mcp/swarm_config.json
-                            mnt_path = Path("/mnt/models/open-swarm-mcp/swarm_config.json")
-                            if mnt_path.exists():
-                                if is_debug_enabled():
-                                    print(f"[DEBUG LOADER] Reading config from {mnt_path}")
-                                raw = mnt_path.read_text()
-                                if is_debug_enabled():
-                                    print(f"[DEBUG LOADER] Raw config contents:\n{raw}")
-                                self._config = json.loads(raw)
-                                assert isinstance(self._config, dict), f"Config not a dict: {type(self._config)}"
-                                assert self._config, "Config loaded but is empty!"
-                            else:
-                                self._config = {}
-                except Exception as e:
-                    print(f"[FATAL CONFIG LOAD ERROR] {e}")
-                    traceback.print_exc()
-                    self._config = {}
-            # Ensure self._config is always a dict
-            if self._config is None:
-                self._config = {}
-            return self._config
-
-        except Exception as e:
-            logger.error(f"Unexpected error loading config for blueprint '{self.blueprint_id}': {e}", exc_info=True)
-            raise

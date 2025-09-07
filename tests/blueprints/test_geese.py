@@ -218,11 +218,12 @@ def test_main_entry(monkeypatch, tmp_path):
     with open(dummy_config_path, "w") as f:
         json.dump(dummy_config_content, f)
     
-    # Monkeypatch SWARM_CONFIG_PATH to use dummy config
-    monkeypatch.setenv('SWARM_CONFIG_PATH', str(dummy_config_path))
+    # Set SWARM_CONFIG_PATH to use dummy config
+    import os
+    os.environ['SWARM_CONFIG_PATH'] = str(dummy_config_path)
     
-    # Monkeypatch sys.argv to include --message
-    monkeypatch.setattr(sys, 'argv', ['script.py', '--message', 'CLI test prompt'])
+    # Monkeypatch sys.argv to include --config and --message
+    monkeypatch.setattr(sys, 'argv', ['script.py', '--config', str(dummy_config_path), '--message', 'CLI test prompt'])
     
     # Mock GeeseBlueprint.run to yield simple output
     with patch('src.swarm.blueprints.geese.blueprint_geese.GeeseBlueprint') as mock_bp_cls:
