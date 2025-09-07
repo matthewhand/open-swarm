@@ -124,8 +124,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return IN_MEMORY_CONVERSATIONS[conversation_id]
 
         try:
-            chat = ChatConversation.objects.get(conversation_id=conversation_id, user=self.user)
-            messages = list(chat.messages.values("sender", "content", "timestamp"))
+            chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
+            messages = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
             IN_MEMORY_CONVERSATIONS[conversation_id] = messages  # Cache it
             return messages
         except ChatConversation.DoesNotExist:
@@ -136,7 +136,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         """
         Save messages to the DB and update in-memory cache.
         """
-        chat, _ = ChatConversation.objects.get_or_create(conversation_id=conversation_id, user=self.user)
+        chat, _ = ChatConversation.objects.get_or_create(conversation_id=conversation_id, student=self.user)
 
         for message in new_messages:
             ChatMessage.objects.create(
@@ -154,7 +154,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         Delete the conversation from DB if empty.
         """
         try:
-            chat = ChatConversation.objects.get(conversation_id=conversation_id, user=self.user)
+            chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
             if not chat.messages.exists():  # Check if there are any messages before deleting
                 chat.delete()
                 if conversation_id in IN_MEMORY_CONVERSATIONS:
