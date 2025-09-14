@@ -90,3 +90,14 @@ if getattr(dj_settings, 'ENABLE_WAGTAIL', False):
         ]
     except Exception:
         pass
+
+# Optional SAML IdP (djangosaml2idp) when enabled
+if getattr(dj_settings, 'ENABLE_SAML_IDP', False):
+    try:
+        from django.urls import include
+        urlpatterns += [
+            path('idp/', include('djangosaml2idp.urls')),
+        ]
+    except Exception:
+        # Package not installed or import failed; ignore if disabled in env
+        pass

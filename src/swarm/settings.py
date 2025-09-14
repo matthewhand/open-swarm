@@ -73,6 +73,28 @@ if ENABLE_WAGTAIL:
     WAGTAIL_SITE_NAME = 'Open Swarm'
     SITE_ID = int(os.getenv('DJANGO_SITE_ID', '1'))
 
+# Optional SAML IdP integration (djangosaml2idp). Disabled by default.
+ENABLE_SAML_IDP = os.getenv('ENABLE_SAML_IDP', 'false').lower() in ('1', 'true', 'yes')
+if ENABLE_SAML_IDP:
+    try:
+        INSTALLED_APPS += ['djangosaml2idp']
+    except Exception:
+        # Allow tests and environments without the package to proceed when disabled
+        pass
+
+# Minimal IdP config placeholders (template-only; no secrets). Real values should be
+# provided via environment or admin configuration when deploying IdP.
+# We expose a simple structure for tests/introspection; djangosaml2idp expects
+# SAML_IDP_SPCONFIG mapping keyed by SP entity IDs.
+SAML_IDP_SPCONFIG = {
+    # Example template entry (disabled until explicitly configured):
+    # os.getenv('SAML_SP_ENTITY_ID', 'sp-example') : {
+    #     'acs_url': os.getenv('SAML_SP_ACS_URL', 'https://sp.example.com/saml/acs'),
+    #     'audiences': [os.getenv('SAML_SP_AUDIENCE', 'https://sp.example.com')],
+    #     'nameid_format': 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+    # }
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
