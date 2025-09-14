@@ -11,7 +11,12 @@ from swarm.views.agent_creator_views import (
     validate_agent_code,
 )
 from swarm.views.api_views import BlueprintsListView
-from swarm.views.api_views import CustomBlueprintsView, CustomBlueprintDetailView
+from swarm.views.api_views import (
+    CustomBlueprintsView,
+    CustomBlueprintDetailView,
+    MarketplaceBlueprintsView,
+    MarketplaceMCPConfigsView,
+)
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
     add_blueprint_to_library,
@@ -41,6 +46,9 @@ urlpatterns = [
     path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
     path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
+    # Optional marketplace (Wagtail) headless endpoints (return empty list if disabled)
+    path("marketplace/blueprints/", MarketplaceBlueprintsView.as_view(), name="marketplace-blueprints"),
+    path("marketplace/mcp-configs/", MarketplaceMCPConfigsView.as_view(), name="marketplace-mcp-configs"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
