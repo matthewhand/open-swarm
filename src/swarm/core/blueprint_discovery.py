@@ -4,7 +4,7 @@ import inspect
 import logging
 import sys
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,9 @@ class BlueprintMetadata(TypedDict, total=False):
     description: str | None
     author: str | None
     abbreviation: str | None
+    # Optional extended fields commonly used by blueprints
+    required_mcp_servers: list[str] | None
+    env_vars: list[str] | None
     # Add other common metadata fields here if needed for typing
 
 class DiscoveredBlueprintInfo(TypedDict):
@@ -152,12 +155,23 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
                                 description = docstring.strip()
                                 logger.debug(f"Using class docstring for description of '{member_name}'.")
 
+                        # Start with the full metadata dict to preserve any
+                        # additional fields (e.g., required_mcp_servers, env_vars).
+                        # Then apply safe fallbacks/overrides for common keys.
+                        full_meta: dict[str, Any] = dict(class_metadata_attr)
+                        full_meta.setdefault('name', blueprint_key_name)
+                        if description and not full_meta.get('description'):
+                            full_meta['description'] = description
+
+                        # Narrow to a TypedDict view for return typing, but keep extra keys
                         current_blueprint_metadata: BlueprintMetadata = {
-                            'name': class_metadata_attr.get('name', blueprint_key_name), # Fallback to dir name
-                            'version': class_metadata_attr.get('version'),
-                            'description': description,
-                            'author': class_metadata_attr.get('author'),
-                            'abbreviation': class_metadata_attr.get('abbreviation') # New field
+                            'name': full_meta.get('name'),
+                            'version': full_meta.get('version'),
+                            'description': full_meta.get('description'),
+                            'author': full_meta.get('author'),
+                            'abbreviation': full_meta.get('abbreviation'),
+                            'required_mcp_servers': full_meta.get('required_mcp_servers'),
+                            'env_vars': full_meta.get('env_vars'),
                         }
 
                         found_bp_class_details = DiscoveredBlueprintInfo(

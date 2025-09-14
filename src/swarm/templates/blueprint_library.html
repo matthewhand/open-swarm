@@ -152,6 +152,44 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Fetch MCP compliance for all blueprints and update badges
+    fetch('/blueprint-library/requirements/')
+      .then(resp => resp.json())
+      .then(data => {
+          (data.blueprints || []).forEach(bp => {
+              const el = document.getElementById(`mcp-status-${bp.id}`);
+              if (!el) return;
+              const comp = bp.compliance || {};
+              const status = comp.status || 'partial';
+              let cls = 'bg-secondary';
+              let icon = 'fa-circle-question';
+              let label = 'MCP: Unknown';
+              let title = '';
+              if (status === 'ok') {
+                  cls = 'bg-success';
+                  icon = 'fa-check';
+                  label = 'MCP: OK';
+              } else if (status === 'partial') {
+                  cls = 'bg-warning text-dark';
+                  icon = 'fa-triangle-exclamation';
+                  const unresolved = (comp.unresolved_env || []).length;
+                  const bpEnv = (comp.blueprint_env_missing || []).length;
+                  label = `MCP: Partial`;
+                  title = `Unresolved env: ${unresolved}, Missing blueprint env: ${bpEnv}`;
+              } else if (status === 'missing') {
+                  cls = 'bg-danger';
+                  icon = 'fa-xmark';
+                  const missing = (comp.missing_servers || []).length;
+                  label = `MCP: Missing (${missing})`;
+                  title = `Missing servers: ${(comp.missing_servers || []).join(', ')}`;
+              }
+              el.className = `badge ${cls}`;
+              el.title = title;
+              el.innerHTML = `<i class=\"fas ${icon} me-1\"></i>${label}`;
+          });
+      })
+      .catch(() => {/* silently ignore; badges stay in checking state */});
+
     // Handle add/remove blueprint buttons
     document.querySelectorAll('.btn-add-blueprint, .btn-remove-blueprint').forEach(button => {
         button.addEventListener('click', function(e) {

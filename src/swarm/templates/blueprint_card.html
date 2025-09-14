@@ -49,11 +49,14 @@
         </div>
         {% endif %}
         
-        <!-- Version -->
-        <div class="mb-3">
+        <!-- Version + MCP Status -->
+        <div class="mb-3 d-flex justify-content-between align-items-center">
             <small class="text-muted">
                 <i class="fas fa-tag me-1"></i>v{{ blueprint.version }}
             </small>
+            <span id="mcp-status-{{ blueprint.id }}" class="badge bg-secondary" title="Checking MCP requirements...">
+                <i class="fas fa-spinner fa-spin me-1"></i>MCP: Checking
+            </span>
         </div>
         
         <!-- Action Button -->
@@ -78,6 +81,9 @@
                 <i class="fas fa-cube me-1"></i>{{ blueprint.id }}
             </small>
             <div class="btn-group btn-group-sm">
+                <a href="/settings/" class="btn btn-outline-warning btn-sm" title="Configure MCP">
+                    <i class="fas fa-plug"></i>
+                </a>
                 <button class="btn btn-outline-primary btn-sm" 
                         onclick="previewBlueprint('{{ blueprint.id }}')"
                         title="Preview">

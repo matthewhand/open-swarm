@@ -12,6 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.paths import get_user_config_dir_for_swarm
+from swarm.core.requirements import load_active_config, evaluate_mcp_compliance
 from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.comfyui_client import comfyui_client
 from swarm.utils.logger_setup import setup_logger
@@ -241,6 +242,33 @@ def blueprint_library(request):
     except Exception as e:
         logger.error(f"Error loading blueprint library: {e}")
         return HttpResponse("Error loading blueprint library", status=500)
+
+@csrf_exempt
+def blueprint_requirements_status(request):
+    """Return JSON with MCP requirements vs current configuration per blueprint."""
+    try:
+        discovered = discover_blueprints(BLUEPRINT_DIRECTORY)
+        config = load_active_config()
+        mcp_config = config.get("mcpServers", {}) if isinstance(config, dict) else {}
+
+        results = []
+        for key, info in discovered.items():
+            metadata = info.get("metadata", {})
+            required = metadata.get("required_mcp_servers") or []
+            env_vars = metadata.get("env_vars") or []
+            compliance = evaluate_mcp_compliance(required, mcp_config, blueprint_env_vars=env_vars)
+            results.append({
+                "id": key,
+                "name": metadata.get("name", key),
+                "required_mcp_servers": required,
+                "env_vars": env_vars,
+                "compliance": compliance,
+            })
+
+        return JsonResponse({"blueprints": results})
+    except Exception as e:
+        logger.error(f"Error generating blueprint requirements status: {e}", exc_info=True)
+        return JsonResponse({"error": "Internal server error"}, status=500)
 
 @csrf_exempt
 def add_blueprint_to_library(request, blueprint_name):

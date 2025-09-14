@@ -11,11 +11,13 @@ from swarm.views.agent_creator_views import (
     validate_agent_code,
 )
 from swarm.views.api_views import BlueprintsListView
+from swarm.views.api_views import CustomBlueprintsView, CustomBlueprintDetailView
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
     add_blueprint_to_library,
     blueprint_creator,
     blueprint_library,
+    blueprint_requirements_status,
     check_comfyui_status,
     generate_avatar,
     my_blueprints,
@@ -28,6 +30,7 @@ from swarm.views.settings_views import (
     settings_dashboard,
 )
 from swarm.views.web_views import profiles_page, team_admin, team_launcher, teams_export
+from django.conf import settings as dj_settings
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
@@ -36,6 +39,8 @@ urlpatterns = [
     path("v1/models/", OpenAIModelsView.as_view(), name="models-list"),
     path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
     path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
+    path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
+    path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
@@ -58,6 +63,7 @@ urlpatterns = [
     path("blueprint-library/", blueprint_library, name="blueprint_library"),
     path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),
     path("blueprint-library/my-blueprints/", my_blueprints, name="my_blueprints"),
+    path("blueprint-library/requirements/", blueprint_requirements_status, name="blueprint_requirements_status"),
     path("blueprint-library/add/<str:blueprint_name>/", add_blueprint_to_library, name="add_blueprint_to_library"),
     path("blueprint-library/remove/<str:blueprint_name>/", remove_blueprint_from_library, name="remove_blueprint_from_library"),
     # Avatar generation endpoints
@@ -68,3 +74,19 @@ urlpatterns = [
 # Serve avatar images in development
 if settings.DEBUG:
     urlpatterns += static(settings.AVATAR_URL_PREFIX, document_root=settings.AVATAR_STORAGE_PATH)
+
+# Optional Wagtail admin/site when enabled
+if getattr(dj_settings, 'ENABLE_WAGTAIL', False):
+    try:  # Import lazily to avoid hard dependency when disabled
+        from wagtail import urls as wagtail_urls
+        from wagtail.admin import urls as wagtailadmin_urls
+        from wagtail.documents import urls as wagtaildocs_urls
+        from django.urls import include
+
+        urlpatterns += [
+            path('cms/admin/', include(wagtailadmin_urls)),
+            path('cms/documents/', include(wagtaildocs_urls)),
+            path('cms/', include(wagtail_urls)),
+        ]
+    except Exception:
+        pass
