@@ -119,6 +119,24 @@ if _sp_json:
         # Ignore malformed JSON; callers can inspect logs elsewhere
         pass
 
+# Optionally merge SP config entries from JSON file path
+_sp_file = os.getenv('SAML_IDP_SPCONFIG_FILE')
+if _sp_file:
+    try:
+        with open(_sp_file, 'r', encoding='utf-8') as f:
+            file_payload = f.read()
+        parsed = json.loads(file_payload)
+        if isinstance(parsed, dict):
+            for sp_entity, cfg in list(parsed.items()):
+                if not isinstance(cfg, dict) or 'acs_url' not in cfg:
+                    parsed.pop(sp_entity, None)
+                    continue
+                if 'audiences' in cfg and not isinstance(cfg['audiences'], (list, tuple)):
+                    cfg['audiences'] = [str(cfg['audiences'])]
+            SAML_IDP_SPCONFIG.update(parsed)
+    except Exception:
+        pass
+
 # Optional env-driven IdP base config (template-only)
 SAML_IDP_ENTITY_ID = os.getenv('SAML_IDP_ENTITY_ID', os.getenv('HOST', 'http://localhost:8000') + '/idp/metadata/')
 SAML_IDP_CERT_FILE = os.getenv('SAML_IDP_CERT_FILE')  # filesystem path to public cert (do not commit)

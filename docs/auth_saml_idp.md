@@ -81,6 +81,16 @@ export SAML_IDP_SPCONFIG_JSON='
 
 - The loader validates minimal structure (`acs_url` required; `audiences` coerced to list when present). Invalid items are dropped silently.
 
+SP config via file
+------------------
+- Alternatively, point to a JSON file using `SAML_IDP_SPCONFIG_FILE`:
+
+```
+export SAML_IDP_SPCONFIG_FILE=/secure/path/spconfig.json
+```
+
+- The same validation rules apply as with the JSON env variable.
+
 Local Development Tips
 ----------------------
 - If you need quick self‑signed certs for testing:
