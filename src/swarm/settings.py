@@ -3,6 +3,7 @@ Django settings for swarm project.
 """
 
 import os
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -94,6 +95,29 @@ SAML_IDP_SPCONFIG = {
     #     'nameid_format': 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
     # }
 }
+
+# Optionally merge SP config entries from environment JSON (template-only)
+_sp_json = os.getenv('SAML_IDP_SPCONFIG_JSON')
+if _sp_json:
+    try:
+        parsed = json.loads(_sp_json)
+        if isinstance(parsed, dict):
+            # Basic validation for known keys
+            for sp_entity, cfg in list(parsed.items()):
+                if not isinstance(cfg, dict):
+                    # Remove invalid entries
+                    parsed.pop(sp_entity, None)
+                    continue
+                if 'acs_url' not in cfg:
+                    parsed.pop(sp_entity, None)
+                    continue
+                # audiences optional but should be list if provided
+                if 'audiences' in cfg and not isinstance(cfg['audiences'], (list, tuple)):
+                    cfg['audiences'] = [str(cfg['audiences'])]
+            SAML_IDP_SPCONFIG.update(parsed)
+    except Exception:
+        # Ignore malformed JSON; callers can inspect logs elsewhere
+        pass
 
 # Optional env-driven IdP base config (template-only)
 SAML_IDP_ENTITY_ID = os.getenv('SAML_IDP_ENTITY_ID', os.getenv('HOST', 'http://localhost:8000') + '/idp/metadata/')

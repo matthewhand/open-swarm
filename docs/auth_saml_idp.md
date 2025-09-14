@@ -63,6 +63,24 @@ Security & Secrets
 - Do not store private keys or secrets in the repository. Provision certificates/keys securely.
 - This integration only scaffolds the IdP; production deployments must configure HTTPS, certificates, signing/encryption keys, and SP metadata appropriately.
 
+SP config via environment
+-------------------------
+- You can inject Service Provider entries via `SAML_IDP_SPCONFIG_JSON` (a JSON object keyed by SP entity IDs):
+
+```
+export SAML_IDP_SPCONFIG_JSON='
+{
+  "https://sp.example.com/metadata": {
+    "acs_url": "https://sp.example.com/saml/acs",
+    "audiences": ["https://sp.example.com"],
+    "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+  }
+}
+'
+```
+
+- The loader validates minimal structure (`acs_url` required; `audiences` coerced to list when present). Invalid items are dropped silently.
+
 Local Development Tips
 ----------------------
 - If you need quick self‑signed certs for testing:
