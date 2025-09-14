@@ -33,6 +33,7 @@ class BlueprintMCPProvider:
     def __init__(self, blueprint_dir: str | None = None) -> None:
         self._blueprint_dir = blueprint_dir or BLUEPRINT_DIRECTORY
         self._index: Dict[str, Dict[str, Any]] = {}
+        self._executor: Any = None  # optional callable for execution integration
         self.refresh()
 
     def refresh(self) -> None:
@@ -47,6 +48,7 @@ class BlueprintMCPProvider:
                 "id": key,
                 "name": name,
                 "description": description,
+                "class_type": info.get("class_type") if isinstance(info, dict) else None,
             }
         self._index = index
 
@@ -80,8 +82,25 @@ class BlueprintMCPProvider:
         instruction = arguments.get("instruction", "")
         if not isinstance(instruction, str) or not instruction.strip():
             raise ValueError("'instruction' must be a non-empty string")
+        # If an executor is configured (e.g., wired to Runner/BlueprintBase), use it
+        if callable(self._executor):
+            try:
+                cls = self._index[name].get("class_type")
+                result = self._executor(cls, instruction, arguments)
+                # Expect result as dict with 'content' or already normalized
+                if isinstance(result, dict):
+                    return result
+                return {"content": str(result)}
+            except Exception as e:
+                return {"content": f"[Blueprint:{name}] Execution error: {e}"}
         # MVP reply
-        return {
-            "content": f"[Blueprint:{name}] Received instruction: {instruction}",
-        }
+        return {"content": f"[Blueprint:{name}] Received instruction: {instruction}"}
 
+    def set_executor(self, fn: Any) -> None:
+        """Set an optional execution callable cls, instruction, args -> result.
+
+        This allows integration tests (or the django-mcp-server wiring) to
+        provide a bridge to actual blueprint execution without hard dependency
+        in this module.
+        """
+        self._executor = fn

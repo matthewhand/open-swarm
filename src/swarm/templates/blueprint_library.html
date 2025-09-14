@@ -98,6 +98,13 @@
                 <i class="fas fa-th-large me-1"></i>All Blueprints
             </button>
         </li>
+        {% if github_marketplace_enabled %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="github-tab" data-bs-toggle="tab" data-bs-target="#github" type="button" role="tab" onclick="loadGithubMarketplace()">
+                <i class="fab fa-github me-1"></i>GitHub
+            </button>
+        </li>
+        {% endif %}
         {% for category_id, category_info in categories.items %}
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="{{ category_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ category_id }}" type="button" role="tab">
@@ -134,6 +141,35 @@
             </div>
         </div>
         {% endfor %}
+
+        {% if github_marketplace_enabled %}
+        <!-- GitHub Marketplace Tab -->
+        <div class="tab-pane fade" id="github" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <input type="text" id="ghSearch" class="form-control" placeholder="Search by name..." style="min-width: 240px; display: inline-block;">
+                    <button class="btn btn-outline-primary ms-2" onclick="loadGithubMarketplace()"><i class="fas fa-search"></i></button>
+                </div>
+                <div>
+                    <select id="ghType" class="form-select form-select-sm me-2" style="width: 190px; display: inline-block;">
+                        <option value="blueprints" selected>Type: Blueprints</option>
+                        <option value="mcp-configs">Type: MCP Templates</option>
+                    </select>
+                    <select id="ghSort" class="form-select form-select-sm" style="width: 180px; display: inline-block;">
+                        <option value="stars" selected>Sort: Stars</option>
+                        <option value="updated">Sort: Updated</option>
+                        <option value="created">Sort: Created</option>
+                        <option value="last_used">Sort: Last Used</option>
+                    </select>
+                    <select id="ghOrder" class="form-select form-select-sm ms-2" style="width: 140px; display: inline-block;">
+                        <option value="desc" selected>Desc</option>
+                        <option value="asc">Asc</option>
+                    </select>
+                </div>
+            </div>
+            <div id="ghResults" class="row g-3"></div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -238,6 +274,57 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+async function loadGithubMarketplace() {
+    try {
+        const q = encodeURIComponent(document.getElementById('ghSearch')?.value || '');
+        const sort = document.getElementById('ghSort')?.value || 'stars';
+        const order = document.getElementById('ghOrder')?.value || 'desc';
+        const type = document.getElementById('ghType')?.value || 'blueprints';
+        const url = `/marketplace/github/${type}/?search=${q}&sort=${sort}&order=${order}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        const container = document.getElementById('ghResults');
+        container.innerHTML = '';
+        (data.data || []).forEach(item => {
+            const col = document.createElement('div');
+            col.className = 'col-lg-4 col-md-6';
+            col.innerHTML = renderGithubCard(item);
+            container.appendChild(col);
+        });
+    } catch (e) {
+        console.error('GitHub marketplace load failed', e);
+    }
+}
+
+function renderGithubCard(item) {
+    const repo = item.repo_full_name || 'unknown/repo';
+    const repoUrl = item.repo_url || '#';
+    const owner = item.owner || (repo.split('/')[0] || '');
+    const title = item.name || '(untitled)';
+    const desc = item.description || '';
+    const tags = (item.tags || []).map(t => `<span class="badge bg-light text-dark tag-badge">${t}</span>`).join(' ');
+    const kind = item.kind || 'blueprint';
+    const kindBadge = kind === 'mcp' ? '<span class="badge bg-info text-dark ms-2">MCP</span>' : '';
+    const files = item.file_count != null ? `${item.file_count} file${item.file_count === 1 ? '' : 's'}` : '';
+    const lines = item.line_count != null ? `${item.line_count} lines` : '';
+    const metrics = (files || lines) ? `<small class="text-muted">${[files, lines].filter(Boolean).join(' • ')}</small>` : '';
+    return `
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">${title} ${kindBadge}</h5>
+        <p class="card-text">${desc}</p>
+        <div class="mb-2">${tags}</div>
+        <div class="mt-auto d-flex justify-content-between align-items-center">
+          <div>
+            <small class="text-muted d-block"><i class="fab fa-github me-1"></i>${repo}</small>
+            ${metrics}
+          </div>
+          <a class="btn btn-outline-secondary btn-sm" href="${repoUrl}" target="_blank">View Repo</a>
+        </div>
+      </div>
+    </div>`;
+}
 
 function showNotification(message, type) {
     const toast = document.getElementById('notificationToast');

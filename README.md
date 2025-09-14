@@ -87,6 +87,28 @@ class MyBlueprint(BlueprintBase):
 ```
 This allows you to route sub-instructions to other blueprints and integrate their output seamlessly into your workflows.
 
+## Sharing Blueprints via GitHub Topics
+
+You can discover community blueprints and MCP config templates by leveraging GitHub topics instead of a centralized catalog. Repositories opt in by tagging their repo with topics like:
+
+- `open-swarm-blueprint` — repository contains one or more Open Swarm blueprints
+- `open-swarm-mcp-template` — repository contains MCP configuration templates (no secrets)
+
+Our Web UI (and optional headless endpoints) can search GitHub for these topics and list items. Repos may include a top‑level `open-swarm.json` or per‑item manifests under `swarm/blueprints/<name>/manifest.json` or `swarm/mcp/<name>/manifest.json`. Manifests must be safe for publication (no secrets), using placeholders like `${VAR}`.
+
+See `docs/github_marketplace.md` for the discovery plan and conventions.
+
+## End‑to‑End: Marketplace → Local Config → Secure MCP
+
+At a glance:
+- Discover/import a blueprint (from GitHub topics or Wagtail editorials).
+- Configure required MCP servers locally (per user; templates never include secrets).
+- Expose local MCP tools under `/mcp/` (optional, behind `ENABLE_MCP_SERVER`).
+- Secure MCP with the local IdP (SAML already scaffolded; OAuth/OIDC recommended for token‑based clients).
+- Configure your MCP client to use the local `/mcp/` endpoint with a token and run tasks against the blueprint tools.
+
+See `docs/architecture_marketplace_to_mcp.md` for the high‑level flow.
+
 # Open Swarm
 
 <div align="center">

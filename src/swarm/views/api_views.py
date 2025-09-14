@@ -409,11 +409,17 @@ class MarketplaceGitHubBlueprintsView(APIView):
         if org:
             orgs = [org]
 
-        repos = gh_service.search_repos_by_topics(topics, orgs, sort=sort, order=order, query=search, token=GITHUB_TOKEN)
+        repos = gh_service.search_repos_by_topics(topics, orgs, sort=(None if sort == 'last_used' else sort), order=order, query=search, token=GITHUB_TOKEN)
         items: list[dict] = []
         for repo in repos:
             manifests = gh_service.fetch_repo_manifests(repo, token=GITHUB_TOKEN)
             items.extend(gh_service.to_marketplace_items(repo, manifests, kind='blueprint'))
+        if sort == 'last_used':
+            usage = get_last_used_map()
+            def score(it: dict) -> float:
+                key = (it.get('repo_full_name'), it.get('name'))
+                return usage.get(key, 0.0)
+            items.sort(key=score, reverse=(order != 'asc'))
         return Response({'object': 'list', 'data': items}, status=status.HTTP_200_OK)
 
 
@@ -435,9 +441,24 @@ class MarketplaceGitHubMCPConfigsView(APIView):
         if org:
             orgs = [org]
 
-        repos = gh_service.search_repos_by_topics(topics, orgs, sort=sort, order=order, query=search, token=GITHUB_TOKEN)
+        repos = gh_service.search_repos_by_topics(topics, orgs, sort=(None if sort == 'last_used' else sort), order=order, query=search, token=GITHUB_TOKEN)
         items: list[dict] = []
         for repo in repos:
             manifests = gh_service.fetch_repo_manifests(repo, token=GITHUB_TOKEN)
             items.extend(gh_service.to_marketplace_items(repo, manifests, kind='mcp'))
+        if sort == 'last_used':
+            usage = get_last_used_map()
+            def score(it: dict) -> float:
+                key = (it.get('repo_full_name'), it.get('name'))
+                return usage.get(key, 0.0)
+            items.sort(key=score, reverse=(order != 'asc'))
         return Response({'object': 'list', 'data': items}, status=status.HTTP_200_OK)
+
+
+def get_last_used_map() -> dict[tuple[str, str], float]:
+    """Return mapping of (repo_full_name, item_name) -> last_used timestamp.
+
+    Placeholder for now: returns empty dict. A future implementation will pull
+    per-user usage from the database. Tests monkeypatch this function.
+    """
+    return {}

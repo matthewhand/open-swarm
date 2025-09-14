@@ -10,6 +10,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import base64
 import httpx
 import time
+import ast
+import json as _json
 
 GITHUB_API = "https://api.github.com"
 
@@ -135,15 +137,96 @@ def fetch_repo_manifests(
                             if content:
                                 try:
                                     decoded = base64.b64decode(content).decode("utf-8")
-                                    import json
-                                    parsed = json.loads(decoded)
+                                    parsed = _json.loads(decoded)
                                     if isinstance(parsed, dict):
+                                        # Enrich with metrics and owner
+                                        enrich_item_with_metrics(client, owner, name, path, parsed)
+                                        parsed.setdefault('owner', owner)
                                         results.append(parsed)
                                 except Exception:
                                     pass
     except Exception:
         return results
     return results
+
+
+def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_dir: str, item: Dict[str, Any]) -> None:
+    """Compute file and line counts; extract metadata from python file if possible.
+
+    This function is best-effort; failures are silently ignored.
+    """
+    try:
+        listing = client.get(f"{GITHUB_API}/repos/{owner}/{repo}/contents/{item_dir}")
+        if listing.status_code != 200:
+            return
+        entries = listing.json() or []
+        file_count = 0
+        line_total = 0
+        first_py_content = None
+        for f in entries:
+            if not isinstance(f, dict) or f.get('type') != 'file':
+                continue
+            file_count += 1
+            # Count lines for small files (< 200KB) to avoid heavy downloads
+            size = f.get('size') or 0
+            if size and size < 200_000:
+                # Fetch file content and count lines
+                fc = client.get(f"{GITHUB_API}/repos/{owner}/{repo}/contents/{f.get('path')}")
+                if fc.status_code == 200:
+                    fj = fc.json()
+                    try:
+                        raw = base64.b64decode(fj.get('content') or b'').decode('utf-8', errors='ignore')
+                        line_total += raw.count('\n') + 1
+                        if (f.get('name') or '').endswith('.py') and first_py_content is None:
+                            first_py_content = raw
+                    except Exception:
+                        pass
+        item.setdefault('file_count', file_count)
+        item.setdefault('line_count', line_total)
+        # Try AST parse for metadata name/description if missing
+        if first_py_content and (not item.get('name') or not item.get('description')):
+            meta = safe_extract_metadata_from_py(first_py_content)
+            if meta:
+                item.setdefault('name', meta.get('name'))
+                item.setdefault('description', meta.get('description'))
+    except Exception:
+        return
+
+
+def safe_extract_metadata_from_py(src: str) -> Optional[Dict[str, Any]]:
+    """Safely extract Blueprint.metadata dict from Python source using AST only.
+
+    Looks for a class definition with a 'metadata' attribute assigned to a dict
+    literal. Does not execute any code.
+    """
+    try:
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                for body in node.body:
+                    if isinstance(body, ast.Assign):
+                        for target in body.targets:
+                            if isinstance(target, ast.Name) and target.id == 'metadata':
+                                if isinstance(body.value, ast.Dict):
+                                    keys = []
+                                    vals = []
+                                    for k in body.value.keys:
+                                        if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                                            keys.append(k.value)
+                                        else:
+                                            keys.append(None)
+                                    for v in body.value.values:
+                                        if isinstance(v, ast.Constant):
+                                            vals.append(v.value)
+                                        else:
+                                            vals.append(None)
+                                    md = {k: v for k, v in zip(keys, vals) if k}
+                                    # Only return if we got at least a name/description
+                                    if md.get('name') or md.get('description'):
+                                        return md
+        return None
+    except Exception:
+        return None
 
 
 def to_marketplace_items(
@@ -162,11 +245,14 @@ def to_marketplace_items(
             {
                 'repo_full_name': repo.get('full_name'),
                 'repo_url': repo.get('html_url'),
+                'owner': it.get('owner'),
                 'kind': kind,
                 'name': it.get('name'),
                 'description': it.get('description', ''),
                 'version': it.get('version', ''),
                 'tags': it.get('tags', []),
+                'file_count': it.get('file_count'),
+                'line_count': it.get('line_count'),
                 'manifest': it,
             }
         )

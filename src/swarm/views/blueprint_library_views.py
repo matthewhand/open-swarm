@@ -9,6 +9,7 @@ from typing import Any
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings as dj_settings
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.paths import get_user_config_dir_for_swarm
@@ -235,6 +236,7 @@ def blueprint_library(request):
             "installed_count": len(installed_blueprints),
             "custom_count": len(custom_blueprints),
             "dark_mode": request.session.get('dark_mode', True),
+            "github_marketplace_enabled": getattr(dj_settings, 'ENABLE_GITHUB_MARKETPLACE', False),
         }
 
         return render(request, "blueprint_library.html", context)
