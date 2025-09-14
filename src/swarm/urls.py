@@ -16,6 +16,8 @@ from swarm.views.api_views import (
     CustomBlueprintDetailView,
     MarketplaceBlueprintsView,
     MarketplaceMCPConfigsView,
+    MarketplaceGitHubBlueprintsView,
+    MarketplaceGitHubMCPConfigsView,
 )
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
@@ -49,6 +51,8 @@ urlpatterns = [
     # Optional marketplace (Wagtail) headless endpoints (return empty list if disabled)
     path("marketplace/blueprints/", MarketplaceBlueprintsView.as_view(), name="marketplace-blueprints"),
     path("marketplace/mcp-configs/", MarketplaceMCPConfigsView.as_view(), name="marketplace-mcp-configs"),
+    path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
+    path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),

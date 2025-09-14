@@ -13,6 +13,13 @@ from swarm.views.blueprint_library_views import (
     get_user_blueprint_library,
     save_user_blueprint_library,
 )
+from swarm.settings import (
+    ENABLE_GITHUB_MARKETPLACE,
+    GITHUB_MARKETPLACE_TOPICS,
+    GITHUB_MARKETPLACE_ORG_ALLOWLIST,
+    GITHUB_TOKEN,
+)
+from swarm.marketplace import github_service as gh_service
 
 logger = logging.getLogger(__name__)
 
@@ -382,3 +389,55 @@ class MarketplaceMCPConfigsView(APIView):
 
         data = [it for it in items if match(it)]
         return Response({'object': 'list', 'data': data}, status=status.HTTP_200_OK)
+
+
+class MarketplaceGitHubBlueprintsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        if not ENABLE_GITHUB_MARKETPLACE:
+            return Response({'object': 'list', 'data': []}, status=status.HTTP_200_OK)
+        search = (request.query_params.get('search') or '').strip()
+        org = (request.query_params.get('org') or '').strip()
+        topic = (request.query_params.get('topic') or '').strip()
+        sort = (request.query_params.get('sort') or 'stars').strip()
+        order = (request.query_params.get('order') or 'desc').strip()
+        topics = list(GITHUB_MARKETPLACE_TOPICS)
+        if topic:
+            topics = [topic]
+        orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
+        if org:
+            orgs = [org]
+
+        repos = gh_service.search_repos_by_topics(topics, orgs, sort=sort, order=order, query=search, token=GITHUB_TOKEN)
+        items: list[dict] = []
+        for repo in repos:
+            manifests = gh_service.fetch_repo_manifests(repo, token=GITHUB_TOKEN)
+            items.extend(gh_service.to_marketplace_items(repo, manifests, kind='blueprint'))
+        return Response({'object': 'list', 'data': items}, status=status.HTTP_200_OK)
+
+
+class MarketplaceGitHubMCPConfigsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        if not ENABLE_GITHUB_MARKETPLACE:
+            return Response({'object': 'list', 'data': []}, status=status.HTTP_200_OK)
+        search = (request.query_params.get('search') or '').strip()
+        org = (request.query_params.get('org') or '').strip()
+        topic = (request.query_params.get('topic') or '').strip()
+        sort = (request.query_params.get('sort') or 'stars').strip()
+        order = (request.query_params.get('order') or 'desc').strip()
+        topics = list(GITHUB_MARKETPLACE_TOPICS)
+        if topic:
+            topics = [topic]
+        orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
+        if org:
+            orgs = [org]
+
+        repos = gh_service.search_repos_by_topics(topics, orgs, sort=sort, order=order, query=search, token=GITHUB_TOKEN)
+        items: list[dict] = []
+        for repo in repos:
+            manifests = gh_service.fetch_repo_manifests(repo, token=GITHUB_TOKEN)
+            items.extend(gh_service.to_marketplace_items(repo, manifests, kind='mcp'))
+        return Response({'object': 'list', 'data': items}, status=status.HTTP_200_OK)

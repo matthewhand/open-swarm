@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'drf_spectacular',
     'swarm',
+    'swarm.mcp',
 ]
 
 # Optional Wagtail integration (marketplace). Disabled by default.
@@ -158,6 +159,19 @@ if ENABLE_MCP_SERVER:
     except Exception:
         # Optional dependency; ignore when not available
         pass
+
+# Optional GitHub marketplace discovery (disabled by default)
+ENABLE_GITHUB_MARKETPLACE = os.getenv('ENABLE_GITHUB_MARKETPLACE', 'false').lower() in ('1', 'true', 'yes')
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # optional, for higher rate limits
+
+def _csv_env(name: str, default: str = '') -> list[str]:
+    val = os.getenv(name, default)
+    if not val:
+        return []
+    return [x.strip() for x in val.split(',') if x.strip()]
+
+GITHUB_MARKETPLACE_TOPICS = _csv_env('GITHUB_MARKETPLACE_TOPICS', 'open-swarm-blueprint,open-swarm-mcp-template')
+GITHUB_MARKETPLACE_ORG_ALLOWLIST = _csv_env('GITHUB_MARKETPLACE_ORG_ALLOWLIST', '')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
