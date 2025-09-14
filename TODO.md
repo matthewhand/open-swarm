@@ -265,3 +265,27 @@
     - Add tests for the hook and feedback agent interaction.
 
 This revised TODO list prioritizes getting the new blueprint management lifecycle functional and documented.
+
+---
+
+## New: Web UI + API for Blueprint Requirements and CRUD
+
+### A. MCP Compliance Visibility (Web UI)
+- [x] Add endpoint GET /blueprint-library/requirements/ returning per-blueprint MCP compliance against active config (status, missing servers, unresolved env, etc.).
+- [x] Extend discovery to pass through required_mcp_servers and env_vars metadata.
+- [x] Add MCP status badges to blueprint library cards with quick link to settings.
+- [x] Add unit test for the JSON endpoint.
+
+### B. Simple Blueprints API (CRUD + Filtering)
+- [x] GET /v1/blueprints/ supports search and required_mcp filters.
+- [x] GET /v1/blueprints/custom/ lists custom blueprints with search, tag, category filters.
+- [x] POST /v1/blueprints/custom/ creates a custom blueprint entry in JSON library.
+- [x] GET /v1/blueprints/custom/<id>/ retrieves a custom blueprint entry.
+- [x] PATCH|PUT /v1/blueprints/custom/<id>/ updates fields.
+- [x] DELETE /v1/blueprints/custom/<id>/ removes entry.
+- [ ] Tests for CRUD endpoints (create, read, update, delete, filters).
+- [ ] Docs: Usage examples and filtering syntax.
+
+Notes:
+- Scope intentionally avoids DB migrations; uses JSON-backed library.
+- Clients infer MCP requirements from blueprint contents and optional metadata.
