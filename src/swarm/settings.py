@@ -150,6 +150,15 @@ SAML_IDP_CONFIG = {
     'key_file': SAML_IDP_PRIVATE_KEY_FILE,
 }
 
+# Optional MCP server integration (django-mcp-server). Disabled by default.
+ENABLE_MCP_SERVER = os.getenv('ENABLE_MCP_SERVER', 'false').lower() in ('1', 'true', 'yes')
+if ENABLE_MCP_SERVER:
+    try:
+        INSTALLED_APPS += ['django_mcp_server']
+    except Exception:
+        # Optional dependency; ignore when not available
+        pass
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

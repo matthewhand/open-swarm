@@ -109,3 +109,13 @@ if getattr(dj_settings, 'ENABLE_SAML_IDP', False):
     except Exception:
         # Package not installed or import failed; ignore if disabled in env
         pass
+
+# Optional MCP server (django-mcp-server) when enabled
+if getattr(dj_settings, 'ENABLE_MCP_SERVER', False):
+    try:
+        from django.urls import include
+        urlpatterns += [
+            path('mcp/', include('django_mcp_server.urls')),
+        ]
+    except Exception:
+        pass
