@@ -54,6 +54,25 @@ INSTALLED_APPS = [
     'swarm',
 ]
 
+# Optional Wagtail integration (marketplace). Disabled by default.
+ENABLE_WAGTAIL = os.getenv('ENABLE_WAGTAIL', 'false').lower() in ('1', 'true', 'yes')
+if ENABLE_WAGTAIL:
+    INSTALLED_APPS += [
+        'wagtail',
+        'wagtail.admin',
+        'wagtail.users',
+        'wagtail.images',
+        'wagtail.documents',
+        'wagtail.snippets',
+        'wagtail.sites',
+        'wagtail.contrib.modeladmin',
+        'modelcluster',
+        'taggit',
+        'swarm.marketplace',
+    ]
+    WAGTAIL_SITE_NAME = 'Open Swarm'
+    SITE_ID = int(os.getenv('DJANGO_SITE_ID', '1'))
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
