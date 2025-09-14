@@ -3,8 +3,9 @@ import os
 import subprocess
 from pathlib import Path
 
-import swarm
 import typer
+
+import swarm
 from swarm.core import paths
 
 paths.ensure_swarm_directories_exist()

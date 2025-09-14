@@ -2,6 +2,7 @@ import sys
 import types
 
 import pytest
+
 from swarm.blueprints.codey import blueprint_codey
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 
@@ -290,9 +291,7 @@ def test_codey_load_project_instructions(monkeypatch):
     def fake_exists(path):
         if "CODEY.md" in path:
             return True
-        if "instructions.md" in path:
-            return True
-        return False
+        return "instructions.md" in path
     def fake_open(path, mode="r", *a, **k):
         class DummyFile:
             def __enter__(self): return self

@@ -7,6 +7,7 @@ import pathlib
 from pathlib import Path as RealPath
 
 import pytest
+
 from swarm.core import paths
 from swarm.extensions.cli.commands.list_blueprints import Path as SutPathGlobal
 from swarm.extensions.cli.commands.list_blueprints import execute, register_args

@@ -27,9 +27,7 @@ def test_cli_help(cli_path_or_name, help_flag):
         pytest.skip(f"{cli_path_or_name} not found.")
 
     cmd = [cli_path_or_name, help_flag]
-    if not os.access(cli_path_or_name, os.X_OK) and cli_path_or_name.endswith('.py'):
-        cmd = [sys.executable, cli_path_or_name, help_flag]
-    elif not os.access(cli_path_or_name, os.X_OK):
+    if not os.access(cli_path_or_name, os.X_OK) and cli_path_or_name.endswith('.py') or not os.access(cli_path_or_name, os.X_OK):
         cmd = [sys.executable, cli_path_or_name, help_flag]
 
     try:
@@ -58,9 +56,7 @@ def test_cli_minimal_prompt(cli_path_or_name, prompt):
         pytest.skip(f"{cli_path_or_name} not found.")
 
     cmd = [cli_path_or_name, prompt]
-    if not os.access(cli_path_or_name, os.X_OK) and cli_path_or_name.endswith('.py'):
-         cmd = [sys.executable, cli_path_or_name, prompt]
-    elif not os.access(cli_path_or_name, os.X_OK):
+    if not os.access(cli_path_or_name, os.X_OK) and cli_path_or_name.endswith('.py') or not os.access(cli_path_or_name, os.X_OK):
          cmd = [sys.executable, cli_path_or_name, prompt]
 
     try:

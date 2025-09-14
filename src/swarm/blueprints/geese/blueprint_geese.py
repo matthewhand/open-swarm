@@ -30,6 +30,19 @@ class GeeseBlueprint(BlueprintBase):
     IS_ASYNC = True
 
     def __init__(self, blueprint_id: str = None, config_path: str = None, agent_mcp_assignments: dict[str, list[str]] | None = None, llm_model: str | None = None, **kwargs):
+        if blueprint_id is None:
+            logger.error("GeeseBlueprint initialization failed: blueprint_id cannot be None")
+            raise TypeError("blueprint_id cannot be None")
+        if not isinstance(blueprint_id, str):
+            logger.error(f"GeeseBlueprint initialization failed: blueprint_id must be a string, got {type(blueprint_id)}")
+            raise TypeError("blueprint_id must be a string")
+        if not blueprint_id.strip():
+            logger.error("GeeseBlueprint initialization failed: blueprint_id cannot be empty or only whitespace")
+            raise ValueError("blueprint_id cannot be empty or only whitespace")
+        if len(blueprint_id) >= 1000:
+            logger.error(f"GeeseBlueprint initialization failed: blueprint_id is too long ({len(blueprint_id)} characters, maximum 999)")
+            raise ValueError("blueprint_id is too long (maximum 999 characters)")
+
         _id = blueprint_id or self.NAME
         super().__init__(_id, config_path=config_path, **kwargs)
 

@@ -17,6 +17,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in StewieBlueprint: {e}. Check dependencies.")
@@ -239,6 +240,7 @@ import time
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
+
 from swarm.ux.ansi_box import ansi_box
 
 

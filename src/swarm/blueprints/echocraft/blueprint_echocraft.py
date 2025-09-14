@@ -13,6 +13,7 @@ from typing import Any
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
+
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.ux.ansi_box import ansi_box
 
@@ -335,9 +336,7 @@ class EchoCraftBlueprint(BlueprintBase):
     def success_criteria(self, result):
         if not result or (isinstance(result, dict) and 'error' in result):
             return False
-        if isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower():
-            return False
-        return True
+        return not (isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower())
 
     def consider_alternatives(self, messages, result):
         alternatives = []

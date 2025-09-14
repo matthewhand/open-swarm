@@ -4,6 +4,7 @@ import os
 import sys
 
 from rich.console import Console
+
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 from swarm.blueprints.common.audit import AuditLogger
 from swarm.blueprints.common.spinner import SwarmSpinner

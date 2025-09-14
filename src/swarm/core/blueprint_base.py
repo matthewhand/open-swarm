@@ -214,10 +214,10 @@ class BlueprintBase(ABC):
                             cwd_config = None
                             if _should_debug():
                                 logger.warning(f"Unable to determine CWD for config lookup: {e}")
-                    if cwd_config and cwd_config.exists():
-                        print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
-                        with open(cwd_config) as f:
-                            self._config = json.load(f)
+                        if cwd_config and cwd_config.exists():
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
+                            with open(cwd_config) as f:
+                                self._config = json.load(f)
                     # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
                     elif os.environ.get("XDG_CONFIG_HOME"):
                         xdg_config = Path(os.environ["XDG_CONFIG_HOME"]) / "swarm" / "swarm_config.json"

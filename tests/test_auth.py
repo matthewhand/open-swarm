@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 from rest_framework import exceptions
+
 from swarm.auth import (
     CustomSessionAuthentication,
     HasValidTokenOrSession,
@@ -35,16 +36,27 @@ class TestStaticTokenAuthentication:
         assert result is None
 
     def test_authenticate_valid_token_authorization_header(self):
-        """Test successful authentication with Authorization header"""
+        """Test successful authentication with Authorization header and comprehensive validation"""
         settings.SWARM_API_KEY = 'test-key-123'
         request = self.factory.get(
             '/api/test/',
             HTTP_AUTHORIZATION='Bearer test-key-123'
         )
         result = self.auth.authenticate(request)
-        assert result is not None
-        assert isinstance(result[0], AnonymousUser)
-        assert result[1] == 'test-key-123'
+
+        # Comprehensive authentication validation
+        assert result is not None, "Authentication should succeed with valid token"
+        assert len(result) == 2, "Authentication result should contain user and token"
+        assert isinstance(result[0], AnonymousUser), "User should be AnonymousUser for token auth"
+        assert result[1] == 'test-key-123', "Token should match the provided token"
+
+        # Validate request state preservation
+        assert request.META['HTTP_AUTHORIZATION'] == 'Bearer test-key-123', "Request should preserve auth header"
+        assert request.method == 'GET', "Request method should be preserved"
+        assert request.path == '/api/test/', "Request path should be preserved"
+
+        # Validate settings interaction
+        assert settings.SWARM_API_KEY == 'test-key-123', "Settings should contain the configured key"
 
     def test_authenticate_valid_token_x_api_key_header(self):
         """Test successful authentication with X-API-Key header"""

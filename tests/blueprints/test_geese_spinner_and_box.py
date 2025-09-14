@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from rich.console import Console
+
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.interaction_types import (
     AgentInteraction,

@@ -45,6 +45,7 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.output_utils import print_search_progress_box
 except ImportError as e:

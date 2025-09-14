@@ -2,6 +2,7 @@ import asyncio
 
 from django.contrib.auth.models import User
 from django.test import TransactionTestCase
+
 from swarm.consumers import IN_MEMORY_CONVERSATIONS, DjangoChatConsumer
 from swarm.models import ChatConversation, ChatMessage
 
@@ -14,17 +15,31 @@ class TestDjangoChatConsumer(TransactionTestCase):
         ChatConversation.objects.filter(student=self.user).delete()
 
     def test_fetch_conversation_from_memory(self):
-        """Test fetching conversation from in-memory cache"""
+        """Test fetching conversation from in-memory cache with comprehensive validation"""
         consumer = DjangoChatConsumer()
         consumer.user = self.user
         consumer.conversation_id = self.conversation_id
 
-        test_messages = [{'role': 'user', 'content': 'test'}]
+        test_messages = [
+            {'role': 'user', 'content': 'test message'},
+            {'role': 'assistant', 'content': 'response message'}
+        ]
         IN_MEMORY_CONVERSATIONS[self.conversation_id] = test_messages
 
         # Run async method in sync context
         result = asyncio.run(consumer.fetch_conversation(self.conversation_id))
-        assert result == test_messages
+
+        # Comprehensive validation
+        assert result == test_messages, "Retrieved messages should match stored messages"
+        assert len(result) == 2, "Should return exactly 2 messages"
+        assert result[0]['role'] == 'user', "First message should be from user"
+        assert result[0]['content'] == 'test message', "First message content should match"
+        assert result[1]['role'] == 'assistant', "Second message should be from assistant"
+        assert result[1]['content'] == 'response message', "Second message content should match"
+
+        # Validate consumer state
+        assert consumer.user == self.user, "Consumer user should be preserved"
+        assert consumer.conversation_id == self.conversation_id, "Consumer conversation_id should be preserved"
 
         # Clean up
         del IN_MEMORY_CONVERSATIONS[self.conversation_id]

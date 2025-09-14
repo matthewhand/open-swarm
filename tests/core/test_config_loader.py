@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from swarm.core import config_loader
 
 
@@ -14,23 +15,45 @@ def make_temp_config(content):
     return Path(path)
 
 def test_load_full_configuration_defaults():
+    """Test loading full configuration with defaults and comprehensive validation"""
     config = {
-        "defaults": {"foo": "bar"},
-        "llm": {"default": {"provider": "openai", "model": "gpt-3.5"}},
-        "mcpServers": {"test": {"command": "run-test"}},
+        "defaults": {"foo": "bar", "timeout": 30},
+        "llm": {"default": {"provider": "openai", "model": "gpt-3.5", "temperature": 0.7}},
+        "mcpServers": {"test": {"command": "run-test", "args": ["--verbose"]}},
         "blueprints": {},
-        "profiles": {}
+        "profiles": {"custom": {"model": "gpt-4"}}
     }
     path = make_temp_config(config)
     result = config_loader.load_full_configuration(
         blueprint_class_name="FakeBlueprint",
-        default_config_path_for_tests=path  # UPDATED
+        default_config_path_for_tests=path
     )
-    assert result["foo"] == "bar"
-    assert "llm" in result
-    assert "mcpServers" in result
-    assert result["llm"]["default"]["provider"] == "openai"
-    assert result["mcpServers"]["test"]["command"] == "run-test"
+
+    # Comprehensive configuration validation
+    assert result["foo"] == "bar", "Default value should be preserved"
+    assert result["timeout"] == 30, "Numeric default should be preserved"
+    assert "llm" in result, "LLM section should be present"
+    assert "mcpServers" in result, "MCP servers section should be present"
+    assert "profiles" in result, "Profiles section should be present"
+
+    # LLM configuration validation
+    llm_config = result["llm"]
+    assert llm_config["default"]["provider"] == "openai", "LLM provider should match"
+    assert llm_config["default"]["model"] == "gpt-3.5", "LLM model should match"
+    assert llm_config["default"]["temperature"] == 0.7, "LLM temperature should match"
+
+    # MCP server configuration validation
+    mcp_config = result["mcpServers"]
+    assert mcp_config["test"]["command"] == "run-test", "MCP command should match"
+    assert mcp_config["test"]["args"] == ["--verbose"], "MCP args should match"
+
+    # Profiles validation
+    profiles_config = result["profiles"]
+    assert profiles_config["custom"]["model"] == "gpt-4", "Profile model should match"
+
+    # Validate configuration structure
+    assert isinstance(result, dict), "Result should be a dictionary"
+    assert len(result) >= 4, "Should have at least 4 top-level sections"
 
 def test_load_full_configuration_profile_merging():
     config = {

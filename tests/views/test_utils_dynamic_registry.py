@@ -33,19 +33,38 @@ def _read_registry_file(tmp_path) -> dict:
 
 
 def test_register_and_persist_dynamic_team(tmp_path):
+    """Test dynamic team registration and persistence with comprehensive validation"""
     from src.swarm.views.utils import load_dynamic_registry, register_dynamic_team
 
-    register_dynamic_team("alpha-team", description="Alpha", llm_profile="default")
+    # Register team with comprehensive parameters
+    team_name = "alpha-team"
+    team_description = "Alpha testing team"
+    team_profile = "default"
 
-    # In-memory view
+    register_dynamic_team(team_name, description=team_description, llm_profile=team_profile)
+
+    # In-memory view validation
     reg = load_dynamic_registry()
-    assert "alpha-team" in reg
-    assert reg["alpha-team"]["description"] == "Alpha"
-    assert reg["alpha-team"]["llm_profile"] == "default"
+    assert team_name in reg, f"Team '{team_name}' should be in registry"
+    assert reg[team_name]["description"] == team_description, "Description should match"
+    assert reg[team_name]["llm_profile"] == team_profile, "LLM profile should match"
 
-    # On-disk persistence
+    # Validate team structure
+    team_data = reg[team_name]
+    assert isinstance(team_data, dict), "Team data should be a dictionary"
+    assert "description" in team_data, "Team should have description field"
+    assert "llm_profile" in team_data, "Team should have llm_profile field"
+    assert len(team_data) >= 2, "Team should have at least description and llm_profile"
+
+    # On-disk persistence validation
     disk = _read_registry_file(tmp_path)
-    assert "alpha-team" in disk
+    assert team_name in disk, f"Team '{team_name}' should be persisted to disk"
+    assert disk[team_name]["description"] == team_description, "Persisted description should match"
+    assert disk[team_name]["llm_profile"] == team_profile, "Persisted LLM profile should match"
+
+    # Validate disk persistence structure
+    disk_team_data = disk[team_name]
+    assert disk_team_data == team_data, "Disk data should match in-memory data"
 
 
 def test_duplicate_register_overwrites(tmp_path):

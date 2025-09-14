@@ -3,10 +3,11 @@ import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
+from typer.testing import CliRunner
+
 from swarm.core import (
     swarm_cli,  # This is the Typer app instance
 )
-from typer.testing import CliRunner
 
 runner = CliRunner()
 
