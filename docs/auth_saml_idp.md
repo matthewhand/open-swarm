@@ -39,6 +39,25 @@ SAML_IDP_SPCONFIG = {
 }
 ```
 
+Environment-driven IdP base config (template-only)
+-------------------------------------------------
+
+These optional environment variables populate template settings for djangosaml2idp.
+
+- `SAML_IDP_ENTITY_ID` — IdP entityID (defaults to `$HOST/idp/metadata/`)
+- `SAML_IDP_CERT_FILE` — path to public certificate PEM (do not commit)
+- `SAML_IDP_PRIVATE_KEY_FILE` — path to private key PEM (do not commit)
+
+In `settings.py`, these are exposed under `SAML_IDP_CONFIG` as:
+
+```python
+SAML_IDP_CONFIG = {
+  'entityid': SAML_IDP_ENTITY_ID,
+  'cert_file': SAML_IDP_CERT_FILE,
+  'key_file': SAML_IDP_PRIVATE_KEY_FILE,
+}
+```
+
 Security & Secrets
 ------------------
 - Do not store private keys or secrets in the repository. Provision certificates/keys securely.
@@ -53,4 +72,3 @@ openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -node
 ```
 
 Add the appropriate `djangosaml2idp` settings to point to these files for local dev only. Never commit keys.
-

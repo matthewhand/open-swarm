@@ -95,6 +95,19 @@ SAML_IDP_SPCONFIG = {
     # }
 }
 
+# Optional env-driven IdP base config (template-only)
+SAML_IDP_ENTITY_ID = os.getenv('SAML_IDP_ENTITY_ID', os.getenv('HOST', 'http://localhost:8000') + '/idp/metadata/')
+SAML_IDP_CERT_FILE = os.getenv('SAML_IDP_CERT_FILE')  # filesystem path to public cert (do not commit)
+SAML_IDP_PRIVATE_KEY_FILE = os.getenv('SAML_IDP_PRIVATE_KEY_FILE')  # filesystem path to private key (do not commit)
+
+# djangosaml2idp-compatible base config shell; populate via env
+SAML_IDP_CONFIG = {
+    'entityid': SAML_IDP_ENTITY_ID,
+    # The following are template defaults; set files via env for real deployments
+    'cert_file': SAML_IDP_CERT_FILE,
+    'key_file': SAML_IDP_PRIVATE_KEY_FILE,
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

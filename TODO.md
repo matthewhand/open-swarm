@@ -289,3 +289,40 @@ This revised TODO list prioritizes getting the new blueprint management lifecycl
 Notes:
 - Scope intentionally avoids DB migrations; uses JSON-backed library.
 - Clients infer MCP requirements from blueprint contents and optional metadata.
+
+---
+
+## New: Authentication — SAML 2.0 IdP (djangosaml2idp)
+
+### Milestone: Optional IdP at /idp (same host)
+- [x] Feature flag `ENABLE_SAML_IDP` in settings; add `djangosaml2idp` to `INSTALLED_APPS` when enabled.
+- [x] URLs: include `djangosaml2idp.urls` at `/idp/` when enabled.
+- [x] Add docs (`docs/auth_saml_idp.md`) for enabling, endpoints, and configuration.
+- [ ] Provide production‑ready SAML settings (signing/encryption, certs) via environment.
+- [ ] Add admin or config loader to manage SP entries (SAML_IDP_SPCONFIG) securely.
+- [ ] Verify integration against a sample Service Provider (SP) end‑to‑end.
+
+### TDD: Tests
+- [ ] URL inclusion test: with `ENABLE_SAML_IDP=true` and stubbed `djangosaml2idp.urls`, GET `/idp/metadata/` returns 200.
+- [ ] Settings test: when enabled, `SAML_IDP_SPCONFIG` is present and dict‑typed.
+- [ ] Security test: ensure no secrets/keys are committed; enforce env‑only provisioning in CI.
+
+---
+
+## New: MCP Server Integration — Host Blueprints via `django-mcp-server`
+
+Research & Plan
+- [ ] Review `omarbenhamid/django-mcp-server` README and examples.
+- [ ] Determine adapter layer to expose blueprint execution as MCP tools:
+  - Map blueprint `run()`/CLI to MCP tool calls (name, args schema, streaming?).
+  - Define safe, templated MCP config (no secrets) for each blueprint.
+- [ ] Hosting model:
+  - Serve MCP over the same Django site (e.g., `/mcp/`), leveraging `django-mcp-server` routing.
+  - AuthZ/AuthN integration with Open Swarm’s settings (optionally SAML IdP).
+- [ ] Developer UX:
+  - Document how to register blueprints as MCP tools.
+  - CLI examples for discovery and invocation.
+- [ ] Tests:
+  - TDD minimal tool exposure for one example blueprint (e.g., `suggestion`).
+  - E2E invocation via MCP client (mock) returning expected output.
+  - Security: ensure no sensitive env leaks in tool schemas.
