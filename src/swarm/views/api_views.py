@@ -9,6 +9,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.views.utils import get_available_blueprints
+from swarm.views.blueprint_library_views import (
+    get_user_blueprint_library,
+    save_user_blueprint_library,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +69,34 @@ class BlueprintsListView(APIView):
         try:
             available_blueprints = async_to_sync(get_available_blueprints)()
             data = []
+            # Filters: search, required_mcp
+            search = (request.query_params.get("search") or "").strip().lower()
+            required_mcp = (request.query_params.get("required_mcp") or "").strip().lower()
             if isinstance(available_blueprints, dict):
                 for blueprint_id, info in available_blueprints.items():
                     meta = info.get("metadata", {}) if isinstance(info, dict) else {}
+                    name = meta.get("name", blueprint_id)
+                    description = meta.get("description") or ""
+                    req_mcps = [str(x).lower() for x in (meta.get("required_mcp_servers") or [])]
+
+                    if search and not (
+                        search in blueprint_id.lower()
+                        or search in str(name).lower()
+                        or search in str(description).lower()
+                    ):
+                        continue
+                    if required_mcp and required_mcp not in req_mcps:
+                        continue
+
                     data.append({
                         "id": blueprint_id,
                         "object": "blueprint",
-                        "name": meta.get("name", blueprint_id),
-                        "description": meta.get("description"),
+                        "name": name,
+                        "description": description,
                         "abbreviation": meta.get("abbreviation"),
+                        "required_mcp_servers": meta.get("required_mcp_servers") or [],
                         # Placeholders for future enrichment
-                        "tags": [],
+                        "tags": meta.get("tags") or [],
                         "installed": None,
                         "compiled": None,
                     })
@@ -93,3 +114,137 @@ class BlueprintsListView(APIView):
                 {"error": "Failed to retrieve blueprints list."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class CustomBlueprintsView(APIView):
+    """
+    CRUD for user custom blueprints stored in blueprint_library.json.
+
+    GET  /v1/blueprints/custom/           -> list (with optional filters)
+    POST /v1/blueprints/custom/           -> create
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        lib = get_user_blueprint_library()
+        items = lib.get("custom", [])
+
+        # Simple filters: search, tag, category
+        search = (request.query_params.get("search") or "").strip().lower()
+        tag = (request.query_params.get("tag") or "").strip().lower()
+        category = (request.query_params.get("category") or "").strip().lower()
+
+        def match(item: dict) -> bool:
+            if search:
+                if not (
+                    search in (item.get("id", "").lower())
+                    or search in (str(item.get("name", "")).lower())
+                    or search in (str(item.get("description", "")).lower())
+                ):
+                    return False
+            if tag:
+                tags = [str(t).lower() for t in item.get("tags", [])]
+                if tag not in tags:
+                    return False
+            if category:
+                if category != str(item.get("category", "")).lower():
+                    return False
+            return True
+
+        filtered = [i for i in items if match(i)]
+        return Response({"object": "list", "data": filtered}, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            body = request.data or {}
+            bp_id = (body.get("id") or body.get("name") or "").strip()
+            if not bp_id:
+                return Response({"error": "id or name required"}, status=status.HTTP_400_BAD_REQUEST)
+            bp_id = bp_id.lower().replace(" ", "_")
+
+            lib = get_user_blueprint_library()
+            custom = lib.get("custom", [])
+            if any(i.get("id") == bp_id for i in custom):
+                return Response({"error": "id already exists"}, status=status.HTTP_409_CONFLICT)
+
+            item = {
+                "id": bp_id,
+                "name": body.get("name") or bp_id,
+                "description": body.get("description") or "",
+                "category": body.get("category") or "ai_assistants",
+                "tags": body.get("tags") or [],
+                "requirements": body.get("requirements") or "",
+                "code": body.get("code") or "",
+                # Optional metadata to help clients
+                "required_mcp_servers": body.get("required_mcp_servers") or [],
+                "env_vars": body.get("env_vars") or [],
+            }
+            custom.append(item)
+            lib["custom"] = custom
+            if not save_user_blueprint_library(lib):
+                return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(item, status=status.HTTP_201_CREATED)
+        except Exception:
+            logger.exception("Error creating custom blueprint")
+            return Response({"error": "internal error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CustomBlueprintDetailView(APIView):
+    """
+    GET    /v1/blueprints/custom/<id>/
+    PATCH  /v1/blueprints/custom/<id>/
+    PUT    /v1/blueprints/custom/<id>/
+    DELETE /v1/blueprints/custom/<id>/
+    """
+    permission_classes = [AllowAny]
+
+    def _load(self, bp_id: str):
+        lib = get_user_blueprint_library()
+        items = lib.get("custom", [])
+        for i in items:
+            if i.get("id") == bp_id:
+                return lib, items, i
+        return lib, items, None
+
+    def get(self, request, blueprint_id: str, *args, **kwargs):
+        lib, items, item = self._load(blueprint_id)
+        if not item:
+            return Response({"error": "not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(item, status=status.HTTP_200_OK)
+
+    def delete(self, request, blueprint_id: str, *args, **kwargs):
+        lib, items, item = self._load(blueprint_id)
+        if not item:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        items = [i for i in items if i.get("id") != blueprint_id]
+        lib["custom"] = items
+        if not save_user_blueprint_library(lib):
+            return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def patch(self, request, blueprint_id: str, *args, **kwargs):
+        try:
+            lib, items, item = self._load(blueprint_id)
+            if not item:
+                return Response({"error": "not found"}, status=status.HTTP_404_NOT_FOUND)
+            body = request.data or {}
+            for key in [
+                "name",
+                "description",
+                "category",
+                "tags",
+                "requirements",
+                "code",
+                "required_mcp_servers",
+                "env_vars",
+            ]:
+                if key in body:
+                    item[key] = body[key]
+            if not save_user_blueprint_library(lib):
+                return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(item, status=status.HTTP_200_OK)
+        except Exception:
+            logger.exception("Error updating custom blueprint")
+            return Response({"error": "internal error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    put = patch
