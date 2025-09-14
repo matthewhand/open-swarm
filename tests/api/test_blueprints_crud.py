@@ -42,6 +42,8 @@ def test_custom_blueprints_crud(monkeypatch, client):
     created = resp.json()
     bp_id = created["id"]
 
-    # For now, mark follow-up CRUD operations as expected to be refined
-    import pytest
-    pytest.xfail("Further CRUD (GET/PATCH/DELETE) assertions deferred; POST path validated")
+    # List to verify presence
+    resp = client.get(url)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert any(i["id"] == bp_id for i in data)
