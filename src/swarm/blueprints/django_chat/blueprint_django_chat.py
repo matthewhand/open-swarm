@@ -9,12 +9,28 @@ import asyncio
 import logging
 import os
 import sys
+import threading
 import time
 from typing import Any
 
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+from rich.console import Console
+from rich.style import Style
+from rich.text import Text
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.core.blueprint_ux import BlueprintUXImproved
+from swarm.models import ChatConversation
+from swarm.utils.logger_setup import setup_logger
 
+# Django imports after CLI rejection
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
+import django
+
+django.setup()
 
 # --- Logging Setup ---
 def setup_logging():
@@ -33,28 +49,7 @@ args = setup_logging()
 
 logger = logging.getLogger(__name__)
 
-# Django imports after CLI rejection
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-import django
-
-django.setup()
-
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
-from swarm.core.blueprint_base import BlueprintBase as Blueprint
-from swarm.models import ChatConversation
-from swarm.utils.logger_setup import setup_logger
-
 logger = setup_logger(__name__)
-
-# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-import threading
-
-from rich.console import Console
-from rich.style import Style
-from rich.text import Text
 
 # Reject CLI execution immediately
 if __name__ == "__main__":
@@ -227,7 +222,6 @@ class DjangoChatBlueprint(Blueprint):
         }
 
 if __name__ == "__main__":
-    import asyncio
     messages = [
         {"role": "user", "content": "Start a chat session about Django."}
     ]

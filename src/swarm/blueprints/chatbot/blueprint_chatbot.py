@@ -41,7 +41,6 @@ try:
         from agents.mcp import MCPServer as MCPServer2
     except ImportError:
         MCPServer2 = MCPServer
-    from agents import function_tool
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
@@ -416,13 +415,11 @@ Use them responsibly when the user asks for file or system operations.
     async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        import os
 
         from agents import Runner
         try:
             result = await Runner.run(agent, instruction)
             response = getattr(result, 'final_output', str(result))
-            import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             from swarm.core.output_utils import print_search_progress_box
             print_search_progress_box(
@@ -441,7 +438,6 @@ Use them responsibly when the user asks for file or system operations.
             yield {"messages": [{"role": "assistant", "content": response}]}
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
-            import os
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             import time
 
@@ -467,11 +463,7 @@ Use them responsibly when the user asks for file or system operations.
 
 # Standard Python entry point
 if __name__ == "__main__":
-    import asyncio
-
     # --- AUTO-PYTHONPATH PATCH FOR AGENTS ---
-    import os
-    import sys
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..'))
     src_path = os.path.join(project_root, 'src')
     if src_path not in sys.path:

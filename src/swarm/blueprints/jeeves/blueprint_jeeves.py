@@ -11,22 +11,21 @@ assert hasattr(__file__, "__str__")
 # gawd debug: logger.debug("Divine Ops Team (Zeus & Pantheon) created successfully. Zeus is starting agent.")
 # gawd error handling: try/except ImportError with sys.exit(1)
 
+import asyncio
 import logging
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar  # Added Optional
+from typing import Any, ClassVar
 
 import pytz
 from swarm.core.output_utils import print_operation_box as core_print_operation_box
 
+# Conditional imports
 try:
     from agents import Agent, Model  # Added Model
     from agents.mcp import MCPServer
-    from agents.models.interface import (
-        Model,  # Redundant if imported above, but kept for safety
-    )
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
     from swarm.core.blueprint_base import BlueprintBase
@@ -319,7 +318,6 @@ class JeevesBlueprint(BlueprintBase):
         return jeeves_agent
 
     async def run(self, messages: list[dict[str, Any]], **kwargs):
-        import asyncio
         import os
         import time
         # from swarm.core.output_utils import print_search_progress_box # Already imported at class level
@@ -379,7 +377,8 @@ class JeevesBlueprint(BlueprintBase):
                     emoji='🤖',
                     border='╔'
                 )
-                import asyncio; await asyncio.sleep(0.01)
+                import asyncio
+                await asyncio.sleep(0.01)
             JeevesBlueprint.print_search_progress_box(
                 op_type="Jeeves Results",
                 results=[f"Jeeves agent response for: '{instruction}'", "Found 2 results.", "Processed"],
