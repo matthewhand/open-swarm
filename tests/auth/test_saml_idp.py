@@ -4,7 +4,7 @@ from types import ModuleType
 
 import pytest
 from django.http import HttpResponse
-from django.urls import path, resolve
+from django.urls import path
 
 
 def _stub_idp_urls_module():
@@ -34,7 +34,7 @@ def test_idp_urls_included_when_enabled(monkeypatch, client):
     settings_mod = importlib.import_module("swarm.settings")
     importlib.reload(settings_mod)
     from django.conf import settings as dj_settings
-    setattr(dj_settings, "ENABLE_SAML_IDP", True)
+    dj_settings.ENABLE_SAML_IDP = True
     urls_mod = importlib.import_module("swarm.urls")
     importlib.reload(urls_mod)
 
@@ -50,4 +50,4 @@ def test_idp_config_structure_present_when_enabled(monkeypatch):
     importlib.reload(settings_mod)
     # Ensure the template mapping exists for downstream configuration
     assert hasattr(settings_mod, "SAML_IDP_SPCONFIG")
-    assert isinstance(getattr(settings_mod, "SAML_IDP_SPCONFIG"), dict)
+    assert isinstance(settings_mod.SAML_IDP_SPCONFIG, dict)

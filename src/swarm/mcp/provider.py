@@ -11,7 +11,7 @@ Design goals:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.settings import BLUEPRINT_DIRECTORY
@@ -32,14 +32,14 @@ class BlueprintMCPProvider:
 
     def __init__(self, blueprint_dir: str | None = None) -> None:
         self._blueprint_dir = blueprint_dir or BLUEPRINT_DIRECTORY
-        self._index: Dict[str, Dict[str, Any]] = {}
+        self._index: dict[str, dict[str, Any]] = {}
         self._executor: Any = None  # optional callable for execution integration
         self.refresh()
 
     def refresh(self) -> None:
         """Re-discover blueprints and rebuild the internal index."""
         discovered = discover_blueprints(self._blueprint_dir)
-        index: Dict[str, Dict[str, Any]] = {}
+        index: dict[str, dict[str, Any]] = {}
         for key, info in discovered.items():
             meta = info.get("metadata", {}) if isinstance(info, dict) else {}
             name = meta.get("name", key)
@@ -52,9 +52,9 @@ class BlueprintMCPProvider:
             }
         self._index = index
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """Return MCP-style tool definitions for all discovered blueprints."""
-        tools: List[Dict[str, Any]] = []
+        tools: list[dict[str, Any]] = []
         for key, entry in self._index.items():
             tools.append(
                 {
@@ -71,7 +71,7 @@ class BlueprintMCPProvider:
             )
         return tools
 
-    def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Invoke a tool (blueprint) with arguments. MVP returns a simple reply.
 
         TODO: Integrate with actual blueprint execution (Runner/BlueprintBase) and

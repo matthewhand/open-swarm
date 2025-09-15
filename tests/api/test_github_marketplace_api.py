@@ -1,6 +1,7 @@
 import json
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 @pytest.mark.django_db

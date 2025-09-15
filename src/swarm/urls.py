@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.conf import settings as dj_settings
 from django.conf.urls.static import static
 from django.urls import path
 
@@ -10,14 +11,14 @@ from swarm.views.agent_creator_views import (
     team_creator_page,
     validate_agent_code,
 )
-from swarm.views.api_views import BlueprintsListView
 from swarm.views.api_views import (
-    CustomBlueprintsView,
+    BlueprintsListView,
     CustomBlueprintDetailView,
+    CustomBlueprintsView,
     MarketplaceBlueprintsView,
-    MarketplaceMCPConfigsView,
     MarketplaceGitHubBlueprintsView,
     MarketplaceGitHubMCPConfigsView,
+    MarketplaceMCPConfigsView,
 )
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
@@ -37,7 +38,6 @@ from swarm.views.settings_views import (
     settings_dashboard,
 )
 from swarm.views.web_views import profiles_page, team_admin, team_launcher, teams_export
-from django.conf import settings as dj_settings
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
@@ -90,10 +90,10 @@ if settings.DEBUG:
 # Optional Wagtail admin/site when enabled
 if getattr(dj_settings, 'ENABLE_WAGTAIL', False):
     try:  # Import lazily to avoid hard dependency when disabled
+        from django.urls import include
         from wagtail import urls as wagtail_urls
         from wagtail.admin import urls as wagtailadmin_urls
         from wagtail.documents import urls as wagtaildocs_urls
-        from django.urls import include
 
         urlpatterns += [
             path('cms/admin/', include(wagtailadmin_urls)),

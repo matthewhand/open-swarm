@@ -2,7 +2,6 @@ import io  # <--- ADDED IMPORT IO
 
 import pytest
 from rich.panel import Panel
-
 from swarm.core.output_utils import print_operation_box as display_operation_box_core
 
 # Define JEEVES_SPINNER_STATES if not easily importable or use a generic list

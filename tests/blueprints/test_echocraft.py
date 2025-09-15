@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock  # Import mock tools
 
 import pytest
-
 from swarm.blueprints.echocraft.blueprint_echocraft import EchoCraftBlueprint
 
 

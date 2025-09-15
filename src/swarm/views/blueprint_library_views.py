@@ -6,14 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from django.conf import settings as dj_settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from django.conf import settings as dj_settings
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.paths import get_user_config_dir_for_swarm
-from swarm.core.requirements import load_active_config, evaluate_mcp_compliance
+from swarm.core.requirements import evaluate_mcp_compliance, load_active_config
 from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.comfyui_client import comfyui_client
 from swarm.utils.logger_setup import setup_logger

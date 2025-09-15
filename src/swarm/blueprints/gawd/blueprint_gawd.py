@@ -324,24 +324,6 @@ class GAWDBlueprint(BlueprintBase):
             else:
                 formatted.append(line)
         return formatted
-        # After LLM/agent run, show a creative output box with the main result
-        results = [llm_response]
-        self.print_search_progress_box(
-            op_type="DivineCode Creative",
-            results=self.format_diff_lines(results),
-            params=None,
-            result_type="creative",
-            summary=f"Creative generation complete for: '{query}'",
-            progress_line=None,
-            spinner_state=None,
-            operation_type="DivineCode Creative",
-            search_mode=None,
-            total_lines=None,
-            emoji='🧬',
-            border='╔'
-        )
-        yield {"messages": [{"role": "assistant", "content": results[0]}]}
-        return
 
 if __name__ == "__main__":
     import sys

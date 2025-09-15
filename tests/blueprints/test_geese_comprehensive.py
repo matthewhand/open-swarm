@@ -6,7 +6,6 @@ This file adds extensive parameterized tests covering edge cases and various sce
 
 
 import pytest
-
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint, GeeseSpinner
 
 

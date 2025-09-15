@@ -6,7 +6,6 @@ This file adds extensive parameterized tests across multiple blueprints.
 
 
 import pytest
-
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
 from swarm.blueprints.mission_improbable.blueprint_mission_improbable import (

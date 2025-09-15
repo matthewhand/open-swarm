@@ -3,8 +3,9 @@ Comprehensive error handling verification for Swarm system.
 Tests error scenarios, recovery mechanisms, and graceful degradation.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch, AsyncMock
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
 
@@ -30,7 +31,7 @@ class TestErrorHandlingComprehensive:
 
         for config in corrupted_configs:
             try:
-                bp = GeeseBlueprint(blueprint_id="test_corrupted", config=config)
+                GeeseBlueprint(blueprint_id="test_corrupted", config=config)
                 # Should handle gracefully or raise appropriate error
             except (TypeError, ValueError, RecursionError):
                 pass  # Expected for corrupted configs
@@ -138,7 +139,7 @@ class TestErrorHandlingComprehensive:
 
         for config in invalid_configs:
             try:
-                bp = GeeseBlueprint(blueprint_id="validation_test", config=config)
+                GeeseBlueprint(blueprint_id="validation_test", config=config)
                 # Should either handle gracefully or raise validation error
             except (ValueError, TypeError, KeyError):
                 pass  # Expected for invalid configs
@@ -149,7 +150,7 @@ class TestErrorHandlingComprehensive:
             mock_get_model.side_effect = Exception("Model creation failed")
 
             try:
-                bp = MCPDemoBlueprint(blueprint_id="agent_failure_test")
+                MCPDemoBlueprint(blueprint_id="agent_failure_test")
                 # Should handle agent creation failure
             except Exception:
                 pass  # Expected when model creation fails
@@ -177,7 +178,7 @@ class TestErrorHandlingComprehensive:
 
         try:
             for i in range(100):
-                bp = GeeseBlueprint(blueprint_id=f"cleanup_{i}")
+                GeeseBlueprint(blueprint_id=f"cleanup_{i}")
                 if i == 50:  # Simulate error halfway through
                     raise Exception("Simulated error")
         except Exception:
@@ -202,7 +203,6 @@ class TestErrorHandlingComprehensive:
 
     def test_error_logging_completeness(self):
         """Test that errors are logged completely."""
-        import logging
 
         with patch('logging.Logger.error') as mock_error:
             try:
@@ -277,7 +277,7 @@ class TestErrorHandlingComprehensive:
 
         for i in range(10):
             try:
-                bp = GeeseBlueprint(blueprint_id=f"partial_{i}")
+                GeeseBlueprint(blueprint_id=f"partial_{i}")
                 success_count += 1
             except Exception:
                 failure_count += 1
@@ -299,7 +299,7 @@ class TestErrorHandlingComprehensive:
             error_counts.append(batch_errors)
 
         # Error rate should be relatively stable
-        avg_errors = sum(error_counts) / len(error_counts)
+        sum(error_counts) / len(error_counts)
         max_errors = max(error_counts)
         min_errors = min(error_counts)
 

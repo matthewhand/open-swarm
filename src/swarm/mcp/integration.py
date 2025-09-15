@@ -4,7 +4,8 @@ This remains import-guarded and safe when the MCP server package is absent.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .provider import BlueprintMCPProvider
 
@@ -28,8 +29,8 @@ def register_blueprints_with_mcp() -> int:
         parameters = tool.get("parameters")
         description = tool.get("description")
 
-        def make_handler(n: str) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
-            def _handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+        def make_handler(n: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
+            def _handler(arguments: dict[str, Any]) -> dict[str, Any]:
                 return provider.call_tool(n, arguments)
 
             return _handler

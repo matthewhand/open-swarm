@@ -2,8 +2,8 @@
 Django settings for swarm project.
 """
 
-import os
 import json
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -113,7 +113,7 @@ if _sp_json:
                     parsed.pop(sp_entity, None)
                     continue
                 # audiences optional but should be list if provided
-                if 'audiences' in cfg and not isinstance(cfg['audiences'], (list, tuple)):
+                if 'audiences' in cfg and not isinstance(cfg['audiences'], list | tuple):
                     cfg['audiences'] = [str(cfg['audiences'])]
             SAML_IDP_SPCONFIG.update(parsed)
     except Exception:
@@ -124,7 +124,7 @@ if _sp_json:
 _sp_file = os.getenv('SAML_IDP_SPCONFIG_FILE')
 if _sp_file:
     try:
-        with open(_sp_file, 'r', encoding='utf-8') as f:
+        with open(_sp_file, encoding='utf-8') as f:
             file_payload = f.read()
         parsed = json.loads(file_payload)
         if isinstance(parsed, dict):
@@ -132,7 +132,7 @@ if _sp_file:
                 if not isinstance(cfg, dict) or 'acs_url' not in cfg:
                     parsed.pop(sp_entity, None)
                     continue
-                if 'audiences' in cfg and not isinstance(cfg['audiences'], (list, tuple)):
+                if 'audiences' in cfg and not isinstance(cfg['audiences'], list | tuple):
                     cfg['audiences'] = [str(cfg['audiences'])]
             SAML_IDP_SPCONFIG.update(parsed)
     except Exception:

@@ -1,4 +1,5 @@
 import json
+
 import pytest
 from django.urls import reverse
 
@@ -8,8 +9,8 @@ def test_custom_blueprints_crud(monkeypatch, client):
     # In-memory library
     lib = {"installed": [], "custom": []}
 
-    from swarm.views import blueprint_library_views as blv
     from swarm.views import api_views as av
+    from swarm.views import blueprint_library_views as blv
 
     def fake_get_lib():
         return lib

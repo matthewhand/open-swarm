@@ -17,7 +17,6 @@ def test_pretty_print_response_mixed_text_code_markdown(monkeypatch):
 
     from rich.markdown import Markdown
     from rich.syntax import Syntax
-
     from swarm.core.output_utils import pretty_print_response
 
     content = (

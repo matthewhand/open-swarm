@@ -1,4 +1,5 @@
 import json
+
 import pytest
 from django.urls import reverse
 
@@ -32,8 +33,8 @@ def test_blueprint_requirements_status_endpoint(monkeypatch, client):
             }
         }
 
-    from swarm.views import blueprint_library_views as blv
     from swarm.core import requirements as req
+    from swarm.views import blueprint_library_views as blv
 
     monkeypatch.setattr(blv, "discover_blueprints", fake_discover)
     # Patch both the module reference used by the view and the requirements module

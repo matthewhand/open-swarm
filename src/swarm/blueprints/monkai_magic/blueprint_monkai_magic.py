@@ -31,7 +31,6 @@ try:
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MonkaiMagicBlueprint: {e}. Check dependencies.")

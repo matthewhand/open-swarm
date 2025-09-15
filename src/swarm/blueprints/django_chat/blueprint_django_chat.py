@@ -5,6 +5,7 @@ A blueprint providing a web-based chat interface with conversation history manag
 HTTP-only; not intended for CLI use.
 """
 
+import asyncio
 import logging
 import os
 import sys
@@ -32,13 +33,6 @@ args = setup_logging()
 
 logger = logging.getLogger(__name__)
 
-# Reject CLI execution immediately
-if __name__ == "__main__":
-    logger.info("DjangoChatBlueprint is an HTTP-only service. Access it via the web interface at /django_chat/.")
-    print("This blueprint is designed for HTTP use only. Please access it via the web server at /django_chat/", file=sys.stderr)
-    sys.stderr.flush()
-    sys.exit(1)
-
 # Django imports after CLI rejection
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
 import django
@@ -49,7 +43,6 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
@@ -63,6 +56,12 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
+# Reject CLI execution immediately
+if __name__ == "__main__":
+    logger.info("DjangoChatBlueprint is an HTTP-only service. Access it via the web interface at /django_chat/.")
+    print("This blueprint is designed for HTTP use only. Please access it via the web server at /django_chat/", file=sys.stderr)
+    sys.stderr.flush()
+    sys.exit(1)
 
 class DjangoChatSpinner:
     FRAMES = [
@@ -129,7 +128,7 @@ class DjangoChatBlueprint(Blueprint):
         self._llm_profile_data = None
         self._markdown_output = None
         class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
+            def chat_completion_stream(self, _messages, **_):
                 class DummyStream:
                     def __aiter__(self): return self
                     async def __anext__(self):
@@ -173,7 +172,7 @@ class DjangoChatBlueprint(Blueprint):
         }
         return render(request, "django_chat/django_chat_webpage.html", context)
 
-    def render_prompt(self, template_name: str, context: dict) -> str:
+    def render_prompt(self, _template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     async def run(self, messages: list[dict[str, str]]):
@@ -219,7 +218,7 @@ class DjangoChatBlueprint(Blueprint):
             logger.error(f"Error during DjangoChat run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
-    def run_with_context(self, messages: list[dict[str, str]], context_variables: dict) -> dict:
+    def run_with_context(self, _messages: list[dict[str, str]], context_variables: dict) -> dict:
         """Minimal implementation for CLI compatibility without agents."""
         logger.debug("Running with context (UI-focused implementation)")
         return {

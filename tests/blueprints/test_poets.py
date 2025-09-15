@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from agents import Agent as GenericAgent
-
 from swarm.blueprints.poets.blueprint_poets import PoetsBlueprint
 
 # A minimal valid config that includes a 'default' LLM profile

@@ -1,6 +1,5 @@
 
 import pytest
-
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint, RueSpinner
 

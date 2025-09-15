@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from agents.mcp import MCPServer
-
 from swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot import (
     WhiskeyTangoFoxtrotBlueprint,
 )

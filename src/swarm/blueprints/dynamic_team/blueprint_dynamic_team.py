@@ -3,7 +3,6 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from openai import AsyncOpenAI
-
 from swarm.core.blueprint_base import BlueprintBase
 
 logger = logging.getLogger(__name__)

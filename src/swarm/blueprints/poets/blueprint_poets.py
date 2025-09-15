@@ -8,7 +8,6 @@ from agents.models.openai_chatcompletions import (
     OpenAIChatCompletionsModel,  # type: ignore
 )
 from openai import AsyncOpenAI  # type: ignore
-
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.utils.log_utils import logger
 

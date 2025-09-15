@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import pytest
 from django.test import TestCase
-
 from swarm.core.blueprint_base import BlueprintBase
 
 

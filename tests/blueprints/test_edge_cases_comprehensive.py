@@ -6,7 +6,6 @@ Tests boundary conditions, error scenarios, and unusual inputs.
 from unittest.mock import patch
 
 import pytest
-
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 
 
@@ -34,7 +33,7 @@ class TestEdgeCasesComprehensive:
         else:
             # For other inputs, validate input characteristics
             assert empty_input is not None or input_type == "none_value"
-            assert len(str(empty_input)) == 0 if hasattr(empty_input, '__len__') and not isinstance(empty_input, (int, bool)) else True
+            assert len(str(empty_input)) == 0 if hasattr(empty_input, '__len__') and not isinstance(empty_input, int | bool) else True
 
     # Test extremely long inputs
     @pytest.mark.parametrize("long_input", [

@@ -28,7 +28,6 @@ try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
-
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
      print(f"ERROR: Failed to import 'agents' or 'BlueprintBase'. Is 'openai-agents' installed and src in PYTHONPATH? Details: {e}")

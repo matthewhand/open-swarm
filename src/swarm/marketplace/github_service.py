@@ -6,30 +6,32 @@ tests monkeypatch these functions to return controlled data.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-import base64
-import httpx
-import time
 import ast
+import base64
 import json as _json
+import time
+from collections.abc import Iterable
+from typing import Any
+
+import httpx
 
 GITHUB_API = "https://api.github.com"
 
 # Very simple in-process cache (best-effort) to reduce GitHub calls in a
 # long-lived process. Keys are based on query parameters. TTL is short.
-_CACHE: Dict[Tuple[str, str, str, str], Tuple[float, List[Dict[str, Any]]]] = {}
+_CACHE: dict[tuple[str, str, str, str], tuple[float, list[dict[str, Any]]]] = {}
 _CACHE_TTL_SECONDS = 300.0
 
 
 def search_repos_by_topics(
-    topics: List[str],
-    orgs: Optional[List[str]] = None,
+    topics: list[str],
+    orgs: list[str] | None = None,
     *,
     sort: str = 'stars',
     order: str = 'desc',
     query: str = '',
-    token: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    token: str | None = None,
+) -> list[dict[str, Any]]:
     """Search public GitHub repositories by topics/orgs with optional name query.
 
     Returns a subset of fields for each repo. This function is safe to mock in
@@ -68,7 +70,7 @@ def search_repos_by_topics(
                 return []
             data = resp.json() or {}
             items = data.get("items") or []
-            out: List[Dict[str, Any]] = []
+            out: list[dict[str, Any]] = []
             for it in items:
                 out.append({
                     "full_name": it.get("full_name"),
@@ -81,9 +83,9 @@ def search_repos_by_topics(
 
 
 def fetch_repo_manifests(
-    repo: Dict[str, Any],
-    token: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    repo: dict[str, Any],
+    token: str | None = None,
+) -> list[dict[str, Any]]:
     """Return list of manifest items found in a repository.
 
     Tries the top-level `open-swarm.json` first. Then lists conventional
@@ -92,7 +94,7 @@ def fetch_repo_manifests(
     headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     try:
         full = (repo.get("full_name") or "").split("/")
         if len(full) != 2:
@@ -150,7 +152,7 @@ def fetch_repo_manifests(
     return results
 
 
-def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_dir: str, item: Dict[str, Any]) -> None:
+def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_dir: str, item: dict[str, Any]) -> None:
     """Compute file and line counts; extract metadata from python file if possible.
 
     This function is best-effort; failures are silently ignored.
@@ -193,7 +195,7 @@ def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_d
         return
 
 
-def safe_extract_metadata_from_py(src: str) -> Optional[Dict[str, Any]]:
+def safe_extract_metadata_from_py(src: str) -> dict[str, Any] | None:
     """Safely extract Blueprint.metadata dict from Python source using AST only.
 
     Looks for a class definition with a 'metadata' attribute assigned to a dict
@@ -230,16 +232,16 @@ def safe_extract_metadata_from_py(src: str) -> Optional[Dict[str, Any]]:
 
 
 def to_marketplace_items(
-    repo: Dict[str, Any],
-    items: Iterable[Dict[str, Any]],
+    repo: dict[str, Any],
+    items: Iterable[dict[str, Any]],
     *,
     kind: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Normalize repo + manifest items into a common marketplace item shape.
 
     kind: 'blueprint' or 'mcp'
     """
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for it in items:
         out.append(
             {

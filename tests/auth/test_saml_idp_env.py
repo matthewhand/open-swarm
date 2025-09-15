@@ -1,5 +1,4 @@
 import importlib
-import os
 
 
 def test_env_driven_idp_settings(monkeypatch):

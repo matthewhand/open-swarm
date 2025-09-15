@@ -15,6 +15,7 @@ import glob
 import json
 import logging
 import os
+import subprocess
 import sys
 from datetime import datetime
 from typing import Any, ClassVar
@@ -24,7 +25,8 @@ import pytz
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
     from agents import Agent
@@ -32,12 +34,20 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MCPDemoBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
     sys.exit(1)
+
+# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
+import threading
+import time
+
+from rich.console import Console
+from rich.style import Style
+from rich.text import Text
+from swarm.ux.ansi_box import ansi_box
 
 logger = logging.getLogger(__name__)
 
@@ -175,17 +185,6 @@ write_file_tool = PatchedFunctionTool(write_file, 'write_file')
 list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
-# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-import threading
-import time
-
-from rich.console import Console
-from rich.style import Style
-from rich.text import Text
-
-from swarm.ux.ansi_box import ansi_box
-
-
 class MCPDemoSpinner:
     FRAMES = [
         "Generating.", "Generating..", "Generating...", "Running...",
@@ -275,7 +274,7 @@ class MCPDemoBlueprint(BlueprintBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
+            def chat_completion_stream(self, _messages, **_):
                 class DummyStream:
                     def __aiter__(self): return self
                     async def __anext__(self):
@@ -292,28 +291,34 @@ class MCPDemoBlueprint(BlueprintBase):
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         profile_data = self.get_llm_profile(profile_name)
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
+        if not profile_data:
+            raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
+        if not model_name:
+            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if provider != "openai":
+            raise ValueError(f"Unsupported provider: {provider}")
         client_cache_key = f"{provider}_{profile_data.get('base_url')}"
         if client_cache_key not in self._openai_client_cache:
              client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
+             try:
+                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e:
+                 raise ValueError(f"Failed to init client: {e}") from e
         client = self._openai_client_cache[client_cache_key]
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM: {e}") from e
 
-    def render_prompt(self, template_name: str, context: dict) -> str:
+    def render_prompt(self, _template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     # --- Agent Creation ---
@@ -404,7 +409,7 @@ class MCPDemoBlueprint(BlueprintBase):
             return False
         return not (isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower())
 
-    def consider_alternatives(self, messages, result):
+    def consider_alternatives(self, _messages, result):
         alternatives = []
         if not self.success_criteria(result):
             alternatives.append('Try a different agent for the task.')
@@ -453,8 +458,6 @@ class MCPDemoBlueprint(BlueprintBase):
 
 # Standard Python entry point
 if __name__ == "__main__":
-    import asyncio
-    import json
     print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🧠 MCP DEMO: AGENT INTERACTION & SWARM DEBUG DEMO         ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint showcases viral swarm propagation,            ║\n║ agent-to-agent interaction, and advanced debug logging.      ║\n║ Try running: python blueprint_mcp_demo.py                    ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
     messages = [
         {"role": "user", "content": "Show me how MCP Demo enables agent interaction and swarm debug logging."}

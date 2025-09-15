@@ -45,7 +45,6 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.output_utils import print_search_progress_box
 except ImportError as e:
@@ -96,25 +95,28 @@ class ChatbotBlueprint(BlueprintBase):
             self.func = func
             self.name = name
 
-    def read_file(path: str) -> str:
+    def read_file(self, path: str) -> str:
         try:
             with open(path) as f:
                 return f.read()
         except Exception as e:
             return f"ERROR: {e}"
-    def write_file(path: str, content: str) -> str:
+
+    def write_file(self, path: str, content: str) -> str:
         try:
             with open(path, 'w') as f:
                 f.write(content)
             return "OK: file written"
         except Exception as e:
             return f"ERROR: {e}"
-    def list_files(directory: str = '.') -> str:
+
+    def list_files(self, directory: str = '.') -> str:
         try:
             return '\n'.join(os.listdir(directory))
         except Exception as e:
             return f"ERROR: {e}"
-    def execute_shell_command(command: str) -> str:
+
+    def execute_shell_command(self, command: str) -> str:
         import subprocess
         try:
             result = subprocess.run(command, shell=True, capture_output=True, text=True)
@@ -123,24 +125,24 @@ class ChatbotBlueprint(BlueprintBase):
             return f"ERROR: {e}"
     # Use proper function_tool decorator instead of PatchedFunctionTool
     @function_tool
-    def read_file_tool(file_path: str) -> str:
+    def read_file_tool(self, file_path: str) -> str:
         """Read the contents of a file."""
-        return read_file(file_path)
+        return self.read_file(file_path)
 
     @function_tool
-    def write_file_tool(file_path: str, content: str) -> str:
+    def write_file_tool(self, file_path: str, content: str) -> str:
         """Write content to a file."""
-        return write_file(file_path, content)
+        return self.write_file(file_path, content)
 
     @function_tool
-    def list_files_tool(directory: str = ".") -> str:
+    def list_files_tool(self, directory: str = ".") -> str:
         """List files in a directory."""
-        return list_files(directory)
+        return self.list_files(directory)
 
     @function_tool
-    def execute_shell_command_tool(command: str) -> str:
+    def execute_shell_command_tool(self, command: str) -> str:
         """Execute a shell command."""
-        return execute_shell_command(command)
+        return self.execute_shell_command(command)
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:

@@ -7,23 +7,33 @@ Self-healing, fileops-enabled, swarm-scalable.
 import logging
 import os
 import sqlite3  # Use standard sqlite3 module
+import subprocess
 import sys
+
+# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
+import threading
+import time
 from pathlib import Path
 from typing import Any, ClassVar
+
+from rich.console import Console
+from rich.style import Style
+from rich.text import Text
+from swarm.ux.ansi_box import ansi_box
 
 # Last swarm update: 2025-04-18T10:15:21Z (UTC)
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
     from agents import Agent
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from openai import AsyncOpenAI
-
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
@@ -241,7 +251,7 @@ class MissionImprobableBlueprint(BlueprintBase):
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
-                raise ValueError("No OPENAI_API_KEY found and config not loaded")
+                raise ValueError("No OPENAI_API_KEY found and config not loaded") from None
             logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
             client = AsyncOpenAI(api_key=api_key)
             model_instance = OpenAIChatCompletionsModel(model="gpt-3.5-turbo", openai_client=client)
@@ -279,7 +289,8 @@ class MissionImprobableBlueprint(BlueprintBase):
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM provider: {e}") from e
 
     # --- Agent Creation ---
     def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
@@ -301,9 +312,12 @@ class MissionImprobableBlueprint(BlueprintBase):
             config = self.get_agent_config(name)
             model_instance = self._get_model_instance(config["model_profile"])
             agent_mcps = []
-            if name == "JimFlimsy": agent_mcps = get_agent_mcps(["memory"])
-            elif name == "CinnamonToast": agent_mcps = get_agent_mcps(["filesystem"])
-            elif name == "RollinFumble": agent_mcps = get_agent_mcps(["mcp-shell"])
+            if name == "JimFlimsy":
+                agent_mcps = get_agent_mcps(["memory"])
+            elif name == "CinnamonToast":
+                agent_mcps = get_agent_mcps(["filesystem"])
+            elif name == "RollinFumble":
+                agent_mcps = get_agent_mcps(["mcp-shell"])
 
             agents[name] = Agent(
                 name=name,
@@ -322,7 +336,7 @@ class MissionImprobableBlueprint(BlueprintBase):
         logger.debug("Mission Improbable agents created. Starting with JimFlimsy.")
         return agents["JimFlimsy"] # Jim is the coordinator
 
-    async def run(self, messages: list, **kwargs):
+    async def run(self, messages: list, **_kwargs):
         """Main execution entry point for the MissionImprobable blueprint."""
         logger.info("MissionImprobableBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
@@ -373,17 +387,6 @@ class MissionImprobableBlueprint(BlueprintBase):
         except Exception as e:
             logger.error(f"Error during MissionImprobable run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
-
-# --- Spinner and ANSI/emoji operation box for unified UX (for CLI/dev runs) ---
-import threading
-import time
-
-from rich.console import Console
-from rich.style import Style
-from rich.text import Text
-
-from swarm.ux.ansi_box import ansi_box
-
 
 class MissionImprobableSpinner:
     FRAMES = [

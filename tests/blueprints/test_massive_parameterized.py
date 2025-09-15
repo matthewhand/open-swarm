@@ -5,7 +5,6 @@ Focuses on high-value, fast-running tests.
 
 
 import pytest
-
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.blueprints.mcp_demo.blueprint_mcp_demo import MCPDemoBlueprint
 

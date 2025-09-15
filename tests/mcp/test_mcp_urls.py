@@ -34,7 +34,7 @@ def test_mcp_urls_included_when_enabled(monkeypatch, client):
     settings_mod = importlib.import_module("swarm.settings")
     importlib.reload(settings_mod)
     from django.conf import settings as dj_settings
-    setattr(dj_settings, "ENABLE_MCP_SERVER", True)
+    dj_settings.ENABLE_MCP_SERVER = True
     urls_mod = importlib.import_module("swarm.urls")
     importlib.reload(urls_mod)
 

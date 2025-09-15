@@ -8,7 +8,6 @@ def test_provider_lists_tools(monkeypatch):
         "codey": {"metadata": {"name": "Codey", "description": "Coding assistant"}},
     }
 
-    from swarm import mcp as mcp_pkg  # ensure package namespace
     from swarm.mcp import provider as prov
 
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)

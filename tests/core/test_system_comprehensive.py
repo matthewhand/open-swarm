@@ -133,18 +133,18 @@ class TestSystemResourceManagement:
             gc.collect()  # Force garbage collection
 
             if operation == "create_large_list":
-                large_list = list(range(10000))
+                list(range(10000))
                 del large_list
             elif operation == "create_large_dict":
-                large_dict = {i: f"value_{i}" for i in range(10000)}
+                {i: f"value_{i}" for i in range(10000)}
                 del large_dict
             elif operation == "json_serialization":
                 data = {"test": list(range(1000))}
-                json_str = json.dumps(data)
+                json.dumps(data)
                 del json_str, data
             elif operation == "string_operations":
                 large_string = "x" * 100000
-                processed = large_string.upper().lower()
+                large_string.upper().lower()
                 del large_string, processed
 
         gc.collect()
@@ -342,7 +342,7 @@ class TestSystemReliability:
             if scenario["simulation"] == "memory_pressure":
                 # Simulate memory pressure
                 try:
-                    large_data = [list(range(10000)) for _ in range(100)]
+                    [list(range(10000)) for _ in range(100)]
                     del large_data
                 except MemoryError:
                     pass  # Expected in extreme cases

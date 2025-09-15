@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from swarm.blueprints.echocraft.blueprint_echocraft import (
     EchoCraftBlueprint,
     run_echocraft_cli,

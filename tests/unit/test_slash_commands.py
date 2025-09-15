@@ -1,5 +1,4 @@
 import pytest
-
 from swarm.core.slash_commands import slash_registry
 
 

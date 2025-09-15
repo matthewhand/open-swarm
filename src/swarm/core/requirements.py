@@ -1,15 +1,14 @@
 import os
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from .config_loader import load_full_configuration
-
 
 UNRESOLVED_VAR_PATTERN_1 = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 UNRESOLVED_VAR_PATTERN_2 = re.compile(r"(?<!\$)\$([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def _find_unresolved_envs(value: Any) -> List[str]:
+def _find_unresolved_envs(value: Any) -> list[str]:
     """Return env var names that appear unresolved in a string value."""
     if not isinstance(value, str):
         return []
@@ -18,7 +17,7 @@ def _find_unresolved_envs(value: Any) -> List[str]:
     return sorted(names)
 
 
-def load_active_config() -> Dict[str, Any]:
+def load_active_config() -> dict[str, Any]:
     """Load the active configuration using the standard loader.
 
     Uses a dummy blueprint name to avoid merging per-blueprint overrides.
@@ -27,11 +26,11 @@ def load_active_config() -> Dict[str, Any]:
 
 
 def evaluate_mcp_compliance(
-    required_servers: List[str] | None,
-    mcp_config: Dict[str, Any],
+    required_servers: list[str] | None,
+    mcp_config: dict[str, Any],
     *,
-    blueprint_env_vars: List[str] | None = None,
-) -> Dict[str, Any]:
+    blueprint_env_vars: list[str] | None = None,
+) -> dict[str, Any]:
     """Compare required MCP servers against the current mcpServers config.
 
     Returns a dict including status, missing servers, per-server details,
@@ -40,15 +39,15 @@ def evaluate_mcp_compliance(
     req = required_servers or []
     bp_env = blueprint_env_vars or []
 
-    server_details: Dict[str, Dict[str, Any]] = {}
-    missing_servers: List[str] = []
+    server_details: dict[str, dict[str, Any]] = {}
+    missing_servers: list[str] = []
 
     for name in req:
         entry = mcp_config.get(name)
         present = entry is not None
         has_command = bool(entry.get("command")) if present else False
         has_args = bool(entry.get("args")) if present else False
-        unresolved_env: List[str] = []
+        unresolved_env: list[str] = []
 
         if present:
             env_dict = entry.get("env", {}) if isinstance(entry, dict) else {}
@@ -66,7 +65,7 @@ def evaluate_mcp_compliance(
         }
 
     # Blueprint-level env var presence (in OS env)
-    missing_bp_env: List[str] = [e for e in bp_env if not os.environ.get(e)]
+    missing_bp_env: list[str] = [e for e in bp_env if not os.environ.get(e)]
 
     status = "ok"
     if missing_servers:

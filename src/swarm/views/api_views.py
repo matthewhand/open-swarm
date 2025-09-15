@@ -8,18 +8,18 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from swarm.views.utils import get_available_blueprints
+from swarm.marketplace import github_service as gh_service
+from swarm.settings import (
+    ENABLE_GITHUB_MARKETPLACE,
+    GITHUB_MARKETPLACE_ORG_ALLOWLIST,
+    GITHUB_MARKETPLACE_TOPICS,
+    GITHUB_TOKEN,
+)
 from swarm.views.blueprint_library_views import (
     get_user_blueprint_library,
     save_user_blueprint_library,
 )
-from swarm.settings import (
-    ENABLE_GITHUB_MARKETPLACE,
-    GITHUB_MARKETPLACE_TOPICS,
-    GITHUB_MARKETPLACE_ORG_ALLOWLIST,
-    GITHUB_TOKEN,
-)
-from swarm.marketplace import github_service as gh_service
+from swarm.views.utils import get_available_blueprints
 
 logger = logging.getLogger(__name__)
 
@@ -215,20 +215,18 @@ class CustomBlueprintsView(APIView):
         category = (request.query_params.get("category") or "").strip().lower()
 
         def match(item: dict) -> bool:
-            if search:
-                if not (
-                    search in (item.get("id", "").lower())
-                    or search in (str(item.get("name", "")).lower())
-                    or search in (str(item.get("description", "")).lower())
-                ):
-                    return False
+            if search and not (
+                search in (item.get("id", "").lower())
+                or search in (str(item.get("name", "")).lower())
+                or search in (str(item.get("description", "")).lower())
+            ):
+                return False
             if tag:
                 tags = [str(t).lower() for t in item.get("tags", [])]
                 if tag not in tags:
                     return False
-            if category:
-                if category != str(item.get("category", "")).lower():
-                    return False
+            if category and category != str(item.get("category", "")).lower():
+                return False
             return True
 
         filtered = [i for i in items if match(i)]
@@ -349,12 +347,11 @@ class MarketplaceBlueprintsView(APIView):
         tag = (request.query_params.get('tag') or '').strip().lower()
 
         def match(it: dict) -> bool:
-            if search:
-                if not (
-                    search in str(it.get('title', '')).lower()
-                    or search in str(it.get('summary', '')).lower()
-                ):
-                    return False
+            if search and not (
+                search in str(it.get('title', '')).lower()
+                or search in str(it.get('summary', '')).lower()
+            ):
+                return False
             if tag:
                 tags = [str(t).lower() for t in it.get('tags', [])]
                 if tag not in tags:
@@ -376,15 +373,13 @@ class MarketplaceMCPConfigsView(APIView):
         server = (request.query_params.get('server') or '').strip().lower()
 
         def match(it: dict) -> bool:
-            if search:
-                if not (
-                    search in str(it.get('title', '')).lower()
-                    or search in str(it.get('summary', '')).lower()
-                ):
-                    return False
-            if server:
-                if server not in str(it.get('server_name', '')).lower():
-                    return False
+            if search and not (
+                search in str(it.get('title', '')).lower()
+                or search in str(it.get('summary', '')).lower()
+            ):
+                return False
+            if server and server not in str(it.get('server_name', '')).lower():
+                return False
             return True
 
         data = [it for it in items if match(it)]

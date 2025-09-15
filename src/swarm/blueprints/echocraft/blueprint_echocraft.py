@@ -13,7 +13,6 @@ from typing import Any
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.ux.ansi_box import ansi_box
 

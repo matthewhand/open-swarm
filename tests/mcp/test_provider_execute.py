@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_provider_set_executor_and_execute(monkeypatch):

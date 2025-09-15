@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from django.db import models
 
 try:
-    from wagtail.models import Page
-    from wagtail.fields import RichTextField
     from wagtail.admin.panels import FieldPanel, MultiFieldPanel
+    from wagtail.fields import RichTextField
+    from wagtail.models import Page
     from wagtail.snippets.models import register_snippet
 except Exception:  # pragma: no cover - only imported when Wagtail is enabled
     Page = object  # type: ignore

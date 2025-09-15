@@ -2,7 +2,6 @@ import io
 import time
 
 import pytest
-
 from swarm.core.output_utils import JeevesSpinner
 from swarm.core.output_utils import print_operation_box as display_operation_box_core
 
