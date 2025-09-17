@@ -180,10 +180,14 @@ class TestConfigurationIntegration(TestCase):
             # Test profile access
             try:
                 default_profile = blueprint.get_llm_profile("default")
-                assert default_profile["model"] == "gpt-4"
+                # Account for environment variable substitution in test environment
+                expected_model = os.environ.get("LITELLM_MODEL", "gpt-4")
+                assert default_profile["model"] == expected_model
 
                 test_profile = blueprint.get_llm_profile("test")
-                assert test_profile["model"] == "gpt-3.5-turbo"
+                # The test profile should also be affected by env var substitution
+                expected_test_model = os.environ.get("LITELLM_MODEL", "gpt-3.5-turbo")
+                assert test_profile["model"] == expected_test_model
             except RuntimeError:
                 # Expected if config loading not fully implemented
                 pass
