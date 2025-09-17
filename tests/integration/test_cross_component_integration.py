@@ -38,21 +38,28 @@ class TestBlueprintDiscoveryIntegration(TestCase):
 
     def test_blueprint_metadata_consistency(self):
         """Test blueprint metadata consistency across discovery and usage."""
-        discovered_blueprints = discover_blueprints()
+        discovered_blueprints = discover_blueprints("src/swarm/blueprints")
 
-        for blueprint_info in discovered_blueprints[:5]:  # Test first 5
-            blueprint_name = blueprint_info.get('name', '')
+        # Test first 5 blueprints by key
+        for i, (blueprint_key, blueprint_info) in enumerate(list(discovered_blueprints.items())[:5]):
+            # Access the metadata from the blueprint_info
+            metadata = blueprint_info.get('metadata', {})
+            blueprint_name = metadata.get('name', blueprint_key)
             if blueprint_name:
                 # Test metadata access patterns
-                assert 'description' in blueprint_info or 'name' in blueprint_info
+                assert 'description' in metadata or 'name' in metadata
 
                 # Test that blueprint can be instantiated
-                blueprint_class = blueprint_info.get('class')
+                blueprint_class = blueprint_info.get('class_type')
                 if blueprint_class:
                     try:
                         instance = blueprint_class(blueprint_id=f"test_{blueprint_name}")
                         assert instance is not None
                         assert hasattr(instance, 'metadata')
+                    except Exception:
+                        # Some blueprints may have complex initialization requirements
+                        # This is expected in test environment
+                        pass
                     except Exception:
                         # Some blueprints may have complex initialization requirements
                         pass
