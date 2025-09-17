@@ -304,10 +304,12 @@ class BlueprintBase(ABC):
 
         except ValueError as e:
             logger.error(f"Configuration error for blueprint '{self.blueprint_id}': {e}", exc_info=True)
-            raise
+            # Fallback to empty config on JSON parsing errors
+            self._config = {}
         except Exception as e:
             logger.error(f"Unexpected error loading config for blueprint '{self.blueprint_id}': {e}", exc_info=True)
-            raise
+            # Fallback to empty config on unexpected errors
+            self._config = {}
 
     def _load_and_process_config(self):
         """Loads the main Swarm config and extracts relevant settings. Falls back to empty config if Django unavailable or not found."""
@@ -446,10 +448,12 @@ class BlueprintBase(ABC):
 
         except ValueError as e:
             logger.error(f"Configuration error for blueprint '{self.blueprint_id}': {e}", exc_info=True)
-            raise
+            # Fallback to empty config on JSON parsing errors
+            self._config = {}
         except Exception as e:
             logger.error(f"Unexpected error loading config for blueprint '{self.blueprint_id}': {e}", exc_info=True)
-            raise
+            # Fallback to empty config on unexpected errors
+            self._config = {}
 
     def _resolve_llm_profile(self):
         """Resolve the LLM profile for this blueprint using the following order:
