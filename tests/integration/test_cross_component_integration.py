@@ -151,9 +151,11 @@ class TestConfigurationIntegration(TestCase):
         # Test global config loading
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             global_config = {
-                "profiles": {
-                    "default": {"model": "gpt-4", "temperature": 0.7},
-                    "test": {"model": "gpt-3.5-turbo", "temperature": 0.5}
+                "llm": {
+                    "profiles": {
+                        "default": {"model": "gpt-4", "temperature": 0.7},
+                        "test": {"model": "gpt-3.5-turbo", "temperature": 0.5}
+                    }
                 },
                 "blueprints": {
                     "defaults": {"max_llm_calls": 10},
