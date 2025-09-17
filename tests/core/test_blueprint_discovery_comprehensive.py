@@ -26,8 +26,8 @@ class TestBlueprintDiscoveryComprehensive:
         
         # And: each blueprint should have required metadata structure
         for name, blueprint_info in blueprints.items():
-            assert 'metadata' in blueprint_info, f"Blueprint {name} missing metadata"
             assert 'class_type' in blueprint_info, f"Blueprint {name} missing class_type"
+            assert 'metadata' in blueprint_info, f"Blueprint {name} missing metadata"
             metadata = blueprint_info['metadata']
             assert 'name' in metadata, f"Blueprint {name} missing name in metadata"
             assert 'description' in metadata, f"Blueprint {name} missing description in metadata"
