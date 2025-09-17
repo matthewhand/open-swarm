@@ -25,7 +25,7 @@ class TestBlueprintDiscoveryIntegration(TestCase):
     def test_blueprint_discovery_and_api_integration(self):
         """Test blueprint discovery integrates properly with API endpoints."""
         # Test that discovered blueprints appear in API responses
-        discovered_blueprints = discover_blueprints()
+        discovered_blueprints = discover_blueprints("src/swarm/blueprints")
         assert len(discovered_blueprints) > 0
 
         # Test that API can list the same blueprints
