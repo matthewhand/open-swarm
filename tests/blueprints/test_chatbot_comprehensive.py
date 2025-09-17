@@ -167,8 +167,10 @@ class TestChatbotBlueprintConfiguration:
     def test_llm_profile_resolution_custom(self):
         """Test custom LLM profile resolution."""
         config = {
-            "profiles": {
-                "custom": {"model": "gpt-4", "temperature": 0.5}
+            "llm": {
+                "profiles": {
+                    "custom": {"model": "gpt-4", "temperature": 0.5}
+                }
             }
         }
         blueprint = ChatbotBlueprint(blueprint_id="test_chatbot", config=config)
@@ -180,7 +182,7 @@ class TestChatbotBlueprintConfiguration:
         """Test markdown output configuration."""
         blueprint = ChatbotBlueprint(blueprint_id="test_chatbot")
         # Test default markdown setting
-        markdown_enabled = blueprint.should_output_markdown()
+        markdown_enabled = blueprint.should_output_markdown
         assert isinstance(markdown_enabled, bool)
 
 
