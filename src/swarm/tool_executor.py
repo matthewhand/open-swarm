@@ -6,6 +6,7 @@ Handles invoking agent functions/tools based on LLM requests.
 import inspect  # To check for awaitables
 import json
 import logging
+import re
 from typing import Any
 
 # Import necessary types from the Swarm framework
@@ -16,6 +17,36 @@ from .types import (
     Response,  # Structure for returning results of multiple tool calls
     Result,  # Structure for returning result of a single tool call
 )
+
+
+def redact_sensitive_data(data: Any) -> Any:
+    """
+    Redact sensitive information from data for logging purposes.
+    
+    Args:
+        data: The data to redact
+        
+    Returns:
+        Redacted version of the data
+    """
+    if isinstance(data, dict):
+        redacted = {}
+        for key, value in data.items():
+            if any(sensitive in str(key).lower() for sensitive in ['key', 'token', 'secret', 'password', 'auth']):
+                if isinstance(value, str) and len(value) > 4:
+                    redacted[key] = value[:2] + '*' * (len(value) - 4) + value[-2:]
+                else:
+                    redacted[key] = '***'
+            else:
+                redacted[key] = redact_sensitive_data(value)
+        return redacted
+    elif isinstance(data, list):
+        return [redact_sensitive_data(item) for item in data]
+    elif isinstance(data, str):
+        # Simple heuristic for API keys in strings
+        if re.search(r'(?:sk-|Bearer |Basic |eyJ)', data):
+            return '***REDACTED***'
+    return data
 
 # Utility to convert function signatures to JSON schema (if needed, though less common now with direct calls)
 # from .util import function_to_json # Commented out if not used directly here

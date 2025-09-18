@@ -500,36 +500,25 @@ class {name.replace(" ", "")}Blueprint(BlueprintBase):
     def __init__(self, blueprint_id: str = "{name.lower().replace(' ', '_')}", **kwargs):
         super().__init__(blueprint_id, **kwargs)
 
-    async def run(self, args: list[str] = None) -> None:
+    async def run(self, messages: list[dict], **kwargs) -> None:
         """Main blueprint execution."""
-        # Implementation: Parse arguments and execute blueprint-specific logic
-        if args:
-            instruction = ' '.join(args)
-            print(f"Executing {self.blueprint_id} with instruction: {instruction}")
-        else:
-            print(f"Running {self.blueprint_id} blueprint in default mode...")
+        # Implementation: Process messages and execute blueprint-specific logic
+        instruction = messages[-1].get("content", "") if messages else ""
+        print(f"Executing {{self.blueprint_id}} with instruction: {{instruction}}")
 
-        # Example logic: List available blueprints or execute a specific one
-        from swarm.core.blueprint_base import BlueprintBase
-        available_blueprints = BlueprintBase.list_available_blueprints()
-
-        if instruction and "list" in instruction.lower():
+        # Example logic based on instruction
+        if "list" in instruction.lower():
             print("Available blueprints:")
-            for bp in available_blueprints:
-                print(f"  - {bp}")
-        elif instruction and "execute" in instruction.lower():
-            # Parse blueprint name from instruction
-            bp_name = instruction.split("execute")[-1].strip()
-            if bp_name in available_blueprints:
-                print(f"Executing blueprint: {bp_name}")
-                # Here would be the actual execution logic
-                print(f"Blueprint {bp_name} executed successfully.")
-            else:
-                print(f"Blueprint '{bp_name}' not found in available blueprints.")
+            print("  - codey")
+            print("  - poets")
+            print("  - zeus")
+        elif "execute" in instruction.lower():
+            print("Executing custom blueprint logic...")
+            print(f"Blueprint {{self.blueprint_id}} executed successfully.")
         else:
-            print(f"Description: {description}")
-            print(f"Category: {category}")
-            print(f"Tags: {', '.join(tags)}")
+            print(f"Description: {{self.metadata['description']}}")
+            print(f"Category: {{self.metadata['category']}}")
+            print(f"Tags: {{', '.join(self.metadata['tags'])}}")
             print("Use 'list' to see available blueprints or 'execute <name>' to run one.")
 
         # Add your custom logic here based on specific requirements

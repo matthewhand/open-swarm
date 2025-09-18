@@ -75,7 +75,7 @@ async def test_jeeves_delegation_to_gutenberg(monkeypatch, jeeves_blueprint_inst
         called["gutenberg"] = True
         return ["gutenberg_match1"]
 
-    monkeypatch.setattr(bp, "semantic_search", fake_semantic_search)
+    monkeypatch.setattr(bp, "gutenberg_search", fake_gutenberg_search)
 
     messages = [{"role": "user", "content": "What is the meaning of life?"}]
     async for _ in bp.run(messages, search_mode='semantic'):

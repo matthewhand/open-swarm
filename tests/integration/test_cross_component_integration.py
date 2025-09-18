@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase
+from asgiref.sync import sync_to_async
 
 from src.swarm.core.blueprint_discovery import discover_blueprints
 from src.swarm.views.utils import get_available_blueprints
@@ -405,7 +406,7 @@ class TestDatabaseIntegration(TestCase):
         from src.swarm.models import Conversation
 
         # Create a conversation
-        conversation = await database_sync_to_async(Conversation.objects.create)(
+        conversation = await sync_to_async(Conversation.objects.create)(
             user=self.test_user,
             title=f"Concurrent Test {operation_id}"
         )
@@ -414,7 +415,7 @@ class TestDatabaseIntegration(TestCase):
         await asyncio.sleep(0.1)
 
         # Clean up
-        await database_sync_to_async(conversation.delete)()
+        await sync_to_async(conversation.delete)()
 
         return f"Operation {operation_id} completed"
 

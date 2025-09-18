@@ -32,16 +32,17 @@ class TestBlueprintBaseAdvanced:
             async def run(self, messages, **kwargs):
                 yield {"messages": [{"role": "assistant", "content": "test"}]}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump({"profiles": {"test": {"model": "gpt-4"}}}, f)
-            config_path = f.name
-
-        try:
-            blueprint = TestBlueprint(blueprint_id="test", config_path=config_path)
-            profile = blueprint.get_llm_profile("test")
-            assert profile["model"] == "gpt-4"
-        finally:
-            os.unlink(config_path)
+        # Use a completely isolated config to avoid system interference
+        test_config = {
+            "llm": {
+                "profiles": {
+                    "test": {"model": "gpt-4", "provider": "openai"}
+                }
+            }
+        }
+        blueprint = TestBlueprint(blueprint_id="test", config=test_config)
+        profile = blueprint.get_llm_profile("test")
+        assert profile["model"] == "gpt-4"
 
     def test_config_merging_behavior(self):
         """Test configuration merging between different sources."""
@@ -66,9 +67,11 @@ class TestBlueprintBaseAdvanced:
                 yield {"messages": [{"role": "assistant", "content": "test"}]}
 
         config = {
-            "profiles": {
-                "base": {"model": "gpt-3.5-turbo", "temperature": 0.5},
-                "derived": {"model": "gpt-4", "inherits": "base"}
+            "llm": {
+                "profiles": {
+                    "base": {"model": "gpt-3.5-turbo", "temperature": 0.5, "provider": "openai"},
+                    "derived": {"model": "gpt-4", "inherits": "base", "provider": "openai"}
+                }
             }
         }
 
@@ -86,28 +89,27 @@ class TestBlueprintBaseAdvanced:
                 yield {"messages": [{"role": "assistant", "content": "test"}]}
 
         # Test global default
-        blueprint1 = TestBlueprint(blueprint_id="test1")
-        result1 = blueprint1.should_output_markdown()
+        blueprint1 = TestBlueprint(blueprint_id="test1", config={})
+        result1 = blueprint1.should_output_markdown
         assert isinstance(result1, bool)
 
         # Test blueprint-specific override
         config_specific = {
             "blueprints": {
-                "test2": {"markdown_output": True}
-            }
+                "test2": {"output_markdown": True}
+            },
+            "settings": {"default_markdown_output": False}  # Ensure we override global default
         }
         blueprint2 = TestBlueprint(blueprint_id="test2", config=config_specific)
-        result2 = blueprint2.should_output_markdown()
+        result2 = blueprint2.should_output_markdown
         assert result2 is True
 
         # Test global setting
         config_global = {
-            "blueprints": {
-                "defaults": {"default_markdown_cli": False}
-            }
+            "settings": {"default_markdown_output": False}
         }
         blueprint3 = TestBlueprint(blueprint_id="test3", config=config_global)
-        result3 = blueprint3.should_output_markdown()
+        result3 = blueprint3.should_output_markdown
         assert result3 is False
 
 

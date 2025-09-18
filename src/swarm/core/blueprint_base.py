@@ -136,7 +136,7 @@ class BlueprintBase(ABC):
     enable_terminal_commands: bool = False  # By default, terminal command execution is disabled
     approval_required: bool = False
     console = Console()
-    session_logger: 'SessionLogger' = None
+    session_logger = None
 
     def __init__(self, blueprint_id: str, config=None, config_path=None, **kwargs):
         self.blueprint_id = blueprint_id

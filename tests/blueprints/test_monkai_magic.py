@@ -4,7 +4,7 @@ import pytest
 
 # Assuming BlueprintBase and other necessary components are importable
 # from blueprints.monkai_magic.blueprint_monkai_magic import MonkaiMagicBlueprint
-# from agents import Agent, Runner, RunResult, MCPServer
+# from agents import Agent, Runner, RunResult
 
 @pytest.fixture
 def monkai_blueprint_instance():
@@ -26,7 +26,7 @@ def test_monkai_agent_creation(monkai_blueprint_instance):
     """Test if Tripitaka, Monkey, Pigsy, Sandy are created correctly."""
     # Arrange
     blueprint = monkai_blueprint_instance
-    mock_shell_mcp = MagicMock(spec=MCPServer, name="mcp-shell")
+    mock_shell_mcp = MagicMock(name="mcp-shell")
     # Act
     starting_agent = blueprint.create_starting_agent(mcp_servers=[mock_shell_mcp])
     # Assert

@@ -25,13 +25,14 @@ try:
         repair_message_payload,
         validate_message_sequence,
     )
-except ImportError as e:
+except ImportError as import_error:
     import logging
-    logging.getLogger(__name__).warning(f"Could not import core message utilities: {e}")
+    error_msg = str(import_error)
+    logging.getLogger(__name__).warning(f"Could not import core message utilities: {error_msg}")
     # Define dummy functions or let importers handle the ImportError
-    def repair_message_payload(m, **kwargs): raise NotImplementedError from e
-    def validate_message_sequence(m): raise NotImplementedError from e
-    def truncate_message_history(m, *args, **kwargs): raise NotImplementedError from e
+    def repair_message_payload(m, **kwargs): raise NotImplementedError(f"repair_message_payload not available: {error_msg}")
+    def validate_message_sequence(m): raise NotImplementedError(f"validate_message_sequence not available: {error_msg}")
+    def truncate_message_history(m, *args, **kwargs): raise NotImplementedError(f"truncate_message_history not available: {error_msg}")
 
 
 __all__ = [

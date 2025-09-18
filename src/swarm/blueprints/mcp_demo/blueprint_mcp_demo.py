@@ -10,6 +10,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 # mission_improbable debug: logger.debug("Mission Improbable agent created: JimFlimsy (Coordinator)")
 # mission_improbable error handling: try/except ImportError with sys.exit(1)
 
+import asyncio
 import concurrent.futures
 import glob
 import json

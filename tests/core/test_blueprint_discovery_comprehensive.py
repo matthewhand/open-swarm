@@ -52,7 +52,7 @@ def some_function():
             # Note: We're testing that this doesn't raise an exception
             try:
                 # This should not crash even with malformed blueprints
-                blueprints = discover_blueprints(str(temp_path))
+                discover_blueprints(str(temp_path))
                 # If we get here, the test passes - it handled the malformed blueprint gracefully
             except Exception as e:
                 pytest.fail(f"Discovery should handle malformed blueprints gracefully, but raised: {e}")

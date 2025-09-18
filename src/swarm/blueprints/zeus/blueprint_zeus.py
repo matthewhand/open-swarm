@@ -162,6 +162,8 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         from agents import Agent
         from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
         from openai import AsyncOpenAI
+        import logging
+        logger = logging.getLogger(__name__)
 
         model_profile_name = "default"
         if hasattr(self, 'config') and self.config:
