@@ -6,6 +6,8 @@ import json
 import os
 
 import jmespath
+from jmespath import JMESPathError
+from swarm.utils.env_utils import get_stateful_chat_id_path
 from swarm.utils.logger_setup import setup_logger
 
 # Initialize logger for this module
@@ -54,7 +56,7 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                 else:
                     logger.debug("Arguments for json_parse path not found or not a string.")
                     return ""
-            except (json.JSONDecodeError, jmespath.exceptions.JMESPathError, IndexError, TypeError, KeyError) as e:
+            except (json.JSONDecodeError, jmespath.JMESPathError, IndexError, TypeError, KeyError) as e:
                 logger.debug(f"Manual handling of json_parse failed: {e}")
                 return ""
         else:
@@ -129,8 +131,6 @@ def is_debug_enabled() -> bool:
     A value is considered *truthy* when it is set and **not** one of
     "0", "false", "off" (case‑insensitive).
     """
-    import os
-
     for var in _DEBUG_ENV_VARS:
         val = os.getenv(var)
         if val and val.lower() not in ("0", "false", "off"):
@@ -176,6 +176,5 @@ def serialize_datetime(obj):
     raise TypeError(f"Type {type(obj)} not serializable")
 
 def custom_json_dumps(obj, **kwargs):
-    defaults = {'default': serialize_datetime}; defaults.update(kwargs)
-    return json.dumps(obj, **defaults)
+    return json.dumps(obj, default=serialize_datetime, **kwargs)
 

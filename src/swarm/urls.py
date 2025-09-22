@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.conf import settings as dj_settings
 from django.conf.urls.static import static
 from django.urls import path
 
@@ -39,9 +38,12 @@ from swarm.views.settings_views import (
 )
 from swarm.views.web_views import profiles_page, team_admin, team_launcher, teams_export
 
+from swarm.views.web_views import index
+
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
+    path("", index, name="index"),  # Root path for web UI
     path("v1/models", OpenAIModelsView.as_view(), name="models-list-no-slash"),
     path("v1/models/", OpenAIModelsView.as_view(), name="models-list"),
     path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
@@ -88,7 +90,7 @@ if settings.DEBUG:
     urlpatterns += static(settings.AVATAR_URL_PREFIX, document_root=settings.AVATAR_STORAGE_PATH)
 
 # Optional Wagtail admin/site when enabled
-if getattr(dj_settings, 'ENABLE_WAGTAIL', False):
+if getattr(settings, 'ENABLE_WAGTAIL', False):
     try:  # Import lazily to avoid hard dependency when disabled
         from django.urls import include
         from wagtail import urls as wagtail_urls
@@ -104,7 +106,7 @@ if getattr(dj_settings, 'ENABLE_WAGTAIL', False):
         pass
 
 # Optional SAML IdP (djangosaml2idp) when enabled
-if getattr(dj_settings, 'ENABLE_SAML_IDP', False):
+if getattr(settings, 'ENABLE_SAML_IDP', False):
     try:
         from django.urls import include
         urlpatterns += [
@@ -115,7 +117,7 @@ if getattr(dj_settings, 'ENABLE_SAML_IDP', False):
         pass
 
 # Optional MCP server (django-mcp-server) when enabled
-if getattr(dj_settings, 'ENABLE_MCP_SERVER', False):
+if getattr(settings, 'ENABLE_MCP_SERVER', False):
     try:
         from django.urls import include
         urlpatterns += [
