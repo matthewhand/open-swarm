@@ -10,19 +10,20 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent # Points to src/
 
+from swarm.utils.env_utils import *
+
 # --- Load .env file ---
 dotenv_path = BASE_DIR.parent / '.env'
 load_dotenv(dotenv_path=dotenv_path)
-# print(f"[Settings] Attempted to load .env from: {dotenv_path}")
 # ---
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-dev')
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+SECRET_KEY = get_django_secret_key()
+DEBUG = is_django_debug()
+ALLOWED_HOSTS = get_django_allowed_hosts()
 
 # --- Custom Swarm Settings ---
 # Load the token from environment
-_raw_api_token = os.getenv('API_AUTH_TOKEN')
+_raw_api_token = get_api_auth_token()
 
 # *** Only enable API auth if the token is actually set ***
 ENABLE_API_AUTH = bool(_raw_api_token)
@@ -31,15 +32,9 @@ SWARM_API_KEY = _raw_api_token # Assign the loaded token (or None)
 if ENABLE_API_AUTH:
     # Add assertion to satisfy type checkers within this block
     assert SWARM_API_KEY is not None, "SWARM_API_KEY cannot be None when ENABLE_API_AUTH is True"
-    # print(f"[Settings] SWARM_API_KEY loaded: {SWARM_API_KEY[:4]}...{SWARM_API_KEY[-4:]}")
-    # print("[Settings] ENABLE_API_AUTH is True.")
-else:
-    # print("[Settings] API_AUTH_TOKEN env var not set. SWARM_API_KEY is None.")
-    # print("[Settings] ENABLE_API_AUTH is False.")
-    pass
 
-SWARM_CONFIG_PATH = os.getenv('SWARM_CONFIG_PATH', str(BASE_DIR.parent / 'swarm_config.json'))
-BLUEPRINT_DIRECTORY = os.getenv('BLUEPRINT_DIRECTORY', str(BASE_DIR / 'swarm' / 'blueprints'))
+SWARM_CONFIG_PATH = get_swarm_config_path()
+BLUEPRINT_DIRECTORY = get_blueprint_directory()
 # --- End Custom Swarm Settings ---
 
 INSTALLED_APPS = [
@@ -57,7 +52,7 @@ INSTALLED_APPS = [
 ]
 
 # Optional Wagtail integration (marketplace). Disabled by default.
-ENABLE_WAGTAIL = os.getenv('ENABLE_WAGTAIL', 'false').lower() in ('1', 'true', 'yes')
+ENABLE_WAGTAIL = is_enable_wagtail()
 if ENABLE_WAGTAIL:
     INSTALLED_APPS += [
         'wagtail',
@@ -73,10 +68,10 @@ if ENABLE_WAGTAIL:
         'swarm.marketplace',
     ]
     WAGTAIL_SITE_NAME = 'Open Swarm'
-    SITE_ID = int(os.getenv('DJANGO_SITE_ID', '1'))
+    SITE_ID = get_django_site_id()
 
 # Optional SAML IdP integration (djangosaml2idp). Disabled by default.
-ENABLE_SAML_IDP = os.getenv('ENABLE_SAML_IDP', 'false').lower() in ('1', 'true', 'yes')
+ENABLE_SAML_IDP = is_enable_saml_idp()
 if ENABLE_SAML_IDP:
     try:
         INSTALLED_APPS += ['djangosaml2idp']
@@ -98,7 +93,7 @@ SAML_IDP_SPCONFIG = {
 }
 
 # Optionally merge SP config entries from environment JSON (template-only)
-_sp_json = os.getenv('SAML_IDP_SPCONFIG_JSON')
+_sp_json = get_saml_idp_spconfig_json()
 if _sp_json:
     try:
         parsed = json.loads(_sp_json)
@@ -121,7 +116,7 @@ if _sp_json:
         pass
 
 # Optionally merge SP config entries from JSON file path
-_sp_file = os.getenv('SAML_IDP_SPCONFIG_FILE')
+_sp_file = get_saml_idp_spconfig_file()
 if _sp_file:
     try:
         with open(_sp_file, encoding='utf-8') as f:
@@ -139,9 +134,9 @@ if _sp_file:
         pass
 
 # Optional env-driven IdP base config (template-only)
-SAML_IDP_ENTITY_ID = os.getenv('SAML_IDP_ENTITY_ID', os.getenv('HOST', 'http://localhost:8000') + '/idp/metadata/')
-SAML_IDP_CERT_FILE = os.getenv('SAML_IDP_CERT_FILE')  # filesystem path to public cert (do not commit)
-SAML_IDP_PRIVATE_KEY_FILE = os.getenv('SAML_IDP_PRIVATE_KEY_FILE')  # filesystem path to private key (do not commit)
+SAML_IDP_ENTITY_ID = get_saml_idp_entity_id()
+SAML_IDP_CERT_FILE = get_saml_idp_cert_file()  # filesystem path to public cert (do not commit)
+SAML_IDP_PRIVATE_KEY_FILE = get_saml_idp_private_key_file()  # filesystem path to private key (do not commit)
 
 # djangosaml2idp-compatible base config shell; populate via env
 SAML_IDP_CONFIG = {
@@ -152,7 +147,7 @@ SAML_IDP_CONFIG = {
 }
 
 # Optional MCP server integration (django-mcp-server). Disabled by default.
-ENABLE_MCP_SERVER = os.getenv('ENABLE_MCP_SERVER', 'false').lower() in ('1', 'true', 'yes')
+ENABLE_MCP_SERVER = is_enable_mcp_server()
 if ENABLE_MCP_SERVER:
     try:
         INSTALLED_APPS += ['django_mcp_server']
@@ -161,8 +156,8 @@ if ENABLE_MCP_SERVER:
         pass
 
 # Optional GitHub marketplace discovery (disabled by default)
-ENABLE_GITHUB_MARKETPLACE = os.getenv('ENABLE_GITHUB_MARKETPLACE', 'false').lower() in ('1', 'true', 'yes')
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # optional, for higher rate limits
+ENABLE_GITHUB_MARKETPLACE = is_enable_github_marketplace()
+GITHUB_TOKEN = get_github_token()  # optional, for higher rate limits
 
 def _csv_env(name: str, default: str = '') -> list[str]:
     val = os.getenv(name, default)
@@ -276,8 +271,8 @@ LOGGING = {
         'console': { 'class': 'logging.StreamHandler', 'formatter': 'verbose', },
     },
     'loggers': {
-        'django': { 'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'), 'propagate': False, },
-        'swarm': { 'handlers': ['console'], 'level': os.getenv('SWARM_LOG_LEVEL', 'DEBUG'), 'propagate': False, },
+        'django': { 'handlers': ['console'], 'level': get_django_log_level(), 'propagate': False, },
+        'swarm': { 'handlers': ['console'], 'level': get_swarm_log_level(), 'propagate': False, },
         'swarm.auth': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
         'swarm.views': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
         'swarm.extensions': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
@@ -287,18 +282,18 @@ LOGGING = {
     'root': { 'handlers': ['console'], 'level': 'WARNING', },
 }
 
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+REDIS_HOST = get_redis_host()
+REDIS_PORT = get_redis_port()
 
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
-CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
+CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 
 # --- ComfyUI Configuration for Avatar Generation ---
-COMFYUI_ENABLED = os.getenv('COMFYUI_ENABLED', 'False').lower() in ('true', '1', 't')
-COMFYUI_HOST = os.getenv('COMFYUI_HOST', 'http://localhost:8188')
-COMFYUI_API_ENDPOINT = f"{COMFYUI_HOST}/api"
+COMFYUI_ENABLED = is_comfyui_enabled()
+COMFYUI_HOST = get_comfyui_host()
+COMFYUI_API_ENDPOINT = get_comfyui_api_endpoint()
 COMFYUI_QUEUE_ENDPOINT = f"{COMFYUI_HOST}/queue"
 COMFYUI_HISTORY_ENDPOINT = f"{COMFYUI_HOST}/history"
 
