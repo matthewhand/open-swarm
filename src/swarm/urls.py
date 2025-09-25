@@ -117,7 +117,8 @@ if getattr(settings, 'ENABLE_SAML_IDP', False):
         pass
 
 # Optional MCP server (django-mcp-server) when enabled
-if getattr(settings, 'ENABLE_MCP_SERVER', False):
+import os
+if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
     try:
         from django.urls import include
         urlpatterns += [
