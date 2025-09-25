@@ -407,23 +407,20 @@ Open Swarm blueprints now deliver a consistent, branded, and user-friendly exper
 | Emoji | Name | Description | Example Commands | Branding |
 |-------|------|-------------|------------------|----------|
 |  | `ChatbotBlueprint` | A basic conversational agent that responds to user input. |  |  |
-|  | `ZeusBlueprint` | Zeus leads a pantheon for software dev & sysadmin tasks, coordinating via agent-as-tool delegation. (DivineOpsBlueprint merged into this) |  |  |
-|  | `FamilyTiesBlueprint` | Manages WordPress content using Peter (coordinator) and Brian (WP manager via MCP). |  |  |
+| 😇 | `Chuck's Angels` | A blueprint for coordinating angelic tasks, Chuck Norris style. |  |  |
 |  | `JeevesBlueprint` | Provides private web search (DuckDuckGo) and home automation (Home Assistant) via specialized agents (Jeeves, Mycroft, Gutenberg). |  |  |
 |  | `MCPDemoBlueprint` | A scalable agent (Sage) demonstrating interaction with filesystem and memory MCP servers, supporting horizontal scaling and viral file operations. |  |  |
 |  | `MissionImprobableBlueprint` | A cheeky team led by JimFlimsy (coordinator), CinnamonToast (strategist/filesystem), and RollinFumble (operative/shell). Uses SQLite for instructions. |  |  |
 |  | `MonkaiMagicBlueprint` | A *Monkai Magic*-inspired crew managing AWS, Fly.io, and Vercel with pre-authenticated CLI tools and agent-as-tool delegation. |  |  |
 |  | `NebulaShellzzarBlueprint` | A multi-agent blueprint inspired by The Matrix for system administration and coding tasks. |  |  |
 |  | `OmniplexBlueprint` | Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers. |  |  |
-|  | `PoetsBlueprint` | A swarm of agents embodying legendary poets, using SQLite for instructions, agent-as-tool for collaboration, and MCPs for creative augmentation. |  |  |
 |  | `RueCode` | Generates, executes code, and interacts with the file system. |  |  |
+|  | `StewieBlueprint` | Manages WordPress content using Stewie (main agent) and other helpers as tools. |  |  |
+|  | `StewieBlueprint` | Manages WordPress content using Stewie (main agent) and other helpers as tools. |  |  |
 |  | `SuggestionBlueprint` | An agent that provides structured suggestions using Agent(output_type=...). |  |  |
-|  | `UnapologeticPoetsBlueprint` | A swarm of agents embodying legendary poets, using SQLite for instructions, agent-as-tool for collaboration, and MCPs for creative augmentation. |  |  |
 |  | `WhiskeyTangoFoxtrotBlueprint` | Tracks free online services with SQLite and web search using a multi-tiered agent hierarchy. |  |  |
-| 🤖 | `codey` | Code and semantic code search/analysis. | swarm-cli codey /codesearch recursion . 5<br>swarm-cli codey /semanticsearch asyncio . 3 | Unified ANSI/emoji box UX, spinner, progress, summary |
-| 🦢 | `gaggle` | Minimal test/demo search blueprint. | swarm-cli gaggle /search alpha . 5<br>swarm-cli gaggle /analyze beta . 2 | Unified ANSI/emoji box UX, spinner, progress, summary |
-|  | `DivineOpsBlueprint` (historical, merged into ZeusBlueprint) |  |  |  |
-|  | `divine_code` (historical, merged into ZeusBlueprint) |  |  |  |
+| 🤖 | `codey` | Code and semantic code search/analysis. Provides tools for code understanding, generation, and modification. | swarm-cli launch cdy --instruction "/codesearch recursion . 5"<br>swarm-cli launch cdy --instruction "/semanticsearch asyncio . 3" | Unified ANSI/emoji box UX, spinner, progress, summary |
+|  | `dynamic-team` | A dynamically-registered team using a configured LLM profile |  |  |
 <!-- BLUEPRINT_TABLE_END -->
 
 - All commands support `/analyze` as well as `/search` (e.g., `/analyze beta . 5`).
