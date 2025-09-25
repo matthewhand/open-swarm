@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from django.conf import settings
+from swarm.utils.env_utils import *
 from django.contrib.auth import authenticate, login
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -46,7 +47,7 @@ def index(request):
 
     context = {
         "dark_mode": request.session.get('dark_mode', True),
-        "enable_admin": os.getenv("ENABLE_ADMIN", "false").lower() in ("true", "1", "t"),
+        "enable_admin": is_enable_admin(),
         "blueprints": blueprint_names # Use the dynamically discovered list
     }
     return render(request, "index.html", context)
@@ -95,7 +96,7 @@ def custom_login(request):
             # Authentication failed
             logger.warning(f"Failed login attempt for user '{username}'.")
             # Check if auto-login for 'testuser' is enabled (ONLY for development/testing)
-            enable_auth = os.getenv("ENABLE_API_AUTH", "true").lower() in ("true", "1", "t") # Default to TRUE
+            enable_auth = is_enable_api_auth() # Default to TRUE
             if not enable_auth:
                 logger.info("API Auth is disabled. Attempting auto-login for 'testuser'.")
                 try:
@@ -158,7 +159,7 @@ def serve_swarm_config(request):
 
 
 def _webui_enabled() -> bool:
-    return os.getenv("ENABLE_WEBUI", "false").lower() in ("true", "1", "t", "yes", "y")
+    return is_enable_webui()
 
 
 @csrf_exempt
@@ -172,7 +173,7 @@ def team_launcher(request):
         return HttpResponse("Web UI disabled. Set ENABLE_WEBUI=true to enable.", status=404)
 
     context = {
-        "api_auth_enabled": bool(os.getenv("API_AUTH_TOKEN")),
+        "api_auth_enabled": bool(get_api_auth_token()),
         **_profiles_ctx(),
     }
     return render(request, "teams_launch.html", context)
