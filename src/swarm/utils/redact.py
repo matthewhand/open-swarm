@@ -77,6 +77,6 @@ def redact_sensitive_data(
                 processed_list.append(item)
         return processed_list
     elif isinstance(data, str):
-        # Handle standalone strings
-        return redact_string_patterns(data)
+        # Do not redact standalone strings, only patterns in structured data values
+        return data
     return data

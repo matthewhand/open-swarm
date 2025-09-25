@@ -6,7 +6,7 @@ import json
 import os
 
 import jmespath
-from jmespath import JMESPathError
+from jmespath.exceptions import JMESPathError
 from swarm.utils.env_utils import get_stateful_chat_id_path
 from swarm.utils.logger_setup import setup_logger
 
@@ -56,7 +56,7 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                 else:
                     logger.debug("Arguments for json_parse path not found or not a string.")
                     return ""
-            except (json.JSONDecodeError, jmespath.JMESPathError, IndexError, TypeError, KeyError) as e:
+            except (json.JSONDecodeError, JMESPathError, IndexError, TypeError, KeyError) as e:
                 logger.debug(f"Manual handling of json_parse failed: {e}")
                 return ""
         else:
@@ -109,7 +109,7 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                  return ""
         else: return "" # JMESPath returned None
 
-    except jmespath.exceptions.JMESPathError as jmes_err:
+    except JMESPathError as jmes_err:
          logger.debug(f"JMESPath expression '{expression}' failed: {jmes_err}")
          return ""
     except Exception as e:
