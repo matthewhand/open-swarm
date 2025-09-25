@@ -1,138 +1,372 @@
+"""
+Comprehensive tests for config_loader module
+===========================================
+
+Tests configuration loading, environment variable substitution,
+and complex merging scenarios.
+"""
+
 import json
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from swarm.core import config_loader
+
+from src.swarm.core.config_loader import (
+    _substitute_env_vars,
+    load_environment,
+    load_full_configuration,
+)
 
 
-def make_temp_config(content):
-    fd, path = tempfile.mkstemp(suffix='.json')
-    with os.fdopen(fd, 'w') as tmp:
-        tmp.write(json.dumps(content))
-    return Path(path)
+class TestEnvironmentVariableSubstitution:
+    """Test environment variable substitution functionality."""
 
-def test_load_full_configuration_defaults():
-    """Test loading full configuration with defaults and comprehensive validation"""
-    config = {
-        "defaults": {"foo": "bar", "timeout": 30},
-        "llm": {"default": {"provider": "openai", "model": "gpt-3.5", "temperature": 0.7}},
-        "mcpServers": {"test": {"command": "run-test", "args": ["--verbose"]}},
-        "blueprints": {},
-        "profiles": {"custom": {"model": "gpt-4"}}
-    }
-    path = make_temp_config(config)
-    result = config_loader.load_full_configuration(
-        blueprint_class_name="FakeBlueprint",
-        default_config_path_for_tests=path
-    )
+    def test_substitute_env_vars_string(self):
+        """Test env var substitution in strings."""
+        with patch.dict(os.environ, {"TEST_VAR": "test_value"}):
+            result = _substitute_env_vars("$TEST_VAR")
+            assert result == "test_value"
 
-    # Comprehensive configuration validation
-    assert result["foo"] == "bar", "Default value should be preserved"
-    assert result["timeout"] == 30, "Numeric default should be preserved"
-    assert "llm" in result, "LLM section should be present"
-    assert "mcpServers" in result, "MCP servers section should be present"
-    # Profiles section is used for merging but not preserved in final config
-    # The profile settings are merged based on the active profile
-    # Since no specific profile is requested, default profile is used
-    assert "llm" in result, "LLM configuration should be present"
+    def test_substitute_env_vars_string_braces(self):
+        """Test env var substitution with braces."""
+        with patch.dict(os.environ, {"TEST_VAR": "test_value"}):
+            result = _substitute_env_vars("${TEST_VAR}")
+            assert result == "test_value"
 
-    # LLM configuration validation
-    llm_config = result["llm"]
-    assert llm_config["default"]["provider"] == "openai", "LLM provider should match"
-    assert llm_config["default"]["model"] == "gpt-3.5", "LLM model should match"
-    assert llm_config["default"]["temperature"] == 0.7, "LLM temperature should match"
+    def test_substitute_env_vars_multiple_vars(self):
+        """Test multiple env vars in one string."""
+        with patch.dict(os.environ, {"VAR1": "value1", "VAR2": "value2"}):
+            result = _substitute_env_vars("$VAR1 and $VAR2")
+            assert result == "value1 and value2"
 
-    # MCP server configuration validation
-    mcp_config = result["mcpServers"]
-    assert mcp_config["test"]["command"] == "run-test", "MCP command should match"
-    assert mcp_config["test"]["args"] == ["--verbose"], "MCP args should match"
+    def test_substitute_env_vars_missing_var(self):
+        """Test handling of missing env vars."""
+        result = _substitute_env_vars("$MISSING_VAR")
+        assert result == "$MISSING_VAR"  # Should leave unsubstituted
 
-    # Profiles validation - profiles are merged into the main config, not preserved as separate section
-    assert "profiles" not in result or result.get("profiles", {}).get("custom", {}).get("model") == "gpt-4", "Profile model should be accessible"
+    def test_substitute_env_vars_list(self):
+        """Test env var substitution in lists."""
+        with patch.dict(os.environ, {"TEST_VAR": "test_value"}):
+            result = _substitute_env_vars(["$TEST_VAR", "static", {"key": "$TEST_VAR"}])
+            expected = ["test_value", "static", {"key": "test_value"}]
+            assert result == expected
 
-    # Validate configuration structure
-    assert isinstance(result, dict), "Result should be a dictionary"
-    assert len(result) >= 4, "Should have at least 4 top-level sections"
+    def test_substitute_env_vars_dict(self):
+        """Test env var substitution in dicts."""
+        with patch.dict(os.environ, {"TEST_VAR": "test_value"}):
+            result = _substitute_env_vars({
+                "key1": "$TEST_VAR",
+                "key2": {"nested": "$TEST_VAR"},
+                "key3": ["$TEST_VAR"]
+            })
+            expected = {
+                "key1": "test_value",
+                "key2": {"nested": "test_value"},
+                "key3": ["test_value"]
+            }
+            assert result == expected
 
-def test_load_full_configuration_profile_merging():
-    config = {
-        "defaults": {"foo": "bar", "default_profile": "special"},
-        "llm": {"default": {"provider": "openai"}},
-        "mcpServers": {},
-        "blueprints": {"FakeBlueprint": {"baz": 123}},
-        "profiles": {"special": {"profile_key": "profile_val"}}
-    }
-    path = make_temp_config(config)
-    result = config_loader.load_full_configuration(
-        blueprint_class_name="FakeBlueprint",
-        default_config_path_for_tests=path  # UPDATED
-    )
-    assert result["foo"] == "bar"
-    assert result["baz"] == 123
-    assert result["profile_key"] == "profile_val"
+    def test_substitute_env_vars_non_string_types(self):
+        """Test that non-string types pass through unchanged."""
+        result = _substitute_env_vars(42)
+        assert result == 42
 
-def test_load_full_configuration_env_substitution(monkeypatch):
-    monkeypatch.setenv("TEST_ENV_VAR", "replaced-val")
-    config = {
-        "defaults": {"foo": "$TEST_ENV_VAR"},
-        "llm": {}, "mcpServers": {}, "blueprints": {}, "profiles": {}
-    }
-    path = make_temp_config(config)
-    result = config_loader.load_full_configuration(
-        blueprint_class_name="FakeBlueprint",
-        default_config_path_for_tests=path  # UPDATED
-    )
-    assert result["foo"] == "replaced-val"
+        result = _substitute_env_vars(True)
+        assert result == True
 
-def test_load_full_configuration_missing_file():
-    # This test now checks behavior when a config_path_override is given and not found.
-    # The XDG default or default_config_path_for_tests not existing is a warning, not an error.
-    with pytest.raises(FileNotFoundError):
-        config_loader.load_full_configuration(
-            blueprint_class_name="FakeBlueprint",
-            config_path_override="/tmp/does_not_exist.json" # Ensure this specific override is checked
+        result = _substitute_env_vars(None)
+        assert result == None
+
+
+class TestLoadEnvironment:
+    """Test environment loading functionality."""
+
+    def test_load_environment_with_dotenv_file(self):
+        """Test loading environment from .env file."""
+        env_content = "TEST_KEY=test_value\nANOTHER_KEY=another_value\n"
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+            f.write(env_content)
+            dotenv_path = Path(f.name)
+
+        try:
+            with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=dotenv_path.parent):
+                with patch.dict(os.environ, {}, clear=True):
+                    load_environment()
+
+                    # Should have loaded the variables
+                    assert os.environ.get("TEST_KEY") == "test_value"
+                    assert os.environ.get("ANOTHER_KEY") == "another_value"
+        finally:
+            os.unlink(dotenv_path)
+
+    def test_load_environment_no_dotenv_file(self):
+        """Test loading environment when no .env file exists."""
+        with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=Path('/nonexistent')):
+            # Should not raise an exception
+            load_environment()
+
+    def test_load_environment_invalid_dotenv_file(self):
+        """Test loading environment with invalid .env file."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+            f.write("INVALID LINE WITHOUT EQUALS\n")
+            dotenv_path = Path(f.name)
+
+        try:
+            with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=dotenv_path.parent):
+                # Should handle invalid lines gracefully
+                load_environment()
+        finally:
+            os.unlink(dotenv_path)
+
+
+class TestLoadFullConfiguration:
+    """Test full configuration loading functionality."""
+
+    def test_load_full_configuration_basic(self):
+        """Test basic configuration loading."""
+        config_data = {
+            "defaults": {"setting1": "value1"},
+            "llm": {"provider": "openai"},
+            "mcpServers": {"memory": True}
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
+
+        try:
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                default_config_path_for_tests=config_path
+            )
+
+            assert result["setting1"] == "value1"
+            assert result["llm"]["provider"] == "openai"
+            assert result["mcpServers"]["memory"] is True
+        finally:
+            os.unlink(config_path)
+
+    def test_load_full_configuration_blueprint_specific(self):
+        """Test blueprint-specific configuration merging."""
+        config_data = {
+            "defaults": {"global_setting": "global_value"},
+            "blueprints": {
+                "TestBlueprint": {
+                    "blueprint_setting": "blueprint_value",
+                    "override_setting": "blueprint_override"
+                }
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
+
+        try:
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                default_config_path_for_tests=config_path
+            )
+
+            assert result["global_setting"] == "global_value"
+            assert result["blueprint_setting"] == "blueprint_value"
+            assert result["override_setting"] == "blueprint_override"
+        finally:
+            os.unlink(config_path)
+
+    def test_load_full_configuration_profile_merging(self):
+        """Test profile-based configuration merging."""
+        config_data = {
+            "defaults": {"default_profile": "production"},
+            "profiles": {
+                "production": {"env": "prod", "debug": False},
+                "development": {"env": "dev", "debug": True}
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
+
+        try:
+            # Test default profile
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                default_config_path_for_tests=config_path
+            )
+            assert result["env"] == "prod"
+            assert result["debug"] is False
+
+            # Test explicit profile override
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                profile_override="development",
+                default_config_path_for_tests=config_path
+            )
+            assert result["env"] == "dev"
+            assert result["debug"] is True
+        finally:
+            os.unlink(config_path)
+
+    def test_load_full_configuration_cli_overrides(self):
+        """Test CLI configuration overrides."""
+        config_data = {
+            "defaults": {"setting": "base_value"}
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
+
+        try:
+            cli_overrides = {"setting": "cli_override", "new_setting": "new_value"}
+
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                cli_config_overrides=cli_overrides,
+                default_config_path_for_tests=config_path
+            )
+
+            assert result["setting"] == "cli_override"  # CLI override wins
+            assert result["new_setting"] == "new_value"
+        finally:
+            os.unlink(config_path)
+
+    def test_load_full_configuration_env_var_substitution(self):
+        """Test environment variable substitution in configuration."""
+        config_data = {
+            "defaults": {
+                "api_key": "$TEST_API_KEY",
+                "database_url": "${TEST_DB_URL}",
+                "nested": {
+                    "path": "$TEST_PATH"
+                }
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
+
+        try:
+            with patch.dict(os.environ, {
+                "TEST_API_KEY": "secret123",
+                "TEST_DB_URL": "postgresql://localhost",
+                "TEST_PATH": "/usr/local/bin"
+            }):
+                result = load_full_configuration(
+                    blueprint_class_name="TestBlueprint",
+                    default_config_path_for_tests=config_path
+                )
+
+                assert result["api_key"] == "secret123"
+                assert result["database_url"] == "postgresql://localhost"
+                assert result["nested"]["path"] == "/usr/local/bin"
+        finally:
+            os.unlink(config_path)
+
+    def test_load_full_configuration_missing_config_file(self):
+        """Test loading configuration when file doesn't exist."""
+        result = load_full_configuration(
+            blueprint_class_name="TestBlueprint",
+            default_config_path_for_tests=Path("/nonexistent/config.json")
         )
 
-def test_load_full_configuration_bad_json():
-    fd, path_str = tempfile.mkstemp(suffix='.json')
-    path = Path(path_str)
-    with os.fdopen(fd, 'w') as tmp:
-        tmp.write("not a json")
-    with pytest.raises(ValueError):
-        config_loader.load_full_configuration(
-            blueprint_class_name="FakeBlueprint",
-            default_config_path_for_tests=path  # UPDATED
-        )
+        # Should return minimal config with defaults
+        assert isinstance(result, dict)
+        assert "llm" in result
+        assert "mcpServers" in result
 
-def test_load_full_configuration_empty_config():
-    config = {}
-    path = make_temp_config(config)
-    result = config_loader.load_full_configuration(
-        blueprint_class_name="FakeBlueprint",
-        default_config_path_for_tests=path  # UPDATED
-    )
-    assert isinstance(result, dict)
-    assert "llm" in result
-    assert "mcpServers" in result
+    def test_load_full_configuration_invalid_json(self):
+        """Test loading configuration with invalid JSON."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write('{"invalid": json syntax}')
+            config_path = Path(f.name)
 
-def test_load_environment(tmp_path, monkeypatch):
-    # Temporarily monkeypatch get_project_root_dir to return tmp_path for this test
-    # as load_environment now internally calls get_project_root_dir()
-    monkeypatch.setattr(config_loader, 'get_project_root_dir', lambda: tmp_path)
+        try:
+            with pytest.raises(ValueError, match="Failed to parse JSON"):
+                load_full_configuration(
+                    blueprint_class_name="TestBlueprint",
+                    default_config_path_for_tests=config_path
+                )
+        finally:
+            os.unlink(config_path)
 
-    env_file = tmp_path / ".env"
-    env_file.write_text("MY_ENV_VAR=hello\n")
+    def test_load_full_configuration_cli_path_override(self):
+        """Test configuration loading with CLI path override."""
+        config_data = {"cli_override": True}
 
-    # Clear the env var if it exists from a previous run or environment
-    if "MY_ENV_VAR" in os.environ:
-        del os.environ["MY_ENV_VAR"]
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
 
-    config_loader.load_environment() # UPDATED - no arguments
-    assert os.environ.get("MY_ENV_VAR") == "hello"
+        try:
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                config_path_override=str(config_path)
+            )
 
-    # Clean up env var after test
-    if "MY_ENV_VAR" in os.environ:
-        del os.environ["MY_ENV_VAR"]
+            assert result["cli_override"] is True
+        finally:
+            os.unlink(config_path)
 
+    def test_load_full_configuration_missing_cli_path(self):
+        """Test error when CLI path override doesn't exist."""
+        with pytest.raises(FileNotFoundError, match="Specified config file not found"):
+            load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                config_path_override="/nonexistent/config.json"
+            )
+
+    def test_load_full_configuration_complex_merging(self):
+        """Test complex configuration merging with all layers."""
+        config_data = {
+            "defaults": {
+                "global_setting": "global",
+                "profile_setting": "default_profile",
+                "blueprint_setting": "default_blueprint"
+            },
+            "profiles": {
+                "test_profile": {
+                    "profile_setting": "profile_override",
+                    "profile_only": "profile_value"
+                }
+            },
+            "blueprints": {
+                "TestBlueprint": {
+                    "blueprint_setting": "blueprint_override",
+                    "blueprint_only": "blueprint_value"
+                }
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config_data, f)
+            config_path = Path(f.name)
+
+        try:
+            cli_overrides = {
+                "cli_setting": "cli_value",
+                "profile_setting": "cli_profile_override"
+            }
+
+            result = load_full_configuration(
+                blueprint_class_name="TestBlueprint",
+                profile_override="test_profile",
+                cli_config_overrides=cli_overrides,
+                default_config_path_for_tests=config_path
+            )
+
+            # Verify merging priority (CLI > Profile > Blueprint > Defaults)
+            assert result["global_setting"] == "global"  # From defaults
+            assert result["profile_setting"] == "cli_profile_override"  # CLI override
+            assert result["blueprint_setting"] == "blueprint_override"  # Blueprint override
+            assert result["profile_only"] == "profile_value"  # From profile
+            assert result["blueprint_only"] == "blueprint_value"  # From blueprint
+            assert result["cli_setting"] == "cli_value"  # From CLI
+        finally:
+            os.unlink(config_path)
