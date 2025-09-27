@@ -124,7 +124,7 @@ path = "src/swarm/__init__.py"
 include = ["/src", "/tests", "/README.md", "/LICENSE"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/swarm"]
+packages = ["src/swarm", "src/swarm/models", "src/swarm/services", "src/swarm/views"]
 include = ["src/swarm/blueprints/**/*", "src/swarm/templates/**/*", "src/swarm/static/**/*"]
 exclude = ["src/swarm/**/__pycache__", "src/swarm/**/*.pyc"]
 
