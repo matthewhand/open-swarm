@@ -71,15 +71,9 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
 
     def initialize_db(self) -> None:
         # Resolve DB path with strong test override support
-        # 1) If tests patched the module attribute via import path, prefer that (even if our module alias differs)
-        try:
-            import importlib
-            test_mod = importlib.import_module('swarm.blueprints.whiskeytango_foxtrot.blueprint_whiskeytango_foxtrot')
-            patched_path = getattr(test_mod, 'SQLITE_DB_PATH', None)
-        except Exception:
-            patched_path = None
-        # 2) Instance snapshot (set during __init__), else 3) module constant
-        db_path = patched_path or getattr(self, 'SQLITE_DB_PATH', SQLITE_DB_PATH)
+        # The test patches the module-level SQLITE_DB_PATH.
+        # The instance snapshots this path during __init__ into self.SQLITE_DB_PATH.
+        db_path = getattr(self, 'SQLITE_DB_PATH', SQLITE_DB_PATH)
         if not isinstance(db_path, Path):
             db_path = Path(str(db_path)).resolve()
         logger.info(f"Ensuring database schema exists at: {db_path}")
