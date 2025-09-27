@@ -7,14 +7,14 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..services.github_client import (
+from swarm.services.github_client import (
     fetch_github_repositories,
     fetch_manifest_from_repo,
     create_blueprint_from_manifest,
     create_mcp_config_from_manifest,
     sync_marketplace_items,
 )
-from ..models.core_models import Blueprint, MCPConfig
+from swarm.models.core_models import Blueprint, MCPConfig
 
 logger = logging.getLogger(__name__)
 
