@@ -1,12 +1,13 @@
 import json
 import os
 import sqlite3
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from agents import Agent, Model, Tool  # type: ignore
 from agents.models.openai_chatcompletions import (
     OpenAIChatCompletionsModel,  # type: ignore
 )
+from agents.run import Runner  # type: ignore
 from openai import AsyncOpenAI  # type: ignore
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.utils.log_utils import logger
@@ -289,7 +290,7 @@ class PoetsBlueprint(BlueprintBase):
 
         return self.agents[start_agent_name]
 
-    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any: # Changed type hint for messages
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         user_message = ""
         if messages and isinstance(messages[-1], dict) and "content" in messages[-1]:
             user_message = messages[-1]["content"]
@@ -299,5 +300,20 @@ class PoetsBlueprint(BlueprintBase):
         starting_agent = self.create_starting_agent(mcp_servers=mcp_servers_from_kwargs)
 
         logger.info(f"PoetsBlueprint run: Starting with poet '{starting_agent.name}' for input: '{str(user_message)[:50]}...'")
-        async for response_chunk in starting_agent.run(messages=messages, **kwargs):
-            yield response_chunk
+        result = Runner.run_streamed(starting_agent=starting_agent, input=user_message, **kwargs)
+        async for event in result.stream_events():
+            if isinstance(event, dict) and event.get("type") == "step" and "output" in event:
+                # Yield the output directly for step events
+                yield event["output"]
+            else:
+                # For other event types or StreamEvent objects, convert to dict
+                event_dict = {}
+                for attr in dir(event):
+                    if not attr.startswith('_'):
+                        try:
+                            value = getattr(event, attr)
+                            if not callable(value):
+                                event_dict[attr] = value
+                        except:
+                            pass  # Skip attributes that can't be accessed
+                yield {"event": event_dict}

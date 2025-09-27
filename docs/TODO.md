@@ -6,17 +6,17 @@ This roadmap prioritizes making the application run as described in the README (
 
 ## Milestone 0 — Baseline: Reconcile README vs Reality
 
-- [ ] Verify all README Quickstart paths are runnable locally
-  - [ ] PyPI path: `pip install open-swarm` then `swarm-cli --help`
-  - [ ] Dev path: `pip install -e .[all-extras]` then `swarm-cli --help`
-  - [ ] Minimal “hello_world” run: `swarm-cli run hello_world --instruction "Hello from CLI!"`
-  - [ ] Blueprint install/launch: `swarm-cli install codey` and `swarm-cli launch codey --message "Hello"`
-  - [ ] Docker API: `docker compose up -d` then `curl http://localhost:8000/v1/models`
-- [ ] Identify all breakages and doc drifts; create issues per delta with repro/owner/ETA
-- [ ] Freeze scope for Milestone 1/2 based on this reconciliation report
+- [x] Verify all README Quickstart paths are runnable locally
+  - [x] PyPI path: `pip install open-swarm` then `swarm-cli --help`
+  - [x] Dev path: `pip install -e .[all-extras]` then `swarm-cli --help`
+  - [x] Minimal “hello_world” run: `swarm-cli run hello_world --instruction "Hello from CLI!"`
+  - [x] Blueprint install/launch: `swarm-cli install codey` and `swarm-cli launch codey --message "Hello"`
+  - [x] Docker API: `docker compose up -d` then `curl http://localhost:8000/v1/models`
+- [x] Identify all breakages and doc drifts; create issues per delta with repro/owner/ETA
+- [x] Freeze scope for Milestone 1/2 based on this reconciliation report
 - Acceptance criteria:
-  - [ ] A short baseline report exists in docs/BASELINE_REPORT.md with pass/fail per README command set
-  - [ ] Blocking defects are filed and referenced from this TODO
+  - [x] A short baseline report exists in docs/BASELINE_REPORT.md with pass/fail per README command set
+  - [x] Blocking defects are filed and referenced from this TODO
 
 ---
 
@@ -25,26 +25,26 @@ This roadmap prioritizes making the application run as described in the README (
 Focus: ensure “README Quickstart” works verbatim.
 
 ### CLI (swarm-cli)
-- [ ] Ensure `swarm-cli list` and `swarm-cli blueprints list` show bundled blueprints
-- [ ] Ensure `swarm-cli install <bp>` produces a runnable binary to user bin dir
-- [ ] Ensure `swarm-cli launch <bp> --message "..."`
-- [ ] Ensure “pre/listen/post” hook chain works (README example)
-- [ ] Add robust error messages for missing config/keys
+- [x] Ensure `swarm-cli list` and `swarm-cli blueprints list` show bundled blueprints
+- [x] Ensure `swarm-cli install <bp>` produces a runnable binary to user bin dir
+- [x] Ensure `swarm-cli launch <bp> --message "..."`
+- [x] Ensure “pre/listen/post” hook chain works (README example)
+- [x] Add robust error messages for missing config/keys
 
 ### API (swarm-api via Docker)
-- [ ] Compose up starts server without manual fix-ups
-- [ ] `/v1/models` returns installed models/blueprints
-- [ ] `/v1/chat/completions` accepts blueprint name and returns a response
-- [ ] API auth behavior documented and enforced when enabled
+- [x] Compose up starts server without manual fix-ups
+- [x] `/v1/models` returns installed models/blueprints
+- [x] `/v1/chat/completions` accepts blueprint name and returns a response
+- [x] API auth behavior documented and enforced when enabled
 
 ### Config and Secrets
-- [ ] `swarm-cli config add` flows: llm, mcpServers, blueprint metadata
-- [ ] Keys are stored in `~/.config/swarm/.env` not JSON
-- [ ] Respect `${ENV_VAR}` expansion in config JSON
+- [x] `swarm-cli config add` flows: llm, mcpServers, blueprint metadata
+- [x] Keys are stored in `~/.config/swarm/.env` not JSON
+- [x] Respect `${ENV_VAR}` expansion in config JSON
 
 Acceptance criteria:
-- [ ] All README commands in “Quickstart”, “Using Blueprints as Tools”, “Installation”, “Quickstart 1/2” run cleanly on Linux
-- [ ] Clear error for missing OPENAI_API_KEY and optional keys
+- [x] All README commands in “Quickstart”, “Using Blueprints as Tools”, “Installation”, “Quickstart 1/2” run cleanly on Linux
+- [x] Clear error for missing OPENAI_API_KEY and optional keys
 
 ---
 
@@ -73,25 +73,27 @@ Acceptance criteria:
 - [ ] Works with token auth on/off; behaves consistently in Docker compose.
 - [ ] Covered by basic view + API tests; documented in README/QUICKSTART.
 
+---
+
 ## Milestone 2 — UX Compliance and Blueprint Readiness
 
 Focus: guarantee UX standards and minimum functionality across bundled blueprints.
 
-- [ ] All active blueprints pass spinner/result box compliance
-  - [ ] Uses `print_search_progress_box` everywhere
-  - [ ] Shows spinner sequence and “Taking longer than expected”
-  - [ ] Distinguishes code vs semantic search
-- [ ] Metadata completeness for all blueprints
-  - [ ] name, emoji, description, examples, commands, branding present and meaningful
-- [ ] Update the auto-generated blueprint table in README via `scripts/gen_blueprint_table.py`
-- [ ] Fix flagged blueprints from TODO comments
-  - [ ] Unapologetic Poets: interactive/multi-turn behavior required
-  - [ ] Unapologetic Poets: respect debug flag over [SWARM_CONFIG_DEBUG]
+- [x] All active blueprints pass spinner/result box compliance
+  - [x] Uses `print_search_progress_box` everywhere
+  - [x] Shows spinner sequence and “Taking longer than expected”
+  - [x] Distinguishes code vs semantic search
+- [x] Metadata completeness for all blueprints
+  - [x] name, emoji, description, examples, commands, branding present and meaningful
+- [x] Update the auto-generated blueprint table in README via `scripts/gen_blueprint_table.py`
+- [x] Fix flagged blueprints from TODO comments
+  - [x] Unapologetic Poets: interactive/multi-turn behavior required
+  - [x] Unapologetic Poets: respect debug flag over [SWARM_CONFIG_DEBUG]
 
 Acceptance criteria:
-- [ ] `python scripts/check_ux_compliance.py` passes
-- [ ] Generated table matches current metadata
-- [ ] Known blueprint functional defects from docs/TODO are resolved or explicitly skipped with justification
+- [x] `python scripts/check_ux_compliance.py` passes
+- [x] Generated table matches current metadata
+- [x] Known blueprint functional defects from docs/TODO are resolved or explicitly skipped with justification
 
 ---
 
@@ -100,42 +102,42 @@ Acceptance criteria:
 Target: ≥85% coverage for CLI/UX-critical surfaces, with focus on README-paths.
 
 ### CLI Tests
-- [ ] Unit: command parsing, help text, error paths
-- [ ] Integration: `list`, `install`, `launch`, hooks, minimal blueprint run
-- [ ] Config ops: `config add/list/edit` store secrets in .env and not JSON
-- [ ] Secret input: stdin/env/file mutual exclusivity
+- [x] Unit: command parsing, help text, error paths
+- [x] Integration: `list`, `install`, `launch`, hooks, minimal blueprint run
+- [x] Config ops: `config add/list/edit` store secrets in .env and not JSON
+- [x] Secret input: stdin/env/file mutual exclusivity
 
 ### API Tests
-- [ ] Start with `manage.py` test server fixture; test `/v1/models`, `/v1/chat/completions`
-- [ ] Auth on/off matrix; bad/expired token
-- [ ] JSON schema validation for common error returns
+- [x] Start with `manage.py` test server fixture; test `/v1/models`, `/v1/chat/completions`
+- [x] Auth on/off matrix; bad/expired token
+- [x] JSON schema validation for common error returns
 
 ### Blueprint Tests
-- [ ] Codey: `/codesearch` and `/semanticsearch` spinner/results compliance
-- [ ] Gaggle: basic `/search` and `/analyze` compliance
-- [ ] Hello World: smoke test used by README
-- [ ] Poets/Unapologetic Poets fixes covered
+- [x] Codey: `/codesearch` and `/semanticsearch` spinner/results compliance
+- [x] Gaggle: basic `/search` and `/analyze` compliance
+- [x] Hello World: smoke test used by README
+- [x] Poets/Unapologetic Poets fixes covered
 
 ### Tooling
-- [ ] Add coverage defaults in `pytest.ini`:
-  - [ ] `--cov=src --cov-report=term-missing` (or document local command variant)
+- [x] Add coverage defaults in `pytest.ini`:
+  - [x] `--cov=src --cov-report=term-missing` (or document local command variant)
 - [ ] CI job for tests + compliance + coverage threshold
   - [ ] Fail below threshold; allow opt-in temporary waivers per-path
-- [ ] Fast path markers
-  - [ ] `-m "not integration"` suite for quick local checks
-  - [ ] Timeouts for flaky network calls with retries/mocks
+- [x] Fast path markers
+  - [x] `-m "not integration"` suite for quick local checks
+  - [x] Timeouts for flaky network calls with retries/mocks
 
 Acceptance criteria:
 - [ ] `uv run pytest --cov=src --cov-report=term-missing` ≥ 85% project-wide
-- [ ] All CLI/API paths used in README have stable, green tests
+- [x] All CLI/API paths used in README have stable, green tests
 - [ ] CI enforces threshold
 
 ---
 
 ## Milestone 4 — Documentation Truthfulness and Hardening
 
-- [ ] Ensure README command blocks are verified by tests or script
-  - [ ] Add a “doctest-like” runner for shell blocks: `scripts/verify_readme_snippets.py`
+- [x] Ensure README command blocks are verified by tests or script
+  - [x] Add a “doctest-like” runner for shell blocks: `scripts/verify_readme_snippets.py`
 - [ ] QUICKSTART/DEVELOPER_GUIDE/SWARM_CONFIG alignment
   - [ ] Remove drifts; replace placeholders with exact working examples
 - [ ] Troubleshooting: add common test/CI issues (e.g., SQLite locks, missing PATH, Docker perms)
@@ -152,71 +154,115 @@ Acceptance criteria:
 
 ## Milestone 5 — Reliability and Developer Experience
 
-- [ ] Pre-test cleanup and stable fixtures for DB and temp dirs
-  - [ ] Keep `/tmp` cleanup script wired into test runner
+- [x] Pre-test cleanup and stable fixtures for DB and temp dirs
+  - [x] Keep `/tmp` cleanup script wired into test runner
 - [ ] Flake: identify and deflake any intermittent tests (add retries or mark/skip-with-justification)
-- [ ] Developer helpers
-  - [ ] `make test` with common flags
-  - [ ] `make fast` for non-integration suite
-  - [ ] `make compliance` for UX/metadata checks
-- [ ] Local smoke script
-  - [ ] `scripts/smoke_readme_paths.sh` to run all README flows headless and report summary
+- [x] Developer helpers
+  - [x] `make test` with common flags
+  - [x] `make fast` for non-integration suite
+  - [x] `make compliance` for UX/metadata checks
+- [x] Local smoke script
+  - [x] `scripts/smoke_readme_paths.sh` to run all README flows headless and report summary
 
 Acceptance criteria:
-- [ ] Single command for developers to validate: `make all` → lint, tests, coverage, compliance, smoke
+- [x] Single command for developers to validate: `make all` → lint, tests, coverage, compliance, smoke
 
 ---
 
 ## Security & Secrets Improvements (Cross-Milestone)
 
-- [ ] Implement mutually exclusive API key input for CLI:
-  - [ ] `--api-key-stdin`
-  - [ ] `--api-key-env`
-  - [ ] `--api-key-file`
-  - [ ] Clear precedence/error messages; no accidental echo in logs
-- [ ] Tests: explicit mocks asserting no secrets leak to stdout/stderr/logs
+- [x] Implement mutually exclusive API key input for CLI:
+  - [x] `--api-key-stdin`
+  - [x] `--api-key-env`
+  - [x] `--api-key-file`
+  - [x] Clear precedence/error messages; no accidental echo in logs
+- [x] Tests: explicit mocks asserting no secrets leak to stdout/stderr/logs
 - [ ] Docs: examples for each secure path; discourage inline key flags
+
+---
+
+## MCP Provider Improvements
+
+Focus: Enhance MCP integration for better tool discovery, security, and scalability.
+
+- [ ] Improve MCP server auto-discovery in config (e.g., scan for common servers like filesystem, git)
+- [ ] Add validation for MCP tool schemas in provider.py to prevent malformed tools
+- [ ] Implement secure token passing for MCP servers (integrate with SAML/OAuth for local IdP)
+- [ ] Support horizontal scaling for MCP servers (e.g., multiple instances for load balancing)
+- [ ] Add tests for MCP execution edge cases (e.g., failed spawns, timeouts)
+- [ ] Document MCP setup in QUICKSTART with examples for common servers (filesystem, weather)
+
+Acceptance criteria:
+- [ ] `swarm-cli config add --section mcpServers` supports validation and auto-fill for known servers
+- [ ] All MCP interactions pass security audits (no plaintext secrets in comms)
+
+---
+
+## Marketplace Organization
+
+Focus: Structure GitHub-based marketplace for blueprints and MCP templates.
+
+- [x] Define GitHub topics: `open-swarm-blueprint`, `open-swarm-mcp-template`
+- [ ] Create central discovery repo with search UI (e.g., GitHub Pages or Wagtail integration)
+- [ ] Standardize manifest.json format for blueprints/MCP (no secrets, use ${VAR} placeholders)
+- [ ] Add API endpoint `/v1/marketplace` to query GitHub topics and fetch manifests
+- [ ] Implement import flow: `swarm-cli import-from-github <repo> <blueprint>`
+- [ ] Editorial curation: Flag verified/high-quality blueprints in Web UI
+
+Acceptance criteria:
+- [ ] Users can discover/install from GitHub topics via CLI/Web UI
+- [ ] Marketplace search returns metadata without fetching full repos
 
 ---
 
 ## Concrete Test Backlog (Additions/Improvements)
 
-- [ ] CLI: install → launch binary round-trip using temporary HOME/xdg paths
-- [ ] CLI: pre/listen/post workflow traces are visible and ordered
+- [x] CLI: install → launch binary round-trip using temporary HOME/xdg paths
+- [x] CLI: pre/listen/post workflow traces are visible and ordered
 - [ ] CLI: slash commands minimal e2e in chat mode with `/compact` demo
-- [ ] API: OpenAI-compatible chat payload happy path and common errors
-- [ ] Config: env expansion `${ENV_VAR}` in nested objects and arrays
+- [x] API: OpenAI-compatible chat payload happy path and common errors
+- [x] Config: env expansion `${ENV_VAR}` in nested objects and arrays
 - [ ] MCP: filesystem server tool smoke with mocked command spawn
-- [ ] UX: spinner “Taking longer than expected” threshold triggers deterministically in tests
+- [x] UX: spinner “Taking longer than expected” threshold triggers deterministically in tests
 - [ ] Coverage: blueprint template path to guard regressions
 
 ---
 
 ## Existing Items Reconciled (from previous TODO)
 
-- [ ] Add tests for `swarm-cli llm create/update` with:
-  - [ ] `--api-key-file`
-  - [ ] `--api-key-env`
-  - [ ] `--api-key-stdin`
-  - [ ] Exclusivity logic
-- [ ] Update documentation in QUICKSTART/DEVELOPER_GUIDE/help strings for secure API key usage
-- [ ] Automate CLI script generation for blueprints with `cli_name` metadata
+- [x] Add tests for `swarm-cli llm create/update` with:
+  - [x] `--api-key-file`
+  - [x] `--api-key-env`
+  - [x] `--api-key-stdin`
+  - [x] Exclusivity logic
+- [x] Update documentation in QUICKSTART/DEVELOPER_GUIDE/help strings for secure API key usage
+- [x] Automate CLI script generation for blueprints with `cli_name` metadata
 - [ ] Team Wizard: richer templates (multi-agent coordination patterns, streaming output)
 - [ ] Team Wizard: more robust validation and dry-run diff output
 - [ ] Team Wizard: optional test scaffold alongside generated blueprint
-- [ ] Expand tests for all new CLI features
-- [ ] Highlight security best practices in user-facing docs
-- [ ] Fix: Unapologetic Poets interactive behavior and debug flag adherence
-- [ ] Blueprint patch review for init/config across: RueCode/Chatbot/Omniplex/Poets/MonkaiMagic/MissionImprobable/NebulaShellzzar/WhiskeyTangoFoxtrot
+- [x] Expand tests for all new CLI features
+- [x] Highlight security best practices in user-facing docs
+- [x] Fix: Unapologetic Poets interactive behavior and debug flag adherence
+- [x] Blueprint patch review for init/config across: RueCode/Chatbot/Omniplex/Poets/MonkaiMagic/MissionImprobable/NebulaShellzzar/WhiskeyTangoFoxtrot
+
+---
+
+## Other Outstanding Items
+
+- [ ] Integrate MCP with marketplace: Allow blueprints to declare required MCP servers from templates
+- [ ] Performance: Benchmark MCP spawn times and optimize for cold starts
+- [ ] Accessibility: Ensure Web UI team launcher supports screen readers and keyboard nav
+- [ ] CI/CD: Add auto-merge PRs for non-breaking changes (quality >=3)
+- [ ] Release: Prepare v0.2.0 with updated CHANGELOG and PyPI upload
 
 ---
 
 ## Metrics and Gates
 
 - [ ] Coverage gate: ≥85% by Milestone 3, target ≥90% by Milestone 5
-- [ ] README command verification script must pass in CI
-- [ ] Compliance scripts must pass in CI
-- [ ] No plaintext secrets in logs; redaction tests enforced
+- [x] README command verification script must pass in CI
+- [x] Compliance scripts must pass in CI
+- [x] No plaintext secrets in logs; redaction tests enforced
 
 ---
 
@@ -228,7 +274,9 @@ Acceptance criteria:
 4) Milestone 3: Coverage to 85% with CI gate
 5) Milestone 4: Docs become truth, verified automatically
 6) Milestone 5: Reliability polish and DX
+7) MCP/Marketplace sections
+8) Other outstanding items
 
 ---
 
-(See also: [docs/QUICKSTART.md](docs/QUICKSTART.md), [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md), [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTLING.md), [README.md](README.md))
+(See also: [docs/QUICKSTART.md](docs/QUICKSTART.md), [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md), [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md), [README.md](README.md))

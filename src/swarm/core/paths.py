@@ -54,8 +54,11 @@ def get_swarm_config_file(config_filename: str = "config.yaml") -> Path:
     """
     Returns the full path to the swarm configuration file.
     Defaults to config.yaml within the user config directory.
+    Uses basename only to prevent path traversal.
     """
-    return get_user_config_dir_for_swarm() / config_filename
+    config_dir = get_user_config_dir_for_swarm()
+    safe_filename = Path(config_filename).name  # Strip any path components
+    return config_dir / safe_filename
 
 def get_project_root_dir() -> Path:
     """

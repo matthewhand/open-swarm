@@ -15,7 +15,9 @@ def test_save_server_config_success():
         
         mock_file.assert_called_once_with(file_path, "w")
         handle = mock_file()
-        handle.write.assert_called_once_with(json.dumps(config, indent=4))
+        # json.dump writes incrementally, so check the accumulated content
+        written_content = "".join(call[0][0] for call in handle.write.call_args_list)
+        assert written_content == json.dumps(config, indent=4)
 
 
 def test_save_server_config_default_path():

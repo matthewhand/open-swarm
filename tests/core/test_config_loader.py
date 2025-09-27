@@ -88,20 +88,20 @@ class TestLoadEnvironment:
         """Test loading environment from .env file."""
         env_content = "TEST_KEY=test_value\nANOTHER_KEY=another_value\n"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
-            f.write(env_content)
-            dotenv_path = Path(f.name)
+        # Create a temporary directory and a .env file inside it
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            dotenv_path = temp_path / ".env"
+            with open(dotenv_path, 'w') as f:
+                f.write(env_content)
 
-        try:
-            with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=dotenv_path.parent):
+            with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=temp_path):
                 with patch.dict(os.environ, {}, clear=True):
                     load_environment()
 
                     # Should have loaded the variables
                     assert os.environ.get("TEST_KEY") == "test_value"
                     assert os.environ.get("ANOTHER_KEY") == "another_value"
-        finally:
-            os.unlink(dotenv_path)
 
     def test_load_environment_no_dotenv_file(self):
         """Test loading environment when no .env file exists."""
@@ -298,7 +298,13 @@ class TestLoadFullConfiguration:
 
     def test_load_full_configuration_cli_path_override(self):
         """Test configuration loading with CLI path override."""
-        config_data = {"cli_override": True}
+        # The config loader expects specific top-level keys like 'defaults', 'llm', etc.
+        # Place the test data under 'defaults' so it gets loaded into the final config.
+        config_data = {
+            "defaults": {
+                "cli_override": True
+            }
+        }
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(config_data, f)

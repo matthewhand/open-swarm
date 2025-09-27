@@ -23,7 +23,6 @@ def test_settings_manager_initialization(settings_manager):
     assert 'ui_features' in settings_manager.settings_groups
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_django_settings(settings_manager, mock_load_config):
     with patch.object(settings, 'DEBUG', True), \
          patch.object(settings, 'SECRET_KEY', 'test-secret-key'), \
@@ -41,7 +40,6 @@ def test_collect_django_settings(settings_manager, mock_load_config):
         assert django_settings['LANGUAGE_CODE']['value'] == 'en-us'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_swarm_core_settings(settings_manager, mock_load_config):
     with patch.object(settings, 'SWARM_CONFIG_PATH', '/test/config.json'), \
          patch.object(settings, 'BLUEPRINT_DIRECTORY', '/test/blueprints'), \
@@ -55,7 +53,6 @@ def test_collect_swarm_core_settings(settings_manager, mock_load_config):
         assert swarm_settings['BASE_DIR']['value'] == '/test/base'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_auth_settings(settings_manager, mock_load_config):
     with patch.object(settings, 'ENABLE_API_AUTH', True), \
          patch.object(settings, 'SWARM_API_KEY', 'test-api-key'), \
@@ -71,7 +68,6 @@ def test_collect_auth_settings(settings_manager, mock_load_config):
         assert auth_settings['LOGIN_URL']['value'] == '/login/'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_llm_settings(settings_manager, mock_load_config):
     mock_load_config.return_value = {
         'llm': {
@@ -98,7 +94,6 @@ def test_collect_llm_settings(settings_manager, mock_load_config):
         assert llm_settings['OLLAMA_BASE_URL']['value'] == 'http://localhost:11434'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_llm_settings_error(settings_manager, mock_load_config):
     mock_load_config.side_effect = Exception("Test error")
     
@@ -109,7 +104,6 @@ def test_collect_llm_settings_error(settings_manager, mock_load_config):
     assert 'Error loading LLM config' in llm_settings['CONFIG_ERROR']['value']
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_blueprint_settings(settings_manager, mock_load_config):
     mock_load_config.return_value = {
         'blueprints': {
@@ -130,7 +124,6 @@ def test_collect_blueprint_settings(settings_manager, mock_load_config):
         assert blueprint_settings['SWARM_COMMAND_TIMEOUT']['value'] == '60'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_mcp_settings(settings_manager, mock_load_config):
     mock_load_config.return_value = {
         'mcpServers': {
@@ -147,7 +140,6 @@ def test_collect_mcp_settings(settings_manager, mock_load_config):
     assert mcp_settings['MCP_SERVER1']['value'] == {'command': 'python', 'args': ['-m', 'server1']}
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_mcp_settings_no_servers(settings_manager, mock_load_config):
     mock_load_config.return_value = {}
     
@@ -158,7 +150,6 @@ def test_collect_mcp_settings_no_servers(settings_manager, mock_load_config):
     assert mcp_settings['NO_MCP_SERVERS']['value'] == 'No MCP servers configured'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_database_settings(settings_manager, mock_load_config):
     with patch.object(settings, 'DATABASES', {
         'default': {
@@ -176,7 +167,6 @@ def test_collect_database_settings(settings_manager, mock_load_config):
         assert database_settings['TEST_NAME']['value'] == 'test_db.sqlite3'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_logging_settings(settings_manager, mock_load_config):
     with patch('swarm.views.settings_manager.get_django_log_level', return_value='INFO'), \
          patch('swarm.views.settings_manager.get_swarm_log_level', return_value='DEBUG'), \
@@ -192,7 +182,6 @@ def test_collect_logging_settings(settings_manager, mock_load_config):
         assert logging_settings['LOGLEVEL']['value'] == 'ERROR'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_performance_settings(settings_manager, mock_load_config):
     with patch.object(settings, 'REDIS_HOST', 'redis.example.com'), \
          patch.object(settings, 'REDIS_PORT', 6380), \
@@ -206,7 +195,6 @@ def test_collect_performance_settings(settings_manager, mock_load_config):
         assert performance_settings['SWARM_COMMAND_TIMEOUT']['value'] == '120'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_ui_settings(settings_manager, mock_load_config):
     with patch('swarm.views.settings_manager.is_enable_webui', return_value=True), \
          patch('swarm.views.settings_manager.is_enable_admin', return_value=False):
@@ -218,7 +206,6 @@ def test_collect_ui_settings(settings_manager, mock_load_config):
         assert ui_settings['ENABLE_ADMIN']['value'] == 'false'
 
 
-@patch('swarm.views.settings_manager.load_config')
 def test_collect_all_settings(settings_manager, mock_load_config):
     mock_load_config.return_value = {}
     

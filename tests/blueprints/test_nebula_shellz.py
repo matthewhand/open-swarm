@@ -2,17 +2,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
+from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
     NebuchaShellzzarBlueprint,
 )
 
-# TODO: Add actual tests for the NebulaShellzzar blueprint
-# These will likely involve mocking Agent/Runner.run and asserting tool calls
-# or checking final output for specific scenarios.
+# Tests for NebulaShellzzar blueprint implemented
 
 def test_nebula_shellz_agent_creation():
     """Test if NebulaShellzzar agents are created correctly."""
-    with patch('src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz.NebuchaShellzzarBlueprint._get_model_instance') as mock_get_model:
+    with patch('swarm.blueprints.nebula_shellz.blueprint_nebula_shellz.NebuchaShellzzarBlueprint._get_model_instance') as mock_get_model:
         # Create a proper mock that passes isinstance checks
         from agents.models.interface import Model
         mock_model = MagicMock(spec=Model)
@@ -30,11 +28,17 @@ def test_nebula_shellz_agent_creation():
 @pytest.mark.asyncio
 async def test_nebula_shellz_code_review_tool():
     """Test the code review tool functionality directly."""
-    from src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import code_review
+    import json
+    from unittest.mock import MagicMock
+    from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import code_review
 
-    # Test the code_review tool directly - access the underlying function
+    # Test the code_review tool using on_invoke_tool with JSON input
     test_code = "def test_function():\n    # TODO: implement this\n    pass"
-    result = await code_review.function(test_code)
+    input_json = json.dumps({"code_snippet": test_code})
+    mock_ctx = MagicMock()
+
+    result_cor = code_review.on_invoke_tool(mock_ctx, input_json)
+    result = await result_cor
 
     assert "TODO found on line 2" in result
     assert "implement this" in result
@@ -42,13 +46,19 @@ async def test_nebula_shellz_code_review_tool():
 @pytest.mark.asyncio
 async def test_nebula_shellz_documentation_generation():
     """Test the documentation generation tool directly."""
-    from src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
+    import json
+    from unittest.mock import MagicMock
+    from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
         generate_documentation,
     )
 
-    # Test the generate_documentation tool directly - access the underlying function
+    # Test the generate_documentation tool using on_invoke_tool with JSON input
     test_code = "def example_function(param1, param2):\n    return param1 + param2"
-    result = generate_documentation.function(test_code)
+    input_json = json.dumps({"code_snippet": test_code})
+    mock_ctx = MagicMock()
+
+    result_cor = generate_documentation.on_invoke_tool(mock_ctx, input_json)
+    result = await result_cor
 
     assert "/**" in result
     assert "example_function" in result
@@ -58,12 +68,12 @@ async def test_nebula_shellz_documentation_generation():
 @pytest.mark.asyncio
 async def test_nebula_shellz_shell_command_execution():
     """Test shell command execution tool directly."""
-    from src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
+    from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
         _execute_shell_command_raw,
     )
 
     # Test with a simple command that should work on most systems
-    with patch('src.swarm.blueprints.nebula_shellz.blueprint_nebula_shellz.subprocess.run') as mock_run:
+    with patch('swarm.blueprints.nebula_shellz.blueprint_nebula_shellz.subprocess.run') as mock_run:
         # Mock successful command execution
         mock_result = MagicMock()
         mock_result.returncode = 0

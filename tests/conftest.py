@@ -80,3 +80,8 @@ def authenticated_client(api_client, test_user): # Relies on test_user, which re
 async def authenticated_async_client(async_client, test_user):
     await sync_to_async(async_client.force_login)(test_user)
     return async_client
+
+@pytest.fixture
+def mock_load_config():
+    with patch('swarm.views.settings_manager.load_config') as mock:
+        yield mock

@@ -156,7 +156,7 @@ class TestZeusOperationBox:
             total_lines=10,
             spinner_state="Generating...",
             emoji="🔍",
-            style="info"
+            style="blue"
         )
 
         captured = capsys.readouterr()

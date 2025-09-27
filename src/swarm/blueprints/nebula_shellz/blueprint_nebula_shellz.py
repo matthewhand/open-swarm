@@ -332,50 +332,25 @@ Initializing NebulaShellzzar Crew...
         """Main execution entry point for the NebulaShellzzar blueprint."""
         logger.info("NebuchaShellzzarBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
+        mcp_servers_override = kwargs.get("mcp_servers_override", [])
         from agents import Runner
         ux = BlueprintUXImproved(style="serious")
-        spinner_idx = 0
-        start_time = time.time()
-        spinner_yield_interval = 1.0  # seconds
-        last_spinner_time = start_time
-        yielded_spinner = False
-        result_chunks = []
         try:
-            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
-            while True:
-                now = time.time()
-                try:
-                    chunk = next(runner_gen)
-                    result_chunks.append(chunk)
-                    # If chunk is a final result, wrap and yield
-                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
-                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
-                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
-                        box = ux.ansi_emoji_box(
-                            title="NebulaShellzzar Result",
-                            content=content,
-                            summary=summary,
-                            params={"instruction": instruction[:40]},
-                            result_count=len(result_chunks),
-                            op_type="run",
-                            status="success"
-                        )
-                        yield {"messages": [{"role": "assistant", "content": box}]}
-                    else:
-                        yield chunk
-                    yielded_spinner = False
-                except StopIteration:
-                    break
-                except Exception:
-                    if now - last_spinner_time >= spinner_yield_interval:
-                        taking_long = (now - start_time > 10)
-                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
-                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
-                        spinner_idx += 1
-                        last_spinner_time = now
-                        yielded_spinner = True
-            if not result_chunks and not yielded_spinner:
-                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
+            # Runner.run() returns a final result, not an iterator
+            result = await Runner.run(self.create_starting_agent(mcp_servers_override), instruction)
+            # Wrap and yield the final result
+            content = result["messages"][0]["content"] if result and isinstance(result, dict) and "messages" in result and result["messages"] else str(result)
+            summary = ux.summary("Operation", 1, {"instruction": instruction[:40]})
+            box = ux.ansi_emoji_box(
+                title="NebulaShellzzar Result",
+                content=content,
+                summary=summary,
+                params={"instruction": instruction[:40]},
+                result_count=1,
+                op_type="run",
+                status="success"
+            )
+            yield {"messages": [{"role": "assistant", "content": box}]}
         except Exception as e:
             logger.error(f"Error during NebulaShellzzar run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}

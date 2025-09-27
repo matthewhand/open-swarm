@@ -230,6 +230,15 @@ class TestGeeseUIComponents:
         with patch('swarm.core.blueprint_base.BlueprintBase._get_model_instance'):
             bp = GeeseBlueprint(blueprint_id="test_geese_ui", config_path=str(cfg_path))
             bp._config = cfg
+            # Mock the ux attribute after the instance is created
+            mock_ux = MagicMock()
+            mock_ux.console = MagicMock()
+            mock_ux.console.print = MagicMock()
+            # Mock the ux_print_operation_box to call console.print
+            def mock_ux_print_operation_box(title, content, **kwargs):
+                mock_ux.console.print(f"{title}: {content}")
+            mock_ux.ux_print_operation_box = mock_ux_print_operation_box
+            bp.ux = mock_ux
             return bp
 
     def test_operation_box_styles(self, geese_ui_instance):

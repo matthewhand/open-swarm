@@ -9,7 +9,7 @@ def _isolate_dynamic_registry(tmp_path, monkeypatch):
 
     Patches utils to write its teams.json under tmp_path and resets in-memory caches.
     """
-    import src.swarm.views.utils as utils
+    import swarm.views.utils as utils
 
     # Point utils to a temporary config dir
     cfg_dir = tmp_path / "swarm_cfg"
@@ -34,7 +34,7 @@ def _read_registry_file(tmp_path) -> dict:
 
 def test_register_and_persist_dynamic_team(tmp_path):
     """Test dynamic team registration and persistence with comprehensive validation"""
-    from src.swarm.views.utils import load_dynamic_registry, register_dynamic_team
+    from swarm.views.utils import load_dynamic_registry, register_dynamic_team
 
     # Register team with comprehensive parameters
     team_name = "alpha-team"
@@ -68,7 +68,7 @@ def test_register_and_persist_dynamic_team(tmp_path):
 
 
 def test_duplicate_register_overwrites(tmp_path):
-    from src.swarm.views.utils import load_dynamic_registry, register_dynamic_team
+    from swarm.views.utils import load_dynamic_registry, register_dynamic_team
 
     register_dynamic_team("dupe", description="v1", llm_profile="p1")
     register_dynamic_team("dupe", description="v2", llm_profile="p2")
@@ -78,7 +78,7 @@ def test_duplicate_register_overwrites(tmp_path):
 
 
 def test_deregister_updates_state_and_disk(tmp_path):
-    from src.swarm.views.utils import deregister_dynamic_team, register_dynamic_team
+    from swarm.views.utils import deregister_dynamic_team, register_dynamic_team
 
     # Remove non-existent -> False
     assert deregister_dynamic_team("ghost") is False
@@ -92,7 +92,7 @@ def test_deregister_updates_state_and_disk(tmp_path):
 
 @pytest.mark.django_db
 def test_available_blueprints_merge_in_dynamic(monkeypatch):
-    from src.swarm.views import utils
+    from swarm.views import utils
 
     # Avoid scanning file system; return no static blueprints
     monkeypatch.setattr(utils, "discover_blueprints", lambda *_: {}, raising=True)
@@ -102,20 +102,22 @@ def test_available_blueprints_merge_in_dynamic(monkeypatch):
     # Force build and fetch
     from asgiref.sync import async_to_sync
     available = async_to_sync(utils.get_available_blueprints)()
+    assert available is not None
     assert "demo-api-team" in available
     info = available["demo-api-team"]
     # Class should be the dynamic team blueprint
-    from src.swarm.blueprints.dynamic_team.blueprint_dynamic_team import (
+    from swarm.blueprints.dynamic_team.blueprint_dynamic_team import (
         DynamicTeamBlueprint,
     )
     # Module aliasing may load via 'swarm.' vs 'src.swarm.'; compare by name to avoid identity mismatch.
     assert info["class_type"].__name__ == DynamicTeamBlueprint.__name__
+    assert "name" in info["metadata"]
     assert info["metadata"]["name"] == "demo-api-team"
 
 
 @pytest.mark.asyncio
 async def test_get_blueprint_instance_caching(monkeypatch):
-    from src.swarm.views import utils
+    from swarm.views import utils
 
     # Simplify discovery to empty so only dynamic teams exist
     monkeypatch.setattr(utils, "discover_blueprints", lambda *_: {}, raising=True)
@@ -133,7 +135,7 @@ async def test_get_blueprint_instance_caching(monkeypatch):
 
 
 def test_validate_model_access_respects_registry(monkeypatch):
-    from src.swarm.views import utils
+    from swarm.views import utils
 
     # Avoid heavy discovery
     monkeypatch.setattr(utils, "discover_blueprints", lambda *_: {}, raising=True)

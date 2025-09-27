@@ -14,6 +14,7 @@ class MCPServerConfig(BaseModel):
     command: str | None = Field(None, description="Command to start the server (e.g., 'python', 'npx').")
     args: list[str] = Field(default_factory=list, description="Arguments for the command.")
     env: dict[str, str] = Field(default_factory=dict, description="Environment variables for the server process.")
+    cwd: str | None = Field(None, description="Working directory for the server process.")
 
     # You might also include fields for authentication, type, etc.
     # type: Optional[str] = Field(None, description="Type of the MCP server (e.g., 'filesystem', 'memory', 'custom').")

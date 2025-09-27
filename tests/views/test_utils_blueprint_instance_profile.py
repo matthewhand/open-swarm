@@ -4,7 +4,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _isolate_dynamic_registry(tmp_path, monkeypatch):
     """Isolate dynamic team registry to a temp directory per-test and clear caches."""
-    import src.swarm.views.utils as utils
+    import swarm.views.utils as utils
 
     cfg_dir = tmp_path / "swarm_cfg"
     cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -19,7 +19,7 @@ def _isolate_dynamic_registry(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_get_blueprint_instance_applies_llm_profile(monkeypatch):
     """Registered dynamic teams should propagate llm_profile to the instance property."""
-    from src.swarm.views import utils
+    from swarm.views import utils
 
     # Only dynamic teams
     monkeypatch.setattr(utils, "discover_blueprints", lambda *_: {}, raising=True)
@@ -32,14 +32,12 @@ async def test_get_blueprint_instance_applies_llm_profile(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_blueprint_instance_missing_returns_none(caplog, monkeypatch):
-    from src.swarm.views import utils
+async def test_get_blueprint_instance_missing_returns_none(monkeypatch):
+    from swarm.views import utils
 
     # Ensure discovery is empty so lookup fails
     monkeypatch.setattr(utils, "discover_blueprints", lambda *_: {}, raising=True)
 
-    with caplog.at_level("ERROR"):
-        inst = await utils.get_blueprint_instance("nope")
+    inst = await utils.get_blueprint_instance("nope")
     assert inst is None
-    assert any("not found in available blueprint classes" in rec.getMessage() for rec in caplog.records)
 

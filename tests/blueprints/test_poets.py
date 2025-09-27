@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 from agents import Agent as GenericAgent
@@ -26,12 +26,31 @@ MINIMAL_CONFIG_CONTENT = {
 }
 
 @pytest.fixture
-def poets_blueprint_instance(tmp_path):
+def poets_blueprint_instance(tmp_path, monkeypatch):
     db_path_str = str(tmp_path / "test_swarm_instructions.db")
     config_file_str = str(tmp_path / "test_swarm_config.json")
 
     with open(config_file_str, 'w') as f:
         json.dump(MINIMAL_CONFIG_CONTENT, f)
+
+    # Patch the _load_configuration method in BlueprintBase to use the minimal config
+    def mock_load_configuration(self):
+        self._config = MINIMAL_CONFIG_CONTENT
+        import os
+        def redact(val):
+            if not isinstance(val, str) or len(val) <= 4:
+                return "****"
+            return val[:2] + "*" * (len(val)-4) + val[-2:]
+        def redact_dict(d):
+            if isinstance(d, dict):
+                return {k: (redact_dict(v) if not (isinstance(v, str) and ("key" in k.lower() or "token" in k.lower() or "secret" in k.lower())) else redact(v)) for k, v in d.items()}
+            elif isinstance(d, list):
+                return [redact_dict(item) for item in d]
+            return d
+        from swarm.core.blueprint_base import logger
+        logger.debug(f"Loaded config (redacted): {redact_dict(self._config)}")
+
+    monkeypatch.setattr('swarm.core.blueprint_base.BlueprintBase._load_configuration', mock_load_configuration)
 
     bp = PoetsBlueprint(
         blueprint_id="poets-society",
@@ -92,13 +111,117 @@ def test_poets_agent_creation(poets_blueprint_instance):
 
     assert agent.model is not None, "Agent should have a model configured."
     assert len(agent.tools) > 0, "Poet agent should have other poets as tools."
-    assert agent.instructions and agent.instructions.strip().startswith("You are"), \
+    # Check that instructions attribute exists and is a string that starts with "You are"
+    assert hasattr(agent, 'instructions'), "Agent should have instructions attribute"
+    assert agent.instructions is not None, "Agent instructions should not be None"
+    assert isinstance(agent.instructions, str), "Agent instructions should be a string"
+    assert agent.instructions.strip().startswith("You are"), \
         f"Agent instructions for '{agent.name}' seem invalid or empty: '{agent.instructions}'"
 
 
-@pytest.mark.skip(reason="Blueprint interaction tests not yet implemented")
-def test_poets_collaboration_flow(poets_blueprint_instance):
-    pass
+@pytest.mark.asyncio
+async def test_poets_collaboration_flow(poets_blueprint_instance, mocker):
+    """Test collaboration flow: starting poet delegates to another poet via tool call."""
+    blueprint = poets_blueprint_instance
+
+    # Create mock MCP server
+    mock_mcp = MagicMock(name="mock_mcp")
+
+    # Get agents and tools
+    agents, tools = blueprint.create_agents_and_tools([mock_mcp])
+    starting_agent_name = blueprint.starting_agent_name
+    starting_agent = agents[starting_agent_name]
+
+    # Select another poet for delegation
+    other_poet_name = "Raven Poe"
+    assert other_poet_name in agents, f"{other_poet_name} not in agents"
+    other_agent = agents[other_poet_name]
+
+    # Verify starting agent has the other poet as a tool
+    assert any(tool.name == other_poet_name for tool in starting_agent.tools)
+
+    # Mock Runner.run_streamed for the starting agent
+    mock_starting_result = MagicMock()
+
+    async def mock_starting_stream_events():
+        events = [
+            {
+                "type": "step",
+                "output": {
+                    "messages": [{
+                        "role": "assistant",
+                        "content": "I'll delegate to another poet.",
+                        "tool_calls": [{
+                            "id": "call_123",
+                            "function": {
+                                "name": other_poet_name,
+                                "arguments": json.dumps({
+                                    "messages": [{"role": "user", "content": "Write a gothic poem about lost love."}]
+                                })
+                            }
+                        }]
+                    }]
+                }
+            },
+            {
+                "type": "step",
+                "output": {
+                    "messages": [{
+                        "role": "tool",
+                        "content": "In shadowed halls where memories decay,\nLost love's lament in raven's cry does play...\nEternal night claims what the heart once knew,\nIn gothic verse, our sorrow ever true.",
+                        "tool_call_id": "call_123"
+                    }]
+                }
+            }
+        ]
+        for event in events:
+            yield event
+
+    mock_starting_result.stream_events = mock_starting_stream_events
+
+    # Mock Runner.run_streamed for the other agent
+    mock_other_result = MagicMock()
+
+    async def mock_other_stream_events():
+        events = [
+            {
+                "type": "step",
+                "output": {
+                    "messages": [{
+                        "role": "assistant",
+                        "content": "In shadowed halls where memories decay,\nLost love's lament in raven's cry does play...\nEternal night claims what the heart once knew,\nIn gothic verse, our sorrow ever true."
+                    }]
+                }
+            }
+        ]
+        for event in events:
+            yield event
+
+    mock_other_result.stream_events = mock_other_stream_events
+
+    # Patch Runner.run_streamed to return our mocks
+    def mock_run_streamed_side_effect(starting_agent, input, **kwargs):
+        if starting_agent.name == other_poet_name:
+            return mock_other_result
+        else:
+            return mock_starting_result
+
+    mocker.patch('agents.run.Runner.run_streamed', side_effect=mock_run_streamed_side_effect)
+
+    # Run the blueprint and collect responses
+    user_messages = [{"role": "user", "content": "Write a gothic poem about lost love."}]
+    collected_content = []
+    async for chunk in blueprint.run(user_messages, mcp_servers=[mock_mcp]):
+        if "messages" in chunk and len(chunk["messages"]) > 0:
+            message = chunk["messages"][0]
+            if "content" in message:
+                collected_content.append(message["content"])
+
+    # Assert final content is the poem from the delegated agent
+    final_poem = "".join(collected_content)
+    assert "gothic" in final_poem.lower()
+    assert "lost love" in final_poem.lower()
+    assert len(final_poem) > 50  # Basic length check
 
 @pytest.mark.skip(reason="Blueprint CLI tests not yet implemented")
 def test_poets_cli_execution():
