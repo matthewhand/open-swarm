@@ -121,7 +121,7 @@ where = ["src"]
 path = "src/swarm/__init__.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/README.md", "/LICENSE", "/src/swarm/models"]
+include = ["/src", "/tests", "/README.md", "/LICENSE"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/swarm"]
