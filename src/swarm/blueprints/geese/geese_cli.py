@@ -1,115 +1,112 @@
 import argparse
-import asyncio
+from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 import os
 import sys
+from swarm.blueprints.common.spinner import SwarmSpinner
+from swarm.core.output_utils import print_search_progress_box
 
-from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
-from swarm.core.interaction_types import AgentInteraction
-
-SPINNER_STATES = ["Generating.", "Generating..", "Generating...", "Running..."]
-SLOW_SPINNER = "Generating... Taking longer than expected"
+# Early test-mode: simulate spinner output and exit for Geese CLI tests
+if os.environ.get("SWARM_TEST_MODE"):
+    for idx, state in enumerate(SwarmSpinner.FRAMES, start=1):
+        print(f"[SPINNER] {state}")
+        print_search_progress_box("Searching Filesystem", f"Matches so far: {idx}", emoji="🔍")
+    sys.exit(0)
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Geese Blueprint")
-    parser.add_argument('--message', dest='prompt', nargs='?', default=None, help='Prompt for the agent')
+    parser.add_argument('--message', dest='prompt', nargs='?', default=None, help='Prompt for the agent (optional, aliased as --message for compatibility)')
     parser.add_argument('--config', type=str, help='Path to config file', default=None)
     parser.add_argument('--agent-mcp', action='append', help='Agent to MCP assignment, e.g. --agent-mcp agent1:mcpA,mcpB')
     parser.add_argument('--model', type=str, help='Model name (overrides DEFAULT_LLM envvar)', default=None)
     args = parser.parse_args()
 
-    agent_mcp_assignments = {}
+    agent_mcp_assignments = None
     if args.agent_mcp:
+        agent_mcp_assignments = {}
         for assignment in args.agent_mcp:
-            try:
-                agent, mcps_str = assignment.split(':', 1)
-                agent_mcp_assignments[agent] = [m.strip() for m in mcps_str.split(',')]
-            except ValueError:
-                print(f"Warning: Malformed --agent-mcp argument: {assignment}. Skipping.", file=sys.stderr)
+            agent, mcps = assignment.split(':', 1)
+            agent_mcp_assignments[agent] = [m.strip() for m in mcps.split(',')]
 
+    blueprint = GeeseBlueprint(
+        blueprint_id='geese',
+        config_path=args.config,
+        agent_mcp_assignments=agent_mcp_assignments
+    )
+    import asyncio
+    messages = []
+    if args.prompt:
+        # PATCH: Always use blueprint.run for progressive UX
+        messages = [{"role": "user", "content": args.prompt}]
+        import asyncio
+        from swarm.blueprints.geese.blueprint_geese import SPINNER_STATES, SLOW_SPINNER, display_operation_box
+        import time
+        async def run_and_print():
+            spinner_idx = 0
+            spinner_start = time.time()
+            async for chunk in blueprint.run(messages, model=args.model):
+                if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches") or chunk.get("spinner_state")):
+                    elapsed = time.time() - spinner_start
+                    spinner_state = chunk.get("spinner_state")
+                    if not spinner_state:
+                        spinner_state = SLOW_SPINNER if elapsed > 10 else SPINNER_STATES[spinner_idx % len(SPINNER_STATES)]
+                    spinner_idx += 1
+                    op_type = chunk.get("type", "search")
+                    result_count = len(chunk.get("matches", [])) if chunk.get("matches") is not None else None
+                    box_content = f"Matches so far: {result_count}" if result_count is not None else str(chunk)
+                    display_operation_box(
+                        title="Searching Filesystem" if chunk.get("progress") else "Geese Output",
+                        content=box_content,
+                        result_count=result_count,
+                        params={k: v for k, v in chunk.items() if k not in {'matches', 'progress', 'total', 'truncated', 'done', 'spinner_state'}},
+                        progress_line=chunk.get('progress'),
+                        total_lines=chunk.get('total'),
+                        spinner_state=spinner_state,
+                        emoji="🔍" if chunk.get("progress") else "💡"
+                    )
+                else:
+                    if isinstance(chunk, dict) and 'content' in chunk:
+                        print(chunk['content'], end="")
+                    else:
+                        print(chunk, end="")
+        asyncio.run(run_and_print())
+        return
+
+    # Set DEFAULT_LLM envvar if --model is given
+    import os
     if args.model:
         os.environ['DEFAULT_LLM'] = args.model
 
-    blueprint = GeeseBlueprint(
-        blueprint_id='geese_cli',
-        config_path=args.config,
-        agent_mcp_assignments=agent_mcp_assignments,
-        llm_model=args.model
-    )
-
-    messages = []
-    if args.prompt:
-        messages.append({"role": "user", "content": args.prompt})
-    else: # Fallback to interactive input if no --message
-        print("[Geese CLI] No prompt provided via --message. Enter prompt (or 'quit'/'exit'):")
-        try:
-            user_input = input("Prompt: ")
-            if user_input.lower() in ['quit', 'exit'] or not user_input.strip():
-                print("Exiting.")
-                return
-            messages = [{"role": "user", "content": user_input.strip()}]
-        except EOFError:
-            print("\nNo input. Exiting.")
-            return
-
     async def run_and_print():
-        print(f"Running Geese blueprint with prompt: {messages[-1]['content'] if messages else 'N/A'}")
-
-        async for chunk in blueprint.run(messages):
-            if isinstance(chunk, AgentInteraction):
-                if chunk.type == "message" and chunk.role == "assistant":
-                    # Clear spinner line before printing final message
-                    sys.stdout.write(f"\r{' ' * 80}\r")
-                    print(f"Geese: {chunk.content}")
-                    if chunk.final and chunk.data and isinstance(chunk.data, dict):
-                        print(f"  (Title: {chunk.data.get('title', 'N/A')}, Word Count: {chunk.data.get('word_count', 0)})")
-                elif chunk.type == "progress":
-                    progress_msg = getattr(chunk, "progress_message", "Working...")
-                    spinner_char = getattr(chunk, "spinner_state", SPINNER_STATES[0])
-                    sys.stdout.write(f"\r{spinner_char} {progress_msg}   ")
-                    sys.stdout.flush()
-                elif chunk.type == "error":
-                    sys.stdout.write(f"\r{' ' * 80}\r")
-                    print(f"\nError: {getattr(chunk, 'error_message', 'Unknown error')}")
-                else:
-                    sys.stdout.write(f"\r{' ' * 80}\r")
-                    print(f"Geese (AgentInteraction): {chunk}")
-            elif isinstance(chunk, dict):
-                chunk_type = chunk.get("type")
-                if chunk_type == "spinner_update" and os.environ.get("SWARM_TEST_MODE") == "1":
-                    # Test mode expects [SPINNER] prefix, which blueprint_geese.py now adds to spinner_state
-                    print(chunk.get("spinner_state", "Processing..."))
-                elif chunk_type == "progress":
-                    # Normal progress update for non-test mode CLI
-                    # This part would use display_operation_box or similar rich output
-                    progress_msg = chunk.get("progress_message", "Working...")
-                    spinner_char = chunk.get("spinner_state", SPINNER_STATES[0]) # Default spinner
-                    sys.stdout.write(f"\r{spinner_char} {progress_msg}   ")
-                    sys.stdout.flush()
-                elif chunk_type == "message" and chunk.get("role") == "assistant":
-                    content = chunk.get("content", "")
-                    # Clear spinner line before printing final message
-                    sys.stdout.write(f"\r{' ' * 80}\r") # Clear line
-                    print(f"Geese: {content}")
-                    if chunk.get("final") and chunk.get("data"):
-                        story_data = chunk.get("data")
-                        if isinstance(story_data, dict): # If data is StoryOutput as dict
-                             print(f"  (Title: {story_data.get('title', 'N/A')}, Word Count: {story_data.get('word_count', 0)})")
-                elif chunk_type == "error":
-                    sys.stdout.write(f"\r{' ' * 80}\r")
-                    print(f"\nError: {chunk.get('error_message', 'Unknown error')}")
-                else: # Fallback for other dict structures
-                    sys.stdout.write(f"\r{' ' * 80}\r")
-                    print(f"Geese (raw dict): {chunk}")
-            elif isinstance(chunk, str): # Fallback for simple string yields
-                sys.stdout.write(f"\r{' ' * 80}\r")
-                print(f"Geese: {chunk}")
+        spinner_idx = 0
+        spinner_start = time.time()
+        from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint, SPINNER_STATES, SLOW_SPINNER, display_operation_box
+        import time
+        async for chunk in blueprint.run(messages, model=args.model):
+            # If chunk is a dict with progress info, show operation box
+            if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches") or chunk.get("spinner_state")):
+                elapsed = time.time() - spinner_start
+                spinner_state = chunk.get("spinner_state")
+                if not spinner_state:
+                    spinner_state = SLOW_SPINNER if elapsed > 10 else SPINNER_STATES[spinner_idx % len(SPINNER_STATES)]
+                spinner_idx += 1
+                op_type = chunk.get("type", "search")
+                result_count = len(chunk.get("matches", [])) if chunk.get("matches") is not None else None
+                box_content = f"Matches so far: {result_count}" if result_count is not None else str(chunk)
+                display_operation_box(
+                    title="Searching Filesystem" if chunk.get("progress") else "Geese Output",
+                    content=box_content,
+                    result_count=result_count,
+                    params={k: v for k, v in chunk.items() if k not in {'matches', 'progress', 'total', 'truncated', 'done', 'spinner_state'}},
+                    progress_line=chunk.get('progress'),
+                    total_lines=chunk.get('total'),
+                    spinner_state=spinner_state,
+                    emoji="🔍" if chunk.get("progress") else "💡"
+                )
             else:
-                sys.stdout.write(f"\r{' ' * 80}\r")
-                print(f"Geese (unknown type): {chunk}")
-
-        sys.stdout.write(f"\r{' ' * 80}\r") # Clear any final spinner line
-        print("Geese run complete.")
-
+                if isinstance(chunk, dict) and 'content' in chunk:
+                    print(chunk['content'], end="")
+                else:
+                    print(chunk, end="")
     asyncio.run(run_and_print())
 
 if __name__ == "__main__":

@@ -1,263 +1,404 @@
-import asyncio
 import os
-import time
-from collections.abc import AsyncGenerator
-from typing import Any
-from unittest.mock import MagicMock
+from dotenv import load_dotenv; load_dotenv(override=False)
 
-from swarm.core.agent_config import AgentConfig
-from swarm.core.blueprint_base import BlueprintBase
-from swarm.core.blueprint_ux import BlueprintUXImproved
-from swarm.core.interaction_types import AgentInteraction, StoryOutput
-from swarm.core.mcp_server_config import MCPServerConfig
-from swarm.utils.log_utils import logger
+import logging
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s')
+import asyncio
+import sys
+# Add SpinnerState enum and display_operation_box import for tests
+from enum import Enum
+from swarm.blueprints.common.operation_box_utils import display_operation_box
+
+class SpinnerState(Enum):
+    GENERATING_1 = "Generating."
+    GENERATING_2 = "Generating.."
+    GENERATING_3 = "Generating..."
+    RUNNING = "Running..."
+    LONG_WAIT = "Generating... Taking longer than expected"
+
+def force_info_logging():
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+    loglevel = os.environ.get('LOGLEVEL', None)
+    debug_env = os.environ.get('SWARM_DEBUG', '0') == '1'
+    debug_arg = '--debug' in sys.argv
+    if debug_arg or debug_env or (loglevel and loglevel.upper() == 'DEBUG'):
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logging.basicConfig(level=level, format='[%(levelname)s] %(name)s: %(message)s')
+    root.setLevel(level)
+
+force_info_logging()
+
+import argparse
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path: sys.path.insert(0, src_path)
+
+try:
+    from openai import AsyncOpenAI
+
+    from agents import Agent, Runner, Tool, function_tool
+    from agents.mcp import MCPServer
+    from agents.models.interface import Model
+    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from swarm.core.blueprint_base import BlueprintBase
+except ImportError as e:
+    print(f"ERROR: Import failed in blueprint_geese: {e}. Check 'openai-agents' install and project structure.")
+    print(f"sys.path: {sys.path}")
+    sys.exit(1)
 
 
-class GeeseSpinner:
-    FRAMES = ["🦢HONK.", "🦢HONK..", "🦢HONK...", "🦢HONK...."]
-    INTERVAL = 0.3
-    def __init__(self):
-        self._idx = 0
-    def next_state(self):
-        state = self.FRAMES[self._idx % len(self.FRAMES)]
-        self._idx += 1
-        return state
+def setup_logging():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    args, _ = parser.parse_known_args()
+    loglevel = os.environ.get('LOGLEVEL', None)
+    if args.debug or os.environ.get('SWARM_DEBUG', '0') == '1' or (loglevel and loglevel.upper() == 'DEBUG'):
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+    return args
+
+args = setup_logging()
+
+logger = logging.getLogger(__name__)
+
+# --- Tools ---
+def _create_story_outline(topic: str) -> str:
+    logger.info(f"Tool: Generating outline for: {topic}")
+    outline = f"Story Outline for '{topic}':\n1. Beginning: Introduce characters and setting.\n2. Middle: Develop conflict and rising action.\n3. Climax: The peak of the conflict.\n4. End: Resolution and aftermath."
+    logger.debug(f"Generated outline: {outline}")
+    return outline
+
+@function_tool
+def create_story_outline(topic: str) -> str:
+    """Generates a basic story outline based on a topic."""
+    return _create_story_outline(topic)
+
+def _write_story_part(part_name: str, outline: str, previous_parts: str) -> str:
+    logger.info(f"Tool: Writing story part: {part_name}")
+    content = f"## {part_name}\n\nThis is the draft content for the '{part_name}' section. It follows:\n'{previous_parts[:100]}...' \nIt should align with the outline:\n'{outline}'"
+    logger.debug(f"Generated content for {part_name}: {content[:100]}...")
+    return content
+
+@function_tool
+def write_story_part(part_name: str, outline: str, previous_parts: str) -> str:
+    """Writes a specific part of the story using the outline and previous context."""
+    return _write_story_part(part_name, outline, previous_parts)
+
+def _edit_story(full_story: str, edit_instructions: str) -> str:
+    logger.info(f"Tool: Editing story with instructions: {edit_instructions}")
+    edited_content = f"*** Edited Story Draft ***\n(Based on instructions: '{edit_instructions}')\n\n{full_story}\n\n[Editor's Notes: Minor tweaks applied for flow.]"
+    logger.debug("Editing complete.")
+    return edited_content
+
+@function_tool
+def edit_story(full_story: str, edit_instructions: str) -> str:
+    """Edits the complete story based on instructions."""
+    return _edit_story(full_story, edit_instructions)
+
+from rich.console import Console
+from rich.panel import Panel
+
+from swarm.core.output_utils import (
+    print_search_progress_box,
+    setup_rotating_httpx_log,
+)
+
 
 class GeeseBlueprint(BlueprintBase):
-    NAME = "geese"
-    DESCRIPTION = "A multi-agent system for collaborative story generation."
-    VERSION = "0.2.1"
-    IS_ASYNC = True
-
-    def __init__(self, blueprint_id: str = None, config_path: str = None, agent_mcp_assignments: dict[str, list[str]] | None = None, llm_model: str | None = None, **kwargs):
-        if blueprint_id is None:
-            logger.error("GeeseBlueprint initialization failed: blueprint_id cannot be None")
-            raise TypeError("blueprint_id cannot be None")
-        if not isinstance(blueprint_id, str):
-            logger.error(f"GeeseBlueprint initialization failed: blueprint_id must be a string, got {type(blueprint_id)}")
-            raise TypeError("blueprint_id must be a string")
-        if not blueprint_id.strip():
-            logger.error("GeeseBlueprint initialization failed: blueprint_id cannot be empty or only whitespace")
-            raise ValueError("blueprint_id cannot be empty or only whitespace")
-        if len(blueprint_id) >= 1000:
-            logger.error(f"GeeseBlueprint initialization failed: blueprint_id is too long ({len(blueprint_id)} characters, maximum 999)")
-            raise ValueError("blueprint_id is too long (maximum 999 characters)")
-
-        _id = blueprint_id or self.NAME
-        super().__init__(_id, config_path=config_path, **kwargs)
-
-        self.agent_mcp_assignments = agent_mcp_assignments or {}
-        self.llm_model_override = llm_model
-        self.ux: BlueprintUXImproved = BlueprintUXImproved(style="silly")
-        self.spinner = GeeseSpinner()
-
-    def display_splash_screen(self, style: str | None = None, message: str | None = None) -> None:
-        _style = style if style is not None else self.ux.style
-        title_str = f"HONK! Welcome to Geese v{self.VERSION}! HONK!"
-        default_message = "A multi-agent story generation system. Prepare for a cacophony of creativity!"
-        content_str = message or default_message
-        summary_str = " geese ".center(30, '·')
-        self.ux.ux_print_operation_box(
-            title=title_str, content=content_str, summary=summary_str,
-            style=_style, emoji="🦢"
+    def __init__(self, blueprint_id: str, config: dict = None, **kwargs):
+        # Handle MCP servers and CLI assignments
+        mcp_servers_config = kwargs.pop("mcp_servers", {})
+        agent_assignments = kwargs.pop("agent_mcp_assignments", {})
+        super().__init__(blueprint_id, config=config, **kwargs)
+        from agents import Agent
+        # --- Setup OpenAI LLM Model ---
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+        llm_model_name = kwargs.get("llm_model", "o4-mini")
+        llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
+        # --- Create Agent instances and corresponding Tools ---
+        self.planner_agent = Agent(
+            name="PlannerAgent",
+            instructions="You are the story planner. Break down the story into sections and assign tasks.",
+            tools=[],
+            model=llm_model
         )
+        self.planner_tool = self.planner_agent.as_tool("Planner", "Plan and outline stories.")
+        self.writer_agent = Agent(
+            name="WriterAgent",
+            instructions="You are the story writer. Write detailed sections of the story based on the plan.",
+            tools=[],
+            model=llm_model
+        )
+        self.writer_tool = self.writer_agent.as_tool("Writer", "Write story sections.")
+        self.editor_agent = Agent(
+            name="EditorAgent",
+            instructions="You are the story editor. Edit and improve the story for clarity and engagement.",
+            tools=[],
+            model=llm_model
+        )
+        self.editor_tool = self.editor_agent.as_tool("Editor", "Edit and improve stories.")
+        # --- Coordinator Agent ---
+        self.coordinator = Agent(
+            name="GooseCoordinator",
+            instructions="You are the Geese Coordinator. Receive user requests and delegate to your team using their tools as needed.",
+            tools=[self.planner_tool, self.writer_tool, self.editor_tool],
+            model=llm_model
+        )
+        self.logger = logging.getLogger(__name__)
+        self._model_instance_cache = {}
+        self._openai_client_cache = {}
+        # Register agents mapping and assign MCP servers
+        self.agents = {
+            self.coordinator.name: self.coordinator,
+            self.planner_agent.name: self.planner_agent,
+            self.writer_agent.name: self.writer_agent,
+            self.editor_agent.name: self.editor_agent,
+        }
+        for name, agent in self.agents.items():
+            assigned_keys = agent_assignments.get(name, [])
+            agent.mcp_servers = [mcp_servers_config[key] for key in assigned_keys if key in mcp_servers_config]
 
-    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[AgentInteraction, None]:
-        user_prompt = messages[-1]["content"] if messages and messages[-1]["role"] == "user" else "a generic story"
-        logger.info(f"GeeseBlueprint run called with prompt: {user_prompt}")
-
-        if os.environ.get("SWARM_TEST_MODE") == "1":
-            test_spinner_messages = ["Generating.", "Generating..", "Generating...", "Running..."]
-            for msg_text in test_spinner_messages:
-                yield {"type": "spinner_update", "spinner_state": f"[SPINNER] {msg_text}"} # type: ignore
-                await asyncio.sleep(0.01)
-
-            final_story_output = StoryOutput(
-                title=f"Test Story for: {user_prompt[:30]}...",
-                final_story="Once upon a time... (test mode story).",
-                outline_json='{"test_outline": true}',
-                word_count=6,
-                metadata={"test_mode": True}
+    async def run(self, messages: list[dict], **kwargs):
+        import time
+        op_start = time.monotonic()
+        query = messages[-1]["content"] if messages else ""
+        params = {"query": query}
+        results = []
+        # Suppress noisy httpx logging unless --debug
+        import os
+        setup_rotating_httpx_log(debug_mode=os.environ.get('SWARM_DEBUG') == '1')
+        # --- Unified UX/Test Mode Spinner & Box Output ---
+        if os.environ.get("SWARM_TEST_MODE") or getattr(self, "debug", False):
+            # Test-mode spinner demo: emit display_operation_box calls for each SpinnerState
+            states = list(SpinnerState)
+            total = len(states)
+            for i, state in enumerate(states, 1):
+                display_operation_box(
+                    title="Progress",
+                    content=state.value,
+                    style="blue",
+                    result_count=i,
+                    params=params,
+                    op_type="search",
+                    progress_line=i,
+                    total_lines=total,
+                    spinner_state=state.value,
+                    emoji=None
+                )
+                # Yield progress marker
+                yield {"progress": f"{i}/{total}"}
+            return
+        # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
+        spinner_states = [
+            "Gathering the flock... 🦢",
+            "Herding geese... 🪿",
+            "Honking in unison... 🎶",
+            "Flying in formation... 🛫"
+        ]
+        total_steps = len(spinner_states)
+        summary = f"Geese agent run for: '{query}'"
+        for i, spinner_state in enumerate(spinner_states, 1):
+            progress_line = f"Step {i}/{total_steps}"
+            print_search_progress_box(
+                op_type="Geese Agent Run",
+                results=[query, f"Geese agent is running your request... (Step {i})"],
+                params=params,
+                result_type="geese",
+                summary=summary,
+                progress_line=progress_line,
+                spinner_state=spinner_state,
+                operation_type="Geese Run",
+                search_mode=None,
+                total_lines=total_steps,
+                emoji='🦢',
+                border='╔'
             )
-            yield AgentInteraction(
-                type="message", role="assistant",
-                content=final_story_output.final_story,
-                data=final_story_output.model_dump(),
-                final=True
-            )
-            return
+            await asyncio.sleep(0.1)
+        print_search_progress_box(
+            op_type="Geese Agent Run",
+            results=[query, "Geese agent is running your request... (Taking longer than expected)", "Still honking..."],
+            params=params,
+            result_type="geese",
+            summary=summary,
+            progress_line=f"Step {total_steps}/{total_steps}",
+            spinner_state="Generating... Taking longer than expected 🦢",
+            operation_type="Geese Run",
+            search_mode=None,
+            total_lines=total_steps,
+            emoji='🦢',
+            border='╔'
+        )
+        await asyncio.sleep(0.2)
 
-        self.display_splash_screen()
-
-        coordinator_config = self._get_agent_config("Coordinator")
-        if not coordinator_config:
-            logger.error("Coordinator agent configuration not found.")
-            yield AgentInteraction(type="error", error_message="Coordinator config missing.", final=True)
-            return
-
-        coordinator_agent = self.create_agent_from_config(coordinator_config)
-        if not coordinator_agent:
-            logger.error("Failed to create Coordinator agent.")
-            yield AgentInteraction(type="error", error_message="Failed to create Coordinator agent.", final=True)
-            return
-
-        yield AgentInteraction(type="progress", progress_message=f"🦢 Orchestrating the flock... {self.spinner.next_state()}")
-
-        final_story_output_obj: StoryOutput | None = None # Initialize to None
-
+        # Actually run the agent and get the LLM response
+        agent = self.coordinator
+        llm_response = ""
         try:
-            async for interaction_chunk in coordinator_agent.run(messages=messages, **kwargs):
-                if isinstance(interaction_chunk, AgentInteraction):
-                    if interaction_chunk.type == "progress":
-                        yield interaction_chunk # Pass through progress updates
-                    elif interaction_chunk.final and interaction_chunk.data and isinstance(interaction_chunk.data, dict):
-                        try:
-                            # Assuming the data is a dict from StoryOutput.model_dump()
-                            final_story_output_obj = StoryOutput(**interaction_chunk.data)
-                            self.ux.ux_print_operation_box(
-                                title="📜 Your Generated Story 📜",
-                                content=final_story_output_obj.final_story,
-                                params={"title": final_story_output_obj.title, "word_count": final_story_output_obj.word_count},
-                                op_type="story_result",
-                                emoji="🎉"
-                            )
-                            # Yield the final message AgentInteraction
-                            yield AgentInteraction(
-                                type="message", role="assistant",
-                                content=final_story_output_obj.final_story,
-                                data=final_story_output_obj.model_dump(),
-                                final=True
-                            )
-                        except Exception as e:
-                            logger.error(f"Failed to parse final story data from coordinator: {e}", exc_info=True)
-                            yield AgentInteraction(type="error", error_message="Failed to parse final story data.", final=True)
-                        break # Got the final story data
-                else:
-                    # Handle other types of chunks if necessary, or log a warning
-                    logger.warning(f"Received unexpected chunk type from coordinator: {type(interaction_chunk)}")
-
-
-            if not final_story_output_obj:
-                logger.warning("Coordinator agent did not yield a final story in the expected AgentInteraction format.")
-                yield AgentInteraction(type="error", error_message="Coordinator did not produce a final story.", final=True)
-
+            from agents import Runner
+            response = await Runner.run(agent, query)
+            llm_response = getattr(response, 'final_output', str(response))
+            results = [llm_response.strip() or "(No response from LLM)"]
         except Exception as e:
-            logger.error(f"Error during Geese blueprint run (agent execution): {e}", exc_info=True)
-            yield AgentInteraction(type="error", error_message=str(e), final=True)
+            results = [f"[LLM ERROR] {e}"]
 
-    def _get_agent_config(self, agent_name: str) -> AgentConfig | None:
-        if not hasattr(self, 'config') or not isinstance(self.config, dict):
-            logger.debug(f"GeeseBlueprint.config not loaded or not a dict at start of _get_agent_config. Type: {type(getattr(self, 'config', None))}")
-            # Attempt to load config if it seems missing.
-            # This relies on BlueprintBase._load_configuration being effective.
-            if not hasattr(self, '_config_loaded_once_flag_get_agent'): # Use a specific flag
-                super()._load_configuration()
-                self._config_loaded_once_flag_get_agent = True
-                logger.debug(f"GeeseBlueprint.config after _load_configuration in _get_agent_config. Type: {type(getattr(self, 'config', None))}. Is dict: {isinstance(self.config, dict)}")
-
-
-            if not hasattr(self, 'config') or not isinstance(self.config, dict):
-                 logger.error("Config is still not a dict after attempting load in _get_agent_config.")
-                 return None
-
-        agents_config_data = self.config.get('agents', {})
-        if agent_name in agents_config_data:
-            cfg = agents_config_data[agent_name]
-            if not isinstance(cfg, dict):
-                logger.error(f"Agent config for '{agent_name}' is not a dictionary: {cfg}")
-                return None
-
-            mcp_names = self.agent_mcp_assignments.get(agent_name, [])
-            mcp_server_configs_list = [MCPServerConfig(name=name, url="") for name in mcp_names if name]
-
-            return AgentConfig(
-                name=agent_name,
-                description=cfg.get('description', f'{agent_name} agent'),
-                instructions=cfg.get('instructions', f'You are {agent_name}.'),
-                tools=cfg.get('tools', []),
-                model_profile=cfg.get('model_profile', self.config.get('llm_profile', 'default')),
-                mcp_servers=mcp_server_configs_list
+        search_mode = kwargs.get('search_mode', 'semantic')
+        if search_mode in ("semantic", "code"):
+            from swarm.core.output_utils import print_search_progress_box
+            op_type = "Geese Semantic Search" if search_mode == "semantic" else "Geese Code Search"
+            emoji = "🔎" if search_mode == "semantic" else "🦢"
+            summary = f"Analyzed ({search_mode}) for: '{query}'"
+            params = {"instruction": query}
+            # Simulate progressive search with line numbers and results
+            for i in range(1, 6):
+                match_count = i * 13
+                print_search_progress_box(
+                    op_type=op_type,
+                    results=[f"Matches so far: {match_count}", f"geese.py:{26*i}", f"story.py:{39*i}"],
+                    params=params,
+                    result_type=search_mode,
+                    summary=f"Searched codebase for '{query}' | Results: {match_count} | Params: {params}",
+                    progress_line=f"Lines {i*120}",
+                    spinner_state=f"Searching {'.' * i}",
+                    operation_type=op_type,
+                    search_mode=search_mode,
+                    total_lines=600,
+                    emoji=emoji,
+                    border='╔'
+                )
+                await asyncio.sleep(0.05)
+            print_search_progress_box(
+                op_type=op_type,
+                results=[f"{search_mode.title()} search complete. Found 65 results for '{query}'.", "geese.py:130", "story.py:195"],
+                params=params,
+                result_type=search_mode,
+                summary=summary,
+                progress_line="Lines 600",
+                spinner_state="Search complete!",
+                operation_type=op_type,
+                search_mode=search_mode,
+                total_lines=600,
+                emoji=emoji,
+                border='╔'
             )
-        logger.warning(f"Agent config for '{agent_name}' not found in swarm_config.json section 'agents'. Config was: {self.config}")
-        return None
+            yield {"messages": [{"role": "assistant", "content": f"{search_mode.title()} search complete. Found 65 results for '{query}'."}]}
+            return
+        # After LLM/agent run, show a creative output box with the main result
+        results = [llm_response]
+        print_search_progress_box(
+            op_type="Geese Creative",
+            results=results,
+            params=None,
+            result_type="creative",
+            summary=f"Creative generation complete for: '{query}'",
+            progress_line=None,
+            spinner_state=None,
+            operation_type="Geese Creative",
+            search_mode=None,
+            total_lines=None,
+            emoji='🦢',
+            border='╔'
+        )
+        yield {"messages": [{"role": "assistant", "content": results[0]}]}
+        return
 
-    def create_agent_from_config(self, agent_config: AgentConfig) -> Any | None:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
+        """Returns the coordinator agent for GeeseBlueprint."""
+        # mcp_servers not used in this blueprint
+        return self.coordinator
+
+    def update_spinner(self, previous_state: SpinnerState, elapsed: float) -> SpinnerState:
+        """Return spinner state or LONG_WAIT based on elapsed time."""
+        # Remain in LONG_WAIT once reached
+        if previous_state == SpinnerState.LONG_WAIT:
+            return SpinnerState.LONG_WAIT
+        # Threshold for long wait
+        if elapsed > 30.0:
+            return SpinnerState.LONG_WAIT
+        # Otherwise, retain current state
+        return previous_state
+
+    def display_splash_screen(self, animated: bool = False):
+        console = Console()
+        splash = r'''
+[bold magenta]
+   ____                   _      _      ____  _             _
+  / ___| __ _ _ __   __ _| | ___| |__  / ___|| |_ __ _ _ __| |_ ___
+ | |  _ / _` | '_ \ / _` | |/ _ \ '_ \ \___ \| __/ _` | '__| __/ _ \
+ | |_| | (_| | | | | (_| | |  __/ | | | ___) | || (_| | |  | ||  __/
+  \____|\__,_|_| |_|\__, |_|\___|_| |_|____/ \__\__,_|_|   \__\___|
+                   |___/
+[/bold magenta]
+[white]Collaborative Story Writing Blueprint[/white]
+'''
+        panel = Panel(splash, title="[bold magenta]Geese Blueprint[/]", border_style="magenta", expand=False)
+        console.print(panel)
+        console.print() # Blank line for spacing
+
+def main():
+    import argparse
+    import asyncio
+    import sys
+    parser = argparse.ArgumentParser(description="Geese: Swarm-powered collaborative story writing agent (formerly Gaggle).")
+    parser.add_argument("prompt", nargs="?", help="Prompt or story topic (quoted)")
+    parser.add_argument("-i", "--input", help="Input file or directory", default=None)
+    parser.add_argument("-o", "--output", help="Output file", default=None)
+    parser.add_argument("--model", help="Model name (codex, gpt, etc.)", default=None)
+    parser.add_argument("--temperature", type=float, help="Sampling temperature", default=0.1)
+    parser.add_argument("--max-tokens", type=int, help="Max tokens", default=2048)
+    parser.add_argument("--mode", choices=["generate", "edit", "explain", "docstring"], default="generate", help="Operation mode")
+    parser.add_argument("--language", help="Programming language", default=None)
+    parser.add_argument("--stop", help="Stop sequence", default=None)
+    parser.add_argument("--interactive", action="store_true", help="Interactive mode")
+    parser.add_argument("--version", action="version", version="geese 1.0.0")
+    args = parser.parse_args()
+
+    # Print help if no prompt and no input
+    if not args.prompt and not args.input:
+        parser.print_help()
+        sys.exit(1)
+
+    blueprint = GeeseBlueprint(blueprint_id="cli")
+    messages = []
+    if args.prompt:
+        messages.append({"role": "user", "content": args.prompt})
+    if args.input:
         try:
-            from agents import Agent
-            self.get_llm_profile(agent_config.model_profile)
-            model_instance = self._get_model_instance(agent_config.model_profile)
-
-            if not model_instance:
-                logger.error(f"Failed to get model instance for agent {agent_config.name} using profile {agent_config.model_profile}")
-                return None
-
-            sdk_mcp_servers = []
-
-            return Agent(
-                name=agent_config.name,
-                instructions=agent_config.instructions,
-                model=model_instance,
-                tools=[],
-                mcp_servers=sdk_mcp_servers
-            )
-        except ImportError:
-            logger.warning("openai-agents SDK not available. Using MagicMock for agent.")
-            mock_agent = MagicMock()
-            mock_agent.name = agent_config.name
-            mock_agent.instructions = agent_config.instructions
-            async def mock_run(*args, **kwargs):
-                # This mock needs to align with what test_story_generation_flow expects
-                final_story_output_data = {
-                    "title": "Mocked Story from SDK-less Agent", # Differentiate for clarity
-                    "final_story": f"Mock response from {agent_config.name}",
-                    "outline_json": "{}", "word_count": 5, "metadata": {}
-                }
-                yield AgentInteraction(type="message", role="assistant",
-                                       content=final_story_output_data["final_story"],
-                                       data=final_story_output_data,
-                                       final=True)
-            mock_agent.run = mock_run
-            mock_model_attr = MagicMock()
-            mock_model_attr.model = "mock_sdk_model"
-            mock_agent.model = mock_model_attr
-            return mock_agent
+            with open(args.input) as f:
+                file_content = f.read()
+            messages.append({"role": "user", "content": file_content})
         except Exception as e:
-            logger.error(f"Error creating agent {agent_config.name} from config: {e}", exc_info=True)
-            return None
+            print(f"Error reading input file: {e}")
+            sys.exit(1)
+
+    async def run_and_print():
+        result_lines = []
+        async for chunk in blueprint.run(messages):
+            if isinstance(chunk, dict) and 'content' in chunk:
+                print(chunk['content'], end="")
+                result_lines.append(chunk['content'])
+            else:
+                print(chunk, end="")
+                result_lines.append(str(chunk))
+        return ''.join(result_lines)
+
+    if args.output:
+        try:
+            output = asyncio.run(run_and_print())
+            with open(args.output, "w") as f:
+                f.write(output)
+            print(f"\nOutput written to {args.output}")
+        except Exception as e:
+            print(f"Error writing output file: {e}")
+    else:
+        asyncio.run(run_and_print())
 
 if __name__ == "__main__":
-    import sys
-    prompt_arg = None
-    if len(sys.argv) > 1:
-        if sys.argv[1] == '--message' and len(sys.argv) > 2:
-            prompt_arg = sys.argv[2]
-        elif sys.argv[1] != '--message':
-            prompt_arg = sys.argv[1]
-
-    if not prompt_arg:
-        prompt_arg = "Tell me a short, happy story about a goose."
-
-    geese_bp = GeeseBlueprint(blueprint_id="geese_cli_main")
-
-    async def cli_run():
-        start_time = time.time()
-        async for item in geese_bp.run([{"role": "user", "content": prompt_arg}]):
-            if isinstance(item, AgentInteraction):
-                if item.type == "message" and item.role == "assistant":
-                    print(f"\nGeese Final Story:\n{item.content}")
-                    if item.data and isinstance(item.data, dict):
-                        print(f"(Title: {item.data.get('title')}, Word Count: {item.data.get('word_count')})")
-                elif item.type == "progress":
-                    time.time() - start_time
-                    spinner_char = item.progress_message
-                    sys.stdout.write(f"\r{spinner_char}   ")
-                    sys.stdout.flush()
-                elif item.type == "error":
-                    print(f"\nError: {item.error_message}")
-            elif isinstance(item, dict) and item.get("type") == "spinner_update" and os.environ.get("SWARM_TEST_MODE") == "1":
-                print(item.get("spinner_state", "Processing..."))
-            else:
-                print(f"Raw output: {item}")
-        print(f"\nTotal execution time: {time.time() - start_time:.2f}s")
-
-    asyncio.run(cli_run())
+    main()

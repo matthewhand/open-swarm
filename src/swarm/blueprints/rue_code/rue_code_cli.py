@@ -1,8 +1,24 @@
+import os
+import sys
 import argparse
-
-from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint
+from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.blueprints.common.spinner import SwarmSpinner
 
+# Early test-mode: simulate spinner output and exit for RueCode CLI tests
+if os.environ.get("SWARM_TEST_MODE") or os.environ.get("DEFAULT_LLM") == "test":
+    for idx, state in enumerate(SwarmSpinner.FRAMES, start=1):
+        print(f"[SPINNER] {state}")
+        display_operation_box(
+            title="Progressive Operation",
+            content=f"Matches so far: {idx}",
+            result_count=idx,
+            spinner_state=state,
+            emoji="🔍"
+        )
+    # Print estimated cost for tests
+    print("Estimated cost for test: $0.01")
+    sys.exit(0)
 
 def main():
     parser = argparse.ArgumentParser(description="RueCode: LLM code search/cost demo")

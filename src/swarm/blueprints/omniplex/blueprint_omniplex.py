@@ -1,197 +1,297 @@
-import asyncio
 import logging
 import os
-import shlex
 import sys
-from collections.abc import AsyncGenerator
-from typing import Any, ClassVar
+import shlex
+from typing import Dict, Any, List, ClassVar, Optional
+import time
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+# Ensure src is in path for BlueprintBase import
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
-from swarm.core.blueprint_base import BlueprintBase
-
 try:
-    from agents import Agent, Runner, Tool
+    from agents import Agent, Tool, function_tool, Runner
     from agents.mcp import MCPServer
     from agents.models.interface import Model
+    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+    from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
     print(f"ERROR: Import failed in OmniplexBlueprint: {e}. Check dependencies.")
+    print(f"sys.path: {sys.path}")
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
 
-amazo_instructions = """Amazo: You are a specialist in executing JavaScript and Node.js related tasks using npx. You will receive tasks that require npx commands. Execute them and return the output."""
-rogue_instructions = """Rogue: You are a specialist in Python execution tasks, particularly using uvx (if available) or standard Python. Execute Python scripts or commands and return the output."""
-sylar_instructions = """Sylar: You are a general-purpose specialist. You handle tasks that don't fall under npx or Python/uvx, or when specific tools are assigned to you. Execute commands and return results."""
-coordinator_instructions = """Omniplex Coordinator: Your role is to analyze user requests and delegate them to the appropriate specialized agent: Amazo (for npx tasks), Rogue (for Python/uvx tasks), or Sylar (for other tasks). Provide clear instructions to the chosen agent. If unsure, ask for clarification. You have tools representing these agents."""
+# --- Agent Instructions ---
 
+amazo_instructions = """
+You are Amazo, master of 'npx'-based MCP tools.
+Receive task instructions from the Coordinator.
+Identify the BEST available 'npx' MCP tool from your assigned list to accomplish the task.
+Execute the chosen MCP tool with the necessary parameters provided by the Coordinator.
+Report the results clearly back to the Coordinator.
+"""
+
+rogue_instructions = """
+You are Rogue, master of 'uvx'-based MCP tools.
+Receive task instructions from the Coordinator.
+Identify the BEST available 'uvx' MCP tool from your assigned list.
+Execute the chosen MCP tool with parameters from the Coordinator.
+Report the results clearly back to the Coordinator.
+"""
+
+sylar_instructions = """
+You are Sylar, master of miscellaneous MCP tools (non-npx, non-uvx).
+Receive task instructions from the Coordinator.
+Identify the BEST available MCP tool from your assigned list.
+Execute the chosen MCP tool with parameters from the Coordinator.
+Report the results clearly back to the Coordinator.
+"""
+
+coordinator_instructions = """
+You are the Omniplex Coordinator. Your role is to understand the user request and delegate it to the agent best suited based on the required MCP tool's execution type (npx, uvx, or other).
+Team & Tool Categories:
+- Amazo (Agent Tool `Amazo`): Handles tasks requiring `npx`-based MCP servers (e.g., @modelcontextprotocol/*, mcp-shell, mcp-flowise). Pass the specific tool name and parameters needed.
+- Rogue (Agent Tool `Rogue`): Handles tasks requiring `uvx`-based MCP servers (if any configured). Pass the specific tool name and parameters needed.
+- Sylar (Agent Tool `Sylar`): Handles tasks requiring other/miscellaneous MCP servers (e.g., direct python scripts, other executables). Pass the specific tool name and parameters needed.
+Analyze the user's request, determine if an `npx`, `uvx`, or `other` tool is likely needed, and delegate using the corresponding agent tool (`Amazo`, `Rogue`, or `Sylar`). Provide the *full context* of the user request to the chosen agent. Synthesize the final response based on the specialist agent's report.
+"""
+
+# --- Define the Blueprint ---
 class OmniplexBlueprint(BlueprintBase):
-    metadata: ClassVar[dict[str, Any]] = {
+    """Dynamically routes tasks to agents based on the execution type (npx, uvx, other) of the required MCP server."""
+    metadata: ClassVar[Dict[str, Any]] = {
             "name": "OmniplexBlueprint",
             "title": "Omniplex MCP Orchestrator",
             "description": "Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers.",
-            "version": "1.1.2",
+            "version": "1.1.0", # Refactored version
             "author": "Open Swarm Team (Refactored)",
             "tags": ["orchestration", "mcp", "dynamic", "multi-agent"],
+            # List common servers - BlueprintBase will try to start them if defined in config.
+            # The blueprint logic will then assign the *started* ones.
+            "required_mcp_servers": [
+                "memory", "filesystem", "mcp-shell", "brave-search", "sqlite",
+                "mcp-flowise", "sequential-thinking", # Add other common ones if needed
+            ],
+            "env_vars": ["ALLOWED_PATH", "BRAVE_API_KEY", "SQLITE_DB_PATH", "FLOWISE_API_KEY"], # Informational
         }
 
-    _openai_client_cache: dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: dict[str, Model] = {}
+    # Caches
+    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: Dict[str, Model] = {}
 
-    def __init__(self, blueprint_id: str = "omniplex", config_path: str | None = None, **kwargs: Any):
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        # self.config is a property that accesses self._config.
-        # self._config is set by _load_configuration in BlueprintBase's __init__.
-        # If _load_configuration is mocked to do nothing, self._config might be None.
-        if self._config: # Check if _config was populated
-            self.mcp_server_configs = self._config.get('mcpServers', {})
-        else:
-            # This case primarily occurs during testing if _load_configuration is fully mocked
-            # and doesn't set self._config. The test fixture should handle setting self._config.
-            logger.warning(f"OmniplexBlueprint '{self.blueprint_id}': self._config is None after super().__init__(). mcp_server_configs will be empty. This is expected if _load_configuration is mocked in tests.")
-            self.mcp_server_configs = {}
+    def __init__(self, blueprint_id: str = "omniplex", config=None, config_path=None, **kwargs):
+        super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self.config_path = config_path
+        self._llm_profile_name = None
+        self._llm_profile_data = None
+        self._markdown_output = None
+        # Add other attributes as needed for Omniplex
+        # ...
+
+    def _get_model_instance(self, profile_name: str) -> Model:
+        """Retrieves or creates an LLM Model instance."""
+        # ... (Implementation is the same as in previous refactors) ...
+        if profile_name in self._model_instance_cache:
+            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
+            return self._model_instance_cache[profile_name]
+        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
+        profile_data = self.get_llm_profile(profile_name)
+        if not profile_data:
+             logger.critical(f"LLM profile '{profile_name}' (or 'default') not found.")
+             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
+        provider = profile_data.get("provider", "openai").lower()
+        model_name = profile_data.get("model")
+        if not model_name:
+             logger.critical(f"LLM profile '{profile_name}' missing 'model' key.")
+             raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
+        if provider != "openai":
+            logger.error(f"Unsupported LLM provider '{provider}'.")
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
+        if client_cache_key not in self._openai_client_cache:
+             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
+             filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+             log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
+             logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
+             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e: raise ValueError(f"Failed to init OpenAI client: {e}") from e
+        client = self._openai_client_cache[client_cache_key]
+        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
+        try:
+            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
+            self._model_instance_cache[profile_name] = model_instance
+            return model_instance
+        except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
 
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
+    # --- Agent Creation ---
+    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+        """Creates the Omniplex agent team based on available started MCP servers."""
         logger.debug("Dynamically creating agents for OmniplexBlueprint...")
+        self._model_instance_cache = {}
+        self._openai_client_cache = {}
 
-        if self.config is None: # Access via property, which will raise error if _config is still None
-            raise RuntimeError("Configuration could not be loaded in create_starting_agent for Omniplex.")
-
-        default_profile_name = self.llm_profile_name
+        default_profile_name = self.config.get("llm_profile", "default")
         logger.debug(f"Using LLM profile '{default_profile_name}' for Omniplex agents.")
-        # Resolve model and coerce to acceptable Agent.model type (string or Model)
         model_instance = self._get_model_instance(default_profile_name)
-        def _coerce_agent_model(candidate):
-            try:
-                from agents.models.interface import Model as _Model
-            except Exception:
-                _Model = None
-            if isinstance(candidate, str):
-                return candidate
-            if _Model is not None and isinstance(candidate, _Model):
-                return candidate
-            cand_model_name = getattr(candidate, "model", None)
-            if isinstance(cand_model_name, str):
-                return cand_model_name
-            try:
-                prof = self.get_llm_profile(default_profile_name)
-                if isinstance(prof, dict) and isinstance(prof.get("model"), str):
-                    return prof["model"]
-            except Exception:
-                pass
-            return "default"
-        model_param = _coerce_agent_model(model_instance)
 
-        npx_started_servers: list[MCPServer] = []
-        uvx_started_servers: list[MCPServer] = []
-        other_started_servers: list[MCPServer] = []
+        # Categorize the *started* MCP servers passed to this method
+        npx_started_servers: List[MCPServer] = []
+        uvx_started_servers: List[MCPServer] = [] # Assuming 'uvx' might be a command name
+        other_started_servers: List[MCPServer] = []
 
-        for server_instance in mcp_servers:
-            server_name = server_instance.name
-            server_config_from_blueprint = self.mcp_server_configs.get(server_name, {})
-            command_def = server_config_from_blueprint.get("command", "")
+        for server in mcp_servers:
+            server_config = self.mcp_server_configs.get(server.name, {})
+            command_def = server_config.get("command", "")
             command_name = ""
             if isinstance(command_def, list) and command_def:
                 command_name = os.path.basename(command_def[0]).lower()
-            elif isinstance(command_def, str) and command_def:
-                 command_name = os.path.basename(shlex.split(command_def)[0]).lower()
+            elif isinstance(command_def, str):
+                 # Simple case: command is just the executable name
+                 command_name = os.path.basename(shlex.split(command_def)[0]).lower() if command_def else ""
 
-            if "npx" in command_name: npx_started_servers.append(server_instance)
-            elif "uvx" in command_name: uvx_started_servers.append(server_instance)
-            else: other_started_servers.append(server_instance)
+
+            if "npx" in command_name:
+                npx_started_servers.append(server)
+            elif "uvx" in command_name: # Placeholder for uvx logic
+                uvx_started_servers.append(server)
+            else:
+                other_started_servers.append(server)
 
         logger.debug(f"Categorized MCPs - NPX: {[s.name for s in npx_started_servers]}, UVX: {[s.name for s in uvx_started_servers]}, Other: {[s.name for s in other_started_servers]}")
-        team_tools: list[Tool] = []
+
+        # Create agents for each category *only if* they have servers assigned
+        amazo_agent = rogue_agent = sylar_agent = None
+        team_tools: List[Tool] = []
 
         if npx_started_servers:
             logger.info(f"Creating Amazo for npx servers: {[s.name for s in npx_started_servers]}")
-            amazo_agent = Agent(name="Amazo", model=model_param, instructions=amazo_instructions, tools=[], mcp_servers=npx_started_servers)
-            team_tools.append(amazo_agent.as_tool(tool_name="Amazo", tool_description="Delegate npx tasks."))
-        else: logger.info("No started npx servers for Amazo.")
+            amazo_agent = Agent(
+                name="Amazo",
+                model=model_instance,
+                instructions=amazo_instructions,
+                tools=[], # Uses MCPs
+                mcp_servers=npx_started_servers
+            )
+            team_tools.append(amazo_agent.as_tool(
+                tool_name="Amazo",
+                tool_description=f"Delegate tasks requiring npx-based MCP servers (e.g., {', '.join(s.name for s in npx_started_servers)})."
+            ))
+        else:
+            logger.info("No started npx servers found for Amazo.")
 
         if uvx_started_servers:
             logger.info(f"Creating Rogue for uvx servers: {[s.name for s in uvx_started_servers]}")
-            rogue_agent = Agent(name="Rogue", model=model_param, instructions=rogue_instructions, tools=[], mcp_servers=uvx_started_servers)
-            team_tools.append(rogue_agent.as_tool(tool_name="Rogue", tool_description="Delegate uvx tasks."))
-        else: logger.info("No started uvx servers for Rogue.")
+            rogue_agent = Agent(
+                name="Rogue",
+                model=model_instance,
+                instructions=rogue_instructions,
+                tools=[], # Uses MCPs
+                mcp_servers=uvx_started_servers
+            )
+            team_tools.append(rogue_agent.as_tool(
+                tool_name="Rogue",
+                tool_description=f"Delegate tasks requiring uvx-based MCP servers (e.g., {', '.join(s.name for s in uvx_started_servers)})."
+            ))
+        else:
+            logger.info("No started uvx servers found for Rogue.")
 
         if other_started_servers:
             logger.info(f"Creating Sylar for other servers: {[s.name for s in other_started_servers]}")
-            sylar_agent = Agent(name="Sylar", model=model_param, instructions=sylar_instructions, tools=[], mcp_servers=other_started_servers)
-            team_tools.append(sylar_agent.as_tool(tool_name="Sylar", tool_description="Delegate other MCP tasks."))
-        else: logger.info("No other started servers for Sylar.")
+            sylar_agent = Agent(
+                name="Sylar",
+                model=model_instance,
+                instructions=sylar_instructions,
+                tools=[], # Uses MCPs
+                mcp_servers=other_started_servers
+            )
+            team_tools.append(sylar_agent.as_tool(
+                tool_name="Sylar",
+                tool_description=f"Delegate tasks requiring miscellaneous MCP servers (e.g., {', '.join(s.name for s in other_started_servers)})."
+            ))
+        else:
+            logger.info("No other started servers found for Sylar.")
 
-        coordinator_agent = Agent(name="OmniplexCoordinator", model=model_param, instructions=coordinator_instructions, tools=team_tools, mcp_servers=[])
+        # Create Coordinator and pass the tools for the agents that were created
+        coordinator_agent = Agent(
+            name="OmniplexCoordinator",
+            model=model_instance,
+            instructions=coordinator_instructions,
+            tools=team_tools,
+            mcp_servers=[] # Coordinator likely doesn't use MCPs directly
+        )
+
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
-    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+    async def run(self, messages: List[Dict[str, Any]], **kwargs):
+        """Main execution entry point for the Omniplex blueprint."""
         logger.info("OmniplexBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
-        mcp_servers_for_run = kwargs.get("mcp_servers_override", [])
-
+        from agents import Runner
+        ux = BlueprintUXImproved(style="serious")
+        spinner_idx = 0
+        start_time = time.time()
+        spinner_yield_interval = 1.0  # seconds
+        last_spinner_time = start_time
+        yielded_spinner = False
+        result_chunks = []
         try:
-            starting_agent = self.create_starting_agent(mcp_servers=mcp_servers_for_run)
-
-            if 'Runner' not in globals() or not callable(getattr(Runner, 'run', None)):
-                raise RuntimeError("agents.Runner is not available or not callable.")
-
-            result = Runner.run(starting_agent, instruction)
-            try:
-                # If result is an async generator, iterate and forward first meaningful message
-                first = True
-                async for chunk in result:
-                    if first and isinstance(chunk, dict) and "messages" in chunk:
+            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
+            while True:
+                now = time.time()
+                try:
+                    chunk = next(runner_gen)
+                    result_chunks.append(chunk)
+                    # If chunk is a final result, wrap and yield
+                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
+                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
+                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
+                        box = ux.ansi_emoji_box(
+                            title="Omniplex Result",
+                            content=content,
+                            summary=summary,
+                            params={"instruction": instruction[:40]},
+                            result_count=len(result_chunks),
+                            op_type="run",
+                            status="success"
+                        )
+                        yield {"messages": [{"role": "assistant", "content": box}]}
+                    else:
                         yield chunk
-                        first = False
-                if first:
-                    # Nothing yielded; produce a default message
-                    yield {"messages": [{"role": "assistant", "content": "Coordinator processed."}]}
-            except TypeError:
-                # If result is awaitable coroutine returning a value
-                value = await result
-                yield {"messages": [{"role": "assistant", "content": str(value)}]}
+                    yielded_spinner = False
+                except StopIteration:
+                    break
+                except Exception:
+                    if now - last_spinner_time >= spinner_yield_interval:
+                        taking_long = (now - start_time > 10)
+                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
+                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
+                        spinner_idx += 1
+                        last_spinner_time = now
+                        yielded_spinner = True
+            if not result_chunks and not yielded_spinner:
+                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
         except Exception as e:
             logger.error(f"Error during Omniplex run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
+# Standard Python entry point
 if __name__ == "__main__":
-    # ... (main example as before) ...
     import asyncio
     import json
-    from pathlib import Path
-    from unittest.mock import MagicMock
-
-    dummy_omniplex_config = {
-        "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.getenv("OPENAI_API_KEY")}},
-        "settings": {"default_llm_profile": "default"},
-        "mcpServers": {
-            "npx_tool_1": {"command": "npx some-npx-tool", "type": "npx"},
-            "other_tool_1": {"command": "python some_script.py", "type": "other"}
-        }
-    }
-    temp_omniplex_config_path = Path("./temp_omniplex_config.json")
-    with open(temp_omniplex_config_path, "w") as f:
-        json.dump(dummy_omniplex_config, f)
-
-    blueprint = OmniplexBlueprint(config_path=str(temp_omniplex_config_path))
-
-    mock_npx_server = MagicMock(spec=MCPServer); mock_npx_server.name = "npx_tool_1"
-    mock_other_server = MagicMock(spec=MCPServer); mock_other_server.name = "other_tool_1"
-    example_started_mcps = [mock_npx_server, mock_other_server]
-
-    messages = [{"role": "user", "content": "Use an npx tool to do something."}]
-
+    messages = [
+        {"role": "user", "content": "Show me everything."}
+    ]
+    blueprint = OmniplexBlueprint(blueprint_id="demo-1")
     async def run_and_print():
-        async for response in blueprint.run(messages, mcp_servers_override=example_started_mcps):
+        async for response in blueprint.run(messages):
             print(json.dumps(response, indent=2))
-
     asyncio.run(run_and_print())
-    if temp_omniplex_config_path.exists():
-        temp_omniplex_config_path.unlink()

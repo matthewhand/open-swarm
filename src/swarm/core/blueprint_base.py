@@ -571,6 +571,14 @@ class BlueprintBase(ABC):
         llm_section = self.config.get("llm", {})
         if "profiles" in llm_section:
             return llm_section["profiles"].get(profile_name, {})
+        # support root-level profiles fallback
+        global_profiles = self.config.get("profiles", {})
+        if isinstance(global_profiles, dict) and profile_name in global_profiles:
+            profile_data = global_profiles.get(profile_name, {}).copy()
+            # rename 'llm' key to 'model' for backward compatibility
+            if "llm" in profile_data:
+                profile_data["model"] = profile_data.pop("llm")
+            return profile_data
         return llm_section.get(profile_name, {})
 
     @property

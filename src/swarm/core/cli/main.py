@@ -17,6 +17,7 @@ USER_FRIENDLY_COMMANDS = {
     "validate-envvars": "validate_envvars",
     "blueprint-manage": "blueprint_management",
     "config-manage": "config_management",
+    "jeeves": "jeeves",
 }
 
 def parse_args(commands):

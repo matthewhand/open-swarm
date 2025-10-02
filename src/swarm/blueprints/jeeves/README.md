@@ -8,7 +8,8 @@
 - **Multi-agent delegation and orchestration** for web search and home automation
 - **LLM fallback and error handling** with user-friendly messages
 - **Unified ANSI/emoji boxes** for operation results, including summaries, counts, and parameters
-- **Custom spinner messages**: 'Generating.', 'Generating..', 'Generating...', 'Running...'
+- **Custom spinner messages**: 'Polishing the silver', 'Generating.', 'Generating..', 'Generating...', 'Running...'
+- **Long wait fallback message**: 'Generating... Taking longer than expected'
 - **Progress updates** for long-running operations (result counts, summaries)
 - **Test mode** for robust, deterministic testing
 
@@ -20,7 +21,7 @@ swarm-cli run jeeves --instruction "Turn off the living room lights and search f
 
 ## Test
 ```sh
-uv run pytest -v tests/blueprints/test_jeeves.py
+uv run pytest -v tests/blueprints/test_jeeves_spinner_and_box.py tests/integration/test_cli_jeeves.py
 ```
 
 ## Compliance
@@ -32,6 +33,9 @@ uv run pytest -v tests/blueprints/test_jeeves.py
 
 ## Required Env Vars
 - `SWARM_TEST_MODE` (optional): Enables test mode for deterministic output.
+
+## Test Mode CLI
+When `SWARM_TEST_MODE=1`, the CLI will output raw spinner states (prefixed `[SPINNER]`) and progressive operation boxes for each frame.
 
 ## Extending
 - See `blueprint_jeeves.py` for agent logic and UX hooks.

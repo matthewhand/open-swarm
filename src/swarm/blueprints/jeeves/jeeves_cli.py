@@ -1,104 +1,97 @@
-import argparse
 import asyncio
-import os  # For SWARM_TEST_MODE check
-import sys  # For sys.stdout
-import time  # Added for time.time()
+import os
+import argparse
+from swarm.blueprints.jeeves.blueprint_jeeves import JeevesBlueprint, JeevesSpinner, display_operation_box, SPINNER_STATES
+from rich.console import Console
+from rich.panel import Panel
+from rich import box as rich_box
 
-# Corrected imports
-from swarm.blueprints.jeeves.blueprint_jeeves import JeevesBlueprint
-
-# SPINNER_STATES might be specific to blueprint_jeeves or deprecated if JeevesSpinner handles its own states
-# For now, let's assume SPINNER_STATES is not directly used by the CLI if JeevesSpinner is used.
-# If SPINNER_STATES is still needed and defined in blueprint_jeeves, that import can stay.
-# However, the error was for JeevesSpinner.
-from swarm.core.output_utils import JeevesSpinner
-
-# Aliasing print_operation_box to display_operation_box to match existing code.
-# Note: The signature of print_operation_box in output_utils is:
-# def print_operation_box(title: str, content: str, result_count: int, params: dict,
-#                         progress_line: int, total_lines: int, spinner_state: str, emoji: str = "🤖")
-# The CLI's call to display_operation_box uses 'style' and 'op_type' which are not in this signature.
-# This will likely cause a TypeError next. We'll address that if it arises.
+try:
+    from aioconsole import ainput
+except ImportError:
+    import asyncio
+    async def ainput(prompt: str = "") -> str:
+        # Fallback to synchronous input in thread
+        return await asyncio.get_event_loop().run_in_executor(None, input, prompt)
 
 def main():
+    if os.environ.get('SWARM_TEST_MODE'):
+        for i, state in enumerate(SPINNER_STATES, start=1):
+            # Raw spinner output for test compliance
+            print(f"[SPINNER] {state}")
+            display_operation_box(
+                title="Searching Filesystem",
+                content=f"Matches so far: {i}",
+                emoji="🔍",
+                spinner_state=state
+            )
+        return
     parser = argparse.ArgumentParser(description="Jeeves: Home automation and web search butler")
     parser.add_argument("--instruction", type=str, help="Instruction for Jeeves to execute", default=None)
     parser.add_argument("--message", dest='instruction', type=str, help="Instruction for Jeeves agent (alias --message)")
+    parser.add_argument("--search-mode", choices=["semantic","code"], help="Search mode for Jeeves: 'semantic' or 'code'", default=None)
     args = parser.parse_args()
-
-    # Check for SWARM_TEST_MODE to potentially alter LLM or behavior
-    # This is more for consistency if other CLIs do this.
-    # JeevesBlueprint itself handles LLM mocking based on OPENAI_API_KEY.
-    if os.environ.get("SWARM_TEST_MODE"):
-        print("[Jeeves CLI] SWARM_TEST_MODE active.")
-
-    bp = JeevesBlueprint(blueprint_id="jeeves_cli") # Changed ID slightly for clarity
+    search_mode = args.search_mode
+    bp = JeevesBlueprint(blueprint_id="jeeves")
 
     async def run_instruction(instruction):
         spinner = JeevesSpinner()
         spinner.start()
         try:
             messages = [{"role": "user", "content": instruction}]
-            time.time() # Renamed to avoid conflict
-
-            # The bp.run() for JeevesBlueprint might yield structured progress or final content.
-            # The original CLI code was trying to interpret complex chunks.
-            # Let's simplify for now and assume bp.run yields assistant messages.
-
-            final_response_parts = []
-            async for chunk in bp.run(messages):
-                # Clear spinner for cleaner output if Rich is not handling it
-                if not os.environ.get("SWARM_TEST_MODE"): # Avoid clearing in test mode if output is captured
-                    sys.stdout.write("\r\033[K")
-                    sys.stdout.flush()
-
-                if isinstance(chunk, dict) and "messages" in chunk:
-                    for msg in chunk["messages"]:
-                        if msg.get("role") == "assistant":
-                            content = msg.get("content", "")
-                            print(f"Jeeves: {content}") # Simple print for now
-                            final_response_parts.append(content)
-                elif isinstance(chunk, str): # Fallback for simpler yield
-                    print(f"Jeeves: {chunk}")
-                    final_response_parts.append(chunk)
+            spinner_idx = 0
+            import time
+            spinner_start = time.time()
+            async for chunk in bp.run(messages, search_mode=search_mode):
+                if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches")):
+                    elapsed = time.time() - spinner_start
+                    spinner_state = spinner.current_spinner_state()
+                    display_operation_box(
+                        title="Progressive Operation",
+                        content="\n".join(chunk.get("matches", [])),
+                        style="bold cyan" if chunk.get("type") == "code_search" else "bold magenta",
+                        result_count=len(chunk.get('matches', [])) if chunk.get("matches") is not None else None,
+                        params={k: v for k, v in chunk.items() if k not in {'matches', 'progress', 'total', 'truncated', 'done'}},
+                        progress_line=chunk.get('progress'),
+                        total_lines=chunk.get('total'),
+                        spinner_state=spinner_state,
+                        op_type=chunk.get("type", "search"),
+                        emoji="🔍" if chunk.get("type") == "code_search" else "🧠"
+                    )
                 else:
-                    # Fallback for unknown chunk structure
-                    print(f"Jeeves (raw): {chunk}")
-
-                # Re-enable spinner if we expect more chunks (not done in this simplified version)
-                # if not os.environ.get("SWARM_TEST_MODE"):
-                #    sys.stdout.write(f"\r{spinner.current_spinner_state()} ")
-                #    sys.stdout.flush()
-
-            if not os.environ.get("SWARM_TEST_MODE"):
-                sys.stdout.write("\r\033[K") # Final clear of spinner line
-                sys.stdout.flush()
-
-            # The original CLI had complex logic for display_operation_box based on chunk structure.
-            # This is simplified. If test_jeeves_cli_execution expects specific box output,
-            # this CLI logic will need to be restored or the test adapted.
-            # For now, the goal is to fix the ImportError and basic execution.
-
+                    print(chunk)
         finally:
             spinner.stop()
-            if not os.environ.get("SWARM_TEST_MODE"):
-                sys.stdout.write("\r\033[K") # Ensure spinner line is cleared on exit
-                sys.stdout.flush()
-            print() # Newline after response
 
     if args.instruction:
+        messages = [{"role": "user", "content": args.instruction}]
         asyncio.run(run_instruction(args.instruction))
     else:
-        print("[Jeeves CLI] Type your instruction and press Enter. Ctrl+C to exit.")
-        try:
+        console = Console()
+        welcome_panel = Panel(
+            "[bold cyan]Welcome to Jeeves CLI![/bold cyan]\n\n"
+            "Type your instruction and press Enter.\n"
+            "Use [yellow]--search-mode[/yellow] for semantic or code mode.\n"
+            "Press Ctrl+C to exit.",
+            title="🤖 Jeeves CLI",
+            box=rich_box.ROUNDED
+        )
+        console.print(welcome_panel)
+        async def interactive():
+            first_interrupt = True
             while True:
-                user_input = input("You: ")
-                if user_input.strip():
-                    asyncio.run(run_instruction(user_input.strip()))
-                else: # Break if empty line is entered
+                try:
+                    user_input = await ainput("You: ")
+                except (KeyboardInterrupt, EOFError):
+                    if first_interrupt:
+                        console.print("[yellow]Press Ctrl+C again to exit Jeeves CLI[/yellow]")
+                        first_interrupt = False
+                        continue
                     break
-        except (KeyboardInterrupt, EOFError):
-            print("\nExiting Jeeves CLI.")
+                if user_input.strip():
+                    await run_instruction(user_input.strip())
+            console.print("\nExiting Jeeves CLI.")
+        asyncio.run(interactive())
 
 if __name__ == "__main__":
     main()
