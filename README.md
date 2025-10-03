@@ -65,12 +65,12 @@ Outputs:
 - Optionally a CLI shortcut at `<bin-dir>/<abbreviation>` that runs the blueprint.
 
 Tips:
-- If you’re new or don’t have config keys set yet, the launcher will hint: `swarm-cli wizard`.
+- If you're new or don't have config keys set yet, the launcher will hint: `swarm-cli wizard`.
 - For reproducible paths in CI/containers, set `SWARM_USER_DATA_DIR` to override default platformdirs locations or use `--output-dir/--bin-dir`.
 
 ## Using Blueprints as Tools
 
-Blueprints can now be invoked programmatically as tools within other blueprints. Use the `blueprint_tool` helper in your blueprint’s `tools` list:
+Blueprints can now be invoked programmatically as tools within other blueprints. Use the `blueprint_tool` helper in your blueprint's `tools` list:
 ```python
 from swarm.core.blueprint_utils import blueprint_tool
 
@@ -79,7 +79,7 @@ class MyBlueprint(BlueprintBase):
         suggestion_tool = blueprint_tool('suggestion')
         agent = Agent(
             name='MyAgent',
-            model=..., 
+            model=...,
             tools=[suggestion_tool],
             ...
         )
