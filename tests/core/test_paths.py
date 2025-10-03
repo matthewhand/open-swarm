@@ -10,8 +10,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from src.swarm.core.paths import (
     APP_AUTHOR,
     APP_NAME,

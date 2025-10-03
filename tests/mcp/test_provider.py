@@ -1,6 +1,6 @@
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
 
 def test_provider_lists_tools(monkeypatch):
@@ -34,7 +34,7 @@ def test_provider_call_tool(monkeypatch):
 
     # Create provider instance
     p = prov.BlueprintMCPProvider(blueprint_dir="ignored")
-    
+
     # Mock the blueprint class and instance
     mock_blueprint_cls = Mock()
     p._index["suggestion"]["class_type"] = mock_blueprint_cls

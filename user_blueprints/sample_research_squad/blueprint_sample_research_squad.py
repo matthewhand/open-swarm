@@ -36,7 +36,9 @@ def execute_shell_command(command: str) -> str:
     import subprocess
     try:
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=timeout
+        )
         output = "Exit Code: " + str(result.returncode) + "\n"
         if result.stdout:
             output += "STDOUT:\n" + result.stdout + "\n"
@@ -44,7 +46,10 @@ def execute_shell_command(command: str) -> str:
             output += "STDERR:\n" + result.stderr + "\n"
         return output.strip()
     except subprocess.TimeoutExpired:
-        return "Error: Command timed out after " + os.getenv('SWARM_COMMAND_TIMEOUT', '60') + " seconds."
+        return (
+            "Error: Command timed out after " +
+            os.getenv('SWARM_COMMAND_TIMEOUT', '60') + " seconds."
+        )
     except Exception as e:
         return "Error executing command: " + str(e)
 read_file_tool = _Tool(read_file, 'read_file')
@@ -63,7 +68,10 @@ class SampleResearchSquadBlueprint(BlueprintBase):
 
     async def _original_run(self, messages: list[dict[str, Any]], **kwargs: Any):
         # Simple coordinator: echo last user message prefixed by team name
-        last_user = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
+        last_user = next(
+            (m.get('content', '') for m in reversed(messages)
+             if m.get('role') == 'user'), ''
+        )
         echo = "[" + "Sample Research Squad" + "] " + last_user
         completion_id = "chatcmpl-" + str(uuid.uuid4())
         created_ts = int(time.time())
@@ -94,7 +102,9 @@ class SampleResearchSquadBlueprint(BlueprintBase):
         start_name = 'Coordinator'
         return self.make_agent(
             name=start_name,
-            instructions="You are the coordinator for the team " + "Sample Research Squad" + ".",
+            instructions=(
+                "You are the coordinator for the team " + "Sample Research Squad" + "."
+            ),
             tools=tools_map.get(start_name, []),
             mcp_servers=mcp_servers,
         )

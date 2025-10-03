@@ -1,15 +1,25 @@
-import os
-from dotenv import load_dotenv; load_dotenv(override=False)
-
+import argparse
+import asyncio
 import logging
+import os
+import sys
+from enum import Enum
+
+from dotenv import load_dotenv
+from rich.console import Console
+from rich.panel import Panel
+
+from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.core.output_utils import (
+    print_search_progress_box,
+    setup_rotating_httpx_log,
+)
+
+load_dotenv(override=False)
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s')
-import asyncio
-import sys
-# Add SpinnerState enum and display_operation_box import for tests
-from enum import Enum
-from swarm.blueprints.common.operation_box_utils import display_operation_box
 
+# Add SpinnerState enum and display_operation_box import for tests
 class SpinnerState(Enum):
     GENERATING_1 = "Generating."
     GENERATING_2 = "Generating.."
@@ -33,19 +43,18 @@ def force_info_logging():
 
 force_info_logging()
 
-import argparse
-
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
-    from openai import AsyncOpenAI
-
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in blueprint_geese: {e}. Check 'openai-agents' install and project structure.")
@@ -102,13 +111,6 @@ def edit_story(full_story: str, edit_instructions: str) -> str:
     """Edits the complete story based on instructions."""
     return _edit_story(full_story, edit_instructions)
 
-from rich.console import Console
-from rich.panel import Panel
-
-from swarm.core.output_utils import (
-    print_search_progress_box,
-    setup_rotating_httpx_log,
-)
 
 
 class GeeseBlueprint(BlueprintBase):
@@ -168,7 +170,7 @@ class GeeseBlueprint(BlueprintBase):
 
     async def run(self, messages: list[dict], **kwargs):
         import time
-        op_start = time.monotonic()
+        time.monotonic()
         query = messages[-1]["content"] if messages else ""
         params = {"query": query}
         results = []

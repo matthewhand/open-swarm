@@ -100,7 +100,7 @@ class ModelsListView(APIView):
     """
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         try:
             # *** Use async_to_sync to call the async function ***
             available_blueprints = async_to_sync(get_available_blueprints)()
@@ -143,7 +143,7 @@ class BlueprintsListView(APIView):
     """
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         try:
             available_blueprints = async_to_sync(get_available_blueprints)()
             data = []
@@ -203,7 +203,7 @@ class CustomBlueprintsView(APIView):
     """
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         lib = get_user_blueprint_library()
         items = lib.get("custom", [])
         if not items and _custom_blueprints_registry:
@@ -225,14 +225,12 @@ class CustomBlueprintsView(APIView):
                 tags = [str(t).lower() for t in item.get("tags", [])]
                 if tag not in tags:
                     return False
-            if category and category != str(item.get("category", "")).lower():
-                return False
-            return True
+            return not (category and category != str(item.get("category", "")).lower())
 
         filtered = [i for i in items if match(i)]
         return Response({"object": "list", "data": filtered}, status=status.HTTP_200_OK)
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_args, **_kwargs):
         try:
             body = request.data or {}
             bp_id = (body.get("id") or body.get("name") or "").strip()
@@ -292,13 +290,13 @@ class CustomBlueprintDetailView(APIView):
                 return lib, items, i
         return lib, items, None
 
-    def get(self, request, blueprint_id: str, *args, **kwargs):
+    def get(self, request, blueprint_id: str, *_args, **_kwargs):
         lib, items, item = self._load(blueprint_id)
         if not item:
             return Response({"error": "not found"}, status=status.HTTP_404_NOT_FOUND)
         return Response(item, status=status.HTTP_200_OK)
 
-    def delete(self, request, blueprint_id: str, *args, **kwargs):
+    def delete(self, request, blueprint_id: str, *_args, **_kwargs):
         lib, items, item = self._load(blueprint_id)
         if not item:
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -308,7 +306,7 @@ class CustomBlueprintDetailView(APIView):
             return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def patch(self, request, blueprint_id: str, *args, **kwargs):
+    def patch(self, request, blueprint_id: str, *_args, **_kwargs):
         try:
             lib, items, item = self._load(blueprint_id)
             if not item:
@@ -340,7 +338,7 @@ class MarketplaceBlueprintsView(APIView):
     """Headless API for marketplace blueprint pages (optional Wagtail)."""
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         items = get_marketplace_blueprints()
         # Simple filters: search by title or tag
         search = (request.query_params.get('search') or '').strip().lower()
@@ -366,7 +364,7 @@ class MarketplaceMCPConfigsView(APIView):
     """Headless API for marketplace MCP config pages (optional Wagtail)."""
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         items = get_marketplace_mcp_configs()
         # Simple filters: search by title or server_name
         search = (request.query_params.get('search') or '').strip().lower()
@@ -378,9 +376,7 @@ class MarketplaceMCPConfigsView(APIView):
                 or search in str(it.get('summary', '')).lower()
             ):
                 return False
-            if server and server not in str(it.get('server_name', '')).lower():
-                return False
-            return True
+            return not (server and server not in str(it.get('server_name', '')).lower())
 
         data = [it for it in items if match(it)]
         return Response({'object': 'list', 'data': data}, status=status.HTTP_200_OK)
@@ -389,7 +385,7 @@ class MarketplaceMCPConfigsView(APIView):
 class MarketplaceGitHubBlueprintsView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         if not ENABLE_GITHUB_MARKETPLACE:
             return Response({'object': 'list', 'data': []}, status=status.HTTP_200_OK)
         search = (request.query_params.get('search') or '').strip()
@@ -421,7 +417,7 @@ class MarketplaceGitHubBlueprintsView(APIView):
 class MarketplaceGitHubMCPConfigsView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         if not ENABLE_GITHUB_MARKETPLACE:
             return Response({'object': 'list', 'data': []}, status=status.HTTP_200_OK)
         search = (request.query_params.get('search') or '').strip()

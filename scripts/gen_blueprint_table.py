@@ -11,7 +11,9 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 README_PATH = os.path.join(REPO_ROOT, "README.md")
-BLUEPRINT_MODULES = glob.glob(os.path.join(REPO_ROOT, "src/swarm/blueprints/*/blueprint_*.py"))
+BLUEPRINT_MODULES = glob.glob(
+    os.path.join(REPO_ROOT, "src/swarm/blueprints/*/blueprint_*.py")
+)
 
 # Load blueprint metadata (copied from swarm_cli.py, but standalone)
 def get_blueprint_metadata():
@@ -56,12 +58,18 @@ def update_readme(table_md):
     start = readme.find("<!-- BLUEPRINT_TABLE_START -->")
     end = readme.find("<!-- BLUEPRINT_TABLE_END -->")
     if start == -1 or end == -1:
-        print("ERROR: Could not find blueprint table markers in README.md", file=sys.stderr)
+        print(
+            "ERROR: Could not find blueprint table markers in README.md",
+            file=sys.stderr
+        )
         sys.exit(1)
     new_readme = (
         readme[:start]
         + "<!-- BLUEPRINT_TABLE_START -->\n"
-        + "<!-- The following table is auto-generated. Do not edit manually. Run scripts/gen_blueprint_table.py to update. -->\n\n"
+        + (
+            "<!-- The following table is auto-generated. Do not edit manually. "
+            "Run scripts/gen_blueprint_table.py to update. -->\n\n"
+        )
         + table_md
         + "<!-- BLUEPRINT_TABLE_END -->"
         + readme[end+len("<!-- BLUEPRINT_TABLE_END -->"):]

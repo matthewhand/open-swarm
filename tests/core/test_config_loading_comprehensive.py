@@ -7,7 +7,6 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -21,10 +20,10 @@ class TestConfigurationLoadingComprehensive:
         """Test that config loading finds and loads configuration with all expected sections."""
         # When: loading configuration for a blueprint
         config = load_full_configuration("TestBlueprint")
-        
+
         # Then: we should have a valid configuration structure
         assert isinstance(config, dict), "Configuration should be a dictionary"
-        
+
         # And: it should contain essential configuration sections
         assert "llm" in config, "Configuration missing 'llm' section"
         assert "mcpServers" in config, "Configuration missing 'mcpServers' section"
@@ -37,15 +36,15 @@ class TestConfigurationLoadingComprehensive:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             config_file = temp_path / "nonexistent_config.json"
-            
+
             # When: loading configuration with nonexistent file (should not crash)
             try:
                 config = load_full_configuration(
-                    "TestBlueprint", 
+                    "TestBlueprint",
                     config_path_override=config_file,
                     profile_override="default"
                 )
-                
+
                 # Then: should return empty config or default config
                 assert isinstance(config, dict), "Should return dictionary even with missing files"
                 # Should have default structure
@@ -79,7 +78,7 @@ class TestConfigurationLoadingComprehensive:
                 config_path_override=config_path,
                 profile_override="test"
             )
-            
+
             # Then: profile settings should be applied
             assert isinstance(config, dict)
             assert "llm" in config
@@ -135,7 +134,7 @@ class TestConfigurationLoadingComprehensive:
                 "TestBlueprint",
                 config_path_override=config_path
             )
-            
+
             # Then: blueprint-specific settings should be merged
             assert isinstance(config, dict)
             # Blueprint-specific settings should be at the top level of config

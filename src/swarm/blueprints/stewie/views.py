@@ -1,11 +1,11 @@
 import os
 
-from rest_framework.permissions import AllowAny
-from rest_framework.viewsets import ModelViewSet
-from swarm.auth import EnvOrTokenAuthentication
-
 from blueprints.chc.models import AgentInstruction
 from blueprints.chc.serializers import AgentInstructionSerializer
+from rest_framework.permissions import AllowAny
+from rest_framework.viewsets import ModelViewSet
+
+from swarm.auth import EnvOrTokenAuthentication
 
 
 class AgentInstructionViewSet(ModelViewSet):

@@ -14,7 +14,7 @@ WriterAgent = Any
 EditorAgent = Any
 ResearcherAgent = Any
 
-from .geese_memory_objects import (  # These need to exist
+from .geese_memory_objects import (  # noqa: E402  These need to exist
     StoryContext,
     StoryOutline,
     StoryOutput,
@@ -61,7 +61,7 @@ class GooseCoordinator(Agent):
         self,
         messages: list[dict[str, Any]], # Standard messages for an agent run
         story_context: StoryContext | None = None, # Custom parameter for Geese
-        **kwargs: Any
+        **_kwargs: Any
     ) -> AsyncGenerator[Any, None]: # SDK Agent.run usually yields its own interaction objects
         """
         Main execution loop for the GooseCoordinator.

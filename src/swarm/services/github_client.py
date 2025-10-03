@@ -13,7 +13,7 @@ import base64
 import json as _json
 import time
 from collections.abc import Iterable
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import httpx
 from django.db import models
@@ -29,19 +29,19 @@ GITHUB_API = "https://api.github.com"
 
 # Very simple in-process cache (best-effort) to reduce GitHub calls in a
 # long-lived process. Keys are based on query parameters. TTL is short.
-_CACHE: Dict[Tuple[str, str, str, str], Tuple[float, List[Dict[str, Any]]]] = {}
+_CACHE: dict[tuple[str, str, str, str], tuple[float, list[dict[str, Any]]]] = {}
 _CACHE_TTL_SECONDS = 300.0
 
 
 def search_repos_by_topics(
-    topics: List[str],
-    orgs: List[str] | None = None,
+    topics: list[str],
+    orgs: list[str] | None = None,
     *,
     sort: str = 'stars',
     order: str = 'desc',
     query: str = '',
     token: str | None = None,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Search public GitHub repositories by topics/orgs with optional name query.
 
     Returns a subset of fields for each repo. This function is safe to mock in
@@ -80,7 +80,7 @@ def search_repos_by_topics(
                 return []
             data = resp.json() or {}
             items = data.get("items") or []
-            out: List[Dict[str, Any]] = []
+            out: list[dict[str, Any]] = []
             for it in items:
                 out.append({
                     "full_name": it.get("full_name"),
@@ -97,9 +97,9 @@ def search_repos_by_topics(
 
 
 def fetch_repo_manifests(
-    repo: Dict[str, Any],
+    repo: dict[str, Any],
     token: str | None = None,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Return list of manifest items found in a repository.
 
     Tries the top-level `open-swarm.json` first. Then lists conventional
@@ -108,7 +108,7 @@ def fetch_repo_manifests(
     headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     try:
         full = (repo.get("full_name") or "").split("/")
         if len(full) != 2:
@@ -166,7 +166,7 @@ def fetch_repo_manifests(
     return results
 
 
-def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_dir: str, item: Dict[str, Any]) -> None:
+def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_dir: str, item: dict[str, Any]) -> None:
     """Compute file and line counts; extract metadata from python file if possible.
 
     This function is best-effort; failures are silently ignored.
@@ -209,7 +209,7 @@ def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_d
         return
 
 
-def safe_extract_metadata_from_py(src: str) -> Dict[str, Any] | None:
+def safe_extract_metadata_from_py(src: str) -> dict[str, Any] | None:
     """Safely extract Blueprint.metadata dict from Python source using AST only.
 
     Looks for a class definition with a 'metadata' attribute assigned to a dict
@@ -236,7 +236,7 @@ def safe_extract_metadata_from_py(src: str) -> Dict[str, Any] | None:
                                             vals.append(v.value)
                                         else:
                                             vals.append(None)
-                                    md = {k: v for k, v in zip(keys, vals) if k}
+                                    md = {k: v for k, v in zip(keys, vals, strict=False) if k}
                                     # Only return if we got at least a name/description
                                     if md.get('name') or md.get('description'):
                                         return md
@@ -246,16 +246,16 @@ def safe_extract_metadata_from_py(src: str) -> Dict[str, Any] | None:
 
 
 def to_marketplace_items(
-    repo: Dict[str, Any],
-    items: Iterable[Dict[str, Any]],
+    repo: dict[str, Any],
+    items: Iterable[dict[str, Any]],
     *,
     kind: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Normalize repo + manifest items into a common marketplace item shape.
 
     kind: 'blueprint' or 'mcp'
     """
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for it in items:
         out.append(
             {
@@ -278,19 +278,19 @@ def to_marketplace_items(
     return out
 
 
-def create_blueprint_from_manifest(manifest_data: Dict[str, Any], source_repo: Optional[Dict[str, Any]] = None) -> Blueprint:
+def create_blueprint_from_manifest(manifest_data: dict[str, Any], source_repo: dict[str, Any] | None = None) -> Blueprint:
     """Create a Blueprint instance from manifest data."""
     name = manifest_data.get('name', '').replace(' ', '_').lower()
     if not name:
         name = f"blueprint_{int(time.time())}"
-    
+
     # Ensure unique name
     original_name = name
     counter = 1
     while Blueprint.objects.filter(name=name).exists():
         name = f"{original_name}_{counter}"
         counter += 1
-    
+
     return Blueprint.objects.create(
         name=name,
         title=manifest_data.get('name', name),
@@ -305,19 +305,19 @@ def create_blueprint_from_manifest(manifest_data: Dict[str, Any], source_repo: O
     )
 
 
-def create_mcp_config_from_manifest(manifest_data: Dict[str, Any], source_repo: Optional[Dict[str, Any]] = None) -> MCPConfig:
+def create_mcp_config_from_manifest(manifest_data: dict[str, Any], source_repo: dict[str, Any] | None = None) -> MCPConfig:
     """Create an MCPConfig instance from manifest data."""
     name = manifest_data.get('name', '').replace(' ', '_').lower()
     if not name:
         name = f"mcp_config_{int(time.time())}"
-    
+
     # Ensure unique name
     original_name = name
     counter = 1
     while MCPConfig.objects.filter(name=name).exists():
         name = f"{original_name}_{counter}"
         counter += 1
-    
+
     return MCPConfig.objects.create(
         name=name,
         title=manifest_data.get('name', name),
@@ -336,14 +336,14 @@ def sync_github_marketplace_items():
     # Get all configured topics and orgs
     topics = list(GITHUB_MARKETPLACE_TOPICS)
     orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
-    
+
     # Search for repositories
     repos = search_repos_by_topics(topics, orgs, token=GITHUB_TOKEN)
-    
+
     for repo in repos:
         # Fetch manifests from the repository
         manifests = fetch_repo_manifests(repo, token=GITHUB_TOKEN)
-        
+
         # Process blueprints
         blueprint_manifests = [m for m in manifests if m.get('type') == 'blueprint' or m.get('kind') == 'blueprint']
         for manifest in blueprint_manifests:
@@ -352,7 +352,7 @@ def sync_github_marketplace_items():
                 name = manifest.get('name', '').replace(' ', '_').lower()
                 if not name:
                     continue
-                    
+
                 # Update or create the blueprint
                 blueprint, created = Blueprint.objects.get_or_create(
                     name=name,
@@ -368,7 +368,7 @@ def sync_github_marketplace_items():
                         'category': manifest.get('category', 'ai_assistants'),
                     }
                 )
-                
+
                 if not created:
                     # Update existing blueprint
                     blueprint.title = manifest.get('name', name)
@@ -381,10 +381,10 @@ def sync_github_marketplace_items():
                     blueprint.required_mcp_servers = manifest.get('required_mcp_servers', [])
                     blueprint.category = manifest.get('category', 'ai_assistants')
                     blueprint.save()
-                    
+
             except Exception as e:
                 print(f"Error processing blueprint manifest: {e}")
-        
+
         # Process MCP configs
         mcp_manifests = [m for m in manifests if m.get('type') == 'mcp' or m.get('kind') == 'mcp']
         for manifest in mcp_manifests:
@@ -393,7 +393,7 @@ def sync_github_marketplace_items():
                 name = manifest.get('name', '').replace(' ', '_').lower()
                 if not name:
                     continue
-                    
+
                 # Update or create the MCP config
                 mcp_config, created = MCPConfig.objects.get_or_create(
                     name=name,
@@ -408,7 +408,7 @@ def sync_github_marketplace_items():
                         'server_name': manifest.get('server_name', ''),
                     }
                 )
-                
+
                 if not created:
                     # Update existing MCP config
                     mcp_config.title = manifest.get('name', name)
@@ -420,7 +420,7 @@ def sync_github_marketplace_items():
                     mcp_config.config_template = manifest.get('config_template', '')
                     mcp_config.server_name = manifest.get('server_name', '')
                     mcp_config.save()
-                    
+
             except Exception as e:
                 print(f"Error processing MCP config manifest: {e}")
 
@@ -431,7 +431,7 @@ def get_filtered_marketplace_items(
     tag: str = '',
     sort: str = 'created_at',
     order: str = 'desc',
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get filtered marketplace items based on various criteria."""
     if item_type == 'blueprint':
         queryset = Blueprint.objects.filter(is_active=True)
@@ -439,7 +439,7 @@ def get_filtered_marketplace_items(
         queryset = MCPConfig.objects.filter(is_active=True)
     else:
         return []
-    
+
     # Apply search filter
     if search:
         queryset = queryset.filter(
@@ -447,18 +447,18 @@ def get_filtered_marketplace_items(
             models.Q(description__icontains=search) |
             models.Q(name__icontains=search)
         )
-    
+
     # Apply tag filter
     if tag:
         queryset = queryset.filter(tags__icontains=tag)
-    
+
     # Apply ordering
     order_field = sort
     if order == 'desc':
         order_field = f"-{sort}"
-    
+
     queryset = queryset.order_by(order_field)
-    
+
     # Convert to dictionary format
     items = []
     for item in queryset:
@@ -475,13 +475,13 @@ def get_filtered_marketplace_items(
             'source': item.source,
             'manifest_data': item.manifest_data,
         }
-        
+
         if item_type == 'blueprint':
             item_dict['required_mcp_servers'] = item.required_mcp_servers
             item_dict['category'] = item.category
         elif item_type == 'mcp_config':
             item_dict['server_name'] = item.server_name
-            
+
         items.append(item_dict)
-    
+
     return items

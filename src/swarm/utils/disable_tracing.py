@@ -20,16 +20,16 @@ def disable_openai_agents_tracing():
         import agents.tracing.setup as tracing_setup
         # Patch GLOBAL_TRACE_PROVIDER to always return disabled traces
         class DisabledTrace:
-            def __init__(self, *a, **k): pass
+            def __init__(self, *_args, **_kwargs): pass
             def __enter__(self): return self
-            def __exit__(self, *a, **k): pass
+            def __exit__(self, *_args, **_kwargs): pass
             def start(self): return self
             def finish(self): return self
         class DummyProvider:
             def get_current_trace(self): return DisabledTrace()
-            def new_trace(self, *a, **k): return DisabledTrace()
+            def new_trace(self, *_args, **_kwargs): return DisabledTrace()
         tracing_setup.GLOBAL_TRACE_PROVIDER = DummyProvider()
-        tracing_create.trace = lambda *a, **k: DisabledTrace()
+        tracing_create.trace = lambda *_args, **_kwargs: DisabledTrace()
     except ImportError:
         pass
 

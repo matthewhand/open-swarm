@@ -1,8 +1,9 @@
 import argparse
-from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 import os
 import sys
+
 from swarm.blueprints.common.spinner import SwarmSpinner
+from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.output_utils import print_search_progress_box
 
 # Early test-mode: simulate spinner output and exit for Geese CLI tests
@@ -38,8 +39,13 @@ def main():
         # PATCH: Always use blueprint.run for progressive UX
         messages = [{"role": "user", "content": args.prompt}]
         import asyncio
-        from swarm.blueprints.geese.blueprint_geese import SPINNER_STATES, SLOW_SPINNER, display_operation_box
         import time
+
+        from swarm.blueprints.geese.blueprint_geese import (
+            SLOW_SPINNER,
+            SPINNER_STATES,
+            display_operation_box,
+        )
         async def run_and_print():
             spinner_idx = 0
             spinner_start = time.time()
@@ -50,7 +56,7 @@ def main():
                     if not spinner_state:
                         spinner_state = SLOW_SPINNER if elapsed > 10 else SPINNER_STATES[spinner_idx % len(SPINNER_STATES)]
                     spinner_idx += 1
-                    op_type = chunk.get("type", "search")
+                    chunk.get("type", "search")
                     result_count = len(chunk.get("matches", [])) if chunk.get("matches") is not None else None
                     box_content = f"Matches so far: {result_count}" if result_count is not None else str(chunk)
                     display_operation_box(
@@ -79,8 +85,12 @@ def main():
     async def run_and_print():
         spinner_idx = 0
         spinner_start = time.time()
-        from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint, SPINNER_STATES, SLOW_SPINNER, display_operation_box
-        import time
+
+        from swarm.blueprints.geese.blueprint_geese import (
+            SLOW_SPINNER,
+            SPINNER_STATES,
+            display_operation_box,
+        )
         async for chunk in blueprint.run(messages, model=args.model):
             # If chunk is a dict with progress info, show operation box
             if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches") or chunk.get("spinner_state")):
@@ -89,7 +99,7 @@ def main():
                 if not spinner_state:
                     spinner_state = SLOW_SPINNER if elapsed > 10 else SPINNER_STATES[spinner_idx % len(SPINNER_STATES)]
                 spinner_idx += 1
-                op_type = chunk.get("type", "search")
+                chunk.get("type", "search")
                 result_count = len(chunk.get("matches", [])) if chunk.get("matches") is not None else None
                 box_content = f"Matches so far: {result_count}" if result_count is not None else str(chunk)
                 display_operation_box(

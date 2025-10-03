@@ -66,7 +66,7 @@ except Exception:
 class HealthCheckView(APIView):
     """ Simple health check endpoint. """
     permission_classes = [AllowAny]
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *_args, **_kwargs):
         """ Returns simple 'ok' status. """
         return Response({"status": "ok"})
 
@@ -86,7 +86,8 @@ class ChatCompletionsView(APIView):
     async def _handle_non_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> Response:
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
-        final_response_data = None; start_time = time.time()
+        final_response_data = None
+        start_time = time.time()
         try:
             # The blueprint's run method should be an async generator.
             async_generator = blueprint_instance.run(messages, stream=False)
@@ -115,18 +116,25 @@ class ChatCompletionsView(APIView):
                  raise APIException("Blueprint returned invalid message structure.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_response_data[0], "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None }
-            end_time = time.time(); logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
+            end_time = time.time()
+            logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)
-        except APIException: raise
-        except Exception as e: logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True); raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+        except APIException:
+            raise
+        except Exception as e:
+            logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True)
+            raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
     async def _handle_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """
         logger.info(f"[ReqID: {request_id}] Processing streaming request for model '{model_name}'.")
         async def event_stream():
-            start_time = time.time(); chunk_index = 0
+            start_time = time.time()
+            chunk_index = 0
             try:
-                logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()..."); async_generator = blueprint_instance.run(messages, stream=True); logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
+                logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()...")
+                async_generator = blueprint_instance.run(messages, stream=True)
+                logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
                     delta = {"role": "assistant"}
@@ -147,10 +155,26 @@ class ChatCompletionsView(APIView):
                         logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}")
                         continue
                     response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
-                    logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}"); yield f"data: {json.dumps(response_chunk)}\n\n"; chunk_index += 1; await asyncio.sleep(0.01)
-                logger.debug(f"[ReqID: {request_id}] Finished iterating stream. Sending [DONE]."); yield "data: [DONE]\n\n"; end_time = time.time(); logger.info(f"[ReqID: {request_id}] Streaming request completed in {end_time - start_time:.2f}s.")
-            except APIException as e: logger.error(f"[ReqID: {request_id}] API error during streaming: {e}", exc_info=True); error_msg = f"API error: {e.detail}"; error_chunk = {"error": {"message": error_msg, "type": "api_error", "code": e.status_code}}; yield f"data: {json.dumps(error_chunk)}\n\n"; yield "data: [DONE]\n\n"
-            except Exception as e: logger.error(f"[ReqID: {request_id}] Unexpected error during streaming: {e}", exc_info=True); error_msg = f"Internal server error: {str(e)}"; error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}; yield f"data: {json.dumps(error_chunk)}\n\n"; yield "data: [DONE]\n\n"
+                    logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}")
+                    yield f"data: {json.dumps(response_chunk)}\n\n"
+                    chunk_index += 1
+                    await asyncio.sleep(0.01)
+                logger.debug(f"[ReqID: {request_id}] Finished iterating stream. Sending [DONE].")
+                yield "data: [DONE]\n\n"
+                end_time = time.time()
+                logger.info(f"[ReqID: {request_id}] Streaming request completed in {end_time - start_time:.2f}s.")
+            except APIException as e:
+                logger.error(f"[ReqID: {request_id}] API error during streaming: {e}", exc_info=True)
+                error_msg = f"API error: {e.detail}"
+                error_chunk = {"error": {"message": error_msg, "type": "api_error", "code": e.status_code}}
+                yield f"data: {json.dumps(error_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                logger.error(f"[ReqID: {request_id}] Unexpected error during streaming: {e}", exc_info=True)
+                error_msg = f"Internal server error: {str(e)}"
+                error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
+                yield f"data: {json.dumps(error_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
         return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
 
     # --- Restore Custom dispatch method (wrapping perform_authentication) ---
@@ -211,7 +235,7 @@ class ChatCompletionsView(APIView):
         return self.response
 
     # --- POST Handler (Keep sync_to_async wrappers here too) ---
-    async def post(self, request: Request, *args: Any, **kwargs: Any) -> HttpResponseBase:
+    async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
         """
         Handles POST requests for chat completions. Assumes dispatch has handled auth/perms.
         """
@@ -220,9 +244,14 @@ class ChatCompletionsView(APIView):
         print_logger.debug(f"[ReqID: {request_id}] User in post: {getattr(request, 'user', 'N/A')}, Auth: {getattr(request, 'auth', 'N/A')}")
 
         # --- Request Body Parsing & Validation ---
-        try: request_data = request.data
-        except ParseError as e: logger.error(f"[ReqID: {request_id}] Invalid request body format: {e.detail}"); raise e
-        except json.JSONDecodeError as e: logger.error(f"[ReqID: {request_id}] JSON Decode Error: {e}"); raise ParseError(f"Invalid JSON body: {e}")
+        try:
+            request_data = request.data
+        except ParseError as e:
+            logger.error(f"[ReqID: {request_id}] Invalid request body format: {e.detail}")
+            raise e
+        except json.JSONDecodeError as e:
+            logger.error(f"[ReqID: {request_id}] JSON Decode Error: {e}")
+            raise ParseError(f"Invalid JSON body: {e}") from e
 
         # --- Serialization and Validation ---
         serializer = self.serializer_class(data=request_data)
@@ -231,8 +260,12 @@ class ChatCompletionsView(APIView):
             # Wrap sync is_valid call as it *might* do DB lookups
             await sync_to_async(serializer.is_valid)(raise_exception=True)
             print_logger.debug(f"[ReqID: {request_id}] Request data validation successful.")
-        except ValidationError as e: print_logger.error(f"[ReqID: {request_id}] Request data validation FAILED: {e.detail}"); raise e
-        except Exception as e: print_logger.error(f"[ReqID: {request_id}] Unexpected error during serializer validation: {e}", exc_info=True); raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+        except ValidationError as e:
+            print_logger.error(f"[ReqID: {request_id}] Request data validation FAILED: {e.detail}")
+            raise e
+        except Exception as e:
+            print_logger.error(f"[ReqID: {request_id}] Unexpected error during serializer validation: {e}", exc_info=True)
+            raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
         validated_data = serializer.validated_data
         model_name = validated_data['model']

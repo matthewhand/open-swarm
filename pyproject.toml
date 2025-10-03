@@ -130,6 +130,8 @@ exclude = ["src/swarm/**/__pycache__", "src/swarm/**/*.pyc"]
 
 [tool.ruff]
 line-length = 88
+
+[tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "ARG"]
 ignore = ["E501"]
 

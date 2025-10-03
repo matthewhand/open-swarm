@@ -22,10 +22,10 @@ from .types import (
 def redact_sensitive_data(data: Any) -> Any:
     """
     Redact sensitive information from data for logging purposes.
-    
+
     Args:
         data: The data to redact
-        
+
     Returns:
         Redacted version of the data
     """

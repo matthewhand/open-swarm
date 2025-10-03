@@ -13,6 +13,7 @@ from typing import Any
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
+
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.ux.ansi_box import ansi_box
 
@@ -265,7 +266,7 @@ class EchoCraftBlueprint(BlueprintBase):
     list_files_tool = PatchedFunctionTool(list_files, 'list_files')
     execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
-    async def _original_run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+    async def _original_run(self, messages: list[dict[str, Any]], **_kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         """
         Echoes the content of the last message with role 'user'.
         Yields a final message in OpenAI ChatCompletion format.
@@ -337,7 +338,7 @@ class EchoCraftBlueprint(BlueprintBase):
             return False
         return not (isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower())
 
-    def consider_alternatives(self, messages, result):
+    def consider_alternatives(self, _messages, result):
         alternatives = []
         if not self.success_criteria(result):
             alternatives.append('Try echoing a different message.')

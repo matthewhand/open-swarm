@@ -30,6 +30,7 @@ async def test_nebula_shellz_code_review_tool():
     """Test the code review tool functionality directly."""
     import json
     from unittest.mock import MagicMock
+
     from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import code_review
 
     # Test the code_review tool using on_invoke_tool with JSON input
@@ -48,6 +49,7 @@ async def test_nebula_shellz_documentation_generation():
     """Test the documentation generation tool directly."""
     import json
     from unittest.mock import MagicMock
+
     from swarm.blueprints.nebula_shellz.blueprint_nebula_shellz import (
         generate_documentation,
     )

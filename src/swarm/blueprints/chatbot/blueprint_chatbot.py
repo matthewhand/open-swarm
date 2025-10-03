@@ -33,13 +33,13 @@ try:
             pass
         from agents import Agent
         # Define a dummy function_tool decorator for when the real one isn't available
-        def function_tool(*args, **kwargs):
+        def function_tool(*args, _kwargs):
             def decorator(func):
                 return func
             if args and callable(args[0]):
                 return decorator(args[0])
             return decorator
-    
+
     try:
         from agents.mcp import MCPServer as MCPServer2
     except ImportError:
@@ -47,8 +47,8 @@ try:
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
-    from swarm.core.output_utils import print_search_progress_box
 except ImportError as e:
     print(f"ERROR: Import failed in ChatbotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -265,6 +265,7 @@ Use them responsibly when the user asks for file or system operations.
                 # Handle errors in test mode the same way as in normal mode
                 border = '╔'
                 import time
+
                 from swarm.core.output_utils import get_spinner_state
                 spinner_state = get_spinner_state(time.monotonic())
                 print_search_progress_box(

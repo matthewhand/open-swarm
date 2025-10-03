@@ -3,11 +3,13 @@ Zeus Blueprint
 A general-purpose coordinator agent using other gods as tools.
 """
 
-from swarm.core.blueprint_base import BlueprintBase
 import os
 import time
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.blueprint_ux import BlueprintUXImproved
+
 
 class ZeusSpinner:
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
@@ -104,7 +106,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
             # in environments where the SDK is available, while still
             # avoiding crashes in lightweight CI runs.
 
-            if not hasattr(agent, "run") or not callable(getattr(agent, "run")):
+            if not hasattr(agent, "run") or not callable(agent.run):
                 try:
                     from agents import Runner  # late import – optional dep
 
@@ -206,7 +208,7 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
                     mcp_servers=mcp_servers or []
                 )
             )
-        pantheon_tools = [a.as_tool(tool_name=a.name, tool_description=desc) for a, (_, desc) in zip(pantheon_agents, pantheon_names)]
+        pantheon_tools = [a.as_tool(tool_name=a.name, tool_description=desc) for a, (_, desc) in zip(pantheon_agents, pantheon_names, strict=False)]
 
         zeus_instructions = """
 You are Zeus, Product Owner and Coordinator of the Divine Ops team.

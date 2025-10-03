@@ -4,11 +4,13 @@ import subprocess
 import sys
 
 BLUEPRINTS = [
-    'family_ties', 'omniplex', 'zeus', 'chatbot', 'monkai_magic', 'poets', 'jeeves', 'suggestion', 'codey', 'gaggle', 'geese', 'hello_world'
+    'family_ties', 'omniplex', 'zeus', 'chatbot', 'monkai_magic', 'poets',
+    'jeeves', 'suggestion', 'codey', 'gaggle', 'geese', 'hello_world'
 ]
 
 SPINNER_PHRASES = [
-    "Generating.", "Generating..", "Generating...", "Running...", "Generating... Taking longer than expected"
+    "Generating.", "Generating..", "Generating...", "Running...",
+    "Generating... Taking longer than expected"
 ]
 
 SUMMARY_PHRASES = ["Results:", "Processed"]
@@ -43,7 +45,10 @@ def check_blueprint(bp_name):
             status.append("SUMMARY=PASS")
         else:
             status.append("SUMMARY=WARNING")
-        return f"{' '.join(status)}\n--- Output ---\n{output.strip()[:400]}{'...' if len(output)>400 else ''}"
+        return (
+            f"{' '.join(status)}\n--- Output ---\n"
+            f"{output.strip()[:40]}{'...' if len(output)>400 else ''}"
+        )
     except Exception as e:
         return f"[ERROR] Could not check {bp_name}: {e}"
 

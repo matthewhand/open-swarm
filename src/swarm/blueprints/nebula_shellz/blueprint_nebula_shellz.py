@@ -11,6 +11,7 @@ try:
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from rich.panel import Panel  # Import Panel for splash screen
+
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
@@ -285,7 +286,8 @@ Initializing NebulaShellzzar Crew...
         # Remove redundant client instantiation; rely on framework-level default client
         # All blueprints now use the default client set at framework init
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') with default client.")
-        try: model_instance = OpenAIChatCompletionsModel(model=model_name)
+        try:
+            model_instance = OpenAIChatCompletionsModel(model=model_name)
         except Exception as e:
              logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
              raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e

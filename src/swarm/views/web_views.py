@@ -3,11 +3,9 @@ Web UI views for Open Swarm MCP Core.
 Handles rendering index, blueprint pages, login, and serving config.
 """
 import json
-import os
 from pathlib import Path
 
 from django.conf import settings
-from swarm.utils.env_utils import *
 from django.contrib.auth import authenticate, login
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -20,6 +18,7 @@ from swarm.core.paths import get_user_config_dir_for_swarm
 
 # Import the setting for the blueprints directory
 from swarm.settings import BLUEPRINT_DIRECTORY
+from swarm.utils.env_utils import *
 from swarm.utils.logger_setup import setup_logger
 
 from .utils import (
@@ -135,7 +134,7 @@ DEFAULT_CONFIG = {
 }
 
 @csrf_exempt # Usually not needed for GET, but doesn't hurt
-def serve_swarm_config(request):
+def serve_swarm_config(_request):
     """Serve the main swarm configuration file (swarm_config.json) as JSON."""
     # Construct path relative to Django settings.BASE_DIR
     config_path = Path(settings.BASE_DIR) / "swarm_config.json"
@@ -201,7 +200,9 @@ def team_admin(request):
             import_format = (request.POST.get("import_format") or "json").lower()
             import_data = request.POST.get("import_data") or ""
             overwrite = bool(request.POST.get("overwrite"))
-            err = None; added = 0; updated = 0
+            err = None
+            added = 0
+            updated = 0
             try:
                 if import_format == "json":
                     import json
@@ -312,10 +313,12 @@ def _profiles_ctx():
                     else:
                         profiles.extend(list(llm.keys()))
         # De-duplicate while preserving order
-        seen = set(); ordered = []
+        seen = set()
+        ordered = []
         for p in profiles:
             if p not in seen:
-                seen.add(p); ordered.append(p)
+                seen.add(p)
+                ordered.append(p)
         profiles = ordered
     except Exception:
         profiles = []

@@ -6,16 +6,15 @@ import json
 import logging
 import os
 import sys
-from typing import List, Dict, Any
-import re
+from typing import Any
 
 # Optional import for markdown rendering
 try:
-    from rich.markdown import Markdown
     from rich.console import Console
+    from rich.markdown import Markdown
     from rich.panel import Panel
-    from rich.text import Text
     from rich.rule import Rule
+    from rich.text import Text
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -74,7 +73,7 @@ def print_search_box(title: str, content: str, color: str = "94", emoji: str = "
 # Alias for backwards compatibility: use same function for progress display
 print_search_progress_box = print_search_box
 
-def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str = None) -> None:
+def pretty_print_response(messages: list[dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str = None) -> None:
     """Format and print messages, optionally rendering assistant content as markdown, and always prefixing agent responses with the agent's name."""
     # --- DEBUG PRINT ---
     print(f"\n[DEBUG pretty_print_response called with {len(messages)} messages, use_markdown={use_markdown}, agent_name={agent_name}]", flush=True)
@@ -116,8 +115,8 @@ def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = F
                     code_fence_pattern = r"```([\w\d]*)\n([\s\S]*?)```"
                     matches = re.findall(code_fence_pattern, msg_content)
                     if matches:
-                        from rich.syntax import Syntax
                         from rich.console import Console
+                        from rich.syntax import Syntax
                         console = Console()
                         for lang, code in matches:
                             syntax = Syntax(code, lang or "python", theme="monokai", line_numbers=False)
@@ -176,7 +175,7 @@ def print_terminal_command_result(cmd: str, result: dict, max_lines: int = 10):
 
     console = Console()
     cwd_base = os.path.basename(result['cwd'])
-    header = Text(f"🐚 Ran terminal command", style="bold yellow")
+    header = Text("🐚 Ran terminal command", style="bold yellow")
     subheader = Rule(f"[{cwd_base}] > {cmd}", style="bright_black")
     lines = result['output'].splitlines()
     truncated = False

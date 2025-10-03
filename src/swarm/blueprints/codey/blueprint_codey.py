@@ -14,22 +14,18 @@ import asyncio
 import logging
 import os
 import sys
-import threading
 import time
 from typing import TYPE_CHECKING
 
-from rich.console import Console
-from rich.style import Style
-from rich.text import Text
-
 from swarm.blueprints.common.audit import AuditLogger
-from swarm.blueprints.common.spinner import SwarmSpinner
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.output_utils import (
     get_spinner_state,
+    pretty_print_response,
     print_operation_box,
-    print_search_progress_box,
 )
+
+
 class CodeySpinner:
     SPINNER_STATES = ["Generating.", "Generating..", "Generating...", "Running..."]
     LONG_WAIT_MSG = "Generating... Taking longer than expected"
@@ -55,7 +51,8 @@ class CodeySpinner:
 
 if TYPE_CHECKING:
     from agents import Agent, MCPServer
-from swarm.core.output_utils import pretty_print_response
+
+    from swarm.core.output_utils import pretty_print_response
 
 # --- CLI Entry Point for codey script ---
 # Default instructions for Linus_Corvalds agent (fixes NameError)
@@ -77,7 +74,7 @@ sammy_instructions = (
 class DummyTool:
     def __init__(self, name):
         self.name = name
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *_args, **_kwargs):
         return f"[DummyTool: {self.name} called]"
     def __repr__(self):
         return f"<DummyTool {self.name}>"
@@ -111,6 +108,9 @@ def _cli_main():
     parser.add_argument("--version", action="store_true", help="Show version and exit")
     parser.add_argument("-h", "--help", action="store_true", help="Show usage and exit")
     parser.add_argument("--audit", action="store_true", help="Enable session audit trail logging (jsonl)")
+    def print_codey_help():
+        parser.print_help()
+
     args = parser.parse_args()
 
     if args.help:
@@ -143,8 +143,7 @@ def _cli_main():
             )
             sys.exit(1)
     if args.full_context:
-        project_files = []
-        for root, dirs, files in os.walk("."):
+        for root, _dirs, files in os.walk("."):
             for file in files:
                 if file.endswith(('.py', '.js', '.ts', '.tsx', '.md', '.txt')) and not file.startswith('.'):
                     try:
@@ -284,7 +283,7 @@ class CodeyBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str, config_path: str | None = None, audit_logger: AuditLogger = None, approval_policy: dict = None, **kwargs):
         super().__init__(blueprint_id, config_path, **kwargs)
         class DummyLLM:
-            def chat_completion_stream(self, messages, **_):
+            def chat_completion_stream(self, _messages, **_):
                 class DummyStream:
                     def __aiter__(self): return self
                     async def __anext__(self):
@@ -297,7 +296,7 @@ class CodeyBlueprint(BlueprintBase):
         self.audit_logger = audit_logger or AuditLogger(enabled=False)
         self.approval_policy = approval_policy or {}
 
-    def render_prompt(self, template_name: str, context: dict) -> str:
+    def render_prompt(self, _template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     def create_starting_agent(self, mcp_servers: "list[MCPServer]", no_tools: bool = False) -> "Agent":
@@ -330,7 +329,7 @@ class CodeyBlueprint(BlueprintBase):
             linus_corvalds.tools.append(sammy_script.as_tool(tool_name="SammyScript", tool_description="Delegate testing tasks to Sammy."))
         return linus_corvalds
 
-    async def _original_run(self, messages: list[dict], **kwargs):
+    async def _original_run(self, messages: list[dict], **_kwargs):
         self.audit_logger.log_event("completion", {"event": "start", "messages": messages})
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
@@ -359,7 +358,9 @@ class CodeyBlueprint(BlueprintBase):
         import os
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get('SWARM_TEST_MODE'):
-            from swarm.core.output_utils import print_search_progress_box, get_spinner_state
+            from swarm.core.output_utils import (
+                print_search_progress_box,
+            )
             spinner_lines = [
                 "Generating.",
                 "Generating..",
@@ -407,10 +408,11 @@ class CodeyBlueprint(BlueprintBase):
                         emoji='🤖',
                         border='╔'
                     )
-                    import asyncio; await asyncio.sleep(0.01)
+                    import asyncio
+                    await asyncio.sleep(0.01)
                 print_search_progress_box(
                     op_type="Code Search Results",
-                    results=[f"Found 10 matches.", "Code Search complete", "Processed", "🤖"],
+                    results=["Found 10 matches.", "Code Search complete", "Processed", "🤖"],
                     params=None,
                     result_type="code",
                     summary=f"Code Search complete for: '{instruction}'",
@@ -462,10 +464,11 @@ class CodeyBlueprint(BlueprintBase):
                         emoji='🤖',
                         border='╔'
                     )
-                    import asyncio; await asyncio.sleep(0.01)
+                    import asyncio
+                    await asyncio.sleep(0.01)
                 print_search_progress_box(
                     op_type="Semantic Search Results",
-                    results=[f"Found 10 matches.", "Semantic Search complete", "Processed", "🤖"],
+                    results=["Found 10 matches.", "Semantic Search complete", "Processed", "🤖"],
                     params=None,
                     result_type="semantic",
                     summary=f"Semantic Search complete for: '{instruction}'",
@@ -482,7 +485,7 @@ class CodeyBlueprint(BlueprintBase):
         if search_mode in ("semantic", "code"):
             op_type = "Semantic Search" if search_mode == "semantic" else "Codey Code Search"
             emoji = "🔎" if search_mode == "semantic" else "🤖"
-            summary = f"Semantic code search for: '{instruction}'" if search_mode == "semantic" else f"Code search for: '{instruction}'"
+            # summary = f"Semantic code search for: '{instruction}'" if search_mode == "semantic" else f"Code search for: '{instruction}'"
             params = {"instruction": instruction}
             pre_results = []
             if os.environ.get('SWARM_TEST_MODE'):
@@ -603,12 +606,11 @@ class CodeyBlueprint(BlueprintBase):
         return
 
     async def search(self, query, directory="."):
-        import os
-        import time
         import asyncio
+        import os
         from glob import glob
-        from swarm.core.output_utils import get_spinner_state, print_search_progress_box
-        op_start = time.monotonic()
+
+        # op_start = time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py"}
@@ -617,11 +619,12 @@ class CodeyBlueprint(BlueprintBase):
         # Unified spinner/progress/result output
         for i, spinner_state in enumerate(spinner_states + ["Generating... Taking longer than expected"], 1):
             progress_line = f"Spinner {i}/{len(spinner_states) + 1}"
+            from swarm.core.output_utils import print_search_progress_box
             print_search_progress_box(
                 op_type="Codey Search Spinner",
                 results=[
                     f"Codey agent response for: '{query}'",
-                    f"Search mode: code",
+                    "Search mode: code",
                     f"Parameters: {params}",
                     f"Matches so far: {len(matches)}",
                     f"Line: {i*50}/{total_files}" if total_files else None,
@@ -640,11 +643,12 @@ class CodeyBlueprint(BlueprintBase):
             )
             await asyncio.sleep(0.01)
         # Final result box
+        from swarm.core.output_utils import print_search_progress_box
         print_search_progress_box(
             op_type="Codey Search Results",
             results=[
                 f"Searched for: '{query}'",
-                f"Search mode: code",
+                "Search mode: code",
                 f"Parameters: {params}",
                 f"Found {len(matches)} matches.",
                 f"Processed {total_files} lines." if total_files else None,
@@ -663,7 +667,7 @@ class CodeyBlueprint(BlueprintBase):
         )
         return matches
 
-    async def _run_non_interactive(self, instruction: str, **kwargs):
+    async def _run_non_interactive(self, instruction: str, **_kwargs):
         logger = logging.getLogger(__name__)
         import time
 
@@ -806,11 +810,9 @@ class CodeyBlueprint(BlueprintBase):
         # Success if result contains non-empty messages and no error
         if not result or (isinstance(result, dict) and 'error' in result):
             return False
-        if isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower():
-            return False
-        return True
+        return not (isinstance(result, list) and result and 'error' in result[0].get('messages', [{}])[0].get('content', '').lower())
 
-    def consider_alternatives(self, messages, result):
+    def consider_alternatives(self, _messages, result):
         alternatives = []
         if not self.success_criteria(result):
             alternatives.append('Retry with alternate agent or tool.')
@@ -994,63 +996,5 @@ if __name__ == "__main__":
                 for response in result:
                     print(json.dumps(response, indent=2))
 
-class CodeySpinner:
-    SPINNER_STATES = ["Generating.", "Generating..", "Generating...", "Running..."]
-    LONG_WAIT_MSG = "Generating... Taking longer than expected"
-
-    def __init__(self):
-        self._idx = 0
-        self._start_time = None
-        self._last_frame = self.SPINNER_STATES[0]
-
-    def start(self):
-        self._idx = 0
-        self._last_frame = self.SPINNER_STATES[0]
-        self._start_time = time.time()
-
-    def _spin(self):
-        self._idx = (self._idx + 1) % len(self.SPINNER_STATES)
-        self._last_frame = self.SPINNER_STATES[self._idx]
-
-    def current_spinner_state(self):
-        if self._start_time and (time.time() - self._start_time) > 10:
-            return self.LONG_WAIT_MSG
-        return self._last_frame
-
-class SwarmSpinner:
-    def __init__(self, console: Console, message: str = "Working..."):
-        self.console = console
-        self.message = message
-        self._stop_event = threading.Event()
-        self._start_time = time.time()
-        self._thread = threading.Thread(target=self._spin)
-        self._thread.start()
-
-    # Codex-style spinner frames (standardized for Swarm blueprints)
-    FRAMES = [
-        "Generating.",
-        "Generating..",
-        "Generating...",
-        "Running..."
-    ]
-    SLOW_FRAME = "Generating... Taking longer than expected"
-    INTERVAL = 0.12
-    SLOW_THRESHOLD = 10  # seconds
-
-    def _spin(self):
-        idx = 0
-        while not self._stop_event.is_set():
-            elapsed = time.time() - self._start_time
-            if elapsed > self.SLOW_THRESHOLD:
-                txt = Text(self.SLOW_FRAME, style=Style(color="yellow", bold=True))
-            else:
-                frame = self.FRAMES[idx % len(self.FRAMES)]
-                txt = Text(frame, style=Style(color="cyan", bold=True))
-            self.console.print(txt, end="\r", soft_wrap=True, highlight=False)
-            time.sleep(self.INTERVAL)
-            idx += 1
-        self.console.print(" " * 40, end="\r")  # Clear line
-
-    def stop(self):
-        self._stop_event.set()
-        self._thread.join()
+# Removed duplicate class definitions (CodeySpinner and SwarmSpinner)
+# These are already defined earlier in the file and imported from swarm.blueprints.common.spinner

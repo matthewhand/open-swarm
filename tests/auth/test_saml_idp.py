@@ -35,7 +35,7 @@ def test_idp_urls_included_when_enabled(monkeypatch, client):
     importlib.reload(settings_mod)
     from django.conf import settings as dj_settings
     dj_settings.ENABLE_SAML_IDP = True
-    
+
     # Clear any cached URL patterns and reload
     from django.urls import clear_url_caches
     clear_url_caches()

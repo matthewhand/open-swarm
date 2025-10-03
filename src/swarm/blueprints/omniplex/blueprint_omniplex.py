@@ -1,21 +1,23 @@
 import logging
 import os
-import sys
 import shlex
-from typing import Dict, Any, List, ClassVar, Optional
+import sys
 import time
+from typing import Any, ClassVar
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
@@ -63,7 +65,7 @@ Analyze the user's request, determine if an `npx`, `uvx`, or `other` tool is lik
 # --- Define the Blueprint ---
 class OmniplexBlueprint(BlueprintBase):
     """Dynamically routes tasks to agents based on the execution type (npx, uvx, other) of the required MCP server."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
             "name": "OmniplexBlueprint",
             "title": "Omniplex MCP Orchestrator",
             "description": "Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers.",
@@ -80,8 +82,8 @@ class OmniplexBlueprint(BlueprintBase):
         }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, blueprint_id: str = "omniplex", config=None, config_path=None, **kwargs):
         super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
@@ -118,21 +120,24 @@ class OmniplexBlueprint(BlueprintBase):
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init OpenAI client: {e}") from e
+             try:
+                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e:
+                 raise ValueError(f"Failed to init OpenAI client: {e}") from e
         client = self._openai_client_cache[client_cache_key]
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM provider: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM provider: {e}") from e
 
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Omniplex agent team based on available started MCP servers."""
         logger.debug("Dynamically creating agents for OmniplexBlueprint...")
         self._model_instance_cache = {}
@@ -143,9 +148,9 @@ class OmniplexBlueprint(BlueprintBase):
         model_instance = self._get_model_instance(default_profile_name)
 
         # Categorize the *started* MCP servers passed to this method
-        npx_started_servers: List[MCPServer] = []
-        uvx_started_servers: List[MCPServer] = [] # Assuming 'uvx' might be a command name
-        other_started_servers: List[MCPServer] = []
+        npx_started_servers: list[MCPServer] = []
+        uvx_started_servers: list[MCPServer] = [] # Assuming 'uvx' might be a command name
+        other_started_servers: list[MCPServer] = []
 
         for server in mcp_servers:
             server_config = self.mcp_server_configs.get(server.name, {})
@@ -169,7 +174,7 @@ class OmniplexBlueprint(BlueprintBase):
 
         # Create agents for each category *only if* they have servers assigned
         amazo_agent = rogue_agent = sylar_agent = None
-        team_tools: List[Tool] = []
+        team_tools: list[Tool] = []
 
         if npx_started_servers:
             logger.info(f"Creating Amazo for npx servers: {[s.name for s in npx_started_servers]}")
@@ -231,7 +236,7 @@ class OmniplexBlueprint(BlueprintBase):
         logger.info(f"Omniplex Coordinator created with tools for: {[t.name for t in team_tools]}")
         return coordinator_agent
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs):
+    async def run(self, messages: list[dict[str, Any]], **kwargs):
         """Main execution entry point for the Omniplex blueprint."""
         logger.info("OmniplexBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""

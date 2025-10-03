@@ -4,11 +4,6 @@ These tests verify the core mechanisms that allow blueprints to execute properly
 """
 
 import asyncio
-import json
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -32,17 +27,17 @@ class TestBlueprintExecutionComprehensive:
                     yield {"messages": [{"role": "assistant", "content": "No input provided"}]}
 
         blueprint = TestBlueprint(blueprint_id="test_bp")
-        
+
         # When: executing with valid input
         messages = [{"role": "user", "content": "Hello, world!"}]
         results = []
-        
+
         async def collect_results():
             async for result in blueprint.run(messages):
                 results.append(result)
-        
+
         asyncio.run(collect_results())
-        
+
         # Then: should execute successfully and return expected output
         assert len(results) > 0, "Blueprint execution should return results"
         assert "messages" in results[0], "Result should contain messages"
@@ -63,17 +58,17 @@ class TestBlueprintExecutionComprehensive:
                     yield {"messages": [{"role": "assistant", "content": f"Echo: {content}"}]}
 
         blueprint = TestBlueprint(blueprint_id="test_bp")
-        
+
         # When: executing with empty message list
         messages = []
         results = []
-        
+
         async def collect_results():
             async for result in blueprint.run(messages):
                 results.append(result)
-        
+
         asyncio.run(collect_results())
-        
+
         # Then: should handle gracefully and return appropriate response
         assert len(results) > 0, "Blueprint execution should return results even with empty input"
         assert "messages" in results[0], "Result should contain messages"
@@ -90,24 +85,24 @@ class TestBlueprintExecutionComprehensive:
                     if not messages:
                         yield {"messages": [{"role": "assistant", "content": "No input provided"}]}
                         return
-                    
+
                     # Try to process the last message
                     last_message = messages[-1]
                     if not isinstance(last_message, dict):
                         yield {"messages": [{"role": "assistant", "content": "Invalid message format"}]}
                         return
-                    
+
                     content = last_message.get("content", "")
                     if not content:
                         yield {"messages": [{"role": "assistant", "content": "Empty message content"}]}
                         return
-                        
+
                     yield {"messages": [{"role": "assistant", "content": f"Processed: {content}"}]}
                 except Exception as e:
                     yield {"messages": [{"role": "assistant", "content": f"Error processing message: {str(e)}"}]}
 
         blueprint = TestBlueprint(blueprint_id="test_bp")
-        
+
         # Test various malformed message scenarios
         malformed_inputs = [
             None,  # None instead of list
@@ -117,10 +112,10 @@ class TestBlueprintExecutionComprehensive:
             [{"role": "user"}],  # Dict with role but no content
             [{"content": "missing role"}],  # Dict with content but no role
         ]
-        
+
         for malformed_input in malformed_inputs:
             results = []
-            
+
             async def collect_results():
                 try:
                     async for result in blueprint.run(malformed_input):
@@ -128,9 +123,9 @@ class TestBlueprintExecutionComprehensive:
                 except Exception as e:
                     # Even if run() raises an exception, it should be handled gracefully
                     results.append({"messages": [{"role": "assistant", "content": f"Execution error: {str(e)}"}]})
-            
+
             asyncio.run(collect_results())
-            
+
             # Then: should handle gracefully and return appropriate response
             assert len(results) > 0, f"Blueprint execution should return results even with malformed input: {malformed_input}"
             assert "messages" in results[0], f"Result should contain messages even with malformed input: {malformed_input}"
@@ -145,7 +140,7 @@ class TestBlueprintExecutionComprehensive:
                 if not messages:
                     yield {"messages": [{"role": "assistant", "content": "No input provided"}]}
                     return
-                
+
                 content = messages[-1].get("content", "")
                 # Stream the response in chunks
                 words = content.split()
@@ -153,17 +148,17 @@ class TestBlueprintExecutionComprehensive:
                     yield {"messages": [{"role": "assistant", "content": f"Word {i+1}: {word}\n"}]}
 
         blueprint = TestBlueprint(blueprint_id="test_bp")
-        
+
         # When: executing with input that should produce streaming responses
         messages = [{"role": "user", "content": "Hello world streaming test"}]
         results = []
-        
+
         async def collect_results():
             async for result in blueprint.run(messages):
                 results.append(result)
-        
+
         asyncio.run(collect_results())
-        
+
         # Then: should return multiple streamed responses
         assert len(results) > 1, "Streaming blueprint should return multiple results"
         for i, result in enumerate(results):

@@ -2,10 +2,10 @@
 Settings Manager for Open Swarm
 Handles collection and management of all configuration settings
 """
-import os
 from typing import Any
 
 from django.conf import settings
+
 from swarm.utils.env_utils import *
 
 try:

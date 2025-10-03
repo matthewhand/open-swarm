@@ -12,9 +12,9 @@ from dotenv import load_dotenv; load_dotenv(override=True)
 import logging
 import sqlite3
 import sys
-from pathlib import Path
-from typing import Dict, Any, List, ClassVar, Optional
 import time
+from pathlib import Path
+from typing import Any, ClassVar
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -22,12 +22,13 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
-    from swarm.core.blueprint_ux import BlueprintUXImproved
+
     from swarm.core.blueprint_base import BlueprintBase
+    from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:
     print(f"ERROR: Import failed in WhiskeyTangoFoxtrotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
@@ -113,7 +114,7 @@ Available MCP Tools: mcp-doc-forge.
 # --- Define the Blueprint ---
 class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
     """Tracks free online services with a hierarchical spy-inspired agent team using SQLite and web search."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "WhiskeyTangoFoxtrotBlueprint",
         "title": "WhiskeyTangoFoxtrot Service Tracker",
         "description": "Tracks free online services with SQLite and web search using a multi-tiered agent hierarchy.",
@@ -125,8 +126,8 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
 
     def __init__(self, blueprint_id: str = "whiskeytangofoxtrot", config=None, config_path=None, **kwargs):
         super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
@@ -211,7 +212,7 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
 
-    async def run(self, messages: List[dict], **kwargs):
+    async def run(self, messages: list[dict], **kwargs):
         """Main execution entry point for the WhiskeyTangoFoxtrot blueprint."""
         logger.info("WhiskeyTangoFoxtrotBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
@@ -265,7 +266,7 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         return
 
 
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the WTF agent hierarchy and returns Valory (Coordinator)."""
         # Ensure config is loaded (defensive fix for tests/patching)
         if self._config is None:
@@ -281,7 +282,7 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         model_instance = self._get_model_instance(default_profile_name)
 
         # Helper to filter started MCP servers
-        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+        def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             started_names = {s.name for s in mcp_servers}
             required_found = [name for name in names if name in started_names]
             if len(required_found) != len(names):
@@ -290,7 +291,7 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
             return [s for s in mcp_servers if s.name in required_found]
 
         # Instantiate all agents first
-        agents: Dict[str, Agent] = {}
+        agents: dict[str, Agent] = {}
 
         agents["Larry"] = Agent(name="Larry", model=model_instance, instructions=larry_instructions, tools=[], mcp_servers=get_agent_mcps(["filesystem"]))
         agents["Kriegs"] = Agent(name="Kriegs", model=model_instance, instructions=kriegs_instructions, tools=[], mcp_servers=get_agent_mcps(["sqlite"]))

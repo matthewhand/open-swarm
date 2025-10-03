@@ -22,7 +22,7 @@ def redact_sensitive_data(
     Handles standalone strings with sensitive patterns.
     """
     keys_to_redact = {k.lower() for k in (sensitive_keys or DEFAULT_SENSITIVE_KEYS)}
-    
+
     # Patterns to detect sensitive data in strings
     sensitive_patterns = [
         r'sk-[a-zA-Z0-9]+',  # OpenAI API keys
@@ -30,9 +30,9 @@ def redact_sensitive_data(
         r'Bearer\s+[a-zA-Z0-9\-_\.]+',  # Bearer tokens
         r'ssh-rsa\s+[a-zA-Z0-9+/]+={0,2}',  # SSH keys
     ]
-    
+
     import re
-    
+
     def smart_mask(val: str) -> str:
         if not isinstance(val, str):
             return val
@@ -43,17 +43,17 @@ def redact_sensitive_data(
         if len(val) >= 2 * reveal_chars + 1:
             return val[:reveal_chars] + mask + val[-reveal_chars:]
         return mask
-    
+
     def redact_string_patterns(text: str) -> str:
         """Redact sensitive patterns in standalone strings."""
         if not isinstance(text, str):
             return text
-            
+
         redacted = text
         for pattern in sensitive_patterns:
             redacted = re.sub(pattern, mask, redacted)
         return redacted
-    
+
     if isinstance(data, dict):
         redacted_dict = {}
         for k, v in data.items():

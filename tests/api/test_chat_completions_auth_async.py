@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+
 from swarm.permissions import HasValidTokenOrSession
 from swarm.views.chat_views import ChatCompletionsView
 

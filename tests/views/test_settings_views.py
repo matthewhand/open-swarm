@@ -1,6 +1,6 @@
 import json
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 from django.test import RequestFactory
@@ -27,10 +27,10 @@ def test_settings_dashboard_success(mock_settings_manager, request_factory):
             }
         }
     }
-    
+
     request = request_factory.get('/settings/')
     response = settings_views.settings_dashboard(request)
-    
+
     assert response.status_code == 200
     # Check that the response contains the expected context
     # (this would require a more complex check of the rendered template)
@@ -40,10 +40,10 @@ def test_settings_dashboard_success(mock_settings_manager, request_factory):
 def test_settings_dashboard_error(mock_settings_manager, request_factory):
     """Test the settings_dashboard view when an error occurs."""
     mock_settings_manager.collect_all_settings.side_effect = Exception("Test error")
-    
+
     request = request_factory.get('/settings/')
     response = settings_views.settings_dashboard(request)
-    
+
     assert response.status_code == 500
     content = response.content.decode()
     assert 'Error loading settings' in content
@@ -63,26 +63,28 @@ def test_settings_api_success(mock_settings_manager, request_factory):
             }
         }
     }
-    
+
     request = request_factory.get('/api/settings/')
     response = settings_views.settings_api(request)
-    
+
     assert response.status_code == 200
     content = json.loads(response.content.decode())
     assert content['success'] is True
     assert 'django' in content['settings']
     assert content['settings']['django']['settings']['DEBUG']['value'] is True
-    assert content['settings']['django']['settings']['SECRET_KEY']['value'] == '***HIDDEN***'
+    assert (
+        content['settings']['django']['settings']['SECRET_KEY']['value'] == '***HIDDEN***'
+    )
 
 
 @patch('swarm.views.settings_views.settings_manager')
 def test_settings_api_error(mock_settings_manager, request_factory):
     """Test the settings_api view when an error occurs."""
     mock_settings_manager.collect_all_settings.side_effect = Exception("Test error")
-    
+
     request = request_factory.get('/api/settings/')
     response = settings_views.settings_api(request)
-    
+
     assert response.status_code == 500
     content = json.loads(response.content.decode())
     assert content['success'] is False
@@ -98,7 +100,7 @@ def test_environment_variables_success(request_factory):
     }):
         request = request_factory.get('/api/environment/')
         response = settings_views.environment_variables(request)
-        
+
         assert response.status_code == 200
         content = json.loads(response.content.decode())
         assert content['success'] is True
@@ -113,10 +115,10 @@ def test_environment_variables_success(request_factory):
 def test_environment_variables_error(mock_environ, request_factory):
     """Test the environment_variables view when an error occurs."""
     mock_environ.side_effect = Exception("Test error")
-    
+
     request = request_factory.get('/api/environment/')
     response = settings_views.environment_variables(request)
-    
+
     assert response.status_code == 500
     content = json.loads(response.content.decode())
     assert content['success'] is False

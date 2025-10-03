@@ -11,14 +11,18 @@ logger = logging.getLogger(__name__)
 try:
     from .message_utils import filter_duplicate_system_messages
 except ImportError:
-    try: from swarm.utils.message_utils import filter_duplicate_system_messages
+    try:
+        from swarm.utils.message_utils import filter_duplicate_system_messages
     except ImportError:
         logger.warning("filter_duplicate_system_messages not found. Using dummy.")
         def filter_duplicate_system_messages(messages):
-            output = []; system_found = False
+            output = []
+            system_found = False
             for msg in messages:
                 if isinstance(msg, dict) and msg.get("role") == "system":
-                    if not system_found: output.append(msg); system_found = True
+                    if not system_found:
+                        output.append(msg)
+                        system_found = True
                 # *** Fix in dummy: Append non-dicts too if needed, or filter here?
                 # Let's assume the filter should focus only on system duplicates for now.
                 elif not (isinstance(msg, dict) and msg.get("role") == "system"):
@@ -133,7 +137,8 @@ def repair_message_payload(messages: list[dict[str, Any]], debug: bool = False) 
                     tool_name = "unknown_tool"
                     for tc in tool_calls:
                         if isinstance(tc, dict) and tc.get("id") == missing_id:
-                           tool_name = tc.get("function", {}).get("name", "unknown_tool"); break
+                           tool_name = tc.get("function", {}).get("name", "unknown_tool")
+                           break
                     dummy_tool = {"role": "tool", "tool_call_id": missing_id, "name": tool_name, "content": f"Error: Tool response for {tool_name} missing."} # Use name field like T1_RESP
                     logger.debug(f"    Appending dummy tool: {dummy_tool}")
                     final_sequence.append(dummy_tool)

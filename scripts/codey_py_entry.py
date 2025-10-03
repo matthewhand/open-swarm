@@ -27,7 +27,10 @@ def main():
     cli_rel_path = Path("src/swarm/blueprints/codey/codey_cli.py")
     project_root = find_project_root(script_dir, cli_rel_path)
     if not project_root:
-        print(f"[ERROR] Could not locate codey_cli.py in any parent directory of {script_dir}", file=sys.stderr)
+        print(
+            f"[ERROR] Could not locate codey_cli.py in any parent directory of {script_dir}",
+            file=sys.stderr
+        )
         sys.exit(2)
     cli_path = project_root / cli_rel_path
     result = subprocess.run([sys.executable, str(cli_path)] + sys.argv[1:])

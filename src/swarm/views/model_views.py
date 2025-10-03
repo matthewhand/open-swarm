@@ -34,7 +34,7 @@ class ListModelsView(APIView):
         }
     )
     # *** Make the handler synchronous ***
-    def get(self, request, *args, **kwargs):
+    def get(self, _request, *_args, **_kwargs):
         """
         Handles GET requests to list available models.
         """

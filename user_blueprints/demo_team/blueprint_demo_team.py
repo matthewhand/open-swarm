@@ -36,7 +36,9 @@ def execute_shell_command(command: str) -> str:
     import subprocess
     try:
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=timeout
+        )
         output = "Exit Code: " + str(result.returncode) + "\n"
         if result.stdout:
             output += "STDOUT:\n" + result.stdout + "\n"
@@ -44,7 +46,10 @@ def execute_shell_command(command: str) -> str:
             output += "STDERR:\n" + result.stderr + "\n"
         return output.strip()
     except subprocess.TimeoutExpired:
-        return "Error: Command timed out after " + os.getenv('SWARM_COMMAND_TIMEOUT', '60') + " seconds."
+        return (
+            "Error: Command timed out after " +
+            os.getenv('SWARM_COMMAND_TIMEOUT', '60') + " seconds."
+        )
     except Exception as e:
         return "Error executing command: " + str(e)
 read_file_tool = _Tool(read_file, 'read_file')
@@ -58,12 +63,16 @@ class DemoTeamBlueprint(BlueprintBase):
 
     Agents:
         - Coordinator: lead (tools: none)
-        - Engineer: code (tools: execute_shell_command, list_files, read_file, write_file)
+        - Engineer: code (tools: execute_shell_command, list_files,
+          read_file, write_file)
     """
 
     async def _original_run(self, messages: list[dict[str, Any]], **kwargs: Any):
         # Simple coordinator: echo last user message prefixed by team name
-        last_user = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
+        last_user = next(
+            (m.get('content', '') for m in reversed(messages)
+             if m.get('role') == 'user'), ''
+        )
         echo = "[" + "Demo Team" + "] " + last_user
         completion_id = "chatcmpl-" + str(uuid.uuid4())
         created_ts = int(time.time())
@@ -84,7 +93,21 @@ class DemoTeamBlueprint(BlueprintBase):
         # Example: attach per-agent tools based on the spec
         tools_map = {
             'Coordinator': [] if [] else [],
-            'Engineer': [read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool] if [read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool] else [],
+            'Engineer': (
+                [
+                    read_file_tool,
+                    write_file_tool,
+                    list_files_tool,
+                    execute_shell_command_tool
+                ]
+                if [
+                    read_file_tool,
+                    write_file_tool,
+                    list_files_tool,
+                    execute_shell_command_tool
+                ]
+                else []
+            ),
         }
         # Use the coordinator name if present, else fall back to first
         start_name = 'Coordinator'

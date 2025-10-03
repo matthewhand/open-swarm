@@ -15,8 +15,13 @@ def _isolate_dynamic_registry(tmp_path, monkeypatch):
     cfg_dir = tmp_path / "swarm_cfg"
     cfg_dir.mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setattr(utils, "get_user_config_dir_for_swarm", lambda: cfg_dir, raising=True)
-    monkeypatch.setattr(utils, "ensure_swarm_directories_exist", lambda: cfg_dir.mkdir(exist_ok=True), raising=True)
+    monkeypatch.setattr(
+        utils, "get_user_config_dir_for_swarm", lambda: cfg_dir, raising=True
+    )
+    monkeypatch.setattr(
+        utils, "ensure_swarm_directories_exist",
+        lambda: cfg_dir.mkdir(exist_ok=True), raising=True
+    )
 
     # Reset in-memory caches between tests
     monkeypatch.setattr(utils, "_dynamic_registry", {}, raising=True)
@@ -41,7 +46,9 @@ def test_register_and_persist_dynamic_team(tmp_path):
     team_description = "Alpha testing team"
     team_profile = "default"
 
-    register_dynamic_team(team_name, description=team_description, llm_profile=team_profile)
+    register_dynamic_team(
+        team_name, description=team_description, llm_profile=team_profile
+    )
 
     # In-memory view validation
     reg = load_dynamic_registry()
@@ -59,8 +66,12 @@ def test_register_and_persist_dynamic_team(tmp_path):
     # On-disk persistence validation
     disk = _read_registry_file(tmp_path)
     assert team_name in disk, f"Team '{team_name}' should be persisted to disk"
-    assert disk[team_name]["description"] == team_description, "Persisted description should match"
-    assert disk[team_name]["llm_profile"] == team_profile, "Persisted LLM profile should match"
+    assert (
+        disk[team_name]["description"] == team_description
+    ), "Persisted description should match"
+    assert (
+        disk[team_name]["llm_profile"] == team_profile
+    ), "Persisted LLM profile should match"
 
     # Validate disk persistence structure
     disk_team_data = disk[team_name]
@@ -97,7 +108,9 @@ def test_available_blueprints_merge_in_dynamic(monkeypatch):
     # Avoid scanning file system; return no static blueprints
     monkeypatch.setattr(utils, "discover_blueprints", lambda *_: {}, raising=True)
 
-    utils.register_dynamic_team("demo-api-team", description="API Demo", llm_profile="default")
+    utils.register_dynamic_team(
+        "demo-api-team", description="API Demo", llm_profile="default"
+    )
 
     # Force build and fetch
     from asgiref.sync import async_to_sync
@@ -109,7 +122,8 @@ def test_available_blueprints_merge_in_dynamic(monkeypatch):
     from swarm.blueprints.dynamic_team.blueprint_dynamic_team import (
         DynamicTeamBlueprint,
     )
-    # Module aliasing may load via 'swarm.' vs 'src.swarm.'; compare by name to avoid identity mismatch.
+    # Module aliasing may load via 'swarm.' vs 'src.swarm.'; compare by name to
+    # avoid identity mismatch.
     assert info["class_type"].__name__ == DynamicTeamBlueprint.__name__
     assert "name" in info["metadata"]
     assert info["metadata"]["name"] == "demo-api-team"

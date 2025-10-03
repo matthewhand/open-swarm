@@ -1,10 +1,11 @@
 import json
 import os
 import sqlite3
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
 import pytest
 from agents import Agent as GenericAgent
+
 from swarm.blueprints.poets.blueprint_poets import PoetsBlueprint
 
 # A minimal valid config that includes a 'default' LLM profile
@@ -36,7 +37,6 @@ def poets_blueprint_instance(tmp_path, monkeypatch):
     # Patch the _load_configuration method in BlueprintBase to use the minimal config
     def mock_load_configuration(self):
         self._config = MINIMAL_CONFIG_CONTENT
-        import os
         def redact(val):
             if not isinstance(val, str) or len(val) <= 4:
                 return "****"

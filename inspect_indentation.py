@@ -1,6 +1,8 @@
 import os
 
-file_path = "/mnt/models/open-swarm-mcp/src/swarm/blueprints/echocraft/blueprint_echocraft.py"
+file_path = (
+    "/mnt/models/open-swarm-mcp/src/swarm/blueprints/echocraft/blueprint_echocraft.py"
+)
 start_line = 220  # A few lines before the error
 end_line = 240    # A few lines after the error
 
@@ -10,7 +12,9 @@ else:
     with open(file_path, 'rb') as f: # Open in binary mode to preserve raw bytes
         lines = f.readlines()
 
-    print(f"--- Inspecting indentation for {file_path} (Lines {start_line}-{end_line}) ---")
+    print(
+        f"--- Inspecting indentation for {file_path} (Lines {start_line}-{end_line}) ---"
+    )
     print("Legend: '.' = space, '->' = tab, '\n' = newline")
     print("-" * 80)
 

@@ -7,7 +7,6 @@ reducing direct os.getenv() calls and providing consistent defaults and type han
 
 import os
 from pathlib import Path
-from typing import List, Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # Points to src/
 
@@ -23,7 +22,7 @@ def is_django_debug() -> bool:
     return os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
 
 
-def get_django_allowed_hosts() -> List[str]:
+def get_django_allowed_hosts() -> list[str]:
     """Get allowed hosts for Django."""
     return os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -38,7 +37,7 @@ def get_django_log_level() -> str:
     return os.getenv('DJANGO_LOG_LEVEL', 'INFO')
 
 
-def get_django_csrf_trusted_origins() -> List[str]:
+def get_django_csrf_trusted_origins() -> list[str]:
     """Get CSRF trusted origins."""
     return os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
@@ -69,12 +68,12 @@ def get_swarm_command_timeout() -> int:
     return int(os.getenv('SWARM_COMMAND_TIMEOUT', '60'))
 
 
-def get_swarm_debug() -> Optional[str]:
+def get_swarm_debug() -> str | None:
     """Get Swarm debug setting."""
     return os.getenv('SWARM_DEBUG')
 
 
-def get_swarm_llm_api_mode() -> Optional[str]:
+def get_swarm_llm_api_mode() -> str | None:
     """Get Swarm LLM API mode."""
     return os.getenv('SWARM_LLM_API_MODE')
 
@@ -95,67 +94,67 @@ def get_stateful_chat_id_path() -> str:
 
 
 # API Tokens and Keys
-def get_api_auth_token() -> Optional[str]:
+def get_api_auth_token() -> str | None:
     """Get API auth token."""
     return os.getenv('API_AUTH_TOKEN')
 
 
-def get_openai_api_key() -> Optional[str]:
+def get_openai_api_key() -> str | None:
     """Get OpenAI API key."""
     return os.getenv('OPENAI_API_KEY')
 
 
-def get_openai_model() -> Optional[str]:
+def get_openai_model() -> str | None:
     """Get OpenAI model."""
     return os.getenv('OPENAI_MODEL')
 
 
-def get_openai_base_url() -> Optional[str]:
+def get_openai_base_url() -> str | None:
     """Get OpenAI base URL."""
     return os.getenv('OPENAI_BASE_URL')
 
 
-def get_anthropic_api_key() -> Optional[str]:
+def get_anthropic_api_key() -> str | None:
     """Get Anthropic API key."""
     return os.getenv('ANTHROPIC_API_KEY')
 
 
-def get_ollama_base_url() -> Optional[str]:
+def get_ollama_base_url() -> str | None:
     """Get Ollama base URL."""
     return os.getenv('OLLAMA_BASE_URL')
 
 
-def get_litellm_api_key() -> Optional[str]:
+def get_litellm_api_key() -> str | None:
     """Get LiteLLM API key."""
     return os.getenv('LITELLM_API_KEY')
 
 
-def get_litellm_model() -> Optional[str]:
+def get_litellm_model() -> str | None:
     """Get LiteLLM model."""
     return os.getenv('LITELLM_MODEL')
 
 
-def get_litellm_base_url() -> Optional[str]:
+def get_litellm_base_url() -> str | None:
     """Get LiteLLM base URL."""
     return os.getenv('LITELLM_BASE_URL')
 
 
-def get_default_llm() -> Optional[str]:
+def get_default_llm() -> str | None:
     """Get default LLM."""
     return os.getenv('DEFAULT_LLM')
 
 
-def get_github_token() -> Optional[str]:
+def get_github_token() -> str | None:
     """Get GitHub token."""
     return os.getenv('GITHUB_TOKEN')
 
 
-def get_wolfram_llm_app_id() -> Optional[str]:
+def get_wolfram_llm_app_id() -> str | None:
     """Get Wolfram LLM app ID."""
     return os.getenv('WOLFRAM_LLM_APP_ID')
 
 
-def get_fly_api_token() -> Optional[str]:
+def get_fly_api_token() -> str | None:
     """Get Fly API token."""
     return os.getenv('FLY_API_TOKEN')
 
@@ -238,12 +237,12 @@ def get_comfyui_api_endpoint() -> str:
 
 
 # SAML Configuration
-def get_saml_idp_spconfig_json() -> Optional[str]:
+def get_saml_idp_spconfig_json() -> str | None:
     """Get SAML IdP SP config JSON."""
     return os.getenv('SAML_IDP_SPCONFIG_JSON')
 
 
-def get_saml_idp_spconfig_file() -> Optional[str]:
+def get_saml_idp_spconfig_file() -> str | None:
     """Get SAML IdP SP config file."""
     return os.getenv('SAML_IDP_SPCONFIG_FILE')
 
@@ -253,12 +252,12 @@ def get_saml_idp_entity_id() -> str:
     return os.getenv('SAML_IDP_ENTITY_ID', 'http://localhost:8000/idp/metadata/')
 
 
-def get_saml_idp_cert_file() -> Optional[str]:
+def get_saml_idp_cert_file() -> str | None:
     """Get SAML IdP cert file."""
     return os.getenv('SAML_IDP_CERT_FILE')
 
 
-def get_saml_idp_private_key_file() -> Optional[str]:
+def get_saml_idp_private_key_file() -> str | None:
     """Get SAML IdP private key file."""
     return os.getenv('SAML_IDP_PRIVATE_KEY_FILE')
 
@@ -289,34 +288,34 @@ def get_sqlite_db_path() -> str:
     return os.getenv('SQLITE_DB_PATH', './wtf_services.db')
 
 
-def get_aws_region() -> Optional[str]:
+def get_aws_region() -> str | None:
     """Get AWS region."""
     return os.getenv('AWS_REGION')
 
 
-def get_fly_region() -> Optional[str]:
+def get_fly_region() -> str | None:
     """Get Fly region."""
     return os.getenv('FLY_REGION')
 
 
-def get_vercel_org_id() -> Optional[str]:
+def get_vercel_org_id() -> str | None:
     """Get Vercel org ID."""
     return os.getenv('VERCEL_ORG_ID')
 
 
 # Logging Levels
-def get_log_level() -> Optional[str]:
+def get_log_level() -> str | None:
     """Get log level."""
     return os.getenv('LOG_LEVEL')
 
 
-def get_loglevel() -> Optional[str]:
+def get_loglevel() -> str | None:
     """Get LOGLEVEL."""
     return os.getenv('LOGLEVEL')
 
 
 # Utility Functions
-def get_csv_env(name: str, default: str = '') -> List[str]:
+def get_csv_env(name: str, default: str = '') -> list[str]:
     """Get a CSV environment variable as a list."""
     val = os.getenv(name, default)
     return val.split(',') if val else []

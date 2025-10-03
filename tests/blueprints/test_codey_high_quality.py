@@ -20,6 +20,7 @@ import tempfile
 import types
 
 import pytest
+
 from swarm.blueprints.codey import blueprint_codey
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint, CodeySpinner
 from swarm.blueprints.common.operation_box_utils import display_operation_box

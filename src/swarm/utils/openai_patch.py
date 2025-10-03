@@ -14,14 +14,14 @@ def patch_openai_telemetry():
         # For openai>=1.0.0, tracing is in openai.tracing
         if hasattr(openai, "tracing"):
             class DummyTracer:
-                def add_event(self, *a, **k): pass
-                def post(self, *a, **k): pass
-                def record(self, *a, **k): pass
+                def add_event(self, *_args, **_kwargs): pass
+                def post(self, *_args, **_kwargs): pass
+                def record(self, *_args, **_kwargs): pass
             openai.tracing.tracer = DummyTracer()
         # Patch any post/trace/report methods
         for attr in ("post", "trace", "report", "send_usage", "_post"):
             if hasattr(openai, attr):
-                setattr(openai, attr, lambda *a, **k: None)
+                setattr(openai, attr, lambda *_args, **_kwargs: None)
         # Patch environment variable if supported
         import os
         os.environ["OPENAI_TELEMETRY_OPTS"] = "off"

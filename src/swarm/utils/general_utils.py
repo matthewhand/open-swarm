@@ -7,7 +7,7 @@ import os
 
 import jmespath
 from jmespath.exceptions import JMESPathError
-from swarm.utils.env_utils import get_stateful_chat_id_path
+
 from swarm.utils.logger_setup import setup_logger
 
 # Initialize logger for this module
@@ -83,9 +83,11 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                                       id_val = parsed_json.get(key)
                                       if id_val and isinstance(id_val, str):
                                            chat_id = id_val.strip()
-                                           if chat_id: return chat_id
+                                           if chat_id:
+                                               return chat_id
                                  return "" # Parsed dict, but no ID key
-                             else: return "" # Parsed, but not dict
+                             else:
+                                 return "" # Parsed, but not dict
                          else:
                               chat_id = stripped_value # Treat as plain ID
                      except json.JSONDecodeError:
@@ -93,21 +95,24 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                      except Exception as e:
                           logger.error(f"Unexpected error processing potential JSON string from '{expression}': {e}")
                           return ""
-                else: return "" # Empty string extracted
-            elif isinstance(extracted_value, dict):
-                 possible_keys = ["conversation_id", "chat_id", "channelId", "sessionId", "id"]
-                 for key in possible_keys:
+                else:
+                    return "" # Empty string extracted
+           elif isinstance(extracted_value, dict):
+                possible_keys = ["conversation_id", "chat_id", "channelId", "sessionId", "id"]
+                for key in possible_keys:
                       id_val = extracted_value.get(key)
                       if id_val and isinstance(id_val, str):
                            chat_id = id_val.strip()
-                           if chat_id: return chat_id
-                 return "" # Dict found, but no ID key
-            elif isinstance(extracted_value, int | float | bool):
-                 return str(extracted_value) # Convert simple types
-            else:
-                 logger.warning(f"Extracted value via '{expression}' is of unsupported type: {type(extracted_value)}. Returning empty string.")
-                 return ""
-        else: return "" # JMESPath returned None
+                           if chat_id:
+                               return chat_id
+                return "" # Dict found, but no ID key
+           elif isinstance(extracted_value, int | float | bool):
+                return str(extracted_value) # Convert simple types
+           else:
+                logger.warning(f"Extracted value via '{expression}' is of unsupported type: {type(extracted_value)}. Returning empty string.")
+                return ""
+        else:
+            return "" # JMESPath returned None
 
     except JMESPathError as jmes_err:
          logger.debug(f"JMESPath expression '{expression}' failed: {jmes_err}")
@@ -171,8 +176,10 @@ def extract_chat_id(payload: dict) -> str:
     return ""
 
 def serialize_datetime(obj):
-    if isinstance(obj, datetime.datetime): return obj.isoformat()
-    elif isinstance(obj, str): return obj
+    if isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, str):
+        return obj
     raise TypeError(f"Type {type(obj)} not serializable")
 
 def custom_json_dumps(obj, **kwargs):

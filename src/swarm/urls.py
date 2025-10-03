@@ -36,9 +36,13 @@ from swarm.views.settings_views import (
     settings_api,
     settings_dashboard,
 )
-from swarm.views.web_views import profiles_page, team_admin, team_launcher, teams_export
-
-from swarm.views.web_views import index
+from swarm.views.web_views import (
+    index,
+    profiles_page,
+    team_admin,
+    team_launcher,
+    teams_export,
+)
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
@@ -118,6 +122,7 @@ if getattr(settings, 'ENABLE_SAML_IDP', False):
 
 # Optional MCP server (django-mcp-server) when enabled
 import os
+
 if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
     try:
         from django.urls import include

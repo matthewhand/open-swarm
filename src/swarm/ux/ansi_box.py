@@ -33,8 +33,8 @@ def ansi_box(title, content, count=None, params=None, style='default', emoji=Non
     if isinstance(content, str):
         content = [content]
     for line in content:
-        for l in str(line).split('\n'):
-            lines.append(f"{l[:box_width]:<{box_width}}")
+        for line_part in str(line).split('\n'):
+            lines.append(f"{line_part[:box_width]:<{box_width}}")
     lines.append(color + border * box_width + reset)
     print("\n".join(lines))
 

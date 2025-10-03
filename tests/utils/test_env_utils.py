@@ -1,15 +1,16 @@
 import os
 from unittest.mock import patch
+
 import pytest
 
 from swarm.utils.env_utils import (
-    get_django_secret_key,
-    is_django_debug,
+    get_csv_env,
     get_django_allowed_hosts,
+    get_django_secret_key,
     get_swarm_config_path,
     get_swarm_log_level,
+    is_django_debug,
     is_truthy,
-    get_csv_env,
 )
 
 

@@ -3,17 +3,18 @@ import os
 import subprocess
 from pathlib import Path
 
-import swarm
 import typer
+
+import swarm
 from swarm.core import paths
 
 paths.ensure_swarm_directories_exist()
 
 # Workaround for Click/Typer signature mismatch in Parameter.make_metavar
 try:
-    import click  # noqa: WPS433
+    import click
     _orig_mm = click.core.Parameter.make_metavar
-    def _mm_shim(self, *args, **kwargs):  # noqa: D401
+    def _mm_shim(self, *args, **kwargs):
         """Compat shim: supports both (self) and (self, ctx)."""
         try:
             return _orig_mm(self, *args, **kwargs)

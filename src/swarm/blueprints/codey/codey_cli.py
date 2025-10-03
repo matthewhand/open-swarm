@@ -1,8 +1,7 @@
-import os
-import sys
-
 import argparse
 import asyncio
+import os
+import sys
 
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 from swarm.blueprints.common.audit import AuditLogger
@@ -11,7 +10,6 @@ from swarm.core.output_utils import (
     print_search_progress_box,
 )
 from swarm.extensions.cli.utils.async_input import AsyncInputHandler
-from swarm.extensions.cli.utils.env_setup import validate_env
 
 # Early test-mode: simulate spinner output and exit for Codey CLI tests, only when executed as script and not requesting help
 if __name__ == "__main__" and os.environ.get("SWARM_TEST_MODE") and not any(arg in ("-h", "--help") for arg in sys.argv):

@@ -12,17 +12,14 @@ Design goals:
 from __future__ import annotations
 
 import logging
-from typing import Any
-import asyncio
+import os
 import subprocess
-import sys
 import time
-from pathlib import Path
+from typing import Any
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.mcp_server_config import MCPServerConfig
 from swarm.core.requirements import load_active_config
-import os
 from swarm.settings import BLUEPRINT_DIRECTORY
 
 logger = logging.getLogger(__name__)
@@ -91,7 +88,7 @@ class BlueprintMCPProvider:
         instruction = arguments.get("instruction", "")
         if not isinstance(instruction, str) or not instruction.strip():
             raise ValueError("'instruction' must be a non-empty string")
-        
+
         # If an executor is configured (e.g., wired to Runner/BlueprintBase), use it
         if callable(self._executor):
             try:
@@ -103,34 +100,34 @@ class BlueprintMCPProvider:
                 return {"content": str(result)}
             except Exception as e:
                 return {"content": f"[Blueprint:{name}] Execution error: {e}"}
-        
+
         # Execute blueprint directly
         started_servers = []
         try:
             blueprint_cls = self._index[name].get("class_type")
             if not blueprint_cls:
                 raise ValueError(f"Blueprint class not found for tool: {name}")
-    
+
             # Get required MCP servers from blueprint metadata
             meta = getattr(blueprint_cls, 'metadata', None)
             if isinstance(meta, dict):
                 required_servers = meta.get('required_mcp_servers', [])
             else:
                 required_servers = []
-    
+
             # Start required MCP servers
             if required_servers:
                 started_servers = self._start_required_mcp_servers(required_servers)
-    
+
             # Create blueprint instance
             blueprint_instance = blueprint_cls()
-    
+
             # Prepare messages for blueprint run
             messages = [{"role": "user", "content": instruction}]
-    
+
             # Run the blueprint and collect async output
             result = self._run_blueprint_sync(blueprint_instance, messages, started_servers, name)
-    
+
             return result
         except Exception as e:
             return {"content": f"[Blueprint:{name}] Execution error: {e}"}
@@ -146,7 +143,7 @@ class BlueprintMCPProvider:
         in this module.
         """
         self._executor = fn
-    
+
     def _start_required_mcp_servers(self, required_servers: list[str]) -> list:
         """Start required MCP servers for blueprint execution."""
         started_servers = []
@@ -191,7 +188,7 @@ class BlueprintMCPProvider:
             })
             logger.info(f"Started MCP server '{server_name}' with PID {process.pid}")
         return started_servers
-    
+
     def _stop_started_servers(self, started_servers: list) -> None:
         """Stop previously started MCP servers."""
         for s in started_servers:
@@ -205,7 +202,7 @@ class BlueprintMCPProvider:
                 s['process'].wait()
             except Exception as e:
                 logger.error(f"Error stopping MCP server '{s['name']}': {e}")
-    
+
     def _run_blueprint_sync(self, blueprint_instance, messages: list[dict], mcp_servers: list, blueprint_name: str = "unknown") -> dict[str, Any]:
         """Run blueprint synchronously and collect async output."""
         # Check if blueprint_instance.run is a mock that should be called directly
@@ -227,7 +224,7 @@ class BlueprintMCPProvider:
                     results = result
             except Exception as e:
                 return {"content": f"[Blueprint:{blueprint_name}] Execution error: {e}"}
-            
+
             # Combine the results into a single response for mock case
             final_content = ""
             if isinstance(results, list):
@@ -243,17 +240,17 @@ class BlueprintMCPProvider:
             else:
                 # If results is just a string or other format, convert to string
                 final_content = str(results)
-            
+
             return {"content": final_content.strip()}
         else:
             # Create an async generator to run the blueprint normally
             async def run_blueprint():
                 async for chunk in blueprint_instance.run(messages, mcp_servers_override=mcp_servers):
                     yield chunk
-            
+
             # Run the async generator to completion and collect results
             import asyncio
-            
+
             async def collect_results():
                 results = []
                 try:
@@ -263,22 +260,22 @@ class BlueprintMCPProvider:
                     # If the blueprint execution fails, return the exception
                     return e
                 return results
-            
+
             # Run the async collection in a new event loop
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 collected_results = loop.run_until_complete(collect_results())
                 loop.close()
-                
+
                 # Handle case where collected_results is an exception (e.g. when blueprint.run raises an exception)
                 if isinstance(collected_results, Exception):
                     raise collected_results
-                
+
                 results = collected_results
             except Exception as e:
                 return {"content": f"[Blueprint:{blueprint_name}] Execution error: {e}"}
-            
+
             # Combine the results into a single response
             final_content = ""
             for result in results:

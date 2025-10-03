@@ -6,18 +6,13 @@ Self-healing, fileops-enabled, swarm-scalable.
 """
 import logging
 import os
-import sys
-import json
 import subprocess
-from typing import Dict, List, Any, AsyncGenerator, Optional
+import time
 from pathlib import Path
-import re
-from datetime import datetime
-import pytz
+
+from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_ux import BlueprintUX
 from swarm.core.config_loader import load_full_configuration
-import time
-from swarm.blueprints.common.operation_box_utils import display_operation_box
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
@@ -32,7 +27,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -62,8 +57,7 @@ def execute_shell_command(command: str) -> str:
             command,
             shell=True,
             check=False, # Don't raise exception on non-zero exit code
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=timeout
         )
@@ -110,8 +104,7 @@ def execute_shell_command(command: str) -> str:
             command,
             shell=True,
             check=False, # Don't raise exception on non-zero exit code
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=60 # Add a timeout
         )
@@ -195,7 +188,7 @@ def list_files(directory_path: str = ".") -> str:
 # --- FileOps Tool Logic Definitions ---
 def read_file_fileops(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -346,7 +339,7 @@ class RueCodeBlueprint(BlueprintBase):
     def summary(self, label, count, params):
         return f"{label} ({count} results) for: {params}"
 
-    async def run(self, messages: List[Dict[str, str]]):
+    async def run(self, messages: list[dict[str, str]]):
         logger.info("RueCodeBlueprint run method called.")
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:
@@ -408,7 +401,6 @@ class RueCodeBlueprint(BlueprintBase):
 
 if __name__ == "__main__":
     import asyncio
-    import json
     print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   📝 RUE CODE: SWARM TEMPLATING & EXECUTION DEMO             ║\n╠══════════════════════════════════════════════════════════════╣\n║ This blueprint demonstrates viral doc propagation,           ║\n║ code templating, and swarm-powered execution.                ║\n║ Try running: python blueprint_rue_code.py                    ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
     messages = [
         {"role": "user", "content": "Show me how Rue Code does templating and swarm execution."}

@@ -1,6 +1,5 @@
-from rest_framework import serializers
-
 from blueprints.chc.models import AgentInstruction
+from rest_framework import serializers
 
 
 class AgentInstructionSerializer(serializers.ModelSerializer):

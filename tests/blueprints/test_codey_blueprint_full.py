@@ -2,6 +2,7 @@ import sys
 import types
 
 import pytest
+
 from swarm.blueprints.codey import blueprint_codey
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 

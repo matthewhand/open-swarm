@@ -19,7 +19,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv pip install .[dev]
       - name: Install ruff
         run: pip install ruff
       - name: Lint with ruff

@@ -246,7 +246,7 @@ def blueprint_library(request):
         return HttpResponse("Error loading blueprint library", status=500)
 
 @csrf_exempt
-def blueprint_requirements_status(request):
+def blueprint_requirements_status(_request):
     """Return JSON with MCP requirements vs current configuration per blueprint."""
     try:
         discovered = discover_blueprints(BLUEPRINT_DIRECTORY)
@@ -453,7 +453,7 @@ def generate_avatar(request, blueprint_name):
         return JsonResponse({"error": "Internal server error"}, status=500)
 
 @csrf_exempt
-def check_comfyui_status(request):
+def check_comfyui_status(_request):
     """Check if ComfyUI is available for avatar generation."""
     try:
         is_available = comfyui_client.is_available()
@@ -470,7 +470,7 @@ def check_comfyui_status(request):
             "styles": AVATAR_STYLES
         })
 
-def generate_blueprint_code(name: str, description: str, category: str, tags: list[str], requirements: str) -> str:
+def generate_blueprint_code(name: str, description: str, category: str, tags: list[str], _requirements: str) -> str:
     """Generate blueprint code using LLM (placeholder implementation)."""
     # This is a simplified template - in reality you'd call an LLM API
     template = f'''#!/usr/bin/env python3

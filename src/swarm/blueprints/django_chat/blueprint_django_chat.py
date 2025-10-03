@@ -20,6 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.core.blueprint_ux import BlueprintUXImproved

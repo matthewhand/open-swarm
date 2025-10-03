@@ -43,10 +43,14 @@ class StaticTokenAuthentication(BaseAuthentication):
 
         # If no token is configured in settings, this method cannot authenticate.
         if not expected_token:
-            logger.error("[Auth][StaticToken] SWARM_API_KEY is not set in Django settings. Cannot use static token auth.")
+            logger.error(
+                "[Auth][StaticToken] SWARM_API_KEY is not set in Django settings. "
+                "Cannot use static token auth."
+            )
             return None # Indicate authentication method did not run or failed pre-check
 
-        # Extract the provided token from standard Authorization header or custom X-API-Key header.
+        # Extract the provided token from standard Authorization header or
+        # custom X-API-Key header.
         provided_token = None
         auth_header = request.META.get('HTTP_AUTHORIZATION', '').split()
         if len(auth_header) == 2 and auth_header[0].lower() == self.keyword.lower():
@@ -68,7 +72,8 @@ class StaticTokenAuthentication(BaseAuthentication):
         if provided_token == expected_token:
             logger.info("[Auth][StaticToken] Static token authentication successful.")
             # Return AnonymousUser and the token itself as request.auth.
-            # This signals successful authentication via token without linking to a specific User model.
+            # This signals successful authentication via token without linking to
+            # a specific User model.
             return (AnonymousUser(), provided_token)
         else:
             # Token was provided but did not match. Raise AuthenticationFailed.
@@ -97,17 +102,24 @@ class HasValidTokenOrSession(BasePermission):
     1. Static token authentication succeeded (request.auth is not None).
     2. Session authentication succeeded (request.user is authenticated).
     """
-    message = 'Authentication credentials were not provided or are invalid (Requires valid API Key or active session).'
+    message = (
+        'Authentication credentials were not provided or are invalid '
+        '(Requires valid API Key or active session).'
+    )
 
     def has_permission(self, request, _view):
         """
         Checks if the request has valid authentication via token or session.
         """
         # Check if static token authentication was successful.
-        # StaticTokenAuthentication returns (AnonymousUser, token), so request.auth will be the token.
+        # StaticTokenAuthentication returns (AnonymousUser, token), so
+        # request.auth will be the token.
         has_valid_token = getattr(request, 'auth', None) is not None
         if has_valid_token:
-            logger.debug("[Perm][TokenOrSession] Access granted via static token (request.auth is set).")
+            logger.debug(
+                "[Perm][TokenOrSession] Access granted via static token "
+                "(request.auth is set)."
+            )
             return True
 
         # Check if session authentication was successful.
@@ -115,7 +127,9 @@ class HasValidTokenOrSession(BasePermission):
         user = getattr(request, 'user', None)
         has_valid_session = user is not None and user.is_authenticated
         if has_valid_session:
-            logger.debug(f"[Perm][TokenOrSession] Access granted via authenticated session user: {user}")
+            logger.debug(
+                f"[Perm][TokenOrSession] Access granted via authenticated session user: {user}"
+            )
             return True
 
         # If neither condition is met, deny permission.

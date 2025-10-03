@@ -9,8 +9,13 @@ def _isolate_dynamic_registry(tmp_path, monkeypatch):
     cfg_dir = tmp_path / "swarm_cfg"
     cfg_dir.mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setattr(utils, "get_user_config_dir_for_swarm", lambda: cfg_dir, raising=True)
-    monkeypatch.setattr(utils, "ensure_swarm_directories_exist", lambda: cfg_dir.mkdir(exist_ok=True), raising=True)
+    monkeypatch.setattr(
+        utils, "get_user_config_dir_for_swarm", lambda: cfg_dir, raising=True
+    )
+    monkeypatch.setattr(
+        utils, "ensure_swarm_directories_exist",
+        lambda: cfg_dir.mkdir(exist_ok=True), raising=True
+    )
     monkeypatch.setattr(utils, "_dynamic_registry", {}, raising=True)
     monkeypatch.setattr(utils, "_blueprint_meta_cache", None, raising=True)
     yield

@@ -222,7 +222,7 @@ def safe_extract_metadata_from_py(src: str) -> dict[str, Any] | None:
                                             vals.append(v.value)
                                         else:
                                             vals.append(None)
-                                    md = {k: v for k, v in zip(keys, vals) if k}
+                                    md = {k: v for k, v in zip(keys, vals, strict=False) if k}
                                     # Only return if we got at least a name/description
                                     if md.get('name') or md.get('description'):
                                         return md

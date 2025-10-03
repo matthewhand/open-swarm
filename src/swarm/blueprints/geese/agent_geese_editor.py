@@ -39,8 +39,8 @@ class EditorAgent(Agent):
     async def run(
         self,
         messages: list[dict[str, Any]], # Should contain the text to edit and editing instructions
-        story_context: StoryContext | None = None, # Optional context
-        **kwargs: Any
+        _story_context: StoryContext | None = None, # Optional context
+        **_kwargs: Any
     ) -> AsyncGenerator[Any, None]: # Yields SDK interaction objects or strings
         """
         Edits a story segment based on the provided messages.

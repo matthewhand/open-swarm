@@ -5,7 +5,6 @@ Comprehensive tests for message_utils module
 Tests message filtering, validation, and processing utilities.
 """
 
-import pytest
 
 from src.swarm.utils.message_utils import (
     filter_duplicate_system_messages,

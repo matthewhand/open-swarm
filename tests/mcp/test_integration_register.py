@@ -1,7 +1,7 @@
 import importlib
 import sys
 from types import ModuleType
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 
 def test_register_blueprints_with_mcp(monkeypatch):
@@ -33,7 +33,7 @@ def test_register_blueprints_with_mcp(monkeypatch):
     # Create a mock blueprint class for the test
     mock_blueprint_cls = Mock()
     fake_discovered["suggestion"]["class_type"] = mock_blueprint_cls
-    
+
     # Mock the blueprint instance and its run method
     mock_blueprint_instance = Mock()
     mock_blueprint_cls.return_value = mock_blueprint_instance

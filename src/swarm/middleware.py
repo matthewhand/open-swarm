@@ -65,7 +65,7 @@ def AsyncAuthMiddleware(get_response):
             try:
                 if isinstance(request.user, SimpleLazyObject):
                     # Force evaluation synchronously
-                    request.user._setup()  # noqa: WPS437 (accessing protected for perf)
+                    request.user._setup()
             except Exception as e:
                 logger.error(f"[AsyncAuthMiddleware] Sync path user load error: {e}", exc_info=True)
             return get_response(request)

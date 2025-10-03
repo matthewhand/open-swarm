@@ -59,7 +59,7 @@ def custom_login(request):
     return render(request, 'swarm/login.html', {'form': form})
 
 
-def serve_swarm_config(request):
+def serve_swarm_config(_request):
     """Serves the swarm_config.json content."""
     # Find the config file used by the blueprint base or config loader
     # This logic might need refinement depending on where config is reliably found
@@ -78,7 +78,8 @@ def serve_swarm_config(request):
               config_data = config_loader.load_config(config_path)
               # Redact sensitive keys (e.g., api_key)
               if 'llm' in config_data:
-                   for profile in config_data['llm']: config_data['llm'][profile].pop('api_key', None)
+                   for profile in config_data['llm']:
+                       config_data['llm'][profile].pop('api_key', None)
               return JsonResponse(config_data)
          else:
               logger.error(f"Swarm config file not found at expected locations (tried: {config_path})")
@@ -92,7 +93,7 @@ def serve_swarm_config(request):
 # Example: A view to list available blueprints (might duplicate CLI list command logic)
 
 @csrf_exempt # If POST is needed and no CSRF token available from UI
-def list_available_blueprints_api(request):
+def list_available_blueprints_api(_request):
      """API endpoint to list discoverable blueprints."""
      # Re-use discovery logic if possible, or adapt from CLI
      from swarm.extensions.blueprint.discovery import (

@@ -7,27 +7,26 @@ Self-healing, fileops-enabled, swarm-scalable.
 import logging
 import os
 import random
+import sqlite3  # Use standard sqlite3 module
 import sys
-import json
-import sqlite3 # Use standard sqlite3 module
 from pathlib import Path
-from typing import Dict, Any, List, ClassVar, Optional
-from datetime import datetime
-import pytz
-from swarm.blueprints.common.operation_box_utils import display_operation_box
+from typing import Any, ClassVar
+
 from swarm.core.blueprint_ux import BlueprintUXImproved
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Tool, function_tool, Runner
+    from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in PoetsBlueprint: {e}. Check dependencies.")
@@ -138,7 +137,7 @@ class PatchedFunctionTool:
 
 def read_file(path: str) -> str:
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return f.read()
     except Exception as e:
         return f"ERROR: {e}"
@@ -183,12 +182,13 @@ list_files_tool = PatchedFunctionTool(list_files, 'list_files')
 execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
 
 # --- Spinner and ANSI/emoji operation box for unified UX ---
+import threading
+import time
+
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-import threading
-import time
-from swarm.extensions.cli.utils.async_input import AsyncInputHandler
+
 
 class PoetsSpinner:
     FRAMES = [
@@ -279,7 +279,7 @@ class PoetsBlueprint(BlueprintBase):
         # ...
 
     """A literary blueprint defining a swarm of poet agents using SQLite instructions and agent-as-tool handoffs."""
-    metadata: ClassVar[Dict[str, Any]] = {
+    metadata: ClassVar[dict[str, Any]] = {
         "name": "PoetsBlueprint",
         "title": "Poets: A Swarm of Literary Geniuses (SQLite)",
         "description": (
@@ -303,13 +303,14 @@ class PoetsBlueprint(BlueprintBase):
     }
 
     # Caches
-    _openai_client_cache: Dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: Dict[str, Model] = {}
+    _openai_client_cache: dict[str, AsyncOpenAI] = {}
+    _model_instance_cache: dict[str, Model] = {}
     _db_initialized = False
 
     def _init_db_and_load_data(self) -> None:
         """Initializes the SQLite DB and loads Poets sample data if needed."""
-        if self._db_initialized: return
+        if self._db_initialized:
+            return
         logger.info(f"Initializing SQLite database at: {DB_PATH} for Poets")
         try:
             DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -327,7 +328,6 @@ class PoetsBlueprint(BlueprintBase):
                 cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE agent_name = ?", ("Gritty Buk",))
                 if cursor.fetchone()[0] == 0:
                     logger.info(f"No instructions found for Gritty Buk in {DB_PATH}. Loading sample data...")
-                    sample_data = []
                     for name, base_instr in AGENT_BASE_INSTRUCTIONS.items():
                         cursor.execute(
                             f"INSERT OR REPLACE INTO {TABLE_NAME} (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
@@ -345,7 +345,7 @@ class PoetsBlueprint(BlueprintBase):
             logger.error(f"Unexpected error during DB init/load: {e}", exc_info=True)
             self._db_initialized = False
 
-    def get_agent_config(self, agent_name: str) -> Dict[str, Any]:
+    def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Fetches agent config from SQLite DB or returns defaults."""
         if self._db_initialized:
             try:
@@ -378,31 +378,37 @@ class PoetsBlueprint(BlueprintBase):
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         profile_data = self.get_llm_profile(profile_name)
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
+        if not profile_data:
+            raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
+        if not model_name:
+            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if provider != "openai":
+            raise ValueError(f"Unsupported provider: {provider}")
         client_cache_key = f"{provider}_{profile_data.get('base_url')}"
         if client_cache_key not in self._openai_client_cache:
              client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
+             try:
+                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e:
+                 raise ValueError(f"Failed to init client: {e}") from e
         client = self._openai_client_cache[client_cache_key]
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM: {e}") from e
 
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: List[Dict[str, Any]], **kwargs):
+    async def run(self, messages: list[dict[str, Any]], **kwargs):
         """Main execution entry point for the Poets blueprint."""
         logger.info("PoetsBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
@@ -450,7 +456,7 @@ class PoetsBlueprint(BlueprintBase):
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
 
     # --- Agent Creation ---
-    def create_starting_agent(self, mcp_servers: List[MCPServer]) -> Agent:
+    def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Creates the Poets agent team."""
         self._init_db_and_load_data()
         logger.debug("Creating Poets agent team...")
@@ -458,15 +464,15 @@ class PoetsBlueprint(BlueprintBase):
         self._openai_client_cache = {}
 
         # Helper to filter MCP servers
-        def get_agent_mcps(names: List[str]) -> List[MCPServer]:
+        def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             return [s for s in mcp_servers if s.name in names]
 
-        agents: Dict[str, Agent] = {}
+        agents: dict[str, Agent] = {}
         agent_configs = {} # To store fetched configs
 
         # Fetch configs and create agents first
         # Exclude 'Gritty Buk' from selection to match test expectations
-        agent_names = [name for name in AGENT_BASE_INSTRUCTIONS.keys() if name != "Gritty Buk"]
+        agent_names = [name for name in AGENT_BASE_INSTRUCTIONS if name != "Gritty Buk"]
         for name in agent_names:
             config = self.get_agent_config(name)
             agent_configs[name] = config # Store config
@@ -474,14 +480,22 @@ class PoetsBlueprint(BlueprintBase):
 
             # Determine MCP servers based on original definitions
             agent_mcp_names = []
-            if name == "Raven Poe": agent_mcp_names = ["mcp-server-reddit", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
-            elif name == "Mystic Blake": agent_mcp_names = ["mcp-doc-forge", "mcp-npx-fetch", "brave-search", "server-wp-mcp", "rag-docs"]
-            elif name == "Bard Whit": agent_mcp_names = ["sequential-thinking", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
-            elif name == "Echo Plath": agent_mcp_names = ["sqlite", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
-            elif name == "Frosted Woods": agent_mcp_names = ["filesystem", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
-            elif name == "Harlem Lang": agent_mcp_names = ["mcp-shell", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
-            elif name == "Verse Neru": agent_mcp_names = ["server-wp-mcp", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
-            elif name == "Haiku Bash": agent_mcp_names = ["mcp-doc-forge", "mcp-npx-fetch", "brave-search", "server-wp-mcp", "rag-docs"]
+            if name == "Raven Poe":
+                agent_mcp_names = ["mcp-server-reddit", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
+            elif name == "Mystic Blake":
+                agent_mcp_names = ["mcp-doc-forge", "mcp-npx-fetch", "brave-search", "server-wp-mcp", "rag-docs"]
+            elif name == "Bard Whit":
+                agent_mcp_names = ["sequential-thinking", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
+            elif name == "Echo Plath":
+                agent_mcp_names = ["sqlite", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
+            elif name == "Frosted Woods":
+                agent_mcp_names = ["filesystem", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
+            elif name == "Harlem Lang":
+                agent_mcp_names = ["mcp-shell", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
+            elif name == "Verse Neru":
+                agent_mcp_names = ["server-wp-mcp", "mcp-doc-forge", "mcp-npx-fetch", "brave-search", "rag-docs"]
+            elif name == "Haiku Bash":
+                agent_mcp_names = ["mcp-doc-forge", "mcp-npx-fetch", "brave-search", "server-wp-mcp", "rag-docs"]
 
             agents[name] = Agent(
                 name=name,
@@ -503,7 +517,7 @@ class PoetsBlueprint(BlueprintBase):
             agent.tools = agent_tools
 
         # Create PoetsAgent with fileops tools
-        poets_agent = Agent(
+        Agent(
             name="PoetsAgent",
             instructions="You are PoetsAgent. You can use fileops tools (read_file, write_file, list_files, execute_shell_command) for any file or shell tasks.",
             tools=[read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool],

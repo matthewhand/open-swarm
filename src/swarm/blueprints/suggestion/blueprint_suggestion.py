@@ -22,12 +22,14 @@ from typing_extensions import TypedDict
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
      print(f"ERROR: Failed to import 'agents' or 'BlueprintBase'. Is 'openai-agents' installed and src in PYTHONPATH? Details: {e}")

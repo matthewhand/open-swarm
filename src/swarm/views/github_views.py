@@ -1,20 +1,18 @@
 """GitHub marketplace API views for blueprint and MCP configuration discovery."""
-import json
 import logging
-from typing import Any, Dict
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from swarm.models.core_models import Blueprint, MCPConfig
 from swarm.services.github_client import (
-    fetch_github_repositories,
-    fetch_manifest_from_repo,
     create_blueprint_from_manifest,
     create_mcp_config_from_manifest,
+    fetch_github_repositories,
+    fetch_manifest_from_repo,
     sync_marketplace_items,
 )
-from swarm.models.core_models import Blueprint, MCPConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +23,11 @@ def github_marketplace_search(request):
     query = request.GET.get('q', '').strip()
     if not query:
         return JsonResponse({'error': 'Query parameter "q" is required'}, status=400)
-    
+
     try:
         # Search for repositories by query
         repos = fetch_github_repositories(query)
-        
+
         # Filter repositories that have manifest files
         manifest_repos = []
         for repo in repos:
@@ -37,12 +35,12 @@ def github_marketplace_search(request):
             if manifest_data:
                 repo['manifest_data'] = manifest_data
                 manifest_repos.append(repo)
-        
+
         # Create response with repository information
         results = []
         for repo in manifest_repos:
             manifest_data = repo['manifest_data']
-            
+
             # Determine if this is a blueprint or MCP config
             if 'code_template' in manifest_data:
                 # This is a blueprint
@@ -75,7 +73,7 @@ def github_marketplace_search(request):
                     'server_name': manifest_data.get('server_name', ''),
                 }
                 results.append(mcp_config_data)
-        
+
         return JsonResponse({
             'count': len(results),
             'results': results,
@@ -87,11 +85,11 @@ def github_marketplace_search(request):
 
 
 @require_http_methods(["GET"])
-def github_marketplace_sync(request):
+def github_marketplace_sync(_request):
     """Sync marketplace items from GitHub to local database."""
     try:
         created_count, updated_count = sync_marketplace_items()
-        
+
         return JsonResponse({
             'message': 'Marketplace sync completed',
             'created_count': created_count,
@@ -103,7 +101,7 @@ def github_marketplace_sync(request):
 
 
 @require_http_methods(["GET"])
-def github_blueprint_detail(request, blueprint_name):
+def github_blueprint_detail(_request, blueprint_name):
     """Get details for a specific blueprint from GitHub."""
     try:
         # First check if blueprint exists in local database
@@ -124,16 +122,16 @@ def github_blueprint_detail(request, blueprint_name):
             })
         except Blueprint.DoesNotExist:
             pass  # Continue to fetch from GitHub
-        
+
         # If not in local database, search GitHub for the specific repository
         repos = fetch_github_repositories(blueprint_name)
-        
+
         for repo in repos:
             manifest_data = fetch_manifest_from_repo(repo['full_name'])
             if manifest_data and manifest_data.get('name', '').replace(' ', '_').lower() == blueprint_name.lower():
                 # Create blueprint from manifest
                 blueprint = create_blueprint_from_manifest(manifest_data, repo)
-                
+
                 return JsonResponse({
                     'type': 'blueprint',
                     'name': blueprint.name,
@@ -147,7 +145,7 @@ def github_blueprint_detail(request, blueprint_name):
                     'required_mcp_servers': blueprint.required_mcp_servers,
                     'category': blueprint.category,
                 })
-        
+
         return JsonResponse({'error': 'Blueprint not found'}, status=404)
     except Exception as e:
         logger.error(f"Error fetching blueprint detail: {e}")
@@ -155,7 +153,7 @@ def github_blueprint_detail(request, blueprint_name):
 
 
 @require_http_methods(["GET"])
-def github_mcp_config_detail(request, config_name):
+def github_mcp_config_detail(_request, config_name):
     """Get details for a specific MCP config from GitHub."""
     try:
         # First check if MCP config exists in local database
@@ -175,16 +173,16 @@ def github_mcp_config_detail(request, config_name):
             })
         except MCPConfig.DoesNotExist:
             pass  # Continue to fetch from GitHub
-        
+
         # If not in local database, search GitHub for the specific repository
         repos = fetch_github_repositories(config_name)
-        
+
         for repo in repos:
             manifest_data = fetch_manifest_from_repo(repo['full_name'])
             if manifest_data and manifest_data.get('name', '').replace(' ', '_').lower() == config_name.lower():
                 # Create MCP config from manifest
                 mcp_config = create_mcp_config_from_manifest(manifest_data, repo)
-                
+
                 return JsonResponse({
                     'type': 'mcp_config',
                     'name': mcp_config.name,
@@ -197,7 +195,7 @@ def github_mcp_config_detail(request, config_name):
                     'config_template': mcp_config.config_template,
                     'server_name': mcp_config.server_name,
                 })
-        
+
         return JsonResponse({'error': 'MCP config not found'}, status=404)
     except Exception as e:
         logger.error(f"Error fetching MCP config detail: {e}")
@@ -206,7 +204,7 @@ def github_mcp_config_detail(request, config_name):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def github_install_blueprint(request, blueprint_name):
+def github_install_blueprint(_request, blueprint_name):
     """Install a blueprint from GitHub."""
     try:
         # Get the blueprint either from local database or GitHub
@@ -215,7 +213,7 @@ def github_install_blueprint(request, blueprint_name):
         except Blueprint.DoesNotExist:
             # Fetch from GitHub and create in database
             repos = fetch_github_repositories(blueprint_name)
-            
+
             for repo in repos:
                 manifest_data = fetch_manifest_from_repo(repo['full_name'])
                 if manifest_data and manifest_data.get('name', '').replace(' ', '_').lower() == blueprint_name.lower():
@@ -223,7 +221,7 @@ def github_install_blueprint(request, blueprint_name):
                     break
             else:
                 return JsonResponse({'error': 'Blueprint not found'}, status=404)
-        
+
         # In a real implementation, this would install the blueprint
         # For now, we'll just return success
         return JsonResponse({
@@ -241,7 +239,7 @@ def github_install_blueprint(request, blueprint_name):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def github_install_mcp_config(request, config_name):
+def github_install_mcp_config(_request, config_name):
     """Install an MCP config from GitHub."""
     try:
         # Get the MCP config either from local database or GitHub
@@ -250,7 +248,7 @@ def github_install_mcp_config(request, config_name):
         except MCPConfig.DoesNotExist:
             # Fetch from GitHub and create in database
             repos = fetch_github_repositories(config_name)
-            
+
             for repo in repos:
                 manifest_data = fetch_manifest_from_repo(repo['full_name'])
                 if manifest_data and manifest_data.get('name', '').replace(' ', '_').lower() == config_name.lower():
@@ -258,7 +256,7 @@ def github_install_mcp_config(request, config_name):
                     break
             else:
                 return JsonResponse({'error': 'MCP config not found'}, status=404)
-        
+
         # In a real implementation, this would install the MCP config
         # For now, we'll just return success
         return JsonResponse({

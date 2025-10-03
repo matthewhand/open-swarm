@@ -11,23 +11,22 @@ assert hasattr(__file__, "__str__")
 # divine_code debug: logger.debug("Divine Ops Team (Zeus & Pantheon) created successfully. Zeus is starting agent.")
 # divine_code error handling: try/except ImportError with sys.exit(1)
 
+import asyncio
 import logging
-import random
+import os
 import sys
+import time
 from datetime import datetime
+from glob import glob
 from pathlib import Path
 from typing import Any, ClassVar
 
 import pytz
-
-import asyncio
-import os
-import time
-from glob import glob
 from agents import Runner
 
-from swarm.core.output_utils import get_spinner_state
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.core.output_utils import get_spinner_state
+
 
 # --- Unified Operation/Result Box for UX ---
 class JeevesSpinner:
@@ -58,12 +57,12 @@ class JeevesSpinner:
         pass
 
 try:
-    from openai import AsyncOpenAI
-
     from agents import Agent, Tool, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+    from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     # print(f"ERROR: Import failed in JeevesBlueprint: {e}. Check 'openai-agents' install and project structure.")
@@ -290,18 +289,12 @@ class JeevesBlueprint(BlueprintBase):
             kwargs["op_type"] = "Jeeves Run"
         # Set result_type and summary based on mode
         if kwargs.get("search_mode") == "semantic":
-            result_type = "semantic"
             kwargs["op_type"] = "Jeeves Semantic Search"
-            summary = "Processed"
             emoji = '🕵️'
         elif kwargs.get("search_mode") == "code":
-            result_type = "code"
             kwargs["op_type"] = "Jeeves Search"
-            summary = "Processed"
             emoji = '🕵️'
         else:
-            result_type = "jeeves"
-            summary = "User instruction received"
             emoji = '🤖'
         if not instruction:
             spinner_states = JeevesSpinner.SPINNER_STATES
@@ -373,7 +366,7 @@ class JeevesBlueprint(BlueprintBase):
         logger.info(f"Running Jeeves non-interactively with instruction: '{messages[-1].get('content', '')[:100]}...'")
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
         try:
             result = await Runner.run(agent, messages[-1].get("content", ""))
             if hasattr(result, "__aiter__"):
@@ -440,7 +433,7 @@ class JeevesBlueprint(BlueprintBase):
         for state in JeevesSpinner.SPINNER_STATES:
             print(f"[SPINNER] {state}")
         print(f"[SPINNER] {JeevesSpinner.LONG_WAIT_MSG}")
-        op_start = time.monotonic()
+        time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py"}
@@ -474,7 +467,7 @@ class JeevesBlueprint(BlueprintBase):
         for state in JeevesSpinner.SPINNER_STATES:
             print(f"[SPINNER] {state}")
         print(f"[SPINNER] {JeevesSpinner.LONG_WAIT_MSG}")
-        op_start = time.monotonic()
+        time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py", "semantic": True}

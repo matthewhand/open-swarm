@@ -1,14 +1,17 @@
-import subprocess
-import threading
+import contextlib
+import json
 import os
 import signal
-from typing import Optional, Dict
-from swarm.core.blueprint_ux import BlueprintUXImproved
-from swarm.core.blueprint_base import BlueprintBase
-import json
+import subprocess
+import threading
 import time
+
 import psutil  # For resource usage
+
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.blueprint_ux import BlueprintUXImproved
+
 
 class WhingeSpinner:
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
@@ -55,7 +58,7 @@ class WhingeSurfBlueprint(BlueprintBase):
         self._llm_profile_data = None
         self._markdown_output = None
         self.spinner = WhingeSpinner()
-        self._procs: Dict[int, Dict] = {}  # pid -> {proc, output, thread, status}
+        self._procs: dict[int, dict] = {}  # pid -> {proc, output, thread, status}
         self.ux = BlueprintUXImproved(style="serious")
         self._load_jobs()
 
@@ -67,7 +70,7 @@ class WhingeSurfBlueprint(BlueprintBase):
     def _load_jobs(self):
         if os.path.exists(self.JOBS_FILE):
             try:
-                with open(self.JOBS_FILE, "r") as f:
+                with open(self.JOBS_FILE) as f:
                     self._jobs = json.load(f)
             except Exception:
                 self._jobs = {}
@@ -131,10 +134,8 @@ class WhingeSurfBlueprint(BlueprintBase):
             self._jobs[str(proc.pid)]["end_time"] = time.time()
             self._jobs[str(proc.pid)]["exit_code"] = proc.returncode
             self._jobs[str(proc.pid)]["status"] = "finished"
-            try:
+            with contextlib.suppress(Exception):
                 proc.stdout.close()
-            except Exception:
-                pass
             self._jobs[str(proc.pid)]["output"] = ''.join(output)
             self._save_jobs()
         self._display_job_status(proc.pid, "Started")
@@ -166,8 +167,8 @@ class WhingeSurfBlueprint(BlueprintBase):
         return self.ux.ansi_emoji_box("Show Output", out[-1000:], summary="Last 1000 chars of output.", op_type="show_output", params={"pid": pid}, result_count=len(out))
 
     def tail_output(self, pid: int) -> str:
-        import time
         import itertools
+        import time
         job = self._jobs.get(str(pid))
         if not job:
             return self.ux.ansi_emoji_box("Tail Output", f"No such job: {pid}", op_type="tail_output", params={"pid": pid}, result_count=0)
@@ -175,7 +176,6 @@ class WhingeSurfBlueprint(BlueprintBase):
             "Generating.", "Generating..", "Generating...", "Running..."
         ])
         start = time.time()
-        last_len = 0
         spinner_message = next(spinner_cycle)
         while True:
             job = self._jobs.get(str(pid))
@@ -199,7 +199,7 @@ class WhingeSurfBlueprint(BlueprintBase):
             time.sleep(1)
         return "[Tail finished]"
 
-    def check_subprocess_status(self, pid: int) -> Optional[Dict]:
+    def check_subprocess_status(self, pid: int) -> dict | None:
         entry = self._procs.get(pid)
         if not entry:
             # Check persistent job table
@@ -209,7 +209,7 @@ class WhingeSurfBlueprint(BlueprintBase):
             return None
         return entry['status']
 
-    def get_subprocess_output(self, pid: int) -> Optional[str]:
+    def get_subprocess_output(self, pid: int) -> str | None:
         entry = self._procs.get(pid)
         if not entry:
             # Check persistent job table
@@ -257,13 +257,15 @@ class WhingeSurfBlueprint(BlueprintBase):
         """
         Update the blueprint's own code based on a user prompt. This version will append a comment with the prompt to prove self-modification.
         """
-        import shutil, os, time
+        import os
+        import shutil
+        import time
         src_file = os.path.abspath(__file__)
         backup_file = src_file + ".bak"
         # Step 1: Backup current file
         shutil.copy2(src_file, backup_file)
         # Step 2: Read current code
-        with open(src_file, "r") as f:
+        with open(src_file) as f:
             code = f.read()
         # Step 3: Apply improvement (append a comment with the prompt)
         new_code = code + f"\n# SELF-IMPROVEMENT: {prompt} ({time.strftime('%Y-%m-%d %H:%M:%S')})\n"
@@ -288,9 +290,12 @@ class WhingeSurfBlueprint(BlueprintBase):
         - Suggestions if code smells detected
         - Output as ANSI box (default), plain text, or JSON
         """
-        import inspect, ast, re, json
+        import ast
+        import inspect
+        import json
+        import re
         src_file = inspect.getfile(self.__class__)
-        with open(src_file, 'r') as f:
+        with open(src_file) as f:
             code = f.read()
         tree = ast.parse(code, filename=src_file)
         lines = code.splitlines()
@@ -393,7 +398,7 @@ class WhingeSurfBlueprint(BlueprintBase):
         """
         # TODO: Integrate with your LLM/agent backend.
         # For now, just return the current code (no-op)
-        with open(src_file, "r") as f:
+        with open(src_file) as f:
             return f.read()
 
     def prune_jobs(self, keep_running=True):

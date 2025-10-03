@@ -24,13 +24,15 @@ from swarm.core.blueprint_ux import BlueprintUXImproved
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in MonkaiMagicBlueprint: {e}. Check dependencies.")
@@ -43,7 +45,8 @@ logger = logging.getLogger(__name__)
 @function_tool
 def aws_cli(command: str) -> str:
     """Executes an AWS CLI command (e.g., 's3 ls', 'ec2 describe-instances'). Assumes pre-authentication. Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 120s)."""
-    if not command: return "Error: No AWS command provided."
+    if not command:
+        return "Error: No AWS command provided."
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "120"))
@@ -70,7 +73,8 @@ def aws_cli(command: str) -> str:
 @function_tool
 def fly_cli(command: str) -> str:
     """Executes a Fly.io CLI command ('flyctl ...'). Assumes pre-authentication ('flyctl auth login'). Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 120s)."""
-    if not command: return "Error: No Fly command provided."
+    if not command:
+        return "Error: No Fly command provided."
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "120"))
@@ -97,7 +101,8 @@ def fly_cli(command: str) -> str:
 @function_tool
 def vercel_cli(command: str) -> str:
     """Executes a Vercel CLI command ('vercel ...'). Assumes pre-authentication ('vercel login'). Timeout is configurable via SWARM_COMMAND_TIMEOUT (default: 120s)."""
-    if not command: return "Error: No Vercel command provided."
+    if not command:
+        return "Error: No Vercel command provided."
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "120"))
@@ -187,26 +192,32 @@ class MonkaiMagicBlueprint(BlueprintBase):
             model_instance = OpenAIChatCompletionsModel(model="gpt-3.5-turbo", openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
+        if not profile_data:
+            raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
+        if not model_name:
+            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if provider != "openai":
+            raise ValueError(f"Unsupported provider: {provider}")
         client_cache_key = f"{provider}_{profile_data.get('base_url')}"
         if client_cache_key not in self._openai_client_cache:
              client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
              filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
              log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
              logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
+             try:
+                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
+             except Exception as e:
+                 raise ValueError(f"Failed to init client: {e}") from e
         client = self._openai_client_cache[client_cache_key]
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
             model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM: {e}") from e
 
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"

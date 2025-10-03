@@ -62,7 +62,7 @@ def settings_dashboard(request):
 
 @csrf_exempt
 @require_http_methods(["GET"])
-def settings_api(request):
+def settings_api(_request):
     """API endpoint to get all settings as JSON"""
     try:
         all_settings = settings_manager.collect_all_settings()
@@ -97,7 +97,7 @@ def settings_api(request):
 
 @csrf_exempt
 @require_http_methods(["GET"])
-def environment_variables(request):
+def environment_variables(_request):
     """Get all environment variables related to Open Swarm"""
     try:
         # Collect all environment variables that might be relevant

@@ -19,6 +19,7 @@ from typing import Any, ClassVar
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
+
 from swarm.ux.ansi_box import ansi_box
 
 # Last swarm update: 2025-04-18T10:15:21Z (UTC)
@@ -34,6 +35,7 @@ try:
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from openai import AsyncOpenAI
+
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
 except ImportError as e:

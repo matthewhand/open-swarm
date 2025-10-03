@@ -12,7 +12,7 @@ stewie_dir = Path(__file__).parent.parent / "stewie"
 sys.path.insert(0, str(stewie_dir))
 
 # Import and run the actual blueprint
-from blueprint_family_ties import StewieBlueprint
+from blueprint_family_ties import StewieBlueprint  # noqa: E402
 
 
 def main():

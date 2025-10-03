@@ -1,10 +1,17 @@
+import argparse
 import asyncio
 import os
-import argparse
-from swarm.blueprints.jeeves.blueprint_jeeves import JeevesBlueprint, JeevesSpinner, display_operation_box, SPINNER_STATES
+
+from rich import box as rich_box
 from rich.console import Console
 from rich.panel import Panel
-from rich import box as rich_box
+
+from swarm.blueprints.jeeves.blueprint_jeeves import (
+    SPINNER_STATES,
+    JeevesBlueprint,
+    JeevesSpinner,
+    display_operation_box,
+)
 
 try:
     from aioconsole import ainput
@@ -39,12 +46,11 @@ def main():
         spinner.start()
         try:
             messages = [{"role": "user", "content": instruction}]
-            spinner_idx = 0
             import time
             spinner_start = time.time()
             async for chunk in bp.run(messages, search_mode=search_mode):
                 if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches")):
-                    elapsed = time.time() - spinner_start
+                    time.time() - spinner_start
                     spinner_state = spinner.current_spinner_state()
                     display_operation_box(
                         title="Progressive Operation",
@@ -64,7 +70,6 @@ def main():
             spinner.stop()
 
     if args.instruction:
-        messages = [{"role": "user", "content": args.instruction}]
         asyncio.run(run_instruction(args.instruction))
     else:
         console = Console()
