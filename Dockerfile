@@ -16,29 +16,24 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy all project files into the container
+# Copy all project files first (consider .dockerignore for efficiency)
 COPY . .
 
-# Upgrade pip to the latest version for compatibility
+# Upgrade pip
 RUN pip install --upgrade pip setuptools wheel
 
-# Install BLIS with generic architecture support
-ENV BLIS_ARCH="generic"
-#RUN pip install --no-cache-dir --no-binary=blis blis==1.2.0
-# RUN pip install --no-cache-dir --no-dependencies nemoguardrails
+# Install BLIS (if still needed, uncomment)
+# ENV BLIS_ARCH="generic"
+# RUN pip install --no-cache-dir --no-binary=blis blis==1.2.0
 
-# Install the project along with its dependencies using Hatchling (as set in pyproject.toml)
+# Install the project
 RUN pip install .
 
 # Expose the specified port
 EXPOSE ${PORT}
 
-# Runtime logic:
-# - If SWAPFILE_PATH is defined, configure swap
-# - Set default SQLite DB path if not provided
-# - If FACTORY_RESET_DATABASE is True, delete the database file
-# - Check if database exists and has tables; apply migrations accordingly
-# - Start the Django server
+# --- Default Command ---
+# This runs if no entrypoint overrides it. Includes DB setup.
 CMD if [ -n "$SWAPFILE_PATH" ]; then \
       mkdir -p "$(dirname "$SWAPFILE_PATH")" && \
       fallocate -l 768M "$SWAPFILE_PATH" && \
@@ -65,4 +60,6 @@ CMD if [ -n "$SWAPFILE_PATH" ]; then \
       echo "No database found; creating and applying migrations" && \
       python manage.py migrate; \
     fi && \
+    echo "--- Starting Django Server (Default CMD) ---" && \
     python manage.py runserver 0.0.0.0:$PORT
+

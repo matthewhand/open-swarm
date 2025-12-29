@@ -1,0 +1,5 @@
+`uv run pytest` to test.
+`uv add` and `uv sync --all-extras` to add software.
+git commit messages are to be conventional.
+functional swarm-cli and swarm-api cmds are the end game.
+blueprints demonstrate the framework capabilities.

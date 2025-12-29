@@ -1,60 +1,173 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "open-swarm"
-version = "0.1.0"  # This will be updated dynamically in GitHub Actions
-description = "A tool for orchestrating Swarm using both CLI and API."
+version = "0.2.1"
+description = "Open Swarm: Orchestrating AI Agent Swarms with Django"
 readme = "README.md"
-authors = [
-   { name = "Matthew Hand", email = "matthewhandau@gmail.com" }
-]
 requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Matthew Hand", email = "matthewhandau@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django :: 4.2",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 dependencies = [
-   "aiofiles>=24.1.0",
-   "aiohttp>=3.11.11",
-   "asyncio>=3.4.3",
-   "asynctest>=0.13.0",
-   "channels>=4.2.0",
-   "colorama>=0.4.6",
-   "django>=4.2,<5.0",
-   "django-allauth>=65.3.1",
-   "django-template-debug>=0.3.5",
-   "djangorestframework>=3.15.2",
-   "flask>=3.1.0",
-   "jmespath>=1.0.1",
-   "jsonschema-pydantic>=0.6",
-   "mcp>=1.2.0",
-   "openai>=1.58.1",
-   "python-dotenv>=1.0.1",
-   "redis>=5.2.1",
-   "requests>=2.32.3",
-   "whitenoise>=6.8.2",
-   "drf-spectacular>=0.23.0",
-   "pyinstaller>=6.12.0",
-   "tiktoken>=0.9.0",
-   "django-cors-headers>=4.7.0",
+    "Django>=4.2,<5.0",
+    "djangorestframework>=3.14,<4.0",
+    "openai>=1.3.0,<2.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "django-cors-headers>=4.0.0",
+    "uvicorn>=0.23.0",
+    "gunicorn>=21.0.0",
+    "psycopg2-binary>=2.9.0",
+    "django-extensions>=3.2.0",
+    "drf-yasg>=1.21.0",
+    "channels>=4.0",
+    "channels-redis>=4.0",
+    "daphne>=4.0.0",
+    "tiktoken>=0.5.0",
+    "platformdirs>=4.0.0",
+    "typer>=0.9.0", # Changed from typer[all]
+    "pyinstaller>=5.13.0",
+    "httpx>=0.25.2,<0.26.0",
+    "django-environ>=0.11.0",
+    "django-model-utils>=4.3.0",
+    "django-filter>=23.0",
+    "celery>=5.3.0",
+    "redis>=5.0.0",
+    "qdrant-client>=1.6.0",
+    "beautifulsoup4>=4.12.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth-httplib2>=0.1.0",
+    "google-auth-oauthlib>=1.2.1", # Version from uv install
+    "openai-agents>=0.0.1",
+    "jinja2>=3.1.6",
+    "drf-spectacular>=0.28.0",
+    "jmespath>=1.0.1",
+    "filelock>=3.18.0",
+    # Optional Wagtail CMS for marketplace (enabled via ENABLE_WAGTAIL)
+    "wagtail>=6.0,<7.0",
+    "django-taggit>=5.0.0",
+    "django-modelcluster>=6.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/yourusername/open-swarm"
+Documentation = "https://github.com/yourusername/open-swarm/blob/main/README.md"
+Repository = "https://github.com/yourusername/open-swarm.git"
+Changelog = "https://github.com/yourusername/open-swarm/blob/main/CHANGELOG.md"
+
 [project.scripts]
-swarm-cli = "swarm.extensions.launchers.swarm_cli:main"
 swarm-api = "swarm.extensions.launchers.swarm_api:main"
+ swarm-cli = "swarm.core.swarm_cli:app"
+codey = "swarm.blueprints.codey.codey_cli:main"
+suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
 [project.optional-dependencies]
 dev = [
-   "pytest>=8.3.4",
-   "pytest-asyncio>=0.25.1",
-   "pytest-cov>=6.0.0",
-   "pytest-django>=4.9.0",
-   "pytest-mock>=3.14.0",
-   "python-semantic-release>=9.20.0",
+    "pytest>=8.0.0",
+    "pytest-django>=4.7.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.5.0",
+    "factory-boy>=3.3.0",
+    "ipython",
+    "ipdb",
+    "uv>=0.1.11",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-django>=4.7.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "pytest-asyncio>=0.21.0",
+    "factory-boy>=3.3.0",
+    "sseclient-py>=1.7.2",
+    "pytest-env>=1.0.0",
+    "pytest-xdist",
+    "anyio>=4.0.0",
+    "respx>=0.20.0",
+    "psutil>=5.9.0",
+]
+docs = [
+    "Sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0",
 ]
 
-experimental = [
-   "nemoguardrails>=0.11.0",
-]
+[tool.setuptools.packages.find]
+where = ["src"]
 
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+[tool.hatch.version]
+path = "src/swarm/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swarm"]
+include = ["src/swarm/blueprints/**/*", "src/swarm/templates/**/*", "src/swarm/static/**/*"]
+exclude = ["src/swarm/**/__pycache__", "src/swarm/**/*.pyc"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "ARG"]
+ignore = ["E501"]
+
+
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+# plugins = ["mypy_django_plugin.main"]
+
+# [tool.django-stubs]
+# django_settings_module = "swarm.settings"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "src.swarm.settings"
-pythonpath = ["src"]
+DJANGO_SETTINGS_MODULE = "swarm.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+env = [
+    "DJANGO_ALLOW_ASYNC_UNSAFE=true",
+]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore:pkg_resources is deprecated as an API:DeprecationWarning:docutils.*:",
+    "ignore:pkg_resources is deprecated as an API:DeprecationWarning:pkg_resources.*:",
+    "ignore:Deprecated call to `pkg_resources.declare_namespace.*:DeprecationWarning:pkg_resources.*:",
+    # Ignore the pytest-django fixture mark warning for now
+    "ignore:Marks applied to fixtures have no effect:pytest.PytestRemovedIn9Warning",
+]
+
+[tool.coverage.run]
+source = ["src/swarm"]
+omit = ["*/migrations/*", "*/tests/*", "src/swarm/settings.py", "src/swarm/wsgi.py", "src/swarm/asgi.py", "src/swarm/manage.py"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 70

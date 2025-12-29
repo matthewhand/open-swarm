@@ -1,7 +1,8 @@
 import logging
+import os
 import subprocess
 import sys
-import os
+
 from swarm.utils.color_utils import color_text
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,11 @@ def run_rest_mode(agent):
     """
     try:
         logger.info("Launching Django server for REST mode...")
-        
+
         # Retrieve host and port from environment variables, defaulting to 0.0.0.0:8000
         host = os.getenv("HOST", "0.0.0.0")
         port = os.getenv("PORT", "8000")
-        
+
         logger.info(f"Using host '{host}' and port '{port}' for the Django server.")
         print(color_text(f"Starting Django REST server on http://{host}:{port}", "cyan"))
 

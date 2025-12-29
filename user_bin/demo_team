@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec python3 'user_blueprints/demo_team/blueprint_demo_team.py' "$@"

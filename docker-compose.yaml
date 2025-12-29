@@ -1,24 +1,46 @@
+# docker-compose.yaml (V2 Syntax - Base Configuration)
+
 services:
   open-swarm:
+    # Default to using a pre-built image
     image: mhand79/open-swarm:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: open-swarm
     environment:
       - OPENAI_API_KEY
       - PORT=${PORT:-8000}
+      - PYTHONUNBUFFERED=1
+      - DJANGO_LOG_LEVEL=DEBUG
+      - SWARM_LOG_LEVEL=DEBUG
+      # Optional: preload a minimal blueprint list for API model registry
+      - SWARM_BLUEPRINTS=${SWARM_BLUEPRINTS:-echocraft}
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     env_file:
       - .env
     volumes:
-      - ./sql-data/:/mnt/sqlite_data/
-      - ./blueprints:/app/blueprints
-      - ./swarm_config.json:/app/swarm_config.json
+      # Map blueprints and config for the API to potentially use
+      - ./blueprints:/app/blueprints:ro
+      - ./swarm_config.json:/app/swarm_config.json:ro
+      - ./db.sqlite3:/app/db.sqlite3
+      # Optional persistent user dirs (use with caution)
+      # - ~/.local/share/swarm:/home/chatgpt/.local/share/swarm
+      # - ~/.config/swarm:/home/chatgpt/.config/swarm
+    # entrypoint: directive REMOVED - rely on Dockerfile CMD or override
+    # Rely on Dockerfile CMD which executes migrations and then:
+    #   python manage.py runserver 0.0.0.0:$PORT
+    # You may override with the following if desired:
+    # command: ["python", "manage.py", "runserver", "0.0.0.0:${PORT:-8000}"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${PORT:-8000}/v1/models || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    # depends_on:
+    #   - redis
 
   redis:
     image: redis:alpine
@@ -26,3 +48,4 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     restart: unless-stopped
+

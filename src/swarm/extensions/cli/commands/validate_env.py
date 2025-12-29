@@ -1,9 +1,18 @@
-import os
 import argparse
-from swarm.extensions.config.config_loader import load_server_config
-from swarm.extensions.blueprint.blueprint_base import BlueprintBase
+import os
+from pathlib import Path
 
-CONFIG_PATH = "swarm_config.json"
+from swarm.core import server_config
+from swarm.core.blueprint_base import BlueprintBase
+
+
+def get_xdg_config_path():
+    config_home = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    config_dir = Path(config_home) / "swarm"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir / "swarm_config.json"
+
+CONFIG_PATH = str(get_xdg_config_path())
 
 def validate_all_env_vars(config):
     """
@@ -43,7 +52,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        config = load_server_config(CONFIG_PATH)
+        config = server_config.load_server_config(CONFIG_PATH)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return

@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+
+{% block title %}Blueprint Library - Open Swarm{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-5 mb-2">
+                <i class="fas fa-cube me-2"></i>Blueprint Library
+            </h1>
+            <p class="lead text-muted">
+                Browse and manage your AI agent blueprints. Add them to your library or create custom ones.
+            </p>
+        </div>
+        <div class="col-auto">
+            <div class="d-flex gap-2">
+                <a href="{% url 'my_blueprints' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-bookmark me-1"></i>My Library
+                    <span class="badge bg-primary ms-1">{{ installed_count }}</span>
+                </a>
+                <a href="{% url 'blueprint_creator' %}" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i>Create Custom
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Available</h6>
+                            <h3 class="mb-0">{{ blueprints_by_category|length }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-cubes fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Installed</h6>
+                            <h3 class="mb-0">{{ installed_count }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Custom Created</h6>
+                            <h3 class="mb-0">{{ custom_count }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-magic fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Categories</h6>
+                            <h3 class="mb-0">{{ categories|length }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-tags fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <ul class="nav nav-tabs mb-4" id="categoryTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab">
+                <i class="fas fa-th-large me-1"></i>All Blueprints
+            </button>
+        </li>
+        {% if github_marketplace_enabled %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="github-tab" data-bs-toggle="tab" data-bs-target="#github" type="button" role="tab" onclick="loadGithubMarketplace()">
+                <i class="fab fa-github me-1"></i>GitHub
+            </button>
+        </li>
+        {% endif %}
+        {% for category_id, category_info in categories.items %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="{{ category_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ category_id }}" type="button" role="tab">
+                {{ category_info.icon }} {{ category_info.name }}
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="categoryTabContent">
+        <!-- All Blueprints Tab -->
+        <div class="tab-pane fade show active" id="all" role="tabpanel">
+            <div class="row">
+                {% for category_id, blueprints in blueprints_by_category.items %}
+                    {% for blueprint in blueprints %}
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        {% include "blueprint_card.html" with blueprint=blueprint %}
+                    </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Category-specific tabs -->
+        {% for category_id, blueprints in blueprints_by_category.items %}
+        <div class="tab-pane fade" id="{{ category_id }}" role="tabpanel">
+            <div class="row">
+                {% for blueprint in blueprints %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    {% include "blueprint_card.html" with blueprint=blueprint %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if github_marketplace_enabled %}
+        <!-- GitHub Marketplace Tab -->
+        <div class="tab-pane fade" id="github" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <input type="text" id="ghSearch" class="form-control" placeholder="Search by name..." style="min-width: 240px; display: inline-block;">
+                    <button class="btn btn-outline-primary ms-2" onclick="loadGithubMarketplace()"><i class="fas fa-search"></i></button>
+                </div>
+                <div>
+                    <select id="ghType" class="form-select form-select-sm me-2" style="width: 190px; display: inline-block;">
+                        <option value="blueprints" selected>Type: Blueprints</option>
+                        <option value="mcp-configs">Type: MCP Templates</option>
+                    </select>
+                    <select id="ghSort" class="form-select form-select-sm" style="width: 180px; display: inline-block;">
+                        <option value="stars" selected>Sort: Stars</option>
+                        <option value="updated">Sort: Updated</option>
+                        <option value="created">Sort: Created</option>
+                        <option value="last_used">Sort: Last Used</option>
+                    </select>
+                    <select id="ghOrder" class="form-select form-select-sm ms-2" style="width: 140px; display: inline-block;">
+                        <option value="desc" selected>Desc</option>
+                        <option value="asc">Asc</option>
+                    </select>
+                </div>
+            </div>
+            <div id="ghResults" class="row g-3"></div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Toast for notifications -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="notificationToast" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong class="me-auto">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch MCP compliance for all blueprints and update badges
+    fetch('/blueprint-library/requirements/')
+      .then(resp => resp.json())
+      .then(data => {
+          (data.blueprints || []).forEach(bp => {
+              const el = document.getElementById(`mcp-status-${bp.id}`);
+              if (!el) return;
+              const comp = bp.compliance || {};
+              const status = comp.status || 'partial';
+              let cls = 'bg-secondary';
+              let icon = 'fa-circle-question';
+              let label = 'MCP: Unknown';
+              let title = '';
+              if (status === 'ok') {
+                  cls = 'bg-success';
+                  icon = 'fa-check';
+                  label = 'MCP: OK';
+              } else if (status === 'partial') {
+                  cls = 'bg-warning text-dark';
+                  icon = 'fa-triangle-exclamation';
+                  const unresolved = (comp.unresolved_env || []).length;
+                  const bpEnv = (comp.blueprint_env_missing || []).length;
+                  label = `MCP: Partial`;
+                  title = `Unresolved env: ${unresolved}, Missing blueprint env: ${bpEnv}`;
+              } else if (status === 'missing') {
+                  cls = 'bg-danger';
+                  icon = 'fa-xmark';
+                  const missing = (comp.missing_servers || []).length;
+                  label = `MCP: Missing (${missing})`;
+                  title = `Missing servers: ${(comp.missing_servers || []).join(', ')}`;
+              }
+              el.className = `badge ${cls}`;
+              el.title = title;
+              el.innerHTML = `<i class=\"fas ${icon} me-1\"></i>${label}`;
+          });
+      })
+      .catch(() => {/* silently ignore; badges stay in checking state */});
+
+    // Handle add/remove blueprint buttons
+    document.querySelectorAll('.btn-add-blueprint, .btn-remove-blueprint').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const blueprintId = this.dataset.blueprintId;
+            const action = this.classList.contains('btn-add-blueprint') ? 'add' : 'remove';
+            const url = action === 'add' 
+                ? `/blueprint-library/add/${blueprintId}/`
+                : `/blueprint-library/remove/${blueprintId}/`;
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update button state
+                    const card = this.closest('.blueprint-card');
+                    if (action === 'add') {
+                        this.classList.remove('btn-success', 'btn-add-blueprint');
+                        this.classList.add('btn-outline-danger', 'btn-remove-blueprint');
+                        this.innerHTML = '<i class="fas fa-minus me-1"></i>Remove';
+                        card.classList.add('installed');
+                    } else {
+                        this.classList.remove('btn-outline-danger', 'btn-remove-blueprint');
+                        this.classList.add('btn-success', 'btn-add-blueprint');
+                        this.innerHTML = '<i class="fas fa-plus me-1"></i>Add to Library';
+                        card.classList.remove('installed');
+                    }
+                    
+                    // Show notification
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.error || 'An error occurred', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('An error occurred while processing your request', 'error');
+            });
+        });
+    });
+});
+
+async function loadGithubMarketplace() {
+    try {
+        const q = encodeURIComponent(document.getElementById('ghSearch')?.value || '');
+        const sort = document.getElementById('ghSort')?.value || 'stars';
+        const order = document.getElementById('ghOrder')?.value || 'desc';
+        const type = document.getElementById('ghType')?.value || 'blueprints';
+        const url = `/marketplace/github/${type}/?search=${q}&sort=${sort}&order=${order}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        const container = document.getElementById('ghResults');
+        container.innerHTML = '';
+        (data.data || []).forEach(item => {
+            const col = document.createElement('div');
+            col.className = 'col-lg-4 col-md-6';
+            col.innerHTML = renderGithubCard(item);
+            container.appendChild(col);
+        });
+    } catch (e) {
+        console.error('GitHub marketplace load failed', e);
+    }
+}
+
+function renderGithubCard(item) {
+    const repo = item.repo_full_name || 'unknown/repo';
+    const repoUrl = item.repo_url || '#';
+    const owner = item.owner || (repo.split('/')[0] || '');
+    const title = item.name || '(untitled)';
+    const desc = item.description || '';
+    const tags = (item.tags || []).map(t => `<span class="badge bg-light text-dark tag-badge">${t}</span>`).join(' ');
+    const kind = item.kind || 'blueprint';
+    const kindBadge = kind === 'mcp' ? '<span class="badge bg-info text-dark ms-2">MCP</span>' : '';
+    const files = item.file_count != null ? `${item.file_count} file${item.file_count === 1 ? '' : 's'}` : '';
+    const lines = item.line_count != null ? `${item.line_count} lines` : '';
+    const metrics = (files || lines) ? `<small class="text-muted">${[files, lines].filter(Boolean).join(' • ')}</small>` : '';
+    return `
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">${title} ${kindBadge}</h5>
+        <p class="card-text">${desc}</p>
+        <div class="mb-2">${tags}</div>
+        <div class="mt-auto d-flex justify-content-between align-items-center">
+          <div>
+            <small class="text-muted d-block"><i class="fab fa-github me-1"></i>${repo}</small>
+            ${metrics}
+          </div>
+          <a class="btn btn-outline-secondary btn-sm" href="${repoUrl}" target="_blank">View Repo</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+function showNotification(message, type) {
+    const toast = document.getElementById('notificationToast');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    toastMessage.textContent = message;
+    
+    // Update toast styling based on type
+    toast.className = `toast ${type === 'success' ? 'bg-success text-white' : 'bg-danger text-white'}`;
+    
+    // Show the toast
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+</script>
+
+<style>
+.blueprint-card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.blueprint-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.blueprint-card.installed {
+    border-color: #198754;
+    background-color: #f8fff9;
+}
+
+.difficulty-badge {
+    font-size: 0.75rem;
+}
+
+.difficulty-beginner { background-color: #28a745; }
+.difficulty-intermediate { background-color: #ffc107; color: #000; }
+.difficulty-advanced { background-color: #dc3545; }
+
+.tag-badge {
+    font-size: 0.7rem;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+</style>
+{% endblock %}

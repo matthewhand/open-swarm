@@ -1,0 +1,165 @@
+{% csrf_token %}
+<div class="card blueprint-card h-100 {% if blueprint.installed %}installed{% endif %}">
+    <!-- Avatar Section -->
+    <div class="text-center pt-3">
+        {% if blueprint.avatar_path %}
+            <img src="{{ blueprint.avatar_path }}" alt="{{ blueprint.name }} Avatar" 
+                 class="rounded-circle mb-2" style="width: 80px; height: 80px; object-fit: cover;">
+        {% else %}
+            <div class="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-2" 
+                 style="width: 80px; height: 80px;">
+                <i class="fas fa-robot fa-2x text-muted"></i>
+            </div>
+        {% endif %}
+        {% if not blueprint.avatar_path and blueprint.available %}
+            <button class="btn btn-sm btn-outline-primary mb-2" onclick="generateAvatar('{{ blueprint.id }}')">
+                <i class="fas fa-image me-1"></i>Generate Avatar
+            </button>
+        {% endif %}
+    </div>
+    
+    <div class="card-header d-flex justify-content-between align-items-start">
+        <div>
+            <h5 class="card-title mb-1">{{ blueprint.name }}</h5>
+            <small class="text-muted">by {{ blueprint.author }}</small>
+        </div>
+        <div class="text-end">
+            <span class="badge difficulty-badge difficulty-{{ blueprint.difficulty }}">
+                {{ blueprint.difficulty|title }}
+            </span>
+        </div>
+    </div>
+    
+    <div class="card-body d-flex flex-column">
+        <p class="card-text flex-grow-1">{{ blueprint.description }}</p>
+        
+        <!-- Category -->
+        <div class="mb-3">
+            <span class="badge bg-secondary">
+                {{ blueprint.category_info.icon }} {{ blueprint.category_info.name }}
+            </span>
+        </div>
+        
+        <!-- Tags -->
+        {% if blueprint.tags %}
+        <div class="mb-3">
+            {% for tag in blueprint.tags %}
+            <span class="badge bg-light text-dark tag-badge">{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Version + MCP Status -->
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                <i class="fas fa-tag me-1"></i>v{{ blueprint.version }}
+            </small>
+            <span id="mcp-status-{{ blueprint.id }}" class="badge bg-secondary" title="Checking MCP requirements...">
+                <i class="fas fa-spinner fa-spin me-1"></i>MCP: Checking
+            </span>
+        </div>
+        
+        <!-- Action Button -->
+        <div class="mt-auto">
+            {% if blueprint.installed %}
+            <button class="btn btn-outline-danger btn-sm w-100 btn-remove-blueprint" 
+                    data-blueprint-id="{{ blueprint.id }}">
+                <i class="fas fa-minus me-1"></i>Remove from Library
+            </button>
+            {% else %}
+            <button class="btn btn-success btn-sm w-100 btn-add-blueprint" 
+                    data-blueprint-id="{{ blueprint.id }}">
+                <i class="fas fa-plus me-1"></i>Add to Library
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card-footer">
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                <i class="fas fa-cube me-1"></i>{{ blueprint.id }}
+            </small>
+            <div class="btn-group btn-group-sm">
+                <a href="/settings/" class="btn btn-outline-warning btn-sm" title="Configure MCP">
+                    <i class="fas fa-plug"></i>
+                </a>
+                <button class="btn btn-outline-primary btn-sm" 
+                        onclick="previewBlueprint('{{ blueprint.id }}')"
+                        title="Preview">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" 
+                        onclick="launchBlueprint('{{ blueprint.id }}')"
+                        title="Launch">
+                    <i class="fas fa-play"></i>
+                </button>
+                {% if not blueprint.avatar_path and blueprint.available %}
+                <button class="btn btn-outline-info btn-sm" 
+                        onclick="generateAvatar('{{ blueprint.id }}')"
+                        title="Generate Avatar">
+                    <i class="fas fa-image"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewBlueprint(blueprintId) {
+    // Open blueprint preview in modal or new page
+    window.open(`/blueprint/${blueprintId}/`, '_blank');
+}
+
+function launchBlueprint(blueprintId) {
+    // Launch blueprint directly
+    window.open(`/teams/launch/?blueprint=${blueprintId}`, '_blank');
+}
+
+async function generateAvatar(blueprintId) {
+    try {
+        // Show loading state
+        const button = event.target.closest('button');
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        button.disabled = true;
+        
+        // Get avatar style from user (you could make this a modal or dropdown)
+        const style = prompt('Choose avatar style (professional, cartoon, anime, realistic, icon):', 'professional');
+        if (!style) {
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('avatar_style', style);
+        
+        const response = await fetch(`/blueprint-library/generate-avatar/${blueprintId}/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Reload the page to show the new avatar
+            location.reload();
+        } else {
+            alert('Error generating avatar: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating avatar');
+    } finally {
+        // Restore button state
+        const button = event.target.closest('button');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    }
+}
+</script>

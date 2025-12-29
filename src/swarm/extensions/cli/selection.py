@@ -1,12 +1,13 @@
-from typing import Dict, Optional, Any
-from swarm.utils.color_utils import color_text
 import logging
+from typing import Any
+
+from swarm.utils.color_utils import color_text
 
 # Configure logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def prompt_user_to_select_blueprint(blueprints_metadata: Dict[str, Dict[str, Any]]) -> Optional[str]:
+def prompt_user_to_select_blueprint(blueprints_metadata: dict[str, dict[str, Any]]) -> str | None:
     """
     Allow the user to select a blueprint from available options.
 

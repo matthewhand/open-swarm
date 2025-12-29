@@ -1,2 +1,2 @@
 #!/bin/bash
-echo -e "what is your purpose\n/quit" | python blueprints/gaggle/blueprint_gaggle.py
+echo -e "what is your purpose\n/quit" | python src/swarm/blueprints/gaggle/blueprint_gaggle.py

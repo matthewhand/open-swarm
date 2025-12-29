@@ -1,0 +1,661 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link href="{% static 'css/agent_creator_pro.css' %}" rel="stylesheet">
+<script src="{% static 'js/agent_creator_pro.js' %}" defer></script>
+<div class="agent-creator-pro">
+  <div style="display:none">personality_options expertise_options communication_options</div>
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-6">
+          <h1 class="hero-title">🤖 Agent Creator Pro</h1>
+          <p class="hero-subtitle">Create sophisticated AI agents with advanced capabilities, intelligent templates, and comprehensive validation</p>
+          <div class="hero-stats">
+            <div class="stat-item">
+              <span class="stat-number">5+</span>
+              <span class="stat-label">Templates</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number">100%</span>
+              <span class="stat-label">Validated</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number">0</span>
+              <span class="stat-label">Code Required</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="hero-visual">
+            <div class="floating-card">
+              <div class="card-icon">🧠</div>
+              <div class="card-text">Intelligent Templates</div>
+            </div>
+            <div class="floating-card delay-1">
+              <div class="card-icon">⚡</div>
+              <div class="card-text">Real-time Validation</div>
+            </div>
+            <div class="floating-card delay-2">
+              <div class="card-icon">🚀</div>
+              <div class="card-text">Production Ready</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="container mt-5">
+    <!-- Progress Indicator -->
+    <div class="progress-container mb-4">
+      <div class="progress-step active" data-step="1">
+        <div class="step-icon">📝</div>
+        <div class="step-label">Configure</div>
+      </div>
+      <div class="progress-step" data-step="2">
+        <div class="step-icon">🔧</div>
+        <div class="step-label">Generate</div>
+      </div>
+      <div class="progress-step" data-step="3">
+        <div class="step-icon">✅</div>
+        <div class="step-label">Validate</div>
+      </div>
+      <div class="progress-step" data-step="4">
+        <div class="step-icon">🚀</div>
+        <div class="step-label">Deploy</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Configuration Panel -->
+      <div class="col-lg-5">
+        <div class="config-panel">
+          <div class="panel-header">
+            <h3>Agent Configuration</h3>
+            <div class="template-selector">
+              <label>Template:</label>
+              <select id="templateSelect" class="form-select">
+                <option value="auto">🎯 Auto-Select</option>
+                {% for template in templates %}
+                <option value="{{ template }}">{{ template|title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <form id="agentFormPro" class="config-form">
+            <!-- Basic Info Section -->
+            <div class="form-section">
+              <h4 class="section-title">
+                <span class="section-icon">📋</span>
+                Basic Information
+              </h4>
+              
+              <div class="form-group">
+                <label for="agentName" class="form-label">Agent Name *</label>
+                <input type="text" class="form-control enhanced" id="agentName" name="name" 
+                       placeholder="e.g., Code Reviewer, Research Assistant" required>
+                <div class="form-feedback"></div>
+              </div>
+              
+              <div class="form-group">
+                <label for="agentDescription" class="form-label">Description *</label>
+                <textarea class="form-control enhanced" id="agentDescription" name="description" 
+                          rows="3" placeholder="Describe what this agent does and its primary purpose" required></textarea>
+                <div class="form-feedback"></div>
+              </div>
+            </div>
+
+            <!-- Personality Section -->
+            <div class="form-section">
+              <h4 class="section-title">
+                <span class="section-icon">🎭</span>
+                Personality & Style
+              </h4>
+              
+              <div class="form-group">
+                <label for="personality" class="form-label">Personality</label>
+                <select class="form-select enhanced" id="personality" name="personality">
+                  {% for option in form_data.personality_options %}
+                  <option value="{{ option }}">{{ option|title }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label for="communicationStyle" class="form-label">Communication Style</label>
+                <select class="form-select enhanced" id="communicationStyle" name="communication_style">
+                  {% for option in form_data.communication_options %}
+                  <option value="{{ option }}">{{ option|title }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <!-- Expertise Section -->
+            <div class="form-section">
+              <h4 class="section-title">
+                <span class="section-icon">🎯</span>
+                Expertise & Capabilities
+              </h4>
+              
+              <div class="form-group">
+                <label class="form-label">Areas of Expertise</label>
+                <div class="expertise-grid">
+                  {% for option in form_data.expertise_options %}
+                  <div class="expertise-item">
+                    <input type="checkbox" id="exp_{{ forloop.counter }}" name="expertise" value="{{ option }}">
+                    <label for="exp_{{ forloop.counter }}" class="expertise-label">{{ option|title }}</label>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Instructions Section -->
+            <div class="form-section">
+              <h4 class="section-title">
+                <span class="section-icon">📝</span>
+                Behavior & Instructions
+              </h4>
+              
+              <div class="form-group">
+                <label for="instructions" class="form-label">Special Instructions *</label>
+                <textarea class="form-control enhanced" id="instructions" name="instructions" 
+                          rows="4" placeholder="Detailed instructions on how this agent should behave, what it should focus on, and any specific guidelines" required></textarea>
+                <div class="form-feedback"></div>
+              </div>
+              
+              <div class="form-group">
+                <label for="tags" class="form-label">Tags</label>
+                <input type="text" class="form-control enhanced" id="tags" name="tags" 
+                       placeholder="custom, helpful, coding (comma-separated)">
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+              <button type="button" class="btn btn-primary btn-lg" onclick="generateAgentCodePro()">
+                <span class="btn-icon">🔧</span>
+                Generate Agent
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="clearFormPro()">
+                <span class="btn-icon">🔄</span>
+                Reset
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Code & Preview Panel -->
+      <div class="col-lg-7">
+        <div class="code-panel">
+          <div class="panel-header">
+            <h3>Generated Code</h3>
+            <div class="panel-actions">
+              <button class="btn btn-sm btn-outline-primary" onclick="validateCodePro()" id="validateBtnPro" disabled>
+                <i class="fas fa-check-circle"></i> Validate
+              </button>
+              <button class="btn btn-sm btn-outline-info" onclick="previewAgent()" id="previewBtn" disabled>
+                <i class="fas fa-eye"></i> Preview
+              </button>
+              <button class="btn btn-sm btn-success" onclick="saveAgentPro()" id="saveBtnPro" disabled>
+                <i class="fas fa-save"></i> Save Agent
+              </button>
+            </div>
+          </div>
+
+          <div class="code-container">
+            <div id="codeContainerPro" class="code-display">
+              <div class="empty-state">
+                <div class="empty-icon">💻</div>
+                <h4>Ready to Generate</h4>
+                <p>Configure your agent and click "Generate Agent" to see the Python blueprint code with advanced features.</p>
+                <div class="feature-list">
+                  <div class="feature-item">✨ Intelligent template selection</div>
+                  <div class="feature-item">🛡️ Security validation</div>
+                  <div class="feature-item">⚡ Performance optimization</div>
+                  <div class="feature-item">🎯 Context awareness</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Code Editor (when code is generated) -->
+            <div id="codeEditor" style="display: none;">
+              <div class="editor-toolbar">
+                <button class="btn btn-sm btn-outline-secondary" onclick="copyCode()">
+                  <i class="fas fa-copy"></i> Copy
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="downloadCode()">
+                  <i class="fas fa-download"></i> Download
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="formatCode()">
+                  <i class="fas fa-magic"></i> Format
+                </button>
+              </div>
+              <pre id="codeContent"><code class="language-python"></code></pre>
+            </div>
+          </div>
+
+          <!-- Validation Results -->
+          <div id="validationResultsPro" class="validation-panel" style="display: none;">
+            <div class="validation-header">
+              <h5>Validation Results</h5>
+              <div class="validation-score" id="validationScore">
+                <span class="score-value">--</span>
+                <span class="score-label">Score</span>
+              </div>
+            </div>
+            <div id="validationContentPro" class="validation-content"></div>
+          </div>
+
+          <!-- Agent Preview -->
+          <div id="agentPreview" class="preview-panel" style="display: none;">
+            <div class="preview-header">
+              <h5>Agent Preview</h5>
+              <button class="btn btn-sm btn-outline-secondary" onclick="testAgent()">
+                <i class="fas fa-play"></i> Test Agent
+              </button>
+            </div>
+            <div class="preview-content">
+              <div class="agent-card">
+                <div class="agent-avatar">🤖</div>
+                <div class="agent-info">
+                  <h6 id="previewName">Agent Name</h6>
+                  <p id="previewDescription">Agent description</p>
+                  <div class="agent-tags" id="previewTags"></div>
+                </div>
+              </div>
+              <div class="capabilities-list" id="previewCapabilities"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div id="statusMessagesPro" class="status-container"></div>
+  </div>
+</div>
+
+<!-- Custom Styles -->
+<style>
+.agent-creator-pro {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding-top: 2rem;
+}
+
+.hero-section {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  margin: 0 auto 2rem;
+  padding: 3rem 0;
+  color: white;
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: linear-gradient(45deg, #fff, #f0f0f0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin-bottom: 2rem;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-number {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.hero-visual {
+  position: relative;
+  height: 300px;
+}
+
+.floating-card {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 1.5rem;
+  text-align: center;
+  animation: float 3s ease-in-out infinite;
+}
+
+.floating-card:nth-child(1) { top: 20px; right: 100px; }
+.floating-card:nth-child(2) { top: 120px; right: 200px; }
+.floating-card:nth-child(3) { top: 220px; right: 50px; }
+
+.floating-card.delay-1 { animation-delay: 1s; }
+.floating-card.delay-2 { animation-delay: 2s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.progress-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 1.5rem;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.progress-step.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.progress-step:not(.active) {
+  opacity: 0.6;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.step-icon {
+  font-size: 1.5rem;
+}
+
+.config-panel, .code-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  height: fit-content;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.panel-header h3 {
+  margin: 0;
+  color: #333;
+  font-weight: 600;
+}
+
+.template-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 15px;
+  border-left: 4px solid #667eea;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.section-icon {
+  font-size: 1.2rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
+.form-control.enhanced, .form-select.enhanced {
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+}
+
+.form-control.enhanced:focus, .form-select.enhanced:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.expertise-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.expertise-item {
+  position: relative;
+}
+
+.expertise-item input[type="checkbox"] {
+  display: none;
+}
+
+.expertise-label {
+  display: block;
+  padding: 0.5rem 1rem;
+  background: #fff;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.expertise-item input[type="checkbox"]:checked + .expertise-label {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.btn-icon {
+  margin-right: 0.5rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #666;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.feature-list {
+  margin-top: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.feature-item {
+  padding: 0.5rem;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.code-display {
+  min-height: 400px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.editor-toolbar {
+  background: #343a40;
+  padding: 0.5rem 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.validation-panel, .preview-panel {
+  margin-top: 1rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.validation-header, .preview-header {
+  background: #343a40;
+  color: white;
+  padding: 1rem;
+  display: flex;
+  justify-content: between;
+  align-items: center;
+}
+
+.validation-score {
+  text-align: center;
+}
+
+.score-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.score-label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.agent-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 10px;
+  margin: 1rem;
+}
+
+.agent-avatar {
+  font-size: 3rem;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  border-radius: 50%;
+}
+
+.agent-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.tag {
+  background: #667eea;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+}
+
+.status-container {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 1050;
+  max-width: 400px;
+}
+
+@media (max-width: 768px) {
+  .hero-title { font-size: 2.5rem; }
+  .hero-stats { flex-direction: column; gap: 1rem; }
+  .progress-container { flex-wrap: wrap; }
+  .config-panel, .code-panel { margin-bottom: 2rem; }
+}
+</style>
+
+<script>
+let generatedCodePro = '';
+let validationResultPro = null;
+
+// Enhanced form handling and validation will go here
+// This is just the structure - the JavaScript would be extensive
+</script>
+{% endblock %}

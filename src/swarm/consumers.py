@@ -1,10 +1,12 @@
 import json
 import os
 import uuid
-from channels.generic.websocket import AsyncWebsocketConsumer
-from openai import AsyncOpenAI
-from django.template.loader import render_to_string
+
 from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
+from django.template.loader import render_to_string
+from openai import AsyncOpenAI
+
 from swarm.models import ChatConversation, ChatMessage
 
 # In-memory conversation storage (populated lazily)
@@ -62,6 +64,26 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=system_message_html)
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
+        import logging
+        import os
+        if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
+            logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
+            try:
+                import openai.agents.tracing
+                openai.agents.tracing.TracingClient = lambda *a, **kw: None
+            except Exception:
+                pass
+        def _enforce_litellm_only(client):
+            base_url = getattr(client, 'base_url', None)
+            if base_url and 'openai.com' in base_url:
+                return
+            if base_url and 'openai.com' not in base_url:
+                import traceback
+                raise RuntimeError(f"Attempted fallback to OpenAI API when custom base_url is set! base_url={base_url}\n{traceback.format_stack()}")
+        _enforce_litellm_only(client)
+
         stream = await client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL"),
             messages=self.messages,
@@ -102,8 +124,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return IN_MEMORY_CONVERSATIONS[conversation_id]
 
         try:
-            chat = ChatConversation.objects.get(conversation_id=conversation_id, user=self.user)
-            messages = list(chat.messages.values("sender", "content", "timestamp"))
+            chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
+            messages = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
             IN_MEMORY_CONVERSATIONS[conversation_id] = messages  # Cache it
             return messages
         except ChatConversation.DoesNotExist:
@@ -114,7 +136,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         """
         Save messages to the DB and update in-memory cache.
         """
-        chat, _ = ChatConversation.objects.get_or_create(conversation_id=conversation_id, user=self.user)
+        chat, _ = ChatConversation.objects.get_or_create(conversation_id=conversation_id, student=self.user)
 
         for message in new_messages:
             ChatMessage.objects.create(
@@ -132,7 +154,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         Delete the conversation from DB if empty.
         """
         try:
-            chat = ChatConversation.objects.get(conversation_id=conversation_id, user=self.user)
+            chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
             if not chat.messages.exists():  # Check if there are any messages before deleting
                 chat.delete()
                 if conversation_id in IN_MEMORY_CONVERSATIONS:

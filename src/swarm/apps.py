@@ -1,9 +1,11 @@
-from django.apps import AppConfig
 import logging
-import os # Import os
+import logging.config
+import os  # Import os
+
+from django.apps import AppConfig
+
 # Import Django settings and logging config
 from django.conf import settings
-import logging.config
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,10 @@ class SwarmConfig(AppConfig):
         except Exception as e:
             # Fallback to basic config if dictConfig fails
             logging.basicConfig(level=logging.INFO)
-            logger.critical(f"Failed to configure logging using dictConfig: {e}. Using basicConfig.", exc_info=True)
+            logger.critical(
+                f"Failed to configure logging using dictConfig: {e}. Using basicConfig.",
+                exc_info=True
+            )
 
 
         # The blueprint discovery and URL registration should ideally happen
@@ -31,7 +36,8 @@ class SwarmConfig(AppConfig):
         # unless absolutely necessary and carefully managed, as it can lead to
         # import loops or run before the full Django environment is set up.
 
-        # Example: Trigger necessary setup if needed, but avoid blueprint instantiation here.
+        # Example: Trigger necessary setup if needed, but avoid blueprint
+        # instantiation here.
         logger.info("Swarm AppConfig ready.")
 
         # If you need to ensure blueprint modules are loaded early, you could
@@ -41,13 +47,16 @@ class SwarmConfig(AppConfig):
         # logger.debug("Ensured blueprint discovery module is loaded.")
 
         # Removed blueprint discovery and URL registration loop from here.
-        # This will now rely on discover_blueprints being called where needed (e.g., in list_models view)
+        # This will now rely on discover_blueprints being called where needed (e.g.,
+        # in list_models view)
         # and register_django_components being called by BlueprintBase.__init__.
 
         # Ensure necessary environment variables for Django are set if not already
         if not os.environ.get("DJANGO_SETTINGS_MODULE"):
              os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-             logger.warning("DJANGO_SETTINGS_MODULE not set, setting default 'swarm.settings'")
+             logger.warning(
+                "DJANGO_SETTINGS_MODULE not set, setting default 'swarm.settings'"
+            )
 
         logger.info("Swarm app initialization checks completed.")
 

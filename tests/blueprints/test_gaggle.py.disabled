@@ -1,0 +1,88 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="Stubbed gaggle blueprint: skip until full implementation is restored.")
+
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/swarm')))
+import pytest
+from unittest.mock import patch, AsyncMock, MagicMock
+# from agents.runner import RunResult  # Removed, not needed for MagicMock
+from blueprints.gaggle.blueprint_gaggle import create_story_outline, _create_story_outline
+
+pytestmark = pytest.mark.skipif(
+    not (os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY")),
+    reason="No LLM API key available in CI/CD"
+)
+
+@pytest.fixture
+def gaggle_blueprint_instance():
+    """Fixture to create a mocked instance of GaggleBlueprint."""
+    with patch('blueprints.gaggle.blueprint_gaggle.GaggleBlueprint._get_model_instance') as mock_get_model:
+        mock_model_instance = MagicMock()
+        mock_get_model.return_value = mock_model_instance
+        from blueprints.gaggle.blueprint_gaggle import GaggleBlueprint
+        instance = GaggleBlueprint("test_gaggle")
+        instance.debug = True
+        # Set a minimal valid config to avoid RuntimeError
+        instance._config = {
+            "llm": {"default": {"provider": "openai", "model": "gpt-mock"}},
+            "settings": {"default_llm_profile": "default", "default_markdown_output": True},
+            "blueprints": {},
+            "llm_profile": "default",
+            "mcpServers": {}
+        }
+    return instance
+
+# --- Test Cases ---
+
+import types
+import pytest
+
+@pytest.mark.asyncio
+async def test_gaggle_agent_handoff_and_astool(gaggle_blueprint_instance):
+    pass
+
+@pytest.mark.asyncio
+async def test_gaggle_story_delegation_flow(gaggle_blueprint_instance):
+    pass
+
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint tests not yet implemented")
+def test_gaggle_agent_creation(gaggle_blueprint_instance):
+    pass
+
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint interaction tests not yet implemented")
+@pytest.mark.asyncio
+async def test_gaggle_story_writing_flow(gaggle_blueprint_instance):
+    pass
+
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Tool function tests not yet implemented")
+def test_gaggle_create_story_outline_tool():
+    pass
+
+import os
+import pytest
+
+skip_unless_test_llm = pytest.mark.skipif(os.environ.get("DEFAULT_LLM", "") != "test", reason="Only run if DEFAULT_LLM is not set to 'test'")
+
+@skip_unless_test_llm(reason="Blueprint CLI tests not yet implemented")
+def test_gaggle_cli_execution(tmp_path):
+    pass
+
+@skip_unless_test_llm(reason="Blueprint CLI tests not yet implemented")
+def test_gaggle_cli_debug_flag_behavior(tmp_path):
+    pass

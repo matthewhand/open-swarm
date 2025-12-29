@@ -1,12 +1,12 @@
 """
 General utility functions for the Swarm framework.
 """
-import os
-import logging
-import jmespath
-import json
 import datetime
-from typing import Optional, List, Dict, Any
+import json
+import os
+
+import jmespath
+from jmespath.exceptions import JMESPathError
 
 from swarm.utils.logger_setup import setup_logger
 
@@ -56,7 +56,7 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                 else:
                     logger.debug("Arguments for json_parse path not found or not a string.")
                     return ""
-            except (json.JSONDecodeError, jmespath.exceptions.JMESPathError, IndexError, TypeError, KeyError) as e:
+            except (json.JSONDecodeError, JMESPathError, IndexError, TypeError, KeyError) as e:
                 logger.debug(f"Manual handling of json_parse failed: {e}")
                 return ""
         else:
@@ -83,9 +83,11 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                                       id_val = parsed_json.get(key)
                                       if id_val and isinstance(id_val, str):
                                            chat_id = id_val.strip()
-                                           if chat_id: return chat_id
+                                           if chat_id:
+                                               return chat_id
                                  return "" # Parsed dict, but no ID key
-                             else: return "" # Parsed, but not dict
+                             else:
+                                 return "" # Parsed, but not dict
                          else:
                               chat_id = stripped_value # Treat as plain ID
                      except json.JSONDecodeError:
@@ -93,23 +95,26 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
                      except Exception as e:
                           logger.error(f"Unexpected error processing potential JSON string from '{expression}': {e}")
                           return ""
-                else: return "" # Empty string extracted
-            elif isinstance(extracted_value, dict):
-                 possible_keys = ["conversation_id", "chat_id", "channelId", "sessionId", "id"]
-                 for key in possible_keys:
+                else:
+                    return "" # Empty string extracted
+           elif isinstance(extracted_value, dict):
+                possible_keys = ["conversation_id", "chat_id", "channelId", "sessionId", "id"]
+                for key in possible_keys:
                       id_val = extracted_value.get(key)
                       if id_val and isinstance(id_val, str):
                            chat_id = id_val.strip()
-                           if chat_id: return chat_id
-                 return "" # Dict found, but no ID key
-            elif isinstance(extracted_value, (int, float, bool)):
-                 return str(extracted_value) # Convert simple types
-            else:
-                 logger.warning(f"Extracted value via '{expression}' is of unsupported type: {type(extracted_value)}. Returning empty string.")
-                 return ""
-        else: return "" # JMESPath returned None
+                           if chat_id:
+                               return chat_id
+                return "" # Dict found, but no ID key
+           elif isinstance(extracted_value, int | float | bool):
+                return str(extracted_value) # Convert simple types
+           else:
+                logger.warning(f"Extracted value via '{expression}' is of unsupported type: {type(extracted_value)}. Returning empty string.")
+                return ""
+        else:
+            return "" # JMESPath returned None
 
-    except jmespath.exceptions.JMESPathError as jmes_err:
+    except JMESPathError as jmes_err:
          logger.debug(f"JMESPath expression '{expression}' failed: {jmes_err}")
          return ""
     except Exception as e:
@@ -117,6 +122,25 @@ def _search_and_process_jmespath(expression: str, payload: dict) -> str:
         return ""
 
     return str(chat_id) if chat_id is not None else ""
+
+# ---------------------------------------------------------------------------
+# Debug utilities
+# ---------------------------------------------------------------------------
+
+_DEBUG_ENV_VARS = ("SWARM_DEBUG", "DEBUG", "OPEN_SWARM_DEBUG")
+
+
+def is_debug_enabled() -> bool:
+    """Return True if any recognised debug environment variable is truthy.
+
+    A value is considered *truthy* when it is set and **not** one of
+    "0", "false", "off" (case‑insensitive).
+    """
+    for var in _DEBUG_ENV_VARS:
+        val = os.getenv(var)
+        if val and val.lower() not in ("0", "false", "off"):
+            return True
+    return False
 
 
 def extract_chat_id(payload: dict) -> str:
@@ -126,7 +150,7 @@ def extract_chat_id(payload: dict) -> str:
     Returns the first valid chat ID found, or empty string ("").
     """
     path_expr_env = os.getenv("STATEFUL_CHAT_ID_PATH", "").strip()
-    paths_to_try: List[str] = []
+    paths_to_try: list[str] = []
     source = ""
 
     if path_expr_env:
@@ -152,11 +176,12 @@ def extract_chat_id(payload: dict) -> str:
     return ""
 
 def serialize_datetime(obj):
-    if isinstance(obj, datetime.datetime): return obj.isoformat()
-    elif isinstance(obj, str): return obj
+    if isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, str):
+        return obj
     raise TypeError(f"Type {type(obj)} not serializable")
 
 def custom_json_dumps(obj, **kwargs):
-    defaults = {'default': serialize_datetime}; defaults.update(kwargs)
-    return json.dumps(obj, **defaults)
+    return json.dumps(obj, default=serialize_datetime, **kwargs)
 

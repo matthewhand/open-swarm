@@ -1,59 +1,87 @@
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-import django
-from django.conf import settings
-# Import BLUEPRINTS_DIR if needed for discovery check
-from swarm.settings import BLUEPRINTS_DIR # Removed append_blueprint_apps
-import logging
-from pathlib import Path
-# Removed call_command import
+from asgiref.sync import sync_to_async
 
-logger = logging.getLogger(__name__)
+# --- Fixtures ---
 
-def pytest_configure():
-    """Configures Django settings before tests run."""
-    os.environ['DJANGO_SETTINGS_MODULE'] = 'swarm.settings'
-    # SWARM_BLUEPRINTS might still be needed if discovery logic uses it
-    os.environ['SWARM_BLUEPRINTS'] = 'university'
-    logger.info(f"pytest_configure: Set SWARM_BLUEPRINTS to: {os.environ['SWARM_BLUEPRINTS']}")
+def pytest_collection_modifyitems(config, items):
+    """Optionally skip asyncio-marked tests in restricted environments.
 
-    # Ensure Django is set up ONLY ONCE
-    if not settings.configured:
-        # Settings should now load INSTALLED_APPS correctly *before* setup
-        django.setup()
-        logger.info("pytest_configure: Django setup completed.")
-    else:
-        logger.info("pytest_configure: Django already configured.")
-
-    # Log INSTALLED_APPS *after* setup to see the final list
-    logger.info(f"pytest_configure: Final INSTALLED_APPS: {settings.INSTALLED_APPS}")
-
-
-@pytest.fixture(scope='session', autouse=True)
-def django_db_setup_fixture(django_db_setup, django_db_blocker):
+    Set DISABLE_ASYNC_TESTS=1 to skip tests marked with @pytest.mark.asyncio.
+    This is useful in sandboxes that prohibit socketpair(), which
+    pytest-asyncio needs to create an event loop.
     """
-    Ensures DB setup runs correctly. App verification happens here.
-    """
-    logger.info("django_db_setup_fixture: Running fixture.")
+    if os.getenv("DISABLE_ASYNC_TESTS", "").lower() in ("1", "true", "yes", "y"):
+        skip_async = pytest.mark.skip(reason="Async tests disabled in restricted env (socketpair not permitted)")
+        for item in items:
+            if "asyncio" in item.keywords:
+                item.add_marker(skip_async)
 
-    # Check the actual Django app path in INSTALLED_APPS
-    # This ensures settings.py logic worked BEFORE the db setup happens
-    required_blueprint = os.environ.get('SWARM_BLUEPRINTS', 'university')
-    expected_app_path = f'blueprints.{required_blueprint}'
-    assert expected_app_path in settings.INSTALLED_APPS, \
-        f"{expected_app_path} blueprint app not in INSTALLED_APPS: {settings.INSTALLED_APPS}"
+# Note: Avoid overriding pytest-django's internal django_db_setup fixture.
+# Doing so can lead to subtle ordering/teardown issues in large test runs.
+# If you need to perform session-wide DB tweaks, introduce a differently-named
+# fixture and depend on pytest-django's built-in setup implicitly.
 
-    logger.info(f"django_db_setup_fixture: App '{expected_app_path}' found in INSTALLED_APPS. Letting DB setup proceed.")
-    # django_db_setup will handle migrations based on the already configured settings
-    yield
-    logger.info("django_db_setup_fixture: Fixture teardown complete.")
 
-# Add Path import if not already present globally
-from pathlib import Path
+# Avoid forcing DB access on every single test by default — this can interfere
+# with Django TestCase transaction management and increase flakiness. Tests
+# that need the DB should request the `db` fixture or subclass Django's
+# TestCase/TransactionTestCase explicitly.
 
-# Provide the client fixture
 @pytest.fixture
-def client():
-    """Provides a Django test client."""
-    from django.test.client import Client
-    return Client()
+def mock_openai_client():
+    from openai import AsyncOpenAI
+    client = MagicMock(spec=AsyncOpenAI)
+    client.chat.completions.create = AsyncMock()
+    return client
+
+@pytest.fixture
+def mock_model_instance(mock_openai_client):
+    try:
+        from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+        with patch('agents.models.openai_chatcompletions.AsyncOpenAI', return_value=mock_openai_client):
+             model_mock = MagicMock(spec=OpenAIChatCompletionsModel)
+             model_mock.call_model = AsyncMock(return_value=("Mock response", None, None))
+             model_mock.get_token_count = MagicMock(return_value=10)
+             yield model_mock
+    except ImportError:
+         pytest.skip("Skipping mock_model_instance fixture: openai-agents not fully available.")
+
+# Removed @pytest.mark.django_db from fixture - keep it on the test classes/functions instead
+@pytest.fixture
+def test_user(db): # db fixture ensures DB is available *within* this fixture's scope
+    """Creates a standard test user."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    # Use update_or_create for robustness
+    user, created = User.objects.update_or_create(
+        username='testuser',
+        defaults={'is_staff': False, 'is_superuser': False}
+    )
+    if created:
+        user.set_password('password')
+        user.save()
+    return user
+
+@pytest.fixture
+def api_client(db): # Request db fixture here too
+     from rest_framework.test import APIClient
+     return APIClient()
+
+@pytest.fixture
+def authenticated_client(api_client, test_user): # Relies on test_user, which relies on db
+    api_client.force_authenticate(user=test_user)
+    return api_client
+
+
+@pytest.fixture
+async def authenticated_async_client(async_client, test_user):
+    await sync_to_async(async_client.force_login)(test_user)
+    return async_client
+
+@pytest.fixture
+def mock_load_config():
+    with patch('swarm.views.settings_manager.load_config') as mock:
+        yield mock
