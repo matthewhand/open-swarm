@@ -3,6 +3,7 @@ Command: list_blueprints
 Description: Lists blueprints. By default, lists user-installed blueprint sources
              and their compiled status. Use --available to list blueprints
              available for installation from the package or development source.
+             Use --github to search GitHub for community blueprints.
 """
 
 import argparse
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Metadata for dynamic registration (if used by your CLI framework)
 description = "Lists user-installed blueprints and their status, or available blueprints."
-usage = "list [--available]"
+usage = "list [--available] [--github] [--repo URL] [--min-stars N] [--unrated] [--sort FIELD]"
 
 def list_available_blueprints() -> dict[str, DiscoveredBlueprintInfo]:
     """
@@ -52,11 +53,6 @@ def list_available_blueprints() -> dict[str, DiscoveredBlueprintInfo]:
             # Assuming this file is src/swarm/extensions/cli/commands/list_blueprints.py
             # Project root is ../../../../  (src/swarm/extensions/cli/commands -> src)
             # Blueprints dir would be project_root / "src" / "swarm" / "blueprints"
-            # More robust: find 'src' then navigate, or use a known relative path from project root.
-            # For now, this relative path assumes a standard project structure.
-            # src/swarm/extensions/cli/commands/list_blueprints.py
-            # Path(__file__).parent.parent.parent.parent = src/
-            # So, src/swarm/blueprints
             dev_path_candidate = Path(__file__).resolve().parent.parent.parent.parent / "blueprints"
             logger.debug(f"Checking development blueprints path: {dev_path_candidate!r}")
             if dev_path_candidate.is_dir():
@@ -112,10 +108,48 @@ def print_blueprint_details(blueprint_key: str, bp_info: DiscoveredBlueprintInfo
 def execute(args=None):
     """
     Execute the command to list blueprints.
-    If args.available is True, lists available blueprints.
-    Otherwise, lists user-installed blueprints and their compiled status.
     """
-    if args and getattr(args, 'available', False):
+    repo_url = getattr(args, 'repo', None)
+
+    if (args and getattr(args, 'github', False)) or repo_url:
+        print("Searching GitHub for blueprints...")
+        try:
+            from swarm.core.github_discovery import discover_remote_blueprints
+
+            min_stars = getattr(args, 'min_stars', 3)
+            include_unrated = getattr(args, 'unrated', False)
+            sort_by = getattr(args, 'sort', 'stars')
+
+            remote_blueprints = discover_remote_blueprints(
+                repo_url=repo_url,
+                min_stars=min_stars,
+                include_unrated=include_unrated,
+                sort_by=sort_by
+            )
+
+            if remote_blueprints:
+                print(f"\nFound {len(remote_blueprints)} community blueprint(s) on GitHub:")
+                for bp in remote_blueprints:
+                    print(f"  - Name: {bp['name']}")
+                    print(f"    Repo: {bp['owner']}/{bp['repo']}")
+                    print(f"    Path: {bp['path']}")
+                    print(f"    Description: {bp['description']}")
+                    print(f"    Stars: {bp['stars']}")
+                    print(f"    URL: {bp['repo_url']}")
+                    print("-" * 20)
+                print("\nUse 'swarm-cli install github:<owner>/<repo>/<path>' to install.")
+            else:
+                msg = "No community blueprints found."
+                if not include_unrated:
+                    msg += " (Try --unrated to see repos with fewer than 3 stars)"
+                print(msg)
+        except ImportError:
+            print("Error: swarm.core.github_discovery not found. Please ensure dependencies are installed.")
+        except Exception as e:
+            print(f"An error occurred while searching GitHub: {e}")
+            logger.error("Error searching GitHub.", exc_info=True)
+
+    elif args and getattr(args, 'available', False):
         print("Listing available blueprints (from package/development source)...")
         try:
             available_blueprints = list_available_blueprints()
@@ -159,8 +193,32 @@ def register_args(parser: argparse.ArgumentParser):
         action="store_true",
         help="List blueprints available for installation from the package or development source, rather than user-installed ones."
     )
-    # Add other options like --verbose if needed for this command specifically
-    # parser.add_argument("--verbose", action="store_true", help="Enable verbose output for the list command.")
+    parser.add_argument(
+        "--github",
+        action="store_true",
+        help="Search GitHub for community blueprints."
+    )
+    parser.add_argument(
+        "--repo",
+        help="Directly inspect a specific GitHub repository URL."
+    )
+    parser.add_argument(
+        "--min-stars",
+        type=int,
+        default=3,
+        help="Minimum number of stars required to show a repo (default: 3)."
+    )
+    parser.add_argument(
+        "--unrated",
+        action="store_true",
+        help="Include repositories with fewer stars than the minimum (overrides --min-stars for filtering)."
+    )
+    parser.add_argument(
+        "--sort",
+        choices=["stars", "updated"],
+        default="stars",
+        help="Sort results by 'stars' (default) or 'updated'."
+    )
 
 if __name__ == '__main__':
     # For direct testing of this script

@@ -10,6 +10,7 @@ from swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlue
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.paths import (
     ensure_swarm_directories_exist,
+    get_user_blueprints_dir,
     get_user_config_dir_for_swarm,
 )
 
@@ -101,9 +102,20 @@ def _load_all_blueprint_metadata_sync():
     """Synchronous helper to perform blueprint discovery."""
     global _blueprint_meta_cache
     logger.info("Discovering blueprint classes (sync)...")
+
+    # 1. Discover bundled blueprints
     blueprint_classes = discover_blueprints(settings.BLUEPRINT_DIRECTORY)
 
-    # Merge dynamic teams as blueprints
+    # 2. Discover user-installed blueprints (if directory exists)
+    user_dir = get_user_blueprints_dir()
+    if user_dir.is_dir():
+        logger.info(f"Scanning user blueprints at {user_dir}")
+        user_blueprints = discover_blueprints(str(user_dir))
+        # Merge, preferring user installed if name collision (or handle error)
+        # For now, simple update
+        blueprint_classes.update(user_blueprints)
+
+    # 3. Merge dynamic teams as blueprints
     dyn = load_dynamic_registry()
     for team_id, meta in dyn.items():
         blueprint_classes[team_id] = {
