@@ -121,10 +121,18 @@ class GeeseBlueprint(BlueprintBase):
         super().__init__(blueprint_id, config=config, **kwargs)
         from agents import Agent
         # --- Setup OpenAI LLM Model ---
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
-        openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
-        llm_model_name = kwargs.get("llm_model", "o4-mini")
-        llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
+        try:
+             # Try to get profile from config first
+             llm_model_name = kwargs.get("llm_model", "o4-mini") # Default fallback
+             openai_api_key = os.environ.get("OPENAI_API_KEY")
+             openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+             llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
+        except Exception:
+             # Fallback to simple env var if config fails
+             openai_api_key = os.environ.get("OPENAI_API_KEY")
+             openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+             llm_model = OpenAIChatCompletionsModel(model="gpt-3.5-turbo", openai_client=openai_client)
+
         # --- Create Agent instances and corresponding Tools ---
         self.planner_agent = Agent(
             name="PlannerAgent",
@@ -313,7 +321,7 @@ class GeeseBlueprint(BlueprintBase):
 
     def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Returns the coordinator agent for GeeseBlueprint."""
-        # mcp_servers not used in this blueprint
+        # Ensure mcp_servers argument is accepted for compatibility
         return self.coordinator
 
     def update_spinner(self, previous_state: SpinnerState, elapsed: float) -> SpinnerState:

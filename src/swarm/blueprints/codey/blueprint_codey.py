@@ -91,179 +91,6 @@ execute_shell_command_tool = DummyTool("execute_shell_command")
 run_npm_test_tool = DummyTool("run_npm_test")
 run_pytest_tool = DummyTool("run_pytest")
 
-def _cli_main():
-    import argparse
-    import asyncio
-    import sys
-    parser = argparse.ArgumentParser(
-        description="Codey: Swarm-powered, Codex-compatible coding agent. Accepts Codex CLI arguments.",
-        add_help=False)
-    parser.add_argument("prompt", nargs="?", help="Prompt or task description (quoted)")
-    parser.add_argument("-m", "--model", help="Model name (hf-qwen2.5-coder-32b, etc.)", default=os.getenv("LITELLM_MODEL"))
-    parser.add_argument("-q", "--quiet", action="store_true", help="Non-interactive mode (only final output)")
-    parser.add_argument("-o", "--output", help="Output file", default=None)
-    parser.add_argument("--project-doc", help="Markdown file to include as context", default=None)
-    parser.add_argument("--full-context", action="store_true", help="Load all project files as context")
-    parser.add_argument("--approval", action="store_true", help="Require approval before executing actions")
-    parser.add_argument("--version", action="store_true", help="Show version and exit")
-    parser.add_argument("-h", "--help", action="store_true", help="Show usage and exit")
-    parser.add_argument("--audit", action="store_true", help="Enable session audit trail logging (jsonl)")
-    def print_codey_help():
-        parser.print_help()
-
-    args = parser.parse_args()
-
-    if args.help:
-        print_codey_help()
-        sys.exit(0)
-
-    if not args.prompt:
-        print_codey_help()
-        sys.exit(1)
-
-    # Prepare messages and context
-    messages = [{"role": "user", "content": args.prompt}]
-    if args.project_doc:
-        try:
-            with open(args.project_doc) as f:
-                doc_content = f.read()
-            messages.append({"role": "system", "content": f"Project doc: {doc_content}"})
-        except Exception as e:
-            print_operation_box(
-                op_type="Read Error",
-                results=[f"Error reading project doc: {e}"],
-                params=None,
-                result_type="error",
-                summary="Project doc read error",
-                progress_line=None,
-                spinner_state="Failed",
-                operation_type="Read",
-                search_mode=None,
-                total_lines=None
-            )
-            sys.exit(1)
-    if args.full_context:
-        for root, _dirs, files in os.walk("."):
-            for file in files:
-                if file.endswith(('.py', '.js', '.ts', '.tsx', '.md', '.txt')) and not file.startswith('.'):
-                    try:
-                        with open(os.path.join(root, file)) as f:
-                            content = f.read()
-                        messages.append({
-                            "role": "system",
-                            "content": f"Project file {os.path.join(root, file)}: {content[:1000]}"
-                        })
-                    except Exception as e:
-                        print_operation_box(
-                            op_type="File Read Warning",
-                            results=[f"Warning: Could not read {os.path.join(root, file)}: {e}"],
-                            params=None,
-                            result_type="warning",
-                            summary="File read warning",
-                            progress_line=None,
-                            spinner_state="Warning",
-                            operation_type="File Read",
-                            search_mode=None,
-                            total_lines=None
-                        )
-        print_operation_box(
-            op_type="Context Load",
-            results=[f"Loaded {len(messages)-1} project files into context."],
-            params=None,
-            result_type="info",
-            summary="Context loaded",
-            progress_line=None,
-            spinner_state="Done",
-            operation_type="Context Load",
-            search_mode=None,
-            total_lines=None
-        )
-
-    # Set model if specified
-    audit_logger = AuditLogger(enabled=getattr(args, "audit", False))
-    blueprint = CodeyBlueprint(blueprint_id="cli", audit_logger=audit_logger)
-    blueprint.coordinator.model = args.model
-
-    def get_codey_agent_name():
-        # Prefer Fiona, Sammy, Linus, else fallback
-        try:
-            if hasattr(blueprint, 'coordinator') and hasattr(blueprint.coordinator, 'name'):
-                return blueprint.coordinator.name
-            if hasattr(blueprint, 'name'):
-                return blueprint.name
-        except Exception:
-            pass
-        return "Codey"
-
-    async def run_and_print():
-        result_lines = []
-        agent_name = get_codey_agent_name()
-        async for chunk in blueprint.run(messages):
-            if args.quiet:
-                last = None
-                for c in blueprint.run(messages):
-                    last = c
-                if last:
-                    if isinstance(last, dict) and 'content' in last:
-                        print(last['content'])
-                    else:
-                        print(last)
-                break
-            else:
-                # Always use pretty_print_response with agent_name for assistant output
-                if isinstance(chunk, dict) and ('content' in chunk or chunk.get('role') == 'assistant'):
-                    pretty_print_response([chunk], use_markdown=True, agent_name=agent_name)
-                    if 'content' in chunk:
-                        result_lines.append(chunk['content'])
-                else:
-                    print(chunk, end="")
-                    result_lines.append(str(chunk))
-        return ''.join(result_lines)
-
-    if args.output:
-        try:
-            output = asyncio.run(run_and_print())
-            with open(args.output, "w") as f:
-                f.write(output)
-            print_operation_box(
-                op_type="Output Write",
-                results=[f"Output written to {args.output}"],
-                params=None,
-                result_type="info",
-                summary="Output written",
-                progress_line=None,
-                spinner_state="Done",
-                operation_type="Output Write",
-                search_mode=None,
-                total_lines=None
-            )
-        except Exception as e:
-            print_operation_box(
-                op_type="Output Write Error",
-                results=[f"Error writing output file: {e}"],
-                params=None,
-                result_type="error",
-                summary="Output write error",
-                progress_line=None,
-                spinner_state="Failed",
-                operation_type="Output Write",
-                search_mode=None,
-                total_lines=None
-            )
-    else:
-        asyncio.run(run_and_print())
-
-if __name__ == "__main__":
-    # Call CLI main
-    sys.exit(_cli_main())
-
-# --- Main entry point for CLI ---
-def main():
-    from swarm.blueprints.codey.codey_cli import main as cli_main
-    cli_main()
-
-# Resolve all merge conflicts by keeping the main branch's logic for agent creation, UX, and error handling, as it is the most up-to-date and tested version. Integrate any unique improvements from the feature branch only if they do not conflict with stability or UX.
-
 class CodeyBlueprint(BlueprintBase):
     """
     Codey Blueprint: Code and semantic code search/analysis.
@@ -948,53 +775,173 @@ class CodeyBlueprint(BlueprintBase):
     def get_cli_splash(self):
         return "Codey CLI - Approval Workflow Demo\nType --help for usage."
 
-if __name__ == "__main__":
+def _cli_main():
+    import argparse
     import asyncio
-    import json
-    import random
-    import string
+    import sys
+    parser = argparse.ArgumentParser(
+        description="Codey: Swarm-powered, Codex-compatible coding agent. Accepts Codex CLI arguments.",
+        add_help=False)
+    parser.add_argument("prompt", nargs="?", help="Prompt or task description (quoted)")
+    parser.add_argument("-m", "--model", help="Model name (hf-qwen2.5-coder-32b, etc.)", default=os.getenv("LITELLM_MODEL"))
+    parser.add_argument("-q", "--quiet", action="store_true", help="Non-interactive mode (only final output)")
+    parser.add_argument("-o", "--output", help="Output file", default=None)
+    parser.add_argument("--project-doc", help="Markdown file to include as context", default=None)
+    parser.add_argument("--full-context", action="store_true", help="Load all project files as context")
+    parser.add_argument("--approval", action="store_true", help="Require approval before executing actions")
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    parser.add_argument("-h", "--help", action="store_true", help="Show usage and exit")
+    parser.add_argument("--audit", action="store_true", help="Enable session audit trail logging (jsonl)")
+    def print_codey_help():
+        parser.print_help()
 
-    print("\033[1;36m\n╔══════════════════════════════════════════════════════════════╗\n║   🤖 CODEY: SWARM ULTIMATE LIMIT TEST                        ║\n╠══════════════════════════════════════════════════════════════╣\n║ ULTIMATE: Multi-agent, multi-step, parallel, self-modifying  ║\n║ workflow with error injection, rollback, and viral patching. ║\n╚══════════════════════════════════════════════════════════════╝\033[0m")
+    args = parser.parse_args()
 
-    def random_string():
-        return ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    if args.help:
+        print_codey_help()
+        sys.exit(0)
 
-    async def consume_asyncgen(agen):
-        results = []
-        async for item in agen:
-            results.append(item)
-        return results
+    if not args.prompt:
+        print_codey_help()
+        sys.exit(1)
 
-    async def run_limit_test():
-        blueprint = CodeyBlueprint(blueprint_id="ultimate-limit-test")
-        tasks = []
-        # Step 1: Parallel file edits with injected errors and rollbacks
-        for i in range(3):
-            fname = f"swarm_test_{i}_{random_string()}.txt"
-            content = f"Swarm Power {i} - {random_string()}"
-            messages = [
-                {"role": "user", "content": f"Create file '{fname}' with content '{content}', commit, then inject an error, rollback, and verify file state."}
-            ]
-            tasks.append(consume_asyncgen(blueprint.run(messages)))
-        # Step 2: Orchestrated multi-agent workflow with viral patching
-        messages = [
-            {"role": "user", "content": "Agent A edits README.md, Agent B reviews and intentionally injects a bug, Agent C detects and patches it, Agent D commits and shows the diff. Log every step, agent, and patch."}
-        ]
-        tasks.append(consume_asyncgen(blueprint.run(messages)))
-        # Step 3: Self-modifying code and viral propagation
-        messages = [
-            {"role": "user", "content": "Modify your own blueprint to add a new function 'swarm_propagate', propagate it to another blueprint, and verify the function exists in both. Log all steps."}
-        ]
-        tasks.append(consume_asyncgen(blueprint.run(messages)))
-        # Run all tasks in parallel, logging every intermediate step
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for idx, result in enumerate(results):
-            print(f"\n[PARALLEL TASK {idx+1}] Result:")
-            if isinstance(result, Exception):
-                print(f"Exception: {result}")
+    # Prepare messages and context
+    messages = [{"role": "user", "content": args.prompt}]
+    if args.project_doc:
+        try:
+            with open(args.project_doc) as f:
+                doc_content = f.read()
+            messages.append({"role": "system", "content": f"Project doc: {doc_content}"})
+        except Exception as e:
+            print_operation_box(
+                op_type="Read Error",
+                results=[f"Error reading project doc: {e}"],
+                params=None,
+                result_type="error",
+                summary="Project doc read error",
+                progress_line=None,
+                spinner_state="Failed",
+                operation_type="Read",
+                search_mode=None,
+                total_lines=None
+            )
+            sys.exit(1)
+    if args.full_context:
+        for root, _dirs, files in os.walk("."):
+            for file in files:
+                if file.endswith(('.py', '.js', '.ts', '.tsx', '.md', '.txt')) and not file.startswith('.'):
+                    try:
+                        with open(os.path.join(root, file)) as f:
+                            content = f.read()
+                        messages.append({
+                            "role": "system",
+                            "content": f"Project file {os.path.join(root, file)}: {content[:1000]}"
+                        })
+                    except Exception as e:
+                        print_operation_box(
+                            op_type="File Read Warning",
+                            results=[f"Warning: Could not read {os.path.join(root, file)}: {e}"],
+                            params=None,
+                            result_type="warning",
+                            summary="File read warning",
+                            progress_line=None,
+                            spinner_state="Warning",
+                            operation_type="File Read",
+                            search_mode=None,
+                            total_lines=None
+                        )
+        print_operation_box(
+            op_type="Context Load",
+            results=[f"Loaded {len(messages)-1} project files into context."],
+            params=None,
+            result_type="info",
+            summary="Context loaded",
+            progress_line=None,
+            spinner_state="Done",
+            operation_type="Context Load",
+            search_mode=None,
+            total_lines=None
+        )
+
+    # Set model if specified
+    audit_logger = AuditLogger(enabled=getattr(args, "audit", False))
+    blueprint = CodeyBlueprint(blueprint_id="cli", audit_logger=audit_logger)
+    blueprint.coordinator.model = args.model
+
+    def get_codey_agent_name():
+        # Prefer Fiona, Sammy, Linus, else fallback
+        try:
+            if hasattr(blueprint, 'coordinator') and hasattr(blueprint.coordinator, 'name'):
+                return blueprint.coordinator.name
+            if hasattr(blueprint, 'name'):
+                return blueprint.name
+        except Exception:
+            pass
+        return "Codey"
+
+    async def run_and_print():
+        result_lines = []
+        agent_name = get_codey_agent_name()
+        async for chunk in blueprint.run(messages):
+            if args.quiet:
+                last = None
+                for c in blueprint.run(messages):
+                    last = c
+                if last:
+                    if isinstance(last, dict) and 'content' in last:
+                        print(last['content'])
+                    else:
+                        print(last)
+                break
             else:
-                for response in result:
-                    print(json.dumps(response, indent=2))
+                # Always use pretty_print_response with agent_name for assistant output
+                if isinstance(chunk, dict) and ('content' in chunk or chunk.get('role') == 'assistant'):
+                    pretty_print_response([chunk], use_markdown=True, agent_name=agent_name)
+                    if 'content' in chunk:
+                        result_lines.append(chunk['content'])
+                else:
+                    print(chunk, end="")
+                    result_lines.append(str(chunk))
+        return ''.join(result_lines)
 
-# Removed duplicate class definitions (CodeySpinner and SwarmSpinner)
-# These are already defined earlier in the file and imported from swarm.blueprints.common.spinner
+    if args.output:
+        try:
+            output = asyncio.run(run_and_print())
+            with open(args.output, "w") as f:
+                f.write(output)
+            print_operation_box(
+                op_type="Output Write",
+                results=[f"Output written to {args.output}"],
+                params=None,
+                result_type="info",
+                summary="Output written",
+                progress_line=None,
+                spinner_state="Done",
+                operation_type="Output Write",
+                search_mode=None,
+                total_lines=None
+            )
+        except Exception as e:
+            print_operation_box(
+                op_type="Output Write Error",
+                results=[f"Error writing output file: {e}"],
+                params=None,
+                result_type="error",
+                summary="Output write error",
+                progress_line=None,
+                spinner_state="Failed",
+                operation_type="Output Write",
+                search_mode=None,
+                total_lines=None
+            )
+    else:
+        asyncio.run(run_and_print())
+
+if __name__ == "__main__":
+    # Call CLI main
+    sys.exit(_cli_main())
+
+# --- Main entry point for CLI ---
+def main():
+    from swarm.blueprints.codey.codey_cli import main as cli_main
+    cli_main()
