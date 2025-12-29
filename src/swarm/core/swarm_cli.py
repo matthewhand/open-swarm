@@ -7,6 +7,11 @@ import typer
 
 import swarm
 from swarm.core import paths
+from swarm.extensions.cli.commands.compile_blueprint import (
+    CompileBlueprintError,
+    compile_all_available_blueprints,
+    compile_blueprint_executable,
+)
 
 paths.ensure_swarm_directories_exist()
 
@@ -44,85 +49,42 @@ def find_entry_point(blueprint_dir: Path) -> str | None:
 
 @app.command(name="install-executable")
 def install_executable(
-    blueprint_name: str = typer.Argument(..., help="Name of the blueprint directory to install as an executable."),
+    blueprint_name: str | None = typer.Argument(
+        None, help="Name of the blueprint directory to install as an executable."
+    ),
+    all: bool = typer.Option(
+        False,
+        "--all",
+        help="Compile all available blueprint sources (user preferred, then bundled).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite existing executables when compiling.",
+    ),
 ):
-    source_dir_user = paths.get_user_blueprints_dir() / blueprint_name
-    if source_dir_user.is_dir():
-        source_dir = source_dir_user
-    else:
-        bundled_base = Path(__file__).resolve().parent.parent / "blueprints"
-        bundled_dir = bundled_base / blueprint_name
-        if bundled_dir.is_dir():
-            source_dir = bundled_dir
-            typer.echo(f"Using bundled blueprint directory: {bundled_dir}")
-        else:
-            typer.echo(
-                f"Error: Blueprint '{blueprint_name}' not found in user blueprints directory ({paths.get_user_blueprints_dir()}) or bundled blueprints."
-            )
-            raise typer.Exit(code=1)
+    if all and blueprint_name:
+        typer.echo("Error: --all cannot be combined with a specific blueprint name")
+        raise typer.Exit(code=2)
 
-    entry_point = find_entry_point(source_dir)
-    if not entry_point:
-        typer.echo(f"Error: Could not find entry point script in {source_dir}")
-        raise typer.Exit(code=1)
-
-    entry_point_path = source_dir / entry_point
-    output_bin_name = blueprint_name
-    output_bin_dir = paths.get_user_bin_dir()
-    output_bin_path = output_bin_dir / output_bin_name
-    pyinstaller_workpath = paths.get_user_cache_dir_for_swarm() / "build" / blueprint_name
-    pyinstaller_specpath = paths.get_user_cache_dir_for_swarm() / "specs"
-    pyinstaller_workpath.mkdir(parents=True, exist_ok=True)
-    (paths.get_user_cache_dir_for_swarm() / "specs").mkdir(parents=True, exist_ok=True)
-
-    typer.echo(f"Installing blueprint '{blueprint_name}' as executable...")
-    typer.echo(f"  Source: {source_dir}")
-    typer.echo(f"  Entry Point: {entry_point}")
-    typer.echo(f"  Output Executable: {output_bin_path}")
-
-    pyinstaller_cmd = [
-        "pyinstaller",
-        "--onefile",
-        "--name",
-        str(output_bin_name),
-        "--distpath",
-        str(output_bin_dir),
-        "--workpath",
-        str(pyinstaller_workpath),
-        "--specpath",
-        str(pyinstaller_specpath),
-        str(entry_point_path),
-    ]
-
-    if os.environ.get("SWARM_TEST_MODE"):
-        shim = f"#!/usr/bin/env bash\npython3 {entry_point_path} \"$@\"\n"
-        try:
-            with open(output_bin_path, "w") as f:
-                f.write(shim)
-            os.chmod(output_bin_path, 0o755)
-            typer.echo(f"Test-mode shim installed at: {output_bin_path}")
-            return
-        except Exception as e:
-            typer.echo(f"Error installing test-mode shim: {e}")
-            raise typer.Exit(code=1)
-
-    typer.echo(f"Running PyInstaller: {' '.join(map(str, pyinstaller_cmd))}")
     try:
-        result = subprocess.run(pyinstaller_cmd, check=True, capture_output=True, text=True)
-        typer.echo("PyInstaller output:")
-        typer.echo(result.stdout)
-        typer.echo(f"Successfully installed '{blueprint_name}' to {output_bin_path}")
-    except FileNotFoundError:
-        typer.echo("Error: PyInstaller command not found. Is PyInstaller installed?")
-        raise typer.Exit(code=1)
-    except subprocess.CalledProcessError as e:
-        typer.echo(f"Error during PyInstaller execution (Return Code: {e.returncode}):")
-        typer.echo(e.stderr)
-        typer.echo("Check the output above for details.")
-        raise typer.Exit(code=1)
-    except Exception as e:
-        typer.echo(f"An unexpected error occurred: {e}")
-        raise typer.Exit(code=1)
+        if all:
+            result = compile_all_available_blueprints(force=force)
+            if result.failed:
+                typer.echo("Some blueprints failed to compile:")
+                for name, reason in result.failed.items():
+                    typer.echo(f"- {name}: {reason}")
+                raise typer.Exit(code=1)
+            return
+
+        if not blueprint_name:
+            typer.echo("Error: provide a blueprint name or use --all")
+            raise typer.Exit(code=2)
+
+        compile_blueprint_executable(blueprint_name, force=force)
+    except CompileBlueprintError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=1) from exc
 
 
 @app.command()
@@ -169,7 +131,7 @@ def launch(
         typer.echo(f"--- '{blueprint_name}' finished (Return Code: {result.returncode}) ---")
     except Exception as e:
         typer.echo(f"Error launching blueprint: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     if listen:
         for listener_name in [bp.strip() for bp in listen.split(",") if bp.strip()]:

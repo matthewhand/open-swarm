@@ -44,10 +44,12 @@ COMMAND_DEFINITIONS = [
     {
         # This was the OLD install, now renamed to align with Typer app's install-executable
         "alias": "install-executable",
-        "module_base_name": "blueprint_management", # Assuming blueprint_management.py handles executable creation
+        "module_base_name": "compile_blueprint",
         "description": "Install a blueprint by creating a standalone executable (using PyInstaller).",
         "args_def": [
-            {"name_or_flags": ["blueprint_name"], "help": "Name of the blueprint source (must be available/installed) to compile into an executable."}
+            {"name_or_flags": ["blueprint_name"], "nargs": "?", "help": "Name of the blueprint source (must be available/installed) to compile into an executable."},
+            {"name_or_flags": ["--all"], "action": "store_true", "help": "Compile all available blueprint sources (user then bundled)."},
+            {"name_or_flags": ["--force"], "action": "store_true", "help": "Overwrite existing executables when compiling."}
         ]
     },
     {
