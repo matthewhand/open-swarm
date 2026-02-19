@@ -1,0 +1,46 @@
+# docker-compose.override.yaml.example
+# Rename this file to docker-compose.override.yaml to apply customizations.
+# This file allows you to override or extend the base docker-compose.yaml.
+
+services:
+  open-swarm:
+    volumes:
+      # --- Add custom volume mounts below ---
+
+      # Example 1: Mount a local directory containing custom blueprints
+      # This makes blueprints in './my_custom_blueprints' available inside the container
+      # at '/app/custom_blueprints'. You might need to adjust BLUEPRINT_DIRECTORY
+      # in your .env or settings if the API should load from here instead of/in addition to /app/blueprints.
+      # - ./my_custom_blueprints:/app/custom_blueprints:ro
+
+      # Example 2: Mount a specific configuration file from a different location
+      # - /etc/open-swarm/production_config.json:/app/swarm_config.json:ro
+
+      # Example 3: Mount persistent storage for logs (if logging to files)
+      # - ./logs:/app/logs
+
+      # Example 4: Mount local user directories (if needed, use with caution)
+      # This allows the container to access blueprints managed by swarm-cli outside the container.
+      # Ensure paths match your host system's XDG directories.
+      # - ~/.local/share/swarm:/home/chatgpt/.local/share/swarm
+      # - ~/.config/swarm:/home/chatgpt/.config/swarm
+
+      # --- Default volumes from base docker-compose.yaml ---
+      # These are inherited unless you redefine the 'volumes' section completely.
+      # If you uncomment any lines above, ensure these defaults are still appropriate
+      # or include them explicitly if you replace the whole 'volumes' block.
+      - ./blueprints:/app/blueprints:ro
+      - ./swarm_config.json:/app/swarm_config.json:ro
+      - ./db.sqlite3:/app/db.sqlite3
+
+    # Example: Override environment variables
+    # environment:
+    #   - DJANGO_LOG_LEVEL=INFO
+    #   - SWARM_LOG_LEVEL=INFO
+
+    # Example: Build from local Dockerfile instead of using pre-built image
+    # image: "" # Clear the image directive from the base file
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
