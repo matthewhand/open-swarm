@@ -2,8 +2,10 @@
 Utility to discover and load CLI commands dynamically.
 """
 
-import os
 import importlib.util
+import os
+import sys
+
 
 def discover_commands(commands_dir):
     """
@@ -23,10 +25,13 @@ def discover_commands(commands_dir):
             if not spec:
                 continue
             module = importlib.util.module_from_spec(spec)
+            # Ensure module is visible via sys.modules for frameworks like dataclasses
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
             commands[module_name] = {
                 "description": getattr(module, "description", "No description provided."),
                 "usage": getattr(module, "usage", "No usage available."),
                 "execute": getattr(module, "execute", None),
+                "register_args": getattr(module, "register_args", None),
             }
     return commands
