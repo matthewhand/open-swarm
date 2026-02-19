@@ -1,35 +1,53 @@
 """
-Blueprint discovery and management utilities.
+Blueprint Extension Package for Open Swarm.
+
+Provides the base class, discovery mechanisms, and utilities for creating
+and running autonomous agent workflows (blueprints).
 """
 
-from .blueprint_base import BlueprintBase
+# Core components
+from swarm.core.blueprint_base import BlueprintBase
+
+# Helper modules (primarily used internally by BlueprintBase or CLI)
+from . import cli_handler, config_loader
 from .blueprint_discovery import discover_blueprints
 from .blueprint_utils import filter_blueprints
 
-# Re-export the necessary message utilities from their new locations
-# Note: The specific truncation functions like truncate_preserve_pairs might have been
-# consolidated into truncate_message_history. Adjust if needed.
+# from . import interactive_mode # If interactive mode is refactored out
+# from . import output_utils     # If output utils are used externally
+
+# Re-export essential message utilities if they are part of the public API
+# of this extension package. If they are purely internal utilities,
+# they don't necessarily need to be re-exported here.
 try:
-    from swarm.utils.message_sequence import repair_message_payload, validate_message_sequence
     from swarm.utils.context_utils import truncate_message_history
-    # If specific old truncation functions are truly needed, they'd have to be
-    # re-implemented or their callers refactored to use truncate_message_history.
-    # Assuming truncate_message_history is the intended replacement for now.
-    # Define aliases if old names are required by downstream code:
-    # truncate_preserve_pairs = truncate_message_history # Example if needed
-except ImportError as e:
-    # Log an error or warning if imports fail, helpful for debugging setup issues
+    from swarm.utils.message_sequence import (
+        repair_message_payload,
+        validate_message_sequence,
+    )
+except ImportError as import_error:
     import logging
-    logging.getLogger(__name__).error(f"Failed to import core message utilities: {e}")
-    # Define dummy functions or raise error if critical
-    def repair_message_payload(m, **kwargs): return m
-    def validate_message_sequence(m): return m
-    def truncate_message_history(m, *args, **kwargs): return m
+    error_msg = str(import_error)
+    logging.getLogger(__name__).warning(f"Could not import core message utilities: {error_msg}")
+    # Define dummy functions or let importers handle the ImportError
+    def repair_message_payload(m, **kwargs): raise NotImplementedError(f"repair_message_payload not available: {error_msg}")
+    def validate_message_sequence(m): raise NotImplementedError(f"validate_message_sequence not available: {error_msg}")
+    def truncate_message_history(m, *args, **kwargs): raise NotImplementedError(f"truncate_message_history not available: {error_msg}")
+
 
 __all__ = [
+    # Core
     "BlueprintBase",
     "discover_blueprints",
     "filter_blueprints",
+
+    # Helper Modules (Exporting for potential external use, though less common)
+    "config_loader",
+    "cli_handler",
+    # "interactive_mode",
+    # "output_utils",
+
+    # Utility Functions (If considered part of the public API)
     "repair_message_payload",
     "validate_message_sequence",
     "truncate_message_history",
