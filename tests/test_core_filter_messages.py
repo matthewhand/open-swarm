@@ -1,9 +1,13 @@
+import datetime  # Import datetime for creating test data
+
 import pytest
-# Import from correct location
-from src.swarm.utils.message_utils import filter_messages
+
 # Import the serializer used in the test data
 from src.swarm.utils.general_utils import serialize_datetime
-import datetime # Import datetime for creating test data
+
+# Import from correct location
+from src.swarm.utils.message_utils import filter_messages
+
 
 def test_filter_messages_empty_and_none_content():
     messages = [
@@ -68,3 +72,32 @@ def test_filter_messages_ignores_other_keys():
      # Ensure the extra key was preserved
      assert "timestamp" in filtered[0]
      assert filtered[0]["timestamp"] == timestamp.isoformat()
+
+def test_filter_messages_non_list_input_returns_empty(caplog):
+    # Ensure non-list inputs are handled gracefully
+    caplog.clear()
+    filtered_none = filter_messages(None)  # type: ignore[arg-type]
+    filtered_str = filter_messages("not a list")  # type: ignore[arg-type]
+    filtered_int = filter_messages(123)  # type: ignore[arg-type]
+
+    assert filtered_none == []
+    assert filtered_str == []
+    assert filtered_int == []
+    # An error should be logged for non-list input at least once
+    assert any(
+        "filter_messages received non-list input" in rec.message
+        for rec in caplog.records
+    )
+
+@pytest.mark.parametrize(
+    "msg,expected_len",
+    [
+        ({"role": "assistant", "content": None, "tool_calls": []}, 0),
+        ({"role": "assistant", "content": " ", "tool_calls": []}, 0),
+        ({"role": "assistant", "content": "ok", "tool_calls": []}, 1),
+        ({"role": "assistant", "content": None, "tool_calls": [{"id": "1", "function": {"name": "x"}}]}, 1),
+    ],
+)
+def test_filter_messages_tool_calls_and_content_edge_cases(msg, expected_len):
+    filtered = filter_messages([msg])
+    assert len(filtered) == expected_len
