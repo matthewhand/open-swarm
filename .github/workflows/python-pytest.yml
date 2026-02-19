@@ -36,3 +36,4 @@ jobs:
         run: pytest
         env:
           PYTHONPATH: ${{ github.workspace }}/src
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
