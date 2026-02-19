@@ -1,573 +1,290 @@
-# (WIP) Development Documentation
+# Open Swarm: Development Documentation
 
-This document provides an in-depth look at the **Swarm Framework**’s internal architecture, component interactions, and sequence flows for various operational modes. It is intended for developers and contributors who wish to modify or extend the framework.
+This document provides an in-depth look at the **Open Swarm** framework’s internal architecture, component interactions, and development practices. It is intended for developers and contributors who wish to modify or extend the framework.
 
 ---
 
 ## Table of Contents
 
-- [High-Level Architecture](#high-level-architecture)
-- [Detailed Sequence Diagrams](#detailed-sequence-diagrams)
-  - [1. Blueprint Initialization](#1-blueprint-initialization)
-  - [2. Agent Interaction Flow](#2-agent-interaction-flow)
-  - [3. REST API Mode Interaction](#3-rest-api-mode-interaction)
+- [Core Architecture](#core-architecture)
 - [Project Layout](#project-layout)
-- [API Endpoints](#api-endpoints)
-- [Advanced Topics](#advanced-topics)
+- [Configuration System](#configuration-system)
+- [Blueprint Development](#blueprint-development)
+- [MCP Server Integration](#mcp-server-integration)
+- [Command-Line Interface (`swarm-cli`)](#command-line-interface-swarm-cli)
+- [REST API (`swarm-api` / Django)](#rest-api-swarm-api--django)
+- [Directory Structure (XDG Compliance)](#directory-structure-xdg-compliance)
+- [Testing Strategy](#testing-strategy)
+- [Docker Deployment Details](#docker-deployment-details)
+- [Sequence Diagrams](#sequence-diagrams)
 
 ---
 
-## Detailed Sequence Diagrams
+## Core Architecture
 
-### 1. Blueprint Initialization
+Open Swarm combines a command-line interface (`swarm-cli`) for local management and execution with a Django/DRF-based REST API (`swarm-api`) for network-accessible interaction.
 
-```mermaid
-sequenceDiagram
-    participant Developer
-    participant BlueprintBase
-    participant ConfigLoader
-    participant MCPSessionManager
-    participant APIClient
-
-    Developer ->> BlueprintBase: Instantiate Blueprint
-    BlueprintBase ->> ConfigLoader: Load Configuration
-    ConfigLoader -->> BlueprintBase: Return Config Data
-    alt Has required MCP servers
-        BlueprintBase ->> MCPSessionManager: Initialize Session Manager
-    end
-    BlueprintBase ->> APIClient: Initialize HTTP Clients
-    BlueprintBase -->> Developer: Blueprint Ready
-```
-
-### 2. Agent Interaction Flow
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Agent
-    participant Swarm
-    participant WeatherAPI
-
-    User ->> Agent: "What's the weather in New York?"
-    Agent ->> Swarm: Process Query
-    Swarm ->> WeatherAPI: Fetch Data
-    WeatherAPI -->> Swarm: Return Weather Details
-    Swarm -->> Agent: Formatted Response
-    Agent -->> User: Respond with Details
-```
-
-### 3. REST API Mode Interaction
-
-Below is a simplified sequence diagram of the REST API interaction using Mermaid:
-
-```mermaid
-sequenceDiagram
-    actor Client as HTTPClient
-    participant APIServer
-    participant Swarm
-    participant Agent
-    participant ToolRegistry
-    participant InferenceEngine
-
-    HTTPClient->>APIServer: POST /query (JSON)
-    APIServer->>Swarm: Process Request
-    Swarm->>Agent: Process Query
-    Agent->>ToolRegistry: Identify Tools
-    ToolRegistry-->>Agent: Return Tools
-    Agent->>InferenceEngine: Generate Final Output
-    InferenceEngine-->>Agent: Formatted Response
-    Swarm-->>APIServer: JSON Response
-    APIServer-->>HTTPClient: Final Answer
-```
+*   **Agent Core:** Leverages the `openai-agents` SDK for defining agent behaviors, tool usage, and interaction logic.
+*   **Blueprints (`BlueprintBase`):** Encapsulate the definition of an agent swarm, including agent setup, coordination logic, required configuration (LLMs, MCPs, environment variables), and potentially custom CLI arguments or Django extensions.
+*   **Configuration (`swarm_config.json`):** Centralizes definitions for LLM provider profiles and MCP server configurations, allowing flexible swapping and management. Environment variables (via `.env`) are used for sensitive keys.
+*   **`swarm-cli`:** Provides user-facing commands (built with `typer`) for managing the lifecycle of blueprints (add, list, run, install, delete) and editing the configuration file. Uses XDG directories for user-specific data. Installed via PyPI (`pip install open-swarm`).
+*   **`swarm-api`:** A Django application exposing installed blueprints via an OpenAI-compatible REST API (`/v1/models`, `/v1/chat/completions`). Uses DRF for views and serializers. Authentication is handled via static API tokens. Deployed preferably via Docker.
 
 ---
 
 ## Project Layout
 
-Updated directory structure for the unified framework:
-
 ```
-src/
-    swarm/
-        agent/                 # Agent definitions and orchestration
-        blueprint/             # Blueprint base classes and implementations
-        config/                # Configuration loading and validation
-        core.py                # Core Swarm framework logic
-        extensions/            # Optional integrations (REST, GPT actions)
-        repl/                  # Interactive REPL for agents
-        rest/                  # REST API views and endpoints
-        types.py               # Type definitions for agents and tools
-        util.py                # Utility functions
-tests/
-    test_blueprints.py         # Tests for blueprint discovery and metadata
-    test_rest_mode.py          # Tests for REST API endpoints
-    test_config_loader.py      # Tests for configuration loading
-    test_swarm/                # Tests for Swarm framework
-docs/
-    diagrams/                  # Architecture and sequence diagrams
-```
-
----
-
-## API Endpoints
-
-### CLI Mode
-
-- **No HTTP endpoints**. Interact directly with the framework using the CLI.
-
-### REST Mode
-
-- **`POST /v1/query`**: Accepts JSON payloads, returning agent responses in OpenAI-compatible format.
-- **`GET /v1/models`**: Lists all available models (blueprints).
-
-### MCP Mode
-
-- **`list_tools`**: Enumerates available tools in the MCP environment.
-- **`execute_tool`**: Executes a specified tool with arguments.
-
----
-
-## Advanced Topics
-
-### Handling Blueprints and Configuration
-
-This section provides an overview of managing blueprints and the configuration system, including how to mock components for testing and ensure the framework operates as expected.
-
-#### 1. Blueprint Initialization
-Blueprints inherit from `BlueprintBase` and require a configuration object during initialization. The configuration specifies runtime behavior, paths, and tool availability.
-
-**Key Steps:**
-- Ensure your blueprint class inherits from `BlueprintBase`.
-- Pass the `config` parameter to the constructor, which can be loaded using the `ConfigLoader`.
-
-Example:
-```python
-from swarm.blueprint.base import BlueprintBase
-from swarm.config.loader import ConfigLoader
-
-config = ConfigLoader.load("path/to/config.json")
-class MyBlueprint(BlueprintBase):
-    def __init__(self, config):
-        super().__init__(config)
-        # Custom initialization here
-```
-
-#### 2. Blueprint Testing
-Use pytest fixtures to mock dependencies and provide a robust test environment. Mock objects like `MCPSession` and `Swarm` should be employed to isolate tests.
-
-**Common Fixtures:**
-- `mock_mcp_session`: Mocks MCP session calls for tools.
-- `mock_config`: Provides a sample or dummy configuration.
-- `temporary_blueprints_dir`: Creates a temporary directory structure for testing blueprints.
-
-Example Fixture:
-```python
-@pytest.fixture
-def mock_config(tmp_path):
-    config_path = tmp_path / "swarm_config.json"
-    config_path.write_text("{...}")  # Populate with mock configuration
-    return str(config_path)
-```
-
-#### 3. Configuration in Tests
-Configuration can either be mocked or use a predefined test configuration (`./swarm_config.json`). Update the `PYTHONPATH` during tests to include `src/` for proper imports.
-
-Command:
-```bash
-PYTHONPATH=$(pwd)/src pytest
+.
+├── Dockerfile                  # Defines the container build process for swarm-api
+├── docker-compose.yaml         # Base Docker Compose configuration for swarm-api
+├── docker-compose.override.yaml.example # Example for swarm-api customizations
+├── manage.py                   # Django management script (used by swarm-api)
+├── pyproject.toml              # Project metadata and dependencies (for uv/pip, used by both CLI and API)
+├── setup.py                    # Legacy setup file (consider removing if pyproject.toml is sufficient)
+├── src/
+│   └── swarm/
+│       ├── __init__.py
+│       ├── apps.py                 # Django app configuration (API)
+│       ├── auth.py                 # API Authentication logic (API)
+│       ├── blueprints/             # Default location for blueprints loaded by API server (API)
+│       │   ├── README.md           # Overview of example blueprints
+│       │   ├── echocraft/
+│       │   └── ... (other blueprint directories)
+│       ├── extensions/             # Core framework extensions (used by both CLI and API)
+│       │   ├── __init__.py
+│       │   ├── blueprint/          # Blueprint base class, discovery, utils
+│       │   │   ├── __init__.py
+│       │   │   ├── blueprint_base.py
+│       │   │   ├── blueprint_discovery.py
+│       │   │   └── blueprint_utils.py
+│       │   ├── cli/                # swarm-cli implementation (CLI)
+│       │   │   ├── __init__.py
+│       │   │   ├── commands/       # Subcommands for blueprint/config management
+│       │   │   ├── main.py         # Typer app definition (likely invoked by launcher)
+│       │   │   └── utils.py
+│       │   ├── config/             # Configuration loading logic (used by both)
+│       │   │   ├── __init__.py
+│       │   │   └── config_loader.py
+│       │   └── launchers/          # Entry points defined in pyproject.toml/setup.py (CLI/API)
+│       │       ├── __init__.py
+│       │       ├── swarm_api.py    # Wrapper to launch Django API server (API)
+│       │       ├── swarm_cli.py    # Main entry point for swarm-cli (CLI)
+│       │       └── build_swarm_wrapper.py # Script using PyInstaller for `swarm-cli install` (CLI)
+│       ├── management/             # Custom Django management commands (API)
+│       ├── migrations/             # Django database migrations (API)
+│       ├── models.py               # Django models (API, if any)
+│       ├── permissions.py          # DRF API permissions (API)
+│       ├── serializers.py          # DRF API serializers (API)
+│       ├── settings.py             # Django settings (API)
+│       ├── static/                 # Static files for Web UI (API)
+│       ├── templates/              # Django HTML templates (API)
+│       ├── urls.py                 # Django URL routing (API)
+│       ├── views/                  # Django/DRF Views (API)
+│       │   ├── __init__.py
+│       │   ├── api_views.py        # Views for /v1/models etc.
+│       │   ├── chat_views.py       # View for /v1/chat/completions
+│       │   └── utils.py            # View utility functions (blueprint loading etc.)
+│       └── wsgi.py                 # WSGI entry point (API)
+├── tests/                      # Automated tests (run during development)
+│   ├── api/                    # Tests for the REST API endpoints
+│   ├── blueprints/             # Integration tests for specific blueprints
+│   └── unit/                   # Unit tests for core components (config, utils, etc.)
+├── .env.example                # Example environment variables file
+└── swarm_config.json.example   # Example configuration file
 ```
 
 ---
 
-### Updated Sequence for Blueprint Integration
+## Configuration System
 
-1. **Configuration Loading**  
-   Blueprints fetch their configuration from `ConfigLoader`. Ensure paths are set correctly in tests to point to either mock configurations or test-specific paths.
+*   **Primary File:** `swarm_config.json`.
+*   **Location:**
+    *   **`swarm-cli`:** Uses XDG paths (default: `~/.config/swarm/swarm_config.json`).
+    *   **`swarm-api` (Docker):** Typically mounted from the host (e.g., `./swarm_config.json` mapped to `/app/swarm_config.json`).
+*   **Loading:** Handled by `swarm.extensions.config.config_loader`. It searches upwards from the current directory, then checks the default XDG path (primarily relevant for `swarm-cli`).
+*   **Structure:** Contains top-level keys like `llm` (for LLM profiles) and `mcpServers`.
+*   **Secrets:** Use environment variable placeholders (e.g., `"${OPENAI_API_KEY}"`) in `swarm_config.json` and define actual values in a `.env` file or the runtime environment.
+*   **Management:** Use `swarm-cli config` commands to manage the default XDG config file (see `USERGUIDE.md`).
 
-2. **Blueprint Discovery**  
-   Use `discover_blueprints` to dynamically locate and load available blueprints. This method scans the `blueprints/` directory and ensures only properly defined blueprints are loaded.
+---
 
-Example:
-```python
-from swarm.extensions.blueprint.discovery import discover_blueprints
+## Blueprint Development
 
-blueprints = discover_blueprints(["blueprints/filesystem"])
+*   **Inheritance:** Blueprints must inherit from `swarm.extensions.blueprint.blueprint_base.BlueprintBase`.
+*   **Core Logic:** Implement the `run` method (often async) for agent orchestration using `openai-agents` SDK.
+*   **Configuration:** Access loaded configuration via `self.config`, LLM profiles via `self.get_llm_profile("profile_name")`.
+*   **MCP Servers:** Define requirements in metadata; access running instances via `self.mcp_servers["server_name"]`.
+*   **Metadata:** Define `blueprint_name`, `description`, `required_env_vars`, `required_mcp_servers`.
+*   **CLI Integration:** Define custom arguments in the blueprint's `main` method for `swarm-cli run`.
+
+---
+
+## MCP Server Integration
+
+*   **Definition:** Defined in the `mcpServers` section of `swarm_config.json` (`command`, `args`, `env`, `cwd`).
+*   **Lifecycle:** `BlueprintBase` starts/stops required MCP servers as subprocesses when run via `swarm-cli` or direct execution. (Note: Lifecycle management within the long-running API server might differ or require external management).
+*   **Interaction:** Agents use tools provided by `openai-agents` library.
+
+---
+
+## Command-Line Interface (`swarm-cli`)
+
+*   **Installation:** `pip install open-swarm`
+*   **Framework:** `typer`.
+*   **Entry Point:** Defined in `pyproject.toml` (points to `src/swarm/extensions/launchers/swarm_cli.py`).
+*   **Commands:** Implemented in `src/swarm/extensions/cli/commands/`.
+*   **Installation (`swarm-cli install`):** Uses `PyInstaller` to create standalone executables from managed blueprints.
+*   **User Data Management:** Uses XDG paths (`platformdirs`).
+*   **ANSI/Styling & Terminal Support:** Use Rich's `Console` to detect terminal capabilities (`console.is_terminal` and `console.color_system`) and apply ANSI color/styling when supported, with graceful fallback.
+*   **Hook Flags:** The `launch` command supports `--pre`, `--listen`, and `--post` flags to run additional blueprints before, during, and after the main invocation.
+*   **Slash Commands:** Define slash commands in `swarm_config.json` under the `slashCommands` section; they’re available in the interactive shell for templated prompt invocations.
+*   **Blueprint as Tool:** Use `blueprint_tool('name')` from `swarm.core.blueprint_utils` to invoke one blueprint from another synchronously, enabling composite workflows and guardrails.
+*   **Unified UX Base:** All blueprints should use `print_search_progress_box` from `swarm.core.output_utils` for consistent spinners, progress updates, and result boxes, ensuring compliance under `SWARM_TEST_MODE`.
+
+---
+
+## REST API (`swarm-api` / Django)
+
+*   **Deployment:** Docker recommended (`docker compose up -d`). Can also be run locally via `uv run python manage.py runserver`.
+*   **Framework:** Django + DRF.
+*   **Core Views:** `ChatCompletionsView` (`/v1/chat/completions`), `ModelsListView` (`/v1/models`).
+*   **Blueprint Loading:** Discovers blueprints from `settings.BLUEPRINT_DIRECTORY` (differs from `swarm-cli`'s XDG path). Use Docker volumes to provide blueprints.
+*   **Authentication:** Static token via `SWARM_API_KEY` in `.env`.
+
+---
+
+## Directory Structure (XDG Compliance)
+
+`swarm-cli` uses standard user directories managed via `platformdirs`:
+
+*   **Configuration (`swarm_config.json`):** `~/.config/swarm/swarm_config.json`
+*   **Managed Blueprint Sources:** `~/.local/share/swarm/blueprints/`
+*   **Installed CLI Binaries:** `~/.local/share/swarm/bin/` (Needs to be in `PATH`)
+*   **Build Cache (PyInstaller):** `~/.cache/swarm/build/`
+
+---
+
+## Testing Strategy
+
+*   **Framework:** `pytest`.
+*   **Structure:** `tests/unit/`, `tests/blueprints/`, `tests/api/`.
+*   **Mocking:** Use `unittest.mock` for external services.
+*   **Fixtures:** Use `pytest` fixtures for setup.
+*   **Running:** `uv run pytest <path>`.
+
+---
+
+## Docker Deployment Details
+
+*   **`Dockerfile`:** Builds the API service image. Installs dependencies via `pip install .`. Runs migrations and starts Django server via `CMD`.
+*   **`docker-compose.yaml`:** Defines the `open-swarm` service using a pre-built image by default. Mounts `./blueprints`, `./swarm_config.json`, `./db.sqlite3` from host.
+*   **`docker-compose.override.yaml`:** Allows user customization (additional volumes, local build, env vars).
+
+---
+
+## Sequence Diagrams
+
+*(Diagrams remain the same as previous version)*
+
+### 1. Blueprint Initialization (Direct Run / CLI)
+```mermaid
+sequenceDiagram
+    participant User
+    participant swarm_cli / PythonScript
+    participant BlueprintBase
+    participant ConfigLoader
+    participant MCPSessionManager
+
+    User->>swarm_cli / PythonScript: Run blueprint (e.g., `swarm-cli run mybp --instruction "..."`)
+    swarm_cli / PythonScript->>BlueprintBase: Instantiate Blueprint(config_path=..., args=...)
+    BlueprintBase->>ConfigLoader: Find and load swarm_config.json
+    ConfigLoader-->>BlueprintBase: Return Config Data (incl. LLM/MCP defs)
+    alt Blueprint requires MCP Servers
+        BlueprintBase->>MCPSessionManager: Start required MCP server subprocesses based on config
+        MCPSessionManager-->>BlueprintBase: References to running MCPs
+    end
+    BlueprintBase->>BlueprintBase: Initialize agents, tools (using openai-agents SDK)
+    BlueprintBase->>BlueprintBase: Execute `run` method with user instruction/args
+    BlueprintBase-->>swarm_cli / PythonScript: Return results/output
+    swarm_cli / PythonScript-->>User: Display results
+    BlueprintBase->>MCPSessionManager: Stop MCP server subprocesses
 ```
 
-3. **Testing MCP and Tool Calls**  
-   Mock tool calls by replacing `call_tool` in the MCP session. This allows testing the integration of tools like `list_directory`, `read_file`, etc.
+### 2. API Request Handling (`/v1/chat/completions`)
+```mermaid
+sequenceDiagram
+    actor Client as HTTPClient
+    participant APIServer (Django/DRF)
+    participant ChatCompletionsView
+    participant BlueprintUtils
+    participant BlueprintInstance
+    participant Runner (openai-agents)
+    participant LLMProvider
 
-Example Mock:
-```python
-mock_mcp_session.call_tool.return_value = Mock(content=[Mock(text="file1.txt\nfile2.txt")])
-```
-
----
-
-This addition provides developers with a focused guide to integrating and testing blueprints, ensuring adherence to framework standards.
-
-### Dynamic Tool Integration in Blueprints
-
-#### Overview
-Blueprints in the Swarm framework can dynamically integrate tools discovered through MCP servers. This capability enables flexible functionality without hardcoding tool logic within the blueprint.
-
-#### Dynamic Tools
-A **Tool** in Swarm is represented by the `Tool` class, which encapsulates:
-- `name`: The tool's identifier.
-- `func`: The callable function associated with the tool.
-- `description`: A brief explanation of what the tool does.
-- `input_schema`: The expected input parameters, defined in JSON Schema.
-- `dynamic`: A flag indicating if the tool is dynamically generated.
-
-Tools are dynamically discovered by the `MCPToolProvider` during runtime. This process involves querying an MCP server and retrieving tool definitions, which are then injected into the corresponding blueprint or agent.
-
-#### Testing Dynamic Tools
-Dynamic tools require a special approach for testing due to their runtime discovery.
-
-1. **Mocking Tools**:
-   Tools should be mocked as instances of the `Tool` class. Define their behavior by assigning mock `func` functions and setting appropriate schemas.
-
-2. **Mocking Tool Discovery**:
-   Use a mock `MCPToolProvider` to simulate tool discovery. This ensures the blueprint or agent can integrate tools as if they were retrieved from a live server.
-
-3. **Testing Tool Behavior**:
-   - Validate that tools are callable and produce expected results.
-   - Ensure tools adhere to their defined input schemas.
-
-#### Example Test Setup
-Below is an example of testing a `list_directory` tool dynamically integrated into a blueprint:
-
-```python
-@pytest.mark.asyncio
-async def test_list_directory(mock_mcp_session):
-    from swarm.types import Tool
-
-    async def mock_list_directory_func(path):
-        return f"Contents of '{path}':\n[FILE] file1.txt\n[FILE] file2.txt"
-
-    mock_tool = Tool(
-        name="list_directory",
-        func=mock_list_directory_func,
-        description="List directory contents",
-        input_schema={"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
-        dynamic=True,
-    )
-
-    async def mock_discover_tools():
-        return {"list_directory": mock_tool}
-
-    mock_tool_provider = AsyncMock()
-    mock_tool_provider.discover_tools = mock_discover_tools
-
-    blueprint_instance = FilesystemBlueprint(config={"allowed_paths": ["/tmp"]})
-    blueprint_instance.mcp_session = mock_mcp_session
-    blueprint_instance.tool_provider = mock_tool_provider
-
-    tools = await blueprint_instance.tool_provider.discover_tools()
-    list_directory = tools["list_directory"]
-
-    result = await list_directory(path="/path/to/dir")
-
-    assert result == "Contents of '/path/to/dir':\n[FILE] file1.txt\n[FILE] file2.txt"
-
-
-### Blueprint Flexibility
-
-Blueprints can:
-- Use **MCP servers** for tools and actions.
-- Call **direct HTTP APIs** for tasks like weather queries.
-- Employ **GPT actions** as an alternative tool execution method.
-
-### Scaling
-
-- Use a reverse proxy (e.g., Nginx) for REST endpoints.
-- Scale horizontally with multiple REST or MCP instances sharing the same configuration.
-
-### Security
-
-- Keep sensitive data in `.env`.
-- Leverage Docker secrets or Kubernetes secrets for secure deployments.
-
----
-
-For contributions or additional help, refer to our [Contributing Guidelines](../README.md#contributing).
-
-
-## Operational Modes
-
-1. **REST Mode**  
-   - Launch Django with `uv run manage.py runserver 0.0.0.0:8000`.  
-   - Access endpoints:
-     - `POST /v1/chat/completions`: Chat-style agent interactions (OpenAI-compatible).
-     - `GET /v1/models`: Lists available blueprints.
-     - `http://localhost:8000/<blueprint_name>/`: Interactive, web-based blueprint tester.
-   - (TODO) Optionally integrate with Django Admin at `/admin`.
-
-2. **CLI Mode**  
-   - Execute specific blueprint files (e.g., `uv run blueprints/university/blueprint_university.py`).  
-   - Great for local testing, debugging, and iterative development.
-
----
-
-## Configuration & Multiple LLM Providers
-
-Open Swarm uses:
-- **`.env`** files for API keys or critical environment variables (e.g., `OPENAI_API_KEY`).
-- **`swarm_config.json`** (or custom JSON) for advanced settings, including:
-  - **`llm`**: Define multiple OpenAI-compatible endpoints (e.g., `openai`, `grok`, `ollama`). Configurable LLM Providers are fully supported and now allow you to specify additional parameters such as `temperature` and `reasoning`. The `reasoning` parameter is particularly useful for setups like o3-mini.
-  - **`mcp_servers`**: Tools/services that agents can call.
-
-Different agents in a single blueprint can reference different LLM providers. For example:
-```json
-{
-  "llm": {
-    "openai": {
-      "provider": "openai",
-      "model": "gpt-4",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "temperature": 0.7,
-    },
-    "grok": {
-      "provider": "openai",
-      "model": "grok-2-1212",
-      "base_url": "https://api.x.ai/v1",
-      "api_key": "${XAI_API_KEY}"
-    },
-    "ollama": {
-      "provider": "openai",
-      "model": "llama3.2",
-      "base_url": "http://localhost:11434/v1",
-      "api_key": ""
-    }
-  }
-}
+    HTTPClient->>APIServer: POST /v1/chat/completions (JSON: model, messages, stream?)
+    APIServer->>ChatCompletionsView: dispatch(request)
+    ChatCompletionsView->>ChatCompletionsView: Validate request data (Serializer)
+    ChatCompletionsView->>BlueprintUtils: get_blueprint_instance(model_name)
+    BlueprintUtils->>BlueprintUtils: Discover blueprints (from settings.BLUEPRINT_DIRECTORY)
+    BlueprintUtils->>BlueprintInstance: Instantiate Blueprint(config)
+    BlueprintUtils-->>ChatCompletionsView: Return BlueprintInstance
+    ChatCompletionsView->>BlueprintInstance: Call run(messages) / get_async_generator(messages)
+    BlueprintInstance->>Runner: Run agent logic with messages
+    Runner->>LLMProvider: Make API call(s)
+    LLMProvider-->>Runner: LLM response(s) / tool calls
+    Runner->>BlueprintInstance: Process tool calls (if any)
+    Runner-->>BlueprintInstance: Final response / stream chunks
+    alt Streaming Response
+        BlueprintInstance-->>ChatCompletionsView: Yield stream chunks
+        ChatCompletionsView->>APIServer: Format as SSE and yield to client
+    else Non-Streaming Response
+        BlueprintInstance-->>ChatCompletionsView: Return complete response message
+        ChatCompletionsView->>APIServer: Format as JSON response
+    end
+    APIServer-->>HTTPClient: Send Response (JSON or SSE Stream)
 ```
 
 ---
 
-## Installation
+### UX Improvements & Design Decisions
 
-1. **Clone the Repository**  
-   ```bash
-   git clone https://github.com/matthewhand/open-swarm.git
-   cd open-swarm
-   ```
-2. **Install Dependencies**  
-   ```bash
-   # Install 'uv' => https://docs.astral.sh/uv/
-   uv python install 3.12
-   uv venv
-   source .venv/bin/activate
-   uv sync
-   ```
-3. **Environment Setup**  
-   - Copy `.env.example` to `.env` and fill in sensitive details (`OPENAI_API_KEY`, etc.).
-   ```bash
-   cp .env.example .env
-   vi .env
-   ```
-   - *(Optional)* Update `swarm_config.json` to add or modify LLM providers, MCP servers, etc.
+- **ANSI/Styling & Terminal Support:** Use Rich's `Console` for reliable detection of ANSI-capable terminals (`Console().is_terminal` and `Console().color_system`), enabling styled, colored CLI output when supported.
+- **CLI Framework:** Built with Typer. We leverage `context_settings` (`allow_extra_args`, `ignore_unknown_options`) to support slash commands, pre-listen-post hooks, and other advanced UX features.
+- **Pre-/Listener-/Post- Hooks:** The `launch` command accepts `--pre`, `--listen`, and `--post` flags (comma-separated blueprint names) to chain multiple blueprint invocations in a single CLI call.
+- **Slash Commands:** Defined under `slashCommands` in `swarm_config.json`. Slash command definitions contain:
+  - `blueprint`: target blueprint name
+  - `promptTemplate`: Jinja-style template for the prompt (e.g. `"Compact: {{ history }}"`)
+  - `llmProfile`: which LLM profile to use (defaults to `default`)
+  
+- **Blueprint as Tool:** `blueprint_tool(name)` returns a callable that wraps a blueprint as a sync tool; useful for injecting one blueprint’s logic into another.
+   - **Unified UX Utilities:** All blueprints should use `print_search_progress_box` from `swarm.core.output_utils` for spinners, progress updates, and final result boxes. Under `SWARM_TEST_MODE`, outputs are deterministic for automated compliance.
 
----
+   ---
+   ## Multi-Agent Orchestration Workflows
 
-## Running Open Swarm
+   Blueprints can be composed into multi-agent pipelines:
+   1. **Discovery:** Coordinator reads tasks (e.g., `TODO.md`) via `read_file_tool`.
+   2. **Planning:** Coordinator uses `Runner.run()` to select the next task.
+   3. **Dispatch:** Invoke a worker blueprint via `blueprint_tool('worker')`.
+   4. **Verification:** Use another blueprint to verify results.
+   5. **Update:** Coordinator writes back to `TODO.md` via `write_file_tool`.
 
-### Running with the REST API
+   Example skeleton in ZeusBlueprint:
+   ```python
+   from swarm.core.blueprint_utils import blueprint_tool
+   from swarm.core.blueprint_base import BlueprintBase
 
-1.  **Start the Django REST API Server:**
-    ```bash
-    uv run manage.py migrate
-    uv run manage.py runserver 0.0.0.0:8000
-    ```
-2.  **Access the Interactive Blueprint Pages:**
-    - Open your web browser and visit:
-      - `http://localhost:8000/<blueprint_name>` (e.g., `http://localhost:8000/university`)
-      - You will see a text input where you can type queries.
-      - The `sender` of the response (the name of the agent that responded) will be shown above each response.
-      - Below is a screenshot showing an example of the interactive HTML page:
-      
-          <img src="assets/images/20250105-Open-Swarm-HTML-Page.png" alt="Interactive Chat Interface" width="70%"/>
-3.  **Integrate with Open WebUI:**
-    - Open Swarm has full compatibility with OpenAI API-compatible UIs, such as [Open WebUI](https://github.com/open-webui/open-webui). By using a client like Open WebUI you will not only see the `sender` field, but also experience a more engaging chat UI with other features.
-    - To configure Open WebUI to use Open Swarm:
-      - Start the REST API server via `uv run manage.py runserver 0.0.0.0:8000`
-      - Install the custom function from the [Open WebUI Functions Hub](https://openwebui.com/f/matthewh/swarm_manifold).
-      - In the custom function valve settings, change the API Base URL if different to the default, `http://host.docker.internal:8000`
-    - To see a demo of Open WebUI with the University Blueprint with expressive voice output, please see the following demonstration video:
-    
-      https://github.com/user-attachments/assets/a4688100-5737-479f-91e5-974db98296d7
-4.  **Access the REST Endpoints Directly:**
-    You can also interact with the API using a tool like `curl`. For example:
-    ```bash
-    curl -X POST http://localhost:8000/v1/chat/completions \
-        -H "Content-Type: application/json" \
-        -d '{"model":"university","messages":[{"role":"user","content":"What courses should I take next semester if I’m interested in data science?"}]}'
-    ```
-    - You will see a JSON response, containing the `sender` field within the response (in `data.choices[0].message.sender`).
-
----
-
-## Deploying with Docker
-
-### Deploy with Docker Compose (Recommended)
-
-1. **Obtain `docker-compose.yaml`**  
-   ```bash
-   wget https://raw.githubusercontent.com/matthewhand/open-swarm/refs/heads/main/docker-compose.yaml
-   ```
-2. **Set up `.env`**  
-   Retrieve the `.env` template and configure the `OPENAI_API_KEY`:
-   ```bash
-   wget https://raw.githubusercontent.com/matthewhand/open-swarm/refs/heads/main/.env.example -O .env
-   sed -i 's/^OPENAI_API_KEY=.*/OPENAI_API_KEY=your_openai_api_key_here/' .env
-   ```
-   Replace `your_openai_api_key_here` with your actual OpenAI API key.
-3. **(Optional) Adjust `swarm_config.json`**  
-   Download and modify `swarm_config.json` if you plan to use local LLM endpoints or different providers.
-4. **Start the Service**  
-   ```bash
-   docker compose up -d
-   ```
-   This:
-   - Builds the image if needed.
-   - Reads port settings and environment variables from `.env`.
-   - Exposes the application on `8000` (unless overridden via `$PORT`).
-
-5. **Access the Application**  
-   - Visit [http://localhost:8000](http://localhost:8000) for the interactive blueprint pages.
-
-### Deploy Standalone 
-
-1. Configure `.env` (mandatory) and `swarm_config.json` (optional) as above
-2. Run the following command:
-   ```bash
-   docker run \
-     --env-file .env \
-     -p ${PORT:-8000}:${PORT:-8000} \
-     -v ./blueprints:/app/blueprints \
-     -v ./swarm_config.json:/app/src/swarm/swarm_config.json \
-     --name open-swarm \
-     --restart unless-stopped \
-     mhand79/open-swarm:latest
+   class ZeusBlueprint(BlueprintBase):
+       async def run(self, messages, **kwargs):
+           todo = self.read_file_tool.func('TODO.md')
+           task = blueprint_tool('suggestion')(f"Select one TODO: {todo}")
+           result = blueprint_tool('codey')(task)
+           verify = blueprint_tool('suggestion')(f"Verify '{task}': {result}")
+           if 'yes' in verify.lower():
+               updated = todo.replace(task, f"~{task}~ (done)")
+               self.write_file_tool.func('TODO.md', updated)
+           yield { 'messages': [{ 'role': 'assistant', 'content': "Task completed and TODO updated." }] }
    ```
 
----
-
-## Diagram: Backend HTTP Service Overview
-
-Below is a simplified diagram illustrating how the **Open Swarm** HTTP service can function as a backend for any OpenAI API-compatible client or tool. The service lists configured **Blueprints** via `/v1/models` and performs inference through the `/v1/chat/completions` endpoint. Internally, it can call out to any configured **OpenAI-compatible LLM provider** (OpenAI, Grok, Ollama, etc.) and optionally run **MCP servers** (like database, filesystem, or weather integrations).
-
-```
- ┌─────────────────────────────────────────────────────────────────────┐
- │        OpenAI-Compatible Client Tools that displays sender        │
- │                      e.g. Open-WebUI                              │
- └────────────┬───────────────────────────────────────────────────────┘
-              |                             
-              |   (HTTP: /v1/chat/completions, /v1/models)
-              ▼                             
- ┌─────────────────────────────────────────────────────────────────────┐
- │                 Open Swarm REST API Service (Django)              │
- │  (Exposes /v1/models, /v1/chat/completions, /admin, /<blueprint>)   │
- └─────────────────────────────────────────────────────────────────────┘
-                     |                        | 
-                     |                        | MCP Servers and 
-                     |                        | (filesystem, database, etc.)           
-       LLM Inference |                        |                     
-                     ▼                        ▼                
-       ┌────────────────────────┐         ┌────────────────────────┐
-       │OpenAI-Compatible LLMs  │         │ External APIs/Services │
-       │ (OpenAI, Grok, Ollama) │         │ (Weather, Database, ..)│
-       └────────────────────────┘         └────────────────────────┘
-```
-
----
-
-## Progress Tracker
-
-- **REST Mode**
-  - [x] Inference via `/v1/chat/completions`
-  - [x] Blueprints listed via `/v1/models/`
-  - [x] Execute blueprints via `/<blueprint>` e.g. [http://localhost:8000/university](http://localhost:8000/university)
-  - [x] Simple HTML page
-  - [ ] Application management via `/admin`
-     - [x] User management
-     - [ ] Blueprint management
-  - [ ] Streaming chat (django_chat)
-
-- **CLI Mode**
-  - [x] Blueprint Runner
-  - [ ] Setup Wizard
-
-- **Multiple LLM Providers**
-  - [x] Assign different models per agent in one blueprint
-
-- **Tooling Integration Frameworks**
-  - [x] MCP Servers implementation
-    - [x] npx-based server integration
-    - [ ] uvx server reliability improvements (fix frozen processes)
-  - [x] Official MCP Python SDK integration
-  - [x] Brave Search API integration
-  - [x] SQLite database integration
-  - [x] Filesystem access integration
-
-- **Core Framework Improvements**
-  - [x] Dynamic environment variable documentation
-    - [x] .env.example template
-    - [x] README.md configuration section
-  - [x] Autocompletion with dynamic goal tracking
-  - [x] Nested progress tracking implementation
-  - [x] Interactive task resumption handling
-
-- **Deployment**
-  - [x] Dockerfile and docker-compose.yaml
-  - [x] Publish to Docker Registry
-  - [x] Publish Python module to PyPI
-
-- **Example Blueprints**
-  - [x] `echocraft` (Simple blueprint for function call)
-  - [x] `suggestion` (Simple blueprint demonstrating constrained JSON output)
-  - [x] `database_and_web` (Demonstrates MCP server integrations: Brave Search API & SQLite database; Brave requires API key)
-  - [x] `university` (Demonstrates Django integration with additional REST endpoints at `/v1/university/` alongside `/v1/models` and `/v1/chat/completions`)
-  - [ ] `flowise` (pending uvx fix)
-
-- **Security**
-  - [x] REST endpoint authentication
-    - [x] API key protection (ENABLE_API_AUTH)
-    - [x] Per-user token system
-  - [x] Operational mode controls
-    - [x] Disable admin interface (ENABLE_ADMIN)
-    - [x] Disable web UI (ENABLE_WEBUI)
-  - [ ] CORS access control
-
-- **Beta Features**
-  - [x] Blueprints can extend Django DB and REST.
-  - [x] Stateful chat completion based on jmespath defined by envvar STATEFUL_CHAT_ID_PATH.
-  - [ ] Automatic MCP server config loading
-    - [x] Claude Desktop on Windows
-    - [x] Roo-CLI on Linux remote SSH
-    - [ ] Others
-  - [ ] Implement swarm-cli and swarm-api commands
-    - [x] Manage blueprints
-    - [x] Host the API endpoint
-    - [ ] Compile blueprints into standalone CLI commands for shell execution.
-  - [ ] Nemo_guardrails integration
-    - [x] Register config
-    - [ ] Register actions (currently breaks function calling)
-  - [ ] Develop more complex chat UI
-    - [x] HTML concept layout
-    - [ ] Conversation history
-  - [ ] Automated task completion for CLI mode 
-    - [x] Automatically assess goal completion
-    - [x] Continue generation until achieved
-    - [ ] Unit testing
-
-- **Security**
-  - [x] REST endpoint authentication
-    - [x] API key protection (ENABLE_API_AUTH)
-    - [x] Per-user token system
-  - [x] Operational mode controls
-    - [x] Disable admin interface (ENABLE_ADMIN)
-    - [x] Disable web UI (ENABLE_WEBUI)
-  - [x] Restricted blueprint loading via SWARM_BLUEPRINTS environment variable
-  - [ ] CORS access control
+   *This document is a work in progress. Contributions and corrections are welcome.*
