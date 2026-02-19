@@ -2,6 +2,54 @@
 
 Welcome to Open Swarm! Orchestrate, manage, and run AI agent blueprints with S-tier onboarding and UX polish.
 
+---
+
+## 📅 Changelog
+
+### 2025-02 — Major Framework Migration
+- **Migrated from deprecated OpenAI `swarm` framework to `openai-agents` SDK**
+  - The original OpenAI Swarm was an educational experiment that has been superseded
+  - Open Swarm now builds on the official `openai-agents` library for production-ready agent orchestration
+  - All blueprints have been updated to use the new agent primitives
+- **Restructured package architecture**
+  - Core framework moved from `src/swarm/extensions/` to `src/swarm/core/`
+  - Blueprints migrated from root `blueprints/` to `src/swarm/blueprints/`
+  - MCP integration moved from extensions to core (`src/swarm/mcp/`)
+- **Enhanced OpenAI API compatibility**
+  - Drop-in endpoint for any OpenAI-compatible application
+  - Multi-agent orchestration transparently handled behind `/v1/chat/completions`
+  - Agent-aware clients can display which agent is currently active via `sender` field
+
+---
+
+## What is Open Swarm?
+
+**Open Swarm is a drop-in replacement for any OpenAI-compatible API endpoint** that adds powerful multi-agent orchestration capabilities.
+
+### Key Value Propositions:
+
+1. **Drop-in OpenAI API Compatibility**
+   - Point any OpenAI-compatible app (Cursor, Continue, LibreChat, etc.) to Open Swarm's `/v1/chat/completions` endpoint
+   - Your app sees a standard OpenAI API — no code changes required
+   - Behind the scenes, Open Swarm orchestrates multiple specialized agents
+
+2. **Multi-Agent Orchestration**
+   - Define teams of agents with specialized roles (researcher, coder, reviewer, etc.)
+   - Agents automatically hand off tasks to each other based on context
+   - Each blueprint defines a complete multi-agent workflow
+
+3. **Agent-Aware Applications**
+   - Responses include a `sender` field identifying which agent produced the response
+   - Agent-aware UIs can display the active agent (e.g., "Researcher is thinking...", "Coder is writing...")
+   - Non-aware applications simply ignore this field and work normally
+
+4. **Blueprint System**
+   - Blueprints encapsulate agent definitions, tools, and workflows
+   - Use pre-built blueprints or create your own
+   - Share blueprints via GitHub topics
+
+---
+
 ## Quickstart
 
 1. List available blueprints:
