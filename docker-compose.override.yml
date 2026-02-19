@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  swarm:
+    volumes:
+      # Map the Roo-Cline MCP settings file into the container.
+      - ${HOME}/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/cline_mcp_settings.json:/home/chatgpt/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/cline_mcp_settings.json:ro
+      
+      # If running on Windows, uncomment the following line to map the Claude Desktop MCP settings.
+      # The host path uses the APPDATA environment variable; adjust if necessary.
+      # - "%APPDATA%\Claude\claude_desktop_config.json:/home/chatgpt/Claude/claude_desktop_config.json:ro"
