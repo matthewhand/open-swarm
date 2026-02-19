@@ -1,118 +1,110 @@
 """
 Core/UI related views for the Swarm framework.
 """
-import os
-import json
 import logging
 from pathlib import Path
 
-from django.shortcuts import render, redirect
-from django.http import JsonResponse, HttpResponse
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.forms import AuthenticationForm  # Use standard auth form
+from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
 
 # Assuming blueprint discovery happens elsewhere and results are available if needed
 # from .utils import blueprints_metadata # Or however metadata is accessed
-from swarm.extensions.config.config_loader import load_server_config # Import if needed
+# Use the current config loader
+from swarm.core import config_loader
 
 logger = logging.getLogger(__name__)
 
-# Placeholder for blueprint metadata if needed by index
-# In a real app, this might be loaded dynamically or passed via context
-try:
-    # Attempt to import the discovery function if views need dynamic data
-    from swarm.extensions.blueprint.blueprint_discovery import discover_blueprints
-    # Note: Calling discover_blueprints here might be too early or cause issues.
-    # It's often better handled in specific views that need it (like list_models)
-    # or passed via Django context processors.
-    # For now, provide an empty dict as fallback.
-    try:
-        # Use settings.BLUEPRINTS_DIR which should be configured
-        blueprints_metadata = discover_blueprints(directories=[str(settings.BLUEPRINTS_DIR)])
-    except Exception:
-        blueprints_metadata = {}
-except ImportError:
-    blueprints_metadata = {}
+# --- Web UI Views (if ENABLE_WEBUI is True) ---
 
-
-@csrf_exempt
 def index(request):
-    """Render the main index page with blueprint options."""
-    logger.debug("Rendering index page")
-    # Get blueprint names from the potentially loaded metadata
-    blueprint_names_list = list(blueprints_metadata.keys())
+    """Render the main index page (likely the chat UI)."""
+    # This view might need context data like available models/blueprints
+    # It should only be active if ENABLE_WEBUI is true (checked in urls.py)
+    logger.debug(f"Index view called for user: {request.user}")
     context = {
-        "dark_mode": request.session.get('dark_mode', True),
-        "enable_admin": os.getenv("ENABLE_ADMIN", "false").lower() in ("true", "1", "t"),
-        "blueprints": blueprint_names_list # Pass the list of names
+        'title': settings.SWARM_TITLE or "Open Swarm",
+        'description': settings.SWARM_DESCRIPTION or "A Swarm Framework Interface",
+        # Add other context needed by the template
     }
-    return render(request, "index.html", context)
+    # Ensure the template exists
+    template_name = "swarm/index.html"
+    # Check if template exists? Django handles TemplateDoesNotExist.
+    return render(request, template_name, context)
 
-DEFAULT_CONFIG = {
-    "llm": {
-        "default": {
-            "provider": "openai",
-            "model": "gpt-4o", # Example fallback model
-            "base_url": "https://api.openai.com/v1",
-            "api_key": "",
-            "temperature": 0.3
-        }
-    },
-     "blueprints": {},
-     "mcpServers": {}
-}
-
-def serve_swarm_config(request):
-    """Serve the swarm configuration file as JSON."""
-    try:
-        # Use load_server_config which handles finding the file
-        config_data = load_server_config()
-        return JsonResponse(config_data)
-    except (FileNotFoundError, ValueError, Exception) as e:
-        logger.error(f"Error serving swarm_config.json: {e}. Serving default.")
-        # Return a default config on error
-        return JsonResponse(DEFAULT_CONFIG, status=500)
-
-
-@csrf_exempt
 def custom_login(request):
-    """Handle custom login at /accounts/login/, redirecting to 'next' URL on success."""
-    from django.contrib.auth.models import User # Import here to avoid potential early init issues
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            next_url = request.GET.get("next", getattr(settings, 'LOGIN_REDIRECT_URL', '/')) # Use setting or fallback
-            logger.info(f"User '{username}' logged in successfully. Redirecting to {next_url}")
-            return redirect(next_url)
+    """Handles user login."""
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(username=username, password=password)
+            if user is not None:
+                login(request, user)
+                logger.info(f"User '{username}' logged in successfully.")
+                return redirect('/') # Redirect to index after login
+            else:
+                logger.warning(f"Login failed for user '{username}': Invalid credentials.")
+                # Return form with error (AuthenticationForm handles this)
         else:
-            # If ENABLE_API_AUTH is false, auto-login as testuser (for dev/test convenience)
-            enable_auth = os.getenv("ENABLE_API_AUTH", "true").lower() in ("true", "1", "t") # Default to TRUE
-            if not enable_auth:
-                try:
-                    # Ensure test user exists and has a known password
-                    user, created = User.objects.get_or_create(username="testuser")
-                    if created or not user.has_usable_password():
-                         user.set_password("testpass") # Set a default password
-                         user.save()
+            logger.warning(f"Login form invalid: {form.errors.as_json()}")
+    else:
+        form = AuthenticationForm()
 
-                    if user.check_password("testpass"): # Check against the known password
-                        login(request, user)
-                        next_url = request.GET.get("next", getattr(settings, 'LOGIN_REDIRECT_URL', '/'))
-                        logger.info(f"Auto-logged in as 'testuser' since ENABLE_API_AUTH is false")
-                        return redirect(next_url)
-                    else:
-                         logger.warning("Auto-login failed: 'testuser' exists but password incorrect.")
+    # Only render if ENABLE_WEBUI is true (checked in urls.py)
+    return render(request, 'swarm/login.html', {'form': form})
 
-                except Exception as auto_login_err:
-                    logger.error(f"Error during testuser auto-login attempt: {auto_login_err}")
-            # If authentication failed (and auto-login didn't happen or failed)
-            logger.warning(f"Login failed for user '{username}'.")
-            return render(request, "account/login.html", {"error": "Invalid credentials"})
-    # If GET request
-    return render(request, "account/login.html")
 
-# Add any other views that were originally in the main views.py if needed
+def serve_swarm_config(_request):
+    """Serves the swarm_config.json content."""
+    # Find the config file used by the blueprint base or config loader
+    # This logic might need refinement depending on where config is reliably found
+    config_path = None
+    try:
+         # Use the same logic as BlueprintBase if possible, or find_config_file
+         config_path = config_loader.find_config_file(filename=config_loader.DEFAULT_CONFIG_FILENAME, start_dir=Path(settings.BASE_DIR).parent) # Search from project root
+         if not config_path:
+              # Fallback to location relative to settings? Unlikely to be correct.
+              config_path = Path(settings.BASE_DIR) / '..' / config_loader.DEFAULT_CONFIG_FILENAME # Adjust relative path if needed
+              config_path = config_path.resolve()
+
+         if config_path and config_path.exists():
+              logger.info(f"Serving config from: {config_path}")
+              # Load config to potentially redact sensitive info before serving
+              config_data = config_loader.load_config(config_path)
+              # Redact sensitive keys (e.g., api_key)
+              if 'llm' in config_data:
+                   for profile in config_data['llm']:
+                       config_data['llm'][profile].pop('api_key', None)
+              return JsonResponse(config_data)
+         else:
+              logger.error(f"Swarm config file not found at expected locations (tried: {config_path})")
+              return JsonResponse({"error": "Configuration file not found."}, status=404)
+
+    except Exception as e:
+        logger.error(f"Error serving swarm config: {e}", exc_info=True)
+        return JsonResponse({"error": "Failed to load or serve configuration."}, status=500)
+
+# --- Potentially other core API views if needed ---
+# Example: A view to list available blueprints (might duplicate CLI list command logic)
+
+@csrf_exempt # If POST is needed and no CSRF token available from UI
+def list_available_blueprints_api(_request):
+     """API endpoint to list discoverable blueprints."""
+     # Re-use discovery logic if possible, or adapt from CLI
+     from swarm.extensions.blueprint.discovery import (
+         discover_blueprints,  # Assuming this exists
+     )
+     try:
+        bp_dir = Path(settings.BLUEPRINTS_DIR) # Assuming settings has BLUEPRINTS_DIR
+        discovered = discover_blueprints(directories=[str(bp_dir)])
+        # Format the response
+        blueprint_list = [{"name": name, "description": meta.get("description", "N/A")} for name, meta in discovered.items()]
+        return JsonResponse({"blueprints": blueprint_list})
+     except Exception as e:
+          logger.error(f"Error listing blueprints via API: {e}", exc_info=True)
+          return JsonResponse({"error": "Failed to list blueprints."}, status=500)
