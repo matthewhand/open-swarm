@@ -21,6 +21,7 @@ sdist/
 var/
 wheels/
 share/python-wheels/
+db.sqlite3-*
 *.egg-info/
 .installed.cfg
 *.egg
@@ -191,3 +192,15 @@ openapi.yaml
 *.db
 *.db-shm
 logs/*
+
+openai-agents-python/*
+docker-compose.override.yml
+
+bin/*
+src/swarm/blueprints/**/session_logs/
+django_chatbot/
+# Ignore top-level Swarm logs (may contain credentials)
+src/swarm_log.json
+src/swarm_log.json.lock
+*.log
+*.out

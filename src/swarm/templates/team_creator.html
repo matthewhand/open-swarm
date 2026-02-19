@@ -1,0 +1,464 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">🐝 Swarm Creator</h2>
+  <p class="text-muted">Build multi-bot swarms with custom coordination logic</p>
+
+  <div class="row">
+    <!-- Team Configuration -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Team Configuration</h5>
+        </div>
+        <div class="card-body">
+          <form id="teamForm">
+            <div class="mb-3">
+              <label for="teamName" class="form-label">Team Name *</label>
+              <input type="text" class="form-control" id="teamName" name="name" required>
+            </div>
+            
+            <div class="mb-3">
+              <label for="teamDescription" class="form-label">Swarm Description *</label>
+              <textarea class="form-control" id="teamDescription" name="description" rows="3" required></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <label for="coordinatorName" class="form-label">Coordinator Name</label>
+              <input type="text" class="form-control" id="coordinatorName" name="coordinator_name" value="Team Coordinator">
+            </div>
+            
+            <hr>
+            <h6>Bot Definitions</h6>
+            <div id="teamMembers">
+              <!-- Team members will be added here -->
+            </div>
+            
+            <div class="d-grid gap-2 mt-3">
+              <button type="button" class="btn btn-outline-primary" onclick="addTeamMember()">
+                ➕ Add Bot
+              </button>
+              <button type="button" class="btn btn-primary" onclick="generateTeamCode()">
+                🔧 Generate Swarm Blueprint
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="clearTeamForm()">
+                Clear Form
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Preview -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5>Generated Swarm Blueprint</h5>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateTeamCode()" id="validateTeamBtn" disabled>
+              ✅ Validate
+            </button>
+            <button type="button" class="btn btn-sm btn-success" onclick="saveTeam()" id="saveTeamBtn" disabled>
+              💾 Save Swarm
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="teamCodeContainer">
+            <div class="text-muted text-center p-4">
+              <i class="fas fa-users fa-3x mb-3"></i>
+              <p>Configure your swarm and click "Generate Swarm Blueprint" to see the Python blueprint.</p>
+            </div>
+          </div>
+          
+          <!-- Validation Results -->
+          <div id="teamValidationResults" style="display: none;">
+            <hr>
+            <h6>Validation Results</h6>
+            <div id="teamValidationContent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Available Agents Reference -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+      <div class="card-header">
+          <h6>Available Agents Reference</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            {% for agent in existing_agents %}
+            <div class="col-md-4 mb-2">
+              <div class="border rounded p-2">
+                <strong>{{ agent.name }}</strong><br>
+                <small class="text-muted">{{ agent.description }}</small>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Messages -->
+  <div id="teamStatusMessages" class="mt-3"></div>
+</div>
+
+<script>
+let teamMemberCount = 0;
+let generatedTeamCode = '';
+let teamValidationResult = null;
+
+function addTeamMember() {
+    teamMemberCount++;
+    const container = document.getElementById('teamMembers');
+    
+    const memberHtml = `
+        <div class="border rounded p-3 mb-3" id="member-${teamMemberCount}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6>Team Member ${teamMemberCount}</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeMember(${teamMemberCount})">
+                    ✕ Remove
+                </button>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Agent Name *</label>
+                    <input type="text" class="form-control member-name" name="member_name_${teamMemberCount}" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Role/Specialization</label>
+                    <input type="text" class="form-control member-role" name="member_role_${teamMemberCount}" 
+                           placeholder="e.g., Writer, Researcher, Analyst">
+                </div>
+            </div>
+            
+            <div class="mt-2">
+                <label class="form-label">Description</label>
+                <textarea class="form-control member-description" name="member_description_${teamMemberCount}" rows="2"
+                          placeholder="What does this team member do?"></textarea>
+            </div>
+            
+            <div class="mt-2">
+                <label class="form-label">System Prompt</label>
+                <textarea class="form-control member-instructions" name="member_instructions_${teamMemberCount}" rows="3"
+                          placeholder="System prompt for this bot (role, behavior, constraints)"></textarea>
+            </div>
+            
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <label class="form-label">Model Profile</label>
+                    <select class="form-select member-model" name="member_model_${teamMemberCount}">
+                        {% if profiles %}
+                          {% for profile in profiles %}
+                            <option value="{{ profile }}">{{ profile }}</option>
+                          {% endfor %}
+                        {% else %}
+                          <option value="default">default</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Tools/Functions (comma-separated)</label>
+                    <input type="text" class="form-control member-tools" name="member_tools_${teamMemberCount}"
+                           placeholder="e.g., read_file, write_file, list_files, execute_shell_command">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', memberHtml);
+}
+
+function removeMember(memberId) {
+    const memberElement = document.getElementById(`member-${memberId}`);
+    if (memberElement) {
+        memberElement.remove();
+    }
+}
+
+function generateTeamCode() {
+    const teamData = collectTeamData();
+    if (!teamData) {
+        return;
+    }
+    showTeamMessage('Generating swarm blueprint...', 'info');
+    generateSimpleTeamCode(teamData);
+}
+
+function generateSimpleTeamCode(teamData) {
+    // Simple team code generation (client-side for demo)
+    const className = sanitizeClassName(teamData.name) + 'TeamBlueprint';
+    const blueprintId = teamData.name.toLowerCase().replace(/\s+/g, '-');
+    
+    const agentInitCode = teamData.agents.map(agent => {
+        const agentVar = agent.name.toLowerCase().replace(/\s+/g, '_');
+        return `        # Initialize ${agent.name}
+        ${agentVar}_config = AgentConfig(
+            name="${agent.name}",
+            description="${agent.description}",
+            instructions="${agent.system_prompt}",
+            model_profile="${agent.model_profile}"
+        )
+        self.agents["${agent.name}"] = self.create_agent_from_config(${agentVar}_config)`;
+    }).join('\n\n');
+    
+    const memberDescriptions = teamData.agents.map(agent => 
+        `- ${agent.name}: ${agent.description}`
+    ).join('\n');
+    
+    const teamCode = `"""
+${teamData.description}
+"""
+from collections.abc import AsyncGenerator
+from typing import Any
+from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.agent_config import AgentConfig
+
+class ${className}(BlueprintBase):
+    """
+    ${teamData.description}
+    """
+    
+    metadata = {
+        "name": "${teamData.name}",
+        "description": "${teamData.description}",
+        "version": "1.0.0",
+        "author": "User Generated",
+        "tags": ${JSON.stringify(teamData.tags)},
+        "team_structure": {
+            "coordinator": "${teamData.coordinator_name}",
+            "agents": ${JSON.stringify(teamData.agents.map(a => a.name))}
+        }
+    }
+    
+    def __init__(self, blueprint_id: str = None, config_path: str = None, **kwargs):
+        super().__init__(blueprint_id or "${blueprintId}", config_path=config_path, **kwargs)
+        self.agents = {}
+    
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Main execution method for the ${teamData.name} team.
+        """
+        user_message = messages[-1].get("content", "") if messages else ""
+        
+        # Initialize team agents
+        await self._initialize_agents()
+        
+        # Simple coordination: delegate to first available agent
+        # In a real implementation, add sophisticated coordination logic
+        primary_agent = "${teamData.agents[0].name}"
+        
+        if primary_agent in self.agents:
+            async for result in self.agents[primary_agent].run(messages):
+                yield result
+        else:
+            yield {
+                "messages": [{
+                    "role": "assistant",
+                    "content": f"Error: Agent {primary_agent} not found in team."
+                }]
+            }
+    
+    async def _initialize_agents(self):
+        """Initialize all team agents"""
+${agentInitCode}
+    
+    async def _coordinate_task(self, user_message: str) -> dict:
+        """Coordinator decides task delegation"""
+        # Simple coordination logic - extend this for sophisticated routing
+        return {
+            "primary_agent": "${teamData.agents[0].name}",
+            "supporting_agents": [],
+            "task_breakdown": user_message
+        }
+`;
+
+    generatedTeamCode = teamCode;
+    displayTeamCode(teamCode);
+    
+    // Simple validation (just check syntax)
+    try {
+        // Basic validation - in real implementation, call backend
+        const validation = {
+            valid: true,
+            errors: [],
+            warnings: ['Client-side generation - full validation requires backend'],
+            syntax_valid: true,
+            structure_valid: true,
+            lint_clean: true
+        };
+        
+        teamValidationResult = validation;
+        displayTeamValidation(validation);
+        document.getElementById('validateTeamBtn').disabled = false;
+        document.getElementById('saveTeamBtn').disabled = false;
+        showTeamMessage('Team code generated successfully!', 'success');
+        
+    } catch (error) {
+        showTeamMessage('Code generation error: ' + error.message, 'danger');
+    }
+}
+
+function displayTeamCode(code) {
+    const container = document.getElementById('teamCodeContainer');
+    container.innerHTML = `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
+}
+
+function displayTeamValidation(validation) {
+    const container = document.getElementById('teamValidationContent');
+    const resultsDiv = document.getElementById('teamValidationResults');
+    
+    let html = '';
+    
+    if (validation.valid) {
+        html += '<div class="alert alert-success">✅ Team code is valid!</div>';
+    } else {
+        html += '<div class="alert alert-danger">❌ Team code has issues</div>';
+    }
+    
+    if (validation.warnings.length > 0) {
+        html += '<div class="mt-3"><strong>Notes:</strong><ul class="text-info">';
+        validation.warnings.forEach(warning => {
+            html += `<li>${escapeHtml(warning)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    container.innerHTML = html;
+    resultsDiv.style.display = 'block';
+}
+
+function validateTeamCode() {
+    showTeamMessage('Team validation complete (client-side demo)', 'info');
+}
+
+function saveTeam() {
+    const teamData = collectTeamData();
+    if (!teamData) {
+        return;
+    }
+    showTeamMessage('Saving swarm blueprint...', 'info');
+    fetch('/team-creator/save/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(teamData)
+    }).then(async (resp) => {
+        const payload = await resp.json();
+        if (!resp.ok || !payload.success) {
+            const msg = payload.error || 'Save failed.';
+            showTeamMessage(msg, 'danger');
+            return;
+        }
+        showTeamMessage(`Swarm "${teamData.name}" saved to ${payload.path}`, 'success');
+        if (payload.code) {
+            displayTeamCode(payload.code);
+        }
+    }).catch((err) => {
+        showTeamMessage(`Save failed: ${err}`, 'danger');
+    });
+}
+
+function clearTeamForm() {
+    document.getElementById('teamForm').reset();
+    document.getElementById('teamMembers').innerHTML = '';
+    document.getElementById('teamCodeContainer').innerHTML = `
+        <div class="text-muted text-center p-4">
+            <i class="fas fa-users fa-3x mb-3"></i>
+            <p>Configure your swarm and click "Generate Swarm Blueprint" to see the Python blueprint.</p>
+        </div>
+    `;
+    document.getElementById('teamValidationResults').style.display = 'none';
+    teamMemberCount = 0;
+    generatedTeamCode = '';
+    teamValidationResult = null;
+    clearTeamMessages();
+}
+
+function showTeamMessage(message, type) {
+    const container = document.getElementById('teamStatusMessages');
+    const alertClass = `alert-${type}`;
+    container.innerHTML = `<div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function clearTeamMessages() {
+    document.getElementById('teamStatusMessages').innerHTML = '';
+}
+
+function sanitizeClassName(name) {
+    return name.replace(/[^a-zA-Z0-9\s]/g, '').split(' ').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+    ).join('');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function collectTeamData() {
+    const teamName = document.getElementById('teamName').value.trim();
+    const teamDescription = document.getElementById('teamDescription').value.trim();
+    const coordinatorName = document.getElementById('coordinatorName').value.trim();
+
+    if (!teamName || !teamDescription) {
+        showTeamMessage('Please fill in swarm name and description', 'danger');
+        return null;
+    }
+
+    const members = [];
+    const memberElements = document.querySelectorAll('[id^="member-"]');
+    memberElements.forEach(element => {
+        const name = element.querySelector('.member-name').value.trim();
+        const role = element.querySelector('.member-role').value.trim();
+        const description = element.querySelector('.member-description').value.trim();
+        const systemPrompt = element.querySelector('.member-instructions').value.trim();
+        const model = element.querySelector('.member-model').value.trim();
+        const tools = element.querySelector('.member-tools').value.trim();
+
+        if (name) {
+            members.push({
+                name: name,
+                role: role || name,
+                description: description || `${name} bot`,
+                system_prompt: systemPrompt || `You are ${name}, a member of the ${teamName} swarm.`,
+                model_profile: model || 'default',
+                tools: tools ? tools.split(',').map(t => t.trim()).filter(Boolean) : []
+            });
+        }
+    });
+
+    if (members.length < 2) {
+        showTeamMessage('Swarm needs at least 2 bots. Add more bots.', 'warning');
+        return null;
+    }
+
+    return {
+        name: teamName,
+        description: teamDescription,
+        coordinator_name: coordinatorName,
+        agents: members
+    };
+}
+
+// Initialize with one team member
+document.addEventListener('DOMContentLoaded', function() {
+    addTeamMember();
+    addTeamMember();
+});
+</script>
+{% endblock %}

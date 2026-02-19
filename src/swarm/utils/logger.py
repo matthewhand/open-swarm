@@ -1,8 +1,9 @@
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-# DEBUG = False
+DEBUG = os.environ.get("SWARM_DEBUG", "").lower() in ("1", "true", "yes")
 
 # Fallback for when Django settings are not configured
 DEFAULT_LOGS_DIR = Path.cwd() / "logs"

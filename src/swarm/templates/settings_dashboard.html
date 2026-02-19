@@ -1,0 +1,691 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link href="{% static 'css/agent_creator_pro.css' %}" rel="stylesheet">
+
+<div class="settings-dashboard">
+  <!-- Header Section -->
+  <div class="dashboard-header">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <h1 class="dashboard-title">⚙️ Settings Dashboard</h1>
+          <p class="dashboard-subtitle">Comprehensive configuration management for Open Swarm</p>
+        </div>
+        <div class="col-lg-4">
+          <div class="settings-stats">
+            <div class="stat-card">
+              <div class="stat-number">{{ stats.total }}</div>
+              <div class="stat-label">Total Settings</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number">{{ stats.configured }}</div>
+              <div class="stat-label">Configured</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number">{{ stats.completion_rate }}%</div>
+              <div class="stat-label">Complete</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="configuration-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: {{ stats.completion_rate }}%"></div>
+        </div>
+        <div class="progress-text">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="container mt-4">
+    <div class="quick-actions">
+      <button class="btn btn-primary" onclick="exportSettings()">
+        <i class="fas fa-download"></i> Export Settings
+      </button>
+      <button class="btn btn-outline-secondary" onclick="refreshSettings()">
+        <i class="fas fa-sync"></i> Refresh
+      </button>
+      <button class="btn btn-outline-info" onclick="viewEnvironment()">
+        <i class="fas fa-list"></i> Environment Variables
+      </button>
+      <button class="btn btn-outline-warning" onclick="validateConfiguration()">
+        <i class="fas fa-check-circle"></i> Validate Config
+      </button>
+    </div>
+  </div>
+
+  <!-- Settings Groups -->
+  <div class="container mt-4">
+    <div style="display:none">settings_groups</div>
+    <div class="settings-grid">
+      {% for group_id, group in settings_groups.items %}
+      <div class="settings-group" id="group-{{ group_id }}">
+        <div class="group-header" onclick="toggleGroup('{{ group_id }}')">
+          <div class="group-title">
+            <span class="group-icon">{{ group.icon }}</span>
+            <h3>{{ group.title }}</h3>
+            <span class="settings-count">({{ group.settings|length }})</span>
+          </div>
+          <div class="group-actions">
+            <span class="expand-icon">
+              <i class="fas fa-chevron-down"></i>
+            </span>
+          </div>
+        </div>
+        
+        <div class="group-description">
+          {{ group.description }}
+        </div>
+        
+        <div class="group-content" id="content-{{ group_id }}">
+          <div class="settings-table">
+            <div class="table-header">
+              <div class="col-setting">Setting</div>
+              <div class="col-value">Current Value</div>
+              <div class="col-env">Environment Variable</div>
+              <div class="col-type">Type</div>
+              <div class="col-category">Category</div>
+            </div>
+            
+            {% for setting_name, setting in group.settings.items %}
+            <div class="setting-row {% if setting.sensitive %}sensitive{% endif %} {% if setting.value == 'Not Set' or setting.value == None or setting.value == '' %}not-configured{% endif %}">
+              <div class="col-setting">
+                <div class="setting-name">{{ setting_name }}</div>
+                <div class="setting-description">{{ setting.description }}</div>
+                {% if setting.sensitive %}
+                <span class="sensitive-badge">🔒 Sensitive</span>
+                {% endif %}
+              </div>
+              
+              <div class="col-value">
+                <div class="setting-value" data-type="{{ setting.type }}">
+                  {% if setting.type == 'boolean' %}
+                    <span class="boolean-value {% if setting.value %}true{% else %}false{% endif %}">
+                      {% if setting.value %}✅ True{% else %}❌ False{% endif %}
+                    </span>
+                  {% elif setting.type == 'list' %}
+                    <div class="list-value">
+                      {% if setting.value %}
+                        {% for item in setting.value %}
+                          <span class="list-item">{{ item }}</span>
+                        {% endfor %}
+                      {% else %}
+                        <span class="empty-value">Empty list</span>
+                      {% endif %}
+                    </div>
+                  {% elif setting.type == 'object' %}
+                    <div class="object-value">
+                      <button class="btn btn-sm btn-outline-info" onclick="viewObject('{{ group_id }}', '{{ setting_name }}')">
+                        <i class="fas fa-eye"></i> View Object
+                      </button>
+                    </div>
+                  {% elif setting.type == 'path' %}
+                    <div class="path-value">
+                      <code>{{ setting.value|default:"Not Set" }}</code>
+                      {% if setting.value and setting.value != 'Not Set' %}
+                        <button class="btn btn-sm btn-outline-secondary" onclick="checkPath('{{ setting.value }}')">
+                          <i class="fas fa-folder-open"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  {% elif setting.type == 'error' %}
+                    <div class="error-value">
+                      <i class="fas fa-exclamation-triangle"></i>
+                      {{ setting.value }}
+                    </div>
+                  {% elif setting.type == 'info' %}
+                    <div class="info-value">
+                      <i class="fas fa-info-circle"></i>
+                      {{ setting.value }}
+                    </div>
+                  {% else %}
+                    <code class="string-value">{{ setting.value|default:"Not Set" }}</code>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="col-env">
+                {% if setting.env_var %}
+                  <code class="env-var">{{ setting.env_var }}</code>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="copyEnvVar('{{ setting.env_var }}')">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                {% else %}
+                  <span class="no-env">Config file</span>
+                {% endif %}
+              </div>
+              
+              <div class="col-type">
+                <span class="type-badge type-{{ setting.type }}">{{ setting.type }}</span>
+              </div>
+              
+              <div class="col-category">
+                <span class="category-badge">{{ setting.category|default:"general" }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Object Viewer Modal -->
+  <div class="modal fade" id="objectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Object Viewer</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="objectContent"><code class="language-json"></code></pre>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" onclick="copyObjectContent()">
+            <i class="fas fa-copy"></i> Copy
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Environment Variables Modal -->
+  <div class="modal fade" id="envModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Environment Variables</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="envContent">Loading...</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" onclick="exportEnvVars()">
+            <i class="fas fa-download"></i> Export
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.settings-dashboard {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding-bottom: 2rem;
+}
+
+.dashboard-header {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 2rem 0;
+  margin-bottom: 2rem;
+  color: white;
+}
+
+.dashboard-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.settings-stats {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  min-width: 80px;
+}
+
+.stat-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.configuration-progress {
+  margin-top: 1.5rem;
+}
+
+.progress-bar {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, #28a745, #20c997);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.settings-group {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.group-header {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  cursor: pointer;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.3s ease;
+}
+
+.group-header:hover {
+  background: #e9ecef;
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.group-icon {
+  font-size: 1.5rem;
+}
+
+.group-title h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.settings-count {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.group-description {
+  padding: 1rem 1.5rem;
+  background: rgba(102, 126, 234, 0.05);
+  color: #495057;
+  font-size: 0.95rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.group-content {
+  display: none;
+}
+
+.group-content.expanded {
+  display: block;
+}
+
+.settings-table {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1.5fr 0.8fr 1fr;
+  gap: 0;
+}
+
+.table-header {
+  display: contents;
+}
+
+.table-header > div {
+  background: #343a40;
+  color: white;
+  padding: 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-right: 1px solid #495057;
+}
+
+.setting-row {
+  display: contents;
+}
+
+.setting-row > div {
+  padding: 1rem;
+  border-bottom: 1px solid #dee2e6;
+  border-right: 1px solid #dee2e6;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.setting-row.not-configured {
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.setting-row.sensitive {
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.setting-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.setting-description {
+  font-size: 0.85rem;
+  color: #6c757d;
+  line-height: 1.3;
+}
+
+.sensitive-badge {
+  background: #dc3545;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  margin-top: 0.5rem;
+  display: inline-block;
+}
+
+.boolean-value.true {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.boolean-value.false {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.list-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.list-item {
+  background: #e9ecef;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.empty-value {
+  color: #6c757d;
+  font-style: italic;
+}
+
+.path-value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-value {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.info-value {
+  color: #17a2b8;
+}
+
+.env-var {
+  background: #f8f9fa;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.no-env {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.type-badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.type-string { background: #e3f2fd; color: #1976d2; }
+.type-boolean { background: #f3e5f5; color: #7b1fa2; }
+.type-integer { background: #e8f5e8; color: #388e3c; }
+.type-list { background: #fff3e0; color: #f57c00; }
+.type-object { background: #fce4ec; color: #c2185b; }
+.type-path { background: #f1f8e9; color: #689f38; }
+.type-error { background: #ffebee; color: #d32f2f; }
+
+.category-badge {
+  background: #f8f9fa;
+  color: #495057;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
+.expand-icon {
+  transition: transform 0.3s ease;
+}
+
+.group-header.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 1200px) {
+  .settings-table {
+    grid-template-columns: 1fr;
+  }
+  
+  .table-header {
+    display: none;
+  }
+  
+  .setting-row > div {
+    border-right: none;
+    padding: 0.75rem 1rem;
+  }
+  
+  .setting-row > div:first-child {
+    border-top: 2px solid #dee2e6;
+    background: #f8f9fa;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-title {
+    font-size: 2rem;
+  }
+  
+  .settings-stats {
+    justify-content: center;
+    margin-top: 1rem;
+  }
+  
+  .quick-actions {
+    justify-content: center;
+  }
+}
+</style>
+
+<script>
+let settingsData = {{ settings_groups|safe }};
+
+function toggleGroup(groupId) {
+  const content = document.getElementById(`content-${groupId}`);
+  const header = document.querySelector(`#group-${groupId} .group-header`);
+  
+  content.classList.toggle('expanded');
+  header.classList.toggle('expanded');
+}
+
+function viewObject(groupId, settingName) {
+  const setting = settingsData[groupId].settings[settingName];
+  const modal = new bootstrap.Modal(document.getElementById('objectModal'));
+  
+  document.getElementById('objectContent').textContent = JSON.stringify(setting.value, null, 2);
+  document.querySelector('#objectModal .modal-title').textContent = `${settingName} Configuration`;
+  
+  // Apply syntax highlighting if available
+  if (window.Prism) {
+    Prism.highlightElement(document.querySelector('#objectContent code'));
+  }
+  
+  modal.show();
+}
+
+function copyObjectContent() {
+  const content = document.getElementById('objectContent').textContent;
+  navigator.clipboard.writeText(content);
+  showToast('Object content copied to clipboard', 'success');
+}
+
+function copyEnvVar(envVar) {
+  navigator.clipboard.writeText(envVar);
+  showToast(`Environment variable "${envVar}" copied to clipboard`, 'success');
+}
+
+function exportSettings() {
+  const data = {
+    timestamp: new Date().toISOString(),
+    settings: settingsData
+  };
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `open-swarm-settings-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  showToast('Settings exported successfully', 'success');
+}
+
+function refreshSettings() {
+  window.location.reload();
+}
+
+async function viewEnvironment() {
+  const modal = new bootstrap.Modal(document.getElementById('envModal'));
+  const content = document.getElementById('envContent');
+  
+  content.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading environment variables...</div>';
+  modal.show();
+  
+  try {
+    const response = await fetch('/settings/environment/');
+    const data = await response.json();
+    
+    if (data.success) {
+      let html = `<div class="env-summary">Found ${data.count} environment variables</div>`;
+      html += '<div class="env-grid">';
+      
+      for (const [key, value] of Object.entries(data.environment_variables)) {
+        html += `
+          <div class="env-item">
+            <div class="env-key">${key}</div>
+            <div class="env-value"><code>${value}</code></div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyEnvVar('${key}')">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+      content.innerHTML = html;
+    } else {
+      content.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+    }
+  } catch (error) {
+    content.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+  }
+}
+
+function validateConfiguration() {
+  showToast('Configuration validation feature coming soon!', 'info');
+}
+
+function checkPath(path) {
+  showToast(`Path check feature coming soon for: ${path}`, 'info');
+}
+
+function exportEnvVars() {
+  // This would export environment variables
+  showToast('Environment variables export feature coming soon!', 'info');
+}
+
+function showToast(message, type = 'info') {
+  // Simple toast notification
+  const toast = document.createElement('div');
+  toast.className = `alert alert-${type} position-fixed`;
+  toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+  toast.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, 5000);
+}
+
+// Auto-expand first group on load
+document.addEventListener('DOMContentLoaded', function() {
+  const firstGroup = document.querySelector('.settings-group');
+  if (firstGroup) {
+    const groupId = firstGroup.id.replace('group-', '');
+    toggleGroup(groupId);
+  }
+});
+</script>
+{% endblock %}

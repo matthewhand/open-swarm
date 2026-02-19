@@ -2,28 +2,41 @@
 Django settings for swarm project.
 """
 
+import json
 import os
-import sys
 from pathlib import Path
-import logging
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-PROJECT_ROOT = BASE_DIR.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+from dotenv import load_dotenv
 
-BLUEPRINTS_DIR = PROJECT_ROOT / 'blueprints'
+BASE_DIR = Path(__file__).resolve().parent.parent # Points to src/
 
-# --- Determine if running under pytest ---
-TESTING = 'pytest' in sys.modules
+from swarm.utils.env_utils import *
 
-# Quick-start development settings - unsuitable for production
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-YOUR_FALLBACK_KEY_HERE_CHANGE_ME')
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
+# --- Load .env file ---
+dotenv_path = BASE_DIR.parent / '.env'
+load_dotenv(dotenv_path=dotenv_path)
+# ---
 
-# --- Application definition ---
+SECRET_KEY = get_django_secret_key()
+DEBUG = is_django_debug()
+ALLOWED_HOSTS = get_django_allowed_hosts()
+
+# --- Custom Swarm Settings ---
+# Load the token from environment
+_raw_api_token = get_api_auth_token()
+
+# *** Only enable API auth if the token is actually set ***
+ENABLE_API_AUTH = bool(_raw_api_token)
+SWARM_API_KEY = _raw_api_token # Assign the loaded token (or None)
+
+if ENABLE_API_AUTH:
+    # Add assertion to satisfy type checkers within this block
+    assert SWARM_API_KEY is not None, "SWARM_API_KEY cannot be None when ENABLE_API_AUTH is True"
+
+SWARM_CONFIG_PATH = get_swarm_config_path()
+BLUEPRINT_DIRECTORY = get_blueprint_directory()
+# --- End Custom Swarm Settings ---
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -31,66 +44,129 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third-party apps
     'rest_framework',
     'rest_framework.authtoken',
     'drf_spectacular',
-    # Local apps
-    'swarm.apps.SwarmConfig',
+    'swarm',
+    'swarm.mcp',
 ]
 
-# --- Conditionally add blueprint apps for TESTING ---
-# This ensures the app is known *before* django.setup() is called by pytest-django
-if TESTING:
-    # Add specific apps needed for testing
-    # We know 'university' is needed based on SWARM_BLUEPRINTS in conftest
-    _test_apps_to_add = ['blueprints.university'] # Hardcoding for University tests specifically
-    for app in _test_apps_to_add:
-        if app not in INSTALLED_APPS:
-            # Use insert for potentially better ordering if it matters, otherwise append is fine
-            INSTALLED_APPS.insert(0, app) # Or INSTALLED_APPS.append(app)
-            logging.info(f"Settings [TESTING]: Added '{app}' to INSTALLED_APPS.")
-    # Ensure SWARM_BLUEPRINTS is set if your conftest or other logic relies on it
-    # Note: Setting it here might be redundant if conftest sets it too.
-    if 'SWARM_BLUEPRINTS' not in os.environ:
-         os.environ['SWARM_BLUEPRINTS'] = 'university'
-         logging.info(f"Settings [TESTING]: Set SWARM_BLUEPRINTS='university'")
+# Optional Wagtail integration (marketplace). Disabled by default.
+ENABLE_WAGTAIL = is_enable_wagtail()
+if ENABLE_WAGTAIL:
+    INSTALLED_APPS += [
+        'wagtail',
+        'wagtail.admin',
+        'wagtail.users',
+        'wagtail.images',
+        'wagtail.documents',
+        'wagtail.snippets',
+        'wagtail.sites',
+        'wagtail.contrib.modeladmin',
+        'modelcluster',
+        'taggit',
+        'swarm.marketplace',
+    ]
+    WAGTAIL_SITE_NAME = 'Open Swarm'
+    SITE_ID = get_django_site_id()
 
-else:
-    # --- Dynamic App Loading for Production/Development ---
-    _INITIAL_BLUEPRINT_APPS = []
-    _swarm_blueprints_env = os.getenv('SWARM_BLUEPRINTS')
-    _log_source = "Not Set"
-    if _swarm_blueprints_env:
-        _blueprint_names = [name.strip() for name in _swarm_blueprints_env.split(',') if name.strip()]
-        _INITIAL_BLUEPRINT_APPS = [f'blueprints.{name}' for name in _blueprint_names if name.replace('_', '').isidentifier()]
-        _log_source = "SWARM_BLUEPRINTS env var"
-        logging.info(f"Settings: Found blueprints from env var: {_INITIAL_BLUEPRINT_APPS}")
-    else:
-        _log_source = "directory scan"
-        try:
-            if BLUEPRINTS_DIR.is_dir():
-                 for item in BLUEPRINTS_DIR.iterdir():
-                     if item.is_dir() and (item / '__init__.py').exists():
-                         if item.name.replace('_', '').isidentifier():
-                             _INITIAL_BLUEPRINT_APPS.append(f'blueprints.{item.name}')
-            logging.info(f"Settings: Found blueprints from directory scan: {_INITIAL_BLUEPRINT_APPS}")
-        except Exception as e:
-            logging.error(f"Settings: Error discovering blueprint apps during initial load: {e}")
+# Optional SAML IdP integration (djangosaml2idp). Disabled by default.
+ENABLE_SAML_IDP = is_enable_saml_idp()
+if ENABLE_SAML_IDP:
+    try:
+        INSTALLED_APPS += ['djangosaml2idp']
+    except Exception:
+        # Allow tests and environments without the package to proceed when disabled
+        pass
 
-    # Add dynamically discovered apps for non-testing scenarios
-    for app in _INITIAL_BLUEPRINT_APPS:
-         if app not in INSTALLED_APPS:
-              INSTALLED_APPS.append(app)
-              logging.info(f"Settings [{_log_source}]: Added '{app}' to INSTALLED_APPS.")
-# --- End App Loading Logic ---
+# Minimal IdP config placeholders (template-only; no secrets). Real values should be
+# provided via environment or admin configuration when deploying IdP.
+# We expose a simple structure for tests/introspection; djangosaml2idp expects
+# SAML_IDP_SPCONFIG mapping keyed by SP entity IDs.
+SAML_IDP_SPCONFIG = {
+    # Example template entry (disabled until explicitly configured):
+    # os.getenv('SAML_SP_ENTITY_ID', 'sp-example') : {
+    #     'acs_url': os.getenv('SAML_SP_ACS_URL', 'https://sp.example.com/saml/acs'),
+    #     'audiences': [os.getenv('SAML_SP_AUDIENCE', 'https://sp.example.com')],
+    #     'nameid_format': 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+    # }
+}
 
-# Ensure INSTALLED_APPS is a list for compatibility
-if isinstance(INSTALLED_APPS, tuple):
-    INSTALLED_APPS = list(INSTALLED_APPS)
+# Optionally merge SP config entries from environment JSON (template-only)
+_sp_json = get_saml_idp_spconfig_json()
+if _sp_json:
+    try:
+        parsed = json.loads(_sp_json)
+        if isinstance(parsed, dict):
+            # Basic validation for known keys
+            for sp_entity, cfg in list(parsed.items()):
+                if not isinstance(cfg, dict):
+                    # Remove invalid entries
+                    parsed.pop(sp_entity, None)
+                    continue
+                if 'acs_url' not in cfg:
+                    parsed.pop(sp_entity, None)
+                    continue
+                # audiences optional but should be list if provided
+                if 'audiences' in cfg and not isinstance(cfg['audiences'], list | tuple):
+                    cfg['audiences'] = [str(cfg['audiences'])]
+            SAML_IDP_SPCONFIG.update(parsed)
+    except Exception:
+        # Ignore malformed JSON; callers can inspect logs elsewhere
+        pass
 
-logging.info(f"Settings: Final INSTALLED_APPS = {INSTALLED_APPS}")
+# Optionally merge SP config entries from JSON file path
+_sp_file = get_saml_idp_spconfig_file()
+if _sp_file:
+    try:
+        with open(_sp_file, encoding='utf-8') as f:
+            file_payload = f.read()
+        parsed = json.loads(file_payload)
+        if isinstance(parsed, dict):
+            for sp_entity, cfg in list(parsed.items()):
+                if not isinstance(cfg, dict) or 'acs_url' not in cfg:
+                    parsed.pop(sp_entity, None)
+                    continue
+                if 'audiences' in cfg and not isinstance(cfg['audiences'], list | tuple):
+                    cfg['audiences'] = [str(cfg['audiences'])]
+            SAML_IDP_SPCONFIG.update(parsed)
+    except Exception:
+        pass
 
+# Optional env-driven IdP base config (template-only)
+SAML_IDP_ENTITY_ID = get_saml_idp_entity_id()
+SAML_IDP_CERT_FILE = get_saml_idp_cert_file()  # filesystem path to public cert (do not commit)
+SAML_IDP_PRIVATE_KEY_FILE = get_saml_idp_private_key_file()  # filesystem path to private key (do not commit)
+
+# djangosaml2idp-compatible base config shell; populate via env
+SAML_IDP_CONFIG = {
+    'entityid': SAML_IDP_ENTITY_ID,
+    # The following are template defaults; set files via env for real deployments
+    'cert_file': SAML_IDP_CERT_FILE,
+    'key_file': SAML_IDP_PRIVATE_KEY_FILE,
+}
+
+# Optional MCP server integration (django-mcp-server). Disabled by default.
+ENABLE_MCP_SERVER = is_enable_mcp_server()
+if ENABLE_MCP_SERVER:
+    try:
+        INSTALLED_APPS += ['django_mcp_server']
+    except Exception:
+        # Optional dependency; ignore when not available
+        pass
+
+# Optional GitHub marketplace discovery (disabled by default)
+ENABLE_GITHUB_MARKETPLACE = is_enable_github_marketplace()
+GITHUB_TOKEN = get_github_token()  # optional, for higher rate limits
+
+def _csv_env(name: str, default: str = '') -> list[str]:
+    val = os.getenv(name, default)
+    if not val:
+        return []
+    return [x.strip() for x in val.split(',') if x.strip()]
+
+GITHUB_MARKETPLACE_TOPICS = _csv_env('GITHUB_MARKETPLACE_TOPICS', 'open-swarm-blueprint,open-swarm-mcp-template')
+GITHUB_MARKETPLACE_ORG_ALLOWLIST = _csv_env('GITHUB_MARKETPLACE_ORG_ALLOWLIST', '')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -98,6 +174,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Add custom middleware to handle async user loading after standard auth
+    'swarm.middleware.AsyncAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -107,7 +185,7 @@ ROOT_URLCONF = 'swarm.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [BASE_DIR.parent / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -121,105 +199,108 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'swarm.wsgi.application'
+ASGI_APPLICATION = 'swarm.asgi.application'
 
-# Database
-SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH', BASE_DIR / 'db.sqlite3')
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': SQLITE_DB_PATH,
+        'NAME': os.environ.get('DJANGO_DB_NAME', '/tmp/db.sqlite3'),
+        'TEST': {
+            'NAME': os.environ.get('DJANGO_TEST_DB_NAME', '/tmp/test_db.sqlite3'),
+            'OPTIONS': {
+                'timeout': 20,
+                'init_command': "PRAGMA journal_mode=WAL;",
+            },
+        },
     }
 }
-DJANGO_DATABASE = DATABASES['default']
 
-
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
-
-# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
+STATICFILES_DIRS = [ BASE_DIR / "swarm" / "static", ]
 
-# Static files
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-    BASE_DIR / 'assets',
-]
-
-# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST Framework settings
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'swarm.auth.StaticTokenAuthentication',
+        'swarm.auth.CustomSessionAuthentication',
+    ],
+    # *** IMPORTANT: Add DEFAULT_PERMISSION_CLASSES ***
+    # If ENABLE_API_AUTH is False, we might want to allow any access for testing.
+    # If ENABLE_API_AUTH is True, we require HasValidTokenOrSession.
+    # We need to set this dynamically based on ENABLE_API_AUTH.
+    # A simple way is to set it here, but a cleaner way might involve middleware
+    # or overriding get_permissions in views. For now, let's adjust this:
+    'DEFAULT_PERMISSION_CLASSES': [
+         # If auth is enabled, require our custom permission
+         'swarm.permissions.HasValidTokenOrSession' if ENABLE_API_AUTH else
+         # Otherwise, allow anyone (useful for dev when token isn't set)
+         'rest_framework.permissions.AllowAny'
+    ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'swarm.auth.EnvOrTokenAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-       'rest_framework.permissions.IsAuthenticated',
-    )
 }
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Open Swarm API',
-    'DESCRIPTION': 'API for the Open Swarm multi-agent collaboration framework.',
-    'VERSION': '1.0.0',
+    'DESCRIPTION': 'API for managing autonomous agent swarms',
+    'VERSION': '0.2.0',
     'SERVE_INCLUDE_SCHEMA': False,
-    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
 }
 
-# Logging configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-         'standard': {
-            'format': '[%(levelname)s] %(asctime)s - %(name)s:%(lineno)d - %(message)s'
-        },
+        'verbose': { 'format': '[{levelname}] {asctime} - {name}:{lineno} - {message}', 'style': '{', },
+        'simple': { 'format': '[{levelname}] {message}', 'style': '{', },
     },
     'handlers': {
-        'console': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard',
-        },
+        'console': { 'class': 'logging.StreamHandler', 'formatter': 'verbose', },
     },
     'loggers': {
-        'django': { 'handlers': ['console'], 'level': 'INFO', 'propagate': False, },
-        'django.request': { 'handlers': ['console'], 'level': 'WARNING', 'propagate': False, },
-        'swarm': { 'handlers': ['console'], 'level': 'DEBUG' if DEBUG else 'INFO', 'propagate': False, },
-        'swarm.extensions': { 'handlers': ['console'], 'level': 'DEBUG' if DEBUG else 'INFO', 'propagate': False, },
-        'blueprints': { 'handlers': ['console'], 'level': 'DEBUG' if DEBUG else 'INFO', 'propagate': False, },
+        'django': { 'handlers': ['console'], 'level': get_django_log_level(), 'propagate': False, },
+        'swarm': { 'handlers': ['console'], 'level': get_swarm_log_level(), 'propagate': False, },
+        'swarm.auth': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        'swarm.views': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        'swarm.extensions': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        'blueprint_django_chat': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        'print_debug': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
     },
+    'root': { 'handlers': ['console'], 'level': 'WARNING', },
 }
 
-# Authentication backends
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-]
+REDIS_HOST = get_redis_host()
+REDIS_PORT = get_redis_port()
 
-# Login URL
-LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/chatbot/'
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 
-# Redis settings
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+# --- ComfyUI Configuration for Avatar Generation ---
+COMFYUI_ENABLED = is_comfyui_enabled()
+COMFYUI_HOST = get_comfyui_host()
+COMFYUI_API_ENDPOINT = get_comfyui_api_endpoint()
+COMFYUI_QUEUE_ENDPOINT = f"{COMFYUI_HOST}/queue"
+COMFYUI_HISTORY_ENDPOINT = f"{COMFYUI_HOST}/history"
 
-# Adjust DB for testing if TESTING flag is set
-if TESTING:
-     print("Pytest detected: Adjusting settings for testing.")
-     DATABASES['default']['NAME'] = ':memory:'
+# Avatar generation settings
+AVATAR_GENERATION_ENABLED = COMFYUI_ENABLED
+AVATAR_STORAGE_PATH = BASE_DIR.parent / 'avatars'
+AVATAR_URL_PREFIX = '/avatars/'
+
+# Ensure avatar storage directory exists
+AVATAR_STORAGE_PATH.mkdir(exist_ok=True)

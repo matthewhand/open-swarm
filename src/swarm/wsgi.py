@@ -2,8 +2,9 @@
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+
 from django.core.wsgi import get_wsgi_application
+from dotenv import load_dotenv
 
 # Define the base directory
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -1,9 +1,8 @@
 import logging
-import sys
-from typing import Dict, Optional
-from swarm.utils.color_utils import color_text
-
 import os
+import sys
+
+from swarm.utils.color_utils import color_text
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ def display_message(message: str, message_type: str = "info") -> None:
     else:
         logger.info(message)
 
-def prompt_user(prompt: str, default: Optional[str] = None) -> str:
+def prompt_user(prompt: str, default: str | None = None) -> str:
     """
     Prompt the user for input with an optional default value.
 
@@ -64,14 +63,11 @@ def prompt_user(prompt: str, default: Optional[str] = None) -> str:
     Returns:
         str: The user's input or the default value.
     """
-    if default:
-        prompt = f"{prompt} [{default}]: "
-    else:
-        prompt = f"{prompt}: "
+    prompt = f"{prompt} [{default}]: " if default else f"{prompt}: "
     user_input = input(prompt).strip()
     return user_input or default
 
-def validate_input(user_input: str, valid_options: list, default: Optional[str] = None) -> str:
+def validate_input(user_input: str, valid_options: list, default: str | None = None) -> str:
     """
     Validate the user's input against a list of valid options.
 

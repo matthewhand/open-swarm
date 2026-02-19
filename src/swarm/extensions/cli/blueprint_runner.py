@@ -1,12 +1,9 @@
 # src/swarm/extensions/blueprint/modes/cli_mode/blueprint_runner.py
 
-import importlib.util
-import os
-import sys
-import logging
-from typing import Optional, Dict, Any, List
-import asyncio
 import argparse
+import importlib.util
+import sys
+from typing import Any
 
 from swarm.utils.general_utils import color_text
 
@@ -99,9 +96,9 @@ def run_blueprint_interactive(blueprint_module: Any) -> None:
 
 
 async def run_blueprint_mode(
-    blueprints_to_load: List[str],
-    config: Dict[str, Any],
-    blueprints_metadata: Dict[str, Dict[str, Any]],
+    blueprints_to_load: list[str],
+    config: dict[str, Any],
+    blueprints_metadata: dict[str, dict[str, Any]],
     args: Any
 ) -> None:
     """
@@ -147,7 +144,7 @@ async def run_blueprint_mode(
             print(color_text(f"Unsupported mode: {args.mode}", "red"))
 
 
-def prompt_user_to_select_blueprint(blueprints_metadata: Dict[str, Dict[str, Any]]) -> Optional[str]:
+def prompt_user_to_select_blueprint(blueprints_metadata: dict[str, dict[str, Any]]) -> str | None:
     """
     Allow the user to select a blueprint from available options.
 

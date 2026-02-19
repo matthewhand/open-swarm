@@ -3,7 +3,6 @@ Utility functions for processing chat messages in the Swarm framework.
 """
 
 import logging
-import json # Added import
 
 logger = logging.getLogger(__name__)
 
