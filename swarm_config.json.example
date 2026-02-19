@@ -1,0 +1,13 @@
+{
+  "llm": {},
+  "mcpServers": {},
+  "profiles": {
+    "default": {
+      "llm": "gpt-4",
+      "temperature": 0.7
+    }
+  },
+  "blueprints": {
+    "enabled": []
+  }
+}

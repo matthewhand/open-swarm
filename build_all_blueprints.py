@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-import glob
 import os
 import subprocess
 
+# List all blueprint directories
+blueprint_root = os.path.join(os.path.dirname(__file__), "src", "swarm", "blueprints")
 
-def main():
-    blueprint_dir = "blueprints"
-    # Only build the 'codey' blueprint for now to avoid Django-related failures
-    codey_dir = os.path.join(blueprint_dir, "codey")
-    if os.path.isdir(codey_dir):
-        files = glob.glob(os.path.join(codey_dir, "blueprint_*.py"))
-        if files:
-            blueprint_file = files[0]
-            output_name = "codey"
+for dirpath, _dirnames, filenames in os.walk(blueprint_root):
+    for filename in filenames:
+        if filename.startswith("blueprint_") and filename.endswith(".py"):
+            blueprint_file = os.path.join(dirpath, filename)
+            blueprint_name = filename.replace("blueprint_", "").replace(".py", "")
+            output_name = blueprint_name
             print(f"Building executable for {blueprint_file} as {output_name}")
             command = [
                 "pyinstaller",
                 "--onefile",
-                "--distpath", ".",
+                "--distpath", "bin",
                 "--name", output_name,
                 "--runtime-hook", "swarm_cli_hook.py",
                 blueprint_file
@@ -26,9 +24,3 @@ def main():
             env["PYTHONPATH"] = os.getcwd()
             subprocess.run(command, check=True, env=env)
             print(f"Executable for {output_name} built successfully.")
-    else:
-        print("Codey blueprint directory not found.")
-    return
-
-if __name__ == "__main__":
-    main()
