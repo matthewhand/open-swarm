@@ -1,54 +1,89 @@
-# Blueprints Overview
+# Open Swarm Blueprints & Configuration
 
-This directory contains example blueprints for the Open Swarm framework, showcasing agent coordination, external data handling, database operations, and more via parody-themed agent teams. Each blueprint achieves a practical outcome while demonstrating specific framework capabilities. Blueprints are ordered by complexity (primarily MCP servers + static functions, then env vars and CLI dependencies), with UVX and NeMo Guardrails-related blueprints listed last as Work In Progress (WIP) due to current challenges. These will be compiled into standalone utilities with CLI (Command-Line Interface) names listed below.
+## Overview
+This document describes the modular, provider-agnostic blueprint system, configuration patterns, and user experience (UX) standards for Open Swarm.
 
-## Table of Blueprints
+## Configuration System
+- **XDG-compliant config discovery**
+- **Default config auto-generation**
+- **Environment variable substitution**
+- **Per-blueprint and per-agent model overrides**
+- **MCP server config parsing/selection**
+- **Redaction of secrets**
 
-| Blueprint Name          | CLI      | What it Achieves                                           | What it Demonstrates                                           | MCP Servers Used                                | Env Vars Required                                                  | CLI Dependencies                       | Static Functions                                      |
-|-------------------------|----------|------------------------------------------------------------|----------------------------------------------------------------|------------------------------------------------|-------------------------------------------------------------------|----------------------------------------|-------------------------------------------------------|
-| suggestion              | suggest  | Produces structured JSON suggestions for user prompts      | Structured JSON output via a single agent                      | None                                           | None                                                              | None                                   | None                                                  |
-| mcp_demo                | mcpdemo  | Confirms MCP server functionality with a simple demo       | Basic MCP server operation and functionality testing           | everything                                     | None                                                              | None                                   | None                                                  |
-| dilbot_universe         | dilbot   | Runs a gamified SDLC with comedic decision-making            | DB-driven configs and gamified handoffs in a multi-agent setup   | None                                           | None                                                              | None                                   | build_product, sabotage_project                      |
-| family_ties             | famties  | Manages WordPress content with chaotic family antics         | DB-driven WordPress management with agent coordination         | memory, server-wp-mcp                          | [WP_SITES_PATH](#wp_sites_path)                                     | None                                   | None                                                  |
-| monkai-magic            | monkai   | Manages AWS/Fly.io/Vercel cloud ops with pre-authenticated CLIs| Lightweight cloud ops with hierarchical delegation             | mcp-shell                                      | None                                                              | aws CLI, flyctl CLI, vercel CLI        | aws_cli, fly_cli, vercel_cli                         |
-| digitalbutlers          | pls      | Provides private web search and home automation              | Multi-agent butler system for search and Home Assistant control  | memory, duckduckgo-search, home-assistant, mcp-npx-fetch | [SERPAPI_API_KEY](#serpapi_api_key), [HASS_*](#hass_)                | None                                   | None                                                  |
-| whiskeytangofoxtrot     | wtf      | Tracks free online services with SQLite and web search       | Hierarchical agent team for service tracking and data collection | sqlite, brave-search, mcp-npx-fetch, mcp-doc-forge, filesystem | [BRAVE_API_KEY](#brave_api_key), [SQLITE_DB_PATH](#sqlite_db_path), [ALLOWED_PATH](#allowed_path) | None                                   | None                                                  |
-| mission_improbable      | mission  | Executes ops with DB/REST-driven configurations              | DB-driven configs and filesystem/shell ops in a multi-agent system | memory, filesystem, mcp-shell, brave-search, rag-docs | [BRAVE_API_KEY](#brave_api_key), [OPENAI_API_KEY](#openai_api_key), [QDRANT_*](#qdrant_)           | None                                   | echo_command                                          |
-| burnt_noodles           | noodles  | Handles git workflows and software testing processes         | Agent coordination for git/test ops with handoff routing         | None                                           | None                                                              | git CLI, npm CLI, pytest CLI           | git_status, git_diff, git_add, git_commit, git_push, run_npm_test, run_pytest |
-| nebula_shellz           | nsh      | Manages sysadmin tasks (filesystem, shell, DB, installs)       | Multi-agent sysadmin coordination with memory and installs       | filesystem, mcp-shell, brave-search, sqlite, mcp-installer, memory, rag-docs | [BRAVE_API_KEY](#brave_api_key), [OPENAI_API_KEY](#openai_api_key), [QDRANT_*](#qdrant_), [SQLITE_DB_PATH](#sqlite_db_path) | None                                   | None                                                  |
-| divine-code             | divcode  | Orchestrates dev and sysadmin teams for large projects         | Large-scale agent coordination with comprehensive MCP usage      | filesystem, mcp-shell, sqlite, memory, sequential-thinking, duckduckgo-search, mcp-server-reddit | [SERPAPI_API_KEY](#serpapi_api_key), [SQLITE_DB_PATH](#sqlite_db_path), [ALLOWED_PATH](#allowed_path) | None                                   | None                                                  |
-| university              | uni      | Manages university operations with database-backed tools       | Multi-agent system with Django ORM for academic support          | None                                           | [SQLITE_DB_PATH](#sqlite_db_path)                                   | None                                   | search_courses, search_students, search_teaching_units, search_topics, search_enrollments, search_assessment_items, extended_comprehensive_search, comprehensive_search |
-| unapologetic_press      | up       | Generates, refines, and critiques poetry via a swarm of literary agents | Orchestrates multi-agent literary creativity with integrated MCP tools for creative augmentation | memory, mcp-doc-forge, mcp-npx-fetch, brave-search, rag-docs, mcp-server-reddit, server-wp-mcp, sequential-thinking, sqlite, filesystem, mcp-shell | [ALLOWED_PATH](#allowed_path), [SQLITE_DB_PATH](#sqlite_db_path), WORDPRESS_API_KEY, [BRAVE_API_KEY](#brave_api_key) | None                                   | None                                                  |
-| rue-code                | ruecode  | Automates coding, testing, and git revision tasks              | Task-oriented dev team with tools and git management             | memory, brave-search                           | [BRAVE_API_KEY](#brave_api_key)                                     | git CLI, npm CLI, pytest CLI           | execute_command, read_file, write_md_file, apply_diff, search_files, list_files, run_test_command, prepare_git_commit |
-| echocraft (WIP)         | ecraft   | Echoes user input with tracing capabilities                    | Simple agent with NeMo Guardrails tracing (WIP)                  | None                                           | None                                                              | None                                   | echo_function                                         |
-| chucks_angels (WIP)     | chuck    | Manages transcripts, computations, Flowise API, and compute resources | Agent delegation, UVX server usage, and triage (WIP)         | youtube-transcript, wolframalpha-llm-mcp, mcp-flowise, sqlite-uvx, fly | [WOLFRAM_LLM_APP_ID](#wolfram_llm_app_id), [FLY_API_TOKEN](#fly_api_token), [SQLITE_DB_PATH](#sqlite_db_path) | None                                   | None                                                  |
-| omniplex (WIP)          | omni     | Discovers and utilizes all available MCP servers dynamically    | Dynamic MCP server loading and cross-agent awareness (WIP)       | All available (npx, uvx, others)               | [OPENAI_API_KEY](#openai_api_key), [BRAVE_API_KEY](#brave_api_key), [SERPAPI_API_KEY](#serpapi_api_key), [QDRANT_*](#qdrant_), [WOLFRAM_LLM_APP_ID](#wolfram_llm_app_id), [SQLITE_DB_PATH](#sqlite_db_path) | None                                   | generate_base_instructions, generate_tool_summary |
-| gotchaman (WIP)         | gotch    | Demonstrates custom user prompts with a custom spinner      | Custom user prompts and spinner for CLI automation               | basic-memory, slack, mondayDotCom, mcp-npx-fetch  | SLACK_API_KEY, MONDAY_API_KEY                                        | None                                   | None                                                  |
-| gaggle (WIP)            | gaggle   | Demonstrates custom ANSI user prompts                         | Custom ANSI user prompts for CLI automation                      | mondayDotCom, basic-memory, mcp-doc-forge, getzep  | MONDAY_API_KEY, GETZEP_API_KEY                                       | None                                   | None                                                  |
+## Blueprint Model/Profile Overrides
+- Blueprints can specify their own `default_model`.
+- Agents fall back to `settings.default_llm_profile` if the requested model/profile is missing.
 
-## Environment Variables
+## MCP Server Configuration
+- Multiple MCP servers supported; select via `settings.active_mcp`.
 
-The following table lists environment variables required or optionally used by the blueprints, grouped where applicable, with links to API endpoint providers and cost information. Free tiers are noted where available, but some services have shifted to paid-only models or have limited free options.
+## Security & Redaction
+- All secrets are redacted in logs and dumps.
 
-| Env Var Group/Name      | API Endpoint Provider                                  | Cost Information                                                             |
-|-------------------------|-------------------------------------------------------|------------------------------------------------------------------------------|
-| <a name="allowed_path"></a>**ALLOWED_PATH**         | [Filesystem MCP](https://github.com/modelcontextprotocol/server-filesystem) | Free (local filesystem), no limits                                           |
-| <a name="brave_api_key"></a>**BRAVE_API_KEY**       | [Brave Search API](https://api.search.brave.com/)     | Free tier: 2,000 queries/month; paid plans start at $3/month                   |
-| <a name="fly_api_token"></a>**FLY_API_TOKEN**       | [Fly.io API](https://fly.io/docs/reference/api/)      | No free tier for new users (Hobby tier discontinued); paid plans start at $5/month |
-| <a name="hass_"></a>**HASS_***                      | [Home Assistant API](https://www.home-assistant.io/integrations/rest_api/) | Free (self-hosted), requires hardware or hosting costs                         |
-| - HASS_URL              |                                                       |                                                                              |
-| - HASS_API_KEY          |                                                       |                                                                              |
-| <a name="openai_api_key"></a>**OPENAI_API_KEY**     | [OpenAI API](https://platform.openai.com/docs/api-reference) | No free tier, but alternate compatible and free options available |
-| <a name="qdrant_"></a>**QDRANT_***                  | [Qdrant API](https://qdrant.tech/documentation/)      | Free tier on Qdrant Cloud: 1GB storage, limited queries; paid plans from $10/month |
-| - QDRANT_URL            |                                                       |                                                                              |
-| - QDRANT_API_KEY        |                                                       |                                                                              |
-| <a name="serpapi_api_key"></a>**SERPAPI_API_KEY**   | [SerpApi](https://serpapi.com/) (not DuckDuckGo directly) | Free tier: 100 searches/month; paid plans start at $50/month (DuckDuckGo itself has no API cost) |
-| <a name="sqlite_db_path"></a>**SQLITE_DB_PATH**     | [SQLite](https://www.sqlite.org/docs.html)            | Free (local database), no limits                                             |
-| <a name="wolfram_llm_app_id"></a>**WOLFRAM_LLM_APP_ID** | [Wolfram Alpha API](https://products.wolframalpha.com/api/) | Free tier: 2,000 API calls/month with app ID; paid plans from $25/month        |
-| <a name="wp_sites_path"></a>**WP_SITES_PATH**       | [WordPress API](https://developer.wordpress.org/rest-api/) | Typically paid hosting ($5-$20/month); free self-hosted options available via WordPress.com or self-hosted setups |
-| **SLACK_API_KEY**       | [Slack API](https://api.slack.com/)                      | Free tier available; required for Slack integration.                                   |
-| **MONDAY_API_KEY**      | [Monday.com API](https://api.monday.com/)                | Free tier available; required for Monday.com integration.                                |
-| **GETZEP_API_KEY**      | [Getzep API](https://example.com/getzep)                | Free API access available; used for Getzep integration.                                  |
-| **MIRO_API_KEY**        | [Miro API](https://developers.miro.com/docs)            | Free API access available; required for Miro integration.                                |
-| **FLOWISE_API_KEY**     | [Flowise API](https://flowiseai.com/)                    | Free API access available; required for Flowise integration.                             |
-| **FLOWISE_API_ENDPOINT**| [Flowise API Docs](https://flowiseai.com/docs)           | Endpoint for Flowise; required for Flowise integration.                                  |
+## User Experience (UX) Standards
+- Enhanced ANSI/emoji boxes for search/analysis results.
+- Custom spinner messages: `Generating.`, `Generating..`, `Generating...`, `Running...`, and `Generating... Taking longer than expected`.
+- Async CLI input handler: allows typing while response streams, with double-Enter to interrupt.
+
+## Current Blueprints
+These blueprints are included as examples and can be used or extended:
+
+- `chatbot` (chatbot/blueprint_chatbot.py)
+- `codey` (codey/blueprint_codey.py)
+- `divine_code` (divine_code/blueprint_divine_code.py)
+- `django_chat` (django_chat/blueprint_django_chat.py)
+- `echocraft` (echocraft/blueprint_echocraft.py)
+- `geese` (geese/blueprint_geese.py)
+- `jeeves` (jeeves/blueprint_jeeves.py)
+- `mcp_demo` (mcp_demo/blueprint_mcp_demo.py)
+- `mission_improbable` (mission_improbable/blueprint_mission_improbable.py)
+- `monkai_magic` (monkai_magic/blueprint_monkai_magic.py)
+- `nebula_shellz` (nebula_shellz/blueprint_nebula_shellz.py)
+- `omniplex` (omniplex/blueprint_omniplex.py)
+- `poets` (poets/blueprint_poets.py)
+- `rue_code` (rue_code/blueprint_rue_code.py)
+- `stewie` (stewie/blueprint_family_ties.py)
+- `suggestion` (suggestion/blueprint_suggestion.py)
+- `whinge_surf` (whinge_surf/blueprint_whinge_surf.py)
+- `whiskeytango_foxtrot` (whiskeytango_foxtrot/blueprint_whiskeytango_foxtrot.py)
+- `zeus` (zeus/blueprint_zeus.py)
+
+For more details on each, see the corresponding Python file.
+
+## Discoverability
+- This file is referenced from the main [README.md](../README.md) and should be your starting point for blueprint usage, extension, and best practices.
+
+## Best Practices for Blueprint Authors
+- Subclass `BlueprintBase` and document required environment variables and MCP servers.
+- Use provider-agnostic config patterns for maximum portability.
+- Leverage the UX standards (ANSI/emoji boxes, spinner, async CLI input) for a unified experience.
+
+## Async CLI Input Handler (Pattern)
+Blueprints should support async user input:
+- While a response is streaming, the user can type a new prompt.
+- Pressing Enter once warns: "Press Enter again to interrupt and send a new message."
+- Pressing Enter twice interrupts the current operation.
+- See framework utilities (`src/swarm/extensions/cli/utils/async_input.py`) or blueprint examples (`codey`, `poets`) for implementation guidance.
+
+### Example Usage (Codey/Poets)
+
+```python
+import asyncio
+from swarm.extensions.cli.utils.async_input import async_cli_input
+
+async def main():
+    while True:
+        user_input = await async_cli_input()
+        print(f"You typed: {user_input}")
+        await asyncio.sleep(0.05)
+```
+This pattern is now used in the `codey` and `poets` blueprints for unified, responsive CLI UX.
+
+## TODO
+- [ ] Flesh out code examples for each config pattern.
+- [ ] Link to main README and ensure discoverability.
+- [ ] Document framework-wide async CLI input handler pattern.
+
+---
+*This README documents implemented features and standards. For feature status, see the main project TODOs.*
