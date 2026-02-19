@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4" id="team-launcher">
+  <h2 class="mb-3">Team Launcher</h2>
+  <p class="text-muted">Select a team blueprint and enter your task. Results stream below.</p>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-6">
+      <label for="blueprintSelect" class="form-label">Team Blueprint</label>
+      <select id="blueprintSelect" class="form-select">
+        <option value="" selected disabled>Loading blueprints…</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-6">
+      <label for="profileInput" class="form-label">Model/Profile (optional)</label>
+      <input id="profileInput" class="form-control" list="profiles_list" placeholder="e.g., default or ollama_llama2" />
+      <datalist id="profiles_list">
+        {% for p in profiles %}
+        <option value="{{ p }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+    {% if api_auth_enabled %}
+    <div class="col-12">
+      <label for="tokenInput" class="form-label">API Token (Bearer) — saved locally</label>
+      <input id="tokenInput" class="form-control" placeholder="Paste token for API auth" />
+      <div class="form-text">Saved in browser localStorage as 'swarm_api_token'.</div>
+    </div>
+    {% endif %}
+    <div class="col-12">
+      <label for="instruction" class="form-label">Task / Instruction</label>
+      <textarea id="instruction" class="form-control" rows="4" placeholder="Describe the task for the team…"></textarea>
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button id="launchBtn" class="btn btn-primary">Launch</button>
+      <button id="clearBtn" class="btn btn-outline-secondary">Clear Output</button>
+    </div>
+  </div>
+
+  <hr class="my-4" />
+  <div class="d-flex align-items-center gap-3">
+    <h5 class="mb-0">Output</h5>
+    <div id="streamStatus" class="text-muted" style="display:none;">Streaming…</div>
+  </div>
+  <pre id="output" class="p-3 bg-light border rounded" style="min-height: 200px; white-space: pre-wrap; overflow:auto;"></pre>
+</div>
+
+<script>
+(function() {
+  const sel = (id) => document.getElementById(id);
+  const bpSelect = sel('blueprintSelect');
+  const instruction = sel('instruction');
+  const profileInput = sel('profileInput');
+  const output = sel('output');
+  const launchBtn = sel('launchBtn');
+  const clearBtn = sel('clearBtn');
+  const tokenInput = sel('tokenInput');
+
+  // Load/save token if present
+  if (tokenInput) {
+    try { tokenInput.value = localStorage.getItem('swarm_api_token') || ''; } catch {}
+    tokenInput?.addEventListener('change', () => {
+      try { localStorage.setItem('swarm_api_token', tokenInput.value.trim()); } catch {}
+    });
+  }
+
+  async function loadBlueprints() {
+    // Try richer endpoint first; fall back to /v1/models
+    const endpoints = ['/v1/blueprints', '/v1/models'];
+    let data = null;
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep);
+        if (!res.ok) continue;
+        const json = await res.json();
+        if (json && Array.isArray(json.data)) { data = json.data; break; }
+      } catch (e) { /* try next */ }
+    }
+    bpSelect.innerHTML = '';
+    if (!data || !data.length) {
+      bpSelect.innerHTML = '<option disabled selected>No blueprints found</option>';
+      return;
+    }
+    for (const item of data) {
+      const id = item.id || item.name;
+      const name = item.name || id;
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `${name}`;
+      bpSelect.appendChild(opt);
+    }
+  }
+
+  function append(text) {
+    output.textContent += text;
+    // auto-scroll
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function appendLine(text) { append(text + '\n'); }
+
+  async function launch() {
+    const model = bpSelect.value;
+    const task = instruction.value.trim();
+    const profile = profileInput.value.trim();
+    if (!model) { alert('Select a team blueprint'); return; }
+    if (!task) { alert('Enter a task/instruction'); return; }
+
+    launchBtn.disabled = true;
+    output.textContent += `\n--- Launching ${model} ---\n`;
+    const statusEl = sel('streamStatus');
+    if (statusEl) statusEl.style.display = 'inline';
+
+    const body = {
+      model,
+      messages: [{ role: 'user', content: task }],
+      stream: true,
+      params: profile ? { llmProfile: profile } : undefined,
+    };
+
+    const headers = { 'Content-Type': 'application/json' };
+    // Optional bearer token
+    let token = '';
+    try { token = (tokenInput && tokenInput.value) || localStorage.getItem('swarm_api_token') || ''; } catch {}
+    if (token) headers['Authorization'] = `Bearer ${token.trim()}`;
+
+    let res;
+    try {
+      res = await fetch('/v1/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      appendLine(`Request error: ${e}`);
+      launchBtn.disabled = false;
+      const statusEl = sel('streamStatus');
+      if (statusEl) statusEl.style.display = 'none';
+      return;
+    }
+    if (!res.ok) {
+      try {
+        const err = await res.json();
+        appendLine(`HTTP ${res.status}: ${JSON.stringify(err)}`);
+      } catch {
+        appendLine(`HTTP ${res.status}`);
+      }
+      launchBtn.disabled = false;
+      return;
+    }
+
+    // Stream parse text/event-stream from fetch body
+    try {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // Split by SSE events
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') { appendLine('\n--- Completed ---'); break; }
+          try {
+            const json = JSON.parse(payload);
+            const choice = json?.choices?.[0];
+            const delta = choice?.delta;
+            if (delta?.content) append(delta.content);
+          } catch (e) {
+            // Not JSON or error chunk
+            appendLine(`\n[!] ${payload}`);
+          }
+        }
+      }
+    } catch (e) {
+      appendLine(`Stream error: ${e}`);
+    } finally {
+      launchBtn.disabled = false;
+      const statusEl = sel('streamStatus');
+      if (statusEl) statusEl.style.display = 'none';
+    }
+  }
+
+  clearBtn.addEventListener('click', () => { output.textContent = ''; });
+  launchBtn.addEventListener('click', launch);
+  loadBlueprints();
+})();
+</script>
+{% endblock %}

@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class ChatConversation(models.Model):
     """Represents a single chat session."""
     conversation_id = models.CharField(max_length=255, primary_key=True)
@@ -41,5 +42,6 @@ __all__ = [
 
 # Alias the module to prevent conflicting model registrations.
 import sys
+
 sys.modules["swarm.models"] = sys.modules[__name__]
 sys.modules["src.swarm.models"] = sys.modules["swarm.models"]

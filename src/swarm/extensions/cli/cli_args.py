@@ -3,6 +3,10 @@
 import argparse
 from typing import Namespace
 
+# --- DEBUG PRINTS REMOVED BY CASCADE ---
+# print(f"[DEBUG] cli_args.py startup: sys.argv={sys.argv}")
+# print(f"[DEBUG] cli_args.py startup: LITELLM_MODEL={os.environ.get('LITELLM_MODEL')}, DEFAULT_LLM={os.environ.get('DEFAULT_LLM')}")
+
 def parse_arguments() -> Namespace:
     """
     Parse command-line arguments for dynamic LLM configuration, MCP server management, and other overrides.
@@ -62,7 +66,7 @@ def parse_arguments() -> Namespace:
     config_subparsers = config_parser.add_subparsers(dest="config_command", help="Configuration commands")
 
     # Add LLM
-    add_llm_parser = config_subparsers.add_parser("add-llm", help="Add a new LLM.")
+    config_subparsers.add_parser("add-llm", help="Add a new LLM.")
     # No additional arguments; will use interactive prompts
 
     # Remove LLM
@@ -74,7 +78,7 @@ def parse_arguments() -> Namespace:
     )
 
     # Add MCP server
-    add_server_parser = config_subparsers.add_parser("add-server", help="Add a new MCP server.")
+    config_subparsers.add_parser("add-server", help="Add a new MCP server.")
     # No additional arguments; will use interactive prompts
 
     # Remove MCP server

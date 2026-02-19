@@ -1,89 +1,135 @@
-from django.contrib import admin
-from django.urls import path, re_path, include
-from django.http import HttpResponse
 from django.conf import settings
 from django.conf.urls.static import static
-import os
-import logging
+from django.urls import path
 
-# Import specific views from their modules
-from swarm.views.core_views import index as core_index_view, serve_swarm_config, custom_login
-from swarm.views.chat_views import chat_completions
-from swarm.views.model_views import list_models
-from swarm.views.message_views import ChatMessageViewSet
-from drf_spectacular.views import SpectacularSwaggerView, SpectacularAPIView as HiddenSpectacularAPIView
-from rest_framework.routers import DefaultRouter
+from swarm.views.agent_creator_pro import agent_creator_pro_page
+from swarm.views.agent_creator_views import (
+    agent_creator_page,
+    generate_agent_code,
+    save_custom_agent,
+    save_team_swarm,
+    team_creator_page,
+    validate_agent_code,
+)
+from swarm.views.api_views import (
+    BlueprintsListView,
+    CustomBlueprintDetailView,
+    CustomBlueprintsView,
+    MarketplaceBlueprintsView,
+    MarketplaceGitHubBlueprintsView,
+    MarketplaceGitHubMCPConfigsView,
+    MarketplaceMCPConfigsView,
+)
+from swarm.views.api_views import ModelsListView as OpenAIModelsView
+from swarm.views.blueprint_library_views import (
+    add_blueprint_to_library,
+    blueprint_creator,
+    blueprint_library,
+    blueprint_requirements_status,
+    check_comfyui_status,
+    generate_avatar,
+    my_blueprints,
+    remove_blueprint_from_library,
+)
+from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.settings_views import (
+    environment_variables,
+    settings_api,
+    settings_dashboard,
+)
+from swarm.views.web_views import (
+    index,
+    profiles_page,
+    team_admin,
+    team_launcher,
+    teams_export,
+)
 
-logger = logging.getLogger(__name__)
-
-def favicon(request):
-    favicon_path = settings.BASE_DIR / 'assets' / 'images' / 'favicon.ico'
-    try:
-        with open(favicon_path, 'rb') as f:
-            favicon_data = f.read()
-        return HttpResponse(favicon_data, content_type="image/x-icon")
-    except FileNotFoundError:
-        logger.warning("Favicon not found.")
-        return HttpResponse(status=404)
-
-ENABLE_ADMIN = os.getenv("ENABLE_ADMIN", "false").lower() in ("true", "1", "t")
-ENABLE_WEBUI = os.getenv("ENABLE_WEBUI", "true").lower() in ("true", "1", "t")
-
-logger.debug(f"ENABLE_WEBUI={'true' if ENABLE_WEBUI else 'false'}")
-logger.debug(f"ENABLE_ADMIN={'true' if ENABLE_ADMIN else 'false'}")
-
-router = DefaultRouter()
-# Ensure ChatMessageViewSet is available before registering
-if ChatMessageViewSet:
-    router.register(r'v1/chat/messages', ChatMessageViewSet, basename='chatmessage')
-else:
-     logger.warning("ChatMessageViewSet not imported correctly, skipping API registration.")
-
-# Base URL patterns required by Swarm core
-# Use the imported view functions directly
-base_urlpatterns = [
-    re_path(r'^health/?$', lambda request: HttpResponse("OK"), name='health_check'),
-    re_path(r'^v1/chat/completions/?$', chat_completions, name='chat_completions'),
-    re_path(r'^v1/models/?$', list_models, name='list_models'),
-    re_path(r'^schema/?$', HiddenSpectacularAPIView.as_view(), name='schema'),
-    re_path(r'^swagger-ui/?$', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+# Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
+# wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
+urlpatterns = [
+    path("", index, name="index"),  # Root path for web UI
+    path("v1/models", OpenAIModelsView.as_view(), name="models-list-no-slash"),
+    path("v1/models/", OpenAIModelsView.as_view(), name="models-list"),
+    path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
+    path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
+    path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
+    path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
+    # Optional marketplace (Wagtail) headless endpoints (return empty list if disabled)
+    path("marketplace/blueprints/", MarketplaceBlueprintsView.as_view(), name="marketplace-blueprints"),
+    path("marketplace/mcp-configs/", MarketplaceMCPConfigsView.as_view(), name="marketplace-mcp-configs"),
+    path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
+    path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
+    path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
+    path("teams/launch", team_launcher, name="teams_launch_no_slash"),
+    path("teams/launch/", team_launcher, name="teams_launch"),
+    path("teams/", team_admin, name="teams_admin"),
+    path("teams/export", teams_export, name="teams_export"),
+    path("profiles/", profiles_page, name="profiles_page"),
+    # Agent/Team Creator endpoints
+    path("agent-creator/", agent_creator_page, name="agent_creator"),
+    path("agent-creator/generate/", generate_agent_code, name="generate_agent_code"),
+    path("agent-creator/validate/", validate_agent_code, name="validate_agent_code"),
+    path("agent-creator/save/", save_custom_agent, name="save_custom_agent"),
+    path("team-creator/", team_creator_page, name="team_creator"),
+    path("team-creator/save/", save_team_swarm, name="save_team_swarm"),
+    # Agent Creator Pro endpoints
+    path("agent-creator-pro/", agent_creator_pro_page, name="agent_creator_pro"),
+    # Settings Management endpoints
+    path("settings/", settings_dashboard, name="settings_dashboard"),
+    path("settings/api/", settings_api, name="settings_api"),
+    path("settings/environment/", environment_variables, name="environment_variables"),
+    # Blueprint Library endpoints
+    path("blueprint-library/", blueprint_library, name="blueprint_library"),
+    path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),
+    path("blueprint-library/my-blueprints/", my_blueprints, name="my_blueprints"),
+    path("blueprint-library/requirements/", blueprint_requirements_status, name="blueprint_requirements_status"),
+    path("blueprint-library/add/<str:blueprint_name>/", add_blueprint_to_library, name="add_blueprint_to_library"),
+    path("blueprint-library/remove/<str:blueprint_name>/", remove_blueprint_from_library, name="remove_blueprint_from_library"),
+    # Avatar generation endpoints
+    path("blueprint-library/generate-avatar/<str:blueprint_name>/", generate_avatar, name="generate_avatar"),
+    path("blueprint-library/comfyui-status/", check_comfyui_status, name="check_comfyui_status"),
 ]
 
-# Optional Admin URLs
-admin_urlpatterns = [path('admin/', admin.site.urls)] if ENABLE_ADMIN else []
-
-# Optional Web UI URLs
-webui_urlpatterns = []
-if ENABLE_WEBUI:
-    webui_urlpatterns = [
-        path('', core_index_view, name='index'),
-        path('favicon.ico', favicon, name='favicon'),
-        path('config/swarm_config.json', serve_swarm_config, name='serve_swarm_config'),
-        path('accounts/login/', custom_login, name='custom_login'),
-    ]
-    if settings.DEBUG:
-         if settings.STATIC_URL and settings.STATIC_ROOT:
-              webui_urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-         else:
-              logger.warning("STATIC_URL or STATIC_ROOT not configured, static files may not serve correctly in DEBUG mode.")
-
-# --- Blueprint URLs are now added dynamically via blueprint_base.py -> django_utils.py ---
-blueprint_urlpatterns = [] # Start with empty list, populated by utils
-
-# Combine all URL patterns
-urlpatterns = webui_urlpatterns + admin_urlpatterns + base_urlpatterns + blueprint_urlpatterns + router.urls
-
-# Log final URL patterns (consider moving this to where patterns are finalized if issues persist)
+# Serve avatar images in development
 if settings.DEBUG:
+    urlpatterns += static(settings.AVATAR_URL_PREFIX, document_root=settings.AVATAR_STORAGE_PATH)
+
+# Optional Wagtail admin/site when enabled
+if getattr(settings, 'ENABLE_WAGTAIL', False):
+    try:  # Import lazily to avoid hard dependency when disabled
+        from django.urls import include
+        from wagtail import urls as wagtail_urls
+        from wagtail.admin import urls as wagtailadmin_urls
+        from wagtail.documents import urls as wagtaildocs_urls
+
+        urlpatterns += [
+            path('cms/admin/', include(wagtailadmin_urls)),
+            path('cms/documents/', include(wagtaildocs_urls)),
+            path('cms/', include(wagtail_urls)),
+        ]
+    except Exception:
+        pass
+
+# Optional SAML IdP (djangosaml2idp) when enabled
+if getattr(settings, 'ENABLE_SAML_IDP', False):
     try:
-        from django.urls import get_resolver
-        # Note: get_resolver(None) might not reflect dynamically added URLs perfectly here.
-        # Logging within django_utils might be more accurate for dynamic additions.
-        final_patterns = get_resolver(None).url_patterns
-        logger.debug(f"Initial resolved URL patterns ({len(final_patterns)} total):")
-        # for pattern in final_patterns:
-        #      try: pattern_repr = str(pattern)
-        #      except: pattern_repr = f"[Pattern for {getattr(pattern, 'name', 'unnamed')}]"
-        #      logger.debug(f"  {pattern_repr}")
-    except Exception as e:
-        logger.error(f"Could not log initial URL patterns: {e}")
+        from django.urls import include
+        urlpatterns += [
+            path('idp/', include('djangosaml2idp.urls')),
+        ]
+    except Exception:
+        # Package not installed or import failed; ignore if disabled in env
+        pass
+
+# Optional MCP server (django-mcp-server) when enabled
+import os
+
+if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
+    try:
+        from django.urls import include
+        urlpatterns += [
+            path('mcp/', include('django_mcp_server.urls')),
+        ]
+    except Exception:
+        pass

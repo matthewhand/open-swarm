@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include 'rest_mode/components/header.html' %}
+    <link rel="stylesheet" href="{% static 'rest_mode/css/messenger.css' %}">
+    <script>
+        window.STATIC_URLS = {
+            layoutSidebarLeftExpand: "{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}",
+            layoutSidebarLeftCollapse: "{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}"
+        };
+    </script>
+</head>
+<body>
+    {% include 'rest_mode/components/top_bar.html' %}
+    {% include 'rest_mode/components/settings_dialog.html' %}
+    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="messenger-layout">
+        <div class="side-panes chat-history-pane" id="channelPane">
+            <div class="chat-history-header">
+                <button class="input-button chat-history-button" id="toggleSidebar" aria-label="Toggle Sidebar">
+                    <img src="{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}" alt="Collapse Sidebar">
+                </button>
+                <button class="input-button upload-button" id="settingsToggleButton" aria-label="Toggle Settings">
+                    <img src="{% static 'contrib/tabler-icons/settings.svg' %}" alt="Settings">
+                </button>
+                <button class="input-button search-button" title="Search" aria-label="Search Channels">
+                    <img src="{% static 'contrib/tabler-icons/search.svg' %}" alt="Search">
+                </button>
+            </div>
+            <h3>Channels</h3>
+            <ul id="channelList" class="chat-history-list">
+                <li data-blueprint-id="welcome">#Welcome to Open-Swarm</li>
+            </ul>
+        </div>
+        <div class="vertical-divider" id="divider-left"></div>
+        <div class="main-pane">
+            {% include 'rest_mode/components/main_chat_pane.html' %}
+        </div>
+        <div id="toastContainer"></div>
+    </div>
+    <div class="settings-overlay"></div>
+    <script type="module" src="{% static 'contrib/markedjs/marked.min.js' %}"></script>
+    <script type="module" src="{% static 'rest_mode/js/settings.js' %}"></script>
+    <script type="module" src="{% static 'rest_mode/js/messengerLogic.js' %}"></script>
+</body>
+</html>

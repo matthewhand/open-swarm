@@ -1,0 +1,33 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include 'rest_mode/components/header.html' %}
+    <link rel="stylesheet" href="{% static 'rest_mode/css/chatbot.css' %}">
+    <script>
+        window.STATIC_URLS = {
+            layoutSidebarLeftExpand: "{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}",
+            layoutSidebarLeftCollapse: "{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}"
+        };
+    </script>
+</head>
+<body>
+    {% include 'rest_mode/components/top_bar.html' %}
+    {% include 'rest_mode/components/settings_dialog.html' %}
+    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="chatbot-layout">
+        <div class="side-panes chat-history-pane" id="chatHistoryPane">
+            {% include 'rest_mode/components/chat_sidebar.html' with conversations=conversations %}
+        </div>
+        <div class="vertical-divider" id="divider-left"></div>
+        <div class="main-pane">
+            {% include 'rest_mode/components/main_chat_pane.html' %}
+        </div>
+        <div id="toastContainer"></div>
+    </div>
+    <div class="settings-overlay"></div> <!-- Ensure overlay exists -->
+    <script type="module" src="{% static 'contrib/markedjs/marked.min.js' %}"></script>
+    <script type="module" src="{% static 'rest_mode/js/settings.js' %}" defer></script>
+    <script type="module" src="{% static 'rest_mode/js/main.js' %}"></script>
+    <script type="module" src="{% static 'rest_mode/js/chatLogic.js' %}" defer></script>
+</body>
+</html>
