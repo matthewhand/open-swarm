@@ -41,7 +41,6 @@ def _xdg_paths(home: Path) -> tuple[Path, Path]:
     return cfg_dir, env_file
 
 
-@pytest.mark.xfail(reason="swarm-cli config add not fully implemented - returns 0 but doesn't create .env file")
 @pytest.mark.parametrize("key,value", [("OPENAI_API_KEY", "sk-test-123"), ("CUSTOM_SECRET", "s3cr3t!")])
 def test_cli_config_add_persists_secrets_to_env_file(tmp_path, key, value):
     home = tmp_path / "home"
