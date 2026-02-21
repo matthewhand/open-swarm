@@ -67,7 +67,6 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
         import logging
-        import os
         if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
             logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
             try:
