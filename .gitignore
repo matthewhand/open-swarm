@@ -204,3 +204,9 @@ src/swarm_log.json
 src/swarm_log.json.lock
 *.log
 *.out
+
+# IDE tooling
+.serena/
+
+# Coverage artifacts (JSON format)
+coverage.json
