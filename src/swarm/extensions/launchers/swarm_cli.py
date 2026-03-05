@@ -55,12 +55,15 @@ def _emit_startup_hints():
 def _xdg_swarm_dir() -> Path:
     """
     Resolve the XDG config directory for swarm: ~/.config/swarm or $XDG_CONFIG_HOME/swarm
+    Respects HOME environment variable for testability.
     """
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
         base = Path(os.path.expanduser(xdg))
     else:
-        base = Path(os.path.expanduser("~")) / ".config"
+        # Respect HOME env var for test isolation
+        home = os.environ.get("HOME", "~")
+        base = Path(os.path.expanduser(home)) / ".config"
     return base / "swarm"
 
 def _write_env_kv(env_path: Path, key: str, value: str) -> None:
