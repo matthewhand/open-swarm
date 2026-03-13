@@ -13,6 +13,7 @@ import base64
 import json as _json
 import time
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -139,28 +140,36 @@ def fetch_repo_manifests(
                 if resp.status_code != 200:
                     continue
                 entries = resp.json() or []
-                for ent in entries:
+
+                def process_entry(ent: dict[str, Any]) -> dict[str, Any] | None:
                     if not isinstance(ent, dict) or ent.get("type") != "dir":
-                        continue
+                        return None
                     path = ent.get("path")
                     if not path:
-                        continue
-                    man = client.get(f"{GITHUB_API}/repos/{owner}/{name}/contents/{path}/manifest.json")
-                    if man.status_code == 200:
-                        mdata = man.json()
-                        if isinstance(mdata, dict) and mdata.get("type") == "file":
-                            content = mdata.get("content")
-                            if content:
-                                try:
+                        return None
+
+                    try:
+                        man = client.get(f"{GITHUB_API}/repos/{owner}/{name}/contents/{path}/manifest.json")
+                        if man.status_code == 200:
+                            mdata = man.json()
+                            if isinstance(mdata, dict) and mdata.get("type") == "file":
+                                content = mdata.get("content")
+                                if content:
                                     decoded = base64.b64decode(content).decode("utf-8")
                                     parsed = _json.loads(decoded)
                                     if isinstance(parsed, dict):
                                         # Enrich with metrics and owner
                                         enrich_item_with_metrics(client, owner, name, path, parsed)
                                         parsed.setdefault('owner', owner)
-                                        results.append(parsed)
-                                except Exception:
-                                    pass
+                                        return parsed
+                    except Exception:
+                        pass
+                    return None
+
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    for item in executor.map(process_entry, entries):
+                        if item:
+                            results.append(item)
     except Exception:
         return results
     return results
@@ -179,24 +188,34 @@ def enrich_item_with_metrics(client: httpx.Client, owner: str, repo: str, item_d
         file_count = 0
         line_total = 0
         first_py_content = None
-        for f in entries:
+        def process_file(f: dict[str, Any]) -> tuple[int, int, str | None]:
             if not isinstance(f, dict) or f.get('type') != 'file':
-                continue
-            file_count += 1
-            # Count lines for small files (< 200KB) to avoid heavy downloads
+                return 0, 0, None
+
+            f_count = 1
+            l_total = 0
+            py_content = None
+
             size = f.get('size') or 0
             if size and size < 200_000:
-                # Fetch file content and count lines
-                fc = client.get(f"{GITHUB_API}/repos/{owner}/{repo}/contents/{f.get('path')}")
-                if fc.status_code == 200:
-                    fj = fc.json()
-                    try:
+                try:
+                    fc = client.get(f"{GITHUB_API}/repos/{owner}/{repo}/contents/{f.get('path')}")
+                    if fc.status_code == 200:
+                        fj = fc.json()
                         raw = base64.b64decode(fj.get('content') or b'').decode('utf-8', errors='ignore')
-                        line_total += raw.count('\n') + 1
-                        if (f.get('name') or '').endswith('.py') and first_py_content is None:
-                            first_py_content = raw
-                    except Exception:
-                        pass
+                        l_total = raw.count('\n') + 1
+                        if (f.get('name') or '').endswith('.py'):
+                            py_content = raw
+                except Exception:
+                    pass
+            return f_count, l_total, py_content
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for f_count, l_total, py_content in executor.map(process_file, entries):
+                file_count += f_count
+                line_total += l_total
+                if py_content and first_py_content is None:
+                    first_py_content = py_content
         item.setdefault('file_count', file_count)
         item.setdefault('line_count', line_total)
         # Try AST parse for metadata name/description if missing
