@@ -13,6 +13,8 @@ Self-healing, fileops-enabled, swarm-scalable.
 import asyncio
 import logging
 import os
+import shlex
+import subprocess
 import sys
 import time
 from typing import TYPE_CHECKING
@@ -928,9 +930,16 @@ class CodeyBlueprint(BlueprintBase):
 
     def shell_exec_with_approval(self, command):
         self.check_approval("tool.shell.exec", command=command)
-        # Simulate shell exec (for demo)
-        import subprocess
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        # Safely parse command to prevent injection attacks
+        if not command or not command.strip():
+            raise ValueError("Command cannot be empty")
+        try:
+            args = shlex.split(command)
+        except ValueError as e:
+            raise ValueError(f"Invalid command syntax: {e}")
+        if not args:
+            raise ValueError("Command cannot be empty after parsing")
+        result = subprocess.run(args, shell=False, capture_output=True, text=True)
         print_operation_box(
             op_type="Shell Exec",
             results=[f"Command output: {result.stdout.strip()}"],
