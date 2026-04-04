@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import path
+from django.urls import path, re_path
+from django.http import HttpResponse, FileResponse
+from django.views.static import serve
+from pathlib import Path
 
 from swarm.views.agent_creator_pro import agent_creator_pro_page
 from swarm.views.agent_creator_views import (
@@ -133,3 +136,32 @@ if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
         ]
     except Exception:
         pass
+
+# SPA Fallback for React Router - must be last
+def _get_frontend_path():
+    """Get the path to the built frontend assets."""
+    frontend_path = Path("webui/frontend/dist")
+    if not frontend_path.exists():
+        frontend_path = Path("webui/frontend/build")
+    return frontend_path if frontend_path.exists() else None
+
+frontend_path = _get_frontend_path()
+if frontend_path and frontend_path.exists():
+    from django.views.static import serve
+    from django.conf.urls import re_path
+    
+    # Serve static assets
+    urlpatterns += [
+        re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': str(frontend_path / 'assets')}),
+    ]
+    
+    # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
+    def spa_fallback(request, path):
+        index_file = frontend_path / "index.html"
+        if index_file.exists():
+            return FileResponse(open(index_file, 'rb'), content_type='text/html')
+        return HttpResponse("Not Found", status=404)
+    
+    urlpatterns += [
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/).*$', spa_fallback),
+    ]

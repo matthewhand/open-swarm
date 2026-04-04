@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(for pr in 45 46 47 48 49 50 51 52; do\n  echo \"==========================================\"\n  echo \"PR #$pr: $(gh pr view $pr --json title --jq '.title')\"\n  echo \"State: $(gh pr view $pr --json state --jq '.state')\"\n  gh pr view $pr --json headRefName,mergeable,statusCheckRollup --jq '\"Branch: \\(.headRefName) | Mergeable: \\(.mergeable) | Checks: \\(.statusCheckRollup[0].status // \"none\")\"'\n  echo \"\"\ndone)",
+      "Bash(for pr in 45 46 47 48 49 50 51 52; do\n  blocking=$(gh api repos/matthewhand/open-swarm/pulls/$pr/reviews 2>/dev/null | jq -r '.[].body' 2>/dev/null | grep -i \"critical\\|blocking\\|must\\|required\\|stop_sign\" || true)\n  if [ -n \"$blocking\" ]; then\n    echo \"BLOCKING: PR #$pr\"\n  else\n    echo \"OK: PR #$pr\"\n  fi\ndone)",
+      "Bash(gh pr view:*)",
+      "Edit(src/swarm/blueprints/codey/**)"
+    ]
+  }
+}

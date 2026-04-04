@@ -3,11 +3,13 @@ Web UI views for Open Swarm MCP Core.
 Handles rendering index, blueprint pages, login, and serving config.
 """
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
 
@@ -30,10 +32,74 @@ from .utils import (
 
 logger = setup_logger(__name__)
 
+def _get_frontend_path():
+    """Get the path to the built frontend assets."""
+    # Check common build output directories
+    frontend_path = Path("webui/frontend/dist")
+    if not frontend_path.exists():
+        frontend_path = Path("webui/frontend/build")
+    return frontend_path if frontend_path.exists() else None
+
+def _ensure_frontend_built():
+    """Ensure frontend is built, attempting automatic build if possible."""
+    frontend_path = _get_frontend_path()
+    if frontend_path:
+        return frontend_path
+    
+    logger.info("Frontend build not found. Attempting to build automatically...")
+    try:
+        # Check if npm is available
+        subprocess.run(["npm", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        
+        frontend_dir = Path("webui/frontend")
+        if not frontend_dir.exists():
+            logger.error("Frontend directory not found: webui/frontend")
+            return None
+        
+        logger.info("Installing frontend dependencies...")
+        subprocess.run(
+            ["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps"],
+            cwd=str(frontend_dir),
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            check=True
+        )
+        
+        logger.info("Building frontend assets...")
+        subprocess.run(
+            ["npm", "run", "build"],
+            cwd=str(frontend_dir),
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            check=True
+        )
+        
+        # Check which build directory was created
+        if Path("webui/frontend/dist").exists():
+            return Path("webui/frontend/dist")
+        elif Path("webui/frontend/build").exists():
+            return Path("webui/frontend/build")
+        
+    except FileNotFoundError:
+        logger.error("Could not find 'npm' executable. Please install Node.js and run 'npm run build' manually in webui/frontend/")
+    except Exception as e:
+        logger.error(f"Automatic frontend build failed: {e}. Please run 'npm run build' manually in webui/frontend/")
+    
+    return None
+
 @csrf_exempt
 def index(request):
     """Render the main index page with dynamically discovered blueprint options."""
-    logger.debug("Rendering index page")
+    # Try to serve static frontend first if available
+    frontend_path = _ensure_frontend_built()
+    if frontend_path:
+        index_file = frontend_path / "index.html"
+        if index_file.exists():
+            logger.debug("Serving static frontend from " + str(index_file))
+            return FileResponse(open(index_file, 'rb'), content_type='text/html')
+    
+    # Fallback to Django template rendering
+    logger.debug("Rendering index page with Django templates")
     try:
         # Discover blueprints dynamically each time the index is loaded
         # Consider caching this if performance becomes an issue
