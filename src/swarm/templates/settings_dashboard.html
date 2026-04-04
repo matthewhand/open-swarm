@@ -2,52 +2,46 @@
 {% load static %}
 
 {% block content %}
-<link href="{% static 'css/agent_creator_pro.css' %}" rel="stylesheet">
-
-<div class="settings-dashboard">
+<div class="container mx-auto px-4 py-8">
   <!-- Header Section -->
-  <div class="dashboard-header">
-    <div class="container">
-      <div class="row align-items-center">
-        <div class="col-lg-8">
-          <h1 class="dashboard-title">⚙️ Settings Dashboard</h1>
-          <p class="dashboard-subtitle">Comprehensive configuration management for Open Swarm</p>
-        </div>
-        <div class="col-lg-4">
-          <div class="settings-stats">
-            <div class="stat-card">
-              <div class="stat-number">{{ stats.total }}</div>
-              <div class="stat-label">Total Settings</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number">{{ stats.configured }}</div>
-              <div class="stat-label">Configured</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number">{{ stats.completion_rate }}%</div>
-              <div class="stat-label">Complete</div>
-            </div>
+  <div class="mb-8">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      <div>
+        <h1 class="text-3xl font-bold mb-2">⚙️ Settings Dashboard</h1>
+        <p class="text-gray-600">Comprehensive configuration management for Open Swarm</p>
+      </div>
+      <div class="flex gap-4">
+        <div class="stats shadow bg-base-200">
+          <div class="stat">
+            <div class="stat-value text-primary">{{ stats.total }}</div>
+            <div class="stat-title">Total Settings</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value text-secondary">{{ stats.configured }}</div>
+            <div class="stat-title">Configured</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value text-accent">{{ stats.completion_rate }}%</div>
+            <div class="stat-title">Complete</div>
           </div>
         </div>
       </div>
-      
-      <!-- Progress Bar -->
-      <div class="configuration-progress">
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: {{ stats.completion_rate }}%"></div>
-        </div>
-        <div class="progress-text">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
-      </div>
+    </div>
+    
+    <!-- Progress Bar -->
+    <div class="mt-6">
+      <progress class="progress progress-primary w-full" value="{{ stats.completion_rate }}" max="100"></progress>
+      <div class="text-sm text-gray-500 mt-2">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
     </div>
   </div>
 
   <!-- Quick Actions -->
-  <div class="container mt-4">
-    <div class="quick-actions">
+  <div class="mb-8">
+    <div class="flex gap-4">
       <button class="btn btn-primary" onclick="exportSettings()">
         <i class="fas fa-download"></i> Export Settings
       </button>
-      <button class="btn btn-outline-secondary" onclick="refreshSettings()">
+      <button class="btn btn-outline btn-secondary" onclick="refreshSettings()">
         <i class="fas fa-sync"></i> Refresh
       </button>
       <button class="btn btn-outline-info" onclick="viewEnvironment()">
