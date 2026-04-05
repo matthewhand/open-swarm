@@ -38,3 +38,15 @@ export {
   LoadingOverlay,
   LoadingButton
 } from './Loading';
+
+// Tabs & Accordion Components
+export { 
+  Tabs,
+  TabPanel,
+  SimpleTabs,
+  Accordion,
+  AccordionItem,
+  Stepper,
+  VerticalTabs,
+  ContentTabs
+} from './Tabs';
