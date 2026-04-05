@@ -5,3 +5,7 @@ export { default as Button } from './Button';
 export { default as Card, ImageCard } from './Card';
 export { default as Alert, SuccessAlert, WarningAlert, ErrorAlert, InfoAlert } from './Alert';
 export { default as Badge, PrimaryBadge, SuccessBadge, WarningBadge, ErrorBadge, InfoBadge } from './Badge';
+export { default as Modal, ConfirmModal } from './Modal';
+export { default as Input } from './Input';
+export { default as Select, SmartSelect } from './Select';
+export { default as Textarea } from './Textarea';
