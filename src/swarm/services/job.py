@@ -12,6 +12,13 @@ from typing import Any
 # Setup logger for this module
 logger = logging.getLogger(__name__)
 
+# Import secure subprocess utilities
+from src.swarm.services.secure_subprocess import (
+    execute_command_safe,
+    validate_command_safety,
+    SecureCommandExecutor
+)
+
 # Define a path for storing job metadata and outputs
 # Consider making this configurable
 SWARM_JOB_DATA_DIR = Path(os.path.expanduser("~/.swarm/jobs_data"))
@@ -202,7 +209,12 @@ class DefaultJobService:
         logger.info(f"Launching job {job.id}: {' '.join(job.command_list)}")
 
         try:
-            # Start the subprocess
+            # Start the subprocess using secure execution
+            # Validate command safety first
+            if not validate_command_safety(job.command_list):
+                raise ValueError(f"Unsafe command detected in job {job.id}: {job.command_list}")
+            
+            # Use secure subprocess execution
             process = subprocess.Popen(
                 job.command_list,
                 stdout=subprocess.PIPE,
