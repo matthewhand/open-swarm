@@ -50,3 +50,12 @@ export {
   VerticalTabs,
   ContentTabs
 } from './Tabs';
+
+// Pagination Components
+export { 
+  Pagination,
+  SimplePagination,
+  AdvancedPagination,
+  usePagination,
+  useInfiniteScroll
+} from './Pagination';
