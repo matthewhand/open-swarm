@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { Home, Settings, Bot, Book, Users, PlusCircle } from 'lucide-react'
 import { Button, Card, Alert, Badge } from './components/DaisyUI'
+import TeamsPage from './pages/TeamsPage'
+import BlueprintsPage from './pages/BlueprintsPage'
 
 function App() {
   const [darkMode, setDarkMode] = useState(false)
