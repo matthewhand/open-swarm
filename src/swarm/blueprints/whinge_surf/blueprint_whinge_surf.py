@@ -12,6 +12,12 @@ from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.blueprint_ux import BlueprintUXImproved
 
+# Import LLM integration
+from src.swarm.blueprints.whinge_surf.llm_integration import (
+    WhingeSurfLLMBackend,
+    get_llm_backend
+)
+
 
 class WhingeSpinner:
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
@@ -394,12 +400,27 @@ class WhingeSurfBlueprint(BlueprintBase):
 
     def _generate_code_from_prompt(self, prompt: str, src_file: str) -> str:
         """
-        Placeholder for LLM/agent call. Should return the full new code for src_file based on prompt.
+        Generate code using LLM backend based on prompt.
+        
+        Args:
+            prompt: Description of desired code changes
+            src_file: Source file path for context
+            
+        Returns:
+            Generated code as string
         """
-        # TODO: Integrate with your LLM/agent backend.
-        # For now, just return the current code (no-op)
-        with open(src_file) as f:
-            return f.read()
+        # Use LLM backend for code generation
+        try:
+            llm_backend = get_llm_backend(self)
+            return asyncio.run(llm_backend.generate_code_from_prompt(
+                prompt=prompt,
+                src_file=src_file
+            ))
+        except Exception as e:
+            logger.error(f"LLM code generation failed: {e}")
+            # Fallback to current behavior
+            with open(src_file) as f:
+                return f.read()
 
     def prune_jobs(self, keep_running=True):
         """Remove jobs that are finished (unless keep_running=False, then clear all)."""
