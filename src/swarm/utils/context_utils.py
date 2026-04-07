@@ -157,11 +157,10 @@ def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_toke
                      prev_tokens = 9999
                  if prev_msg.get("role") == "assistant" and isinstance(prev_msg.get("tool_calls"), list):
                      assistant_tool_calls = prev_msg.get("tool_calls", [])
-                     # ---> FIX: Check if this specific tool call ID is present AND if the assistant ONLY has ONE tool call <---
                      has_this_call = any(tc.get("id") == tool_call_id for tc in assistant_tool_calls if isinstance(tc, dict))
-                     is_single_call_assistant = len(assistant_tool_calls) == 1
 
                      if has_this_call:
+                          is_single_call_assistant = len(assistant_tool_calls) == 1
                           pair_found = True
                           if not is_single_call_assistant:
                               logger.debug(f"      Found assistant pair at {assistant_idx}, but it has multiple tool calls ({len(assistant_tool_calls)}). Deferring to Case 2.")
