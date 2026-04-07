@@ -332,7 +332,7 @@ def create_mcp_config_from_manifest(manifest_data: dict[str, Any], source_repo: 
 
 
 def sync_github_marketplace_items():
-    """Synchronize GitHub marketplace items with local database."""
+    """Synchronize GitHub marketplace items with local database using bulk operations."""
     # Get all configured topics and orgs
     topics = list(GITHUB_MARKETPLACE_TOPICS)
     orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
@@ -340,89 +340,103 @@ def sync_github_marketplace_items():
     # Search for repositories
     repos = search_repos_by_topics(topics, orgs, token=GITHUB_TOKEN)
 
+    # Collect all manifests first to perform bulk operations
+    blueprint_data: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+    mcp_data: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+
     for repo in repos:
         # Fetch manifests from the repository
         manifests = fetch_repo_manifests(repo, token=GITHUB_TOKEN)
 
         # Process blueprints
-        blueprint_manifests = [m for m in manifests if m.get('type') == 'blueprint' or m.get('kind') == 'blueprint']
-        for manifest in blueprint_manifests:
-            try:
-                # Check if blueprint already exists
-                name = manifest.get('name', '').replace(' ', '_').lower()
-                if not name:
-                    continue
+        for m in manifests:
+            name = m.get('name', '').replace(' ', '_').lower()
+            if not name:
+                continue
 
-                # Update or create the blueprint
-                blueprint, created = Blueprint.objects.get_or_create(
-                    name=name,
-                    defaults={
-                        'title': manifest.get('name', name),
-                        'description': manifest.get('description', ''),
-                        'version': manifest.get('version', '1.0.0'),
-                        'tags': ','.join(manifest.get('tags', [])),
-                        'repository_url': repo.get('html_url'),
-                        'manifest_data': manifest,
-                        'code_template': manifest.get('code_template', ''),
-                        'required_mcp_servers': manifest.get('required_mcp_servers', []),
-                        'category': manifest.get('category', 'ai_assistants'),
-                    }
-                )
+            if m.get('type') == 'blueprint' or m.get('kind') == 'blueprint':
+                blueprint_data[name] = (m, repo)
+            elif m.get('type') == 'mcp' or m.get('kind') == 'mcp':
+                mcp_data[name] = (m, repo)
 
-                if not created:
-                    # Update existing blueprint
-                    blueprint.title = manifest.get('name', name)
-                    blueprint.description = manifest.get('description', '')
-                    blueprint.version = manifest.get('version', '1.0.0')
-                    blueprint.tags = ','.join(manifest.get('tags', []))
-                    blueprint.repository_url = repo.get('html_url')
-                    blueprint.manifest_data = manifest
-                    blueprint.code_template = manifest.get('code_template', '')
-                    blueprint.required_mcp_servers = manifest.get('required_mcp_servers', [])
-                    blueprint.category = manifest.get('category', 'ai_assistants')
-                    blueprint.save()
+    # Bulk process Blueprints
+    if blueprint_data:
+        try:
+            existing_blueprints = {
+                b.name: b for b in Blueprint.objects.filter(name__in=blueprint_data.keys())
+            }
+            to_create = []
+            to_update = []
 
-            except Exception as e:
-                print(f"Error processing blueprint manifest: {e}")
+            for name, (manifest, repo) in blueprint_data.items():
+                blueprint_fields = {
+                    'title': manifest.get('name', name),
+                    'description': manifest.get('description', ''),
+                    'version': manifest.get('version', '1.0.0'),
+                    'tags': ','.join(manifest.get('tags', [])),
+                    'repository_url': repo.get('html_url'),
+                    'manifest_data': manifest,
+                    'code_template': manifest.get('code_template', ''),
+                    'required_mcp_servers': manifest.get('required_mcp_servers', []),
+                    'category': manifest.get('category', 'ai_assistants'),
+                }
 
-        # Process MCP configs
-        mcp_manifests = [m for m in manifests if m.get('type') == 'mcp' or m.get('kind') == 'mcp']
-        for manifest in mcp_manifests:
-            try:
-                # Check if MCP config already exists
-                name = manifest.get('name', '').replace(' ', '_').lower()
-                if not name:
-                    continue
+                if name in existing_blueprints:
+                    blueprint = existing_blueprints[name]
+                    for field, value in blueprint_fields.items():
+                        setattr(blueprint, field, value)
+                    to_update.append(blueprint)
+                else:
+                    to_create.append(Blueprint(name=name, **blueprint_fields))
 
-                # Update or create the MCP config
-                mcp_config, created = MCPConfig.objects.get_or_create(
-                    name=name,
-                    defaults={
-                        'title': manifest.get('name', name),
-                        'description': manifest.get('description', ''),
-                        'version': manifest.get('version', '1.0.0'),
-                        'tags': ','.join(manifest.get('tags', [])),
-                        'repository_url': repo.get('html_url'),
-                        'manifest_data': manifest,
-                        'config_template': manifest.get('config_template', ''),
-                        'server_name': manifest.get('server_name', ''),
-                    }
-                )
+            if to_create:
+                Blueprint.objects.bulk_create(to_create)
+            if to_update:
+                Blueprint.objects.bulk_update(to_update, [
+                    'title', 'description', 'version', 'tags', 'repository_url',
+                    'manifest_data', 'code_template', 'required_mcp_servers', 'category'
+                ])
+        except Exception as e:
+            print(f"Error bulk processing blueprints: {e}")
 
-                if not created:
-                    # Update existing MCP config
-                    mcp_config.title = manifest.get('name', name)
-                    mcp_config.description = manifest.get('description', '')
-                    mcp_config.version = manifest.get('version', '1.0.0')
-                    mcp_config.tags = ','.join(manifest.get('tags', []))
-                    mcp_config.repository_url = repo.get('html_url')
-                    mcp_config.manifest_data = manifest
-                    mcp_config.config_template = manifest.get('config_template', '')
-                    mcp_config.server_name = manifest.get('server_name', '')
-                    mcp_config.save()
+    # Bulk process MCP configs
+    if mcp_data:
+        try:
+            existing_mcps = {
+                m.name: m for m in MCPConfig.objects.filter(name__in=mcp_data.keys())
+            }
+            to_create = []
+            to_update = []
 
-            except Exception as e:
-                print(f"Error processing MCP config manifest: {e}")
+            for name, (manifest, repo) in mcp_data.items():
+                mcp_fields = {
+                    'title': manifest.get('name', name),
+                    'description': manifest.get('description', ''),
+                    'version': manifest.get('version', '1.0.0'),
+                    'tags': ','.join(manifest.get('tags', [])),
+                    'repository_url': repo.get('html_url'),
+                    'manifest_data': manifest,
+                    'config_template': manifest.get('config_template', ''),
+                    'server_name': manifest.get('server_name', ''),
+                }
+
+                if name in existing_mcps:
+                    mcp_config = existing_mcps[name]
+                    for field, value in mcp_fields.items():
+                        setattr(mcp_config, field, value)
+                    to_update.append(mcp_config)
+                else:
+                    to_create.append(MCPConfig(name=name, **mcp_fields))
+
+            if to_create:
+                MCPConfig.objects.bulk_create(to_create)
+            if to_update:
+                MCPConfig.objects.bulk_update(to_update, [
+                    'title', 'description', 'version', 'tags', 'repository_url',
+                    'manifest_data', 'config_template', 'server_name'
+                ])
+        except Exception as e:
+            print(f"Error bulk processing MCP configs: {e}")
 
 
 def get_filtered_marketplace_items(
