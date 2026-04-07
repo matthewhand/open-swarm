@@ -64,6 +64,7 @@ def test_cli_config_add_persists_secrets_to_env_file(tmp_path, key, value):
         rc, out, err = run_cli(
             {
                 "HOME": str(home),
+                "XDG_CONFIG_HOME": str(home / ".config"),
                 "SWARM_TEST_MODE": "1",
                 "SWARM_STARTUP_HINTS": "0",
             },
