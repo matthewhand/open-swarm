@@ -47,6 +47,7 @@ from swarm.views.web_views import (
     team_launcher,
     teams_export,
 )
+from swarm.views.webui import WebUIView
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
@@ -92,6 +93,9 @@ urlpatterns = [
     # Avatar generation endpoints
     path("blueprint-library/generate-avatar/<str:blueprint_name>/", generate_avatar, name="generate_avatar"),
     path("blueprint-library/comfyui-status/", check_comfyui_status, name="check_comfyui_status"),
+    
+    # Web UI endpoint
+    path("webui/", WebUIView.as_view(), name="webui"),
 ]
 
 # Serve avatar images in development

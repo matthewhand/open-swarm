@@ -649,11 +649,24 @@ class BlueprintBase(ABC):
         self._model_instance_cache[profile_name] = model_instance
         return model_instance
 
-    def make_agent(self, name, instructions, tools, mcp_servers=None, **kwargs):
+    def _get_memory_instance(self, memory_type: str, memory_config: dict = None):
+        """Helper to get a memory backend instance."""
+        if not memory_type or memory_type.lower() == 'none':
+            return None
+        from swarm.memory import get_memory_backend
+        return get_memory_backend(memory_type, memory_config)
+
+    def make_agent(self, name, instructions, tools, mcp_servers=None, memory_type=None, memory_config=None, **kwargs):
         """Factory for creating an Agent with the correct model instance from framework config."""
         from agents import Agent  # Ensure Agent is always in scope
         model_instance = self._get_model_instance(self._resolve_llm_profile())
-        return Agent(
+        
+        # Resolve memory settings
+        memory_type = memory_type or self.config.get("settings", {}).get("default_memory_type")
+        memory_config = memory_config or self.config.get("settings", {}).get("default_memory_config")
+        memory_instance = self._get_memory_instance(memory_type, memory_config)
+
+        agent = Agent(
             name=name,
             model=model_instance,
             instructions=instructions,
@@ -661,6 +674,13 @@ class BlueprintBase(ABC):
             mcp_servers=mcp_servers or [],
             **kwargs
         )
+        
+        # Attach memory if any
+        if memory_instance:
+            # We add it as a custom attribute if the SDK agent doesn't have it
+            agent.memory = memory_instance
+            
+        return agent
 
     def request_approval(self, action_type, action_summary, action_details=None):
         """

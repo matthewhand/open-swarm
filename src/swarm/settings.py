@@ -35,6 +35,10 @@ if ENABLE_API_AUTH:
 
 SWARM_CONFIG_PATH = get_swarm_config_path()
 BLUEPRINT_DIRECTORY = get_blueprint_directory()
+
+# Web UI Configuration
+ENABLE_WEBUI = os.getenv('ENABLE_WEBUI', 'true').lower() in ('true', '1', 'yes')
+WEBUI_STATIC_DIR = BASE_DIR.parent / 'staticfiles' / 'webui'
 # --- End Custom Swarm Settings ---
 
 INSTALLED_APPS = [
@@ -229,7 +233,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
-STATICFILES_DIRS = [ BASE_DIR / "swarm" / "static", ]
+STATICFILES_DIRS = [ 
+    BASE_DIR / "swarm" / "static",
+    BASE_DIR.parent / "staticfiles" / "webui" if (BASE_DIR.parent / "staticfiles" / "webui").exists() else None,
+]
+STATICFILES_DIRS = [d for d in STATICFILES_DIRS if d is not None]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
