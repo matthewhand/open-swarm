@@ -80,6 +80,11 @@ codey = "swarm.blueprints.codey.codey_cli:main"
 suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
 [project.optional-dependencies]
+memory = [
+    "mem0>=1.0.0",
+    "langmem>=0.1.0",
+    "papr>=0.1.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-django>=4.7.0",
