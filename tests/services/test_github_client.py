@@ -1,5 +1,13 @@
-import pytest
+import sys
 from unittest.mock import MagicMock, patch
+
+# Mock django and httpx if they are missing
+if "django" not in sys.modules:
+    sys.modules["django"] = MagicMock()
+    sys.modules["django.db"] = MagicMock()
+if "httpx" not in sys.modules:
+    sys.modules["httpx"] = MagicMock()
+
 from swarm.services.github_client import GitHubConfig, GitHubClient
 
 def test_github_config_defaults():

@@ -40,8 +40,3 @@ __all__ = [
     "ChatMessage",
 ]
 
-# Alias the module to prevent conflicting model registrations.
-import sys
-
-sys.modules["swarm.models"] = sys.modules[__name__]
-sys.modules["src.swarm.models"] = sys.modules["swarm.models"]
