@@ -240,7 +240,8 @@ class CustomBlueprintsView(APIView):
 
             lib = get_user_blueprint_library()
             custom = lib.get("custom", [])
-            if any(i.get("id") == bp_id for i in custom):
+            existing_ids = {i.get("id") for i in custom}
+            if bp_id in existing_ids:
                 return Response({"error": "id already exists"}, status=status.HTTP_409_CONFLICT)
 
             item = {
