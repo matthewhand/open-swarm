@@ -1,4 +1,5 @@
 # --- Content for src/swarm/blueprints/echocraft/blueprint_echocraft.py ---
+import asyncio
 import json  # Import json for writing to file
 import logging
 import os
@@ -331,7 +332,7 @@ class EchoCraftBlueprint(BlueprintBase):
             'alternatives': self.consider_alternatives(messages, result),
             'swarm_lessons': self.query_swarm_knowledge(messages)
         }
-        self.write_to_swarm_log(log)
+        await self.write_to_swarm_log(log)
 
     def success_criteria(self, result):
         if not result or (isinstance(result, dict) and 'error' in result):
@@ -358,11 +359,10 @@ class EchoCraftBlueprint(BlueprintBase):
         task_str = json.dumps(messages)
         return [entry for entry in knowledge if entry.get('task_str') == task_str]
 
-    def write_to_swarm_log(self, log):
+    async def write_to_swarm_log(self, log):
         import json
         import os
         import tempfile  # Import tempfile
-        import time
 
         from filelock import FileLock, Timeout
         # Use a temporary directory for the log file
@@ -371,23 +371,27 @@ class EchoCraftBlueprint(BlueprintBase):
         path = os.path.join(log_dir, 'swarm_log.json')
         lock_path = path + '.lock'
         log['task_str'] = json.dumps(log['task'])
+
+        def _do_write():
+            with FileLock(lock_path, timeout=5):
+                if os.path.exists(path):
+                    with open(path) as f:
+                        try:
+                            logs = json.load(f)
+                        except json.JSONDecodeError:
+                            logs = []
+                else:
+                    logs = []
+                logs.append(log)
+                with open(path, 'w') as f:
+                    json.dump(logs, f, indent=2)
+
         for attempt in range(10):
             try:
-                with FileLock(lock_path, timeout=5):
-                    if os.path.exists(path):
-                        with open(path) as f:
-                            try:
-                                logs = json.load(f)
-                            except json.JSONDecodeError:
-                                logs = []
-                    else:
-                        logs = []
-                    logs.append(log)
-                    with open(path, 'w') as f:
-                        json.dump(logs, f, indent=2)
+                await asyncio.to_thread(_do_write)
                 break
-            except Timeout:
-                time.sleep(0.2 * (attempt + 1))
+            except (Timeout, Exception):
+                await asyncio.sleep(0.2 * (attempt + 1))
 
     def create_starting_agent(self, mcp_servers):
         echo_agent = self.make_agent(

@@ -405,7 +405,7 @@ class MCPDemoBlueprint(BlueprintBase):
             'alternatives': self.consider_alternatives(messages, result),
             'swarm_lessons': self.query_swarm_knowledge(messages)
         }
-        self.write_to_swarm_log(log)
+        await self.write_to_swarm_log(log)
 
     def success_criteria(self, result):
         if not result or (isinstance(result, dict) and 'error' in result):
@@ -432,32 +432,35 @@ class MCPDemoBlueprint(BlueprintBase):
         task_str = json.dumps(messages)
         return [entry for entry in knowledge if entry.get('task_str') == task_str]
 
-    def write_to_swarm_log(self, log):
+    async def write_to_swarm_log(self, log):
         import json
         import os
-        import time
 
         from filelock import FileLock, Timeout
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_log.json')
         lock_path = path + '.lock'
         log['task_str'] = json.dumps(log['task'])
+
+        def _do_write():
+            with FileLock(lock_path, timeout=5):
+                if os.path.exists(path):
+                    with open(path) as f:
+                        try:
+                            logs = json.load(f)
+                        except json.JSONDecodeError:
+                            logs = []
+                else:
+                    logs = []
+                logs.append(log)
+                with open(path, 'w') as f:
+                    json.dump(logs, f, indent=2)
+
         for attempt in range(10):
             try:
-                with FileLock(lock_path, timeout=5):
-                    if os.path.exists(path):
-                        with open(path) as f:
-                            try:
-                                logs = json.load(f)
-                            except json.JSONDecodeError:
-                                logs = []
-                    else:
-                        logs = []
-                    logs.append(log)
-                    with open(path, 'w') as f:
-                        json.dump(logs, f, indent=2)
+                await asyncio.to_thread(_do_write)
                 break
-            except Timeout:
-                time.sleep(0.2 * (attempt + 1))
+            except (Timeout, Exception):
+                await asyncio.sleep(0.2 * (attempt + 1))
 
 # Standard Python entry point
 if __name__ == "__main__":
