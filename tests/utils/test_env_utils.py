@@ -10,6 +10,7 @@ from swarm.utils.env_utils import (
     get_swarm_config_path,
     get_swarm_log_level,
     is_django_debug,
+    is_enable_wagtail,
     is_truthy,
 )
 
@@ -35,6 +36,24 @@ def test_get_django_secret_key():
 def test_is_django_debug(value, expected):
     with patch.dict(os.environ, {"DJANGO_DEBUG": value}):
         assert is_django_debug() is expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("true", True),
+        ("1", True),
+        ("t", True),
+        ("yes", True),
+        ("y", True),
+        ("false", False),
+        ("0", False),
+        ("", False),
+    ],
+)
+def test_is_enable_wagtail(value, expected):
+    with patch.dict(os.environ, {"ENABLE_WAGTAIL": value}):
+        assert is_enable_wagtail() is expected
 
 
 def test_get_django_allowed_hosts():

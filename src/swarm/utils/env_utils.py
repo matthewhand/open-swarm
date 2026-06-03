@@ -162,7 +162,7 @@ def get_fly_api_token() -> str | None:
 # Feature Flags
 def is_enable_wagtail() -> bool:
     """Check if Wagtail is enabled."""
-    return os.getenv('ENABLE_WAGTAIL', 'false').lower() in ('1', 'true', 'yes')
+    return is_truthy(os.getenv('ENABLE_WAGTAIL', 'false'))
 
 
 def is_enable_saml_idp() -> bool:
