@@ -39,16 +39,16 @@ def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, 
         return []
     logger.debug(f"Validating message sequence with {len(messages)} messages")
 
-    # *** FIX: Filter non-dicts FIRST ***
+    # Filter non-dictionary items first
     dict_messages = [msg for msg in messages if isinstance(msg, dict)]
     if len(dict_messages) < len(messages):
         logger.warning(f"Removed {len(messages) - len(dict_messages)} non-dictionary items during validation.")
 
     try:
-        # *** FIX: Operate ONLY on dict_messages ***
+        # Extract valid tool call IDs from assistant messages
         valid_tool_call_ids = {
             tc["id"]
-            for msg in dict_messages # Use filtered list
+            for msg in dict_messages
             if msg.get("role") == "assistant" and isinstance(msg.get("tool_calls"), list)
             for tc in msg.get("tool_calls", [])
             if isinstance(tc, dict) and "id" in tc
@@ -58,7 +58,6 @@ def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, 
         valid_tool_call_ids = set()
 
     validated_messages = []
-    # *** FIX: Operate ONLY on dict_messages ***
     for msg in dict_messages:
         role = msg.get("role")
         if role == "tool":
@@ -67,7 +66,7 @@ def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, 
                 validated_messages.append(msg)
             else:
                 logger.warning(f"Removing orphan tool message: {str(msg)[:100]}")
-        # *** FIX: Add basic check for other essential roles before appending ***
+        # Add basic check for other essential roles before appending
         elif role in ["system", "user", "assistant"]:
              # We could add more role-specific checks here if needed (like _is_valid_message)
              # For now, just ensure it's one of the expected roles.
