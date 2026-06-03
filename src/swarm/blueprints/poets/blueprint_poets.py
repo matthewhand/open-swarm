@@ -328,11 +328,14 @@ class PoetsBlueprint(BlueprintBase):
                 cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE agent_name = ?", ("Gritty Buk",))
                 if cursor.fetchone()[0] == 0:
                     logger.info(f"No instructions found for Gritty Buk in {DB_PATH}. Loading sample data...")
-                    for name, base_instr in AGENT_BASE_INSTRUCTIONS.items():
-                        cursor.execute(
-                            f"INSERT OR REPLACE INTO {TABLE_NAME} (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
-                            (name, base_instr[0] if isinstance(base_instr, tuple) else base_instr, "default")
-                        )
+                    data_to_insert = [
+                        (name, base_instr[0] if isinstance(base_instr, tuple) else base_instr, "default")
+                        for name, base_instr in AGENT_BASE_INSTRUCTIONS.items()
+                    ]
+                    cursor.executemany(
+                        f"INSERT OR REPLACE INTO {TABLE_NAME} (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
+                        data_to_insert
+                    )
                     conn.commit()
                     logger.info(f"Sample agent instructions for Poets loaded into {DB_PATH}")
                 else:
