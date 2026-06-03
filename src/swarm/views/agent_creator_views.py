@@ -116,6 +116,7 @@ class BlueprintCodeValidator:
             # Run flake8 (lighter than pylint)
             result = subprocess.run(
                 ['flake8', '--select=E,W,F', '--ignore=E501,W503', temp_file],
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=10
@@ -619,9 +620,10 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
             "@function_tool\n"
             "def execute_shell_command(command: str) -> str:\n"
             "    try:\n"
-            "        import os, subprocess\n"
+            "        import os, shlex, subprocess\n"
             "        timeout = int(os.getenv(\"SWARM_COMMAND_TIMEOUT\", \"60\"))\n"
-            "        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)\n"
+            "        command_list = shlex.split(command)\n"
+            "        result = subprocess.run(command_list, shell=False, capture_output=True, text=True, timeout=timeout)\n"
             "        output = f\"Exit Code: {result.returncode}\\n\"\n"
             "        if result.stdout:\n"
             "            output += \"STDOUT:\\n\" + result.stdout + \"\\n\"\n"

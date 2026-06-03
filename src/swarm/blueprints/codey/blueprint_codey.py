@@ -13,6 +13,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 import asyncio
 import logging
 import os
+import shlex
 import sys
 import time
 from typing import TYPE_CHECKING
@@ -930,7 +931,8 @@ class CodeyBlueprint(BlueprintBase):
         self.check_approval("tool.shell.exec", command=command)
         # Simulate shell exec (for demo)
         import subprocess
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        command_list = shlex.split(command)
+        result = subprocess.run(command_list, shell=False, capture_output=True, text=True)
         print_operation_box(
             op_type="Shell Exec",
             results=[f"Command output: {result.stdout.strip()}"],

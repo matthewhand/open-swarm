@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import shlex
 import subprocess
 import sys
 from typing import Any, ClassVar
@@ -129,13 +130,14 @@ def _execute_shell_command_raw(command: str) -> str:
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
+        command_list = shlex.split(command)
         result = subprocess.run(
-            command,
+            command_list,
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
-            shell=True,
+            shell=False,
         )
         output = (
             f"Exit Code: {result.returncode}\n"

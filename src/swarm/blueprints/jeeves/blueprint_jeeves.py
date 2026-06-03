@@ -14,6 +14,7 @@ assert hasattr(__file__, "__str__")
 import asyncio
 import logging
 import os
+import shlex
 import sys
 import time
 from datetime import datetime
@@ -149,7 +150,8 @@ def list_files(directory: str = '.') -> str:
 def execute_shell_command(command: str) -> str:
     import subprocess
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        command_list = shlex.split(command)
+        result = subprocess.run(command_list, shell=False, capture_output=True, text=True)
         return result.stdout + result.stderr
     except Exception as e:
         return f"ERROR: {e}"

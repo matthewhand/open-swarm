@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, ClassVar
@@ -121,7 +122,8 @@ class ChatbotBlueprint(BlueprintBase):
     def execute_shell_command(self, command: str) -> str:
         import subprocess
         try:
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            command_list = shlex.split(command)
+            result = subprocess.run(command_list, shell=False, capture_output=True, text=True)
             return result.stdout + result.stderr
         except Exception as e:
             return f"ERROR: {e}"
