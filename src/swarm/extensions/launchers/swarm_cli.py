@@ -60,10 +60,16 @@ def _xdg_swarm_dir() -> Path:
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
         base = Path(os.path.expanduser(xdg))
+        # If XDG_CONFIG_HOME is set, we return base / "swarm"
+        return base / "swarm"
+
+    # Respect HOME env var for test isolation
+    home_dir = os.environ.get("HOME")
+    if home_dir:
+        base = Path(os.path.expanduser(home_dir)) / ".config"
     else:
-        # Respect HOME env var for test isolation
-        home = os.environ.get("HOME", "~")
-        base = Path(os.path.expanduser(home)) / ".config"
+        base = Path("~").expanduser() / ".config"
+
     return base / "swarm"
 
 def _write_env_kv(env_path: Path, key: str, value: str) -> None:
