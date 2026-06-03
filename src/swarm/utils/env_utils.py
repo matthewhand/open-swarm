@@ -17,6 +17,11 @@ def get_django_secret_key() -> str:
     return os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-dev')
 
 
+def get_test_user_password() -> str:
+    """Get default password for 'testuser' used in development."""
+    return os.getenv('SWARM_TEST_USER_PASSWORD', 'testpass')
+
+
 def is_django_debug() -> bool:
     """Check if Django debug is enabled."""
     return os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')

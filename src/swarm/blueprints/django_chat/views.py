@@ -4,6 +4,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
 from swarm.models import ChatConversation
+from swarm.utils.env_utils import get_test_user_password
 from swarm.utils.logger_setup import setup_logger
 
 logger = setup_logger(__name__)
@@ -14,7 +15,8 @@ def get_or_create_default_user():
     try:
         user = User.objects.get(username=username)
     except User.DoesNotExist:
-        user = User.objects.create_user(username=username, password="testpass")
+        password = get_test_user_password()
+        user = User.objects.create_user(username=username, password=password)
         logger.info(f"Created default user: {username}")
     return user
 

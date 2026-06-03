@@ -25,6 +25,7 @@ from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.core.blueprint_ux import BlueprintUXImproved
 from swarm.models import ChatConversation
+from swarm.utils.env_utils import get_test_user_password
 from swarm.utils.logger_setup import setup_logger
 
 # Django imports after CLI rejection
@@ -150,7 +151,8 @@ class DjangoChatBlueprint(Blueprint):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            user = User.objects.create_user(username=username, password="testpass")
+            password = get_test_user_password()
+            user = User.objects.create_user(username=username, password=password)
             logger.info(f"Created default user: {username}")
         return user
 

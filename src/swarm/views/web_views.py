@@ -19,6 +19,7 @@ from swarm.core.paths import get_user_config_dir_for_swarm
 # Import the setting for the blueprints directory
 from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.env_utils import *
+from swarm.utils.env_utils import get_test_user_password
 from swarm.utils.logger_setup import setup_logger
 
 from .utils import (
@@ -99,9 +100,10 @@ def custom_login(request):
             if not enable_auth:
                 logger.info("API Auth is disabled. Attempting auto-login for 'testuser'.")
                 try:
-                    # Attempt to log in 'testuser' with a known password (e.g., 'testpass')
+                    # Attempt to log in 'testuser' with a known password
                     # Ensure this user/password exists in your DB or fixture
-                    test_user = authenticate(request, username="testuser", password="testpass")
+                    test_password = get_test_user_password()
+                    test_user = authenticate(request, username="testuser", password=test_password)
                     if test_user is not None:
                         login(request, test_user)
                         next_url = request.GET.get("next", "/chatbot/")
