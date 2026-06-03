@@ -22,6 +22,10 @@ SWARM_MODULE = "src.swarm.extensions.launchers.swarm_cli"
 
 def run_cli(env_overrides: dict, args: list[str]) -> tuple[int, str, str]:
     env = os.environ.copy()
+    # Clear XDG_CONFIG_HOME if not explicitly provided in overrides to ensure
+    # that config is looked up relative to the isolated HOME provided.
+    if "XDG_CONFIG_HOME" not in env_overrides:
+        env.pop("XDG_CONFIG_HOME", None)
     env.update(env_overrides)
 
     cmd = [sys.executable, "-m", SWARM_MODULE] + args
