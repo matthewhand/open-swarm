@@ -310,12 +310,11 @@ class JeevesBlueprint(BlueprintBase):
             total_steps = 4
             params = None
             for i, spinner_state in enumerate(spinner_states, 1):
-                progress_line = f"Step {i}/{total_steps}"
                 display_operation_box(
                     title=kwargs.get("op_type") or "Jeeves Error",
-                    content="I need a user message to proceed.\nProcessed",
+                    content="I need a user message to proceed.",
                     params=params,
-                    progress_line=progress_line,
+                    progress_line=i,
                     total_lines=total_steps,
                     spinner_state=spinner_state,
                     emoji=emoji
@@ -323,9 +322,9 @@ class JeevesBlueprint(BlueprintBase):
                 await asyncio.sleep(0.05)
             display_operation_box(
                 title=kwargs.get("op_type") or "Jeeves Error",
-                content="I need a user message to proceed.\nProcessed",
+                content="I need a user message to proceed.",
                 params=params,
-                progress_line=f"Step {total_steps}/{total_steps}",
+                progress_line=total_steps,
                 total_lines=total_steps,
                 spinner_state=JeevesSpinner.LONG_WAIT_MSG,
                 emoji=emoji
@@ -357,8 +356,10 @@ class JeevesBlueprint(BlueprintBase):
             spinner_state = spinner.current_spinner_state()
             display_operation_box(
                 title="Jeeves Agent Run",
-                content=f"Instruction: {instruction}\nStep {i+1}/4",
+                content=f"Instruction: {instruction}",
                 params={"instruction": instruction},
+                progress_line=i + 1,
+                total_lines=4,
                 spinner_state=spinner_state,
                 emoji="🤖"
             )
@@ -448,8 +449,6 @@ class JeevesBlueprint(BlueprintBase):
             )
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}\nAgent-based LLM not available."}]}
 
-        # TODO: For future search/analysis ops, ensure ANSI/emoji boxes summarize results, counts, and parameters per Open Swarm UX standard.
-
     async def search(self, query, directory="."):
         # Raw spinner output for search compliance
         for state in JeevesSpinner.SPINNER_STATES:
@@ -461,23 +460,26 @@ class JeevesBlueprint(BlueprintBase):
         params = {"query": query, "directory": directory, "filetypes": ".py"}
         matches = [f"{file}: found '{query}'" for file in py_files[:3]]
         spinner_states = JeevesSpinner.SPINNER_STATES
+        total_spinner_steps = len(spinner_states) + 1
         for i, spinner_state in enumerate(spinner_states + [JeevesSpinner.LONG_WAIT_MSG], 1):
-            progress_line = f"Spinner {i}/{len(spinner_states) + 1}"
             display_operation_box(
                 title="Jeeves Search Progress",
-                content=f"Searching for '{query}' in {total_files} Python files...\nProcessed {min(i * (total_files // 4 + 1), total_files)}/{total_files}",
+                content=f"Searching for '{query}' in {total_files} Python files...",
                 params=params,
-                progress_line=progress_line,
-                total_lines=total_files,
+                op_type="code_search",
+                progress_line=i,
+                total_lines=total_spinner_steps,
                 spinner_state=spinner_state,
                 emoji='🕵️'
             )
             await asyncio.sleep(0.01)
         display_operation_box(
             title="Jeeves Search Results",
-            content="Code Search\n" + "\n".join(matches) + "\nFound 3 matches.\nProcessed",
+            content="Code Search\n" + "\n".join(matches),
             params=params,
-            progress_line=f"Processed {total_files}/{total_files} files.",
+            op_type="code_search",
+            result_count=len(matches),
+            progress_line=total_files,
             total_lines=total_files,
             spinner_state="Done",
             emoji='🕵️'
@@ -495,23 +497,26 @@ class JeevesBlueprint(BlueprintBase):
         params = {"query": query, "directory": directory, "filetypes": ".py", "semantic": True}
         matches = [f"[Semantic] {file}: relevant to '{query}'" for file in py_files[:3]]
         spinner_states = JeevesSpinner.SPINNER_STATES
+        total_spinner_steps = len(spinner_states) + 1
         for i, spinner_state in enumerate(spinner_states + [JeevesSpinner.LONG_WAIT_MSG], 1):
-            progress_line = f"Spinner {i}/{len(spinner_states) + 1}"
             display_operation_box(
                 title="Jeeves Semantic Search Progress",
-                content=f"Semantic code search for '{query}' in {total_files} Python files...\nProcessed {min(i * (total_files // 4 + 1), total_files)}/{total_files} files...\nFound {len(matches)} semantic matches so far.\nProcessed",
+                content=f"Semantic code search for '{query}' in {total_files} Python files...",
                 params=params,
-                progress_line=progress_line,
-                total_lines=total_files,
+                op_type="semantic_search",
+                progress_line=i,
+                total_lines=total_spinner_steps,
                 spinner_state=spinner_state,
                 emoji='🕵️'
             )
             await asyncio.sleep(0.01)
         display_operation_box(
             title="Jeeves Semantic Search Results",
-            content="Semantic Search\nSemantic code search for '{query}' in {total_files} Python files...\n" + "\n".join(matches) + "\nFound 3 matches.\nProcessed",
+            content="Semantic Search\n" + "\n".join(matches),
             params=params,
-            progress_line=f"Processed {total_files}/{total_files} files.",
+            op_type="semantic_search",
+            result_count=len(matches),
+            progress_line=total_files,
             total_lines=total_files,
             spinner_state="Done",
             emoji='🕵️'
