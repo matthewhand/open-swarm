@@ -2,6 +2,7 @@
 import json  # Import json for writing to file
 import logging
 import os
+import shlex
 import subprocess
 import sys  # Import sys for stderr
 import threading
@@ -51,7 +52,7 @@ def execute_shell_command(command: str) -> str:
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout)
         output = f"Exit Code: {result.returncode}\n"
         if result.stdout:
             output += f"STDOUT:\n{result.stdout}\n"
@@ -245,7 +246,7 @@ class EchoCraftBlueprint(BlueprintBase):
         try:
             import os
             timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+            result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout)
             output = f"Exit Code: {result.returncode}\n"
             if result.stdout:
                 output += f"STDOUT:\n{result.stdout}\n"

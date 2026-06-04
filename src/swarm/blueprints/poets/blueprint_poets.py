@@ -7,6 +7,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 import logging
 import os
 import random
+import shlex
 import sqlite3  # Use standard sqlite3 module
 import sys
 from pathlib import Path
@@ -162,7 +163,7 @@ def execute_shell_command(command: str) -> str:
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout)
         output = f"Exit Code: {result.returncode}\n"
         if result.stdout:
             output += f"STDOUT:\n{result.stdout}\n"
