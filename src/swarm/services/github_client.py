@@ -297,7 +297,7 @@ def create_blueprint_from_manifest(manifest_data: dict[str, Any], source_repo: d
         description=manifest_data.get('description', ''),
         version=manifest_data.get('version', '1.0.0'),
         tags=','.join(manifest_data.get('tags', [])),
-        repository_url=source_repo.get('html_url') if source_repo else '' if source_repo else '',
+        repository_url=source_repo.get('html_url') if source_repo else '',
         manifest_data=manifest_data,
         code_template=manifest_data.get('code_template', ''),
         required_mcp_servers=manifest_data.get('required_mcp_servers', []),
