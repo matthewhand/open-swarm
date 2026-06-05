@@ -1,9 +1,10 @@
+from pathlib import Path
+
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import FileResponse, HttpResponse
 from django.urls import path, re_path
-from django.http import HttpResponse, FileResponse
 from django.views.static import serve
-from pathlib import Path
 
 from swarm.views.agent_creator_pro import agent_creator_pro_page
 from swarm.views.agent_creator_views import (
@@ -93,7 +94,7 @@ urlpatterns = [
     # Avatar generation endpoints
     path("blueprint-library/generate-avatar/<str:blueprint_name>/", generate_avatar, name="generate_avatar"),
     path("blueprint-library/comfyui-status/", check_comfyui_status, name="check_comfyui_status"),
-    
+
     # Web UI endpoint
     path("webui/", WebUIView.as_view(), name="webui"),
 ]
@@ -150,22 +151,22 @@ def _get_frontend_path():
     return frontend_path if frontend_path.exists() else None
 
 frontend_path = _get_frontend_path()
-if frontend_path and frontend_path.exists():
+if frontend_path and frontend_path.exists() and not os.environ.get('SWARM_DISABLE_SPA_FALLBACK'):
+    from django.urls import re_path
     from django.views.static import serve
-    from django.conf.urls import re_path
-    
+
     # Serve static assets
     urlpatterns += [
         re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': str(frontend_path / 'assets')}),
     ]
-    
+
     # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
     def spa_fallback(request, path):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             return FileResponse(open(index_file, 'rb'), content_type='text/html')
         return HttpResponse("Not Found", status=404)
-    
+
     urlpatterns += [
         re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/).*$', spa_fallback),
     ]

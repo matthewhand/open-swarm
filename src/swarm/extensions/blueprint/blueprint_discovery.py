@@ -10,7 +10,8 @@ import inspect
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
+
 from swarm.settings import DEBUG
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ except ImportError as e:
     logger.critical(f"Failed to import BlueprintBase: {e}")
     raise
 
-def discover_blueprints(directories: List[str]) -> Dict[str, Dict[str, Any]]:
+def discover_blueprints(directories: list[str]) -> dict[str, dict[str, Any]]:
     """
     Discover and load blueprints from specified directories.
     Extract metadata including title, description, and other attributes.

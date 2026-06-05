@@ -660,7 +660,7 @@ class BlueprintBase(ABC):
         """Factory for creating an Agent with the correct model instance from framework config."""
         from agents import Agent  # Ensure Agent is always in scope
         model_instance = self._get_model_instance(self._resolve_llm_profile())
-        
+
         # Resolve memory settings
         memory_type = memory_type or self.config.get("settings", {}).get("default_memory_type")
         memory_config = memory_config or self.config.get("settings", {}).get("default_memory_config")
@@ -674,12 +674,12 @@ class BlueprintBase(ABC):
             mcp_servers=mcp_servers or [],
             **kwargs
         )
-        
+
         # Attach memory if any
         if memory_instance:
             # We add it as a custom attribute if the SDK agent doesn't have it
             agent.memory = memory_instance
-            
+
         return agent
 
     def request_approval(self, action_type, action_summary, action_details=None):

@@ -334,7 +334,7 @@ def print_operation_box(*args, **kwargs):
             else:
                 title = kwargs.get('title', 'No Title')
                 content = kwargs.get('content', '')
-            
+
             style = kwargs.get('style', 'blue')
             result_count = kwargs.get('result_count')
             params = kwargs.get('params')
@@ -359,8 +359,8 @@ def print_operation_box(*args, **kwargs):
                 box_content = f"{emoji} {box_content}"
 
             # Use the provided console to print the panel
-            from rich.panel import Panel
             from rich import box as rich_box
+            from rich.panel import Panel
             console.print(Panel(box_content, title=title, style=style, box=rich_box.ROUNDED))
         else:
             display_operation_box(*args, **kwargs)

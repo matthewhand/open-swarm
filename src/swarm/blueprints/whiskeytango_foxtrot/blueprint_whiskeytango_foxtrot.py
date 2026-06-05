@@ -5,11 +5,13 @@ A chaotic spy-themed blueprint with a multi-tiered agent hierarchy for tracking 
 Uses BlueprintBase and agent-as-tool delegation.
 """
 
-from agents.mcp import MCPServer
-import os
-from dotenv import load_dotenv; load_dotenv(override=True)
-
 import logging
+import os
+
+from agents.mcp import MCPServer
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 import sqlite3
 import sys
 import time
@@ -22,7 +24,7 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI

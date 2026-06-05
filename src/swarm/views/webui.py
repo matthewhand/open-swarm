@@ -1,7 +1,9 @@
-from django.views.generic import TemplateView
+import os
+
 from django.conf import settings
 from django.http import HttpResponseNotFound
-import os
+from django.views.generic import TemplateView
+
 
 class WebUIView(TemplateView):
     template_name = "webui/index.html"

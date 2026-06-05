@@ -1,22 +1,16 @@
 # src/swarm/extensions/config/config_manager.py
 
 import json
+import logging
 import shutil
 import sys
-import logging
-from typing import Any, Dict
+from typing import Any
 
+from swarm.extensions.cli.utils import display_message, prompt_user
 from swarm.extensions.config.config_loader import (
-    load_server_config,
-    resolve_placeholders
+    resolve_placeholders,
 )
-from swarm.utils.color_utils import color_text
 from swarm.settings import DEBUG
-from swarm.extensions.cli.utils import (
-    prompt_user,
-    log_and_exit,
-    display_message
-)
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
@@ -46,7 +40,7 @@ def backup_configuration(config_path: str) -> None:
         display_message(f"Failed to create backup: {e}", "error")
         sys.exit(1)
 
-def load_config(config_path: str) -> Dict[str, Any]:
+def load_config(config_path: str) -> dict[str, Any]:
     """
     Load the server configuration from a JSON file and resolve placeholders.
 
@@ -61,7 +55,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         ValueError: If the file contains invalid JSON or unresolved placeholders.
     """
     try:
-        with open(config_path, "r") as file:
+        with open(config_path) as file:
             config = json.load(file)
             logger.debug(f"Raw configuration loaded: {config}")
     except FileNotFoundError:
@@ -84,7 +78,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
 
     return resolved_config
 
-def save_config(config_path: str, config: Dict[str, Any]) -> None:
+def save_config(config_path: str, config: dict[str, Any]) -> None:
     """
     Save the updated configuration to the config file.
 

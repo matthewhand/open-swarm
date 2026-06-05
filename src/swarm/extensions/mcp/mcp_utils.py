@@ -4,11 +4,11 @@ Handles discovery and merging of tools and resources from MCP servers.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, cast
-import asyncio # Needed for async operations
+from typing import Any
 
 # Import necessary types from the core swarm types
 from swarm.types import Agent, AgentFunction
+
 # Import the MCPToolProvider which handles communication with MCP servers
 from .mcp_tool_provider import MCPToolProvider
 
@@ -26,7 +26,7 @@ if not logger.handlers:
 # Dictionary to manage locks for concurrent discovery per agent (optional)
 # _discovery_locks: Dict[str, asyncio.Lock] = {}
 
-async def discover_and_merge_agent_tools(agent: Agent, config: Dict[str, Any], debug: bool = False) -> List[AgentFunction]:
+async def discover_and_merge_agent_tools(agent: Agent, config: dict[str, Any], debug: bool = False) -> list[AgentFunction]:
     """
     Discover tools from MCP servers listed in the agent's config and merge
     them with the agent's statically defined functions.
@@ -67,7 +67,7 @@ async def discover_and_merge_agent_tools(agent: Agent, config: Dict[str, Any], d
         return static_functions
 
     # List to hold tools discovered from all MCP servers
-    all_discovered_tools: List[AgentFunction] = []
+    all_discovered_tools: list[AgentFunction] = []
     # Set to keep track of discovered tool names for deduplication
     discovered_tool_names = set()
 
@@ -110,7 +110,7 @@ async def discover_and_merge_agent_tools(agent: Agent, config: Dict[str, Any], d
                      if not hasattr(tool, "requires_approval"):
                          logger.debug(f"Tool '{tool_name}' from '{server_name}' missing 'requires_approval', defaulting to True.")
                          try:
-                              setattr(tool, "requires_approval", True)
+                              tool.requires_approval = True
                          except AttributeError:
                               logger.warning(f"Could not set 'requires_approval' on tool '{tool_name}'.")
 
@@ -144,7 +144,7 @@ async def discover_and_merge_agent_tools(agent: Agent, config: Dict[str, Any], d
     return final_functions
 
 
-async def discover_and_merge_agent_resources(agent: Agent, config: Dict[str, Any], debug: bool = False) -> List[Dict[str, Any]]:
+async def discover_and_merge_agent_resources(agent: Agent, config: dict[str, Any], debug: bool = False) -> list[dict[str, Any]]:
     """
     Discover resources from MCP servers listed in the agent's config and merge
     them with the agent's statically defined resources.
@@ -184,7 +184,7 @@ async def discover_and_merge_agent_resources(agent: Agent, config: Dict[str, Any
         return static_resources
 
     # List to hold resources discovered from all MCP servers
-    all_discovered_resources: List[Dict[str, Any]] = []
+    all_discovered_resources: list[dict[str, Any]] = []
 
     # Iterate through each MCP server listed for the agent
     for server_name in mcp_server_names:
@@ -231,7 +231,7 @@ async def discover_and_merge_agent_resources(agent: Agent, config: Dict[str, Any
 
     # Deduplicate discovered resources based on 'uri'
     # Use a dictionary to keep only the first occurrence of each URI
-    unique_discovered_resources_map: Dict[str, Dict[str, Any]] = {}
+    unique_discovered_resources_map: dict[str, dict[str, Any]] = {}
     for resource in all_discovered_resources:
         uri = resource.get('uri') # URI is expected from validation above
         if uri not in unique_discovered_resources_map:

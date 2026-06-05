@@ -8,13 +8,15 @@ Redirects MCP server stderr to log files unless debug mode is enabled.
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Callable
+from collections.abc import Callable
 from contextlib import contextmanager
-import sys
+from typing import Any
 
 from mcp import ClientSession, StdioServerParameters  # type: ignore
 from mcp.client.stdio import stdio_client  # type: ignore
+
 from swarm.types import Tool
+
 from .cache_utils import get_cache
 
 logger = logging.getLogger(__name__)
@@ -25,7 +27,7 @@ class MCPClient:
     Manages connections and interactions with MCP servers using the MCP Python SDK.
     """
 
-    def __init__(self, server_config: Dict[str, Any], timeout: int = 15, debug: bool = False):
+    def __init__(self, server_config: dict[str, Any], timeout: int = 15, debug: bool = False):
         """
         Initialize the MCPClient with server configuration.
 
@@ -39,7 +41,7 @@ class MCPClient:
         self.env = {**os.environ.copy(), **server_config.get("env", {})}
         self.timeout = timeout
         self.debug = debug
-        self._tool_cache: Dict[str, Tool] = {}
+        self._tool_cache: dict[str, Tool] = {}
 
         # Initialize cache using the helper
         self.cache = get_cache()
@@ -48,7 +50,8 @@ class MCPClient:
 
     @contextmanager
     def _redirect_stderr(self):
-        import sys, os
+        import os
+        import sys
         if not self.debug:
             old_stderr = sys.stderr
             sys.stderr = open(os.devnull, "w")
@@ -60,7 +63,7 @@ class MCPClient:
         else:
             yield
 
-    async def list_tools(self) -> List[Tool]:
+    async def list_tools(self) -> list[Tool]:
         """
         Discover tools from the MCP server and cache their schemas.
 
@@ -182,7 +185,7 @@ class MCPClient:
 
         return dynamic_tool_func
 
-    def _validate_input_schema(self, schema: Dict[str, Any], kwargs: Dict[str, Any]):
+    def _validate_input_schema(self, schema: dict[str, Any], kwargs: dict[str, Any]):
         """
         Validate the provided arguments against the input schema.
         """

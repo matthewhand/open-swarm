@@ -2,6 +2,7 @@
 
 from typing import Any
 
+
 class DummyCache:
     """A dummy cache that performs no operations."""
     def get(self, key: str, default: Any = None) -> Any:
@@ -16,7 +17,6 @@ def get_cache():
     returns a DummyCache instance.
     """
     try:
-        import django
         from django.conf import settings
         from django.core.cache import cache as django_cache
         from django.core.exceptions import ImproperlyConfigured
@@ -24,7 +24,7 @@ def get_cache():
         if not settings.configured:
             # Django settings are not configured; return DummyCache
             return DummyCache()
-        
+
         return django_cache
 
     except (ImportError, ImproperlyConfigured):

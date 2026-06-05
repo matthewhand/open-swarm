@@ -251,11 +251,12 @@ class MissionImprobableBlueprint(BlueprintBase):
             import os
 
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+            from openai import AsyncOpenAI as _AsyncOpenAI
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("No OPENAI_API_KEY found and config not loaded") from None
             logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
-            client = AsyncOpenAI(api_key=api_key)
+            client = _AsyncOpenAI(api_key=api_key)
             model_instance = OpenAIChatCompletionsModel(model="gpt-3.5-turbo", openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance

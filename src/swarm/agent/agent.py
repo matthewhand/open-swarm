@@ -1,14 +1,16 @@
 # src/swarm/agent/agent.py
 
-from typing import Callable, Dict, Any, List
 import json
+from collections.abc import Callable
+from typing import Any
+
 
 class Agent:
     def __init__(self, name: str, instructions: str):
         self.name = name
         self.instructions = instructions
-        self.tools: Dict[str, Dict[str, Any]] = {}
-    
+        self.tools: dict[str, dict[str, Any]] = {}
+
     def register_tool(self, name: str, func: Callable[..., Any], description: str = ""):
         """
         Registers a tool with the agent.
@@ -22,7 +24,7 @@ class Agent:
             "func": func,
             "description": description
         }
-    
+
     async def process(self, query: str) -> str:
         """
         Processes a user query by determining which tool to invoke.

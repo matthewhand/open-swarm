@@ -271,5 +271,143 @@ def list_blueprints(
         typer.echo("")
 
 
+@app.command()
+def wizard(
+    name: str = typer.Option(None, "--name", "-n", help="Team name"),
+    description: str = typer.Option(None, "--description", "-d", help="Short description"),
+    abbreviation: str = typer.Option(None, "--abbreviation", "-a", help="CLI shortcut name"),
+    agents: str = typer.Option(None, "--agents", "-r", help="Comma-separated Name:role entries"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Do not prompt; require flags"),
+    use_llm: bool = typer.Option(False, "--use-llm", help="Use LLM to refine spec"),
+    model: str = typer.Option(None, "--model", help="LLM model for constrained JSON"),
+    no_shortcut: bool = typer.Option(False, "--no-shortcut", help="Skip creating CLI shortcut"),
+    output_dir: str = typer.Option(None, "--output-dir", help="Output directory for blueprint"),
+    bin_dir: str = typer.Option(None, "--bin-dir", help="Directory for CLI shortcut"),
+):
+    """Interactive wizard to create a new team blueprint and optional CLI shortcut."""
+    import argparse
+
+    from swarm.extensions.cli.commands.team_wizard import execute as wizard_execute
+
+    args = argparse.Namespace(
+        name=name, description=description, abbreviation=abbreviation,
+        agents=agents, non_interactive=non_interactive, use_llm=use_llm,
+        model=model, no_shortcut=no_shortcut,
+        output_dir=Path(output_dir) if output_dir else None,
+        bin_dir=Path(bin_dir) if bin_dir else None,
+        preset=None, template="simple", from_description=None,
+        overwrite=False, dry_run=False, print_spec=False,
+        verify_import=False, scaffold_tests=False,
+    )
+    wizard_execute(args)
+
+
+config_app = typer.Typer(help="Manage LLM profiles, MCP servers, and other settings.")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("add")
+def config_add(
+    section: str = typer.Option(..., "--section", help="Config section (llm, mcpServers, slashCommands)"),
+    name: str = typer.Option(..., "--name", help="Entry name within the section"),
+    json_value: str = typer.Option(..., "--json", help="JSON value for the entry"),
+):
+    """Add or update an entry in swarm_config.json."""
+    import json
+    config_path = paths.get_user_config_dir_for_swarm() / "swarm_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if config_path.exists():
+        with open(config_path) as f:
+            config = json.load(f)
+    else:
+        config = {}
+
+    try:
+        value = json.loads(json_value)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Error: Invalid JSON: {e}")
+        raise typer.Exit(code=1)
+
+    if section not in config:
+        config[section] = {}
+    config[section][name] = value
+
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+    typer.echo(f"Added '{name}' to section '{section}' in {config_path}")
+
+
+@config_app.command("list")
+def config_list(
+    section: str = typer.Option(None, "--section", help="Show only this section"),
+):
+    """List current configuration."""
+    import json
+    config_path = paths.get_user_config_dir_for_swarm() / "swarm_config.json"
+    if not config_path.exists():
+        typer.echo(f"No config file found at {config_path}")
+        raise typer.Exit(code=1)
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    if section:
+        data = config.get(section, {})
+        typer.echo(json.dumps({section: data}, indent=2))
+    else:
+        typer.echo(json.dumps(config, indent=2))
+
+
+@config_app.command("remove")
+def config_remove(
+    section: str = typer.Option(..., "--section", help="Config section"),
+    name: str = typer.Option(..., "--name", help="Entry name to remove"),
+):
+    """Remove an entry from swarm_config.json."""
+    import json
+    config_path = paths.get_user_config_dir_for_swarm() / "swarm_config.json"
+    if not config_path.exists():
+        typer.echo(f"No config file found at {config_path}")
+        raise typer.Exit(code=1)
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    if section not in config or name not in config[section]:
+        typer.echo(f"Entry '{name}' not found in section '{section}'")
+        raise typer.Exit(code=1)
+
+    del config[section][name]
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+    typer.echo(f"Removed '{name}' from section '{section}'")
+
+
+@app.command()
+def add(
+    blueprint_path: str = typer.Argument(..., help="Path to the blueprint file or directory."),
+    name: str = typer.Option(None, "--name", help="Optional name for the blueprint."),
+):
+    """Add a blueprint source to the managed blueprints directory."""
+    import shutil
+
+    source = Path(blueprint_path).resolve()
+    if not source.exists():
+        typer.echo(f"Error: Path not found: {source}")
+        raise typer.Exit(code=1)
+
+    bp_name = name or source.stem.replace("blueprint_", "")
+    dest = paths.get_user_blueprints_dir() / bp_name
+    dest.mkdir(parents=True, exist_ok=True)
+
+    if source.is_file():
+        shutil.copy2(source, dest / source.name)
+    elif source.is_dir():
+        shutil.copytree(source, dest, dirs_exist_ok=True)
+
+    typer.echo(f"Added blueprint '{bp_name}' to {dest}")
+
+
 if __name__ == "__main__":
     app()

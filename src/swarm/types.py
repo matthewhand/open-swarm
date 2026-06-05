@@ -1,11 +1,12 @@
-from openai.types.chat import ChatCompletionMessage
-from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,
-    Function,
-)
-from typing import List, Callable, Union, Optional, Dict, Any
+from collections.abc import Callable
+from typing import Any, Union
 
-from pydantic import BaseModel, ConfigDict
+from openai.types.chat import ChatCompletionMessage  # noqa: F401
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,  # noqa: F401
+    Function,  # noqa: F401
+)
+from pydantic import BaseModel
 
 # AgentFunction = Callable[[], Union[str, "Agent", dict]]
 AgentFunction = Callable[..., Union[str, "Agent", dict]]
@@ -15,22 +16,22 @@ class Agent(BaseModel):
 
     name: str = "Agent"
     model: str = "default"
-    instructions: Union[str, Callable[[], str]] = "You are a helpful agent."
-    functions: List[AgentFunction] = []
-    resources: List[Dict[str, Any]] = []  # New attribute for static and MCP-discovered resources
+    instructions: str | Callable[[], str] = "You are a helpful agent."
+    functions: list[AgentFunction] = []
+    resources: list[dict[str, Any]] = []  # New attribute for static and MCP-discovered resources
     tool_choice: str = None
     # parallel_tool_calls: bool = True  # Commented out as in your version
     parallel_tool_calls: bool = False
-    mcp_servers: Optional[List[str]] = None  # List of MCP server names
-    env_vars: Optional[Dict[str, str]] = None  # Environment variables required
-    response_format: Optional[Dict[str, Any]] = None  # Structured Output
-    memory_type: Optional[str] = None  # Optional memory backend (mem0, langmem, papr)
-    memory_config: Optional[Dict[str, Any]] = None  # Config for memory backend
+    mcp_servers: list[str] | None = None  # List of MCP server names
+    env_vars: dict[str, str] | None = None  # Environment variables required
+    response_format: dict[str, Any] | None = None  # Structured Output
+    memory_type: str | None = None  # Optional memory backend (mem0, langmem, papr)
+    memory_config: dict[str, Any] | None = None  # Config for memory backend
 
 class Response(BaseModel):
-    id: Optional[str] = None  # id needed for REST
-    messages: List = []  # Adjusted to allow any list (flexible for messages)
-    agent: Optional[Agent] = None
+    id: str | None = None  # id needed for REST
+    messages: list = []  # Adjusted to allow any list (flexible for messages)
+    agent: Agent | None = None
     context_variables: dict = {}
 
     def __init__(self, **kwargs):
@@ -50,7 +51,7 @@ class Result(BaseModel):
         context_variables (dict): A dictionary of context variables.
     """
     value: str = ""
-    agent: Optional[Agent] = None
+    agent: Agent | None = None
     context_variables: dict = {}
 
 class Tool:
@@ -59,7 +60,7 @@ class Tool:
         name: str,
         func: Callable,
         description: str = "",
-        input_schema: Optional[Dict[str, Any]] = None,
+        input_schema: dict[str, Any] | None = None,
         dynamic: bool = False,
     ):
         """

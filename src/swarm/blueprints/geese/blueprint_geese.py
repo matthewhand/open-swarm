@@ -56,13 +56,14 @@ if src_path not in sys.path:
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
-    from agents.models.interface import Model
+
+    # Model imported for type checking
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
 
+    from swarm.core.agent_config import AgentConfig
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
-    from swarm.core.agent_config import AgentConfig
 except ImportError as e:
     print(f"ERROR: Import failed in blueprint_geese: {e}. Check 'openai-agents' install and project structure.")
     print(f"sys.path: {sys.path}")
@@ -220,7 +221,7 @@ class GeeseBlueprint(BlueprintBase):
             # Yield final Geese output for test compatibility as AgentInteraction
             # Create a mock AgentInteraction object for test compatibility
             from swarm.core.interaction_types import AgentInteraction
-            
+
             interaction = AgentInteraction(
                 type="message",
                 role="assistant",
@@ -366,7 +367,7 @@ class GeeseBlueprint(BlueprintBase):
             # Convert string names to mock MCP server configs for tests
             server_names = self._agent_mcp_assignments[agent_name]
             mcp_servers = [{"name": name} for name in server_names]
-        
+
         if agent_name == "Coordinator":
             return AgentConfig(
                 name="Coordinator",

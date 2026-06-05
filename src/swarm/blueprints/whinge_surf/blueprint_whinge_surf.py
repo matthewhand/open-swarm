@@ -1,5 +1,7 @@
+import asyncio
 import contextlib
 import json
+import logging
 import os
 import signal
 import subprocess
@@ -9,14 +11,15 @@ import time
 import psutil  # For resource usage
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
+
+# Import LLM integration
+from swarm.blueprints.whinge_surf.llm_integration import (
+    get_llm_backend,
+)
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.blueprint_ux import BlueprintUXImproved
 
-# Import LLM integration
-from src.swarm.blueprints.whinge_surf.llm_integration import (
-    WhingeSurfLLMBackend,
-    get_llm_backend
-)
+logger = logging.getLogger(__name__)
 
 
 class WhingeSpinner:
@@ -312,7 +315,7 @@ class WhingeSurfBlueprint(BlueprintBase):
         functions = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
         func_names = [f.name for f in functions]
         # TODOs/FIXMEs with line numbers
-        todos = [(i+1, l.strip()) for i,l in enumerate(lines) if 'TODO' in l or 'FIXME' in l]
+        todos = [(i+1, line.strip()) for i, line in enumerate(lines) if "TODO" in line or "FIXME" in line]
         # Docstring/type hint coverage
         docstring_count = sum(1 for f in functions if ast.get_docstring(f))
         typehint_count = sum(1 for f in functions if f.returns or any(a.annotation for a in f.args.args))

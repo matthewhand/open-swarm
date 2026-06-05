@@ -93,10 +93,10 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
             content="",
             spinner_state=ux.spinner(0)
         )
-        
+
         # Always yield a spinner message first for test compatibility
         yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
-        
+
         spinner_idx = 0
         start_time = time.time()
         spinner_yield_interval = 1.0  # seconds

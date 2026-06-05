@@ -3,9 +3,8 @@ Agent utility functions for Swarm blueprints
 """
 
 import logging
-import os
-from typing import Dict, List, Any, Callable, Optional
-import asyncio
+from typing import Any
+
 from swarm.types import Agent
 
 logger = logging.getLogger(__name__)
@@ -14,11 +13,11 @@ def get_agent_name(agent: Agent) -> str:
     """Extract an agent's name, defaulting to its class name if not explicitly set."""
     return getattr(agent, 'name', agent.__class__.__name__)
 
-async def discover_tools_for_agent(agent: Agent, blueprint: Any) -> List[Any]:
+async def discover_tools_for_agent(agent: Agent, blueprint: Any) -> list[Any]:
     """Asynchronously discover tools available for an agent within a blueprint."""
     return getattr(blueprint, '_discovered_tools', {}).get(get_agent_name(agent), [])
 
-async def discover_resources_for_agent(agent: Agent, blueprint: Any) -> List[Any]:
+async def discover_resources_for_agent(agent: Agent, blueprint: Any) -> list[Any]:
     """Asynchronously discover resources available for an agent within a blueprint."""
     return getattr(blueprint, '_discovered_resources', {}).get(get_agent_name(agent), [])
 

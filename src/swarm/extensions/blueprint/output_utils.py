@@ -5,12 +5,12 @@ Output utilities for Swarm blueprints.
 import json
 import logging
 import sys
-from typing import List, Dict, Any
+from typing import Any
 
 # Optional import for markdown rendering
 try:
-    from rich.markdown import Markdown
     from rich.console import Console
+    from rich.markdown import Markdown
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -26,7 +26,7 @@ def render_markdown(content: str) -> None:
     md = Markdown(content)
     console.print(md)
 
-def pretty_print_response(messages: List[Dict[str, Any]], use_markdown: bool = False, spinner=None) -> None:
+def pretty_print_response(messages: list[dict[str, Any]], use_markdown: bool = False, spinner=None) -> None:
     """Format and print messages, optionally rendering assistant content as markdown."""
     if spinner:
         spinner.stop()

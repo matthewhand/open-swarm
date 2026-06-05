@@ -11,7 +11,6 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-from pathlib import Path
 
 try:
     from agents import Agent
@@ -59,35 +58,23 @@ brian_instructions = (
 # --- Define the Blueprint ---
 class StewieBlueprint(BlueprintBase):
     def __init__(self, blueprint_id: str = "stewie", config=None, config_path=None, **kwargs):
-        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
-        self.blueprint_id = blueprint_id
-        self.config_path = config_path
-        self._config = config if config is not None else {}
-        self._llm_profile_name = None
-        self._llm_profile_data = None
-        self._markdown_output = None
-        # Add other attributes as needed for Stewie
-        # ...
-
-    def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
         import os
         # Try to force config_path to the correct file if not set
         if config_path is None:
-            # Try CWD first (containerized runs may mount config here)
             cwd_path = os.path.abspath(os.path.join(os.getcwd(), 'swarm_config.json'))
             if os.path.exists(cwd_path):
                 config_path = cwd_path
             else:
-                # Fallback to project root relative to blueprint
                 default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../swarm_config.json'))
                 if os.path.exists(default_path):
                     config_path = default_path
                 else:
-                    # Final fallback: try /mnt/models/open-swarm-mcp/swarm_config.json (where the file is present)
                     mnt_path = '/mnt/models/open-swarm-mcp/swarm_config.json'
                     if os.path.exists(mnt_path):
                         config_path = mnt_path
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
+        self.blueprint_id = blueprint_id
+        self._markdown_output = None
         # Force config reload using BlueprintBase fallback logic
         # Patch: assign config to _config and always use self._config
         self._config = self._load_configuration()

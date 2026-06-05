@@ -233,7 +233,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
-STATICFILES_DIRS = [ 
+STATICFILES_DIRS = [
     BASE_DIR / "swarm" / "static",
     BASE_DIR.parent / "staticfiles" / "webui" if (BASE_DIR.parent / "staticfiles" / "webui").exists() else None,
 ]

@@ -2,35 +2,36 @@
 Swarm Blueprint Base Module (Sync Interactive Mode)
 """
 
+import argparse
 import asyncio
-import json
 import logging
-from src.swarm.utils.message_sequence import repair_message_payload, validate_message_sequence
-from src.swarm.utils.context_utils import truncate_message_history, get_token_count
 import os
-import uuid
 import sys
+import uuid
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List
-
 from pathlib import Path
+from typing import Any
+
+from dotenv import load_dotenv
+
 from swarm.core import Swarm
-from swarm.extensions.config.config_loader import load_server_config
-from swarm.settings import DEBUG
-from swarm.utils.redact import redact_sensitive_data
-from swarm.utils.context_utils import get_token_count, truncate_message_history
 from swarm.extensions.blueprint.agent_utils import (
-    get_agent_name,
-    discover_tools_for_agent,
     discover_resources_for_agent,
-    initialize_agents
+    discover_tools_for_agent,
+    get_agent_name,
+    initialize_agents,
 )
 from swarm.extensions.blueprint.django_utils import register_django_components
 from swarm.extensions.blueprint.spinner import Spinner
-from swarm.extensions.blueprint.output_utils import pretty_print_response
-from dotenv import load_dotenv
-import argparse
+from swarm.extensions.config.config_loader import load_server_config
+from swarm.settings import DEBUG
 from swarm.types import Agent, Response
+from swarm.utils.context_utils import truncate_message_history
+from swarm.utils.message_sequence import (
+    repair_message_payload,
+    validate_message_sequence,
+)
+from swarm.utils.redact import redact_sensitive_data
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class BlueprintBase(ABC):
         update_user_goal_frequency: int = 5,
         skip_django_registration: bool = False,
         record_chat: bool = False,
-        log_file_path: Optional[str] = None,
+        log_file_path: str | None = None,
         debug: bool = False,
         use_markdown: bool = False,
         **kwargs
@@ -80,10 +81,10 @@ class BlueprintBase(ABC):
         self.swarm = kwargs.get('swarm_instance') or Swarm(config=self.config, debug=self.debug)
         logger.debug("Swarm instance initialized.")
 
-        self.context_variables: Dict[str, Any] = {"user_goal": ""}
+        self.context_variables: dict[str, Any] = {"user_goal": ""}
         self.starting_agent = None
-        self._discovered_tools: Dict[str, List[Any]] = {}
-        self._discovered_resources: Dict[str, List[Any]] = {}
+        self._discovered_tools: dict[str, list[Any]] = {}
+        self._discovered_resources: dict[str, list[Any]] = {}
         self.spinner = Spinner(interactive=not kwargs.get('non_interactive', False))
 
         required_env_vars = set(self.metadata.get('env_vars', []))
@@ -102,17 +103,17 @@ class BlueprintBase(ABC):
         """Check if the 'create_agents' method is overridden in the subclass."""
         return self.__class__.create_agents is not BlueprintBase.create_agents
 
-    def truncate_message_history(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+    def truncate_message_history(self, messages: list[dict[str, Any]], model: str) -> list[dict[str, Any]]:
         """Truncate message history using the centralized utility."""
         return truncate_message_history(messages, model, self.max_context_tokens, self.max_context_messages)
 
     @property
     @abstractmethod
-    def metadata(self) -> Dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Abstract property for blueprint metadata."""
         raise NotImplementedError
 
-    def create_agents(self) -> Dict[str, Agent]:
+    def create_agents(self) -> dict[str, Agent]:
         """Default agent creation method."""
         return {}
 
@@ -144,7 +145,7 @@ class BlueprintBase(ABC):
                  if "cannot be called from a running event loop" in str(e): logger.error("Nested asyncio.run detected during sync discovery.")
                  else: raise e
 
-    async def determine_active_agent(self) -> Optional[Agent]:
+    async def determine_active_agent(self) -> Agent | None:
         """Determine the currently active agent."""
         active_agent_name = self.context_variables.get("active_agent_name")
         agent_to_use = None
@@ -179,11 +180,11 @@ class BlueprintBase(ABC):
         return agent_to_use
 
     # --- Core Execution Logic ---
-    def run_with_context(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
+    def run_with_context(self, messages: list[dict[str, str]], context_variables: dict) -> dict:
         """Synchronous wrapper for the async execution logic."""
         return asyncio.run(self.run_with_context_async(messages, context_variables))
 
-    async def run_with_context_async(self, messages: List[Dict[str, str]], context_variables: dict) -> dict:
+    async def run_with_context_async(self, messages: list[dict[str, str]], context_variables: dict) -> dict:
         """Asynchronously run the blueprint's logic."""
         self.context_variables.update(context_variables)
         logger.debug(f"Context variables updated: {self.context_variables}")
@@ -293,7 +294,7 @@ class BlueprintBase(ABC):
             logger.error(f"Task completion check LLM call failed: {e}", exc_info=True)
             return False
 
-    async def _update_user_goal_async(self, messages: List[Dict[str, str]]) -> None:
+    async def _update_user_goal_async(self, messages: list[dict[str, str]]) -> None:
         """Update the 'user_goal' in context_variables based on conversation history using an LLM call."""
         if not messages:
             logger.debug("Cannot update goal: No messages provided.")
@@ -450,7 +451,7 @@ class BlueprintBase(ABC):
             if content: print()
         return final_response_chunk_data
 
-    async def _auto_complete_task_async(self, current_history: List[Dict[str, str]], stream: bool) -> None:
+    async def _auto_complete_task_async(self, current_history: list[dict[str, str]], stream: bool) -> None:
         """Async helper for task auto-completion loop (non-streaming)."""
         max_auto_turns = 10
         auto_turn = 0
@@ -486,7 +487,7 @@ class BlueprintBase(ABC):
              logger.warning("Auto-completion reached maximum turns limit.")
              print("\033[93m[System]\033[0m: Reached max auto-completion turns.")
 
-    def _auto_complete_task(self, messages: List[Dict[str, str]], stream: bool) -> None:
+    def _auto_complete_task(self, messages: list[dict[str, str]], stream: bool) -> None:
         """Synchronous wrapper for task auto-completion."""
         if stream:
              logger.warning("Auto-completion skipped because streaming is enabled.")

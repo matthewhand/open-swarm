@@ -29,32 +29,32 @@ def get_function_schema(func: Callable) -> dict[str, Any]:
         description = f"Parameter {name}" # Placeholder for descriptions from docstrings
 
         # Type mapping (simplified)
-        if param_type_annotation == str:
+        if param_type_annotation is str:
             schema_type = "string"
-        elif param_type_annotation == int:
+        elif param_type_annotation is int:
             schema_type = "integer"
-        elif param_type_annotation == float:
+        elif param_type_annotation is float:
             schema_type = "number"
-        elif param_type_annotation == bool:
+        elif param_type_annotation is bool:
             schema_type = "boolean"
-        elif getattr(param_type_annotation, '__origin__', None) == list or param_type_annotation == list:
+        elif getattr(param_type_annotation, '__origin__', None) is list or param_type_annotation is list:
             schema_type = "array"
             items_schema = {"type": "string"} # Default item type
             if hasattr(param_type_annotation, '__args__') and param_type_annotation.__args__:
                 item_arg_type = param_type_annotation.__args__[0]
-                if item_arg_type == str: items_schema = {"type": "string"}
-                elif item_arg_type == int: items_schema = {"type": "integer"}
-                elif item_arg_type == bool: items_schema = {"type": "boolean"}
-                elif item_arg_type == float: items_schema = {"type": "number"}
+                if item_arg_type is str: items_schema = {"type": "string"}
+                elif item_arg_type is int: items_schema = {"type": "integer"}
+                elif item_arg_type is bool: items_schema = {"type": "boolean"}
+                elif item_arg_type is float: items_schema = {"type": "number"}
             parameters_schema["properties"][name] = {"type": schema_type, "description": description, "items": items_schema}
             continue # Skip default property assignment below for arrays
-        elif getattr(param_type_annotation, '__origin__', None) == dict or param_type_annotation == dict:
+        elif getattr(param_type_annotation, '__origin__', None) is dict or param_type_annotation is dict:
             schema_type = "object"
             # For dicts, further schema definition might be needed if structure is known
             # For now, just mark as object. Add "additionalProperties": True for flexibility.
             parameters_schema["properties"][name] = {"type": schema_type, "description": description, "additionalProperties": True}
             continue # Skip default property assignment below for dicts
-        elif param_type_annotation is None or param_type_annotation == type(None):
+        elif param_type_annotation is None or param_type_annotation is type(None):
              # Handle Optional[T] by checking __args__ if it's a Union
             if hasattr(param_type_annotation, '__origin__') and param_type_annotation.__origin__ is Union:
                 # Simplified: assume Optional[T] means T or None, take the first non-None type

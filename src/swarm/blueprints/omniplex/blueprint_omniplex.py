@@ -12,7 +12,7 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent, Tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel

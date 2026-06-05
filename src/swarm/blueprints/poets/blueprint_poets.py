@@ -8,11 +8,13 @@ import logging
 import os
 import random
 import sqlite3  # Use standard sqlite3 module
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, ClassVar
 
 from swarm.core.blueprint_ux import BlueprintUXImproved
+from swarm.ux.ansi_box import ansi_box
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -21,7 +23,7 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    from agents import Agent
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel

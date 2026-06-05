@@ -153,7 +153,7 @@ def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_toke
                  try:
                      prev_msg, prev_tokens = msg_tokens[assistant_idx]
                      assert isinstance(prev_tokens, int | float) and prev_tokens >= 0
-                 except:
+                 except Exception:
                      prev_tokens = 9999
                  if prev_msg.get("role") == "assistant" and isinstance(prev_msg.get("tool_calls"), list):
                      assistant_tool_calls = prev_msg.get("tool_calls", [])
@@ -205,7 +205,7 @@ def _truncate_sophisticated(messages: list[dict[str, Any]], model: str, max_toke
                   try:
                       tool_msg, tool_tokens_fwd = msg_tokens[j]
                       assert isinstance(tool_tokens_fwd, int | float) and tool_tokens_fwd >= 0
-                  except:
+                  except Exception:
                       tool_tokens_fwd = 9999
                   tool_msg_call_id = tool_msg.get("tool_call_id")
                   if tool_msg.get("role") == "tool" and tool_msg_call_id in expected_tool_ids:

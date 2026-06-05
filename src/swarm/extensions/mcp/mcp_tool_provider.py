@@ -8,11 +8,11 @@ ensures that these tools are properly validated and integrated into the agent's 
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 
-from swarm.settings import DEBUG
-from swarm.types import Tool, Agent
 from swarm.extensions.mcp.mcp_client import MCPClient
+from swarm.settings import DEBUG
+from swarm.types import Agent, Tool
 
 from .cache_utils import get_cache
 
@@ -29,16 +29,16 @@ class MCPToolProvider:
     """
     Singleton MCPToolProvider to discover tools from an MCP server and convert them into `Tool` instances.
     """
-    _instances: Dict[str, "MCPToolProvider"] = {}
+    _instances: dict[str, "MCPToolProvider"] = {}
 
     @classmethod
-    def get_instance(cls, server_name: str, server_config: Dict[str, Any], timeout: int = 15, debug: bool = False) -> "MCPToolProvider":
+    def get_instance(cls, server_name: str, server_config: dict[str, Any], timeout: int = 15, debug: bool = False) -> "MCPToolProvider":
         """Get or create a singleton instance for the given server name."""
         if server_name not in cls._instances:
             cls._instances[server_name] = cls(server_name, server_config, timeout, debug)
         return cls._instances[server_name]
 
-    def __init__(self, server_name: str, server_config: Dict[str, Any], timeout: int = 15, debug: bool = False):
+    def __init__(self, server_name: str, server_config: dict[str, Any], timeout: int = 15, debug: bool = False):
         """
         Initialize an MCPToolProvider instance with a configurable timeout.
 
@@ -55,7 +55,7 @@ class MCPToolProvider:
         self.cache = get_cache()
         logger.debug(f"Initialized MCPToolProvider for server '{self.server_name}' with timeout {timeout}s.")
 
-    async def discover_tools(self, agent: Agent) -> List[Tool]:
+    async def discover_tools(self, agent: Agent) -> list[Tool]:
         """
         Discover tools from the MCP server and return them as a list of `Tool` instances.
         Utilizes Django cache to persist tool metadata if available.

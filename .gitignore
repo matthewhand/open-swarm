@@ -210,3 +210,9 @@ src/swarm_log.json.lock
 
 # Coverage artifacts (JSON format)
 coverage.json
+
+# Node.js
+node_modules/
+
+# Frontend build artifacts
+webui/frontend/dist/

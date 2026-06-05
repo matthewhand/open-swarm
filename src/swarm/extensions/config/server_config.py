@@ -5,8 +5,9 @@ Provides utilities to save configurations to disk and ensure integrity of data.
 """
 
 import json
-import os
 import logging
+import os
+
 from swarm.utils.redact import redact_sensitive_data
 
 # Initialize logger for this module

@@ -5,20 +5,20 @@ This module handles chat completion logic for the Swarm framework, including mes
 tool call repair, and interaction with the OpenAI API. Located in llm/ for LLM-specific functionality.
 """
 
-import os
 import json
 import logging
-from typing import List, Optional, Dict, Any
+import os
 from collections import defaultdict
+from typing import Any
 
-import asyncio
 from openai import AsyncOpenAI, OpenAIError
-from ..types import ChatCompletionMessage, Agent
-from ..utils.redact import redact_sensitive_data
+
+from ..types import Agent, ChatCompletionMessage
+from ..utils.context_utils import truncate_message_history
 from ..utils.general_utils import serialize_datetime
-from ..utils.message_utils import filter_duplicate_system_messages, update_null_content
-from ..utils.context_utils import get_token_count, truncate_message_history
 from ..utils.message_sequence import repair_message_payload
+from ..utils.message_utils import filter_duplicate_system_messages
+from ..utils.redact import redact_sensitive_data
 
 # Configure module-level logging
 logger = logging.getLogger(__name__)
@@ -33,12 +33,12 @@ if not logger.handlers:
 async def get_chat_completion(
     client: AsyncOpenAI,
     agent: Agent,
-    history: List[Dict[str, Any]],
+    history: list[dict[str, Any]],
     context_variables: dict,
-    current_llm_config: Dict[str, Any],
+    current_llm_config: dict[str, Any],
     max_context_tokens: int,
     max_context_messages: int,
-    model_override: Optional[str] = None,
+    model_override: str | None = None,
     stream: bool = False,
     debug: bool = False
 ) -> ChatCompletionMessage:
@@ -137,12 +137,12 @@ async def get_chat_completion(
 async def get_chat_completion_message(
     client: AsyncOpenAI,
     agent: Agent,
-    history: List[Dict[str, Any]],
+    history: list[dict[str, Any]],
     context_variables: dict,
-    current_llm_config: Dict[str, Any],
+    current_llm_config: dict[str, Any],
     max_context_tokens: int,
     max_context_messages: int,
-    model_override: Optional[str] = None,
+    model_override: str | None = None,
     stream: bool = False,
     debug: bool = False
 ) -> ChatCompletionMessage:

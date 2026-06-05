@@ -1,10 +1,10 @@
 # src/swarm/extensions/config/setup_wizard.py
 
-import os
 import json
-from typing import Dict, Any
+from typing import Any
 
-def run_setup_wizard(config_path: str, blueprints_metadata: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+
+def run_setup_wizard(config_path: str, blueprints_metadata: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """
     Runs the interactive setup wizard.
 

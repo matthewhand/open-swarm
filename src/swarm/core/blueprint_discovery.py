@@ -90,8 +90,8 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
             py_file_path = subdir / f"blueprint_{blueprint_key_name}.py"
             py_file_name = py_file_path.name
             if not py_file_path.is_file():
-                logger.warning(f"Skipping directory '{subdir.name}': No suitable main Python file "
-                               f"('{blueprint_key_name}.py' or 'blueprint_{blueprint_key_name}.py') found.")
+                logger.debug(f"Skipping directory '{subdir.name}': No suitable main Python file "
+                             f"('{blueprint_key_name}.py' or 'blueprint_{blueprint_key_name}.py') found.")
                 continue
 
         logger.debug(f"Found blueprint file: {py_file_name} in {subdir}")
@@ -130,7 +130,8 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
                     if inspect.isclass(member_obj) and \
                        issubclass(member_obj, BlueprintBase) and \
                        member_obj is not BlueprintBase and \
-                       member_obj.__module__ == module_import_path: # Ensure class is defined in this module
+                       member_obj.__module__ == module_import_path and \
+                       member_obj.__name__ == member_name:  # Skip aliases
 
                         if found_bp_class_details:
                             logger.warning(f"Multiple BlueprintBase subclasses found in {py_file_name}. "
@@ -183,7 +184,7 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
                         # break # Found the class, no need to check other members of this module for BP classes
 
                 if not found_bp_class_details:
-                    logger.warning(f"No BlueprintBase subclass found directly defined in module: {module_import_path}")
+                    logger.debug(f"No BlueprintBase subclass found directly defined in module: {module_import_path}")
             else:
                 logger.warning(f"Could not create module spec for {py_file_path}")
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import PyInstaller.__main__
 
+
 def build_executable(script, output_name):
     PyInstaller.__main__.run([
         script,

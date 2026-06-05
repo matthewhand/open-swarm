@@ -25,20 +25,11 @@ if src_path not in sys.path:
 
 
 try:
-    # Patch: If MCPServer import fails, define a dummy MCPServer for demo/test
+    from agents import Agent, function_tool
     try:
-        from agents import Agent, MCPServer, function_tool
+        from agents import MCPServer
     except ImportError:
-        class MCPServer:
-            pass
-        from agents import Agent
-        # Define a dummy function_tool decorator for when the real one isn't available
-        def function_tool(*args, _kwargs):
-            def decorator(func):
-                return func
-            if args and callable(args[0]):
-                return decorator(args[0])
-            return decorator
+        from agents.mcp import MCPServer
 
     try:
         from agents.mcp import MCPServer as MCPServer2
@@ -55,6 +46,48 @@ except ImportError as e:
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
+
+
+# --- Standalone tool functions for the Chatbot agent ---
+@function_tool
+def read_file_tool(file_path: str) -> str:
+    """Read the contents of a file."""
+    try:
+        with open(file_path) as f:
+            return f.read()
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+@function_tool
+def write_file_tool(file_path: str, content: str) -> str:
+    """Write content to a file."""
+    try:
+        with open(file_path, 'w') as f:
+            f.write(content)
+        return "OK: file written"
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+@function_tool
+def list_files_tool(directory: str = ".") -> str:
+    """List files in a directory."""
+    try:
+        return '\n'.join(os.listdir(directory))
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+@function_tool
+def execute_shell_command_tool(command: str) -> str:
+    """Execute a shell command."""
+    import subprocess
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return result.stdout + result.stderr
+    except Exception as e:
+        return f"ERROR: {e}"
 
 
 # --- Define the Blueprint ---
@@ -125,26 +158,6 @@ class ChatbotBlueprint(BlueprintBase):
             return result.stdout + result.stderr
         except Exception as e:
             return f"ERROR: {e}"
-    # Use proper function_tool decorator instead of PatchedFunctionTool
-    @function_tool
-    def read_file_tool(self, file_path: str) -> str:
-        """Read the contents of a file."""
-        return self.read_file(file_path)
-
-    @function_tool
-    def write_file_tool(self, file_path: str, content: str) -> str:
-        """Write content to a file."""
-        return self.write_file(file_path, content)
-
-    @function_tool
-    def list_files_tool(self, directory: str = ".") -> str:
-        """List files in a directory."""
-        return self.list_files(directory)
-
-    @function_tool
-    def execute_shell_command_tool(self, command: str) -> str:
-        """Execute a shell command."""
-        return self.execute_shell_command(command)
 
     # --- Model Instantiation Helper --- (Standard helper)
     def _get_model_instance(self, profile_name: str) -> Model:
@@ -208,7 +221,7 @@ Use them responsibly when the user asks for file or system operations.
             name="Chatbot",
             model=model_instance,
             instructions=chatbot_instructions,
-            tools=[self.read_file_tool, self.write_file_tool, self.list_files_tool, self.execute_shell_command_tool],
+            tools=[read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool],
             mcp_servers=mcp_servers # Pass along, though likely unused
         )
 

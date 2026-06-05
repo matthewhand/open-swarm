@@ -2,10 +2,10 @@
 Simple terminal spinner for interactive feedback during long operations.
 """
 
-import os
 import sys
 import threading
 import time
+
 
 class Spinner:
     """Simple terminal spinner for interactive feedback."""
@@ -26,7 +26,7 @@ class Spinner:
         self.is_tty = sys.stdout.isatty()
         self.enabled = self.interactive and self.is_tty
         self.running = False
-        self.thread: Optional[threading.Thread] = None
+        self.thread: threading.Thread | None = None
         self.status = ""
         self.index = 0
 

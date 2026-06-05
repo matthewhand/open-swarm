@@ -11,7 +11,6 @@ import os
 import sys
 import threading
 import time
-from typing import Any
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -132,17 +131,19 @@ class DjangoChatBlueprint(Blueprint):
                 return DummyStream()
         self.llm = DummyLLM()
 
-    @property
-    def metadata(self) -> dict[str, Any]:
-        logger.debug("Fetching metadata")
-        return {
-            "title": "Django Chat Interface",
-            "description": "A web-based chat interface with conversation history management. HTTP-only.",
-            "cli_name": "django_chat",
-            "env_vars": [],
-            "urls_module": "blueprints.django_chat.urls",
-            "url_prefix": "django_chat/"
-        }
+    metadata = {
+        "name": "django_chat",
+        "emoji": "💬",
+        "title": "Django Chat Interface",
+        "description": "A web-based chat interface with conversation history management. HTTP-only.",
+        "cli_name": "django_chat",
+        "env_vars": [],
+        "urls_module": "blueprints.django_chat.urls",
+        "url_prefix": "django_chat/",
+        "examples": [],
+        "commands": [],
+        "branding": "Web-based chat UX",
+    }
 
     def get_or_create_default_user(self):
         """Create or retrieve a default 'testuser' for development purposes."""

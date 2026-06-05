@@ -25,7 +25,6 @@ import pytz
 from agents import Runner
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
-from swarm.core.output_utils import get_spinner_state
 
 
 # --- Unified Operation/Result Box for UX ---
@@ -57,7 +56,7 @@ class JeevesSpinner:
         pass
 
 try:
-    from agents import Agent, Tool, function_tool
+    from agents import Agent
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
@@ -282,7 +281,7 @@ class JeevesBlueprint(BlueprintBase):
             elif search_mode == 'semantic':
                 await self.semantic_search(instruction, ".")
                 return
-            
+
             # Print spinner states
             for msg in JeevesSpinner.SPINNER_STATES:
                 print(msg)

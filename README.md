@@ -322,16 +322,6 @@ Tip (development with uv):
 - Install: `uv run swarm-cli install codey`
 - Launch: `uv run swarm-cli launch codey --message "..."`
 
-Tip (development with uv):
-- List: `uv run swarm-cli list`
-- Install: `uv run swarm-cli install codey`
-- Launch: `uv run swarm-cli launch codey --message "..."`
-
-Tip: If you prefer uv in development:
-- List: `uv run swarm-cli list`
-- Install: `uv run swarm-cli install codey`
-- Launch: `uv run swarm-cli launch codey --message "..."`
-
 Slash commands use the configured `llmProfile` (defaulting to `default`) and apply the `promptTemplate`, injecting the current conversation history. You can override per-command or globally via environment variables.
   
 # Bundled vs. Custom Blueprints
@@ -415,7 +405,6 @@ Open Swarm blueprints now deliver a consistent, branded, and user-friendly exper
 |  | `NebulaShellzzarBlueprint` | A multi-agent blueprint inspired by The Matrix for system administration and coding tasks. |  |  |
 |  | `OmniplexBlueprint` | Dynamically delegates tasks to agents (Amazo:npx, Rogue:uvx, Sylar:other) based on the command type of available MCP servers. |  |  |
 |  | `RueCode` | Generates, executes code, and interacts with the file system. |  |  |
-|  | `StewieBlueprint` | Manages WordPress content using Stewie (main agent) and other helpers as tools. |  |  |
 |  | `StewieBlueprint` | Manages WordPress content using Stewie (main agent) and other helpers as tools. |  |  |
 |  | `SuggestionBlueprint` | An agent that provides structured suggestions using Agent(output_type=...). |  |  |
 |  | `WhiskeyTangoFoxtrotBlueprint` | Tracks free online services with SQLite and web search using a multi-tiered agent hierarchy. |  |  |
@@ -1076,7 +1065,6 @@ This README provides a high-level overview and quickstart guides. For more detai
 *   **Example Blueprints (`src/swarm/blueprints/README.md`):** A list and description of the example blueprints included with the framework, showcasing various features and integration patterns.
 *   **Blueprint Patterns and Configuration (`blueprints/README.md`):** Guidance on creating and configuring blueprints, including best practices and common pitfalls. **Start here for blueprint usage and extension.**
 *   **User Experience Standards (`UX.md`):** Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
-*   **User Experience Standards (`UX.md`)**: Guidelines for creating a consistent and user-friendly experience across blueprints and the Swarm framework.
 
 ---
 
@@ -1128,11 +1116,6 @@ All compliance scripts are integrated into CI via GitHub Actions. PRs and pushes
 
 ### Improving Test Coverage
 Blueprints flagged with stub-only tests should have their test files expanded to cover real functionality. See the compliance report for guidance.
-
-## Blueprint Scaffolding
-
-Automate new blueprint creation with:
-- `scripts/scaffold_blueprint.py` — Scaffold a new, compliant blueprint with all required files and metadata.
 
 ## CLI Tools
 

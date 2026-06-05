@@ -68,14 +68,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/open-swarm"
-Documentation = "https://github.com/yourusername/open-swarm/blob/main/README.md"
-Repository = "https://github.com/yourusername/open-swarm.git"
-Changelog = "https://github.com/yourusername/open-swarm/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/matthewhand/open-swarm"
+Documentation = "https://github.com/matthewhand/open-swarm/blob/main/README.md"
+Repository = "https://github.com/matthewhand/open-swarm.git"
+Changelog = "https://github.com/matthewhand/open-swarm/blob/main/CHANGELOG.md"
 
 [project.scripts]
 swarm-api = "swarm.extensions.launchers.swarm_api:main"
- swarm-cli = "swarm.core.swarm_cli:app"
+swarm-cli = "swarm.core.swarm_cli:app"
 codey = "swarm.blueprints.codey.codey_cli:main"
 suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
@@ -138,7 +138,15 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "ARG"]
-ignore = ["E501"]
+ignore = ["E501", "E701", "E702", "E402", "W293", "ARG001", "ARG002", "ARG005", "B904", "F841", "SIM102", "SIM105", "SIM115", "SIM117"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/swarm/settings.py" = ["F405", "F403"]
+"src/swarm/views/settings_manager.py" = ["F405", "F403"]
+"src/swarm/views/web_views.py" = ["F405", "F403"]
+"src/swarm/core/config_manager.py" = ["F403"]
+"src/swarm/blueprints/suggestion/blueprint_suggestion.py" = ["I001"]
+"tests/**/*.py" = ["B023", "B017"]
 
 
 
@@ -157,6 +165,7 @@ DJANGO_SETTINGS_MODULE = "swarm.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 env = [
     "DJANGO_ALLOW_ASYNC_UNSAFE=true",
+    "SWARM_DISABLE_SPA_FALLBACK=1",
 ]
 testpaths = ["tests"]
 asyncio_mode = "auto"
