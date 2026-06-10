@@ -168,7 +168,7 @@ function Dashboard() {
     <div className="space-y-6">
       {/* Welcome Alert */}
       <Alert type="info" icon={<Home className="h-5 w-5" />}>
-        <span className="font-medium">Welcome to Open Swarm MCP!</span>
+        <span className="font-medium">Welcome to Open Swarm MCP!&nbsp;</span>
         <span className="text-sm">Your AI agent orchestration platform is ready.</span>
       </Alert>
 
