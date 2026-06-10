@@ -187,7 +187,7 @@ Focus: Enhance MCP integration for better tool discovery, security, and scalabil
 
 - [ ] Improve MCP server auto-discovery in config (e.g., scan for common servers like filesystem, git)
 - [ ] Add validation for MCP tool schemas in provider.py to prevent malformed tools
-- [ ] Implement secure token passing for MCP servers (integrate with SAML/OAuth for local IdP)
+- [ ] Implement secure token passing for MCP servers (integrate with OAuth/OIDC for local IdP)
 - [ ] Support horizontal scaling for MCP servers (e.g., multiple instances for load balancing)
 - [ ] Add tests for MCP execution edge cases (e.g., failed spawns, timeouts)
 - [ ] Document MCP setup in QUICKSTART with examples for common servers (filesystem, weather)
@@ -203,7 +203,7 @@ Acceptance criteria:
 Focus: Structure GitHub-based marketplace for blueprints and MCP templates.
 
 - [x] Define GitHub topics: `open-swarm-blueprint`, `open-swarm-mcp-template`
-- [ ] Create central discovery repo with search UI (e.g., GitHub Pages or Wagtail integration)
+- [ ] Create central discovery repo with search UI (e.g., GitHub Pages)
 - [ ] Standardize manifest.json format for blueprints/MCP (no secrets, use ${VAR} placeholders)
 - [ ] Add API endpoint `/v1/marketplace` to query GitHub topics and fetch manifests
 - [ ] Implement import flow: `swarm-cli import-from-github <repo> <blueprint>`

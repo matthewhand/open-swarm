@@ -130,7 +130,7 @@ Set in `.env` (copy `.env.example`). Security-critical ones first:
 | `SWARM_TEST_MODE` | Deterministic canned output for tests/CI — never set in production | unset |
 | `ENABLE_ADMIN` | Enable Django admin UI | `false` |
 
-Feature-flag variables for experimental subsystems (`ENABLE_WAGTAIL`, `ENABLE_SAML_IDP`, `ENABLE_MCP_SERVER`) exist but gate unfinished features — see [Roadmap](#roadmap--unfinished-features).
+Feature-flag variables for experimental subsystems (`ENABLE_MCP_SERVER`, `ENABLE_GITHUB_MARKETPLACE`) exist but gate unfinished features — see [Roadmap](#roadmap--unfinished-features).
 
 ---
 
@@ -179,7 +179,7 @@ Honest status of what's **not** done, tracked in detail in [ROADMAP.md](./ROADMA
   - [ ] Merge dual `core/` vs `extensions/` implementations (CLI, config loader, blueprint base) with deprecation shims
   - [ ] Single spinner/output module (currently several variants)
 - [ ] **Blueprint ecosystem curation** — every shipped blueprint gets tests + README or moves to examples; restore or de-document legacy CLI commands (`wizard`, `config`, `add`) that older docs reference
-- [ ] **Marketplace & enterprise auth (decision pending)** — Wagtail-based blueprint marketplace and SAML IdP scaffolding exist behind flags; will either move to optional packages or be dropped
+- [x] **Marketplace & enterprise auth (decided 2026-06-11)** — Wagtail-based blueprint marketplace and SAML IdP scaffolding removed; GitHub-topics discovery (`ENABLE_GITHUB_MARKETPLACE`) remains
 - [ ] **PyPI release automation** — publish workflow currently targets a stale branch and timestamp-bumps versions; needs release-driven semver
 
 ---

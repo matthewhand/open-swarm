@@ -49,7 +49,7 @@ Implementation Plan (Backend)
      - `open-swarm-blueprint`, `open-swarm-mcp-template`
    - `GITHUB_MARKETPLACE_ORG_ALLOWLIST` (optional) — to scope results by org
 2. Service module
-   - `swarm/marketplace/github_service.py` with functions:
+   - `swarm/services/github_topics_service.py` with functions:
      - `search_repos_by_topics(topics: list[str], orgs: list[str]|None) -> list[Repo]`
      - `fetch_repo_manifests(repo) -> list[Item]` (look for known manifest paths)
      - `to_marketplace_items(repo, items) -> list[dict]` (normalized objects)
@@ -88,5 +88,4 @@ Notes
 -----
 - This model mirrors successful approaches (e.g., pinokio.computer) and avoids
   centralized content hosting while keeping the showcase fresh and community‑led.
-- The existing Wagtail-based UI remains optional for curated/editorial content.
 
