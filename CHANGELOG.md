@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.3.1] - 2026-06-11
+
+### Added
+- SPA: agent-creator and settings pages on live APIs (#80); websocket ChatPage + token auth UX
+- ASGI routing — websocket chat now functional (channels/daphne wired)
+- JSON Teams API (/v1/teams/); NOTICE file; opt-in mem0 e2e harness (#85)
+- uv.lock tracked; CI lock-check now meaningful (#81)
+
+### Changed
+- vite 5 -> 8; npm audit clean (#84)
+- Absorbed 18 community/agent branches (perf, security shlex hardening, UX, tests) (#83)
+
+### Removed
+- Wagtail marketplace and SAML IdP scaffolding (-716 lines; GitHub-topics discovery retained) (#82)
+
+### Security / hygiene
+- Hardened .dockerignore: image no longer ships .git history, dev database (auth_user hashes), .letta/.claude local state, pycache with local absolute paths, or test artifacts
+
 ## [0.3.0] - 2026-06-11
 
 ### Repository cleanup wave (June 2026)

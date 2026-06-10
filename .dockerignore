@@ -1,8 +1,60 @@
+# --- secrets & local state (never ship) ---
 .env
 .env.*
+*.pem
+*.key
+.letta/
+.claude/
+.serena/
+
+# --- VCS & CI ---
+.git/
+.github/
+.gitignore
+.pre-commit-config.yaml
+
+# --- local databases / logs / runtime state ---
+*.db
+*.sqlite3
+*.sqlite3-*
+db.sqlite3
+logs/
+*.log
+*.out
+src/swarm_log.json*
+avatars/
+
+# --- python build/test artifacts ---
 .venv/
+venv/
 __pycache__/
-*.pyc
-*.pyo
+**/__pycache__
+**/*.pyc
+**/*.pyo
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.json
+coverage.xml
+htmlcov/
+*.egg-info/
+build/
+dist/
+MagicMock/
 uvx
+
+# --- node (image installs/builds its own if needed) ---
+node_modules/
+webui/frontend/node_modules/
+webui/frontend/dist/
+
+# --- dev-only (not needed at runtime) ---
+docs/
+tests/
+pyinstaller_specs/
+docker-compose*.yml
+docker-compose*.yaml
+fly.toml
+Makefile
