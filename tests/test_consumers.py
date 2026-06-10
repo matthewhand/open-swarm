@@ -407,6 +407,39 @@ class TestSaveConversation:
         # Should have the new message
         assert ChatMessage.objects.filter(conversation=chat).count() == 1
 
+    @pytest.mark.django_db
+    def test_save_conversation_bulk_creates_messages(self, test_user):
+        """save_conversation persists all messages with a constant number of queries."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from swarm.models import ChatMessage
+
+        consumer = DjangoChatConsumer()
+        consumer.user = test_user
+
+        num_messages = 20
+        new_messages = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": f"Message {i}"}
+            for i in range(num_messages)
+        ]
+
+        # Call the unwrapped sync function behind database_sync_to_async.
+        save_sync = DjangoChatConsumer.__dict__["save_conversation"].func
+        with CaptureQueriesContext(connection) as ctx:
+            save_sync(consumer, "bulk-conv-123", new_messages)
+
+        assert (
+            ChatMessage.objects.filter(
+                conversation__conversation_id="bulk-conv-123"
+            ).count()
+            == num_messages
+        )
+        # get_or_create + bulk_create should stay well below one query per message.
+        assert len(ctx.captured_queries) < num_messages
+
+        IN_MEMORY_CONVERSATIONS.pop("bulk-conv-123", None)
+
 
 # =============================================================================
 # Delete Conversation Tests
