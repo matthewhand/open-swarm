@@ -6,9 +6,6 @@ from agents import Agent, Model  # Assuming Model is the base type for self.llm
 from agents.mcp import MCPServer
 
 # Assuming these are also Agent subclasses, they'll be defined in their own files
-# from .agent_geese_writer import WriterAgent
-# from .agent_geese_editor import EditorAgent
-# from .agent_geese_researcher import ResearcherAgent
 # For now, let's use Any as a placeholder if they are not yet defined
 WriterAgent = Any
 EditorAgent = Any
@@ -81,14 +78,6 @@ class GooseCoordinator(Agent):
         # For now, let's assume the coordinator handles it or it's simple.
 
         yield "Coordinator: Generating story outline..."
-        # This would be an LLM call using self.model (which is the SDK model instance)
-        # Example:
-        # outline_prompt = f"Create a 3-act story outline for: {story_context.user_prompt}"
-        # outline_response_str = ""
-        # async for chunk in self.model.chat_completion_stream(messages=[{"role": "user", "content": outline_prompt}]):
-        #    if chunk.get("choices", [{}])[0].get("delta", {}).get("content"):
-        #        outline_response_str += chunk["choices"][0]["delta"]["content"]
-        # story_outline = StoryOutline(title="Generated Outline", acts=["Act 1: ...", "Act 2: ...", "Act 3: ..."]) # Parsed from outline_response_str
 
         # Placeholder outline
         story_outline = StoryOutline(
@@ -113,26 +102,10 @@ class GooseCoordinator(Agent):
                 act_summary = act_details.get("summary", f"Act {act_num + 1}")
                 yield {"current_part_title": f"Writing Act {act_num + 1}", "progress_message": f"Coordinator: Delegating writing of '{act_summary}' to WriterAgent."}
 
-                # Delegate to WriterAgent
-                # writer_prompt = f"Write {act_summary}. Key scenes: {act_details.get('key_scenes', [])}"
-                # written_part = ""
-                # async for writer_chunk in self.writer_agent.run(messages=[{"role": "user", "content": writer_prompt}]):
-                #    # Process writer_chunk (assuming it yields strings or dicts with content)
-                #    if isinstance(writer_chunk, str): written_part += writer_chunk
-                #    elif isinstance(writer_chunk, dict) and "content" in writer_chunk: written_part += writer_chunk["content"]
-
                 # Placeholder written part
                 written_part = f"This is Act {act_num + 1}: {act_summary}. It was very exciting. {act_details.get('key_scenes', [])} happened."
 
                 yield {"current_part_title": f"Editing Act {act_num + 1}", "progress_message": f"Coordinator: Delegating editing of Act {act_num + 1} to EditorAgent."}
-
-                # Delegate to EditorAgent
-                # editor_prompt = f"Edit the following story part for clarity, grammar, and engagement:\n{written_part}"
-                # edited_part = ""
-                # async for editor_chunk in self.editor_agent.run(messages=[{"role": "user", "content": editor_prompt}]):
-                #    # Process editor_chunk
-                #    if isinstance(editor_chunk, str): edited_part += editor_chunk
-                #    elif isinstance(editor_chunk, dict) and "content" in editor_chunk: edited_part += editor_chunk["content"]
 
                 # Placeholder edited part
                 edited_part = f"(Edited) Act {act_num + 1}: {written_part} It is now much improved!"
