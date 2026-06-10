@@ -1,150 +1,199 @@
 # Open Swarm User Guide: `swarm-cli`
 
-This guide provides detailed instructions for using the `swarm-cli` command-line tool to manage blueprints and configuration for your Open Swarm environment. This assumes you have installed `open-swarm` via `pip install open-swarm`.
+This guide is the task-oriented reference for the `swarm-cli` command-line
+tool: managing blueprints and configuration in your Open Swarm environment.
+It assumes you have installed `open-swarm` (from source: `uv sync
+--all-extras`; from PyPI: `pip install open-swarm`). Every command documented
+here is verified against `swarm-cli --help`.
+
+> **Documentation map:** this file is the `swarm-cli` reference;
+> [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md) is the end-to-end story
+> (install → CLI → web UI → API) with real transcripts;
+> [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) is the screenshot tour of the
+> web UI; [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) is the capture
+> registry.
 
 ---
 
 ## Overview
 
-`swarm-cli` is your primary tool for interacting with Open Swarm from the command line. It supports:
+`swarm-cli` currently ships **four commands**:
 
-- **Blueprint Management**
-  * **list**: List available and installed blueprints
-  * **install**: Build a standalone CLI executable for a blueprint
-  * **launch**: Run an installed blueprint with options for pre-/post-/listener hooks
-  * **add**: Add new blueprint source code to the managed directory
-  * **delete**: Remove blueprint source from the managed directory
-  * **uninstall**: Remove installed executables and/or source
-- **Configuration Management**
-  * **config**: Subcommands to create, list, update, and delete LLM profiles and MCP servers in `~/.config/swarm/swarm_config.json`
+| Command | Purpose |
+| --- | --- |
+| `list` | List installed executables, bundled blueprints, and user blueprint sources |
+| `install-executable <name>` | Build a standalone executable for a blueprint (PyInstaller) |
+| `install <name>` | Alias for `install-executable` |
+| `launch <name> [options]` | Run an installed blueprint executable, optionally with pre/listen/post hooks |
+
+> **Note:** older versions of this guide documented `add`, `delete`,
+> `uninstall`, and `config` subcommands. Those are **not in the current CLI**
+> (restoring or formally retiring them is tracked in
+> [ROADMAP.md](./ROADMAP.md)). The equivalent manual workflows are described
+> below: copy blueprint sources into the user blueprints directory, and edit
+> `swarm_config.json` directly.
+
+Run `swarm-cli --help` or `swarm-cli <command> --help` for the authoritative
+usage text.
 
 ---
 
 ## File Locations (XDG Compliance)
 
-`swarm-cli` follows the XDG Base Directory Specification to store user-specific data and configuration, keeping your home directory clean.
+`swarm-cli` follows the XDG Base Directory Specification (via
+`platformdirs`), keeping your home directory clean. Linux paths shown;
+macOS/Windows vary per `platformdirs` conventions.
 
 *   **Configuration File (`swarm_config.json`):**
-    *   **Location:** `~/.config/swarm/swarm_config.json` (or `$XDG_CONFIG_HOME/swarm/`)
-    *   **Purpose:** Stores LLM profiles and MCP server definitions.
-    *   **Creation:** Automatically created with default settings on first run if it doesn't exist.
-*   **Managed Blueprint Sources:**
-    *   **Location:** `~/.local/share/swarm/blueprints/` (or `$XDG_DATA_HOME/swarm/blueprints/`)
-    *   **Purpose:** Stores the source code of blueprints added via `swarm-cli add`.
+    *   **Location:** searched upward from the current directory first, then
+        `~/.config/swarm/swarm_config.json` (or `$XDG_CONFIG_HOME/swarm/`).
+        Override with `SWARM_CONFIG_PATH`.
+    *   **Purpose:** stores LLM profiles and MCP server definitions.
+    *   **Creation:** create it yourself (see
+        [Managing Configuration](#managing-configuration) below) — it is not
+        auto-created.
+*   **User Blueprint Sources:**
+    *   **Location:** `~/.local/share/swarm/blueprints/` (or
+        `$XDG_DATA_HOME/swarm/blueprints/`; override the data dir with
+        `SWARM_USER_DATA_DIR`).
+    *   **Purpose:** blueprint source folders you add manually; `install` and
+        `list` pick them up from here.
 *   **Installed CLI Binaries (Executables):**
-    *   **Location:** `~/.local/share/swarm/bin/` (or `$SWARM_USER_BIN_DIR`, defaults to a subdir within user data dir)
-    *   **Purpose:** Stores standalone executables created by `swarm-cli install`.
-    *   **Note:** Ensure this directory is in your system's `PATH` environment variable to run installed blueprints directly by name.
+    *   **Location:** `~/.local/share/swarm/bin/`
+    *   **Purpose:** standalone executables created by `swarm-cli install`.
+    *   **Note:** add this directory to your `PATH` to run installed
+        blueprints directly by name.
 *   **Build Cache (PyInstaller):**
-    *   **Location:** `~/.cache/swarm/build/` (or `$XDG_CACHE_HOME/swarm/build/`)
-    *   **Purpose:** Temporary files generated by PyInstaller during the `swarm-cli install` process.
-
-*(Note: Exact paths might vary slightly on macOS and Windows based on `platformdirs` behavior, but the principle of using standard user directories applies.)*
+    *   **Location:** `~/.cache/swarm/`
+    *   **Purpose:** temporary files generated during `swarm-cli install`.
 
 ---
 
 ## Managing Blueprints
 
-### Adding Blueprints (`swarm-cli add`)
-
-Copies blueprint source code into the managed directory (`~/.local/share/swarm/blueprints/`).
-
-*   **Add from a directory:**
-    ```bash
-    # Copies the contents of ./my_blueprints/cool_agent to ~/.local/share/swarm/blueprints/cool_agent
-    swarm-cli add ./my_blueprints/cool_agent --name cool_agent
-    ```
-*   **Add from a single file:** (The name is inferred from the filename)
-    ```bash
-    # Copies ./my_blueprints/special_task.py to ~/.local/share/swarm/blueprints/special_task/special_task.py
-    # (It creates a directory named after the blueprint)
-    swarm-cli add ./my_blueprints/special_task.py
-    ```
-
 ### Listing Blueprints (`swarm-cli list`)
 
-Shows blueprints available in the managed directory and potentially bundled with the package.
+Shows three groups: installed executables, blueprints bundled with the
+package, and user blueprint sources.
 
 ```bash
-swarm-cli list
-# Example Output:
-# --- User Blueprints (in /home/user/.local/share/swarm/blueprints) ---
-# - echocraft (entry: blueprint_echocraft.py)
-# - cool_agent (entry: main.py)
-# - special_task (entry: special_task.py)
+swarm-cli list                # all three groups
+swarm-cli list --installed    # -i: only installed executables
+swarm-cli list --available    # -a: only blueprint source directories
 ```
 
-### Launching Blueprints (`swarm-cli launch`)
+Example output (fresh environment):
 
-Executes a blueprint directly from the managed directory using the configuration found in `~/.config/swarm/swarm_config.json`.
+```text
+--- Installed Blueprint Executables (in /home/user/.local/share/swarm/bin) ---
+(No installed blueprint executables found in /home/user/.local/share/swarm/bin)
+Try 'swarm-cli install-executable <blueprint_name>' or see 'swarm-cli list --available'.
 
-*   **Single Instruction Run:**
-    ```bash
-    swarm-cli launch echocraft --message "Repeat this message."
-    ```
-*   **Interactive Chat Mode:** (Omit `--instruction`)
-    ```bash
-    swarm-cli launch echocraft
-    ```
-*   **Run with specific LLM profile:** (Assumes 'local_llm' is defined in `swarm_config.json`)
-    ```bash
-    swarm-cli launch cool_agent --profile local_llm --message "Summarize /data/report.txt"
-    ```
-*   **Passing blueprint-specific arguments:** (Arguments after known CLI options are passed to the blueprint)
-    ```bash
-    swarm-cli launch special_task --message "Process file" --input-file /path/to/data --output-dir /results
-    ```
-*   **Using a different config file:**
-    ```bash
-    swarm-cli launch cool_agent --config-path /alt/swarm_config.json --message "Do something"
-    ```
+--- Bundled Blueprints (available from package) ---
+- jeeves (entry: blueprint_jeeves.py)
+- codey (entry: blueprint_codey.py)
+- suggestion (entry: suggestion_cli.py)
+...
+
+--- User Blueprint Sources (in /home/user/.local/share/swarm/blueprints) ---
+(No user blueprint sources found in /home/user/.local/share/swarm/blueprints)
+You can add blueprints by copying their source folders to this directory.
+```
+
+### Adding Your Own Blueprints (manual copy)
+
+There is no `add` command in the current CLI; copy the blueprint's source
+folder into the user blueprints directory instead:
+
+```bash
+mkdir -p ~/.local/share/swarm/blueprints
+cp -r ./my_blueprints/cool_agent ~/.local/share/swarm/blueprints/cool_agent
+swarm-cli list --available    # it now appears as a user blueprint source
+```
 
 ### Installing Blueprints as Commands (`swarm-cli install`)
 
-Creates a standalone executable using PyInstaller and places it in the user binary directory (`~/.local/share/swarm/bin/`).
+Builds a standalone executable (PyInstaller) from a user blueprint source or
+a bundled blueprint, and places it in `~/.local/share/swarm/bin/`.
+`install` and `install-executable` are the same command.
 
 ```bash
-swarm-cli install echocraft
+swarm-cli install jeeves
+# Installing blueprint 'jeeves' as executable...
+#   Source: .../src/swarm/blueprints/jeeves
+#   Entry Point: blueprint_jeeves.py
+#   Output Executable: /home/user/.local/share/swarm/bin/jeeves
 ```
-*   **After installation:** (Ensure `~/.local/share/swarm/bin/` is in your `PATH`)
+
+*   **After installation:** (with `~/.local/share/swarm/bin/` in your `PATH`)
     ```bash
-    echocraft --instruction "Now I'm a command!"
+    jeeves --message "Now I'm a command!"
     ```
+*   **Fast test-mode install:** with `SWARM_TEST_MODE=1`, `install` writes a
+    quick shell shim instead of compiling a PyInstaller binary, and launched
+    blueprints emit deterministic canned output — useful for trying the CLI
+    without an API key (see
+    [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md#try-a-blueprint-without-an-api-key-swarm_test_mode)).
 
-### Deleting Blueprint Source (`swarm-cli delete`)
+### Launching Blueprints (`swarm-cli launch`)
 
-Removes the blueprint source code from the managed directory. **Warning:** This does *not* remove any installed executable created by `swarm-cli install`.
+Runs a **previously installed** blueprint executable from
+`~/.local/share/swarm/bin/`. If the executable is missing, `launch` exits
+with an error telling you to `swarm-cli install-executable <name>` first.
+
+*   **Single message run:**
+    ```bash
+    swarm-cli launch jeeves --message "What time is it?"
+    ```
+*   **Interactive mode:** (omit `--message`; behavior depends on the
+    blueprint)
+    ```bash
+    swarm-cli launch jeeves
+    ```
+*   **Hooks — chain other installed blueprints around the main run:**
+    ```bash
+    swarm-cli launch codey \
+      --pre lint_team \
+      --listen observer \
+      --post verifier \
+      --message "Refactor the parser"
+    ```
+    *   `--pre` / `-p`: comma-separated blueprint names to run **before** the
+        main task
+    *   `--listen` / `-L`: comma-separated blueprint names to invoke **on the
+        same inputs**
+    *   `--post` / `-o`: comma-separated blueprint names to run **after** the
+        main task
+
+    Hook blueprints must also be installed executables; missing ones are
+    skipped with a warning.
+
+These are the only `launch` options. To select a different LLM profile, set
+`DEFAULT_LLM` in the environment (see below); blueprint-specific flags can be
+passed when running the blueprint executable (or its module entry point)
+directly, e.g. `python -m swarm.blueprints.jeeves.jeeves_cli --help`.
+
+### Removing Blueprints (manual)
+
+There are no `delete`/`uninstall` commands in the current CLI. Remove files
+directly:
 
 ```bash
-swarm-cli delete echocraft
+rm ~/.local/share/swarm/bin/jeeves                      # installed executable
+rm -r ~/.local/share/swarm/blueprints/cool_agent        # user blueprint source
 ```
-
-### Uninstalling (`swarm-cli uninstall`)
-
-Removes the installed executable and/or the blueprint source code.
-
-*   **Remove executable AND source:**
-    ```bash
-    swarm-cli uninstall echocraft
-    ```
-*   **Remove only the source code:**
-    ```bash
-    swarm-cli uninstall echocraft --blueprint-only
-    ```
-*   **Remove only the installed executable:**
-    ```bash
-    swarm-cli uninstall echocraft --wrapper-only
-    ```
 
 ---
 
-## Managing Configuration (`swarm-cli config`)
+## Managing Configuration
 
-Allows viewing and modifying the `swarm_config.json` file (default: `~/.config/swarm/swarm_config.json`).
+`swarm_config.json` holds your LLM profiles and MCP server definitions. The
+current CLI has **no `config` subcommands** — create and edit the file with
+your editor. The loader searches upward from the current directory, then
+falls back to `~/.config/swarm/swarm_config.json`; `SWARM_CONFIG_PATH`
+overrides both.
 
-### Default Configuration
-
-If `~/.config/swarm/swarm_config.json` doesn't exist when `swarm-cli` needs it (e.g., during `swarm-cli run` or `swarm-cli config` commands), it will be created with a default structure:
+### Example configuration
 
 ```json
 {
@@ -157,109 +206,64 @@ If `~/.config/swarm/swarm_config.json` doesn't exist when `swarm-cli` needs it (
             "description": "Default OpenAI profile. Requires OPENAI_API_KEY env var."
         },
         "ollama_example": {
-             "provider": "ollama",
-             "model": "llama3",
-             "api_key": "ollama",
-             "base_url": "http://localhost:11434",
-             "description": "Example for local Ollama Llama 3 model."
+            "provider": "ollama",
+            "model": "llama3",
+            "api_key": "ollama",
+            "base_url": "http://localhost:11434",
+            "description": "Example for local Ollama Llama 3 model."
         }
     },
-    "mcpServers": {},
-    "agents": {},
+    "mcpServers": {
+        "filesystem": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATH}"],
+            "env": { "ALLOWED_PATH": "${ALLOWED_PATH}" }
+        }
+    },
     "settings": {
-         "default_markdown_output": true
+        "default_markdown_output": true
     }
 }
 ```
-**Important:** Placeholders like `${OPENAI_API_KEY}` are used. You **must** set the corresponding environment variables in your shell for the configuration to work. Create a `.env` file in your working directory or `export` them.
 
-### Listing Configuration Entries (`swarm-cli config list`)
+**Important:** placeholders like `${OPENAI_API_KEY}` are substituted from the
+environment at load time. You **must** set the corresponding environment
+variables — `export` them or put them in a `.env` file in your working
+directory.
 
-*   **List LLM profiles:**
-    ```bash
-    swarm-cli config list --section llm
-    ```
-*   **List MCP Servers:**
-    ```bash
-    swarm-cli config list --section mcpServers
-    ```
+### Selecting an LLM profile
 
-### Example: Multiple LLM Profiles & MCP Server Configuration
+Choose which profile a run uses via the `DEFAULT_LLM` environment variable
+(defaults to `default`):
 
-Configure multiple LLM profiles in your `swarm_config.json`:
 ```bash
-swarm-cli config add --section llm --name openai_default \
-  --json '{"provider":"openai","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}"}'
-swarm-cli config add --section llm --name ollama_llama2 \
-  --json '{"provider":"ollama","model":"llama2","base_url":"http://localhost:11434","api_key":"${OLLAMA_API_KEY}"}'
+export DEFAULT_LLM=ollama_example
+swarm-cli launch codey --message "Test Llama3 performance"
 ```
 
-Configure a filesystem-based MCP tool:
-```bash
-swarm-cli config add --section mcpServers --name filesystem \
-  --json '{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","${ALLOWED_PATH}"],"env":{"ALLOWED_PATH":"${ALLOWED_PATH}"}}'
-```
-
-Now select a profile for your run via environment or inline flag:
-```bash
-export DEFAULT_LLM=ollama_llama2
-swarm-cli launch codey --message "Test Llama2 performance"
-```
-Or override inline (Codey example):
-```bash
-swarm-cli launch codey --message "Test Llama2 performance" --model llama2
-```
-
-### Adding/Updating Configuration Entries (`swarm-cli config add`)
-
-Adds a new entry or updates an existing one within a specified section.
-
-*   **Add/Update an LLM profile:** (Use `--name` to specify the profile key)
-    ```bash
-    swarm-cli config add --section llm --name grok_haiku --json '{"provider": "openai", "model": "llama3-haiku-4096", "base_url": "https://api.groq.com/openai/v1", "api_key": "${GROQ_API_KEY}"}'
-    ```
-*   **Add/Update an MCP Server:** (Use `--name` to specify the server key)
-    ```bash
-    swarm-cli config add --section mcpServers --name filesystem --json '{"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATH}"], "env": {"ALLOWED_PATH": "${ALLOWED_PATH}"}}'
-    ```
-*   **Merge MCP Server Block:** (Use `--json` with a block containing `"mcpServers": {...}`, **do not** use `--name`)
-    ```bash
-    swarm-cli config add --section mcpServers --json '{
-        "mcpServers": {
-            "new_server_1": {"command": "...", "args": []},
-            "new_server_2": {"command": "...", "args": []}
-        }
-    }'
-    ```
-*   **Specify config file path:** (Use `--config` if not using the default)
-    ```bash
-    swarm-cli config add --section llm --name test_profile --json '{...}' --config /path/to/other_config.json
-    ```
-
-### Removing Configuration Entries (`swarm-cli config remove`)
-
-Deletes an entry from a specified section.
-
-*   **Remove an LLM profile:**
-    ```bash
-    swarm-cli config remove --section llm --name grok_haiku
-    ```
-*   **Remove an MCP Server:**
-    ```bash
-    swarm-cli config remove --section mcpServers --name filesystem
-    ```
+See [CONFIGURATION.md](./CONFIGURATION.md) for the full configuration guide
+(server environment variables, API auth, etc.).
 
 ---
 
 ## Troubleshooting
 
 *   **Command Not Found (`swarm-cli` or installed blueprint):**
-    *   Ensure `pip install open-swarm` completed successfully.
-    *   Verify that Python's user script directory (e.g., `~/.local/bin`) is in your system's `PATH`. You might need to add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile (`.bashrc`, `.zshrc`, etc.) and restart your shell.
-    *   For installed blueprints, check that `~/.local/share/swarm/bin/` is also in your `PATH`.
-*   **Blueprint Not Found (`swarm-cli launch`):** Make sure the blueprint was added using `swarm-cli add`, installed via `swarm-cli install`, or exists as a bundled blueprint in `swarm-cli list`. Check the spelling.
+    *   Ensure the install completed (`uv sync --all-extras` from source, or
+        `pip install open-swarm`); with `uv`, prefix commands with `uv run`.
+    *   Verify Python's user script directory (e.g. `~/.local/bin`) is in
+        your `PATH`.
+    *   For installed blueprints, check that `~/.local/share/swarm/bin/` is
+        also in your `PATH`.
+*   **`Blueprint executable not found` from `swarm-cli launch`:** `launch`
+    only runs installed executables — run
+    `swarm-cli install <name>` first, and check spelling against
+    `swarm-cli list`.
 *   **Configuration Errors:**
-    *   Verify `~/.config/swarm/swarm_config.json` exists and is valid JSON.
-    *   Ensure environment variables (like `OPENAI_API_KEY`) referenced in `swarm_config.json` are set correctly in your current shell session (`export OPENAI_API_KEY=sk-...` or via a `.env` file).
-*   **Permissions:** Ensure you have read/write permissions for the XDG directories (`~/.config/swarm`, `~/.local/share/swarm`, `~/.cache/swarm`).
-
+    *   Verify your `swarm_config.json` exists (working directory or
+        `~/.config/swarm/`) and is valid JSON.
+    *   Ensure environment variables referenced in the config (like
+        `OPENAI_API_KEY`) are set in your current shell session.
+*   **Permissions:** ensure you have read/write permission for the XDG
+    directories (`~/.config/swarm`, `~/.local/share/swarm`,
+    `~/.cache/swarm`).

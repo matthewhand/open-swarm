@@ -42,15 +42,25 @@ ADMIN_USER = "journey-admin"
 ADMIN_PASS = "journey-pass-8321"
 
 # (output filename stem, path, human name)
+# NOTE: spa-* paths are client-side React Router routes served by the SPA
+# fallback; they require a built webui/frontend/dist. Django template pages
+# keep their own slugs. SCREENSHOTS.md tracks every capture produced here.
 PAGES = [
-    ("landing", "/", "Landing page (React SPA)"),
+    # SPA routes resolve at their no-trailing-slash URLs (Django owns the
+    # trailing-slash variants; the SPA fallback regex excludes only those).
+    ("landing", "/", "Landing page (React SPA dashboard)"),
+    ("spa-chat", "/chat", "Chat (React SPA)"),
+    ("spa-teams", "/teams", "Teams (React SPA)"),
+    ("spa-blueprints", "/blueprints", "Blueprints (React SPA)"),
+    ("spa-agent-creator", "/agent-creator", "Agent creator (React SPA)"),
+    ("spa-settings", "/settings", "Settings (React SPA)"),
     ("login", "/accounts/login/", "Login page"),
-    ("teams", "/teams/", "Teams dashboard"),
-    ("teams-launch", "/teams/launch/", "Team launcher"),
-    ("blueprint-library", "/blueprint-library/", "Blueprint library"),
-    ("my-blueprints", "/blueprint-library/my-blueprints/", "My blueprints"),
-    ("agent-creator", "/agent-creator/", "Agent creator"),
-    ("settings", "/settings/", "Settings dashboard"),
+    ("teams", "/teams/", "Teams dashboard (Django)"),
+    ("teams-launch", "/teams/launch/", "Team launcher (Django)"),
+    ("blueprint-library", "/blueprint-library/", "Blueprint library (Django)"),
+    ("my-blueprints", "/blueprint-library/my-blueprints/", "My blueprints (Django)"),
+    ("agent-creator", "/agent-creator/", "Agent creator (Django)"),
+    ("settings", "/settings/", "Settings dashboard (Django)"),
 ]
 
 SERVER_ENV = {
@@ -94,6 +104,12 @@ def ensure_superuser() -> None:
         "print('superuser ready')"
     )
     env = {**os.environ, **SERVER_ENV}
+    # Fresh checkouts/dbs have no tables yet — make auth_user exist first.
+    subprocess.run(
+        [PYTHON, "manage.py", "migrate", "-v", "0"],
+        cwd=REPO_ROOT, env=env, check=True,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
     subprocess.run(
         [PYTHON, "manage.py", "shell", "-c", code],
         cwd=REPO_ROOT, env=env, check=True,
@@ -163,6 +179,15 @@ def main() -> int:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
             page = browser.new_page(viewport=VIEWPORT)
+            # Authenticate up front: the chat websocket consumer only accepts
+            # logged-in sessions, and authed pages render more realistically.
+            try:
+                ensure_superuser()
+                page.goto(f"{BASE_URL}/accounts/login/", wait_until="networkidle")
+                login_if_needed(page)
+                print(f"  [auth     ] logged in as {ADMIN_USER}")
+            except Exception as exc:
+                print(f"  [auth     ] anonymous capture (login failed: {exc})")
             for slug, path, name in PAGES:
                 try:
                     ok, detail = capture(page, slug, path, name)

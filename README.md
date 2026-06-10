@@ -146,9 +146,13 @@ ruff check .                          # lint
 * Tests run keyless via `SWARM_TEST_MODE` — blueprints emit deterministic spinner/result-box output that the suite asserts against.
 * Blueprint UX standards (spinner sequences, ANSI/emoji result boxes) are codified in `docs/blueprint_standards.md` and checked by `scripts/check_ux_compliance.py` plus CI compliance workflows.
 * The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`); Django serves the built `dist/` automatically when present and falls back to the template UI otherwise. **The React UI is experimental** — see Roadmap.
-* A screenshot-illustrated end-to-end walkthrough (CLI → web UI → API) lives in [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md); regenerate its captures with `scripts/capture_user_journey.py`.
+Documentation map:
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md), [USERGUIDE.md](./USERGUIDE.md), and [ROADMAP.md](./ROADMAP.md).
+* [USERGUIDE.md](./USERGUIDE.md) — task-oriented `swarm-cli` reference.
+* [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md) — screenshot-illustrated end-to-end story (install → CLI → web UI → API) with real transcripts.
+* [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) — visual page-by-page tour of the web UI (React SPA + Django templates).
+* [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
+* [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.
 
 ---
 
