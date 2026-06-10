@@ -1,11 +1,10 @@
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
-    Function,
 )
 from typing import List, Callable, Union, Optional, Dict, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 # AgentFunction = Callable[[], Union[str, "Agent", dict]]
 AgentFunction = Callable[..., Union[str, "Agent", dict]]
