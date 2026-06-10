@@ -19,14 +19,14 @@ except ImportError:
             output = []
             system_found = False
             for msg in messages:
-                if isinstance(msg, dict) and msg.get("role") == "system":
+                if not isinstance(msg, dict):
+                    continue
+                if msg.get("role") == "system":
                     if not system_found:
                         output.append(msg)
                         system_found = True
-                # *** Fix in dummy: Append non-dicts too if needed, or filter here?
-                # Let's assume the filter should focus only on system duplicates for now.
-                elif not (isinstance(msg, dict) and msg.get("role") == "system"):
-                     output.append(msg)
+                else:
+                    output.append(msg)
             return output
 
 def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -37,18 +37,17 @@ def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, 
     if not isinstance(messages, list):
         logger.error(f"Invalid messages type for validation: {type(messages)}. Returning [].")
         return []
-    logger.debug(f"Validating message sequence with {len(messages)} messages")
 
-    # *** FIX: Filter non-dicts FIRST ***
     dict_messages = [msg for msg in messages if isinstance(msg, dict)]
     if len(dict_messages) < len(messages):
         logger.warning(f"Removed {len(messages) - len(dict_messages)} non-dictionary items during validation.")
 
+    logger.debug(f"Validating message sequence with {len(dict_messages)} messages")
+
     try:
-        # *** FIX: Operate ONLY on dict_messages ***
         valid_tool_call_ids = {
             tc["id"]
-            for msg in dict_messages # Use filtered list
+            for msg in dict_messages
             if msg.get("role") == "assistant" and isinstance(msg.get("tool_calls"), list)
             for tc in msg.get("tool_calls", [])
             if isinstance(tc, dict) and "id" in tc
@@ -58,7 +57,6 @@ def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, 
         valid_tool_call_ids = set()
 
     validated_messages = []
-    # *** FIX: Operate ONLY on dict_messages ***
     for msg in dict_messages:
         role = msg.get("role")
         if role == "tool":
@@ -67,13 +65,12 @@ def validate_message_sequence(messages: list[dict[str, Any]]) -> list[dict[str, 
                 validated_messages.append(msg)
             else:
                 logger.warning(f"Removing orphan tool message: {str(msg)[:100]}")
-        # *** FIX: Add basic check for other essential roles before appending ***
-        elif role in ["system", "user", "assistant"]:
-             # We could add more role-specific checks here if needed (like _is_valid_message)
-             # For now, just ensure it's one of the expected roles.
-             validated_messages.append(msg)
+        elif role in ["system", "user", "assistant", "developer"]:
+            # We could add more role-specific checks here if needed (like _is_valid_message)
+            # For now, just ensure it's one of the expected roles.
+            validated_messages.append(msg)
         else:
-             logger.warning(f"Removing message with unknown/missing role during validation: {str(msg)[:100]}")
+            logger.warning(f"Removing message with unknown/missing role during validation: {str(msg)[:100]}")
 
 
     return validated_messages
@@ -86,13 +83,18 @@ def repair_message_payload(messages: list[dict[str, Any]], debug: bool = False) 
     if not isinstance(messages, list):
         logger.error(f"Invalid messages type for repair: {type(messages)}. Returning [].")
         return []
-    logger.debug(f"Repairing message payload with {len(messages)} messages")
+
+    dict_messages = [msg for msg in messages if isinstance(msg, dict)]
+    if len(dict_messages) < len(messages):
+        logger.warning(f"Removed {len(messages) - len(dict_messages)} non-dictionary items during repair.")
+
+    logger.debug(f"Repairing message payload with {len(dict_messages)} messages")
 
     try:
-        messages_no_dup_sys = filter_duplicate_system_messages(messages)
+        messages_no_dup_sys = filter_duplicate_system_messages(dict_messages)
     except Exception as e:
         logger.error(f"Error during filter_duplicate_system_messages: {e}. Proceeding.")
-        messages_no_dup_sys = messages
+        messages_no_dup_sys = dict_messages
 
     # Run validation which now correctly handles non-dicts first
     repaired_validated = validate_message_sequence(messages_no_dup_sys)
@@ -172,7 +174,7 @@ def repair_message_payload(messages: list[dict[str, Any]], debug: bool = False) 
             i += 1
 
     if debug: logger.debug(f"Repaired payload: {json.dumps(final_sequence, indent=2, default=str)}")
-    elif len(messages) != len(final_sequence): # Log if changes were made (even without full debug)
-        logger.info(f"Repair changed message count from {len(messages)} to {len(final_sequence)}")
+    elif len(dict_messages) != len(final_sequence): # Log if changes were made (even without full debug)
+        logger.info(f"Repair changed message count from {len(dict_messages)} to {len(final_sequence)}")
 
     return final_sequence

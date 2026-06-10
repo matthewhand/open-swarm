@@ -141,12 +141,15 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         """
         chat, _ = ChatConversation.objects.get_or_create(conversation_id=conversation_id, student=self.user)
 
-        for message in new_messages:
-            ChatMessage.objects.create(
+        chat_messages = [
+            ChatMessage(
                 conversation=chat,
                 sender=message["role"],
                 content=message["content"]
             )
+            for message in new_messages
+        ]
+        ChatMessage.objects.bulk_create(chat_messages)
 
         # Sync in-memory store
         IN_MEMORY_CONVERSATIONS[conversation_id] = new_messages

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import threading
@@ -11,6 +12,9 @@ from typing import Any
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
+
+# Pre-compiled regex for sanitizing job IDs
+RE_NON_ALPHANUMERIC = re.compile(r'[^a-zA-Z0-9]')
 
 # Import secure subprocess utilities
 from src.swarm.services.secure_subprocess import (
@@ -108,7 +112,7 @@ class DefaultJobService:
         timestamp_ms = int(time.time() * 1000)
         base = base_name or "job"
         # Sanitize base_name for use in ID
-        safe_base = "".join(c if c.isalnum() else "_" for c in base)
+        safe_base = RE_NON_ALPHANUMERIC.sub("_", base)
         return f"{safe_base}_{timestamp_ms}"
 
     def _save_jobs_to_disk(self):
