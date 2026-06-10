@@ -8,7 +8,14 @@ and every screenshot in [`docs/screenshots/`](./screenshots/) was captured from
 a live local server by [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py).
 Where a page shows demo, placeholder, or empty-state data, the caption says so.
 
-> Captured 2026-06-10 on the `main` branch with a fresh development database.
+> Screenshots captured 2026-06-11 with a fresh development database; terminal
+> transcripts captured 2026-06-10 on `main`.
+
+> **Documentation map:** [USERGUIDE.md](../USERGUIDE.md) is the `swarm-cli`
+> reference, this file is the end-to-end story,
+> [GUIDED_TOUR.md](./GUIDED_TOUR.md) is the screenshot-per-page visual tour of
+> the web UI (including the React SPA pages), and
+> [SCREENSHOTS.md](./SCREENSHOTS.md) is the capture registry.
 
 ---
 
@@ -145,13 +152,18 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 ![Landing page](./screenshots/landing.png)
 
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
-serves the experimental React SPA. The dashboard's blueprint/model counts are
-fetched live from `/v1/blueprints/` and `/v1/models/`, and "Backend API:
-Online" is a real health indicator — but the SPA is **mid-rewiring**
-(see Roadmap): most of its inner pages still run on mock data and, as
-captured here, the production CSS bundle renders only minimal styling.
-Delete or skip building `webui/frontend/dist/` to get the supported Django
-template UI at `/` instead.
+serves the React SPA — now shipping styled (DaisyUI 5 / Tailwind 4) CSS. The
+dashboard's blueprint/model counts are fetched live from `/v1/blueprints/`
+and `/v1/models/`, and "Backend API: Online" is a real health indicator. The
+SPA's inner pages (`/chat`, `/teams`, `/blueprints`, `/agent-creator`,
+`/settings`) are wired to the real backend APIs — see the page-by-page
+[guided tour](./GUIDED_TOUR.md#2-react-spa-tour) with captures of each
+(`spa-chat.png`, `spa-teams.png`, `spa-blueprints.png`,
+`spa-agent-creator.png`, `spa-settings.png` in
+[`docs/screenshots/`](./screenshots/)). Remaining gaps are tracked in the
+Roadmap (e.g. the chat websocket protocol ignores the blueprint selector).
+Delete or skip building `webui/frontend/dist/` to get the Django template UI
+at `/` instead; the template pages below remain the supported admin surface.
 
 ### Teams admin — `/teams/`
 
@@ -177,8 +189,8 @@ because nothing has been launched yet in this fresh environment.
 Browse the bundled blueprints (Django Chat, GAWD, Geese, Dynamic Team, Rue
 Code, Chucks Angels, Jeeves, Zeus, Codey, …) with per-blueprint requirement
 badges (e.g. "MCP: OK" / "MCP: Missing") computed from your local
-environment. The summary tiles (4 available / 0 installed / 0 custom) reflect
-this fresh dev setup.
+environment. The summary tiles (5 available / 0 installed / 0 custom /
+5 categories) reflect this fresh dev setup.
 
 ### My blueprints — `/blueprint-library/my-blueprints/`
 
@@ -204,19 +216,22 @@ providers, blueprints/agents, MCP servers, database, logging, performance, UI
 features), with a configuration-progress meter and import/export of the
 environment. Values shown are this dev machine's local configuration.
 
-### Pages skipped in this capture
+### Login page — `/accounts/login/`
 
-Reported honestly rather than faked:
+![Login page](./screenshots/login.png)
 
-* **Login page** — there is currently no login route wired in
-  `src/swarm/urls.py`: `/accounts/login/` returns **404** (the
-  `custom_login` view exists in `src/swarm/views/web_views.py` but has no URL
-  pattern), and `/login/` returns **500** because the SPA fallback view is
-  registered without a `path` capture group. When API auth is enabled the
-  capture script falls back to creating a throwaway superuser and logging in
-  through whatever form it is redirected to.
-* **`/webui/`** — returns **500** (`TemplateDoesNotExist: webui/index.html`);
-  the legacy websocket-chat template page is not present in this build.
+The login form — deliberately minimal and unstyled. Both `/accounts/login/`
+and `/login/` are wired to the `custom_login` view (earlier captures of this
+journey reported them 404/500; that has been fixed). The "testuser/testpass"
+hint is baked into the dev template; that account only exists when the
+dev-only auto-login flag is enabled. Logging in is what enables the SPA chat
+page's websocket session — the chat consumer rejects anonymous connections.
+
+### Pages not captured
+
+* **`/webui/`** — the legacy websocket-chat template page no longer ships;
+  the URL now issues a redirect to `/` for old bookmarks, so there is nothing
+  distinct to capture.
 
 ## 4. Use it as an OpenAI-compatible API
 
@@ -300,17 +315,19 @@ The screenshots are maintained by a self-contained, re-runnable script:
 1. starts its own Django dev server on port **8321**
    (`DJANGO_DEBUG=true ENABLE_WEBUI=true manage.py runserver 8321 --noreload`)
    and waits for readiness;
-2. visits each journey page in headless Chromium at **1280x800** and writes
-   full-page PNGs to `docs/screenshots/<kebab-name>.png`, overwriting the
-   previous capture;
-3. if a page redirects to a login form (e.g. after auth hardening), it creates
-   a throwaway superuser via `manage.py shell -c` and logs in through the
-   form before retrying;
+2. runs migrations, creates a throwaway superuser via `manage.py shell -c`,
+   and logs in up front — the chat websocket consumer only accepts
+   authenticated sessions, and logged-in pages render more realistically;
+3. visits each page in its `PAGES` list (the React SPA routes plus the Django
+   template pages) in headless Chromium at **1280x800** and writes full-page
+   PNGs to `docs/screenshots/<kebab-name>.png`, overwriting the previous
+   capture (SPA pages require a built `webui/frontend/dist/`);
 4. skips (never fakes) any page that returns 4xx/5xx, then kills the server
    and prints a `captured/skipped` summary.
 
-After re-running it, update the captions in this file if pages changed, and
-move superseded screenshots to `docs/screenshots/archive/` (same filename) per
-the convention in [`docs/screenshots/README.md`](./screenshots/README.md).
+After re-running it, update the captions in this file and in
+[`GUIDED_TOUR.md`](./GUIDED_TOUR.md) if pages changed, and move superseded
+screenshots to `docs/screenshots/archive/` (same filename) per the convention
+in the [screenshot registry](./SCREENSHOTS.md).
 The terminal transcripts in section 2 and 4 can be refreshed by re-running the
 commands shown and pasting the new output.
