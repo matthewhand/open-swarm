@@ -204,3 +204,158 @@ export function createTeam(team: CreateTeamRequest): Promise<Team> {
 export function deleteTeam(teamId: string): Promise<void> {
   return apiDelete(`/v1/teams/${encodeURIComponent(teamId)}/`)
 }
+
+// ---------------------------------------------------------------------------
+// Agent creator (swarm/views/agent_creator_views.py)
+//
+// /agent-creator/generate/ and /agent-creator/validate/ are plain Django POST
+// views protected by CsrfViewMiddleware (verified: they 403 without a CSRF
+// cookie + X-CSRFToken header). ensureCsrfCookie() primes the cookie via a
+// cheap GET to /login/ (which sets csrftoken); buildHeaders() then attaches
+// the matching X-CSRFToken header automatically.
+//
+// Saving deliberately uses POST /v1/blueprints/custom/ (a DRF view, CSRF-free
+// for token/anonymous access) instead of /agent-creator/save/: the latter
+// writes loose files under user_blueprints/ with no list/delete API, whereas
+// the custom-blueprints library gives the page a coherent list/save/delete
+// story against a single store.
+// ---------------------------------------------------------------------------
+
+/**
+ * Make sure Django's csrftoken cookie is set before calling CSRF-protected
+ * (non-DRF) endpoints. No-op when the cookie already exists.
+ */
+export async function ensureCsrfCookie(): Promise<void> {
+  if (getCookie('csrftoken')) return
+  try {
+    await fetch('/login/', { headers: { Accept: 'text/html' } })
+  } catch {
+    // Network failure: the subsequent POST will surface a real error.
+  }
+}
+
+/** Validation report returned by generate/validate (BlueprintCodeValidator). */
+export interface CodeValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  syntax_valid: boolean
+  structure_valid: boolean
+  lint_clean: boolean
+}
+
+/** POST /agent-creator/generate/ request body (name/description/instructions required). */
+export interface GenerateAgentRequest {
+  name: string
+  description: string
+  instructions: string
+  personality?: string
+  expertise?: string[]
+  communication_style?: string
+  tags?: string[]
+}
+
+export interface GenerateAgentResponse {
+  success: boolean
+  code: string
+  validation: CodeValidationResult
+}
+
+export interface ValidateAgentResponse {
+  success: boolean
+  validation: CodeValidationResult
+}
+
+export async function generateAgentCode(
+  spec: GenerateAgentRequest,
+): Promise<GenerateAgentResponse> {
+  await ensureCsrfCookie()
+  return apiPost<GenerateAgentResponse>('/agent-creator/generate/', spec)
+}
+
+export async function validateAgentCode(
+  code: string,
+): Promise<ValidateAgentResponse> {
+  await ensureCsrfCookie()
+  return apiPost<ValidateAgentResponse>('/agent-creator/validate/', { code })
+}
+
+// ---------------------------------------------------------------------------
+// Custom blueprints CRUD (/v1/blueprints/custom/, swarm/views/api_views.py)
+// ---------------------------------------------------------------------------
+
+export interface CustomBlueprint {
+  id: string
+  name: string
+  description: string
+  category: string
+  tags: string[]
+  requirements: string
+  code: string
+  required_mcp_servers: string[]
+  env_vars: string[]
+}
+
+export interface CreateCustomBlueprintRequest {
+  name: string
+  description?: string
+  code?: string
+  category?: string
+  tags?: string[]
+}
+
+export function fetchCustomBlueprints(): Promise<ListResponse<CustomBlueprint>> {
+  return apiGet<ListResponse<CustomBlueprint>>('/v1/blueprints/custom/')
+}
+
+export function createCustomBlueprint(
+  blueprint: CreateCustomBlueprintRequest,
+): Promise<CustomBlueprint> {
+  return apiPost<CustomBlueprint>('/v1/blueprints/custom/', blueprint)
+}
+
+export function deleteCustomBlueprint(blueprintId: string): Promise<void> {
+  return apiDelete(`/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`)
+}
+
+// ---------------------------------------------------------------------------
+// Server settings (read-only; swarm/views/settings_views.py)
+// ---------------------------------------------------------------------------
+
+/** One entry inside a settings group (SettingsManager.collect_all_settings). */
+export interface ServerSettingEntry {
+  value: unknown
+  env_var: string | null
+  type: string
+  description: string
+  category: string
+  sensitive: boolean
+}
+
+export interface ServerSettingsGroup {
+  title: string
+  description: string
+  icon: string
+  settings: Record<string, ServerSettingEntry>
+}
+
+/** GET /settings/api/ */
+export interface ServerSettingsResponse {
+  success: boolean
+  settings: Record<string, ServerSettingsGroup>
+}
+
+/** GET /settings/environment/ */
+export interface EnvironmentVariablesResponse {
+  success: boolean
+  environment_variables: Record<string, string>
+  count: number
+}
+
+export function fetchServerSettings(): Promise<ServerSettingsResponse> {
+  return apiGet<ServerSettingsResponse>('/settings/api/')
+}
+
+export function fetchEnvironmentVariables(): Promise<EnvironmentVariablesResponse> {
+  return apiGet<EnvironmentVariablesResponse>('/settings/environment/')
+}
