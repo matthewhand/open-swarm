@@ -69,6 +69,8 @@ def patch_xdg_paths(mocker, mock_dirs):
 
 def test_swarm_cli_entrypoint():
     result = runner.invoke(swarm_cli.app, ["--help"])
+    if result.exit_code != 0:  # surface the underlying exception, not just the code
+        raise AssertionError(f"exit={result.exit_code} exc={result.exception!r} out={result.output[:500]}")
     assert result.exit_code == 0
     assert "[OPTIONS] COMMAND [ARGS]..." in result.stdout
     assert "Swarm CLI tool" in result.stdout

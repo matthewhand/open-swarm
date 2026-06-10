@@ -105,8 +105,8 @@ BLUEPRINT_METADATA = {
         "version": "1.0.0",
         "difficulty": "beginner"
     },
-    "family_ties": {
-        "name": "Family Ties",
+    "stewie": {
+        "name": "Stewie",
         "description": "WordPress content management with agent team coordination",
         "category": "web_services",
         "tags": ["wordpress", "cms", "team"],

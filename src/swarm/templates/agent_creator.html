@@ -14,6 +14,7 @@
         </div>
         <div class="card-body">
           <form id="agentForm">
+            {% csrf_token %}
             <div class="mb-3">
               <label for="agentName" class="form-label">Agent Name *</label>
               <input type="text" class="form-control" id="agentName" name="name" required>
@@ -150,6 +151,7 @@ function generateAgentCode() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
         },
         body: JSON.stringify(data)
     })
@@ -236,6 +238,7 @@ function validateCode() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
         },
         body: JSON.stringify({code: generatedCode})
     })
@@ -275,6 +278,7 @@ function saveAgent() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
         },
         body: JSON.stringify({
             code: generatedCode,
@@ -309,6 +313,10 @@ function clearForm() {
     generatedCode = '';
     validationResult = null;
     clearMessages();
+}
+
+function getCSRFToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 }
 
 function showMessage(message, type) {

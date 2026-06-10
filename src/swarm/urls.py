@@ -40,7 +40,9 @@ from swarm.views.settings_views import (
     settings_api,
     settings_dashboard,
 )
+from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
+    custom_login,
     index,
     profiles_page,
     team_admin,
@@ -53,6 +55,13 @@ from swarm.views.webui import WebUIView
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
     path("", index, name="index"),  # Root path for web UI
+    # Authentication. Two aliases for the same view:
+    # - accounts/login/ matches Django's default LOGIN_URL ('/accounts/login/')
+    #   and is the canonical 'login' name used by auth machinery.
+    # - login/ matches this project's settings.LOGIN_URL ('/login/') and the
+    #   'custom_login' name referenced by templates/account/login.html.
+    path("accounts/login/", custom_login, name="login"),
+    path("login/", custom_login, name="custom_login"),
     path("v1/models", OpenAIModelsView.as_view(), name="models-list-no-slash"),
     path("v1/models/", OpenAIModelsView.as_view(), name="models-list"),
     path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
@@ -65,6 +74,10 @@ urlpatterns = [
     path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
     path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
+    # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
+    path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
+    path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
+    path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),
@@ -138,8 +151,17 @@ if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
         urlpatterns += [
             path('mcp/', include('django_mcp_server.urls')),
         ]
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "ENABLE_MCP_SERVER is set but the '/mcp/' mount was skipped: could not "
+            "import 'django_mcp_server.urls' (%s). No installed package provides a "
+            "'django_mcp_server' module; the PyPI distribution 'django-mcp-server' "
+            "exposes 'mcp_server' instead and needs INSTALLED_APPS changes. "
+            "See docs/mcp_server_mode.md for the supported options.",
+            exc,
+        )
 
 # SPA Fallback for React Router - must be last
 def _get_frontend_path():
@@ -152,7 +174,7 @@ def _get_frontend_path():
 frontend_path = _get_frontend_path()
 if frontend_path and frontend_path.exists():
     from django.views.static import serve
-    from django.conf.urls import re_path
+    from django.urls import re_path
     
     # Serve static assets
     urlpatterns += [
@@ -160,12 +182,13 @@ if frontend_path and frontend_path.exists():
     ]
     
     # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
-    def spa_fallback(request, path):
+    # (the catch-all regex below has no capture group, so path must default)
+    def spa_fallback(request, path=""):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             return FileResponse(open(index_file, 'rb'), content_type='text/html')
         return HttpResponse("Not Found", status=404)
     
     urlpatterns += [
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/).*$', spa_fallback),
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/).*$', spa_fallback),
     ]

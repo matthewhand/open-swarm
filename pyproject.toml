@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-swarm"
-version = "0.2.1"
+version = "0.3.0"
 description = "Open Swarm: Orchestrating AI Agent Swarms with Django"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -68,22 +68,29 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/open-swarm"
-Documentation = "https://github.com/yourusername/open-swarm/blob/main/README.md"
-Repository = "https://github.com/yourusername/open-swarm.git"
-Changelog = "https://github.com/yourusername/open-swarm/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/matthewhand/open-swarm"
+Documentation = "https://github.com/matthewhand/open-swarm/blob/main/README.md"
+Repository = "https://github.com/matthewhand/open-swarm.git"
+Changelog = "https://github.com/matthewhand/open-swarm/blob/main/CHANGELOG.md"
 
 [project.scripts]
 swarm-api = "swarm.extensions.launchers.swarm_api:main"
- swarm-cli = "swarm.core.swarm_cli:app"
+swarm-cli = "swarm.core.swarm_cli:app"
 codey = "swarm.blueprints.codey.codey_cli:main"
 suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
 [project.optional-dependencies]
 memory = [
-    "mem0>=1.0.0",
-    "langmem>=0.1.0",
-    "papr>=0.1.0",
+    # The mem0 integration imports `from mem0 import Memory`; that module is
+    # provided by the `mem0ai` distribution on PyPI (there is no `mem0` dist).
+    "mem0ai>=0.1.0",
+    # langmem and papr integrations are incomplete placeholders (see
+    # src/swarm/memory/langmem_memory.py and src/swarm/memory/papr_memory.py;
+    # their imports are commented out). The pins below do not resolve on PyPI
+    # for all supported Python versions, so they are excluded until the
+    # integrations are implemented.
+    # "langmem>=0.1.0",
+    # "papr>=0.1.0",
 ]
 dev = [
     "pytest>=8.0.0",
@@ -91,6 +98,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-timeout>=2.1.0",
     "mypy>=1.5.0",
     "ruff>=0.1.0",
     "pre-commit>=3.5.0",
@@ -112,6 +120,7 @@ test = [
     "anyio>=4.0.0",
     "respx>=0.20.0",
     "psutil>=5.9.0",
+    "pytest-timeout>=2.1.0",
 ]
 docs = [
     "Sphinx>=7.0.0",

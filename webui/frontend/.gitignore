@@ -1,0 +1,3 @@
+# Re-include src/lib/ (the repo root .gitignore excludes all "lib/" dirs,
+# which would otherwise silently ignore frontend source under src/lib/).
+!src/lib/

@@ -1,27 +1,30 @@
+"""Placeholder for a future `papr` memory backend.
+
+This backend is NOT implemented yet. ``get_memory_backend`` logs a warning
+and returns ``None`` when ``"backend": "papr"`` is configured, so blueprints
+degrade gracefully. Constructing :class:`PaprMemory` directly raises
+:class:`NotImplementedError`.
+"""
+
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
 from swarm.memory.base import BaseMemory
 
 logger = logging.getLogger(__name__)
 
+
 class PaprMemory(BaseMemory):
-    """Integration for papr memory backend."""
+    """Stub for the papr memory backend (not yet implemented)."""
 
-    def __init__(self, config: Dict[str, Any] = None):
-        self.config = config or {}
-        try:
-            # Placeholder for actual papr import
-            # import papr
-            self._client = None
-            logger.warning("papr integration is a placeholder.")
-        except ImportError:
-            logger.warning("papr package not installed.")
+    def __init__(self, config: dict[str, Any] | None = None):
+        raise NotImplementedError(
+            "The 'papr' memory backend is a placeholder and is not implemented yet. "
+            "Use 'mem0' (install with `pip install open-swarm[memory]`) instead."
+        )
 
-    def add_message(self, agent_id: str, message: Dict[str, Any]) -> None:
-        pass
+    def add(self, messages: Any, user_id: str = "default", metadata: dict[str, Any] | None = None) -> None:
+        raise NotImplementedError("papr backend is not implemented yet.")
 
-    def add_messages(self, agent_id: str, messages: List[Dict[str, Any]]) -> None:
-        pass
-
-    def retrieve_context(self, agent_id: str, query: str = "", limit: int = 10) -> List[Dict[str, Any]]:
-        return []
+    def search(self, query: str, user_id: str = "default", limit: int | None = None) -> list[str]:
+        raise NotImplementedError("papr backend is not implemented yet.")

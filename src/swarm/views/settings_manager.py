@@ -9,11 +9,11 @@ from django.conf import settings
 from swarm.utils.env_utils import *
 
 try:
-    # Use the extensions config loader which provides discovery utilities
-    from swarm.extensions.config.config_loader import (
+    # Use the core config loader which provides discovery utilities
+    from swarm.core.config_loader import (
         find_config_file as _find_config_file,
     )
-    from swarm.extensions.config.config_loader import (
+    from swarm.core.config_loader import (
         load_config as _load_config,
     )
 except Exception:
@@ -24,7 +24,7 @@ except Exception:
 def load_config():
     """Load the primary swarm configuration as a dictionary.
 
-    This wrapper locates the config file using the extensions discovery
+    This wrapper locates the config file using the core discovery
     logic and loads it. Tests patch this symbol directly, so we keep it
     as a simple no-arg function.
     """

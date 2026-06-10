@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { Button } from './Button';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
@@ -193,12 +193,6 @@ export const AdvancedPagination = ({
 }) => {
   if (totalPages <= 1) return null;
 
-  const buttonSize = {
-    sm: 'btn-sm',
-    md: 'btn-md',
-    lg: 'btn-lg',
-  };
-
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
       <div className="text-sm text-gray-500">
@@ -240,13 +234,11 @@ export const usePagination = (
   const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage);
 
   const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    setCurrentPage(Math.max(1, page));
   };
 
   const goToNext = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
+    setCurrentPage(currentPage + 1);
   };
 
   const goToPrevious = () => {
@@ -291,7 +283,6 @@ export const usePagination = (
     calculateTotalPages,
     getCurrentPageItems,
     setCurrentPage,
-    setItemsPerPage: setItemsPerPageHandler,
   };
 };
 

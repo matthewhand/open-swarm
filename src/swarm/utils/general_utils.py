@@ -174,13 +174,34 @@ def extract_chat_id(payload: dict) -> str:
     logger.debug("No chat ID found after trying all expressions.")
     return ""
 
-def serialize_datetime(obj):
-    if isinstance(obj, datetime.datetime):
+def swarm_json_serializer(obj):
+    """
+    JSON serializer for objects not serializable by default json code.
+    Handles datetime and UUID objects.
+    """
+    import datetime
+    from uuid import UUID
+
+    if isinstance(obj, (datetime.datetime, datetime.date)):
         return obj.isoformat()
-    elif isinstance(obj, str):
-        return obj
+    if isinstance(obj, UUID):
+        return str(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
 
+def serialize_datetime(obj):
+    """Serialize datetimes to ISO strings; pass strings through.
+
+    Back-compat wrapper kept for existing callers/tests after the generic
+    swarm_json_serializer replaced it.
+    """
+    if isinstance(obj, str):
+        return obj
+    return swarm_json_serializer(obj)
+
+
 def custom_json_dumps(obj, **kwargs):
-    return json.dumps(obj, default=serialize_datetime, **kwargs)
+    """
+    A wrapper around json.dumps that handles specific types like UUIDs and datetimes.
+    """
+    return json.dumps(obj, default=swarm_json_serializer, **kwargs)
 

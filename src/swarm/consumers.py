@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 
@@ -8,6 +9,8 @@ from django.template.loader import render_to_string
 from openai import AsyncOpenAI
 
 from swarm.models import ChatConversation, ChatMessage
+
+logger = logging.getLogger(__name__)
 
 # In-memory conversation storage (populated lazily)
 IN_MEMORY_CONVERSATIONS = {}
@@ -128,6 +131,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             IN_MEMORY_CONVERSATIONS[conversation_id] = messages  # Cache it
             return messages
         except ChatConversation.DoesNotExist:
+            logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
             return []
 
     @database_sync_to_async
@@ -159,4 +163,4 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 if conversation_id in IN_MEMORY_CONVERSATIONS:
                     del IN_MEMORY_CONVERSATIONS[conversation_id]  # Cleanup memory cache
         except ChatConversation.DoesNotExist:
-            pass
+            logger.warning(f"Attempted to delete non-existent conversation: {conversation_id} for user: {self.user}")

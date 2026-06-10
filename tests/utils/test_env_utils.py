@@ -2,6 +2,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 
 from swarm.utils.env_utils import (
     get_csv_env,
@@ -17,8 +18,19 @@ from swarm.utils.env_utils import (
 def test_get_django_secret_key():
     with patch.dict(os.environ, {"DJANGO_SECRET_KEY": "test-key"}):
         assert get_django_secret_key() == "test-key"
-    with patch.dict(os.environ, {}, clear=True):
+    # Dev-only fallback requires DJANGO_DEBUG to be explicitly enabled.
+    with patch.dict(os.environ, {"DJANGO_DEBUG": "true"}, clear=True):
         assert get_django_secret_key() == "django-insecure-fallback-key-for-dev"
+
+
+def test_get_django_secret_key_required_in_production():
+    # DJANGO_DEBUG unset -> production mode -> secret key is mandatory.
+    with patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(ImproperlyConfigured, match="DJANGO_SECRET_KEY"):
+            get_django_secret_key()
+    with patch.dict(os.environ, {"DJANGO_DEBUG": "false"}, clear=True):
+        with pytest.raises(ImproperlyConfigured, match="DJANGO_SECRET_KEY"):
+            get_django_secret_key()
 
 
 @pytest.mark.parametrize(
@@ -37,11 +49,29 @@ def test_is_django_debug(value, expected):
         assert is_django_debug() is expected
 
 
+def test_is_django_debug_defaults_to_false_when_unset():
+    with patch.dict(os.environ, {}, clear=True):
+        assert is_django_debug() is False
+
+
 def test_get_django_allowed_hosts():
     with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": "example.com,test.com"}):
         assert get_django_allowed_hosts() == ["example.com", "test.com"]
-    with patch.dict(os.environ, {}, clear=True):
+    # Whitespace and empty entries are stripped.
+    with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": " example.com , test.com ,"}):
+        assert get_django_allowed_hosts() == ["example.com", "test.com"]
+    # Localhost-only default applies in development only.
+    with patch.dict(os.environ, {"DJANGO_DEBUG": "true"}, clear=True):
         assert get_django_allowed_hosts() == ["localhost", "127.0.0.1"]
+
+
+def test_get_django_allowed_hosts_required_in_production():
+    with patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(ImproperlyConfigured, match="DJANGO_ALLOWED_HOSTS"):
+            get_django_allowed_hosts()
+    with patch.dict(os.environ, {"DJANGO_DEBUG": "false", "DJANGO_ALLOWED_HOSTS": ""}, clear=True):
+        with pytest.raises(ImproperlyConfigured, match="DJANGO_ALLOWED_HOSTS"):
+            get_django_allowed_hosts()
 
 
 def test_get_swarm_config_path():

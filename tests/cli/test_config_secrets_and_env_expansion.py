@@ -126,7 +126,7 @@ def test_env_var_expansion_in_config_loader(tmp_path, monkeypatch):
     # Some loaders may read XDG_CONFIG_HOME; ensure default path under HOME/.config/swarm works.
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
-    from src.swarm.extensions.config import config_loader  # type: ignore
+    from src.swarm.core import config_loader  # type: ignore
 
     # Many loaders accept an explicit config_path; provide it for clarity in tests
     cfg = config_loader.load_config(config_path=str(config_path))  # Should resolve env vars recursively

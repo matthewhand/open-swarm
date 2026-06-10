@@ -1,10 +1,10 @@
-import React, { SelectHTMLAttributes, forwardRef, ReactNode } from 'react';
+import { SelectHTMLAttributes, forwardRef, ReactNode } from 'react';
 
 /**
  * Select component using DaisyUI classes
  * Docs: https://daisyui.com/components/select/
  */
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   label?: string;
   error?: string;
   bordered?: boolean;

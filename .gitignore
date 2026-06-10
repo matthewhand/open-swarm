@@ -210,3 +210,13 @@ src/swarm_log.json.lock
 
 # Coverage artifacts (JSON format)
 coverage.json
+
+# Node / frontend
+node_modules/
+webui/frontend/dist/
+webui/frontend/build/
+*.tsbuildinfo
+.pnpm-store/
+
+# Local agent tooling state
+.letta/

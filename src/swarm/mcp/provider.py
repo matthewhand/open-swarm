@@ -33,9 +33,10 @@ class BlueprintMCPProvider:
       - parameters: { type: "object", properties: { instruction: { type: "string" } }, required: ["instruction"] }
       - description: from blueprint metadata or docstring
 
-    Execution MVP:
-      - Returns a simple text response acknowledging the tool call.
-      - Integrating with real blueprint execution (Runner/BlueprintBase) is a TODO.
+    Execution:
+      - call_tool() executes the named blueprint for real (see tests).
+        Remaining gaps are tracked in ROADMAP.md §3.3 (server dependency
+        declaration, MCP client auth).
     """
 
     def __init__(self, blueprint_dir: str | None = None) -> None:

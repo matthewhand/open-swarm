@@ -2,7 +2,7 @@ import argparse
 import os
 import sys
 
-from swarm.blueprints.common.spinner import SwarmSpinner
+from swarm.core.spinner import SwarmSpinner
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.output_utils import print_search_progress_box
 

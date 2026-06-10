@@ -4,6 +4,7 @@ Django settings for swarm project.
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -17,13 +18,26 @@ dotenv_path = BASE_DIR.parent / '.env'
 load_dotenv(dotenv_path=dotenv_path)
 # ---
 
+# Secure-by-default: DJANGO_DEBUG defaults to False, and production
+# (DEBUG=False) requires DJANGO_SECRET_KEY and DJANGO_ALLOWED_HOSTS to be set
+# (ImproperlyConfigured is raised otherwise — see swarm.utils.env_utils).
+# The test suite runs in development mode: pytest-django imports settings
+# before any conftest can run, so default DJANGO_DEBUG here when under pytest
+# unless the caller explicitly set it.
+TESTING = 'pytest' in sys.modules or 'PYTEST_VERSION' in os.environ
+if TESTING:
+    os.environ.setdefault('DJANGO_DEBUG', 'true')
+
 SECRET_KEY = get_django_secret_key()
 DEBUG = is_django_debug()
 ALLOWED_HOSTS = get_django_allowed_hosts()
 
 # --- Custom Swarm Settings ---
-# Load the token from environment
-_raw_api_token = get_api_auth_token()
+# Load the API auth token. Enforced: in production (DEBUG=False) a missing
+# API_AUTH_TOKEN/SWARM_API_KEY raises ImproperlyConfigured so the server
+# REFUSES to boot with API authentication silently disabled. In development
+# (DJANGO_DEBUG=true) a missing token logs a warning and auth stays off.
+_raw_api_token = get_enforced_api_auth_token()
 
 # *** Only enable API auth if the token is actually set ***
 ENABLE_API_AUTH = bool(_raw_api_token)
@@ -42,6 +56,9 @@ WEBUI_STATIC_DIR = BASE_DIR.parent / 'staticfiles' / 'webui'
 # --- End Custom Swarm Settings ---
 
 INSTALLED_APPS = [
+    # 'daphne' must come first so its ASGI-aware `runserver` (which serves
+    # websocket routes via ASGI_APPLICATION) overrides the default command.
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -51,6 +68,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'drf_spectacular',
+    # Django Channels: registers the ASGI/websocket machinery used by
+    # swarm.asgi + swarm.routing (chat consumer at ws/ai-demo/<id>/).
+    'channels',
     'swarm',
     'swarm.mcp',
 ]
@@ -150,14 +170,28 @@ SAML_IDP_CONFIG = {
     'key_file': SAML_IDP_PRIVATE_KEY_FILE,
 }
 
-# Optional MCP server integration (django-mcp-server). Disabled by default.
+# Optional MCP server integration. Disabled by default and currently
+# aspirational — see docs/mcp_server_mode.md. The try/except here previously
+# guarded a plain list append (which never raises), so enabling the flag
+# without the package crashed django.setup() in apps.populate(). Only register
+# the app if its module is actually importable.
 ENABLE_MCP_SERVER = is_enable_mcp_server()
 if ENABLE_MCP_SERVER:
+    import importlib.util
+    import sys as _sys
     try:
+        _mcp_available = importlib.util.find_spec('django_mcp_server') is not None
+    except ValueError:
+        # Module placed in sys.modules without a __spec__ (e.g. test stubs).
+        _mcp_available = 'django_mcp_server' in _sys.modules
+    if _mcp_available:
         INSTALLED_APPS += ['django_mcp_server']
-    except Exception:
-        # Optional dependency; ignore when not available
-        pass
+    else:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "ENABLE_MCP_SERVER is set but no 'django_mcp_server' module is "
+            "installed; skipping app registration (see docs/mcp_server_mode.md)."
+        )
 
 # Optional GitHub marketplace discovery (disabled by default)
 ENABLE_GITHUB_MARKETPLACE = is_enable_github_marketplace()

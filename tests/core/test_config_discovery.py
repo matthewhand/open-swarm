@@ -2,7 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from swarm.extensions.config import config_loader
+from swarm.core import config_loader
 
 
 def test_xdg_config_discovery(monkeypatch):

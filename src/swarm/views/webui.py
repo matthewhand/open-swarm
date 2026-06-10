@@ -1,19 +1,19 @@
-from django.views.generic import TemplateView
-from django.conf import settings
-from django.http import HttpResponseNotFound
-import os
+"""Legacy /webui/ endpoint.
 
-class WebUIView(TemplateView):
-    template_name = "webui/index.html"
+Historically this rendered a dedicated ``webui/index.html`` template, but that
+template no longer ships with the project, so the view raised
+``TemplateDoesNotExist`` (HTTP 500) whenever it was hit.
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Any context variables for the React app
-        return context
+Decision (ROADMAP §2 "Login routing"): keep the route for backward
+compatibility with old bookmarks/links and redirect to ``/``, which serves the
+built SPA when ``webui/frontend/dist`` exists or the Django template index
+otherwise (see ``swarm.views.web_views.index``).
+"""
+from django.views.generic import RedirectView
 
-    def get(self, request, *args, **kwargs):
-        # Fallback if index.html is missing
-        template_path = os.path.join(settings.BASE_DIR.parent, "staticfiles", "webui", "index.html")
-        if not getattr(settings, "DEBUG", False) and not os.path.exists(template_path):
-             return HttpResponseNotFound("Web UI build not found. Please run Vite build.")
-        return super().get(request, *args, **kwargs)
+
+class WebUIView(RedirectView):
+    """Redirect the legacy /webui/ URL to the root index."""
+
+    permanent = False  # temporary redirect: behaviour may change again
+    url = "/"

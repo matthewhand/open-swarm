@@ -6,7 +6,6 @@ import re
 from typing import Any
 
 from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
 
 
 class AdvancedCodeValidator:
@@ -594,7 +593,6 @@ advanced_validator = AdvancedCodeValidator()
 pro_generator = ProAgentGenerator()
 
 
-@csrf_exempt
 def agent_creator_pro_page(request):
     """Render the enhanced agent creator interface"""
     context = {

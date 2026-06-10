@@ -14,6 +14,7 @@
         </div>
         <div class="card-body">
           <form id="teamForm">
+            {% csrf_token %}
             <div class="mb-3">
               <label for="teamName" class="form-label">Team Name *</label>
               <input type="text" class="form-control" id="teamName" name="name" required>
@@ -350,7 +351,8 @@ function saveTeam() {
     fetch('/team-creator/save/', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
         },
         body: JSON.stringify(teamData)
     }).then(async (resp) => {
@@ -383,6 +385,10 @@ function clearTeamForm() {
     generatedTeamCode = '';
     teamValidationResult = null;
     clearTeamMessages();
+}
+
+function getCSRFToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 }
 
 function showTeamMessage(message, type) {

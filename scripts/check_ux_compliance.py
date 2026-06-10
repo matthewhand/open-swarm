@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 BLUEPRINTS = [
-    'family_ties', 'omniplex', 'zeus', 'chatbot', 'monkai_magic', 'poets',
+    'stewie', 'zeus', 'poets',
     'jeeves', 'suggestion', 'codey', 'gaggle', 'geese', 'hello_world'
 ]
 

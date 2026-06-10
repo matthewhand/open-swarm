@@ -1,10 +1,10 @@
-import React, { InputHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, forwardRef } from 'react';
 
 /**
  * Input component using DaisyUI classes
  * Docs: https://daisyui.com/components/input/
  */
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
   error?: string;
   bordered?: boolean;

@@ -145,12 +145,24 @@ class DjangoChatBlueprint(Blueprint):
         }
 
     def get_or_create_default_user(self):
-        """Create or retrieve a default 'testuser' for development purposes."""
+        """Create or retrieve a default 'testuser' (DEBUG mode only).
+
+        Refused outside debug mode (DJANGO_DEBUG=true); never uses a
+        hardcoded password (random per-process unless TESTUSER_PASSWORD is set).
+        """
+        from django.core.exceptions import PermissionDenied
+
+        from swarm.utils.env_utils import get_testuser_password, is_django_debug
+        if not is_django_debug():
+            raise PermissionDenied(
+                "The default 'testuser' fallback is a development-only convenience "
+                "and is disabled because DJANGO_DEBUG is not enabled."
+            )
         username = "testuser"
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            user = User.objects.create_user(username=username, password="testpass")
+            user = User.objects.create_user(username=username, password=get_testuser_password())
             logger.info(f"Created default user: {username}")
         return user
 

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+(nothing yet)
+
+## [0.3.0] - 2026-06-11
+
+### Repository cleanup wave (June 2026)
+
+- **Added** `ROADMAP.md` — nested-checkbox roadmap consolidating project status; `TODO.md` slimmed to point at it.
+- **Removed** tracked `node_modules` from the repository (now untracked/ignored).
+- **Removed** dead code identified during the sweep; deleted the automated `CODE_SWEEP_REPORT.md`; archived `IMPLEMENTATION_SUMMARY.md` to `docs/archive/`.
+- **Security** hardened defaults: command/SQL injection fixes, open redirect fixes, removal of hardcoded passwords.
+- **Fixed** packaging issues (`uv sync`, frontend lockfile regeneration).
+- **Docs** README attribution section (OpenAI Swarm derivative, built on openai-agents SDK) and explicit prerequisites (Python >= 3.10, Node >= 22 for optional frontend); React web UI marked experimental with the Django UI as the supported interface.
+
 ### Added
 - Comprehensive unit tests for low-coverage modules: `audit.py`, `progress.py`, `output_formatters.py`, and `ansi_box.py`
 - Test coverage for `ChucksAngelsBlueprint` class

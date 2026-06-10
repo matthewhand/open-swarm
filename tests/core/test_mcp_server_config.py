@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 
-from swarm.extensions.config import config_loader
+from swarm.core import config_loader
 
 
 def test_mcp_server_config_parsing():

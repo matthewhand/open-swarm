@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from src.swarm.core.paths import (
+from swarm.core.paths import (
     APP_AUTHOR,
     APP_NAME,
     ensure_swarm_directories_exist,
@@ -165,9 +165,8 @@ class TestProjectRootDirectory:
         """Test that project root directory contains src directory."""
         root_dir = get_project_root_dir()
         src_dir = root_dir / "src"
-        # This test assumes the project structure exists
-        # In a real test environment, this would be more robust
-        assert src_dir.exists() or not src_dir.exists()  # Allow either state
+        assert src_dir.is_dir()
+        assert (root_dir / "pyproject.toml").exists()
 
 
 class TestEnsureSwarmDirectoriesExist:
@@ -179,11 +178,11 @@ class TestEnsureSwarmDirectoriesExist:
             temp_path = Path(temp_dir)
 
             # Mock the directory functions to use our temp directory
-            with patch('src.swarm.core.paths.get_user_data_dir_for_swarm', return_value=temp_path / "data"), \
-                 patch('src.swarm.core.paths.get_user_blueprints_dir', return_value=temp_path / "data" / "blueprints"), \
-                 patch('src.swarm.core.paths.get_user_bin_dir', return_value=temp_path / "data" / "bin"), \
-                 patch('src.swarm.core.paths.get_user_cache_dir_for_swarm', return_value=temp_path / "cache"), \
-                 patch('src.swarm.core.paths.get_user_config_dir_for_swarm', return_value=temp_path / "config"):
+            with patch('swarm.core.paths.get_user_data_dir_for_swarm', return_value=temp_path / "data"), \
+                 patch('swarm.core.paths.get_user_blueprints_dir', return_value=temp_path / "data" / "blueprints"), \
+                 patch('swarm.core.paths.get_user_bin_dir', return_value=temp_path / "data" / "bin"), \
+                 patch('swarm.core.paths.get_user_cache_dir_for_swarm', return_value=temp_path / "cache"), \
+                 patch('swarm.core.paths.get_user_config_dir_for_swarm', return_value=temp_path / "config"):
 
                 ensure_swarm_directories_exist()
 
@@ -199,11 +198,11 @@ class TestEnsureSwarmDirectoriesExist:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            with patch('src.swarm.core.paths.get_user_data_dir_for_swarm', return_value=temp_path / "data"), \
-                 patch('src.swarm.core.paths.get_user_blueprints_dir', return_value=temp_path / "data" / "blueprints"), \
-                 patch('src.swarm.core.paths.get_user_bin_dir', return_value=temp_path / "data" / "bin"), \
-                 patch('src.swarm.core.paths.get_user_cache_dir_for_swarm', return_value=temp_path / "cache"), \
-                 patch('src.swarm.core.paths.get_user_config_dir_for_swarm', return_value=temp_path / "config"):
+            with patch('swarm.core.paths.get_user_data_dir_for_swarm', return_value=temp_path / "data"), \
+                 patch('swarm.core.paths.get_user_blueprints_dir', return_value=temp_path / "data" / "blueprints"), \
+                 patch('swarm.core.paths.get_user_bin_dir', return_value=temp_path / "data" / "bin"), \
+                 patch('swarm.core.paths.get_user_cache_dir_for_swarm', return_value=temp_path / "cache"), \
+                 patch('swarm.core.paths.get_user_config_dir_for_swarm', return_value=temp_path / "config"):
 
                 # Call multiple times
                 ensure_swarm_directories_exist()
@@ -299,3 +298,60 @@ class TestPathSecurity:
                 path = get_user_data_dir_for_swarm()
                 # Should return a Path object regardless of input
                 assert isinstance(path, Path)
+
+
+class TestPlatformDirsIntegration:
+    """Test integration with platformdirs library."""
+
+    @patch("swarm.core.paths.platformdirs.user_data_dir")
+    def test_get_user_data_dir_calls_platformdirs(self, mock_user_data_dir):
+        """Test that get_user_data_dir_for_swarm calls platformdirs correctly."""
+        mock_user_data_dir.return_value = "/mock/data/dir"
+        with patch.dict(os.environ, {}, clear=True):
+            path = get_user_data_dir_for_swarm()
+            assert str(path) == "/mock/data/dir"
+            mock_user_data_dir.assert_called_once_with(
+                appname=APP_NAME, appauthor=APP_AUTHOR
+            )
+
+    @patch("swarm.core.paths.platformdirs.user_cache_dir")
+    def test_get_user_cache_dir_calls_platformdirs(self, mock_user_cache_dir):
+        """Test that get_user_cache_dir_for_swarm calls platformdirs correctly."""
+        mock_user_cache_dir.return_value = "/mock/cache/dir"
+        path = get_user_cache_dir_for_swarm()
+        assert str(path) == "/mock/cache/dir"
+        mock_user_cache_dir.assert_called_once_with(
+            appname=APP_NAME, appauthor=APP_AUTHOR
+        )
+
+    @patch("swarm.core.paths.platformdirs.user_config_dir")
+    def test_get_user_config_dir_calls_platformdirs(self, mock_user_config_dir):
+        """Test that get_user_config_dir_for_swarm calls platformdirs correctly."""
+        mock_user_config_dir.return_value = "/mock/config/dir"
+        path = get_user_config_dir_for_swarm()
+        assert str(path) == "/mock/config/dir"
+        mock_user_config_dir.assert_called_once_with(
+            appname=APP_NAME, appauthor=APP_AUTHOR
+        )
+
+
+class TestCrossPlatformMocks:
+    """Test path behavior with simulated platforms."""
+
+    @patch("sys.platform", "win32")
+    @patch("swarm.core.paths.platformdirs.user_data_dir")
+    def test_get_user_data_dir_windows_mock(self, mock_user_data_dir):
+        """Test user data directory resolution on simulated Windows."""
+        mock_user_data_dir.return_value = "C:\\Users\\Test\\AppData\\Local\\OpenSwarm\\swarm"
+        with patch.dict(os.environ, {}, clear=True):
+            path = get_user_data_dir_for_swarm()
+            assert str(path) == "C:\\Users\\Test\\AppData\\Local\\OpenSwarm\\swarm"
+
+    @patch("sys.platform", "linux")
+    @patch("swarm.core.paths.platformdirs.user_data_dir")
+    def test_get_user_data_dir_linux_mock(self, mock_user_data_dir):
+        """Test user data directory resolution on simulated Linux."""
+        mock_user_data_dir.return_value = "/home/test/.local/share/swarm"
+        with patch.dict(os.environ, {}, clear=True):
+            path = get_user_data_dir_for_swarm()
+            assert str(path) == "/home/test/.local/share/swarm"

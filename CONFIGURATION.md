@@ -137,4 +137,54 @@ Swarm supports both interactive and manual configuration. The recommended way to
 
 ---
 
+## 9. Memory (experimental)
+
+Blueprints can opt in to persistent, cross-conversation memory. **mem0 is the default and currently the only working backend.** Install its dependency via the `memory` extra:
+
+```sh
+pip install open-swarm[memory]   # or: uv sync --extra memory
+```
+
+### Config Shape
+
+Add a `memory` block either per blueprint (under `blueprints.<id>`, checked first) or at the top level of the config (applies to all blueprints):
+
+```json
+{
+  "blueprints": {
+    "my_blueprint": {
+      "memory": {
+        "backend": "mem0",
+        "user_id": "alice",
+        "limit": 5,
+        "config": { "vector_store": { "provider": "qdrant" } }
+      }
+    }
+  }
+}
+```
+
+Keys (all optional except `backend`):
+
+| Key       | Description |
+|-----------|-------------|
+| `backend` | `"mem0"` is the only implemented backend. Empty/`"none"` disables memory; unknown names log a warning and disable. **Required** — without it the block is ignored. |
+| `user_id` | Default user id for memory search/storage when a run doesn't pass one (default: `"default"`). |
+| `limit`   | Max memory snippets returned per search (default: `5`). |
+| `config`  | Dict passed verbatim to `mem0.Memory.from_config(...)` (vector store, LLM, etc. — see mem0 docs). Omit to use mem0's defaults. |
+
+### Behavior
+
+- **Pre-run retrieval:** before each `run()`, the latest user message is used to search memory; any hits are prepended as a single system message (`"Relevant memories from previous conversations: ..."`).
+- **Post-run storage:** after the run, the input messages plus the assistant's output are stored under `user_id`. The injected memory system message is not re-stored.
+- **Strict no-op when unconfigured:** with no `memory` block (or no `backend` key), `run()` is untouched and behavior is byte-for-byte identical to before.
+- **Graceful degradation:** if `backend: "mem0"` is set but the `mem0ai` package is not installed, a warning is logged and the blueprint continues without memory — nothing raises.
+- **Error isolation:** memory search/storage failures are logged as warnings and never break a run.
+
+### Status
+
+This integration is covered by unit tests using fake in-memory backends; it has **not yet been validated end-to-end against a live mem0 instance**. The `langmem` and `papr` backends are placeholders: selecting them in config logs a warning and disables memory, and instantiating their classes directly raises `NotImplementedError`.
+
+---
+
 For more, see the main [README.md](./README.md) or run `swarm-cli --help`.

@@ -1,4 +1,4 @@
-import React, { useState, ReactNode } from 'react';
+import { useState, ReactNode } from 'react';
 
 /**
  * Tab interface
@@ -252,7 +252,7 @@ export const VerticalTabs = ({
   activeTab,
   onChange,
   className = '',
-}: TabsProps) => {
+}: Omit<TabsProps, 'tabs'> & { tabs: ContentTab[] }) => {
   return (
     <div className={`flex gap-4 ${className}`}>
       <div className="flex flex-col gap-1 min-w-[120px]">

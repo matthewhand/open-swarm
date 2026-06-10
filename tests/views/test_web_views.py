@@ -74,10 +74,16 @@ def mock_swarm_config(tmp_path):
 class TestIndexView:
     """Tests for the index page view."""
 
+    @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
     @patch("swarm.views.web_views.render")
-    def test_index_success(self, mock_render, mock_discover, client, mock_blueprints_metadata):
-        """Test index page renders with discovered blueprints."""
+    def test_index_success(self, mock_render, mock_discover, mock_frontend, client, mock_blueprints_metadata):
+        """Test index page renders with discovered blueprints (template fallback path).
+
+        _ensure_frontend_built is forced to None so the test exercises the
+        Django-template fallback regardless of whether webui/frontend/dist
+        exists on disk.
+        """
         mock_discover.return_value = mock_blueprints_metadata
         mock_render.return_value = HttpResponse(status=200)
 

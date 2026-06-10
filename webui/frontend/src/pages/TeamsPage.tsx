@@ -1,227 +1,276 @@
-import React, { useState } from 'react';
-import { Button, Card, Alert, Badge } from '../components/DaisyUI';
-import { Users, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  ConfirmModal,
+  Input,
+  Modal,
+  SkeletonCard,
+  ToastProvider,
+  useToast,
+} from '../components/DaisyUI';
+import { AlertCircle, Plus, Trash2, Users } from 'lucide-react';
+import { createTeam, deleteTeam, fetchTeams, type Team } from '../lib/api';
 
-// Mock data for teams
-const mockTeams = [
-  {
-    id: 1,
-    name: 'Code Review Team',
-    description: 'Automated code review and quality assurance',
-    status: 'active' as const,
-    members: 4,
-    created: '2024-01-15',
-  },
-  {
-    id: 2,
-    name: 'Documentation Squad',
-    description: 'Technical writing and documentation generation',
-    status: 'idle' as const,
-    members: 3,
-    created: '2024-02-20',
-  },
-  {
-    id: 3,
-    name: 'Data Processing',
-    description: 'Large-scale data analysis and transformation',
-    status: 'error' as const,
-    members: 5,
-    created: '2024-03-10',
-  },
-  {
-    id: 4,
-    name: 'Research Assistants',
-    description: 'Web research and information synthesis',
-    status: 'active' as const,
-    members: 2,
-    created: '2024-03-25',
-  },
-];
+/**
+ * Teams page.
+ *
+ * Wired to the JSON Teams API (/v1/teams/, see swarm/views/teams_api.py),
+ * which is backed by the same dynamic-team registry as the server-rendered
+ * /teams/ admin page. All data shown here comes from the backend; nothing is
+ * fabricated client-side.
+ */
+const TeamsPageContent = () => {
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
-const statusColors = {
-  active: 'success',
-  idle: 'warning',
-  error: 'error',
-};
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
 
-const TeamsPage = () => {
-  const [teams, setTeams] = useState(mockTeams);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  
-  const filteredTeams = teams.filter(team =>
-    team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    team.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [llmProfile, setLlmProfile] = useState('');
 
-  const handleDelete = (id: number) => {
-    setTeams(teams.filter(team => team.id !== id));
+  const { data, isPending, isError, error, refetch } = useQuery({
+    queryKey: ['teams'],
+    queryFn: fetchTeams,
+  });
+
+  const teams: Team[] = data?.data ?? [];
+
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setLlmProfile('');
+  };
+
+  const createMutation = useMutation({
+    mutationFn: createTeam,
+    onSuccess: (team) => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setIsCreateOpen(false);
+      resetForm();
+      toast.success('Team created', `Team "${team.id}" was registered.`);
+    },
+    onError: (err) => {
+      toast.error(
+        'Failed to create team',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTeam,
+    onSuccess: (_data, teamId) => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.success('Team deleted', `Team "${teamId}" was removed.`);
+    },
+    onError: (err) => {
+      toast.error(
+        'Failed to delete team',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
+    },
+    onSettled: () => {
+      setTeamToDelete(null);
+    },
+  });
+
+  const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || createMutation.isPending) return;
+    createMutation.mutate({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      llm_profile: llmProfile.trim() || undefined,
+    });
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
+      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Users className="h-8 w-8" />
             Team Management
           </h1>
-          <p className="text-gray-500 mt-1">Create and manage your AI teams</p>
+          <p className="text-gray-500 mt-1">
+            Create and manage dynamic AI teams (served by /v1/teams/)
+          </p>
         </div>
-        <div className="flex gap-2 mt-4 lg:mt-0">
-          <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Team
-          </Button>
-          <Button variant="outline">
-            <Search className="h-4 w-4 mr-2" />
-            Advanced Search
+        <div>
+          <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-5 w-5 mr-2" />
+            New Team
           </Button>
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <Card bordered className="mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <label className="label">
-              <span className="label-text">Search Teams</span>
-            </label>
-            <input
-              type="text"
-              placeholder="Search by name or description..."
-              className="input input-bordered w-full"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">
-              <span className="label-text">Status Filter</span>
-            </label>
-            <select className="select select-bordered w-full max-w-xs">
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="idle">Idle</option>
-              <option value="error">Error</option>
-            </select>
-          </div>
+      {/* Loading state */}
+      {isPending && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
-      </Card>
+      )}
 
-      {/* Teams Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredTeams.map((team) => (
-          <Card key={team.id} bordered className="hover:shadow-lg transition-shadow">
-            <div className="card-body">
-              <div className="flex justify-between items-start mb-2">
-                <Badge type={statusColors[team.status]}>
-                  {team.status.charAt(0).toUpperCase() + team.status.slice(1)}
-                </Badge>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="btn-xs">
-                    <Edit className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              <h2 className="card-title mb-1">{team.name}</h2>
-              <p className="text-sm text-gray-500 mb-3">{team.description}</p>
-
-              <div className="divider my-2"></div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Members:</span>
-                  <span className="font-medium">{team.members}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Created:</span>
-                  <span className="font-medium">{team.created}</span>
-                </div>
-              </div>
-
-              <div className="card-actions justify-end mt-4">
-                <Button variant="outline" size="sm">
-                  View Details
-                </Button>
-                <Button variant="primary" size="sm">
-                  Launch
-                </Button>
-              </div>
+      {/* Error state */}
+      {isError && (
+        <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+          <div className="flex flex-col gap-2">
+            <span className="font-medium">Failed to load teams</span>
+            <span className="text-sm">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </span>
+            <div>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                Retry
+              </Button>
             </div>
-          </Card>
-        ))}
-      </div>
+          </div>
+        </Alert>
+      )}
 
-      {/* Empty State */}
-      {filteredTeams.length === 0 && (
+      {/* Team grid */}
+      {!isPending && !isError && teams.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {teams.map((team) => (
+            <Card key={team.id} bordered className="hover:shadow-lg transition-shadow">
+              <div className="card-body">
+                <div className="flex justify-between items-start gap-2 mb-2">
+                  <h3 className="card-title font-mono text-lg">{team.id}</h3>
+                  <Badge type="info" size="sm">
+                    {team.llm_profile}
+                  </Badge>
+                </div>
+                <p className="text-sm text-gray-500 mb-4 whitespace-pre-line">
+                  {team.description || 'No description provided.'}
+                </p>
+                <div className="card-actions justify-end">
+                  <Button
+                    variant="outline"
+                    color="error"
+                    size="sm"
+                    onClick={() => setTeamToDelete(team)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isPending && !isError && teams.length === 0 && (
         <Card bordered className="text-center py-12">
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-gray-400" />
           </div>
-          <h3 className="text-xl font-semibold mb-2">No teams found</h3>
+          <h3 className="text-xl font-semibold mb-2">No teams yet</h3>
           <p className="text-gray-500 mb-4">
-            {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started'}
+            No dynamic teams are registered on this server.
           </p>
-          <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Team
-          </Button>
+          <div>
+            <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-5 w-5 mr-2" />
+              Create your first team
+            </Button>
+          </div>
         </Card>
       )}
 
-      {/* Create Team Modal */}
-      {showCreateModal && (
-        <div className="modal modal-open">
-          <div className="modal-box">
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Create New Team
-            </h3>
-            <p className="py-4 text-gray-500">
-              Set up a new AI team with custom configuration
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="label">
-                  <span className="label-text">Team Name</span>
-                </label>
-                <input type="text" placeholder="e.g., Code Review Team" className="input input-bordered w-full" />
-              </div>
-
-              <div>
-                <label className="label">
-                  <span className="label-text">Description</span>
-                </label>
-                <textarea placeholder="Describe the team's purpose..." className="textarea textarea-bordered w-full h-24"></textarea>
-              </div>
-
-              <div>
-                <label className="label">
-                  <span className="label-text">Team Size</span>
-                </label>
-                <input type="number" placeholder="Number of agents" className="input input-bordered w-full" min="1" max="10" />
-              </div>
-            </div>
-
-            <div className="modal-action flex gap-2">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary">
-                Create Team
-              </Button>
-            </div>
+      {/* Create team modal */}
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Create Team"
+      >
+        <form onSubmit={handleCreateSubmit} className="space-y-4">
+          <Input
+            label="Team name"
+            placeholder="e.g. Research Team"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={64}
+          />
+          <Input
+            label="Description (optional)"
+            placeholder="What does this team do?"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <Input
+            label="LLM profile (optional)"
+            placeholder="default"
+            value={llmProfile}
+            onChange={(e) => setLlmProfile(e.target.value)}
+          />
+          <p className="text-xs text-gray-400">
+            The name is slugified server-side (lowercase letters, numbers and
+            dashes) and exposed as a model id via /v1/models.
+          </p>
+          <div className="modal-action flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreateOpen(false)}
+              disabled={createMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={createMutation.isPending}
+              disabled={!name.trim() || createMutation.isPending}
+            >
+              Create
+            </Button>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        onConfirm={() => {
+          if (teamToDelete && !deleteMutation.isPending) {
+            deleteMutation.mutate(teamToDelete.id);
+          }
+        }}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+      >
+        <p>
+          Delete team{' '}
+          <span className="font-mono font-semibold">{teamToDelete?.id}</span>?
+          This removes it from the registry and from /v1/models.
+        </p>
+      </ConfirmModal>
     </div>
   );
 };
+
+/**
+ * The app shell does not mount a ToastProvider, so provide one locally for
+ * create/delete feedback.
+ */
+const TeamsPage = () => (
+  <ToastProvider>
+    <TeamsPageContent />
+  </ToastProvider>
+);
 
 export default TeamsPage;

@@ -1,11 +1,11 @@
-import React, { forwardRef, ButtonHTMLAttributes } from 'react';
+import { forwardRef, ButtonHTMLAttributes } from 'react';
 
 /**
  * Button component using DaisyUI classes
  * Docs: https://daisyui.com/components/button/
  */
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'accent' | 'ghost' | 'link' | 'outline' | 'active' | 'disabled';
+  variant?: 'primary' | 'secondary' | 'accent' | 'info' | 'ghost' | 'link' | 'outline' | 'active' | 'disabled';
   size?: 'lg' | 'md' | 'sm' | 'xs';
   color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error' | 'ghost';
   wide?: boolean;

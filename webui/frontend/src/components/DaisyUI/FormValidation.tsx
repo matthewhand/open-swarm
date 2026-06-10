@@ -166,7 +166,7 @@ export interface ValidatedInputProps {
   touched?: boolean;
   onChange: (name: string, value: any) => void;
   onBlur: (name: string) => void;
-  inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+  inputProps?: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'color'>;
 }
 
 export const ValidatedInput = ({
@@ -208,7 +208,7 @@ export interface ValidatedSelectProps {
   onChange: (name: string, value: any) => void;
   onBlur: (name: string) => void;
   options: { value: string; label: ReactNode }[];
-  selectProps?: React.SelectHTMLAttributes<HTMLSelectElement>;
+  selectProps?: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size' | 'color'>;
 }
 
 export const ValidatedSelect = ({
@@ -254,7 +254,7 @@ export interface ValidatedTextareaProps {
   touched?: boolean;
   onChange: (name: string, value: any) => void;
   onBlur: (name: string) => void;
-  textareaProps?: React.TextareaHTMLAttributes<HTMLTextAreaElement>;
+  textareaProps?: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'color'>;
 }
 
 export const ValidatedTextarea = ({

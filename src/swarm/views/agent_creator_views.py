@@ -10,7 +10,6 @@ from typing import Any
 
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from swarm.core import paths
@@ -310,7 +309,6 @@ validator = BlueprintCodeValidator()
 agent_generator = AgentPersonaGenerator()
 
 
-@csrf_exempt
 def agent_creator_page(request):
     """Render the agent creator interface"""
     if request.method == 'GET':
@@ -334,7 +332,6 @@ def agent_creator_page(request):
         return render(request, 'agent_creator.html', context)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def generate_agent_code(request):
     """Generate agent code from form data"""
@@ -374,7 +371,6 @@ def generate_agent_code(request):
         }, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def validate_agent_code(request):
     """Validate user-provided agent code"""
@@ -408,7 +404,6 @@ def validate_agent_code(request):
         }, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def save_custom_agent(request):
     """Save a custom agent blueprint"""
@@ -475,7 +470,6 @@ swarm-cli launch {agent_name.lower().replace(' ', '_')}
         }, status=500)
 
 
-@csrf_exempt
 def team_creator_page(request):
     """Render the team creator interface"""
     if request.method == 'GET':
@@ -722,7 +716,6 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def save_team_swarm(request):
     """Persist a multi-bot swarm blueprint from the Team Creator UI."""

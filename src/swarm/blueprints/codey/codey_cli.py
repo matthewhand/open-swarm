@@ -5,7 +5,7 @@ import sys
 
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 from swarm.blueprints.common.audit import AuditLogger
-from swarm.blueprints.common.spinner import SwarmSpinner
+from swarm.core.spinner import SwarmSpinner
 from swarm.core.output_utils import (
     print_search_progress_box,
 )

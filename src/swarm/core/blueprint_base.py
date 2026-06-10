@@ -146,6 +146,10 @@ class BlueprintBase(ABC):
         self._llm_profile_data = None
         self._markdown_output = None
         self._load_configuration()  # Ensure config is loaded during init
+        # --- Optional memory integration (strict no-op unless configured) ---
+        self._memory_backend = None
+        self._memory_settings = {}
+        self._init_memory_backend()
         # Add any additional initialization logic here
 
     def display_splash_screen(self, animated: bool = False):
@@ -608,8 +612,15 @@ class BlueprintBase(ABC):
         """
         CLI splash with ANSI/emoji, only for terminal output.
         """
-        from swarm.utils.ansi_box import ansi_box
-        return ansi_box(self.splash, color=color, emoji=emoji)
+        from swarm.core.output_utils import ansi_box
+        # Map legacy color names to the ANSI codes used by core ansi_box.
+        color_codes = {
+            'cyan': '96', 'green': '92', 'yellow': '93', 'magenta': '95',
+            'blue': '94', 'red': '91', 'white': '97', 'grey': '90',
+        }
+        title = self.metadata.get('title', 'Blueprint')
+        desc = self.metadata.get('description', '')
+        return ansi_box(title, desc, color=color_codes.get(color, '96'), emoji=emoji)
 
     def _get_model_instance(self, profile_name: str):
         """Retrieves or creates an LLM Model instance, respecting LITELLM_MODEL/DEFAULT_LLM if set."""
@@ -655,6 +666,134 @@ class BlueprintBase(ABC):
             return None
         from swarm.memory import get_memory_backend
         return get_memory_backend(memory_type, memory_config)
+
+    # --- Memory integration (opt-in via config; strict no-op otherwise) ---
+
+    @property
+    def memory_backend(self):
+        """The configured memory backend for this blueprint, or None."""
+        return getattr(self, "_memory_backend", None)
+
+    def _resolve_memory_settings(self) -> dict | None:
+        """Resolve the opt-in 'memory' config block for this blueprint.
+
+        Checks config["blueprints"][blueprint_id]["memory"] first, then the
+        top-level config["memory"] block. Returns None when not configured.
+        """
+        cfg = self._config if isinstance(self._config, dict) else {}
+        blueprints_section = cfg.get("blueprints", {})
+        bp_cfg = blueprints_section.get(self.blueprint_id, {}) if isinstance(blueprints_section, dict) else {}
+        mem_cfg = bp_cfg.get("memory") if isinstance(bp_cfg, dict) else None
+        if mem_cfg is None:
+            mem_cfg = cfg.get("memory")
+        return mem_cfg if isinstance(mem_cfg, dict) else None
+
+    def _init_memory_backend(self) -> None:
+        """Resolve the optional memory backend from config and, when present,
+        wrap run() so memories are retrieved before and stored after each run.
+
+        Strictly a no-op when no "memory" block (with a "backend" key) is
+        configured, or when the backend package is unavailable.
+        """
+        try:
+            mem_cfg = self._resolve_memory_settings()
+            if not mem_cfg or not mem_cfg.get("backend"):
+                return
+            from swarm.memory import get_memory_backend
+            backend = get_memory_backend(mem_cfg)
+            if backend is None:
+                return
+            self._memory_settings = mem_cfg
+            self._memory_backend = backend
+            self._wrap_run_with_memory()
+            logger.debug(f"Memory backend '{mem_cfg.get('backend')}' enabled for blueprint '{self.blueprint_id}'.")
+        except Exception as e:
+            logger.warning(f"Failed to initialize memory backend for '{self.blueprint_id}': {e}")
+
+    def _memory_user_id(self, user_id: str = None) -> str:
+        return user_id or getattr(self, "_memory_settings", {}).get("user_id") or "default"
+
+    def inject_memory_context(self, messages: list, user_id: str = None) -> list:
+        """Prepend a system message with memories relevant to the latest user message.
+
+        Returns ``messages`` unchanged when no backend is configured, no user
+        message is present, or no relevant memories are found.
+        """
+        backend = self.memory_backend
+        if backend is None or not messages:
+            return messages
+        query = ""
+        for msg in reversed(messages):
+            if isinstance(msg, dict) and msg.get("role") == "user" and msg.get("content"):
+                query = str(msg["content"])
+                break
+        if not query:
+            return messages
+        try:
+            memories = backend.search(query, user_id=self._memory_user_id(user_id)) or []
+        except Exception as e:
+            logger.warning(f"Memory search failed for '{self.blueprint_id}': {e}")
+            return messages
+        memories = [str(m).strip() for m in memories if str(m).strip()]
+        if not memories:
+            return messages
+        memory_text = "\n".join(f"- {m}" for m in memories)
+        memory_message = {
+            "role": "system",
+            "content": f"Relevant memories from previous conversations:\n{memory_text}",
+        }
+        return [memory_message, *list(messages)]
+
+    def store_run_memory(self, messages: list, run_chunks: list = None, user_id: str = None) -> None:
+        """Persist the conversation (input messages plus assistant output) after a run.
+
+        No-op when no memory backend is configured; storage errors are logged,
+        never raised.
+        """
+        backend = self.memory_backend
+        if backend is None:
+            return
+        conversation = [
+            m for m in (messages or [])
+            if isinstance(m, dict) and m.get("role") and m.get("content")
+        ]
+        for chunk in run_chunks or []:
+            if not isinstance(chunk, dict):
+                continue
+            chunk_messages = chunk.get("messages") or []
+            if isinstance(chunk_messages, dict):
+                chunk_messages = [chunk_messages]
+            for m in chunk_messages:
+                if isinstance(m, dict) and m.get("content"):
+                    conversation.append({"role": m.get("role", "assistant"), "content": m["content"]})
+        if not conversation:
+            return
+        try:
+            backend.add(conversation, user_id=self._memory_user_id(user_id))
+        except Exception as e:
+            logger.warning(f"Memory add failed for '{self.blueprint_id}': {e}")
+
+    def _wrap_run_with_memory(self) -> None:
+        """Wrap this instance's run() so memory retrieval/storage happen around each run.
+
+        Only invoked when a memory backend is configured, so unconfigured
+        blueprints keep their original run() untouched.
+        """
+        if getattr(self, "_memory_run_wrapped", False):
+            return
+        original_run = self.run
+
+        async def run_with_memory(messages, **kwargs):
+            user_id = kwargs.get("user_id")
+            augmented = self.inject_memory_context(messages, user_id=user_id)
+            collected = []
+            async for chunk in original_run(augmented, **kwargs):
+                collected.append(chunk)
+                yield chunk
+            self.store_run_memory(messages, collected, user_id=user_id)
+
+        self.run = run_with_memory
+        self._memory_run_wrapped = True
 
     def make_agent(self, name, instructions, tools, mcp_servers=None, memory_type=None, memory_config=None, **kwargs):
         """Factory for creating an Agent with the correct model instance from framework config."""
