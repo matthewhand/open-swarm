@@ -3,14 +3,24 @@ Utilities for redacting sensitive data.
 """
 
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SENSITIVE_KEYS = ["secret", "password", "api_key", "apikey", "token", "access_token", "client_secret"]
+_DEFAULT_SENSITIVE_KEYS_LOWER = {k.lower() for k in DEFAULT_SENSITIVE_KEYS}
+
+SENSITIVE_PATTERNS = [
+    r'sk-[a-zA-Z0-9]+',  # OpenAI API keys
+    r'password\s*=\s*[^\s]+',  # Password assignments
+    r'Bearer\s+[a-zA-Z0-9\-_\.]+',  # Bearer tokens
+    r'ssh-rsa\s+[a-zA-Z0-9+/]+={0,2}',  # SSH keys
+]
+_COMPILED_SENSITIVE_PATTERNS = [re.compile(p) for p in SENSITIVE_PATTERNS]
 
 def redact_sensitive_data(
     data: str | dict | list,
-    sensitive_keys: list[str] | None = None,
+    sensitive_keys: list[str] | set[str] | None = None,
     reveal_chars: int = 0,
     mask: str = "[REDACTED]"
 ) -> str | dict | list:
@@ -21,17 +31,15 @@ def redact_sensitive_data(
     If a custom mask is provided, always use it (for test compatibility).
     Handles standalone strings with sensitive patterns.
     """
-    keys_to_redact = {k.lower() for k in (sensitive_keys or DEFAULT_SENSITIVE_KEYS)}
-
-    # Patterns to detect sensitive data in strings
-    sensitive_patterns = [
-        r'sk-[a-zA-Z0-9]+',  # OpenAI API keys
-        r'password\s*=\s*[^\s]+',  # Password assignments
-        r'Bearer\s+[a-zA-Z0-9\-_\.]+',  # Bearer tokens
-        r'ssh-rsa\s+[a-zA-Z0-9+/]+={0,2}',  # SSH keys
-    ]
-
-    import re
+    if sensitive_keys:
+        # If it's already a set, we still lowercase it to be safe,
+        # but recursive calls will pass the set we already computed.
+        if isinstance(sensitive_keys, set):
+            keys_to_redact = sensitive_keys
+        else:
+            keys_to_redact = {k.lower() for k in sensitive_keys}
+    else:
+        keys_to_redact = _DEFAULT_SENSITIVE_KEYS_LOWER
 
     def smart_mask(val: str) -> str:
         if not isinstance(val, str):
@@ -50,8 +58,8 @@ def redact_sensitive_data(
             return text
 
         redacted = text
-        for pattern in sensitive_patterns:
-            redacted = re.sub(pattern, mask, redacted)
+        for pattern in _COMPILED_SENSITIVE_PATTERNS:
+            redacted = pattern.sub(mask, redacted)
         return redacted
 
     if isinstance(data, dict):
@@ -60,7 +68,7 @@ def redact_sensitive_data(
             if isinstance(k, str) and k.lower() in keys_to_redact:
                 redacted_dict[k] = smart_mask(v)
             elif isinstance(v, dict | list):
-                redacted_dict[k] = redact_sensitive_data(v, sensitive_keys, reveal_chars, mask)
+                redacted_dict[k] = redact_sensitive_data(v, keys_to_redact, reveal_chars, mask)
             elif isinstance(v, str):
                 redacted_dict[k] = redact_string_patterns(v)
             else:
@@ -70,7 +78,7 @@ def redact_sensitive_data(
         processed_list = []
         for item in data:
             if isinstance(item, dict | list):
-                processed_list.append(redact_sensitive_data(item, sensitive_keys, reveal_chars, mask))
+                processed_list.append(redact_sensitive_data(item, keys_to_redact, reveal_chars, mask))
             elif isinstance(item, str):
                 processed_list.append(redact_string_patterns(item))
             else:
@@ -78,5 +86,7 @@ def redact_sensitive_data(
         return processed_list
     elif isinstance(data, str):
         # Do not redact standalone strings, only patterns in structured data values
+        # NOTE: The docstring says it handles them, but the implementation explicitly
+        # skipped them to avoid over-redaction of plain text.
         return data
     return data

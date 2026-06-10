@@ -11,6 +11,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 # digitalbutlers error handling: try/except ImportError with sys.exit(1)
 
 import asyncio
+import json
 import logging
 import os
 import shlex
@@ -270,6 +271,7 @@ class CodeyBlueprint(BlueprintBase):
     """
     Codey Blueprint: Code and semantic code search/analysis.
     """
+    _knowledge_cache = {}
     metadata = {
         "name": "codey",
         "emoji": "🤖",
@@ -804,7 +806,7 @@ class CodeyBlueprint(BlueprintBase):
             'alternatives': self.consider_alternatives(messages, result),
             'swarm_lessons': self.query_swarm_knowledge(messages)
         }
-        self.write_to_swarm_log(log)
+        await self.write_to_swarm_log(log)
         self.audit_logger.log_event("reflection", log)
         # Optionally, adjust internal strategies or propose a patch
 
@@ -824,40 +826,49 @@ class CodeyBlueprint(BlueprintBase):
         return alternatives
 
     def query_swarm_knowledge(self, messages):
-        import json
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_knowledge.json')
         if not os.path.exists(path):
             return []
-        with open(path) as f:
-            knowledge = json.load(f)
+
+        mtime = os.path.getmtime(path)
+        if path not in self._knowledge_cache or self._knowledge_cache[path]['mtime'] < mtime:
+            with open(path) as f:
+                self._knowledge_cache[path] = {
+                    'mtime': mtime,
+                    'data': json.load(f)
+                }
+
+        knowledge = self._knowledge_cache[path]['data']
         # Find similar tasks
         task_str = json.dumps(messages)
         return [entry for entry in knowledge if entry.get('task_str') == task_str]
 
-    def write_to_swarm_log(self, log):
-        import json
-
+    async def write_to_swarm_log(self, log):
         from filelock import FileLock, Timeout
         path = os.path.join(os.path.dirname(__file__), '../../../swarm_log.json')
         lock_path = path + '.lock'
         log['task_str'] = json.dumps(log['task'])
+
+        def _do_write():
+            with FileLock(lock_path, timeout=5):
+                if os.path.exists(path):
+                    with open(path) as f:
+                        try:
+                            logs = json.load(f)
+                        except json.JSONDecodeError:
+                            logs = []
+                else:
+                    logs = []
+                logs.append(log)
+                with open(path, 'w') as f:
+                    json.dump(logs, f, indent=2)
+
         for attempt in range(10):
             try:
-                with FileLock(lock_path, timeout=5):
-                    if os.path.exists(path):
-                        with open(path) as f:
-                            try:
-                                logs = json.load(f)
-                            except json.JSONDecodeError:
-                                logs = []
-                    else:
-                        logs = []
-                    logs.append(log)
-                    with open(path, 'w') as f:
-                        json.dump(logs, f, indent=2)
+                await asyncio.to_thread(_do_write)
                 break
             except Timeout:
-                time.sleep(0.2 * (attempt + 1))
+                await asyncio.sleep(0.2 * (attempt + 1))
 
     def check_approval(self, tool_name, **kwargs):
         policy = self.approval_policy.get(tool_name, "allow")

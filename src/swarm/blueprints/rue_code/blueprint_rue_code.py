@@ -6,6 +6,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 """
 import logging
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -54,8 +55,8 @@ def execute_shell_command(command: str) -> str:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
         result = subprocess.run(
-            command,
-            shell=True,
+            shlex.split(command),
+            shell=False,
             check=False, # Don't raise exception on non-zero exit code
             capture_output=True,
             text=True,
@@ -101,8 +102,8 @@ def execute_shell_command(command: str) -> str:
     logger.info(f"Executing shell command: {command}")
     try:
         result = subprocess.run(
-            command,
-            shell=True,
+            shlex.split(command),
+            shell=False,
             check=False, # Don't raise exception on non-zero exit code
             capture_output=True,
             text=True,
@@ -207,7 +208,7 @@ def list_files_fileops(directory: str = '.') -> str:
 def execute_shell_command_fileops(command: str) -> str:
     import subprocess
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True)
         return result.stdout + result.stderr
     except Exception as e:
         return f"ERROR: {e}"

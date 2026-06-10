@@ -557,6 +557,7 @@ def my_blueprints(request):
         context = {
             "installed_blueprints": installed_data,
             "custom_blueprints": custom,
+            "categories": BLUEPRINT_CATEGORIES,
             "dark_mode": request.session.get('dark_mode', True),
         }
 
