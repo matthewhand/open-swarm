@@ -1,5 +1,8 @@
-/* Dropdown Styling */
-.dropdown {
+/* Blueprint selector dropdown styling.
+   Scoped to .blueprint-select so it does not restyle Bootstrap navbar
+   dropdowns (li.nav-item.dropdown), which previously rendered as empty
+   white boxes with invisible white-on-white labels. */
+.blueprint-select.dropdown {
     width: 100%;
     background: #fff;
     border: 1px solid #ccc;
@@ -7,16 +10,16 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.dropdown-item {
+.blueprint-select .dropdown-item {
     padding: 0.5rem 1rem;
     cursor: pointer;
 }
 
-.dropdown-item:hover {
+.blueprint-select .dropdown-item:hover {
     background: #f0f0f0;
 }
 
-.dropdown-description {
+.blueprint-select .dropdown-description {
     font-size: 0.8rem;
     color: #666;
 }
