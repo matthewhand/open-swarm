@@ -41,7 +41,7 @@
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="blueprintDropdown" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="blueprintNavDropdown" role="button" data-bs-toggle="dropdown">
                                 📚 Blueprints
                             </a>
                             <ul class="dropdown-menu">
@@ -66,7 +66,7 @@
         </nav>
     </header>
     <main>
-        <div class="dropdown" hx-get="/v1/models" hx-trigger="click" hx-target="#blueprintDropdown" hx-swap="innerHTML">
+        <div class="dropdown blueprint-select" hx-get="/v1/models" hx-trigger="click" hx-target="#blueprintDropdown" hx-swap="innerHTML">
             <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton">
                 Select a Blueprint
             </button>
