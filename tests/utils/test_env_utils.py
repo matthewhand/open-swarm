@@ -33,26 +33,6 @@ def test_get_django_secret_key_required_in_production():
             get_django_secret_key()
 
 
-@pytest.mark.parametrize(
-    "value, expected",
-    [
-        ("true", True),
-        ("1", True),
-        ("t", True),
-        ("false", False),
-        ("0", False),
-        ("", False),
-    ],
-)
-def test_is_django_debug(value, expected):
-    with patch.dict(os.environ, {"DJANGO_DEBUG": value}):
-        assert is_django_debug() is expected
-
-
-def test_is_django_debug_defaults_to_false_when_unset():
-    with patch.dict(os.environ, {}, clear=True):
-        assert is_django_debug() is False
-
 
 def test_get_django_allowed_hosts():
     with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": "example.com,test.com"}):

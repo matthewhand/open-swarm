@@ -318,18 +318,42 @@ class TestHandleToolCalls:
 
     @pytest.mark.asyncio
     async def test_handles_invalid_json_arguments(self):
-        """Invalid JSON arguments are handled gracefully."""
+        """Invalid JSON arguments are handled gracefully and logged as error."""
         tool_call = make_tool_call("call-bad-json", "test_tool", "not valid json")
 
         def test_tool(**kwargs):
             return "ok"
 
-        response = await handle_tool_calls(
-            [tool_call], [test_tool], {}, debug=False
-        )
+        with patch("swarm.tool_executor.logger") as mock_logger:
+            response = await handle_tool_calls(
+                [tool_call], [test_tool], {}, debug=False
+            )
 
         # Should still execute with empty args
         assert response.messages[0]["content"] == "ok"
+        mock_logger.error.assert_called()
+        error_msg = mock_logger.error.call_args[0][0]
+        assert "Failed to parse JSON arguments for tool 'test_tool'" in error_msg
+        assert "not valid json" in error_msg
+
+    @pytest.mark.asyncio
+    async def test_handles_non_dict_json_arguments(self):
+        """JSON arguments that are not a dict are handled and logged as warning."""
+        tool_call = make_tool_call("call-non-dict", "test_tool", "[1, 2, 3]")
+
+        def test_tool(**kwargs):
+            return "ok"
+
+        with patch("swarm.tool_executor.logger") as mock_logger:
+            response = await handle_tool_calls(
+                [tool_call], [test_tool], {}, debug=False
+            )
+
+        # Should still execute with empty args
+        assert response.messages[0]["content"] == "ok"
+        mock_logger.warning.assert_called()
+        warning_msg = mock_logger.warning.call_args[0][0]
+        assert "Parsed arguments for tool 'test_tool' is not a dictionary" in warning_msg
 
     @pytest.mark.asyncio
     async def test_handles_tool_exception(self):
