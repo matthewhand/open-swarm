@@ -12,6 +12,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 
 import logging
 import os
+import shlex
 import sys
 from datetime import datetime
 from typing import Any, ClassVar
@@ -113,7 +114,7 @@ def execute_shell_command(command: str) -> str:
         import os
         import subprocess
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout)
         output = f"Exit Code: {result.returncode}\n"
         if result.stdout:
             output += f"STDOUT:\n{result.stdout}\n"
