@@ -192,7 +192,7 @@ Further acknowledgements live in `DEVELOPMENT.md` and individual source files.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Attribution and vendored-asset notices live in [NOTICE](NOTICE) (the project uses a single NOTICE file rather than per-file license headers).
 
 ## Contributing
 

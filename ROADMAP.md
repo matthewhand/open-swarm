@@ -108,7 +108,7 @@ parity is reached.
 - [ ] Memory production-ready
   - [x] Backends scaffolded as optional extras (`mem0ai` resolves and installs)
   - [x] Wired into the agent loop: opt-in per-blueprint `memory` config block; retrieval injected pre-run, conversation stored post-run; no-op when unconfigured
-  - [ ] End-to-end validation against a real mem0 instance (current tests use a fake backend)
+  - [x] End-to-end validation against a real mem0 instance: opt-in `tests/integration/test_memory_mem0_e2e.py` (skips unless `RUN_MEM0_E2E=1` + `OPENAI_API_KEY`; local qdrant + sqlite under tmp_path). 2026-06-11 real run: mem0ai 2.0.4 initialized and the store cycle reached OpenAI embeddings, but the repo `.env` key is revoked (401) — full green pass pending a valid key
   - [ ] letta/langmem backends (placeholder modules raising clear errors today)
   - [ ] Decide on a default backend and document configuration in CONFIGURATION.md
 
@@ -140,5 +140,5 @@ parity is reached.
   - [x] Fix publish workflow: old workflows deleted (one published to REAL PyPI on every main push with timestamp versions!); new `publish.yml` is release/tag-driven with manual dispatch, version from pyproject
   - [x] CI tests Python 3.10/3.11/3.12 via uv, with `uv lock --check` guarding against phantom pins
   - [x] CONTRIBUTING.md added (honest: references only scripts that exist; lint scoped to touched files)
-  - [ ] License headers / NOTICE decision for source files
+  - [x] License headers / NOTICE decision: **NOTICE file instead of per-file headers** (decided 2026-06-11). `NOTICE` covers the MIT grant, OpenAI Swarm/openai-agents attribution, and vendored static assets (marked.js, Tabler Icons, Font Awesome webfonts); linked from README's License section
   - [ ] Cut the actual first release (tag, release notes from CHANGELOG)
