@@ -19,7 +19,7 @@ goes stale fast).
 | `[x]` | Done and shipped |
 | `[ ]` | Not done / planned — partially-done parents stay unchecked, with checked sub-items showing progress |
 
-Last updated: 2026-06-10 (post-cleanup-wave).
+Last updated: 2026-06-11 (post PR waves #80–#85; origin reduced to main; Docker-verified).
 
 ---
 
@@ -55,10 +55,10 @@ Last updated: 2026-06-10 (post-cleanup-wave).
 - [ ] **Remote branch hygiene (needs repo-owner action on GitHub)**
   - [x] Triage all 84 unmerged branches (44 superseded/duplicate → delete; ~28 still merge-worthy; 12 stale-diverged)
   - [x] Merge top 3 security branches
-  - [ ] Delete the ~44 superseded/duplicate branches on origin
+  - [x] Delete superseded/duplicate branches on origin (all done — origin now has only main)
   - [x] Merge the remaining merge-worthy branches — 16 merged (test-coverage set + GitHubClient/models-package refactor); session-poisoning sys.modules mocks in three of them rewritten
   - [x] Review `refactor-wip` (368 commits): verdict — nothing worth salvaging (2 nice-to-haves documented in the review: GitHub CLI discovery, compile_blueprint command); safe to archive/delete on origin
-  - [ ] Push the local cleanup-wave commits to origin
+  - [x] Push the local cleanup-wave commits to origin (squashed; granular log in docs/archive/)
 - [x] **Login routing** (found while capturing USER_JOURNEY screenshots)
   - [x] `custom_login` view exists (`src/swarm/views/web_views.py`) but has **no URL pattern** — `/accounts/login/` 404s; routed `accounts/login/` (name `login`, Django default) and `login/` (name `custom_login`, matches `settings.LOGIN_URL`); locked by `tests/views/test_login_routing.py`
   - [x] `/webui/` route 500s (`TemplateDoesNotExist: webui/index.html`) — `WebUIView` now redirects to `/` (kept for backward compat; the old `webui/index.html` template no longer exists)
@@ -99,9 +99,9 @@ parity is reached.
   - [x] **JSON Teams API** — `/v1/teams/` list/create/delete endpoints (`views/teams_api.py`, tested) and TeamsPage wired via react-query
   - [x] Auth flow: token entry in Settings, localStorage persistence, 401/403 banner — no login wall on auth-disabled deployments
   - [x] ChatPage built (blueprint selector, streaming UI, parser for the server's HTMx ws partials) — **blocked on backend ASGI routing** (see §2); shows an honest 'unavailable' state until then
-  - [ ] Agent-creator and settings pages
+  - [x] Agent-creator and settings pages (PR #80: generate/validate/save flow, custom-blueprint CRUD, server-settings/env panels with masking)
   - [ ] Replace Django template pages page-by-page once each SPA page is wired
-  - [ ] Resolve 2 moderate `npm audit` advisories (esbuild ≤0.24.2 via vite ≤6.4.1, dev-server-only) — requires vite major upgrade
+  - [x] Resolved npm audit advisories: vite 5 → 8 (PR #84), 0 vulnerabilities
 
 ### 3.2 Memory integration (mem0 / letta / langmem)
 
