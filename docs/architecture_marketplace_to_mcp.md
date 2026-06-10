@@ -5,13 +5,12 @@ Goal
 ----
 Let a user discover/import a blueprint from the marketplace, configure any
 required MCP servers (no secrets in shared manifests), and expose a secure MCP
-endpoint that external MCP clients can call using local identity (OAuth/SAML).
+endpoint that external MCP clients can call using local identity (OAuth/OIDC).
 
 High‑Level Flow
 ---------------
 1) Discover/import blueprint
-   - From GitHub topics (open‑swarm‑blueprint/open‑swarm‑mcp‑template) or from
-     the optional Wagtail editorials.
+   - From GitHub topics (open‑swarm‑blueprint/open‑swarm‑mcp‑template).
    - Import/instantiate the blueprint locally (JSON library or installed source).
 
 2) Configure MCP servers (local only)
@@ -29,12 +28,10 @@ High‑Level Flow
 
 4) Secure access with local IdP
    - Identity provider options (local):
-     - SAML (already scaffolded via `djangosaml2idp` under `/idp/`).
      - OAuth/OIDC (recommended for MCP clients) to be added (e.g., Django OAuth
        Toolkit or an OIDC provider).
-   - Protect `/mcp/` endpoints with token‑based authorization (OAuth/OIDC). SAML
-     can be used for SSO to obtain tokens, but MCP clients usually expect bearer
-     tokens.
+   - Protect `/mcp/` endpoints with token‑based authorization (OAuth/OIDC); MCP
+     clients usually expect bearer tokens.
 
 5) Clients consume MCP
    - Users configure their MCP client to point at the local `/mcp/` endpoint and

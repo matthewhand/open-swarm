@@ -8,7 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from swarm.marketplace import github_service as gh_service
+from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
     ENABLE_GITHUB_MARKETPLACE,
     GITHUB_MARKETPLACE_ORG_ALLOWLIST,
@@ -27,72 +27,6 @@ logger = logging.getLogger(__name__)
 # get_user_blueprint_library/save_user_blueprint_library are monkeypatched.
 _custom_blueprints_registry: list[dict] = []
 
-
-# --- Optional: Marketplace (Wagtail) headless API helpers ---
-def get_marketplace_blueprints() -> list[dict]:
-    """Return blueprint marketplace items as plain dicts.
-
-    Attempts to import Wagtail models. If unavailable or disabled, returns an empty list.
-    """
-    try:
-        from django.conf import settings as dj_settings
-        if not getattr(dj_settings, 'ENABLE_WAGTAIL', False):
-            return []
-        from swarm.marketplace.models import BlueprintPage  # type: ignore
-        items = []
-        # Late import to avoid hard dependency during tests
-        for page in BlueprintPage.objects.live().public():  # type: ignore[attr-defined]
-            cat = None
-            try:
-                if getattr(page, 'category', None):
-                    cat = {
-                        'slug': getattr(page.category, 'slug', None),
-                        'name': getattr(page.category, 'name', None),
-                    }
-            except Exception:
-                cat = None
-            tags_str = getattr(page, 'tags', '') or ''
-            tag_list = [t.strip() for t in str(tags_str).split(',') if t.strip()]
-            items.append({
-                'id': page.id,
-                'title': getattr(page, 'title', None),
-                'summary': getattr(page, 'summary', ''),
-                'version': getattr(page, 'version', ''),
-                'category': cat,
-                'tags': tag_list,
-                'repository_url': getattr(page, 'repository_url', ''),
-                # Expose templates as content fields (already validated to avoid secrets)
-                'manifest_json': getattr(page, 'manifest_json', ''),
-                'code_template': getattr(page, 'code_template', ''),
-            })
-        return items
-    except Exception:
-        return []
-
-
-def get_marketplace_mcp_configs() -> list[dict]:
-    """Return MCP config marketplace items as plain dicts.
-
-    Attempts to import Wagtail models. If unavailable or disabled, returns an empty list.
-    """
-    try:
-        from django.conf import settings as dj_settings
-        if not getattr(dj_settings, 'ENABLE_WAGTAIL', False):
-            return []
-        from swarm.marketplace.models import MCPConfigPage  # type: ignore
-        items = []
-        for page in MCPConfigPage.objects.live().public():  # type: ignore[attr-defined]
-            items.append({
-                'id': page.id,
-                'title': getattr(page, 'title', None),
-                'summary': getattr(page, 'summary', ''),
-                'version': getattr(page, 'version', ''),
-                'server_name': getattr(page, 'server_name', ''),
-                'config_template': getattr(page, 'config_template', ''),
-            })
-        return items
-    except Exception:
-        return []
 
 class ModelsListView(APIView):
     """
@@ -333,54 +267,6 @@ class CustomBlueprintDetailView(APIView):
             return Response({"error": "internal error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     put = patch
-
-
-class MarketplaceBlueprintsView(APIView):
-    """Headless API for marketplace blueprint pages (optional Wagtail)."""
-    permission_classes = [AllowAny]
-
-    def get(self, request, *_args, **_kwargs):
-        items = get_marketplace_blueprints()
-        # Simple filters: search by title or tag
-        search = (request.query_params.get('search') or '').strip().lower()
-        tag = (request.query_params.get('tag') or '').strip().lower()
-
-        def match(it: dict) -> bool:
-            if search and not (
-                search in str(it.get('title', '')).lower()
-                or search in str(it.get('summary', '')).lower()
-            ):
-                return False
-            if tag:
-                tags = [str(t).lower() for t in it.get('tags', [])]
-                if tag not in tags:
-                    return False
-            return True
-
-        data = [it for it in items if match(it)]
-        return Response({'object': 'list', 'data': data}, status=status.HTTP_200_OK)
-
-
-class MarketplaceMCPConfigsView(APIView):
-    """Headless API for marketplace MCP config pages (optional Wagtail)."""
-    permission_classes = [AllowAny]
-
-    def get(self, request, *_args, **_kwargs):
-        items = get_marketplace_mcp_configs()
-        # Simple filters: search by title or server_name
-        search = (request.query_params.get('search') or '').strip().lower()
-        server = (request.query_params.get('server') or '').strip().lower()
-
-        def match(it: dict) -> bool:
-            if search and not (
-                search in str(it.get('title', '')).lower()
-                or search in str(it.get('summary', '')).lower()
-            ):
-                return False
-            return not (server and server not in str(it.get('server_name', '')).lower())
-
-        data = [it for it in items if match(it)]
-        return Response({'object': 'list', 'data': data}, status=status.HTTP_200_OK)
 
 
 class MarketplaceGitHubBlueprintsView(APIView):

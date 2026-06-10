@@ -76,13 +76,13 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | MCP server provider (blueprints as tools) | 🟡 | `src/swarm/mcp/provider.py:84-137` `call_tool` now really instantiates and runs blueprints (starts/stops required MCP servers, `_run_blueprint_sync` at `:206`); tests `tests/mcp/test_provider_execute.py`, `test_provider.py`, `test_provider_edge_cases.py` pass. Caveat: docstring at `provider.py:38` still says real execution "is a TODO" (stale), and the provider is only reachable via the unshipped server below |
 | MCP server mount (`ENABLE_MCP_SERVER`) | 📋 | `settings.py:165-171` appends `django_mcp_server` to INSTALLED_APPS, `urls.py:139` mounts `mcp/` — but `django_mcp_server` is **not declared anywhere in pyproject.toml** (grep: no match); `mcp/integration.py:20-23` import-guards it and returns 0 tools when absent. Flag without a dependency |
 
-## 8. Feature-flagged integrations — ✅ 1 · 🟡 1 · 📋 1
+## 8. Feature-flagged integrations — ✅ 1 · 🗑 2
 
 | Feature | Status | Evidence |
 |---|---|---|
-| GitHub marketplace discovery | ✅ | `ENABLE_GITHUB_MARKETPLACE` `settings.py:174-185` (topics/org allowlist envs); `src/swarm/marketplace/github_service.py` real GitHub API calls; routes `urls.py:63-66`; `tests/marketplace/test_github_service.py` passes |
-| Wagtail marketplace CMS | 🟡 | `ENABLE_WAGTAIL` `settings.py:70-71`; dep IS declared (`pyproject.toml` `wagtail>=6.0,<7.0`); `marketplace/models.py:7-17` import-guards Wagtail with fallbacks + secret-pattern scrubbing (`:20-26`). Caveat: off by default and no tests exercise the Wagtail pages themselves — only the GitHub service is tested |
-| SAML IdP | 📋 | `ENABLE_SAML_IDP` `settings.py:89-92` appends `djangosaml2idp`; `urls.py:122` mounts when enabled — but `djangosaml2idp` is **not in pyproject.toml** (grep "saml" in pyproject: no match). Config plumbing (`settings.py:99-158`) exists for a package that can't be installed from this project |
+| GitHub marketplace discovery | ✅ | `ENABLE_GITHUB_MARKETPLACE` in `settings.py` (topics/org allowlist envs); `src/swarm/services/github_topics_service.py` real GitHub API calls; `marketplace/github/*` routes in `urls.py`; `tests/services/test_github_topics_service.py` passes |
+| Wagtail marketplace CMS | 🗑 removed | Dropped 2026-06-11 (ROADMAP §3.4): `swarm/marketplace/` app, `ENABLE_WAGTAIL` flag/settings/urls, wagtail/taggit/modelcluster pins, and the Wagtail-backed `/marketplace/blueprints/` + `/marketplace/mcp-configs/` endpoints deleted. GitHub-topics discovery (row above) is the replacement |
+| SAML IdP | 🗑 removed | Dropped 2026-06-11 (ROADMAP §3.4): `ENABLE_SAML_IDP` flag, `SAML_IDP_*` settings plumbing, `/idp/` mount, env getters, and `tests/unit/test_settings_saml.py` deleted; `djangosaml2idp` was never a declared dependency |
 
 ## 9. Blueprints (post-cleanup survivors) — ✅ 3 · 🟡 14 · ❌ 2
 
@@ -129,5 +129,5 @@ This doc decays fast (a cleanup wave was rewriting the tree while it was generat
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
 3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (expected to fail until removed/fixed).
 4. **Potemkin check (SPA):** `grep -rn "mock\|fetch\|axios" webui/frontend/src/pages/` — rows flip from ❌ only when real API calls replace the `mock*` constants.
-5. **Flags vs deps:** `grep -n "django_mcp_server\|djangosaml2idp\|wagtail" pyproject.toml` — a flag without a declared dependency stays 📋.
+5. **Flags vs deps:** `grep -n "django_mcp_server" pyproject.toml` — a flag without a declared dependency stays 📋.
 6. **Known bug to re-check first:** `src/swarm/urls.py:155` (`from django.conf.urls import re_path` — invalid on Django ≥4.0; fix is `from django.urls import re_path`).

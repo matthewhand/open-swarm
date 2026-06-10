@@ -7,12 +7,12 @@ Let external MCP clients call Open Swarm blueprints as tools using the Django-ho
 
 High-level Approach
 -------------------
-- Install and enable `django-mcp-server` as an optional app (similar to Wagtail/SAML flags).
+- Install and enable `django-mcp-server` as an optional app behind a feature flag.
 - Register a provider that:
   - Enumerates available blueprints (bundled + custom if desired).
   - Maps blueprint execution into MCP Tool definitions (name, description, parameters schema).
   - Executes blueprint calls by invoking the blueprint’s `run` (or `Runner.run`) with parsed args, returning structured output.
-- Serve MCP over the same host under `/mcp/` (configurable), reusing Open Swarm auth (optionally SAML IdP on top).
+- Serve MCP over the same host under `/mcp/` (configurable), reusing Open Swarm auth.
 
 Tool Definition Design
 ----------------------
@@ -31,7 +31,7 @@ Security & Safety
 -----------------
 - Expose only whitelisted blueprints as tools (configurable).
 - Ensure no secrets leak in tool schemas or outputs. Respect existing sandboxing/approval flags if applicable.
-- Log and rate-limit. Optional auth integration with SAML session or token-based gate.
+- Log and rate-limit. Optional auth integration with a session or token-based gate.
 
 Config & Flags
 --------------

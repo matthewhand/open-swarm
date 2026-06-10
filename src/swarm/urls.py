@@ -18,10 +18,8 @@ from swarm.views.api_views import (
     BlueprintsListView,
     CustomBlueprintDetailView,
     CustomBlueprintsView,
-    MarketplaceBlueprintsView,
     MarketplaceGitHubBlueprintsView,
     MarketplaceGitHubMCPConfigsView,
-    MarketplaceMCPConfigsView,
 )
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
@@ -68,9 +66,7 @@ urlpatterns = [
     path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
     path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
-    # Optional marketplace (Wagtail) headless endpoints (return empty list if disabled)
-    path("marketplace/blueprints/", MarketplaceBlueprintsView.as_view(), name="marketplace-blueprints"),
-    path("marketplace/mcp-configs/", MarketplaceMCPConfigsView.as_view(), name="marketplace-mcp-configs"),
+    # GitHub-topics marketplace discovery (returns empty list if disabled)
     path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
     path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
@@ -114,33 +110,6 @@ urlpatterns = [
 # Serve avatar images in development
 if settings.DEBUG:
     urlpatterns += static(settings.AVATAR_URL_PREFIX, document_root=settings.AVATAR_STORAGE_PATH)
-
-# Optional Wagtail admin/site when enabled
-if getattr(settings, 'ENABLE_WAGTAIL', False):
-    try:  # Import lazily to avoid hard dependency when disabled
-        from django.urls import include
-        from wagtail import urls as wagtail_urls
-        from wagtail.admin import urls as wagtailadmin_urls
-        from wagtail.documents import urls as wagtaildocs_urls
-
-        urlpatterns += [
-            path('cms/admin/', include(wagtailadmin_urls)),
-            path('cms/documents/', include(wagtaildocs_urls)),
-            path('cms/', include(wagtail_urls)),
-        ]
-    except Exception:
-        pass
-
-# Optional SAML IdP (djangosaml2idp) when enabled
-if getattr(settings, 'ENABLE_SAML_IDP', False):
-    try:
-        from django.urls import include
-        urlpatterns += [
-            path('idp/', include('djangosaml2idp.urls')),
-        ]
-    except Exception:
-        # Package not installed or import failed; ignore if disabled in env
-        pass
 
 # Optional MCP server (django-mcp-server) when enabled
 import os
