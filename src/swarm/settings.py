@@ -2,7 +2,6 @@
 Django settings for swarm project.
 """
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -74,101 +73,6 @@ INSTALLED_APPS = [
     'swarm',
     'swarm.mcp',
 ]
-
-# Optional Wagtail integration (marketplace). Disabled by default.
-ENABLE_WAGTAIL = is_enable_wagtail()
-if ENABLE_WAGTAIL:
-    INSTALLED_APPS += [
-        'wagtail',
-        'wagtail.admin',
-        'wagtail.users',
-        'wagtail.images',
-        'wagtail.documents',
-        'wagtail.snippets',
-        'wagtail.sites',
-        'wagtail.contrib.modeladmin',
-        'modelcluster',
-        'taggit',
-        'swarm.marketplace',
-    ]
-    WAGTAIL_SITE_NAME = 'Open Swarm'
-    SITE_ID = get_django_site_id()
-
-# Optional SAML IdP integration (djangosaml2idp). Disabled by default.
-ENABLE_SAML_IDP = is_enable_saml_idp()
-if ENABLE_SAML_IDP:
-    try:
-        INSTALLED_APPS += ['djangosaml2idp']
-    except Exception:
-        # Allow tests and environments without the package to proceed when disabled
-        pass
-
-# Minimal IdP config placeholders (template-only; no secrets). Real values should be
-# provided via environment or admin configuration when deploying IdP.
-# We expose a simple structure for tests/introspection; djangosaml2idp expects
-# SAML_IDP_SPCONFIG mapping keyed by SP entity IDs.
-SAML_IDP_SPCONFIG = {
-    # Example template entry (disabled until explicitly configured):
-    # os.getenv('SAML_SP_ENTITY_ID', 'sp-example') : {
-    #     'acs_url': os.getenv('SAML_SP_ACS_URL', 'https://sp.example.com/saml/acs'),
-    #     'audiences': [os.getenv('SAML_SP_AUDIENCE', 'https://sp.example.com')],
-    #     'nameid_format': 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
-    # }
-}
-
-# Optionally merge SP config entries from environment JSON (template-only)
-_sp_json = get_saml_idp_spconfig_json()
-if _sp_json:
-    try:
-        parsed = json.loads(_sp_json)
-        if isinstance(parsed, dict):
-            # Basic validation for known keys
-            for sp_entity, cfg in list(parsed.items()):
-                if not isinstance(cfg, dict):
-                    # Remove invalid entries
-                    parsed.pop(sp_entity, None)
-                    continue
-                if 'acs_url' not in cfg:
-                    parsed.pop(sp_entity, None)
-                    continue
-                # audiences optional but should be list if provided
-                if 'audiences' in cfg and not isinstance(cfg['audiences'], list | tuple):
-                    cfg['audiences'] = [str(cfg['audiences'])]
-            SAML_IDP_SPCONFIG.update(parsed)
-    except Exception:
-        # Ignore malformed JSON; callers can inspect logs elsewhere
-        pass
-
-# Optionally merge SP config entries from JSON file path
-_sp_file = get_saml_idp_spconfig_file()
-if _sp_file:
-    try:
-        with open(_sp_file, encoding='utf-8') as f:
-            file_payload = f.read()
-        parsed = json.loads(file_payload)
-        if isinstance(parsed, dict):
-            for sp_entity, cfg in list(parsed.items()):
-                if not isinstance(cfg, dict) or 'acs_url' not in cfg:
-                    parsed.pop(sp_entity, None)
-                    continue
-                if 'audiences' in cfg and not isinstance(cfg['audiences'], list | tuple):
-                    cfg['audiences'] = [str(cfg['audiences'])]
-            SAML_IDP_SPCONFIG.update(parsed)
-    except Exception:
-        pass
-
-# Optional env-driven IdP base config (template-only)
-SAML_IDP_ENTITY_ID = get_saml_idp_entity_id()
-SAML_IDP_CERT_FILE = get_saml_idp_cert_file()  # filesystem path to public cert (do not commit)
-SAML_IDP_PRIVATE_KEY_FILE = get_saml_idp_private_key_file()  # filesystem path to private key (do not commit)
-
-# djangosaml2idp-compatible base config shell; populate via env
-SAML_IDP_CONFIG = {
-    'entityid': SAML_IDP_ENTITY_ID,
-    # The following are template defaults; set files via env for real deployments
-    'cert_file': SAML_IDP_CERT_FILE,
-    'key_file': SAML_IDP_PRIVATE_KEY_FILE,
-}
 
 # Optional MCP server integration. Disabled by default and currently
 # aspirational — see docs/mcp_server_mode.md. The try/except here previously

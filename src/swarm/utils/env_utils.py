@@ -69,11 +69,6 @@ def get_django_allowed_hosts() -> list[str]:
     )
 
 
-def get_django_site_id() -> int:
-    """Get Django site ID."""
-    return int(os.getenv('DJANGO_SITE_ID', '1'))
-
-
 def get_django_log_level() -> str:
     """Get Django log level."""
     return os.getenv('DJANGO_LOG_LEVEL', 'INFO')
@@ -280,16 +275,6 @@ def get_fly_api_token() -> str | None:
 
 
 # Feature Flags
-def is_enable_wagtail() -> bool:
-    """Check if Wagtail is enabled."""
-    return is_truthy(os.getenv('ENABLE_WAGTAIL', 'false'))
-
-
-def is_enable_saml_idp() -> bool:
-    """Check if SAML IdP is enabled."""
-    return os.getenv('ENABLE_SAML_IDP', 'false').lower() in ('1', 'true', 'yes')
-
-
 def is_enable_mcp_server() -> bool:
     """Check if MCP server is enabled."""
     return os.getenv('ENABLE_MCP_SERVER', 'false').lower() in ('1', 'true', 'yes')
@@ -354,32 +339,6 @@ def get_comfyui_host() -> str:
 def get_comfyui_api_endpoint() -> str:
     """Get ComfyUI API endpoint."""
     return f"{get_comfyui_host()}/api"
-
-
-# SAML Configuration
-def get_saml_idp_spconfig_json() -> str | None:
-    """Get SAML IdP SP config JSON."""
-    return os.getenv('SAML_IDP_SPCONFIG_JSON')
-
-
-def get_saml_idp_spconfig_file() -> str | None:
-    """Get SAML IdP SP config file."""
-    return os.getenv('SAML_IDP_SPCONFIG_FILE')
-
-
-def get_saml_idp_entity_id() -> str:
-    """Get SAML IdP entity ID."""
-    return os.getenv('SAML_IDP_ENTITY_ID', 'http://localhost:8000/idp/metadata/')
-
-
-def get_saml_idp_cert_file() -> str | None:
-    """Get SAML IdP cert file."""
-    return os.getenv('SAML_IDP_CERT_FILE')
-
-
-def get_saml_idp_private_key_file() -> str | None:
-    """Get SAML IdP private key file."""
-    return os.getenv('SAML_IDP_PRIVATE_KEY_FILE')
 
 
 # Blueprint Specific

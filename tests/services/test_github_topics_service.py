@@ -1,4 +1,4 @@
-"""Tests for src.swarm.marketplace.github_service."""
+"""Tests for src.swarm.services.github_topics_service."""
 
 import base64
 import json
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.swarm.marketplace import github_service
+from src.swarm.services import github_topics_service as github_service
 
 
 class TestSearchReposByTopics:
@@ -20,7 +20,7 @@ class TestSearchReposByTopics:
                 {"full_name": "owner/repo2", "html_url": "https://github.com/owner/repo2"},
             ]
         }
-        with patch("src.swarm.marketplace.github_service.httpx.Client") as mock_client:
+        with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client:
             mock_instance = MagicMock()
             mock_instance.get.return_value.status_code = 200
             mock_instance.get.return_value.json.return_value = mock_response
@@ -187,7 +187,7 @@ class TestFetchRepoManifests:
             }
         }
         
-        with patch("src.swarm.marketplace.github_service.httpx.Client") as mock_client_cls:
+        with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client_cls:
             mock_client = self._create_mock_client(url_to_response)
             mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
             mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
@@ -214,7 +214,7 @@ class TestFetchRepoManifests:
             }
         }
         
-        with patch("src.swarm.marketplace.github_service.httpx.Client") as mock_client_cls:
+        with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client_cls:
             mock_client = self._create_mock_client(url_to_response)
             mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
             mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
@@ -270,7 +270,7 @@ class TestFetchRepoManifests:
             }
         }
         
-        with patch("src.swarm.marketplace.github_service.httpx.Client") as mock_client_cls:
+        with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client_cls:
             mock_client = self._create_mock_client(url_to_response)
             mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
             mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)

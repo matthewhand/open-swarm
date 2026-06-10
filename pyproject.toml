@@ -61,10 +61,6 @@ dependencies = [
     "drf-spectacular>=0.28.0",
     "jmespath>=1.0.1",
     "filelock>=3.18.0",
-    # Optional Wagtail CMS for marketplace (enabled via ENABLE_WAGTAIL)
-    "wagtail>=6.0,<7.0",
-    "django-taggit>=5.0.0",
-    "django-modelcluster>=6.0",
 ]
 
 [project.urls]

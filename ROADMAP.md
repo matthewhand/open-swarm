@@ -120,15 +120,11 @@ parity is reached.
   - [ ] Declare the `django_mcp_server` dependency (not in `pyproject.toml` — the mount is dead on a clean install)
   - [ ] Auth story for MCP clients (token-based)
 
-### 3.4 Marketplace/Wagtail (`ENABLE_WAGTAIL`) and SAML IdP (`ENABLE_SAML_IDP`)
+### 3.4 Marketplace/Wagtail (`ENABLE_WAGTAIL`) and SAML IdP (`ENABLE_SAML_IDP`) — REMOVED
 
-Both are feature-flagged scaffolding only; neither's packages are declared in
-`pyproject.toml`. A decision is pending:
-
-- [ ] **DECISION MADE (2026-06-11): drop both.** Execution is the next agent's task: remove `swarm/marketplace/`, Wagtail/SAML blocks in settings.py + urls.py, wagtail/taggit/modelcluster + saml extras from pyproject, Marketplace*Views (keep GitHub-topics discovery), stewie's Django-app coupling review, and the SAML test files
-  - [x] Feature flags and URL scaffolding exist
-  - [ ] Wagtail marketplace: no production use; evaluate against GitHub-topics discovery (`docs/github_marketplace.md`) which covers most of the need
-  - [ ] SAML IdP: no production-ready settings (signing/encryption certs), no verified end-to-end SP integration
+- [x] **DECISION MADE (2026-06-11): drop both — executed 2026-06-11.** Removed `swarm/marketplace/` (Wagtail app), Wagtail/SAML blocks in settings.py + urls.py, wagtail/taggit/modelcluster pins from pyproject, the Wagtail-backed `MarketplaceBlueprintsView`/`MarketplaceMCPConfigsView` + routes, SAML env getters and `tests/unit/test_settings_saml.py`, and the wagtail/saml docs
+  - [x] GitHub-topics discovery kept: service moved to `swarm/services/github_topics_service.py`; `Marketplace*GitHub*` endpoints and `ENABLE_GITHUB_MARKETPLACE` flag unchanged (`docs/github_marketplace.md`)
+  - [x] Stewie blueprint reviewed: no Wagtail coupling; works as a normal blueprint (its optional Django-app self-registration in `blueprints/stewie/settings.py` is independent of Wagtail)
 
 ### 3.5 Blueprint ecosystem rationalization (17 remaining blueprints)
 
