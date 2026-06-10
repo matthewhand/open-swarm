@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 # --- Database Constants ---
 DB_FILE_NAME = "swarm_instructions.db"
 DB_PATH = Path(project_root) / DB_FILE_NAME
-TABLE_NAME = "agent_instructions"
 
 # --- Agent Instructions ---
 # Shared knowledge base for collaboration context
@@ -316,23 +315,25 @@ class PoetsBlueprint(BlueprintBase):
             DB_PATH.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
-                # FIX: Define the table schema instead of ...
-                cursor.execute(f"""
-                    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS agent_instructions (
                         agent_name TEXT PRIMARY KEY,
-                        instruction_text TEXT,
-                        model_profile TEXT
+                        instruction_text TEXT NOT NULL,
+                        model_profile TEXT DEFAULT 'default'
                     )
                 """)
-                logger.debug(f"Table '{TABLE_NAME}' ensured in {DB_PATH}")
-                cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE agent_name = ?", ("Gritty Buk",))
+                logger.debug(f"Table 'agent_instructions' ensured in {DB_PATH}")
+                cursor.execute("SELECT COUNT(*) FROM agent_instructions WHERE agent_name = ?", ("Gritty Buk",))
                 if cursor.fetchone()[0] == 0:
                     logger.info(f"No instructions found for Gritty Buk in {DB_PATH}. Loading sample data...")
-                    for name, base_instr in AGENT_BASE_INSTRUCTIONS.items():
-                        cursor.execute(
-                            f"INSERT OR REPLACE INTO {TABLE_NAME} (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
-                            (name, base_instr[0] if isinstance(base_instr, tuple) else base_instr, "default")
-                        )
+                    data_to_insert = [
+                        (name, base_instr[0] if isinstance(base_instr, tuple) else base_instr, "default")
+                        for name, base_instr in AGENT_BASE_INSTRUCTIONS.items()
+                    ]
+                    cursor.executemany(
+                        "INSERT OR REPLACE INTO agent_instructions (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
+                        data_to_insert
+                    )
                     conn.commit()
                     logger.info(f"Sample agent instructions for Poets loaded into {DB_PATH}")
                 else:
@@ -352,7 +353,7 @@ class PoetsBlueprint(BlueprintBase):
                 with sqlite3.connect(DB_PATH) as conn:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.cursor()
-                    cursor.execute(f"SELECT instruction_text, model_profile FROM {TABLE_NAME} WHERE agent_name = ?", (agent_name,))
+                    cursor.execute("SELECT instruction_text, model_profile FROM agent_instructions WHERE agent_name = ?", (agent_name,))
                     row = cursor.fetchone()
                     if row:
                         logger.debug(f"Loaded config for agent '{agent_name}' from SQLite.")
