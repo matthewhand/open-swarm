@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "@floating-ui/react-dom": "^2.1.8",
@@ -53,13 +53,13 @@
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "@tailwindcss/postcss": "^4.2.2",
-    "@tailwindcss/vite": "^4.1.0",
+    "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react": "^4.3.0",
+    "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.53.0",
     "eslint-config-react-app": "^7.0.1",
@@ -68,7 +68,7 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^4.1.0",
     "typescript": "^6.0.0",
-    "vite": "^5.4.0",
+    "vite": "^8.0.16",
     "vitest": "^4.0.18"
   }
 }
