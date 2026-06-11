@@ -183,8 +183,12 @@ class DjangoChatBlueprint(Blueprint):
     def render_prompt(self, _template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: list[dict[str, str]]):
-        """Main execution entry point for the DjangoChat blueprint."""
+    async def run(self, messages: list[dict[str, str]], **kwargs):
+        """Main execution entry point for the DjangoChat blueprint.
+
+        Accepts **kwargs (e.g. ``stream=``) for compatibility with the
+        OpenAI-compatible API layer, which always passes ``stream``.
+        """
         logger.info("DjangoChatBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
         ux = BlueprintUXImproved(style="serious")

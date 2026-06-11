@@ -211,12 +211,23 @@ class StewieBlueprint(BlueprintBase):
         logger.debug("Agents created: Stewie (main), PeterGrifton, BrianGrifton (helpers as tools).")
         return stewie_agent
 
-    async def run(self, *args, **kwargs):
+    async def run(self, messages: list[dict[str, Any]] | None = None, **kwargs):
+        """Async-generator entry point (OpenAI-compatible API contract).
+
+        Previously this was a plain coroutine that returned the abstract
+        ``super().run(...)`` generator, which broke ``async for`` consumers
+        (the API layer) with "'async for' requires an object with __aiter__".
+        """
         # Patch: Always provide a minimal valid config for tests if missing
         if not self._config:
             self._config = {'llm': {'default': {'model': 'gpt-mock', 'provider': 'openai'}}, 'llm_profile': 'default'}
-        # Existing logic...
-        return super().run(*args, **kwargs)
+        messages = messages or []
+        instruction = messages[-1].get("content", "") if messages else ""
+        if os.environ.get("SWARM_TEST_MODE"):
+            yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Stewie here. What the deuce do you want with: '{instruction}'?"}]}
+            return
+        async for chunk in self._run_non_interactive(instruction, **kwargs):
+            yield chunk
 
     async def _run_non_interactive(self, instruction: str, **kwargs) -> Any:
         logger.info(f"Running Stewie non-interactively with instruction: '{instruction[:100]}...'")

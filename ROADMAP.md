@@ -70,7 +70,7 @@ Last updated: 2026-06-11 (post PR waves #80–#85; origin reduced to main; Docke
 
 - [x] **ASGI routing for websocket chat** — `swarm/asgi.py` + `routing.py` created; daphne/channels registered (they were declared core deps all along, never wired); 9 full-stack tests; live-verified 101 upgrade with session auth, 403 anonymous/bad-origin (`docs/websocket_chat.md`)
 
-- [ ] **Known issue (found while making the README demo): non-streaming `/v1/chat/completions` returns spinner text in test mode** — `_handle_non_streaming` in `src/swarm/views/chat_views.py` breaks on the first `messages` chunk, so test-mode answers come back as "Generating."; streaming works. Several blueprints (geese, jeeves, stewie, codey, chucks_angels, django_chat, rue_code) error outright via the API in test mode — `zeus` is the only blueprint verified working on both CLI and API surfaces. Fix the chunk handling + add per-blueprint API smoke tests.
+- [x] **Non-streaming `/v1/chat/completions` test-mode bug FIXED** — chunk normalizer consumes the whole generator and returns the final message (was: first spinner chunk). Per-blueprint API smoke matrix added (`tests/api/test_blueprint_api_smoke.py`): 13 blueprints verified answering on BOTH streaming and non-streaming surfaces (was: only zeus). Remaining xfail: `whiskeytango_foxtrot` hangs in test mode (no canned-response path) — fix its run() or demote to examples.
 
 ### 2.1 Deprecation shim sunset
 

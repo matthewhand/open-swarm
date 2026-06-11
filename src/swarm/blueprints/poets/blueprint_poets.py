@@ -4,6 +4,7 @@ Poets Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
+import asyncio
 import logging
 import os
 import random
