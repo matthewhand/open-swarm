@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useId } from 'react';
 
 /**
  * Modal component using DaisyUI classes
@@ -21,43 +21,56 @@ export const Modal = ({
   size = 'md',
   className = '',
 }: ModalProps) => {
-  const modalRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
-  // Close modal when clicking outside
+  // Sync open state with native dialog methods
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
-
-  // Close modal on Escape key
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
+      if (!dialog.open) {
+        dialog.showModal();
       }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
+    } else {
+      if (dialog.open) {
+        dialog.close();
+      }
     }
+  }, [isOpen]);
 
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+  // Handle native cancel event (e.g. Escape key)
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const handleCancel = (e: Event) => {
+      e.preventDefault(); // Prevent native close to keep React state in sync
+      onClose();
     };
-  }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+    dialog.addEventListener('cancel', handleCancel);
+    return () => dialog.removeEventListener('cancel', handleCancel);
+  }, [onClose]);
+
+  // Handle backdrop clicks (clicking outside the modal-box)
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const rect = dialog.getBoundingClientRect();
+    const isInDialog = (
+      rect.top <= e.clientY &&
+      e.clientY <= rect.top + rect.height &&
+      rect.left <= e.clientX &&
+      e.clientX <= rect.left + rect.width
+    );
+
+    if (!isInDialog) {
+      onClose();
+    }
+  };
 
   const sizeClasses = {
     sm: 'max-w-sm',
@@ -67,19 +80,27 @@ export const Modal = ({
   };
 
   return (
-    <div className="modal modal-open">
+    <dialog
+      ref={dialogRef}
+      className={`modal ${isOpen ? 'modal-open' : ''}`}
+      onClick={handleBackdropClick}
+      aria-labelledby={title ? titleId : undefined}
+    >
       <div 
-        ref={modalRef}
         className={`modal-box ${sizeClasses[size]} ${className}`}
+        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
       >
         {title && (
-          <h3 className="font-bold text-lg mb-4">{title}</h3>
+          <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
         )}
         <div className="modal-content">
           {children}
         </div>
       </div>
-    </div>
+      <form method="dialog" className="modal-backdrop">
+        <button onClick={onClose}>close</button>
+      </form>
+    </dialog>
   );
 };
 
