@@ -30,7 +30,9 @@ export const Card = ({
   // Build class list
   const classes = [
     'card',
-    bordered ? 'card-bordered' : '',
+    // daisyUI 5 renamed `card-bordered` to `card-border`; keep an explicit
+    // Tailwind border as well so the outline is never theme-dependent.
+    bordered ? 'card-border border border-base-300' : '',
     compact ? 'card-compact' : '',
     normal ? 'card-normal' : '',
     side ? 'card-side' : '',

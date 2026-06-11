@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Home, Settings, Bot, Book, Users, PlusCircle, MessageSquare, ShieldAlert, Wand2, X, Sun, Moon } from 'lucide-react'
-import { Button, Card, Alert, Badge, LoadingSpinner, ToastProvider } from './components/DaisyUI'
+import { Card, Alert, Badge, LoadingSpinner, ToastProvider } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
 import ChatPage from './pages/ChatPage'
 import SettingsPage from './pages/SettingsPage'
 import AgentCreatorPage from './pages/AgentCreatorPage'
-import { fetchBlueprints, fetchModels } from './lib/api'
+import { fetchBlueprints, fetchModels, fetchTeams } from './lib/api'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 
 const THEME_STORAGE_KEY = 'swarm_theme'
@@ -171,9 +171,12 @@ function StatValue({
 function Dashboard() {
   const blueprintsQuery = useQuery({ queryKey: ['blueprints'], queryFn: fetchBlueprints })
   const modelsQuery = useQuery({ queryKey: ['models'], queryFn: fetchModels })
+  const teamsQuery = useQuery({ queryKey: ['teams'], queryFn: fetchTeams })
 
-  const apiOnline = blueprintsQuery.isSuccess || modelsQuery.isSuccess
-  const apiChecking = blueprintsQuery.isPending && modelsQuery.isPending
+  const apiOnline =
+    blueprintsQuery.isSuccess || modelsQuery.isSuccess || teamsQuery.isSuccess
+  const apiChecking =
+    blueprintsQuery.isPending && modelsQuery.isPending && teamsQuery.isPending
 
   return (
     <div className="space-y-6">
@@ -184,7 +187,7 @@ function Dashboard() {
       </Alert>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card compact bordered>
           <div className="stat">
             <div className="stat-title">Blueprints</div>
@@ -212,27 +215,41 @@ function Dashboard() {
             <div className="stat-desc">From /v1/models/</div>
           </div>
         </Card>
+
+        <Card compact bordered>
+          <div className="stat">
+            <div className="stat-title">Teams</div>
+            <div className="stat-value text-primary">
+              <StatValue
+                isPending={teamsQuery.isPending}
+                isError={teamsQuery.isError}
+                value={teamsQuery.data?.data.length}
+              />
+            </div>
+            <div className="stat-desc">From /v1/teams/</div>
+          </div>
+        </Card>
       </div>
 
       {/* Quick Actions */}
       <Card title="Quick Actions" bordered>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button variant="primary" size="md" className="w-full">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link to="/teams" className="btn btn-primary w-full">
             <PlusCircle className="h-5 w-5 mr-2" />
             New Team
-          </Button>
-          <Button variant="secondary" size="md" className="w-full">
+          </Link>
+          <Link to="/blueprints" className="btn btn-outline w-full">
             <Book className="h-5 w-5 mr-2" />
             Browse Blueprints
-          </Button>
-          <Button variant="accent" size="md" className="w-full">
-            <Users className="h-5 w-5 mr-2" />
-            Team Manager
-          </Button>
-          <Button variant="info" size="md" className="w-full">
+          </Link>
+          <Link to="/chat" className="btn btn-outline w-full">
+            <MessageSquare className="h-5 w-5 mr-2" />
+            Open Chat
+          </Link>
+          <Link to="/settings" className="btn btn-outline w-full">
             <Settings className="h-5 w-5 mr-2" />
             Configure
-          </Button>
+          </Link>
         </div>
       </Card>
 
