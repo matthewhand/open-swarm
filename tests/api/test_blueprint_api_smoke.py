@@ -41,6 +41,9 @@ XFAIL: dict[str, str] = {}
 @pytest.fixture(autouse=True)
 def _test_mode(monkeypatch):
     monkeypatch.setenv("SWARM_TEST_MODE", "1")
+    # Keyless CI: some blueprints construct an OpenAI client even on the
+    # test-mode path; a dummy key keeps the matrix deterministic everywhere.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-test-mode")
 
 
 def _post_completion(client: Client, model: str, stream: bool):
