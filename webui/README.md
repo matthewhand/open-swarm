@@ -1,6 +1,6 @@
-# Open Swarm MCP Web UI
+# Open Swarm Web UI
 
-This directory contains the React-based frontend for Open Swarm MCP, built with:
+This directory contains the React-based frontend for Open Swarm, built with:
 
 - **Vite** - Fast build tool
 - **React** - UI framework

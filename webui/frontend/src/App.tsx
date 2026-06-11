@@ -34,7 +34,7 @@ function App() {
                   <div className="flex items-center space-x-6">
                     <Link to="/" className="flex items-center space-x-2">
                       <Bot className="h-8 w-8 text-primary" />
-                      <span className="text-xl font-bold">Open Swarm MCP</span>
+                      <span className="text-xl font-bold">Open Swarm</span>
                     </Link>
                     <div className="hidden lg:flex items-center space-x-1">
                       <Link to="/chat" className="btn btn-ghost btn-sm">
@@ -182,7 +182,7 @@ function Dashboard() {
     <div className="space-y-6">
       {/* Welcome Alert */}
       <Alert type="info" icon={<Home className="h-5 w-5" />}>
-        <span className="font-medium">Welcome to Open Swarm MCP!&nbsp;</span>
+        <span className="font-medium">Welcome to Open Swarm!&nbsp;</span>
         <span className="text-sm">Your AI agent orchestration platform is ready.</span>
       </Alert>
 
