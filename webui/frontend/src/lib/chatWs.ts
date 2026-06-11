@@ -6,7 +6,12 @@
  *
  * - URL: ws(s)://<host>/ws/ai-demo/<conversation_id>/
  *   (the Django UI connects via HTMx: ws-connect="/ws/ai-demo/{{ conversation.id }}/")
- * - Client -> server: JSON text frames: {"message": "<user text>"}
+ *   An optional ?blueprint=<id> query param sets a connection-level default
+ *   blueprint on the server.
+ * - Client -> server: JSON text frames: {"message": "<user text>"} with an
+ *   optional "blueprint": "<id>" field selecting which discovered blueprint
+ *   answers (per-message field overrides the URL default; omitting both
+ *   falls back to the server-configured model).
  * - Server -> client: HTML partials with HTMx out-of-band swap attributes:
  *   1. user echo:        <div id="message-list" hx-swap-oob="beforeend">
  *                          <div class="user-message ...">{text}</div></div>
@@ -30,9 +35,22 @@ export type ChatWsEvent =
 const OOB_CHUNK_PREFIX = 'beforeend:#'
 const ASSISTANT_ID_PREFIX = 'message-response-'
 
-export function buildChatWsUrl(conversationId: string): string {
+export function buildChatWsUrl(
+  conversationId: string,
+  blueprintId?: string,
+): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}/ws/ai-demo/${encodeURIComponent(conversationId)}/`
+  const base = `${scheme}://${window.location.host}/ws/ai-demo/${encodeURIComponent(conversationId)}/`
+  return blueprintId
+    ? `${base}?blueprint=${encodeURIComponent(blueprintId)}`
+    : base
+}
+
+/** Build the JSON frame sent to DjangoChatConsumer.receive(). */
+export function buildChatWsFrame(message: string, blueprintId?: string): string {
+  return JSON.stringify(
+    blueprintId ? { message, blueprint: blueprintId } : { message },
+  )
 }
 
 export function newConversationId(): string {
