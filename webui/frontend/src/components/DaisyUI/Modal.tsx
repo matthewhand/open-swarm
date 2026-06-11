@@ -1,4 +1,5 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useId } from 'react';
+import FocusTrap from 'focus-trap-react';
 
 /**
  * Modal component using DaisyUI classes
@@ -22,6 +23,7 @@ export const Modal = ({
   className = '',
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -68,17 +70,23 @@ export const Modal = ({
 
   return (
     <div className="modal modal-open">
-      <div 
-        ref={modalRef}
-        className={`modal-box ${sizeClasses[size]} ${className}`}
-      >
-        {title && (
-          <h3 className="font-bold text-lg mb-4">{title}</h3>
-        )}
-        <div className="modal-content">
-          {children}
+      <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => modalRef.current || document.body }}>
+        <div
+          ref={modalRef}
+          className={`modal-box ${sizeClasses[size]} ${className}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+          tabIndex={-1}
+        >
+          {title && (
+            <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
+          )}
+          <div className="modal-content">
+            {children}
+          </div>
         </div>
-      </div>
+      </FocusTrap>
     </div>
   );
 };

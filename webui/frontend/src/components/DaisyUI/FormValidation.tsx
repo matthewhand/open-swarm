@@ -4,12 +4,12 @@ import { Input, Select, Textarea } from './';
 /**
  * Form validation types and utilities
  */
-export type ValidationRule = {
+export type ValidationRule<V = unknown> = {
   required?: boolean;
   minLength?: number;
   maxLength?: number;
   pattern?: RegExp;
-  validate?: (value: any) => boolean | string;
+  validate?: (value: V) => boolean | string;
   customMessage?: string;
 };
 
@@ -24,9 +24,9 @@ export type FormTouched<T> = {
 /**
  * Form validation hook
  */
-export const useFormValidation = <T extends Record<string, any>>(
+export const useFormValidation = <T extends Record<string, unknown>>(
   initialValues: T,
-  validationRules: Record<keyof T, ValidationRule>
+  validationRules: { [K in keyof T]?: ValidationRule<T[K]> }
 ) => {
   const [values, setValues] = useState<T>(initialValues);
   const [errors, setErrors] = useState<FormErrors<T>>({});
@@ -35,7 +35,7 @@ export const useFormValidation = <T extends Record<string, any>>(
   const [isValid, setIsValid] = useState(false);
 
   // Validate a single field
-  const validateField = (name: keyof T, value: any) => {
+  const validateField = <K extends keyof T>(name: K, value: T[K]) => {
     const rule = validationRules[name];
     let error = '';
 
@@ -45,15 +45,15 @@ export const useFormValidation = <T extends Record<string, any>>(
         error = rule.customMessage || 'This field is required';
       }
       // Min length validation
-      else if (rule.minLength && value && value.length < rule.minLength) {
+      else if (rule.minLength && value && typeof value === 'string' && value.length < rule.minLength) {
         error = rule.customMessage || `Minimum ${rule.minLength} characters required`;
       }
       // Max length validation
-      else if (rule.maxLength && value && value.length > rule.maxLength) {
+      else if (rule.maxLength && value && typeof value === 'string' && value.length > rule.maxLength) {
         error = rule.customMessage || `Maximum ${rule.maxLength} characters allowed`;
       }
       // Pattern validation
-      else if (rule.pattern && value && !rule.pattern.test(value)) {
+      else if (rule.pattern && value && typeof value === 'string' && !rule.pattern.test(value)) {
         error = rule.customMessage || 'Invalid format';
       }
       // Custom validation
@@ -90,7 +90,7 @@ export const useFormValidation = <T extends Record<string, any>>(
   };
 
   // Handle field change
-  const handleChange = (name: keyof T, value: any) => {
+  const handleChange = <K extends keyof T>(name: K, value: T[K]) => {
     setValues(prev => ({ ...prev, [name]: value }));
     
     // Validate field on change if already touched
@@ -161,10 +161,10 @@ export interface ValidatedInputProps {
   label?: string;
   type?: string;
   placeholder?: string;
-  value: any;
+  value: string | number | readonly string[] | undefined;
   error?: string;
   touched?: boolean;
-  onChange: (name: string, value: any) => void;
+  onChange: (name: string, value: string) => void;
   onBlur: (name: string) => void;
   inputProps?: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'color'>;
 }
@@ -202,10 +202,10 @@ export interface ValidatedSelectProps {
   name: string;
   label?: string;
   placeholder?: string;
-  value: any;
+  value: string | number | readonly string[] | undefined;
   error?: string;
   touched?: boolean;
-  onChange: (name: string, value: any) => void;
+  onChange: (name: string, value: string) => void;
   onBlur: (name: string) => void;
   options: { value: string; label: ReactNode }[];
   selectProps?: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size' | 'color'>;
@@ -249,10 +249,10 @@ export interface ValidatedTextareaProps {
   name: string;
   label?: string;
   placeholder?: string;
-  value: any;
+  value: string | number | readonly string[] | undefined;
   error?: string;
   touched?: boolean;
-  onChange: (name: string, value: any) => void;
+  onChange: (name: string, value: string) => void;
   onBlur: (name: string) => void;
   textareaProps?: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'color'>;
 }
@@ -284,14 +284,14 @@ export const ValidatedTextarea = ({
 /**
  * Form component with validation
  */
-export interface FormProps<T extends Record<string, any>> {
+export interface FormProps<T extends Record<string, unknown>> {
   initialValues: T;
-  validationRules: Record<keyof T, ValidationRule>;
+  validationRules: { [K in keyof T]?: ValidationRule<T[K]> };
   onSubmit: (values: T) => Promise<void> | void;
   children: (form: ReturnType<typeof useFormValidation<T>>) => ReactNode;
 }
 
-export const Form = <T extends Record<string, any>>({
+export const Form = <T extends Record<string, unknown>>({
   initialValues,
   validationRules,
   onSubmit,

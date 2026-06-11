@@ -34,6 +34,9 @@ export const LoadingSpinner = ({
 
   return (
     <span 
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
       className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
     />
   );
