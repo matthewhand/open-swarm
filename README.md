@@ -11,7 +11,14 @@
 
 Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python). Derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm) (see [Attribution](#acknowledgements--attribution)).
 
-> **Status: beta.** The core framework, CLI, REST API, and Django web UI are working and covered by a 600+ test suite. Some features are still in progress — see [Roadmap](#roadmap--unfinished-features) at the bottom for an honest list.
+**Elevator pitch:** define a team of AI agents once — as a *blueprint* — and run it anywhere: as a local CLI command, a compiled standalone executable, or behind an OpenAI-compatible API that any OpenAI client, SDK, or chat UI can talk to. Web dashboard, live websocket chat, MCP tool integration, and opt-in agent memory included.
+
+<div align="center">
+<img src="docs/screenshots/landing.png" alt="Open Swarm dashboard" width="85%"/>
+<br/><em>The dashboard — take the full <a href="docs/GUIDED_TOUR.md">guided tour</a>.</em>
+</div>
+
+> **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 860+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
 ---
 
@@ -138,7 +145,7 @@ Feature-flag variables for experimental subsystems (`ENABLE_MCP_SERVER`, `ENABLE
 
 ```bash
 uv sync --all-extras                  # install with all extras
-uv run pytest -q --timeout=120       # full suite (600+ tests, no API keys needed)
+uv run pytest -q --timeout=120       # full suite (860+ tests, no API keys needed)
 uv run python manage.py check         # Django sanity
 ruff check .                          # lint
 ```
@@ -158,35 +165,12 @@ Documentation map:
 
 ## Roadmap / Unfinished Features
 
-Honest status of what's **not** done, tracked in detail in [ROADMAP.md](./ROADMAP.md) (nested progress) and [FEATURE_STATUS.md](./FEATURE_STATUS.md) (per-feature evidence table). Summary:
+Detailed nested progress lives in [ROADMAP.md](./ROADMAP.md); per-feature evidence in [FEATURE_STATUS.md](./FEATURE_STATUS.md). The honest short list of what is **not** done:
 
-- [ ] **React/DaisyUI web UI** (`webui/frontend/`) — component library and build pipeline are done; **pages are demos on mock data**. Not wired to the API.
-  - [x] DaisyUI v5 component library (14 components), Vite/TS build, Django serving of built SPA
-  - [ ] Wire Teams page to `/teams` API (currently `mockTeams`)
-  - [ ] Wire Blueprints page to `/v1/blueprints/` (currently `mockBlueprints`)
-  - [ ] Authentication flow, websocket chat, error/loading states from real backend
-  - [ ] Replace Django template pages one-by-one (strangler-fig; Django UI remains supported until parity)
-- [ ] **Agent memory** — backends scaffolded, not wired into the agent loop.
-  - [x] `mem0ai` integration module; optional `[memory]` extra installs cleanly
-  - [ ] Pass memory context into `BlueprintBase` runs (opt-in per blueprint config)
-  - [ ] letta/langmem backends (currently placeholder modules)
-- [ ] **MCP server mode** (`ENABLE_MCP_SERVER`) — expose blueprints as MCP tools at `/mcp/`.
-  - [x] URL routing + provider skeleton
-  - [ ] Wire provider to real blueprint execution (`src/swarm/mcp/provider.py` TODO)
-  - [ ] Declare the server dependency; auth for MCP clients
-- [ ] **Security hardening for production defaults**
-  - [x] `DJANGO_SECRET_KEY` required outside debug; `DEBUG` defaults off
-  - [ ] Remove `testuser` auto-login fallback (active when API auth is unset) — gate behind explicit dev-only flag with production refusal
-  - [ ] Auth-required-by-default for the API; document every bypass flag in `.env.example`
-  - [ ] Remove `csrf_exempt` from state-changing endpoints
-- [ ] **Internal consolidation** (invisible to users, prerequisite for stable plugin API)
-  - [ ] Merge dual `core/` vs `extensions/` implementations (CLI, config loader, blueprint base) with deprecation shims
-  - [ ] Single spinner/output module (currently several variants)
-- [ ] **Blueprint ecosystem curation** — every shipped blueprint gets tests + README or moves to examples; restore or de-document legacy CLI commands (`wizard`, `config`, `add`) that older docs reference
-- [x] **Marketplace & enterprise auth (decided 2026-06-11)** — Wagtail-based blueprint marketplace and SAML IdP scaffolding removed; GitHub-topics discovery (`ENABLE_GITHUB_MARKETPLACE`) remains
-- [ ] **PyPI release automation** — publish workflow currently targets a stale branch and timestamp-bumps versions; needs release-driven semver
-
----
+- [ ] **React SPA full parity with the Django UI** — dashboard, chat, teams, blueprints, agent-creator, and settings pages are live on real APIs, but the Django templates UI remains the supported surface until per-page parity is complete
+- [ ] **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly and [docs/mcp_server_mode.md](./docs/mcp_server_mode.md) documents real adoption options
+- [ ] **Memory** — mem0 is wired into the agent loop (opt-in) and documented in [CONFIGURATION.md](./CONFIGURATION.md), but not yet validated against a live mem0 end-to-end; letta/langmem are placeholders
+- [ ] **Deprecation-shim sunset** — 7 import shims from the consolidation get removed in the release after v0.3.x
 
 ## Acknowledgements & Attribution
 
