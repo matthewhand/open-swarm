@@ -33,6 +33,7 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.settings_views import (
     environment_variables,
     settings_api,
@@ -74,6 +75,10 @@ urlpatterns = [
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
     path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
+    # JSON Blueprint Library API (REST counterpart to /blueprint-library/)
+    path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
+    path("v1/library/", LibraryAPIView.as_view(), name="library-api"),
+    path("v1/library/<str:blueprint_name>/", LibraryDetailAPIView.as_view(), name="library-api-detail"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),

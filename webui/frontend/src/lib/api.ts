@@ -185,6 +185,18 @@ export interface CreateTeamRequest {
   llm_profile?: string
 }
 
+/**
+ * GET/POST /v1/library/ and DELETE /v1/library/<name>/
+ * (swarm/views/library_api.py). Backed by the same blueprint_library.json
+ * used by the server-rendered /blueprint-library/ pages.
+ */
+export interface LibraryEntry {
+  id: string
+  object: 'library.blueprint'
+  name: string
+  description: string
+}
+
 export function fetchBlueprints(): Promise<ListResponse<Blueprint>> {
   return apiGet<ListResponse<Blueprint>>('/v1/blueprints/')
 }
@@ -203,6 +215,18 @@ export function createTeam(team: CreateTeamRequest): Promise<Team> {
 
 export function deleteTeam(teamId: string): Promise<void> {
   return apiDelete(`/v1/teams/${encodeURIComponent(teamId)}/`)
+}
+
+export function fetchLibrary(): Promise<ListResponse<LibraryEntry>> {
+  return apiGet<ListResponse<LibraryEntry>>('/v1/library/')
+}
+
+export function addToLibrary(name: string): Promise<LibraryEntry> {
+  return apiPost<LibraryEntry>('/v1/library/', { name })
+}
+
+export function removeFromLibrary(name: string): Promise<void> {
+  return apiDelete(`/v1/library/${encodeURIComponent(name)}/`)
 }
 
 // ---------------------------------------------------------------------------
