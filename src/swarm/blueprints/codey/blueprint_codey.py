@@ -428,6 +428,9 @@ class CodeyBlueprint(BlueprintBase):
                     emoji='🤖',
                     border='╔'
                 )
+                # Yield a final canned message so API consumers (non-streaming
+                # and streaming) receive real content, not just printed boxes.
+                yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Codey code search complete for: '{instruction}'. Found 10 matches."}]}
                 return
             else:
                 # Semantic Search legacy/test output
@@ -484,6 +487,9 @@ class CodeyBlueprint(BlueprintBase):
                     emoji='🤖',
                     border='╔'
                 )
+                # Yield a final canned message so API consumers (non-streaming
+                # and streaming) receive real content, not just printed boxes.
+                yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Codey semantic search complete for: '{instruction}'. Found 10 matches."}]}
                 return
         search_mode = kwargs.get('search_mode', 'semantic')
         if search_mode in ("semantic", "code"):

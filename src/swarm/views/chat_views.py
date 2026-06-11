@@ -60,6 +60,61 @@ except Exception:
     pass
 
 # ==============================================================================
+# Chunk normalization helpers
+# ==============================================================================
+
+def _extract_message_from_chunk(chunk: Any) -> dict[str, Any] | None:
+    """Normalize a single chunk yielded by a blueprint's run() generator.
+
+    Blueprints emit several shapes:
+      - internal dicts: ``{"messages": [{"role", "content"}]}``
+      - OpenAI-like objects: ``{"choices": [{"message"|"delta": {...}}]}``
+      - bare message dicts: ``{"message": {"role", "content"}}`` or
+        top-level ``{"role", "content"}`` (e.g. chucks_angels)
+      - ``AgentInteraction`` dataclasses (``.role``/``.content``/``.final``)
+      - progress side-channel dicts (e.g. ``{"type": "spinner_update", ...}``)
+
+    Returns a ``{"role", "content"}`` dict, or None when the chunk carries no
+    message payload (progress/spinner side-channel chunks).
+    """
+    if chunk is None:
+        return None
+    if not isinstance(chunk, dict):
+        # AgentInteraction-like object (duck-typed: has a string content attr)
+        content = getattr(chunk, "content", None)
+        if isinstance(content, str) and content:
+            return {"role": getattr(chunk, "role", None) or "assistant", "content": content}
+        return None
+    messages = chunk.get("messages")
+    if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+        message = messages[0]
+        if message.get("content") is not None:
+            return {"role": message.get("role") or "assistant", "content": message["content"]}
+        return None
+    message = chunk.get("message")
+    if isinstance(message, dict) and message.get("content") is not None:
+        return {"role": message.get("role") or "assistant", "content": message["content"]}
+    choices = chunk.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        choice0 = choices[0]
+        message = choice0.get("delta") or choice0.get("message") or choice0
+        if isinstance(message, dict) and message.get("content") is not None:
+            return {"role": message.get("role") or "assistant", "content": message["content"]}
+        return None
+    # Bare top-level message dict (e.g. {"type": "message", "role": ..., "content": ...})
+    if chunk.get("content") is not None and (chunk.get("role") or chunk.get("type") == "message"):
+        return {"role": chunk.get("role") or "assistant", "content": chunk["content"]}
+    return None
+
+
+def _chunk_is_final(chunk: Any) -> bool:
+    """True when a chunk carries an explicit final marker (e.g. AgentInteraction.final)."""
+    if isinstance(chunk, dict):
+        return bool(chunk.get("final"))
+    return bool(getattr(chunk, "final", False))
+
+
+# ==============================================================================
 # API Views (DRF based)
 # ==============================================================================
 
@@ -86,36 +141,31 @@ class ChatCompletionsView(APIView):
     async def _handle_non_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> Response:
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
-        final_response_data = None
+        final_message = None
         start_time = time.time()
         try:
-            # The blueprint's run method should be an async generator.
+            # The blueprint's run method should be an async generator. Blueprints
+            # yield progress chunks (spinner frames like "Generating.") BEFORE the
+            # real answer, so we must consume the WHOLE generator and keep the
+            # LAST message — the same content the streaming path emits last.
+            # Chunks carrying an explicit final marker (AgentInteraction.final)
+            # short-circuit the scan.
             async_generator = blueprint_instance.run(messages, stream=False)
             async for chunk in async_generator:
-                # Accept either internal {messages:[{role,content}]} or OpenAI-like completion objects
-                if isinstance(chunk, dict):
-                    if "messages" in chunk and isinstance(chunk["messages"], list):
-                        final_response_data = chunk["messages"]
-                        logger.debug(f"[ReqID: {request_id}] Received final data chunk (messages list).")
-                        break
-                    if "choices" in chunk and isinstance(chunk.get("choices"), list) and chunk["choices"]:
-                        choice0 = chunk["choices"][0]
-                        message = choice0.get("message") or {}
-                        if isinstance(message, dict) and message.get("role") and (message.get("content") is not None):
-                            final_response_data = [message]
-                            logger.debug(f"[ReqID: {request_id}] Received final data chunk (OpenAI object).")
-                            break
-                logger.warning(f"[ReqID: {request_id}] Unexpected chunk format during non-streaming run: {chunk}")
+                message = _extract_message_from_chunk(chunk)
+                if message is None:
+                    logger.debug(f"[ReqID: {request_id}] Skipping non-message chunk during non-streaming run: {chunk}")
+                    continue
+                final_message = message
+                if _chunk_is_final(chunk):
+                    logger.debug(f"[ReqID: {request_id}] Received explicitly-final chunk; stopping consumption.")
+                    break
 
-            if not final_response_data or not isinstance(final_response_data, list) or not final_response_data:
-                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not return a valid final message list. Got: {final_response_data}")
+            if not isinstance(final_message, dict) or final_message.get('content') is None:
+                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not yield any valid message chunk.")
                  raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            if not isinstance(final_response_data[0], dict) or 'role' not in final_response_data[0]:
-                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' returned invalid message structure. Got: {final_response_data[0]}")
-                 raise APIException("Blueprint returned invalid message structure.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_response_data[0], "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None }
+            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None }
             end_time = time.time()
             logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)
@@ -137,23 +187,11 @@ class ChatCompletionsView(APIView):
                 logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
-                    delta = {"role": "assistant"}
-                    if isinstance(chunk, dict):
-                        if "messages" in chunk and isinstance(chunk["messages"], list) and chunk["messages"] and isinstance(chunk["messages"][0], dict):
-                            delta_content = chunk["messages"][0].get("content")
-                            if delta_content is not None:
-                                delta["content"] = delta_content
-                        elif "choices" in chunk and isinstance(chunk.get("choices"), list) and chunk["choices"]:
-                            # Handle OpenAI-like streaming or completion chunk shapes
-                            choice0 = chunk["choices"][0]
-                            if isinstance(choice0, dict):
-                                # delta content (streaming) or message content (completion)
-                                message = choice0.get("delta") or choice0.get("message") or {}
-                                if isinstance(message, dict) and (message.get("content") is not None):
-                                    delta["content"] = message.get("content")
-                    if "content" not in delta:
+                    message = _extract_message_from_chunk(chunk)
+                    if message is None:
                         logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}")
                         continue
+                    delta = {"role": "assistant", "content": message["content"]}
                     response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
                     logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}")
                     yield f"data: {json.dumps(response_chunk)}\n\n"

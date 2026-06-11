@@ -310,7 +310,6 @@ class RueCodeBlueprint(BlueprintBase):
         if self._config is None:
             self._config = load_full_configuration(
                 blueprint_class_name=self.__class__.__name__,
-                default_config_path=Path(os.path.dirname(__file__)).parent.parent.parent / 'swarm_config.json',
                 config_path_override=config_path,
                 profile_override=None,
                 cli_config_overrides=None
@@ -340,7 +339,8 @@ class RueCodeBlueprint(BlueprintBase):
     def summary(self, label, count, params):
         return f"{label} ({count} results) for: {params}"
 
-    async def run(self, messages: list[dict[str, str]]):
+    async def run(self, messages: list[dict[str, str]], **kwargs):
+        # **kwargs: the API layer passes options like stream=; accept and ignore.
         logger.info("RueCodeBlueprint run method called.")
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:

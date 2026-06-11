@@ -279,11 +279,13 @@ class JeevesBlueprint(BlueprintBase):
             search_mode = kwargs.get("search_mode")
             if search_mode == 'code':
                 await self.search(instruction, ".")
+                yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Jeeves code search complete for: '{instruction}'."}]}
                 return
             elif search_mode == 'semantic':
                 await self.semantic_search(instruction, ".")
+                yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Jeeves semantic search complete for: '{instruction}'."}]}
                 return
-            
+
             # Print spinner states
             for msg in JeevesSpinner.SPINNER_STATES:
                 print(msg)
@@ -291,6 +293,9 @@ class JeevesBlueprint(BlueprintBase):
             print(JeevesSpinner.LONG_WAIT_MSG)
             # Indicate completion for CLI tests
             print("Jeeves Output")
+            # Yield a final canned message so API consumers (non-streaming and
+            # streaming) receive real content, not just printed spinner frames.
+            yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'"}]}
             return
         # (Continue with existing logic for agent/LLM run)
         # ... existing logic ...

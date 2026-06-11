@@ -69,9 +69,22 @@ class WhingeSurfBlueprint(BlueprintBase):
         self._load_jobs()
 
     async def run(self, messages: list[dict], **kwargs):
-        """Stub run to satisfy abstract base."""
-        if False:
-            yield {}
+        """Answer over the API surface.
+
+        WhingeSurf is primarily a CLI job manager (!run/!status); over the
+        chat API it responds with usage guidance (canned in test mode).
+        """
+        last = next((m.get("content", "") for m in reversed(messages)
+                     if m.get("role") == "user"), "")
+        if os.environ.get("SWARM_TEST_MODE"):
+            content = f"[TEST-MODE] WhingeSurf here. You said: '{last}'"
+        else:
+            content = (
+                "WhingeSurf manages background subprocess jobs from the CLI: "
+                "use `!run <cmd>` to launch and `!status <job_id>` to poll. "
+                "Run it via `swarm-cli launch whinge_surf` for the full UX."
+            )
+        yield {"messages": [{"role": "assistant", "content": content}]}
 
     def _load_jobs(self):
         if os.path.exists(self.JOBS_FILE):
