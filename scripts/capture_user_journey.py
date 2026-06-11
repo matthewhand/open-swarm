@@ -7,7 +7,9 @@ Idempotent and re-runnable:
    env it needs (DJANGO_DEBUG=true, ENABLE_WEBUI=true), waits for readiness.
 2. Visits each page in the user journey with Playwright (Chromium,
    1280x800) and saves full-page PNGs to docs/screenshots/<kebab>.png,
-   overwriting any previous capture.
+   overwriting any previous capture. With --mobile, emulates an iPhone-14
+   class device (390x844, dpr 2, touch) and writes to
+   docs/screenshots/mobile/<kebab>.png instead.
 3. If a page redirects to a login form, creates a throwaway superuser via
    `manage.py shell -c` and logs in through the form, then retries.
 4. Kills the server and prints a captured/skipped summary.
@@ -15,13 +17,14 @@ Idempotent and re-runnable:
 Pages that return 4xx/5xx are skipped and reported -- never faked.
 
 Usage:
-    .venv/bin/python scripts/capture_user_journey.py
+    .venv/bin/python scripts/capture_user_journey.py [--mobile]
 
 Requires: `.venv/bin/pip install playwright && .venv/bin/playwright install chromium`
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
@@ -35,6 +38,8 @@ PORT = 8321
 BASE_URL = f"http://127.0.0.1:{PORT}"
 SCREENSHOT_DIR = REPO_ROOT / "docs" / "screenshots"
 VIEWPORT = {"width": 1280, "height": 800}
+# iPhone 14-class emulation for --mobile runs.
+MOBILE_VIEWPORT = {"width": 390, "height": 844}
 
 # Throwaway credentials for the dev-server superuser (local only, never
 # committed anywhere; the dev db is throwaway state).
@@ -135,7 +140,8 @@ def login_if_needed(page) -> bool:
     return True
 
 
-def capture(page, slug: str, path: str, name: str) -> tuple[bool, str]:
+def capture(page, slug: str, path: str, name: str,
+            screenshot_dir: Path) -> tuple[bool, str]:
     """Returns (captured, detail)."""
     url = BASE_URL + path
     response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
@@ -157,12 +163,20 @@ def capture(page, slug: str, path: str, name: str) -> tuple[bool, str]:
     except Exception:
         pass  # busy pages (polling) never go idle; capture anyway
     page.wait_for_timeout(750)
-    out = SCREENSHOT_DIR / f"{slug}.png"
+    out = screenshot_dir / f"{slug}.png"
     page.screenshot(path=str(out), full_page=True)
     return True, str(out.relative_to(REPO_ROOT))
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--mobile", action="store_true",
+        help="emulate an iPhone-14 class device (390x844, dpr 2, touch) and "
+             "write captures to docs/screenshots/mobile/ instead",
+    )
+    args = parser.parse_args()
+
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -170,7 +184,12 @@ def main() -> int:
         print("  .venv/bin/pip install playwright && .venv/bin/playwright install chromium")
         return 1
 
-    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    screenshot_dir = SCREENSHOT_DIR / "mobile" if args.mobile else SCREENSHOT_DIR
+    context_kwargs: dict = {"viewport": MOBILE_VIEWPORT if args.mobile else VIEWPORT}
+    if args.mobile:
+        context_kwargs.update(device_scale_factor=2, is_mobile=True, has_touch=True)
+
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
     print(f"Starting Django dev server on port {PORT} ...")
     server = start_server()
     captured: list[tuple[str, str]] = []
@@ -178,7 +197,7 @@ def main() -> int:
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
-            page = browser.new_page(viewport=VIEWPORT)
+            page = browser.new_page(**context_kwargs)
             # Authenticate up front: the chat websocket consumer only accepts
             # logged-in sessions, and authed pages render more realistically.
             try:
@@ -190,7 +209,7 @@ def main() -> int:
                 print(f"  [auth     ] anonymous capture (login failed: {exc})")
             for slug, path, name in PAGES:
                 try:
-                    ok, detail = capture(page, slug, path, name)
+                    ok, detail = capture(page, slug, path, name, screenshot_dir)
                 except Exception as exc:  # never let one page kill the run
                     ok, detail = False, f"error: {exc}"
                 if ok:
