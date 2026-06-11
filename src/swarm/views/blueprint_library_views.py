@@ -1,5 +1,5 @@
 """
-Blueprint Library Views for Open Swarm MCP Core.
+Blueprint Library Views for Open Swarm Core.
 Handles blueprint browsing, library management, and custom blueprint creation.
 """
 import json

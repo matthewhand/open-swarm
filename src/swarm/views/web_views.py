@@ -1,5 +1,5 @@
 """
-Web UI views for Open Swarm MCP Core.
+Web UI views for Open Swarm Core.
 Handles rendering index, blueprint pages, login, and serving config.
 """
 import json
