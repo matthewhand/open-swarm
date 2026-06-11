@@ -15,19 +15,19 @@ headless Chromium, 1280x800 viewport, full-page PNGs.
 
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
-| `landing.png` | `/` (React SPA dashboard) | Styled SPA landing: live blueprint/model counts, quick actions, backend health | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `spa-chat.png` | `/chat` (React SPA) | Websocket chat, authenticated session showing "Connected", empty conversation | GUIDED_TOUR.md | 2026-06-11 | current |
-| `spa-teams.png` | `/teams` (React SPA) | Team management wired to `/v1/teams/`, fresh-db "No teams yet" empty state | GUIDED_TOUR.md | 2026-06-11 | current |
-| `spa-blueprints.png` | `/blueprints` (React SPA) | Blueprint library from `/v1/blueprints/` with per-card MCP requirements | GUIDED_TOUR.md | 2026-06-11 | current |
-| `spa-agent-creator.png` | `/agent-creator` (React SPA) | Persona form + blueprint-code panel; empty custom-blueprints list | GUIDED_TOUR.md | 2026-06-11 | current |
-| `spa-settings.png` | `/settings` (React SPA) | API-token form, read-only server settings by category, masked env vars | GUIDED_TOUR.md | 2026-06-11 | current |
-| `login.png` | `/accounts/login/` (Django) | Minimal unstyled login form with dev test-credentials hint | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `teams.png` | `/teams/` (Django) | Teams Admin registration form; empty Registered Teams table (fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher with bundled `django_chat` pre-selected; empty output panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `blueprint-library.png` | `/blueprint-library/` (Django) | Bundled blueprint catalog with requirement badges; 5/0/0/5 summary tiles | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library, empty state (all counters 0) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `agent-creator.png` | `/agent-creator/` (Django) | Agent persona form + empty Generated Code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
-| `settings.png` | `/settings/` (Django) | Settings dashboard with config-progress meter and category sections | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-11 | current |
+| `landing.png` | `/` (React SPA dashboard) | Styled SPA landing: live blueprint/model counts, quick actions, backend health | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `spa-chat.png` | `/chat` (React SPA) | Websocket chat, authenticated session showing "Connected", empty conversation | GUIDED_TOUR.md | 2026-06-12 | current |
+| `spa-teams.png` | `/teams` (React SPA) | Team management wired to `/v1/teams/`, fresh-db "No teams yet" empty state | GUIDED_TOUR.md | 2026-06-12 | current |
+| `spa-blueprints.png` | `/blueprints` (React SPA) | Blueprint library from `/v1/blueprints/` with per-card MCP requirements | GUIDED_TOUR.md | 2026-06-12 | current |
+| `spa-agent-creator.png` | `/agent-creator` (React SPA) | Persona form + blueprint-code panel; empty custom-blueprints list | GUIDED_TOUR.md | 2026-06-12 | current |
+| `spa-settings.png` | `/settings` (React SPA) | API-token form, read-only server settings by category, masked env vars | GUIDED_TOUR.md | 2026-06-12 | current |
+| `login.png` | `/accounts/login/` (Django) | Minimal unstyled login form with dev test-credentials hint | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `teams.png` | `/teams/` (Django) | Teams Admin registration form; empty Registered Teams table (fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher with bundled `django_chat` pre-selected; empty output panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `blueprint-library.png` | `/blueprint-library/` (Django) | Bundled blueprint catalog with requirement badges; 5/0/0/5 summary tiles | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library, empty state (all counters 0) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `agent-creator.png` | `/agent-creator/` (Django) | Agent persona form + empty Generated Code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `settings.png` | `/settings/` (Django) | Settings dashboard with config-progress meter and category sections | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
 
 The "Used in" column is verified by grepping the docs for
 `screenshots/<file>`; README.md and USERGUIDE.md embed no screenshots.
@@ -41,19 +41,19 @@ breakpoint; Django pages collapse into the Bootstrap burger menu.
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` (React SPA dashboard) | Stat cards and quick actions stack; bottom dock with active-tab indicator | 2026-06-11 | current |
-| `mobile/spa-chat.png` | `/chat` (React SPA) | Header stacks (title above blueprint selector); composer clears the fixed dock | 2026-06-11 | current |
-| `mobile/spa-teams.png` | `/teams` (React SPA) | Single-column empty state; dock highlights Teams | 2026-06-11 | current |
-| `mobile/spa-blueprints.png` | `/blueprints` (React SPA) | Single-column cards; long blueprint names wrap instead of overflowing | 2026-06-11 | current |
-| `mobile/spa-agent-creator.png` | `/agent-creator` (React SPA) | Form fields full-width, single column | 2026-06-11 | current |
-| `mobile/spa-settings.png` | `/settings` (React SPA) | Settings categories and env-var table fit the narrow viewport | 2026-06-11 | current |
-| `mobile/login.png` | `/accounts/login/` (Django) | Login card fills the width with comfortable margins | 2026-06-11 | current |
-| `mobile/teams.png` | `/teams/` (Django) | Bootstrap navbar collapsed to burger; form and buttons wrap | 2026-06-11 | current |
-| `mobile/teams-launch.png` | `/teams/launch/` (Django) | Launcher form full-width; output panel below | 2026-06-11 | current |
-| `mobile/blueprint-library.png` | `/blueprint-library/` (Django) | Summary tiles and blueprint cards stack single-column | 2026-06-11 | current |
-| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Stat tiles stack; empty-state actions wrap | 2026-06-11 | current |
-| `mobile/agent-creator.png` | `/agent-creator/` (Django) | Persona form single-column; Validate/Save buttons wrap in the panel header | 2026-06-11 | current |
-| `mobile/settings.png` | `/settings/` (Django) | Dashboard header tiles wrap; category accordions full-width | 2026-06-11 | current |
+| `mobile/landing.png` | `/` (React SPA dashboard) | Stat cards and quick actions stack; bottom dock with active-tab indicator | 2026-06-12 | current |
+| `mobile/spa-chat.png` | `/chat` (React SPA) | Header stacks (title above blueprint selector); composer clears the fixed dock | 2026-06-12 | current |
+| `mobile/spa-teams.png` | `/teams` (React SPA) | Single-column empty state; dock highlights Teams | 2026-06-12 | current |
+| `mobile/spa-blueprints.png` | `/blueprints` (React SPA) | Single-column cards; long blueprint names wrap instead of overflowing | 2026-06-12 | current |
+| `mobile/spa-agent-creator.png` | `/agent-creator` (React SPA) | Form fields full-width, single column | 2026-06-12 | current |
+| `mobile/spa-settings.png` | `/settings` (React SPA) | Settings categories and env-var table fit the narrow viewport | 2026-06-12 | current |
+| `mobile/login.png` | `/accounts/login/` (Django) | Login card fills the width with comfortable margins | 2026-06-12 | current |
+| `mobile/teams.png` | `/teams/` (Django) | Bootstrap navbar collapsed to burger; form and buttons wrap | 2026-06-12 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` (Django) | Launcher form full-width; output panel below | 2026-06-12 | current |
+| `mobile/blueprint-library.png` | `/blueprint-library/` (Django) | Summary tiles and blueprint cards stack single-column | 2026-06-12 | current |
+| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Stat tiles stack; empty-state actions wrap | 2026-06-12 | current |
+| `mobile/agent-creator.png` | `/agent-creator/` (Django) | Persona form single-column; Validate/Save buttons wrap in the panel header | 2026-06-12 | current |
+| `mobile/settings.png` | `/settings/` (Django) | Dashboard header tiles wrap; category accordions full-width | 2026-06-12 | current |
 
 Regenerate with:
 
@@ -65,7 +65,7 @@ Regenerate with:
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `demo/cli-and-api.gif` | Animated terminal demo (~18s loop): `swarm-cli list`, the `zeus` blueprint answering as a local CLI command, then the same blueprint answering via `curl` against the OpenAI-compatible API (`/v1/models`, streaming `/v1/chat/completions`) — all under `SWARM_TEST_MODE=1`, no API key | README.md | 2026-06-11 | current |
+| `demo/cli-and-api.gif` | Animated terminal demo (~18s loop): `swarm-cli list`, the `zeus` blueprint answering as a local CLI command, then the same blueprint answering via `curl` against the OpenAI-compatible API (`/v1/models`, streaming `/v1/chat/completions`) — all under `SWARM_TEST_MODE=1`, no API key | README.md | 2026-06-12 | current |
 
 All terminal output shown in the GIF is a genuine capture (raw transcripts in
 `docs/demo/captures/raw_*.txt`); only the command typing is animated, and a
