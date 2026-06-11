@@ -1,0 +1,66 @@
+name: Visual Regression
+
+# Golden-journey browser suite (tests/e2e_visual). Exists because a green
+# build has shipped an unstyled UI twice (Tailwind v4 emitting a 2kB CSS
+# bundle; DaisyUI 5 removing `card-bordered`). Unit tests can't see computed
+# styles, so this job builds the real frontend, boots the real dev server,
+# and asserts on what Chromium actually renders.
+#
+# Kept separate from python-pytest.yml so the unit-test matrix stays fast and
+# does not need browsers or a frontend build.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  golden-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Build frontend (webui/frontend/dist)
+        working-directory: webui/frontend
+        run: |
+          npm ci
+          npm run build
+          # Fail loudly here too if the bundle is suspiciously small.
+          ls -l dist/assets/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --all-extras
+
+      - name: Install Playwright Chromium
+        run: uv run playwright install chromium --with-deps
+
+      - name: Run golden-journey visual suite
+        run: uv run pytest tests/e2e_visual -q
+        env:
+          RUN_E2E_VISUAL: "1"
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-visual-failure-screenshots
+          path: tests/e2e_visual/artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
