@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Alert, Badge, SkeletonCard } from '../components/DaisyUI';
-import { Book, Search, AlertCircle } from 'lucide-react';
+import { Button, Card, Alert, SkeletonCard } from '../components/DaisyUI';
+import { Book, Search, AlertCircle, Server } from 'lucide-react';
 import { fetchBlueprints, type Blueprint } from '../lib/api';
 
 const BlueprintsPage = () => {
@@ -30,7 +30,7 @@ const BlueprintsPage = () => {
           <Book className="h-8 w-8" />
           Blueprint Library
         </h1>
-        <p className="text-gray-500">Blueprints available on this server</p>
+        <p className="text-base-content/70">Blueprints available on this server</p>
       </div>
 
       {/* Search */}
@@ -84,43 +84,55 @@ const BlueprintsPage = () => {
       {!isPending && !isError && filteredBlueprints.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredBlueprints.map((blueprint) => (
-            <Card key={blueprint.id} bordered className="hover:shadow-lg transition-shadow">
-              <div className="card-body">
-                <div className="flex justify-between items-start mb-2 gap-2">
-                  <h3 className="card-title">{blueprint.name}</h3>
-                  {blueprint.abbreviation && (
-                    <Badge type="info" size="sm">{blueprint.abbreviation}</Badge>
-                  )}
+            <div
+              key={blueprint.id}
+              className="card bg-base-100 border border-base-300 hover:shadow-md transition-shadow h-full"
+            >
+              <div className="card-body flex flex-col">
+                <div className="flex justify-between items-start gap-2">
+                  <h3 className="card-title text-base leading-snug">{blueprint.name}</h3>
+                  <span className="badge badge-neutral badge-sm font-mono shrink-0">
+                    {blueprint.abbreviation || blueprint.id}
+                  </span>
                 </div>
 
-                <p className="text-xs text-gray-400 font-mono mb-2">{blueprint.id}</p>
-                <p className="text-sm text-gray-500 mb-4 whitespace-pre-line">
+                <p className="text-xs text-base-content/50 font-mono">{blueprint.id}</p>
+                <p
+                  className="text-sm text-base-content/70 line-clamp-3"
+                  title={blueprint.description}
+                >
                   {blueprint.description || 'No description provided.'}
                 </p>
 
-                {blueprint.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {blueprint.tags.map((tag) => (
-                      <Badge key={tag} type="neutral" size="sm">{tag}</Badge>
-                    ))}
-                  </div>
-                )}
+                <div className="mt-auto pt-3 space-y-2">
+                  {blueprint.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {blueprint.tags.map((tag) => (
+                        <span key={tag} className="badge badge-ghost badge-sm">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
-                {blueprint.required_mcp_servers.length > 0 && (
-                  <>
-                    <div className="divider my-2"></div>
-                    <div className="text-sm">
-                      <span className="text-gray-500">Required MCP servers:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
+                  {blueprint.required_mcp_servers.length > 0 && (
+                    <div className="border-t border-base-300 pt-2 text-sm">
+                      <span className="flex items-center gap-1 text-xs font-medium text-base-content/60 uppercase tracking-wide">
+                        <Server className="h-3 w-3" />
+                        Required MCP servers
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
                         {blueprint.required_mcp_servers.map((server) => (
-                          <Badge key={server} type="warning" size="sm">{server}</Badge>
+                          <span key={server} className="badge badge-outline badge-sm font-mono">
+                            {server}
+                          </span>
                         ))}
                       </div>
                     </div>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
@@ -129,10 +141,10 @@ const BlueprintsPage = () => {
       {!isPending && !isError && filteredBlueprints.length === 0 && (
         <Card bordered className="text-center py-12">
           <div className="mb-4">
-            <Book className="h-16 w-16 mx-auto text-gray-400" />
+            <Book className="h-16 w-16 mx-auto text-base-content/40" />
           </div>
           <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
-          <p className="text-gray-500 mb-4">
+          <p className="text-base-content/70 mb-4">
             {searchTerm
               ? 'No blueprints match your search criteria'
               : 'No blueprints are registered on this server'}
