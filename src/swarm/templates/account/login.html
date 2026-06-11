@@ -2,21 +2,141 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login &middot; Open Swarm</title>
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --error-bg: #fef2f2;
+            --error-border: #fecaca;
+            --error-text: #b91c1c;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            background-image: radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0);
+            background-size: 24px 24px;
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 24rem;
+            margin: 1rem;
+            padding: 2rem 2rem 1.75rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08),
+                        0 4px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+        .brand {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .brand-name {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+        .brand-sub {
+            margin: 0.25rem 0 0;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+        .error-message {
+            margin: 0 0 1rem;
+            padding: 0.625rem 0.75rem;
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            border-radius: 0.5rem;
+            color: var(--error-text);
+            font-size: 0.875rem;
+        }
+        .field {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            font-size: 1rem;
+            font-family: inherit;
+            color: var(--text);
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+        }
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: 2px solid var(--primary);
+            outline-offset: 1px;
+            border-color: var(--primary);
+        }
+        button[type="submit"] {
+            width: 100%;
+            margin-top: 0.5rem;
+            padding: 0.625rem 0.75rem;
+            font-size: 1rem;
+            font-family: inherit;
+            font-weight: 600;
+            color: #ffffff;
+            background: var(--primary);
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+        button[type="submit"]:hover {
+            background: var(--primary-hover);
+        }
+        button[type="submit"]:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Login</h1>
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
-    <form method="post" action="{% url 'custom_login' %}?next={{ request.GET.next }}">
-        {% csrf_token %}
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required><br>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required><br>
-        <button type="submit">Login</button>
-    </form>
-    <p>Hint: Use "testuser" with password "testpass" for testing.</p>
+    <main class="login-card">
+        <div class="brand">
+            <h1 class="brand-name">Open Swarm</h1>
+            <p class="brand-sub">Sign in to continue</p>
+        </div>
+        {% if error %}
+            <p class="error-message" role="alert">{{ error }}</p>
+        {% endif %}
+        <form method="post" action="{% url 'custom_login' %}?next={{ request.GET.next }}">
+            {% csrf_token %}
+            <div class="field">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit">Sign in</button>
+        </form>
+    </main>
 </body>
 </html>

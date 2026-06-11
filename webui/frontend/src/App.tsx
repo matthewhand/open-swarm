@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Home, Settings, Bot, Book, Users, PlusCircle, MessageSquare, ShieldAlert, Wand2, X } from 'lucide-react'
+import { Home, Settings, Bot, Book, Users, PlusCircle, MessageSquare, ShieldAlert, Wand2, X, Sun, Moon } from 'lucide-react'
 import { Button, Card, Alert, Badge, LoadingSpinner, ToastProvider } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
@@ -11,16 +11,24 @@ import AgentCreatorPage from './pages/AgentCreatorPage'
 import { fetchBlueprints, fetchModels } from './lib/api'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 
+const THEME_STORAGE_KEY = 'swarm_theme'
+
 function App() {
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
+  )
+
+  useEffect(() => {
+    localStorage.setItem(THEME_STORAGE_KEY, darkMode ? 'dark' : 'light')
+  }, [darkMode])
 
   return (
     <Router>
       <AuthProvider>
         <ToastProvider>
-          <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`} data-theme={darkMode ? 'dark' : 'light'}>
+          <div className="min-h-screen bg-base-100 text-base-content" data-theme={darkMode ? 'dark' : 'light'}>
             {/* Navbar */}
-            <nav className="bg-base-200 shadow-sm border-b">
+            <nav className="bg-base-200 shadow-sm border-b border-base-300">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
                   <div className="flex items-center space-x-6">
@@ -48,12 +56,15 @@ function App() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <button
-                      onClick={() => setDarkMode(!darkMode)}
-                      className="btn btn-ghost btn-sm"
-                    >
-                      {darkMode ? 'Light Mode' : 'Dark Mode'}
-                    </button>
+                    <label className="btn btn-ghost btn-sm btn-circle swap swap-rotate" aria-label="Toggle dark mode">
+                      <input
+                        type="checkbox"
+                        checked={darkMode}
+                        onChange={() => setDarkMode(!darkMode)}
+                      />
+                      <Sun className="swap-on h-5 w-5" />
+                      <Moon className="swap-off h-5 w-5" />
+                    </label>
                     <Link to="/settings" className="btn btn-ghost btn-sm">
                       <Settings className="h-5 w-5" />
                     </Link>
