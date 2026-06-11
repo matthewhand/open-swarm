@@ -173,6 +173,22 @@ Keys (all optional except `backend`):
 | `limit`   | Max memory snippets returned per search (default: `5`). |
 | `config`  | Dict passed verbatim to `mem0.Memory.from_config(...)` (vector store, LLM, etc. — see mem0 docs). Omit to use mem0's defaults. |
 
+**Custom OpenAI-compatible endpoint (e.g. LiteLLM):** mem0 accepts a base-URL
+override per component via the `config` block (forwarded verbatim):
+
+```json
+"memory": {
+  "backend": "mem0",
+  "config": {
+    "llm":      {"provider": "openai", "config": {"model": "gpt-4o-mini", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}},
+    "embedder": {"provider": "openai", "config": {"model": "text-embedding-3-small", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}}
+  }
+}
+```
+
+Note: the endpoint must also proxy an **embeddings** model — mem0 needs one
+for its vector store, not just a chat model.
+
 ### Behavior
 
 - **Pre-run retrieval:** before each `run()`, the latest user message is used to search memory; any hits are prepended as a single system message (`"Relevant memories from previous conversations: ..."`).

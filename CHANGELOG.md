@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.3.2] - 2026-06-11
+
+### Fixed
+- SPA shipped unstyled (Tailwind v4/v3 config mismatch emitted ~2kB CSS); DaisyUI 5 `card-bordered` removal made card borders invisible app-wide
+- Django navbar dropdowns rendered as empty white boxes; duplicate element id
+- Non-streaming `/v1/chat/completions` returned spinner text in test mode; all 14 blueprints now answer on both API surfaces (smoke matrix added)
+- Mobile: SPA bottom nav never rendered (DaisyUI 4 class); viewport overflows fixed
+
+### Added
+- Guided tour + screenshot registry + README demo GIF; CI visual-regression workflow (golden journey, computed-style guards)
+- SPA: agent-creator and settings pages, token auth UX, websocket ChatPage; theme-token dark mode toggle
+- Mobile captures (13 pages); capture harness authenticates and migrates fresh DBs
+
+### Changed
+- Branding: project name is "Open Swarm" (dropped stale "MCP" suffix)
+
 ## [0.3.1] - 2026-06-11
 
 ### Added
