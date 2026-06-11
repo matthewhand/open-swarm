@@ -1,0 +1,11 @@
+$ # 17 bundled blueprints ship with the repo
+$ SWARM_TEST_MODE=1 uv run swarm-cli list
+--- Bundled Blueprints (available from package) ---
+…
+- jeeves (entry: blueprint_jeeves.py)
+- zeus (entry: apps.py)
+- common (entry: progress.py)
+- whiskeytango_foxtrot (entry: apps.py)
+- suggestion (entry: suggestion_cli.py)
+- codey (entry: blueprint_codey.py)
+- whinge_surf (entry: blueprint_whinge_surf.py)

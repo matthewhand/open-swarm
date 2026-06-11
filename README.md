@@ -18,6 +18,11 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 <br/><em>The dashboard — take the full <a href="docs/GUIDED_TOUR.md">guided tour</a>.</em>
 </div>
 
+<div align="center">
+<img src="docs/demo/cli-and-api.gif" alt="Terminal demo: the zeus blueprint running as a CLI command and answering via the OpenAI-compatible API" width="800"/>
+<br/><em>One blueprint — CLI and OpenAI-compatible API.</em>
+</div>
+
 > **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 860+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
 ---

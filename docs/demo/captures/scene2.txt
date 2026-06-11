@@ -1,0 +1,9 @@
+$ # 1. run the zeus blueprint as a local CLI
+$ SWARM_TEST_MODE=1 uv run python -m swarm.blueprints.zeus.zeus_cli --message "Plan a release: tests, changelog, tag"
+╭────────────────────────────── Zeus Assistance ───────────────────────────────╮
+│ ⚡ How can Zeus help you today? You said: Plan a release: tests, changelog,  │
+│ tag                                                                          │
+│ [SPINNER] Generating.                                                        │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+How can Zeus help you today? You said: Plan a release: tests, changelog, tag
