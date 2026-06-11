@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { AlertCircle, Info, MessageSquare, RefreshCw, Send } from 'lucide-react'
 import {
   Alert,
   Badge,
   Button,
-  Card,
   LoadingDots,
   LoadingSpinner,
-  SmartSelect,
 } from '../components/DaisyUI'
 import { fetchBlueprints, isAuthError } from '../lib/api'
 import {
@@ -146,30 +144,27 @@ const ChatPage = () => {
   const isStreaming = messages.some((m) => m.streaming)
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2 mb-2">
-            <MessageSquare className="h-8 w-8" />
-            Chat
-          </h1>
-          <p className="text-gray-500">
-            Live chat over the backend websocket (/ws/ai-demo/…)
-          </p>
-        </div>
-        <ConnectionBadge status={status} />
-      </div>
+    <div className="container mx-auto flex h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4 px-4 py-6">
+      {/* Header: title + blueprint selector + connection status */}
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <MessageSquare className="h-8 w-8" />
+          Chat
+        </h1>
 
-      {/* Blueprint selector (from /v1/blueprints/) */}
-      <Card bordered compact>
-        <div className="max-w-md">
+        {/* Blueprint selector (from /v1/blueprints/) */}
+        <div className="flex flex-1 flex-wrap items-end justify-end gap-4">
           {blueprintsQuery.isPending ? (
             <div className="flex items-center gap-2 py-2">
               <LoadingSpinner size="sm" />
               <span className="text-sm">Loading blueprints…</span>
             </div>
           ) : blueprintsQuery.isError ? (
-            <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+            <Alert
+              type="warning"
+              icon={<AlertCircle className="h-5 w-5" />}
+              className="max-w-md py-2"
+            >
               <span className="text-sm">
                 Could not load blueprints
                 {isAuthError(blueprintsQuery.error) ? (
@@ -188,24 +183,43 @@ const ChatPage = () => {
               </span>
             </Alert>
           ) : (
-            <SmartSelect
-              label="Blueprint"
-              placeholder="Select a blueprint"
-              value={selectedBlueprint}
-              onChange={(e) => setSelectedBlueprint(e.target.value)}
-              options={blueprints.map((bp) => ({
-                value: bp.id,
-                label: bp.name || bp.id,
-              }))}
-            />
+            <label className="form-control w-full max-w-xs">
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className="label-text text-sm font-medium">
+                  Blueprint
+                </span>
+                <span
+                  className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
+                  data-tip="The current websocket protocol does not take a blueprint parameter — replies come from the server-configured model."
+                >
+                  <Info
+                    className="h-3.5 w-3.5 opacity-60"
+                    aria-label="Blueprint selection note"
+                  />
+                </span>
+              </div>
+              <select
+                className="select select-bordered select-sm w-full border border-base-300"
+                value={selectedBlueprint}
+                onChange={(e) => setSelectedBlueprint(e.target.value)}
+                aria-label="Blueprint"
+              >
+                <option value="" disabled>
+                  Select a blueprint
+                </option>
+                {blueprints.map((bp) => (
+                  <option key={bp.id} value={bp.id}>
+                    {bp.name || bp.id}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
-          <p className="text-xs text-gray-500 mt-2">
-            Note: the current websocket protocol does not take a blueprint
-            parameter — replies come from the server-configured model. The
-            selection here does not change the websocket conversation yet.
-          </p>
+          <div className="pb-1">
+            <ConnectionBadge status={status} />
+          </div>
         </div>
-      </Card>
+      </div>
 
       {/* Fallback when the websocket is unavailable */}
       {(status === 'failed' || status === 'closed') && (
@@ -231,19 +245,31 @@ const ChatPage = () => {
         </Alert>
       )}
 
-      {/* Message list */}
-      <Card bordered>
+      {/* Conversation: scrollable message list + composer pinned at bottom */}
+      <div className="card flex min-h-0 flex-1 flex-col overflow-hidden border border-base-300 bg-base-100">
         <div
-          className="h-96 overflow-y-auto space-y-1 pr-2"
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4"
           aria-live="polite"
         >
           {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-              {status === 'open'
-                ? 'Connected. Send a message to start the conversation.'
-                : status === 'connecting'
-                  ? 'Connecting to the chat websocket…'
-                  : 'No messages — the websocket is not connected.'}
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <MessageSquare className="h-10 w-10 opacity-20" />
+              <div>
+                <p className="font-medium text-base-content/70">
+                  {status === 'open'
+                    ? 'Connected and ready'
+                    : status === 'connecting'
+                      ? 'Connecting to the chat websocket…'
+                      : 'Websocket not connected'}
+                </p>
+                <p className="text-sm text-base-content/50">
+                  {status === 'open'
+                    ? 'Send a message below to start the conversation.'
+                    : status === 'connecting'
+                      ? 'Hang tight — this usually takes a moment.'
+                      : 'No messages yet — reconnect to start chatting.'}
+                </p>
+              </div>
             </div>
           ) : (
             messages.map((message) => (
@@ -272,32 +298,35 @@ const ChatPage = () => {
           )}
           <div ref={listEndRef} />
         </div>
-      </Card>
 
-      {/* Input */}
-      <form onSubmit={handleSend} className="flex gap-2">
-        <input
-          type="text"
-          className="input input-bordered flex-1"
-          placeholder={
-            status === 'open'
-              ? 'Type a message…'
-              : 'Websocket not connected — sending is disabled'
-          }
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={status !== 'open'}
-          aria-label="Chat message"
-        />
-        <Button type="submit" variant="primary" disabled={!canSend}>
-          {isStreaming ? (
-            <LoadingSpinner size="sm" className="mr-1" />
-          ) : (
-            <Send className="h-4 w-4 mr-1" />
-          )}
-          Send
-        </Button>
-      </form>
+        {/* Composer */}
+        <form
+          onSubmit={handleSend}
+          className="flex gap-2 border-t border-base-300 p-3"
+        >
+          <input
+            type="text"
+            className="input input-bordered input-sm h-10 flex-1"
+            placeholder={
+              status === 'open'
+                ? 'Type a message…'
+                : 'Websocket not connected — sending is disabled'
+            }
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={status !== 'open'}
+            aria-label="Chat message"
+          />
+          <Button type="submit" variant="primary" disabled={!canSend}>
+            {isStreaming ? (
+              <LoadingSpinner size="sm" className="mr-1" />
+            ) : (
+              <Send className="h-4 w-4 mr-1" />
+            )}
+            Send
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }

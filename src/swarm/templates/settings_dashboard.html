@@ -2,46 +2,46 @@
 {% load static %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
+<div class="container py-4">
   <!-- Header Section -->
-  <div class="mb-8">
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+  <div class="dashboard-header-card mb-4">
+    <div class="dashboard-header-top">
       <div>
-        <h1 class="text-3xl font-bold mb-2">⚙️ Settings Dashboard</h1>
-        <p class="text-gray-600">Comprehensive configuration management for Open Swarm</p>
+        <h1 class="dashboard-title">⚙️ Settings Dashboard</h1>
+        <p class="dashboard-subtitle">Comprehensive configuration management for Open Swarm</p>
       </div>
-      <div class="flex gap-4">
-        <div class="stats shadow bg-base-200">
-          <div class="stat">
-            <div class="stat-value text-primary">{{ stats.total }}</div>
-            <div class="stat-title">Total Settings</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value text-secondary">{{ stats.configured }}</div>
-            <div class="stat-title">Configured</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value text-accent">{{ stats.completion_rate }}%</div>
-            <div class="stat-title">Complete</div>
-          </div>
+      <div class="settings-stats">
+        <div class="stat-card">
+          <div class="stat-number">{{ stats.total }}</div>
+          <div class="stat-label">Total Settings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ stats.configured }}</div>
+          <div class="stat-label">Configured</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ stats.completion_rate }}%</div>
+          <div class="stat-label">Complete</div>
         </div>
       </div>
     </div>
-    
+
     <!-- Progress Bar -->
-    <div class="mt-6">
-      <progress class="progress progress-primary w-full" value="{{ stats.completion_rate }}" max="100"></progress>
-      <div class="text-sm text-gray-500 mt-2">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
+    <div class="configuration-progress">
+      <div class="config-progress-track" role="progressbar" aria-valuenow="{{ stats.completion_rate }}" aria-valuemin="0" aria-valuemax="100" aria-label="Configuration progress">
+        <div class="config-progress-fill" style="width: {{ stats.completion_rate }}%"></div>
+      </div>
+      <div class="progress-text">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
     </div>
   </div>
 
   <!-- Quick Actions -->
-  <div class="mb-8">
-    <div class="flex gap-4">
+  <div class="mb-4">
+    <div class="d-flex flex-wrap gap-2">
       <button class="btn btn-primary" onclick="exportSettings()">
         <i class="fas fa-download"></i> Export Settings
       </button>
-      <button class="btn btn-outline btn-secondary" onclick="refreshSettings()">
+      <button class="btn btn-outline-secondary" onclick="refreshSettings()">
         <i class="fas fa-sync"></i> Refresh
       </button>
       <button class="btn btn-outline-info" onclick="viewEnvironment()">
@@ -220,12 +220,20 @@
   padding-bottom: 2rem;
 }
 
-.dashboard-header {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  padding: 2rem 0;
-  margin-bottom: 2rem;
+.dashboard-header-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  padding: 2rem;
   color: white;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-header-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
 }
 
 .dashboard-title {
@@ -237,6 +245,7 @@
 .dashboard-subtitle {
   font-size: 1.1rem;
   opacity: 0.9;
+  margin-bottom: 0;
 }
 
 .settings-stats {
@@ -249,41 +258,43 @@
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   border-radius: 10px;
-  padding: 1rem;
+  padding: 1rem 1.25rem;
   text-align: center;
-  min-width: 80px;
+  min-width: 110px;
 }
 
 .stat-number {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: white;
+  line-height: 1.2;
 }
 
 .stat-label {
   font-size: 0.8rem;
-  opacity: 0.8;
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 .configuration-progress {
   margin-top: 1.5rem;
 }
 
-.progress-bar {
-  background: rgba(255, 255, 255, 0.2);
+.config-progress-track {
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 10px;
-  height: 8px;
+  height: 10px;
   overflow: hidden;
 }
 
-.progress-fill {
+.config-progress-fill {
   background: linear-gradient(90deg, #28a745, #20c997);
   height: 100%;
+  border-radius: 10px;
   transition: width 0.3s ease;
 }
 
 .progress-text {
-  text-align: center;
   margin-top: 0.5rem;
   font-size: 0.9rem;
   opacity: 0.9;
@@ -536,10 +547,14 @@
   .dashboard-title {
     font-size: 2rem;
   }
-  
+
+  .dashboard-header-card {
+    padding: 1.5rem;
+  }
+
   .settings-stats {
     justify-content: center;
-    margin-top: 1rem;
+    flex-wrap: wrap;
   }
   
   .quick-actions {
