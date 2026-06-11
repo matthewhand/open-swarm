@@ -35,12 +35,7 @@ def _blueprint_ids() -> list[str]:
 BLUEPRINTS = _blueprint_ids()
 
 # Blueprints that genuinely cannot answer over the API today, with reasons.
-XFAIL: dict[str, str] = {
-    "whiskeytango_foxtrot": (
-        "run() hangs in SWARM_TEST_MODE (no canned-response path; spawns its "
-        "multi-tier agent loop) — tracked in ROADMAP"
-    ),
-}
+XFAIL: dict[str, str] = {}
 
 
 @pytest.fixture(autouse=True)

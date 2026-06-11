@@ -216,6 +216,11 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         """Main execution entry point for the WhiskeyTangoFoxtrot blueprint."""
         logger.info("WhiskeyTangoFoxtrotBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
+        # --- Test Mode: yield a canned answer immediately, never spawn the
+        # multi-tier agent loop (which hangs without a live LLM). ---
+        if os.environ.get("SWARM_TEST_MODE"):
+            yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] WhiskeyTangoFoxtrot tracking free services. You said: '{instruction}'"}]}
+            return
         from agents import Runner
         ux = BlueprintUXImproved(style="serious")
         spinner_idx = 0

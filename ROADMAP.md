@@ -70,7 +70,7 @@ Last updated: 2026-06-11 (post PR waves #80–#85; origin reduced to main; Docke
 
 - [x] **ASGI routing for websocket chat** — `swarm/asgi.py` + `routing.py` created; daphne/channels registered (they were declared core deps all along, never wired); 9 full-stack tests; live-verified 101 upgrade with session auth, 403 anonymous/bad-origin (`docs/websocket_chat.md`)
 
-- [x] **Non-streaming `/v1/chat/completions` test-mode bug FIXED** — chunk normalizer consumes the whole generator and returns the final message (was: first spinner chunk). Per-blueprint API smoke matrix added (`tests/api/test_blueprint_api_smoke.py`): 13 blueprints verified answering on BOTH streaming and non-streaming surfaces (was: only zeus). Remaining xfail: `whiskeytango_foxtrot` hangs in test mode (no canned-response path) — fix its run() or demote to examples.
+- [x] **Non-streaming `/v1/chat/completions` test-mode bug FIXED** — chunk normalizer consumes the whole generator and returns the final message (was: first spinner chunk). Per-blueprint API smoke matrix added (`tests/api/test_blueprint_api_smoke.py`): 13 blueprints verified answering on BOTH streaming and non-streaming surfaces (was: only zeus). Former xfail RESOLVED: `whiskeytango_foxtrot` now yields a canned `[TEST-MODE]` answer early in run() instead of hanging — all 14 blueprints pass the smoke matrix.
 
 ### 2.1 Deprecation shim sunset
 
