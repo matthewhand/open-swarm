@@ -32,6 +32,35 @@ headless Chromium, 1280x800 viewport, full-page PNGs.
 The "Used in" column is verified by grepping the docs for
 `screenshots/<file>`; README.md and USERGUIDE.md embed no screenshots.
 
+## Mobile captures (`docs/screenshots/mobile/`)
+
+Same 13 pages captured with `--mobile`: iPhone-14-class emulation
+(390x844 viewport, device-scale-factor 2, touch enabled), full-page PNGs.
+The SPA shows the DaisyUI `dock` bottom navigation below the `lg`
+breakpoint; Django pages collapse into the Bootstrap burger menu.
+
+| File | Page / URL | Mobile-specific notes | Captured | Status |
+| --- | --- | --- | --- | --- |
+| `mobile/landing.png` | `/` (React SPA dashboard) | Stat cards and quick actions stack; bottom dock with active-tab indicator | 2026-06-11 | current |
+| `mobile/spa-chat.png` | `/chat` (React SPA) | Header stacks (title above blueprint selector); composer clears the fixed dock | 2026-06-11 | current |
+| `mobile/spa-teams.png` | `/teams` (React SPA) | Single-column empty state; dock highlights Teams | 2026-06-11 | current |
+| `mobile/spa-blueprints.png` | `/blueprints` (React SPA) | Single-column cards; long blueprint names wrap instead of overflowing | 2026-06-11 | current |
+| `mobile/spa-agent-creator.png` | `/agent-creator` (React SPA) | Form fields full-width, single column | 2026-06-11 | current |
+| `mobile/spa-settings.png` | `/settings` (React SPA) | Settings categories and env-var table fit the narrow viewport | 2026-06-11 | current |
+| `mobile/login.png` | `/accounts/login/` (Django) | Login card fills the width with comfortable margins | 2026-06-11 | current |
+| `mobile/teams.png` | `/teams/` (Django) | Bootstrap navbar collapsed to burger; form and buttons wrap | 2026-06-11 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` (Django) | Launcher form full-width; output panel below | 2026-06-11 | current |
+| `mobile/blueprint-library.png` | `/blueprint-library/` (Django) | Summary tiles and blueprint cards stack single-column | 2026-06-11 | current |
+| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Stat tiles stack; empty-state actions wrap | 2026-06-11 | current |
+| `mobile/agent-creator.png` | `/agent-creator/` (Django) | Persona form single-column; Validate/Save buttons wrap in the panel header | 2026-06-11 | current |
+| `mobile/settings.png` | `/settings/` (Django) | Dashboard header tiles wrap; category accordions full-width | 2026-06-11 | current |
+
+Regenerate with:
+
+```bash
+.venv/bin/python scripts/capture_user_journey.py --mobile
+```
+
 ## Demo animations (`docs/demo/`)
 
 | File | What it shows | Used in | Captured | Status |
@@ -65,7 +94,8 @@ README.md, not a screenshot.)
 ```bash
 .venv/bin/pip install playwright
 .venv/bin/playwright install chromium
-.venv/bin/python scripts/capture_user_journey.py
+.venv/bin/python scripts/capture_user_journey.py            # desktop (1280x800)
+.venv/bin/python scripts/capture_user_journey.py --mobile   # mobile (390x844, dpr 2)
 ```
 
 The script is idempotent: it starts its own dev server on port 8321

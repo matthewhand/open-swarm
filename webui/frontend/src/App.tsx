@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Home, Settings, Bot, Book, Users, PlusCircle, MessageSquare, ShieldAlert, Wand2, X, Sun, Moon } from 'lucide-react'
 import { Card, Alert, Badge, LoadingSpinner, ToastProvider } from './components/DaisyUI'
@@ -76,8 +76,8 @@ function App() {
             {/* Auth failure banner (only shown after a real 401/403) */}
             <AuthErrorBanner />
 
-            {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Main Content (pb-24 clears the fixed mobile dock below lg) */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 lg:pb-8">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/chat" element={<ChatPage />} />
@@ -88,33 +88,28 @@ function App() {
               </Routes>
             </div>
 
-            {/* Bottom Navigation (Mobile) */}
-            <div className="btm-nav lg:hidden">
-              <Link to="/" className="active">
-                <Home className="h-5 w-5" />
-                <span className="btm-nav-label">Home</span>
-              </Link>
-              <Link to="/chat">
-                <MessageSquare className="h-5 w-5" />
-                <span className="btm-nav-label">Chat</span>
-              </Link>
-              <Link to="/teams">
-                <Users className="h-5 w-5" />
-                <span className="btm-nav-label">Teams</span>
-              </Link>
-              <Link to="/blueprints">
-                <Book className="h-5 w-5" />
-                <span className="btm-nav-label">Blueprints</span>
-              </Link>
-              <Link to="/agent-creator">
-                <Wand2 className="h-5 w-5" />
-                <span className="btm-nav-label">Creator</span>
-              </Link>
-              <Link to="/settings">
-                <Settings className="h-5 w-5" />
-                <span className="btm-nav-label">Settings</span>
-              </Link>
-            </div>
+            {/* Bottom Navigation (Mobile) — DaisyUI 5 "dock" (btm-nav was
+                removed in v5); fixed to the viewport bottom below lg. */}
+            <nav className="dock lg:hidden" aria-label="Mobile navigation">
+              {[
+                { to: '/', label: 'Home', icon: Home, end: true },
+                { to: '/chat', label: 'Chat', icon: MessageSquare },
+                { to: '/teams', label: 'Teams', icon: Users },
+                { to: '/blueprints', label: 'Blueprints', icon: Book },
+                { to: '/agent-creator', label: 'Creator', icon: Wand2 },
+                { to: '/settings', label: 'Settings', icon: Settings },
+              ].map(({ to, label, icon: Icon, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  className={({ isActive }) => (isActive ? 'dock-active' : '')}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="dock-label">{label}</span>
+                </NavLink>
+              ))}
+            </nav>
           </div>
         </ToastProvider>
       </AuthProvider>

@@ -144,16 +144,17 @@ const ChatPage = () => {
   const isStreaming = messages.some((m) => m.streaming)
 
   return (
-    <div className="container mx-auto flex h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4 px-4 py-6">
-      {/* Header: title + blueprint selector + connection status */}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+    <div className="container mx-auto flex h-[calc(100vh-13rem)] lg:h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4 px-4 py-6">
+      {/* Header: title + blueprint selector + connection status.
+          Stacks vertically below lg; single row on desktop. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <MessageSquare className="h-8 w-8" />
           Chat
         </h1>
 
         {/* Blueprint selector (from /v1/blueprints/) */}
-        <div className="flex flex-1 flex-wrap items-end justify-end gap-4">
+        <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
           {blueprintsQuery.isPending ? (
             <div className="flex items-center gap-2 py-2">
               <LoadingSpinner size="sm" />

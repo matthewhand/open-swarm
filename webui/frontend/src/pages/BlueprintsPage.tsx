@@ -89,8 +89,11 @@ const BlueprintsPage = () => {
               className="card bg-base-100 border border-base-300 hover:shadow-md transition-shadow h-full"
             >
               <div className="card-body flex flex-col">
-                <div className="flex justify-between items-start gap-2">
-                  <h3 className="card-title text-base leading-snug">{blueprint.name}</h3>
+                {/* flex-wrap + break-words: long unbroken names (e.g.
+                    WhiskeyTangoFoxtrotBlueprint) must not push the badge
+                    outside the card / widen the page on small screens. */}
+                <div className="flex flex-wrap justify-between items-start gap-2">
+                  <h3 className="card-title text-base leading-snug min-w-0 break-words">{blueprint.name}</h3>
                   <span className="badge badge-neutral badge-sm font-mono shrink-0">
                     {blueprint.abbreviation || blueprint.id}
                   </span>
