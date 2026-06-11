@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Info, MessageSquare, RefreshCw, Send } from 'lucide-react'
 import {
@@ -11,6 +11,7 @@ import {
 } from '../components/DaisyUI'
 import { fetchBlueprints, isAuthError } from '../lib/api'
 import {
+  buildChatWsFrame,
   buildChatWsUrl,
   newConversationId,
   parseChatWsMessage,
@@ -29,10 +30,14 @@ interface ChatMessage {
 }
 
 const ChatPage = () => {
+  // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
+  const [searchParams] = useSearchParams()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
-  const [selectedBlueprint, setSelectedBlueprint] = useState('')
+  const [selectedBlueprint, setSelectedBlueprint] = useState(
+    () => searchParams.get('blueprint') ?? '',
+  )
   const [connectAttempt, setConnectAttempt] = useState(0)
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -134,8 +139,10 @@ const ChatPage = () => {
     const text = input.trim()
     const ws = wsRef.current
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return
-    // Protocol from DjangoChatConsumer.receive(): {"message": "<text>"}
-    ws.send(JSON.stringify({ message: text }))
+    // Protocol from DjangoChatConsumer.receive():
+    // {"message": "<text>", "blueprint": "<id>"} — the blueprint field is
+    // optional and selects which blueprint generates the reply.
+    ws.send(buildChatWsFrame(text, selectedBlueprint || undefined))
     setInput('')
   }
 
@@ -191,7 +198,7 @@ const ChatPage = () => {
                 </span>
                 <span
                   className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
-                  data-tip="The current websocket protocol does not take a blueprint parameter — replies come from the server-configured model."
+                  data-tip="Sent with every message — the selected blueprint generates the reply. Choose “Server default model” to use the server-configured model instead."
                 >
                   <Info
                     className="h-3.5 w-3.5 opacity-60"
@@ -205,9 +212,15 @@ const ChatPage = () => {
                 onChange={(e) => setSelectedBlueprint(e.target.value)}
                 aria-label="Blueprint"
               >
-                <option value="" disabled>
-                  Select a blueprint
-                </option>
+                <option value="">Server default model</option>
+                {/* Keep a ?blueprint= preselection visible even if it is not
+                    in the fetched list (e.g. a just-created team). */}
+                {selectedBlueprint &&
+                  !blueprints.some((bp) => bp.id === selectedBlueprint) && (
+                    <option value={selectedBlueprint}>
+                      {selectedBlueprint}
+                    </option>
+                  )}
                 {blueprints.map((bp) => (
                   <option key={bp.id} value={bp.id}>
                     {bp.name || bp.id}

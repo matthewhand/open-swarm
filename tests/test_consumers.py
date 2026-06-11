@@ -2,9 +2,11 @@
 Unit tests for src/swarm/consumers.py
 
 Covers:
-- connect: authenticated vs unauthenticated
+- connect: authenticated vs unauthenticated, ?blueprint= query param default
 - disconnect: cleanup, save, delete empty conversations
 - receive: valid JSON, missing keys, invalid JSON, empty messages
+- blueprint selection: message field, connection default, override,
+  unknown-blueprint error partial
 - fetch_conversation: cache hit, DB hit, DoesNotExist
 - save_conversation: create/update
 - delete_conversation: existing, missing
@@ -147,11 +149,35 @@ class TestConnect:
         """Connect should set conversation_id from URL route."""
         with patch.object(consumer, 'fetch_conversation', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = []
-            
+
             with patch.object(consumer, 'accept', new_callable=AsyncMock):
                 await consumer.connect()
-                
+
                 assert consumer.conversation_id == "test-conv-123"
+
+    @pytest.mark.asyncio
+    async def test_connect_without_query_string_has_no_default_blueprint(self, consumer):
+        """No ?blueprint= query param -> no connection-level default."""
+        with patch.object(consumer, 'fetch_conversation', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = []
+
+            with patch.object(consumer, 'accept', new_callable=AsyncMock):
+                await consumer.connect()
+
+                assert consumer.default_blueprint is None
+
+    @pytest.mark.asyncio
+    async def test_connect_query_param_sets_default_blueprint(self, consumer):
+        """?blueprint=<id> on the ws URL becomes the connection default."""
+        consumer.scope["query_string"] = b"blueprint=jeeves"
+
+        with patch.object(consumer, 'fetch_conversation', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = []
+
+            with patch.object(consumer, 'accept', new_callable=AsyncMock):
+                await consumer.connect()
+
+                assert consumer.default_blueprint == "jeeves"
 
 
 # =============================================================================
@@ -292,6 +318,149 @@ class TestReceive:
         
         with pytest.raises(json.JSONDecodeError):
             await consumer.receive(text_data)
+
+
+# =============================================================================
+# Blueprint Selection Tests
+# =============================================================================
+
+
+class TestBlueprintSelection:
+    """Tests for blueprint-aware reply routing in receive()."""
+
+    @pytest.mark.asyncio
+    async def test_receive_blueprint_field_routes_to_blueprint(self, consumer):
+        """{"message", "blueprint"} should dispatch to the blueprint path."""
+        consumer.messages = []
+        text_data = json.dumps({"message": "Hello", "blueprint": "jeeves"})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div></div>"):
+            with patch.object(consumer, 'send', new_callable=AsyncMock):
+                with patch.object(consumer, 'respond_with_blueprint', new_callable=AsyncMock) as mock_bp:
+                    with patch.object(consumer, 'respond_with_default_model', new_callable=AsyncMock) as mock_default:
+                        await consumer.receive(text_data)
+
+                        mock_bp.assert_awaited_once()
+                        assert mock_bp.await_args.args[0] == "jeeves"
+                        mock_default.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_receive_without_blueprint_uses_default_model(self, consumer):
+        """Plain {"message"} frames keep the legacy default-model path."""
+        consumer.messages = []
+        text_data = json.dumps({"message": "Hello"})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div></div>"):
+            with patch.object(consumer, 'send', new_callable=AsyncMock):
+                with patch.object(consumer, 'respond_with_blueprint', new_callable=AsyncMock) as mock_bp:
+                    with patch.object(consumer, 'respond_with_default_model', new_callable=AsyncMock) as mock_default:
+                        await consumer.receive(text_data)
+
+                        mock_default.assert_awaited_once()
+                        mock_bp.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_receive_uses_connection_default_blueprint(self, consumer):
+        """The ?blueprint= connection default applies to plain frames."""
+        consumer.messages = []
+        consumer.default_blueprint = "jeeves"
+        text_data = json.dumps({"message": "Hello"})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div></div>"):
+            with patch.object(consumer, 'send', new_callable=AsyncMock):
+                with patch.object(consumer, 'respond_with_blueprint', new_callable=AsyncMock) as mock_bp:
+                    await consumer.receive(text_data)
+
+                    assert mock_bp.await_args.args[0] == "jeeves"
+
+    @pytest.mark.asyncio
+    async def test_receive_message_field_overrides_connection_default(self, consumer):
+        """A per-message blueprint field wins over the connection default."""
+        consumer.messages = []
+        consumer.default_blueprint = "jeeves"
+        text_data = json.dumps({"message": "Hello", "blueprint": "zeus"})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div></div>"):
+            with patch.object(consumer, 'send', new_callable=AsyncMock):
+                with patch.object(consumer, 'respond_with_blueprint', new_callable=AsyncMock) as mock_bp:
+                    await consumer.receive(text_data)
+
+                    assert mock_bp.await_args.args[0] == "zeus"
+
+    @pytest.mark.asyncio
+    async def test_unknown_blueprint_sends_error_partial(self, consumer):
+        """Unknown blueprint -> error partial; no assistant message recorded."""
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        with patch('swarm.views.utils.get_blueprint_instance', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = None
+            with patch.object(consumer, 'send', new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("nope", "message-response-abc")
+
+                sent = "".join(
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                )
+                assert "nope" in sent
+                assert "not found" in sent
+                # The error is transport-level: not appended to history.
+                assert all(m["role"] != "assistant" for m in consumer.messages)
+
+    @pytest.mark.asyncio
+    async def test_blueprint_reply_streams_chunk_and_final(self, consumer):
+        """A blueprint reply emits an OOB chunk + final partial and is
+        appended to the conversation history (last message wins, spinner
+        side-channel chunks skipped — same semantics as chat_views)."""
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        async def fake_run(messages, **kwargs):
+            yield {"type": "spinner_update", "spinner": "Generating."}
+            yield {"messages": [{"role": "assistant", "content": "BP reply"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+
+        with patch('swarm.views.utils.get_blueprint_instance', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, 'send', new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("jeeves", "message-response-abc")
+
+                frames = [
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                ]
+                assert len(frames) == 2  # OOB chunk + final partial
+                assert 'hx-swap-oob="beforeend:#message-response-abc"' in frames[0]
+                assert "BP reply" in frames[0]
+                assert "BP reply" in frames[1]
+                assert consumer.messages[-1] == {
+                    "role": "assistant",
+                    "content": "BP reply",
+                }
+
+    @pytest.mark.asyncio
+    async def test_blueprint_run_failure_sends_error_partial(self, consumer):
+        """Exceptions from blueprint.run() surface as an error partial."""
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        async def failing_run(messages, **kwargs):
+            raise RuntimeError("boom")
+            yield  # pragma: no cover - makes this an async generator
+
+        instance = MagicMock()
+        instance.run = failing_run
+
+        with patch('swarm.views.utils.get_blueprint_instance', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, 'send', new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("jeeves", "message-response-abc")
+
+                sent = "".join(
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                )
+                assert "failed while generating" in sent
+                assert all(m["role"] != "assistant" for m in consumer.messages)
 
 
 # =============================================================================

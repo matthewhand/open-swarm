@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import uuid
+from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -16,9 +17,22 @@ logger = logging.getLogger(__name__)
 IN_MEMORY_CONVERSATIONS = {}
 
 class DjangoChatConsumer(AsyncWebsocketConsumer):
+    """Websocket chat consumer.
+
+    Client -> server frames are JSON: ``{"message": "<text>"}`` with an
+    optional ``"blueprint": "<id>"`` field selecting which discovered
+    blueprint generates the reply. A connection-level default can also be
+    set via the ws URL query string (``?blueprint=<id>``); a per-message
+    ``blueprint`` field overrides it. When neither is given, the legacy
+    behaviour (server-configured OpenAI model) is preserved.
+    """
+
     async def connect(self):
         self.user = self.scope["user"]
         self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
+        # Optional connection-level default blueprint (?blueprint=<id>).
+        query_params = parse_qs(self.scope.get("query_string", b"").decode())
+        self.default_blueprint = (query_params.get("blueprint") or [None])[0]
 
         if self.user.is_authenticated:
             self.messages = await self.fetch_conversation(self.conversation_id)
@@ -45,6 +59,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if not message_text.strip():
             return
 
+        # Per-message blueprint selection wins over the connection default.
+        blueprint_id = text_data_json.get("blueprint") or getattr(
+            self, "default_blueprint", None
+        )
+
         self.messages.append(
             {
                 "role": "user",
@@ -66,6 +85,106 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=system_message_html)
 
+        if blueprint_id:
+            await self.respond_with_blueprint(blueprint_id, contents_div_id)
+        else:
+            await self.respond_with_default_model(contents_div_id)
+
+    async def respond_with_blueprint(self, blueprint_id, contents_div_id):
+        """Generate the assistant reply by running a discovered blueprint.
+
+        Reuses the chunk-normalization semantics of the HTTP chat API
+        (swarm.views.chat_views): consume the blueprint's run() generator,
+        skip progress/spinner side-channel chunks, and keep the last (or
+        explicitly final) message as the answer. Unknown blueprints and
+        execution failures produce an error partial instead of crashing
+        the socket. Imported lazily so swarm.asgi/routing stay light.
+        """
+        from swarm.views.chat_views import (
+            _chunk_is_final,
+            _extract_message_from_chunk,
+        )
+        from swarm.views.utils import get_blueprint_instance
+
+        try:
+            blueprint_instance = await get_blueprint_instance(blueprint_id)
+        except Exception:
+            logger.error(
+                f"Error loading blueprint '{blueprint_id}'", exc_info=True
+            )
+            blueprint_instance = None
+
+        if blueprint_instance is None:
+            await self.send_error_message(
+                contents_div_id,
+                f"Error: blueprint '{blueprint_id}' was not found or could not be initialized.",
+            )
+            return
+
+        final_message = None
+        try:
+            async for chunk in blueprint_instance.run(self.messages):
+                message = _extract_message_from_chunk(chunk)
+                if message is None:
+                    continue
+                final_message = message
+                if _chunk_is_final(chunk):
+                    break
+        except Exception as e:
+            logger.error(
+                f"Error running blueprint '{blueprint_id}': {e}", exc_info=True
+            )
+            await self.send_error_message(
+                contents_div_id,
+                f"Error: blueprint '{blueprint_id}' failed while generating a reply.",
+            )
+            return
+
+        if not isinstance(final_message, dict) or final_message.get("content") is None:
+            await self.send_error_message(
+                contents_div_id,
+                f"Error: blueprint '{blueprint_id}' did not return a reply.",
+            )
+            return
+
+        full_message = final_message["content"]
+        chunk_html = f'<div hx-swap-oob="beforeend:#{contents_div_id}">{full_message}</div>'
+        await self.send(text_data=chunk_html)
+
+        self.messages.append(
+            {
+                "role": "assistant",
+                "content": full_message,
+            }
+        )
+
+        final_message_html = render_to_string(
+            "websocket_partials/final_system_message.html",
+            {
+                "contents_div_id": contents_div_id,
+                "message": full_message,
+            },
+        )
+        await self.send(text_data=final_message_html)
+
+    async def send_error_message(self, contents_div_id, error_text):
+        """Replace the streaming placeholder with an error partial.
+
+        Transport-level errors (unknown blueprint, execution failure) are
+        shown to the user but deliberately NOT appended to ``self.messages``
+        so they never pollute the model context of later turns.
+        """
+        error_html = render_to_string(
+            "websocket_partials/final_system_message.html",
+            {
+                "contents_div_id": contents_div_id,
+                "message": error_text,
+            },
+        )
+        await self.send(text_data=error_html)
+
+    async def respond_with_default_model(self, contents_div_id):
+        """Legacy reply path: server-configured model via the OpenAI client."""
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
         # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---

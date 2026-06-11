@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -12,7 +13,7 @@ import {
   ToastProvider,
   useToast,
 } from '../components/DaisyUI';
-import { AlertCircle, Plus, Trash2, Users } from 'lucide-react';
+import { AlertCircle, Plus, Rocket, Trash2, Users } from 'lucide-react';
 import { createTeam, deleteTeam, fetchTeams, type Team } from '../lib/api';
 
 /**
@@ -26,6 +27,7 @@ import { createTeam, deleteTeam, fetchTeams, type Team } from '../lib/api';
 const TeamsPageContent = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
@@ -152,6 +154,16 @@ const TeamsPageContent = () => {
                   {team.description || 'No description provided.'}
                 </p>
                 <div className="card-actions justify-end">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() =>
+                      navigate(`/chat?blueprint=${encodeURIComponent(team.id)}`)
+                    }
+                  >
+                    <Rocket className="h-4 w-4 mr-1" />
+                    Launch
+                  </Button>
                   <Button
                     variant="outline"
                     color="error"

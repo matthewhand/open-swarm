@@ -18,6 +18,10 @@ Covered:
 - unknown ws paths do not route
 - authenticated session connects and completes a send -> stream -> receive
   round trip (OpenAI client mocked, real templates rendered)
+- blueprint selection: a "blueprint" field in the JSON frame (or a
+  ?blueprint= query param default) routes the reply through that
+  blueprint's run() (SWARM_TEST_MODE canned answers); unknown blueprints
+  produce an error partial without killing the socket
 - plain HTTP still works through the same application
 """
 
@@ -208,4 +212,146 @@ class TestWebsocketRoundTrip:
             final_html = await communicator.receive_from()
             assert "Hi there" in final_html
 
+            await communicator.disconnect()
+
+
+# =============================================================================
+# Blueprint selection over the websocket (SPA parity with /v1/chat/completions)
+# =============================================================================
+
+
+# jeeves' SWARM_TEST_MODE canned answer (see blueprint_jeeves.run):
+#   "[TEST-MODE] Jeeves at your service. You said: '<instruction>'"
+JEEVES_CANNED_MARKER = "Jeeves at your service"
+
+# First blueprint round trip pays for discovery + instantiation; be generous.
+BP_TIMEOUT = 30
+
+
+def _unique_ws_path(suffix=""):
+    """Per-test conversation id: the consumer persists a ChatConversation on
+    disconnect and conversation_id is unique, so tests must not share one."""
+    import uuid
+
+    return f"/ws/ai-demo/bp-{uuid.uuid4().hex[:12]}/{('?' + suffix) if suffix else ''}"
+
+
+@pytest.fixture
+def swarm_test_mode(monkeypatch):
+    """Run blueprints on their deterministic SWARM_TEST_MODE canned path."""
+    monkeypatch.setenv("SWARM_TEST_MODE", "1")
+    # Keyless CI: some blueprints construct an OpenAI client even on the
+    # test-mode path; a dummy key keeps things deterministic everywhere.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-test-mode")
+
+
+async def _drain_reply(communicator, prompt):
+    """Send a prompt dict and collect (user_echo, placeholder, frames-until-final)."""
+    await communicator.send_to(text_data=json.dumps(prompt))
+    user_html = await communicator.receive_from(timeout=BP_TIMEOUT)
+    placeholder_html = await communicator.receive_from(timeout=BP_TIMEOUT)
+    match = re.search(r'id="(message-response-[0-9a-f]+)"', placeholder_html)
+    assert match, f"no contents div in placeholder: {placeholder_html!r}"
+    contents_div_id = match.group(1)
+    # Frames until the final partial (which replaces the container via
+    # hx-swap-oob="true" on the container id).
+    frames = []
+    while True:
+        frame = await communicator.receive_from(timeout=BP_TIMEOUT)
+        frames.append(frame)
+        if f'id="{contents_div_id}"' in frame and 'hx-swap-oob="true"' in frame:
+            break
+    return user_html, contents_div_id, frames
+
+
+class TestWebsocketBlueprintSelection:
+    @pytest.mark.django_db
+    @pytest.mark.asyncio
+    async def test_blueprint_field_selects_that_blueprints_reply(
+        self, swarm_test_mode
+    ):
+        """{"message", "blueprint": "jeeves"} -> jeeves' canned test-mode answer."""
+        _, headers = await make_authenticated_headers("asgi-ws-bp-field")
+        communicator = WebsocketCommunicator(
+            application, _unique_ws_path(), headers=headers
+        )
+        connected, _ = await communicator.connect()
+        assert connected
+
+        user_html, contents_div_id, frames = await _drain_reply(
+            communicator, {"message": "ping", "blueprint": "jeeves"}
+        )
+        assert "ping" in user_html
+        # Both the streamed chunk and the final partial carry jeeves' answer.
+        assert any(JEEVES_CANNED_MARKER in frame for frame in frames[:-1])
+        assert JEEVES_CANNED_MARKER in frames[-1]
+        assert "ping" in frames[-1]
+
+        await communicator.disconnect()
+
+    @pytest.mark.django_db
+    @pytest.mark.asyncio
+    async def test_blueprint_query_param_sets_connection_default(
+        self, swarm_test_mode
+    ):
+        """?blueprint=jeeves on the ws URL applies to plain {"message"} frames."""
+        _, headers = await make_authenticated_headers("asgi-ws-bp-query")
+        communicator = WebsocketCommunicator(
+            application, _unique_ws_path("blueprint=jeeves"), headers=headers
+        )
+        connected, _ = await communicator.connect()
+        assert connected
+
+        _, _, frames = await _drain_reply(communicator, {"message": "ping"})
+        assert JEEVES_CANNED_MARKER in frames[-1]
+
+        await communicator.disconnect()
+
+    @pytest.mark.django_db
+    @pytest.mark.asyncio
+    async def test_unknown_blueprint_returns_error_partial(self, swarm_test_mode):
+        """An unknown blueprint id yields an error partial, not a crash, and
+        the same socket still answers a follow-up with a valid blueprint."""
+        _, headers = await make_authenticated_headers("asgi-ws-bp-unknown")
+        communicator = WebsocketCommunicator(
+            application, _unique_ws_path(), headers=headers
+        )
+        connected, _ = await communicator.connect()
+        assert connected
+
+        _, _, frames = await _drain_reply(
+            communicator, {"message": "hello", "blueprint": "no-such-blueprint"}
+        )
+        assert "no-such-blueprint" in frames[-1]
+        assert "not found" in frames[-1]
+
+        # The socket survived: a valid blueprint still answers afterwards.
+        _, _, frames = await _drain_reply(
+            communicator, {"message": "still alive?", "blueprint": "jeeves"}
+        )
+        assert JEEVES_CANNED_MARKER in frames[-1]
+
+        await communicator.disconnect()
+
+    @pytest.mark.django_db
+    @pytest.mark.asyncio
+    async def test_no_blueprint_still_uses_default_model(self, monkeypatch):
+        """Backward compat: frames without a blueprint keep the legacy
+        OpenAI-client path (no blueprint involved)."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENAI_MODEL", "test-model")
+        monkeypatch.delenv("LITELLM_BASE_URL", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+        _, headers = await make_authenticated_headers("asgi-ws-bp-compat")
+        patcher, client = mock_openai_streaming(("legacy", " path"))
+        communicator = WebsocketCommunicator(
+            application, _unique_ws_path(), headers=headers
+        )
+        with patcher:
+            connected, _ = await communicator.connect()
+            assert connected
+            _, _, frames = await _drain_reply(communicator, {"message": "ping"})
+            assert "legacy path" in frames[-1]
+            client.chat.completions.create.assert_awaited_once()
             await communicator.disconnect()
