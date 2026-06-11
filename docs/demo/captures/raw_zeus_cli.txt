@@ -1,0 +1,9 @@
+[SWARM_CONFIG_DEBUG] Trying: /home/matthewh/open-swarm/.claude/worktrees/agent-ac5382e2eb2aca256/swarm_config.json
+[SWARM_CONFIG_DEBUG] Loaded: /home/matthewh/open-swarm/.claude/worktrees/agent-ac5382e2eb2aca256/swarm_config.json
+╭────────────────────────────── Zeus Assistance ───────────────────────────────╮
+│ ⚡ How can Zeus help you today? You said: Plan a release: tests, changelog,  │
+│ tag                                                                          │
+│ [SPINNER] Generating.                                                        │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+How can Zeus help you today? You said: Plan a release: tests, changelog, tag

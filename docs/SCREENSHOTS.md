@@ -61,6 +61,25 @@ Regenerate with:
 .venv/bin/python scripts/capture_user_journey.py --mobile
 ```
 
+## Demo animations (`docs/demo/`)
+
+| File | What it shows | Used in | Captured | Status |
+| --- | --- | --- | --- | --- |
+| `demo/cli-and-api.gif` | Animated terminal demo (~18s loop): `swarm-cli list`, the `zeus` blueprint answering as a local CLI command, then the same blueprint answering via `curl` against the OpenAI-compatible API (`/v1/models`, streaming `/v1/chat/completions`) — all under `SWARM_TEST_MODE=1`, no API key | README.md | 2026-06-11 | current |
+
+All terminal output shown in the GIF is a genuine capture (raw transcripts in
+`docs/demo/captures/raw_*.txt`); only the command typing is animated, and a
+single `…` line marks elided capture lines. Regenerate with:
+
+```bash
+uv pip install pillow   # render-time dependency only
+uv run python scripts/render_demo_gif.py
+```
+
+To refresh the underlying captures first, run the commands listed in the
+docstring of [`scripts/render_demo_gif.py`](../scripts/render_demo_gif.py) and
+update `docs/demo/captures/scene*.txt` accordingly.
+
 ## Other images in the repo
 
 | File | What it shows | Used in | Captured | Status |
