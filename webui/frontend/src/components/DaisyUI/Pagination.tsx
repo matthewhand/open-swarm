@@ -334,10 +334,12 @@ export const useInfiniteScroll = (
   };
 };
 
-export default {
+const PaginationComponents = {
   Pagination,
   SimplePagination,
   AdvancedPagination,
   usePagination,
   useInfiniteScroll,
 };
+
+export default PaginationComponents;

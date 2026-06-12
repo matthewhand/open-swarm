@@ -229,7 +229,7 @@ const ChatPage = () => {
               </select>
             </label>
           )}
-          <div className="pb-1">
+          <div className="pb-1" aria-live="polite" role="status">
             <ConnectionBadge status={status} />
           </div>
         </div>
@@ -331,11 +331,17 @@ const ChatPage = () => {
             disabled={status !== 'open'}
             aria-label="Chat message"
           />
-          <Button type="submit" variant="primary" disabled={!canSend}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={!canSend}
+            aria-busy={isStreaming}
+            aria-disabled={!canSend}
+          >
             {isStreaming ? (
-              <LoadingSpinner size="sm" className="mr-1" />
+              <LoadingSpinner size="sm" className="mr-1" aria-hidden="true" />
             ) : (
-              <Send className="h-4 w-4 mr-1" />
+              <Send className="h-4 w-4 mr-1" aria-hidden="true" />
             )}
             Send
           </Button>

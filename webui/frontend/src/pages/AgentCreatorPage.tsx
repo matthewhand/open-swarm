@@ -275,7 +275,7 @@ const AgentCreatorPageContent = () => {
           />
 
           {validation && (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2" aria-live="polite">
               <div className="flex items-center gap-2">
                 {validation.valid ? (
                   <Badge type="success">
@@ -356,42 +356,45 @@ const AgentCreatorPageContent = () => {
           Custom blueprints
         </h2>
 
-        {customQuery.isPending && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-        )}
-
-        {customQuery.isError && (
-          <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-            <div className="flex flex-col gap-2">
-              <span className="font-medium">Failed to load custom blueprints</span>
-              <span className="text-sm">
-                {customQuery.error instanceof Error
-                  ? customQuery.error.message
-                  : 'Unknown error'}
-              </span>
-              <div>
-                <Button variant="outline" size="sm" onClick={() => customQuery.refetch()}>
-                  Retry
-                </Button>
-              </div>
+        <div aria-live="polite" aria-busy={customQuery.isPending}>
+          {customQuery.isPending && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
             </div>
-          </Alert>
-        )}
+          )}
 
-        {!customQuery.isPending && !customQuery.isError && customBlueprints.length === 0 && (
-          <Card bordered className="text-center py-10">
-            <Bot className="h-14 w-14 mx-auto text-gray-400 mb-3" />
-            <h3 className="text-lg font-semibold mb-1">No custom blueprints yet</h3>
-            <p className="text-gray-500 text-sm">
-              Agents saved from this page appear here (stored in the server's
-              blueprint library).
-            </p>
-          </Card>
-        )}
+          {customQuery.isError && (
+            <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+              <div className="flex flex-col gap-2">
+                <span className="font-medium">Failed to load custom blueprints</span>
+                <span className="text-sm">
+                  {customQuery.error instanceof Error
+                    ? customQuery.error.message
+                    : 'Unknown error'}
+                </span>
+                <div>
+                  <Button variant="outline" size="sm" onClick={() => customQuery.refetch()}>
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            </Alert>
+          )}
+
+          {!customQuery.isPending && !customQuery.isError && customBlueprints.length === 0 && (
+            <Alert type="info" icon={<Bot className="h-5 w-5" />}>
+              <div className="flex flex-col">
+                <span className="font-medium">No custom blueprints yet</span>
+                <span className="text-sm">
+                  Agents saved from this page appear here (stored in the server's
+                  blueprint library).
+                </span>
+              </div>
+            </Alert>
+          )}
+        </div>
 
         {!customQuery.isPending && !customQuery.isError && customBlueprints.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

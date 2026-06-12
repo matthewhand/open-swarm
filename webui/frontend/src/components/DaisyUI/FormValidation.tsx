@@ -311,10 +311,12 @@ export const Form = <T extends Record<string, unknown>>({
   );
 };
 
-export default {
+const FormValidation = {
   useFormValidation,
   ValidatedInput,
   ValidatedSelect,
   ValidatedTextarea,
   Form,
 };
+
+export default FormValidation;

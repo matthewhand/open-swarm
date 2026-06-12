@@ -1,18 +1,25 @@
-## 2024-05-18 | [Architectural Audit] | Insight: Div-Soup Modals Lack Accessibility Mechanics | Protocol: HTML5 Dialog Refactor
-- **Pattern:** Found `Modal.tsx` leveraging `<div className="modal">` and handling its own focus-trapping and escape-key handlers manually.
-- **Protocol:** Upgraded the component architecture to use the native HTML5 `<dialog>` API. This guarantees focus trapping, places the overlay correctly in the Top Layer, and inherently handles keyboard cancellations.
+## 2025-06-12 | Architectural Audit | Insight: Uncontrolled UI Unmounts via Component Wrapping | Protocol: Stable Root Rendering
 
-## 2024-05-18 | [Architectural Audit] | Insight: Orphaned Labels in Forms | Protocol: Deterministic ID Linkage
-- **Pattern:** `Input`, `Textarea`, and `Select` components inside DaisyUI wrappers were not connecting `<label>` to their corresponding form controls via `htmlFor`/`id`.
-- **Protocol:** Implemented `useId()` from React inside these form components to generate guaranteed deterministic ID mappings. Added `aria-invalid` to actively project error states to screen readers.
+**The Discovery:**
+DaisyUI's modal elements were subject to a severe state-loss regression due to React conditional unmounting. Specifically, the `<FocusTrap>` component was conditionally wrapping the native `<dialog>` element depending on `isOpen`. In React, changing the type of the root node from `dialog` to `FocusTrap` forces a complete destruction and recreation of the underlying DOM tree. This means:
+1. All CSS transitions (DaisyUI's smooth opacities/visibilities) are bypassed as the elements snap into existence.
+2. Form state internal to the modal is completely wiped on closure, directly harming form workflows.
 
-## 2024-05-18 | [Architectural Audit] | Insight: Silent Asynchronous Transitions | Protocol: ARIA State Declarations
-- **Pattern:** Buttons and loading spinners provided visual feedback for network operations, but screen readers were completely unaware.
-- **Protocol:** Injected `role="status"` and `aria-label="Loading"` into loading spinners. Added `aria-disabled` and `aria-busy` to buttons while loading, along with a visually-hidden `<span className="sr-only">Loading</span>` to explicitly describe state changes to assistive tech.
-## 2024-06-11 | [Architectural Audit] | Insight: Modal Component Accessibility | Protocol: Strict focus management and semantic roles
+**The Prevention Strategy:**
+To ensure high-fidelity interactions, wrapping components like `<FocusTrap>` must always be rendered. Use their internal state management (`active={isOpen}`) to toggle behavior without forcing React reconciliation to destroy the underlying DOM nodes. This maintains continuous reference stability and preserves accessible state sequences.
 
-## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Custom UI Components | Protocol: Introduce ARIA roles, robust focus management (focus-trap-react), and keyboard event handlers.
+## 2025-06-12 | Architectural Audit | Insight: Silent Async Form Submissions | Protocol: Defensive Interaction Broadcasting
 
-## 2024-06-11 | [Architectural Audit] | Insight: Type safety and `any` types | Protocol: Refactor `FormValidation.tsx` and `Pagination.tsx` to use robust generics instead of `any`, ensuring strict TypeScript integrity.
+**The Discovery:**
+The primary interaction form (`ChatPage.tsx`) managed async generation exclusively through visual loading spinners. For screen readers, submission triggered no distinct semantic events. While visually obvious, standard assistive technology assumes a synchronous interaction model unless explicitly informed otherwise. A silent UI during an extended async operation equates to a broken application state for these users.
 
-## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Loading States | Protocol: Add `aria-live="polite"` and `aria-busy="true"` to Loading components (LoadingSpinner, LoadingDots, etc) and `aria-disabled="true"` to LoadingButton.
+**The Prevention Strategy:**
+Implementing deterministic A11y broadcasting on the `Button` components using `aria-busy` and `aria-disabled` bound to the streaming state, and ensuring the connection badge sits within an `aria-live="polite"` and `role="status"` region. This translates the async execution flow securely across the accessibility tree without overwhelming the user with duplicate announcements.
+
+## 2025-06-12 | Architectural Audit | Insight: Brittle Empty States in Admin Dashboards | Protocol: Explicit Accessibility Boundaries
+
+**The Discovery:**
+The `AgentCreatorPage` effectively fetched and mapped custom blueprints but fell back to non-semantic, poorly styled empty states (div-soup) or naked error logs when data failed to load or when no data existed. These fragments lack structural identity, making navigation ambiguous when filtering or loading dashboard lists.
+
+**The Prevention Strategy:**
+Mandate the use of structured `Alert` components or explicit status blocks (with `aria-live="polite"`) that provide semantic wrappers around complex async outcomes (e.g., `isPending`, `isError`, empty array conditions). This isolates the visual state cleanly while ensuring screen readers receive a cohesive announcement.

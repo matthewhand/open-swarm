@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useId } from 'react';
+import FocusTrap from 'focus-trap-react';
 
 /**
  * Modal component using DaisyUI classes
@@ -80,27 +81,30 @@ export const Modal = ({
   };
 
   return (
-    <dialog
-      ref={dialogRef}
-      className={`modal ${isOpen ? 'modal-open' : ''}`}
-      onClick={handleBackdropClick}
-      aria-labelledby={title ? titleId : undefined}
-    >
-      <div 
-        className={`modal-box ${sizeClasses[size]} ${className}`}
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+    <FocusTrap active={isOpen} focusTrapOptions={{ initialFocus: false, fallbackFocus: () => dialogRef.current || document.body }}>
+      <dialog
+        ref={dialogRef}
+        className={`modal ${isOpen ? 'modal-open' : ''}`}
+        onClick={handleBackdropClick}
+        aria-labelledby={title ? titleId : undefined}
+        aria-modal="true"
       >
-        {title && (
-          <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
-        )}
-        <div className="modal-content">
-          {children}
+        <div
+          className={`modal-box ${sizeClasses[size]} ${className}`}
+          onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+        >
+          {title && (
+            <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
+          )}
+          <div className="modal-content">
+            {children}
+          </div>
         </div>
-      </div>
-      <form method="dialog" className="modal-backdrop">
-        <button onClick={onClose}>close</button>
-      </form>
-    </dialog>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={onClose} aria-label="Close modal">close</button>
+        </form>
+      </dialog>
+    </FocusTrap>
   );
 };
 
