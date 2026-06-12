@@ -211,8 +211,13 @@ const ChatPage = () => {
                 value={selectedBlueprint}
                 onChange={(e) => setSelectedBlueprint(e.target.value)}
                 aria-label="Blueprint"
+                disabled={blueprints.length === 0 && !selectedBlueprint}
               >
-                <option value="">Server default model</option>
+                {blueprints.length === 0 && !selectedBlueprint ? (
+                  <option value="">No custom blueprints available</option>
+                ) : (
+                  <option value="">Server default model</option>
+                )}
                 {/* Keep a ?blueprint= preselection visible even if it is not
                     in the fetched list (e.g. a just-created team). */}
                 {selectedBlueprint &&

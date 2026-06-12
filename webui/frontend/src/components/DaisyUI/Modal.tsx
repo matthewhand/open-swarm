@@ -24,7 +24,7 @@ export const Modal = ({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  // Sync open state with native dialog methods
+  // Sync open state with native dialog methods and toggle body scroll lock
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -33,11 +33,17 @@ export const Modal = ({
       if (!dialog.open) {
         dialog.showModal();
       }
+      document.body.style.overflow = 'hidden';
     } else {
       if (dialog.open) {
         dialog.close();
       }
+      document.body.style.overflow = '';
     }
+
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   // Handle native cancel event (e.g. Escape key)
@@ -82,6 +88,7 @@ export const Modal = ({
   return (
     <dialog
       ref={dialogRef}
+      aria-modal="true"
       className={`modal ${isOpen ? 'modal-open' : ''}`}
       onClick={handleBackdropClick}
       aria-labelledby={title ? titleId : undefined}
