@@ -8,14 +8,12 @@ export interface LoadingSpinnerProps {
   size?: 'xs' | 'sm' | 'md' | 'lg';
   color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
   className?: string;
-  'aria-label'?: string;
 }
 
 export const LoadingSpinner = ({
   size = 'md',
   color = 'primary',
   className = '',
-  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) => {
   const sizeClasses = {
     xs: 'loading-xs',
@@ -36,9 +34,10 @@ export const LoadingSpinner = ({
 
   return (
     <span 
-      className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
-      aria-label={ariaLabel}
+      aria-live="polite"
+      aria-label="Loading"
+      className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
     />
   );
 };
@@ -50,7 +49,6 @@ export const LoadingDots = ({
   size = 'md',
   color = 'primary',
   className = '',
-  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) => {
   const sizeClasses = {
     xs: 'loading-xs',
@@ -72,8 +70,6 @@ export const LoadingDots = ({
   return (
     <span 
       className={`loading loading-dots ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
-      role="status"
-      aria-label={ariaLabel}
     />
   );
 };
@@ -85,7 +81,6 @@ export const LoadingRing = ({
   size = 'md',
   color = 'primary',
   className = '',
-  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) => {
   const sizeClasses = {
     xs: 'loading-xs',
@@ -107,8 +102,6 @@ export const LoadingRing = ({
   return (
     <span 
       className={`loading loading-ring ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
-      role="status"
-      aria-label={ariaLabel}
     />
   );
 };
@@ -120,7 +113,6 @@ export const LoadingBall = ({
   size = 'md',
   color = 'primary',
   className = '',
-  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) => {
   const sizeClasses = {
     xs: 'loading-xs',
@@ -142,8 +134,6 @@ export const LoadingBall = ({
   return (
     <span 
       className={`loading loading-ball ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
-      role="status"
-      aria-label={ariaLabel}
     />
   );
 };
@@ -155,7 +145,6 @@ export const LoadingBars = ({
   size = 'md',
   color = 'primary',
   className = '',
-  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) => {
   const sizeClasses = {
     xs: 'loading-xs',
@@ -177,8 +166,6 @@ export const LoadingBars = ({
   return (
     <span 
       className={`loading loading-bars ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
-      role="status"
-      aria-label={ariaLabel}
     />
   );
 };
@@ -190,7 +177,6 @@ export const LoadingInfinity = ({
   size = 'md',
   color = 'primary',
   className = '',
-  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) => {
   const sizeClasses = {
     xs: 'loading-xs',
@@ -212,8 +198,6 @@ export const LoadingInfinity = ({
   return (
     <span 
       className={`loading loading-infinity ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
-      role="status"
-      aria-label={ariaLabel}
     />
   );
 };
@@ -340,17 +324,12 @@ export const LoadingOverlay = ({
   if (!isLoading) return null;
 
   return (
-    <div
-      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${className}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={message}
-    >
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${className}`}>
       <div className="bg-base-100 p-6 rounded-lg shadow-xl text-center">
         <div className="flex justify-center mb-4">
           <LoadingSpinner size="lg" color="primary" />
         </div>
-        <p className="text-lg font-medium" role="status">{message}</p>
+        <p className="text-lg font-medium">{message}</p>
       </div>
     </div>
   );
@@ -365,16 +344,10 @@ export const LoadingButton = ({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => {
   return (
-    <button
-      {...props}
-      disabled={loading || props.disabled}
-      aria-disabled={loading || props.disabled}
-      aria-busy={loading}
-    >
+    <button {...props} disabled={loading || props.disabled}>
       {loading ? (
         <>
           <LoadingSpinner size="sm" className="mr-2" />
-          <span className="sr-only">Loading</span>
           {children}
         </>
       ) : (
@@ -384,7 +357,6 @@ export const LoadingButton = ({
   );
 };
 
-// Export individual components as well as the default object
 export default {
   LoadingSpinner,
   LoadingDots,

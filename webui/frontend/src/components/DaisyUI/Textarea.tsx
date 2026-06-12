@@ -1,4 +1,4 @@
-import { TextareaHTMLAttributes, forwardRef, useId } from 'react';
+import { TextareaHTMLAttributes, forwardRef } from 'react';
 
 /**
  * Textarea component using DaisyUI classes
@@ -19,13 +19,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
   size = 'md',
   color,
   className = '',
-  id: propId,
   ...props
 }, ref) => {
-  const generatedId = useId();
-  const textareaId = propId || generatedId;
-  const errorId = error ? `${textareaId}-error` : undefined;
-
   const textareaClasses = [
     'textarea',
     bordered ? 'textarea-bordered' : '',
@@ -41,21 +36,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
   return (
     <div className="form-control w-full">
       {label && (
-        <label htmlFor={textareaId} className="label">
+        <label className="label">
           <span className="label-text">{label}</span>
         </label>
       )}
-      <textarea
-        id={textareaId}
-        ref={ref}
-        className={textareaClasses.join(' ')}
-        aria-invalid={!!error}
-        aria-describedby={errorId}
-        {...props}
-      />
+      <textarea ref={ref} className={textareaClasses.join(' ')} {...props} />
       {error && (
-        <label htmlFor={textareaId} className="label">
-          <span id={errorId} className="label-text-alt text-error">{error}</span>
+        <label className="label">
+          <span className="label-text-alt text-error">{error}</span>
         </label>
       )}
     </div>

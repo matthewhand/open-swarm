@@ -1,4 +1,4 @@
-import { SelectHTMLAttributes, forwardRef, ReactNode, useId } from 'react';
+import { SelectHTMLAttributes, forwardRef, ReactNode } from 'react';
 
 /**
  * Select component using DaisyUI classes
@@ -20,13 +20,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({
   color,
   children,
   className = '',
-  id: propId,
   ...props
 }, ref) => {
-  const generatedId = useId();
-  const selectId = propId || generatedId;
-  const errorId = error ? `${selectId}-error` : undefined;
-
   const selectClasses = [
     'select',
     bordered ? 'select-bordered' : '',
@@ -42,23 +37,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({
   return (
     <div className="form-control w-full">
       {label && (
-        <label htmlFor={selectId} className="label">
+        <label className="label">
           <span className="label-text">{label}</span>
         </label>
       )}
-      <select
-        id={selectId}
-        ref={ref}
-        className={selectClasses.join(' ')}
-        aria-invalid={!!error}
-        aria-describedby={errorId}
-        {...props}
-      >
+      <select ref={ref} className={selectClasses.join(' ')} {...props}>
         {children}
       </select>
       {error && (
-        <label htmlFor={selectId} className="label">
-          <span id={errorId} className="label-text-alt text-error">{error}</span>
+        <label className="label">
+          <span className="label-text-alt text-error">{error}</span>
         </label>
       )}
     </div>

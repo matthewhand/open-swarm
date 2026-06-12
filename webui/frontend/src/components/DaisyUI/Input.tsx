@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, forwardRef, useId } from 'react';
+import { InputHTMLAttributes, forwardRef } from 'react';
 
 /**
  * Input component using DaisyUI classes
@@ -19,13 +19,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   size = 'md',
   color,
   className = '',
-  id: propId,
   ...props
 }, ref) => {
-  const generatedId = useId();
-  const inputId = propId || generatedId;
-  const errorId = error ? `${inputId}-error` : undefined;
-
   const inputClasses = [
     'input',
     bordered ? 'input-bordered' : '',
@@ -41,21 +36,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div className="form-control w-full">
       {label && (
-        <label htmlFor={inputId} className="label">
+        <label className="label">
           <span className="label-text">{label}</span>
         </label>
       )}
-      <input
-        id={inputId}
-        ref={ref}
-        className={inputClasses.join(' ')}
-        aria-invalid={!!error}
-        aria-describedby={errorId}
-        {...props}
-      />
+      <input ref={ref} className={inputClasses.join(' ')} {...props} />
       {error && (
-        <label htmlFor={inputId} className="label">
-          <span id={errorId} className="label-text-alt text-error">{error}</span>
+        <label className="label">
+          <span className="label-text-alt text-error">{error}</span>
         </label>
       )}
     </div>

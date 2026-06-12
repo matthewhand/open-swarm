@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useId } from 'react';
+import FocusTrap from 'focus-trap-react';
 
 /**
  * Modal component using DaisyUI classes
@@ -21,56 +22,44 @@ export const Modal = ({
   size = 'md',
   className = '',
 }: ModalProps) => {
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
-  // Sync open state with native dialog methods
+  // Close modal when clicking outside
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    if (isOpen) {
-      if (!dialog.open) {
-        dialog.showModal();
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        onClose();
       }
-    } else {
-      if (dialog.open) {
-        dialog.close();
-      }
-    }
-  }, [isOpen]);
-
-  // Handle native cancel event (e.g. Escape key)
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const handleCancel = (e: Event) => {
-      e.preventDefault(); // Prevent native close to keep React state in sync
-      onClose();
     };
 
-    dialog.addEventListener('cancel', handleCancel);
-    return () => dialog.removeEventListener('cancel', handleCancel);
-  }, [onClose]);
-
-  // Handle backdrop clicks (clicking outside the modal-box)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const rect = dialog.getBoundingClientRect();
-    const isInDialog = (
-      rect.top <= e.clientY &&
-      e.clientY <= rect.top + rect.height &&
-      rect.left <= e.clientX &&
-      e.clientX <= rect.left + rect.width
-    );
-
-    if (!isInDialog) {
-      onClose();
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
-  };
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
 
   const sizeClasses = {
     sm: 'max-w-sm',
@@ -80,27 +69,25 @@ export const Modal = ({
   };
 
   return (
-    <dialog
-      ref={dialogRef}
-      className={`modal ${isOpen ? 'modal-open' : ''}`}
-      onClick={handleBackdropClick}
-      aria-labelledby={title ? titleId : undefined}
-    >
-      <div 
-        className={`modal-box ${sizeClasses[size]} ${className}`}
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
-      >
-        {title && (
-          <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
-        )}
-        <div className="modal-content">
-          {children}
+    <div className="modal modal-open">
+      <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => modalRef.current || document.body }}>
+        <div
+          ref={modalRef}
+          className={`modal-box ${sizeClasses[size]} ${className}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+          tabIndex={-1}
+        >
+          {title && (
+            <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
+          )}
+          <div className="modal-content">
+            {children}
+          </div>
         </div>
-      </div>
-      <form method="dialog" className="modal-backdrop">
-        <button onClick={onClose}>close</button>
-      </form>
-    </dialog>
+      </FocusTrap>
+    </div>
   );
 };
 

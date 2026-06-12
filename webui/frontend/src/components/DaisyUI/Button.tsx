@@ -59,15 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   ].filter(Boolean);
 
   return (
-    <button
-      ref={ref}
-      className={classes.join(' ')}
-      disabled={loading || props.disabled}
-      aria-disabled={loading || props.disabled}
-      aria-busy={loading}
-      {...props}
-    >
-      {loading && <span className="sr-only">Loading</span>}
+    <button ref={ref} className={classes.join(' ')} {...props} disabled={loading || props.disabled}>
       {children}
     </button>
   );

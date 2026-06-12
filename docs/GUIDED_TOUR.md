@@ -62,12 +62,12 @@ server exposes, and jump to the other pages.
 
 *Live chat over the backend websocket (`/ws/ai-demo/…`), captured with an
 authenticated session — the "Connected" badge is real. The conversation is
-empty because nothing has been sent yet. The blueprint selector is live: each
-message carries your selection, so you can switch agents mid-conversation
-(or arrive preselected via a team's Launch button).*
+empty because nothing has been sent yet. Note the on-page caveat: the current
+websocket protocol does not take a blueprint parameter, so the blueprint
+selector does not change the conversation yet.*
 
-**What you can do:** pick a blueprint (or the server default) and stream
-replies from it; switch blueprints between messages without reconnecting. **Honest note:** the websocket consumer rejects
+**What you can do:** type a message and stream a reply from the
+server-configured model. **Honest note:** the websocket consumer rejects
 anonymous connections, so chat requires a logged-in session — sign in via the
 login page (part 3) first. Replies also require a working LLM profile.
 
@@ -79,9 +79,8 @@ login page (part 3) first. Replies also require a working LLM profile.
 fresh-database empty state — "No teams yet".*
 
 **What you can do:** create a named team (it becomes an OpenAI-compatible
-*model* served by `/v1/models`), delete teams, and **Launch** any team
-straight into a preselected chat. The same data backs the Django Teams Admin
-in part 3.
+*model* served by `/v1/models`), and delete teams. The same data backs the
+Django Teams Admin in part 3.
 
 ### Blueprints — `/blueprints`
 
@@ -91,10 +90,8 @@ in part 3.
 `/v1/blueprints/`) with description and required MCP servers per card, plus a
 search box. Full-page capture, hence the tall image.*
 
-**What you can do:** browse and search what's available, see each blueprint's
-MCP requirements, **add blueprints to your library** (toast feedback,
-In-Library state), and filter to "My Library only" — backed by the
-`/v1/library/` API.
+**What you can do:** browse and search what's available on this server and see
+each blueprint's MCP requirements before running it.
 
 ### Agent Creator — `/agent-creator`
 

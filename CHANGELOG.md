@@ -6,13 +6,6 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
-## [0.3.3] - 2026-06-12
-
-### Added
-- Websocket chat honors blueprint selection (per-message field or ?blueprint= param); Teams page Launch buttons into preselected chat (#103)
-- /v1/library/ API + SPA Add-to-Library / My Library filter (#104)
-- Guided tour and all 26 screenshots refreshed to current UI
-
 ## [0.3.2] - 2026-06-11
 
 ### Fixed
