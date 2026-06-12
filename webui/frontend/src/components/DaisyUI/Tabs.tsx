@@ -46,19 +46,60 @@ export const Tabs = ({
     lg: 'tabs-lg',
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let newIndex = index;
+    if (e.key === 'ArrowRight') {
+      newIndex = index + 1 >= tabs.length ? 0 : index + 1;
+    } else if (e.key === 'ArrowLeft') {
+      newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
+    }
+
+    if (newIndex !== index) {
+      e.preventDefault();
+      let count = 0;
+      while (tabs[newIndex].disabled && count < tabs.length) {
+        newIndex = e.key === 'ArrowRight'
+          ? (newIndex + 1 >= tabs.length ? 0 : newIndex + 1)
+          : (newIndex - 1 < 0 ? tabs.length - 1 : newIndex - 1);
+        count++;
+      }
+
+      if (!tabs[newIndex].disabled) {
+        onChange(tabs[newIndex].key);
+        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
+        if (tabElement) {
+          tabElement.focus();
+        }
+      }
+    }
+  };
+
   return (
-    <div className={`tabs ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}>
-      {tabs.map((tab) => (
-        <button
-          key={tab.key}
-          className={`tab ${activeTab === tab.key ? 'tab-active' : ''} ${tab.disabled ? 'tab-disabled' : ''}`}
-          onClick={() => !tab.disabled && onChange(tab.key)}
-          disabled={tab.disabled}
-        >
-          {tab.icon && <span className="mr-2">{tab.icon}</span>}
-          {tab.label}
-        </button>
-      ))}
+    <div
+      className={`tabs ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      role="tablist"
+      aria-orientation="horizontal"
+    >
+      {tabs.map((tab, index) => {
+        const isSelected = activeTab === tab.key;
+        return (
+          <button
+            id={`tab-${tab.key}`}
+            key={tab.key}
+            role="tab"
+            aria-selected={isSelected}
+            aria-controls={`panel-${tab.key}`}
+            tabIndex={isSelected ? 0 : -1}
+            className={`tab ${isSelected ? 'tab-active' : ''} ${tab.disabled ? 'tab-disabled' : ''}`}
+            onClick={() => !tab.disabled && onChange(tab.key)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
+            disabled={tab.disabled}
+          >
+            {tab.icon && <span className="mr-2">{tab.icon}</span>}
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 };
@@ -74,7 +115,17 @@ export interface TabPanelProps {
 
 export const TabPanel = ({ activeTab, tabKey, children }: TabPanelProps) => {
   if (activeTab !== tabKey) return null;
-  return <div className="tab-content p-4">{children}</div>;
+  return (
+    <div
+      id={`panel-${tabKey}`}
+      role="tabpanel"
+      aria-labelledby={`tab-${tabKey}`}
+      tabIndex={0}
+      className="tab-content p-4"
+    >
+      {children}
+    </div>
+  );
 };
 
 /**

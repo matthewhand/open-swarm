@@ -9,3 +9,10 @@
 ## 2024-05-18 | [Architectural Audit] | Insight: Silent Asynchronous Transitions | Protocol: ARIA State Declarations
 - **Pattern:** Buttons and loading spinners provided visual feedback for network operations, but screen readers were completely unaware.
 - **Protocol:** Injected `role="status"` and `aria-label="Loading"` into loading spinners. Added `aria-disabled` and `aria-busy` to buttons while loading, along with a visually-hidden `<span className="sr-only">Loading</span>` to explicitly describe state changes to assistive tech.
+## 2024-06-11 | [Architectural Audit] | Insight: Modal Component Accessibility | Protocol: Strict focus management and semantic roles
+
+## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Custom UI Components | Protocol: Introduce ARIA roles, robust focus management (focus-trap-react), and keyboard event handlers.
+
+## 2024-06-11 | [Architectural Audit] | Insight: Type safety and `any` types | Protocol: Refactor `FormValidation.tsx` and `Pagination.tsx` to use robust generics instead of `any`, ensuring strict TypeScript integrity.
+
+## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Loading States | Protocol: Add `aria-live="polite"` and `aria-busy="true"` to Loading components (LoadingSpinner, LoadingDots, etc) and `aria-disabled="true"` to LoadingButton.
