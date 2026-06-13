@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, ReactNode, useId } from 'react';
 
 /**
  * Tab interface
@@ -165,7 +165,7 @@ export const SimpleTabs = ({
  * Accordion component
  * Docs: https://daisyui.com/components/accordion/
  */
-export interface AccordionItem {
+export interface AccordionItemData {
   key: string;
   title: ReactNode;
   content: ReactNode;
@@ -174,10 +174,13 @@ export interface AccordionItem {
 }
 
 export interface AccordionProps {
-  items: AccordionItem[];
+  items: AccordionItemData[];
   allowMultiple?: boolean;
   className?: string;
 }
+
+// Keeping original AccordionItem export name for backward compatibility without redeclaring
+export type { AccordionItemData as AccordionItemType };
 
 export const Accordion = ({
   items,
@@ -198,25 +201,35 @@ export const Accordion = ({
 
   return (
     <div className={`join join-vertical w-full ${className}`}>
-      {items.map((item) => (
-        <div key={item.key} className="collapse collapse-arrow join-item border border-base-300">
-          <input
-            type="checkbox"
-            checked={activeItems.includes(item.key)}
-            onChange={() => toggleItem(item.key)}
-            disabled={item.disabled}
-          />
-          <div className="collapse-title font-medium flex items-center gap-2">
-            {item.icon && <span>{item.icon}</span>}
-            {item.title}
-          </div>
-          <div className="collapse-content">
-            <div className="p-4">
-              {item.content}
+      {items.map((item) => {
+        const isOpen = activeItems.includes(item.key);
+        const panelId = `accordion-panel-${item.key}`;
+        const headerId = `accordion-header-${item.key}`;
+
+        return (
+          <div key={item.key} className="collapse collapse-arrow join-item border border-base-300">
+            <input
+              type="checkbox"
+              id={headerId}
+              checked={isOpen}
+              onChange={() => toggleItem(item.key)}
+              disabled={item.disabled}
+              aria-expanded={isOpen}
+              aria-controls={panelId}
+              // Allow keyboard focusing the input which daisyui uses to open/close
+            />
+            <div className="collapse-title font-medium flex items-center gap-2">
+              {item.icon && <span>{item.icon}</span>}
+              {item.title}
+            </div>
+            <div id={panelId} className="collapse-content" role="region" aria-labelledby={headerId}>
+              <div className="p-4">
+                {item.content}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -231,6 +244,7 @@ export interface AccordionItemProps {
   disabled?: boolean;
   icon?: ReactNode;
   className?: string;
+  id?: string;
 }
 
 export const AccordionItem = ({
@@ -240,15 +254,32 @@ export const AccordionItem = ({
   disabled = false,
   icon,
   className = '',
+  id,
 }: AccordionItemProps) => {
+  const [isOpen, setIsOpen] = useState(open);
+  const reactId = useId();
+
+  // Create deterministic IDs
+  const itemId = id || reactId;
+  const panelId = `panel-${itemId}`;
+  const headerId = `header-${itemId}`;
+
   return (
     <div className={`collapse collapse-arrow join-item border border-base-300 ${className}`}>
-      <input type="checkbox" defaultChecked={open} disabled={disabled} />
+      <input
+        type="checkbox"
+        id={headerId}
+        checked={isOpen}
+        onChange={(e) => setIsOpen(e.target.checked)}
+        disabled={disabled}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+      />
       <div className="collapse-title font-medium flex items-center gap-2">
         {icon && <span>{icon}</span>}
         {title}
       </div>
-      <div className="collapse-content">
+      <div id={panelId} className="collapse-content" role="region" aria-labelledby={headerId}>
         <div className="p-4">
           {children}
         </div>
@@ -372,7 +403,7 @@ export const ContentTabs = ({
   );
 };
 
-export default {
+const TabsModule = {
   Tabs,
   TabPanel,
   SimpleTabs,
@@ -382,3 +413,5 @@ export default {
   VerticalTabs,
   ContentTabs,
 };
+
+export default TabsModule;
