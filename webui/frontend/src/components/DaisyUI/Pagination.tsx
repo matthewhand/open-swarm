@@ -62,7 +62,7 @@ export const Pagination = ({
   const visiblePages = getVisiblePages();
 
   return (
-    <div className={`flex items-center justify-center gap-2 ${className}`}>
+    <nav aria-label="Pagination" className={`flex items-center justify-center gap-2 ${className}`}>
       {/* First page button */}
       <Button
         variant="outline"
@@ -92,6 +92,7 @@ export const Pagination = ({
             key={page}
             className={`btn ${buttonSize[size]} ${currentPage === page ? 'btn-active' : ''}`}
             onClick={() => onPageChange(page)}
+            aria-current={currentPage === page ? 'page' : undefined}
           >
             {page}
           </button>
@@ -119,7 +120,7 @@ export const Pagination = ({
       >
         <ChevronsRight className="h-4 w-4" />
       </Button>
-    </div>
+    </nav>
   );
 };
 
@@ -195,7 +196,7 @@ export const AdvancedPagination = ({
 
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-gray-500" aria-live="polite" aria-atomic="true">
         Showing {(currentPage - 1) * itemsPerPage + 1} to 
         {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
       </div>
@@ -289,16 +290,16 @@ export const usePagination = (
 /**
  * Infinite scroll pagination hook
  */
-export const useInfiniteScroll = (
-  initialItems: any[] = [],
+export const useInfiniteScroll = <T,>(
+  initialItems: T[] = [],
   itemsPerPage: number = 10
 ) => {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<T[]>(initialItems);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(1);
 
-  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<any[]>) => {
+  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<T[]>) => {
     if (isLoading || !hasMore) return;
 
     setIsLoading(true);

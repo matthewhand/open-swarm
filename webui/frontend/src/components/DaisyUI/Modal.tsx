@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useId } from 'react';
+import { Button } from './Button';
 
 /**
  * Modal component using DaisyUI classes
@@ -22,6 +23,7 @@ export const Modal = ({
   className = '',
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
 
   // Sync open state with native dialog methods
@@ -31,11 +33,16 @@ export const Modal = ({
 
     if (isOpen) {
       if (!dialog.open) {
+        previousFocusRef.current = document.activeElement as HTMLElement;
         dialog.showModal();
       }
     } else {
       if (dialog.open) {
         dialog.close();
+        if (previousFocusRef.current) {
+          previousFocusRef.current.focus();
+          previousFocusRef.current = null;
+        }
       }
     }
   }, [isOpen]);
@@ -112,6 +119,7 @@ export interface ConfirmModalProps extends ModalProps {
   confirmText?: string;
   cancelText?: string;
   confirmVariant?: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'error';
+  isConfirmLoading?: boolean;
 }
 
 export const ConfirmModal = ({
@@ -123,6 +131,7 @@ export const ConfirmModal = ({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   confirmVariant = 'primary',
+  isConfirmLoading = false,
   ...props
 }: ConfirmModalProps) => {
   return (
@@ -131,12 +140,12 @@ export const ConfirmModal = ({
         {children}
       </div>
       <div className="modal-action flex gap-2">
-        <button className="btn btn-outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} disabled={isConfirmLoading}>
           {cancelText}
-        </button>
-        <button className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
+        </Button>
+        <Button color={confirmVariant} onClick={onConfirm} loading={isConfirmLoading} disabled={isConfirmLoading}>
           {confirmText}
-        </button>
+        </Button>
       </div>
     </Modal>
   );

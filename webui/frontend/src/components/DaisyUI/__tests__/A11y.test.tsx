@@ -1,11 +1,13 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import { Modal } from '../Modal';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { Modal, ConfirmModal } from '../Modal';
 import { Input } from '../Input';
 import { Select } from '../Select';
 import { Textarea } from '../Textarea';
 import { Button } from '../Button';
 import { LoadingSpinner } from '../Loading';
+import { Pagination } from '../Pagination';
+import { Tabs } from '../Tabs';
 
 describe('Modal Accessibility', () => {
   it('should use HTML5 dialog and sync state', () => {
@@ -22,6 +24,17 @@ describe('Modal Accessibility', () => {
     const dialog = screen.getByRole('dialog');
     const title = screen.getByText('My Title');
     expect(dialog).toHaveAttribute('aria-labelledby', title.id);
+  });
+
+  it('should pass loading state to ConfirmModal confirm button', () => {
+    render(
+      <ConfirmModal isOpen={true} onClose={() => {}} onConfirm={() => {}} isConfirmLoading={true}>
+        Content
+      </ConfirmModal>
+    );
+    const confirmButton = screen.getByRole('button', { name: /confirm/i });
+    expect(confirmButton).toHaveAttribute('aria-busy', 'true');
+    expect(confirmButton).toHaveAttribute('aria-disabled', 'true');
   });
 });
 
@@ -85,5 +98,46 @@ describe('Async Loading Accessibility', () => {
 
     // Check for sr-only text
     expect(screen.getByText('Loading')).toHaveClass('sr-only');
+  });
+});
+
+describe('Pagination Accessibility', () => {
+  it('should wrap in nav and indicate current page', () => {
+    render(<Pagination currentPage={2} totalPages={5} onPageChange={() => {}} />);
+
+    // Check for nav wrapper
+    const nav = screen.getByRole('navigation', { name: 'Pagination' });
+    expect(nav).toBeInTheDocument();
+
+    // The button for page 2 should have aria-current="page"
+    const activePageBtn = screen.getByRole('button', { name: '2' });
+    expect(activePageBtn).toHaveAttribute('aria-current', 'page');
+
+    // Other pages should not
+    const inactivePageBtn = screen.getByRole('button', { name: '1' });
+    expect(inactivePageBtn).not.toHaveAttribute('aria-current');
+  });
+});
+
+describe('Tabs Accessibility', () => {
+  it('should navigate to first/last tab on Home/End keys', () => {
+    const onChangeMock = vi.fn();
+    const tabs = [
+      { key: 'tab1', label: 'Tab 1' },
+      { key: 'tab2', label: 'Tab 2' },
+      { key: 'tab3', label: 'Tab 3' },
+    ];
+
+    render(<Tabs tabs={tabs} activeTab="tab2" onChange={onChangeMock} />);
+
+    const activeTab = screen.getByRole('tab', { selected: true });
+
+    // Press Home
+    fireEvent.keyDown(activeTab, { key: 'Home' });
+    expect(onChangeMock).toHaveBeenCalledWith('tab1');
+
+    // Press End
+    fireEvent.keyDown(activeTab, { key: 'End' });
+    expect(onChangeMock).toHaveBeenCalledWith('tab3');
   });
 });

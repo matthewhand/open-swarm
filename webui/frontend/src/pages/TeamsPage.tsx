@@ -264,6 +264,7 @@ const TeamsPageContent = () => {
         title="Delete Team"
         confirmText="Delete"
         confirmVariant="error"
+        isConfirmLoading={deleteMutation.isPending}
       >
         <p>
           Delete team{' '}

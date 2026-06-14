@@ -52,6 +52,12 @@ export const Tabs = ({
       newIndex = index + 1 >= tabs.length ? 0 : index + 1;
     } else if (e.key === 'ArrowLeft') {
       newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
+    } else if (e.key === 'Home') {
+      newIndex = tabs.findIndex(t => !t.disabled);
+      if (newIndex === -1) newIndex = index; // Fallback if all disabled
+    } else if (e.key === 'End') {
+      const reversedIndex = [...tabs].reverse().findIndex(t => !t.disabled);
+      newIndex = reversedIndex === -1 ? index : tabs.length - 1 - reversedIndex;
     }
 
     if (newIndex !== index) {
