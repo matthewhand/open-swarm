@@ -95,7 +95,7 @@ const ToastContainer = ({ toasts, removeToast }: ToastContainerProps) => {
   return (
     <>
       {Object.entries(groupedToasts).map(([position, positionToasts]) => (
-        <div key={position} className={`fixed ${getPositionClasses(position)} z-50 space-y-2`}>
+        <div key={position} className={`fixed ${getPositionClasses(position)} z-50 space-y-2`} aria-live="polite">
           {positionToasts.map(toast => (
             <ToastItem key={toast.id} toast={toast} removeToast={removeToast} />
           ))}
@@ -142,7 +142,7 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
   const { icon: Icon, bgColor, textColor } = getToastStyle(toast.type);
 
   return (
-    <div className={`alert ${bgColor} ${textColor} shadow-lg max-w-sm w-full`}>
+    <div className={`alert ${bgColor} ${textColor} shadow-lg max-w-sm w-full`} role="alert">
       <div className="flex items-start gap-3">
         <div className="mt-1">
           <Icon className="h-5 w-5 flex-shrink-0" />
@@ -155,6 +155,7 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
       <button
         className="btn btn-sm btn-ghost btn-circle ml-2"
         onClick={() => removeToast(toast.id)}
+        aria-label="Close toast"
       >
         <X className="h-4 w-4" />
       </button>
@@ -234,7 +235,7 @@ export const useInfoToast = () => {
   return info;
 };
 
-export default {
+const DaisyUIToast = {
   ToastProvider,
   useToast,
   useSuccessToast,
@@ -242,3 +243,5 @@ export default {
   useWarningToast,
   useInfoToast,
 };
+
+export default DaisyUIToast;

@@ -1,18 +1,9 @@
-## 2024-05-18 | [Architectural Audit] | Insight: Div-Soup Modals Lack Accessibility Mechanics | Protocol: HTML5 Dialog Refactor
-- **Pattern:** Found `Modal.tsx` leveraging `<div className="modal">` and handling its own focus-trapping and escape-key handlers manually.
-- **Protocol:** Upgraded the component architecture to use the native HTML5 `<dialog>` API. This guarantees focus trapping, places the overlay correctly in the Top Layer, and inherently handles keyboard cancellations.
+## 2024-06-14 | Architectural Audit | Insight: "Div-soup" Default Exports and Lack of Focus Traps | Protocol: Component Type Safety, Default Export Refactoring, and DaisyUI ARIA Integration
+The codebase exhibits three distinct systemic frictions:
+1. `any` Types in Pagination: The infinite scroll components leverage `any[]` instead of strong generic `T[]` typing, compromising downstream state integrity.
+2. DaisyUI Modals Lack Focus Trapping: The native `<dialog>` usage lacks keyboard trapping (focus-trap-react missing) and proper ARIA modals linkage, breaking accessibility guidelines.
+3. ESLint Anonymous Export Default Warnings: The UI components use an anonymous default export pattern which violates basic codebase hygiene and type traceability rules.
+4. ARIA Live Regions missing: Loading components need `aria-live` or `role="status"` to notify screen readers of async state shifts.
 
-## 2024-05-18 | [Architectural Audit] | Insight: Orphaned Labels in Forms | Protocol: Deterministic ID Linkage
-- **Pattern:** `Input`, `Textarea`, and `Select` components inside DaisyUI wrappers were not connecting `<label>` to their corresponding form controls via `htmlFor`/`id`.
-- **Protocol:** Implemented `useId()` from React inside these form components to generate guaranteed deterministic ID mappings. Added `aria-invalid` to actively project error states to screen readers.
+Refactored `Pagination.tsx`, `Loading.tsx`, `FormValidation.tsx`, `Tabs.tsx`, `Toast.tsx`, and `Modal.tsx` to fix the above.
 
-## 2024-05-18 | [Architectural Audit] | Insight: Silent Asynchronous Transitions | Protocol: ARIA State Declarations
-- **Pattern:** Buttons and loading spinners provided visual feedback for network operations, but screen readers were completely unaware.
-- **Protocol:** Injected `role="status"` and `aria-label="Loading"` into loading spinners. Added `aria-disabled` and `aria-busy` to buttons while loading, along with a visually-hidden `<span className="sr-only">Loading</span>` to explicitly describe state changes to assistive tech.
-## 2024-06-11 | [Architectural Audit] | Insight: Modal Component Accessibility | Protocol: Strict focus management and semantic roles
-
-## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Custom UI Components | Protocol: Introduce ARIA roles, robust focus management (focus-trap-react), and keyboard event handlers.
-
-## 2024-06-11 | [Architectural Audit] | Insight: Type safety and `any` types | Protocol: Refactor `FormValidation.tsx` and `Pagination.tsx` to use robust generics instead of `any`, ensuring strict TypeScript integrity.
-
-## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Loading States | Protocol: Add `aria-live="polite"` and `aria-busy="true"` to Loading components (LoadingSpinner, LoadingDots, etc) and `aria-disabled="true"` to LoadingButton.

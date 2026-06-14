@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useId } from 'react';
+import FocusTrap from 'focus-trap-react';
 
 /**
  * Modal component using DaisyUI classes
@@ -80,27 +81,31 @@ export const Modal = ({
   };
 
   return (
-    <dialog
-      ref={dialogRef}
-      className={`modal ${isOpen ? 'modal-open' : ''}`}
-      onClick={handleBackdropClick}
-      aria-labelledby={title ? titleId : undefined}
-    >
-      <div 
-        className={`modal-box ${sizeClasses[size]} ${className}`}
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+    <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => dialogRef.current as HTMLElement }}>
+      <dialog
+        ref={dialogRef}
+        className={`modal ${isOpen ? 'modal-open' : ''}`}
+        onClick={handleBackdropClick}
+        aria-labelledby={title ? titleId : undefined}
+        aria-modal="true"
+        tabIndex={-1}
       >
-        {title && (
-          <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
-        )}
-        <div className="modal-content">
-          {children}
+        <div
+          className={`modal-box ${sizeClasses[size]} ${className}`}
+          onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+        >
+          {title && (
+            <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
+          )}
+          <div className="modal-content">
+            {children}
+          </div>
         </div>
-      </div>
-      <form method="dialog" className="modal-backdrop">
-        <button onClick={onClose}>close</button>
-      </form>
-    </dialog>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={onClose} tabIndex={isOpen ? 0 : -1}>close</button>
+        </form>
+      </dialog>
+    </FocusTrap>
   );
 };
 
@@ -131,10 +136,10 @@ export const ConfirmModal = ({
         {children}
       </div>
       <div className="modal-action flex gap-2">
-        <button className="btn btn-outline" onClick={onClose}>
+        <button className="btn btn-outline" onClick={onClose} tabIndex={isOpen ? 0 : -1}>
           {cancelText}
         </button>
-        <button className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
+        <button className={`btn btn-${confirmVariant}`} onClick={onConfirm} tabIndex={isOpen ? 0 : -1}>
           {confirmText}
         </button>
       </div>

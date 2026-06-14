@@ -39,6 +39,7 @@ export const LoadingSpinner = ({
       className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
     />
   );
 };
@@ -74,6 +75,7 @@ export const LoadingDots = ({
       className={`loading loading-dots ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
     />
   );
 };
@@ -109,6 +111,7 @@ export const LoadingRing = ({
       className={`loading loading-ring ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
     />
   );
 };
@@ -144,6 +147,7 @@ export const LoadingBall = ({
       className={`loading loading-ball ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
     />
   );
 };
@@ -179,6 +183,7 @@ export const LoadingBars = ({
       className={`loading loading-bars ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
     />
   );
 };
@@ -214,6 +219,7 @@ export const LoadingInfinity = ({
       className={`loading loading-infinity ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
     />
   );
 };
@@ -238,6 +244,8 @@ export const Skeleton = ({
     <div
       className={`skeleton ${rounded ? 'rounded' : ''} ${className}`}
       style={{ width, height }}
+      aria-busy="true"
+      aria-live="polite"
     />
   );
 };
@@ -255,7 +263,7 @@ export const SkeletonText = ({
   className?: string;
 }) => {
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className={`space-y-2 ${className}`} aria-busy="true" aria-live="polite">
       {Array.from({ length: lines }).map((_, index) => (
         <Skeleton key={index} width={width} height="16px" />
       ))}
@@ -272,7 +280,7 @@ export const SkeletonCard = ({
   className?: string;
 }) => {
   return (
-    <div className={`card bg-base-200 ${className}`}>
+    <div className={`card bg-base-200 ${className}`} aria-busy="true" aria-live="polite">
       <div className="card-body">
         <Skeleton width="60%" height="24px" className="mb-4" />
         <SkeletonText lines={3} className="mb-4" />
@@ -298,7 +306,7 @@ export const SkeletonTable = ({
   className?: string;
 }) => {
   return (
-    <div className={`overflow-x-auto ${className}`}>
+    <div className={`overflow-x-auto ${className}`} aria-busy="true" aria-live="polite">
       <table className="table w-full">
         <thead>
           <tr>
@@ -346,7 +354,7 @@ export const LoadingOverlay = ({
       aria-modal="true"
       aria-label={message}
     >
-      <div className="bg-base-100 p-6 rounded-lg shadow-xl text-center">
+      <div className="bg-base-100 p-6 rounded-lg shadow-xl text-center" aria-live="assertive">
         <div className="flex justify-center mb-4">
           <LoadingSpinner size="lg" color="primary" />
         </div>
@@ -375,7 +383,7 @@ export const LoadingButton = ({
         <>
           <LoadingSpinner size="sm" className="mr-2" />
           <span className="sr-only">Loading</span>
-          {children}
+          <span aria-hidden="true">{children}</span>
         </>
       ) : (
         children
@@ -384,8 +392,7 @@ export const LoadingButton = ({
   );
 };
 
-// Export individual components as well as the default object
-export default {
+const DaisyUILoading = {
   LoadingSpinner,
   LoadingDots,
   LoadingRing,
@@ -399,3 +406,5 @@ export default {
   LoadingOverlay,
   LoadingButton,
 };
+
+export default DaisyUILoading;
