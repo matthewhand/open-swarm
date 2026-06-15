@@ -46,6 +46,7 @@ export {
   SimpleTabs,
   Accordion,
   AccordionItem,
+  AccordionItemData,
   Stepper,
   VerticalTabs,
   ContentTabs

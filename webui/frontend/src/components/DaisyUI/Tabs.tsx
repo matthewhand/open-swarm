@@ -54,6 +54,36 @@ export const Tabs = ({
       newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
     }
 
+    if (e.key === 'Home') {
+      newIndex = 0;
+      while (newIndex < tabs.length && tabs[newIndex].disabled) {
+        newIndex++;
+      }
+      if (newIndex < tabs.length && !tabs[newIndex].disabled) {
+        e.preventDefault();
+        onChange(tabs[newIndex].key);
+        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
+        if (tabElement) {
+          tabElement.focus();
+        }
+        return;
+      }
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1;
+      while (newIndex >= 0 && tabs[newIndex].disabled) {
+        newIndex--;
+      }
+      if (newIndex >= 0 && !tabs[newIndex].disabled) {
+        e.preventDefault();
+        onChange(tabs[newIndex].key);
+        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
+        if (tabElement) {
+          tabElement.focus();
+        }
+        return;
+      }
+    }
+
     if (newIndex !== index) {
       e.preventDefault();
       let count = 0;
@@ -165,7 +195,7 @@ export const SimpleTabs = ({
  * Accordion component
  * Docs: https://daisyui.com/components/accordion/
  */
-export interface AccordionItem {
+export interface AccordionItemData {
   key: string;
   title: ReactNode;
   content: ReactNode;
@@ -174,7 +204,7 @@ export interface AccordionItem {
 }
 
 export interface AccordionProps {
-  items: AccordionItem[];
+  items: AccordionItemData[];
   allowMultiple?: boolean;
   className?: string;
 }
@@ -372,7 +402,7 @@ export const ContentTabs = ({
   );
 };
 
-export default {
+const TabsModule = {
   Tabs,
   TabPanel,
   SimpleTabs,
@@ -382,3 +412,5 @@ export default {
   VerticalTabs,
   ContentTabs,
 };
+
+export default TabsModule;

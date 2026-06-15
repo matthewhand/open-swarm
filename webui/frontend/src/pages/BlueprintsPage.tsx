@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Alert, SkeletonCard, ToastProvider, useToast } from '../components/DaisyUI';
+import { Button, Card, Alert, SkeletonCard, ToastProvider, useToast, LoadingSpinner } from '../components/DaisyUI';
 import { Book, Search, AlertCircle, Server, BookmarkPlus, BookmarkCheck } from 'lucide-react';
 import {
   addToLibrary,
@@ -126,12 +126,17 @@ const BlueprintsPageContent = () => {
                 className="toggle toggle-primary"
                 checked={libraryOnly}
                 onChange={(e) => setLibraryOnly(e.target.checked)}
-                disabled={libraryQuery.isError}
+                disabled={libraryQuery.isPending || libraryQuery.isError}
                 aria-label="Show only blueprints in my library"
               />
             </label>
           </div>
         </div>
+        {libraryQuery.isPending && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-base-content/70">
+            <LoadingSpinner size="xs" /> Loading library state...
+          </div>
+        )}
         {libraryQuery.isError && (
           <p className="text-xs text-warning mt-2">
             Could not load your library state; add/remove is unavailable.
@@ -226,7 +231,7 @@ const BlueprintsPageContent = () => {
                           color="success"
                           size="sm"
                           loading={isMutating(blueprint.id)}
-                          disabled={isMutating(blueprint.id)}
+                          disabled={isMutating(blueprint.id) || libraryQuery.isPending}
                           onClick={() => removeMutation.mutate(blueprint.id)}
                           title="In your library — click to remove"
                           aria-label={`Remove ${blueprint.name} from library`}
@@ -239,7 +244,7 @@ const BlueprintsPageContent = () => {
                           variant="outline"
                           size="sm"
                           loading={isMutating(blueprint.id)}
-                          disabled={isMutating(blueprint.id) || libraryQuery.isError}
+                          disabled={isMutating(blueprint.id) || libraryQuery.isPending || libraryQuery.isError}
                           onClick={() => addMutation.mutate(blueprint.id)}
                           aria-label={`Add ${blueprint.name} to library`}
                         >
