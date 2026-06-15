@@ -46,11 +46,12 @@ export {
   SimpleTabs,
   Accordion,
   AccordionItem,
-  AccordionItemData,
   Stepper,
   VerticalTabs,
   ContentTabs
 } from './Tabs';
+
+export type { AccordionItemData } from './Tabs';
 
 // Pagination Components
 export { 

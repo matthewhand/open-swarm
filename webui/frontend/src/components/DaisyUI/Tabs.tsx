@@ -413,4 +413,6 @@ const TabsModule = {
   ContentTabs,
 };
 
+export type { AccordionItemData };
+
 export default TabsModule;
