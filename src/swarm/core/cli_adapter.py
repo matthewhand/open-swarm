@@ -292,76 +292,17 @@ class CliAdapter:
         """Launch the CLI, await its answer, and parse the result.
 
         Never raises for runtime failures — a non-zero exit, timeout, or missing
-        executable comes back as a :class:`CliResult` with ``ok=False``.
+        executable comes back as a :class:`CliResult` with ``ok=False``. The
+        one-shot and streaming paths share a single launch/timeout/parse
+        implementation: this drains :meth:`stream_run` and returns its terminal
+        result (``stream_run`` always emits exactly one ``final`` chunk).
         """
-        cfg = self.config
-        effective_workdir = (
-            _apply_tokens(cfg.cwd, prompt, workdir or os.getcwd())
-            if cfg.cwd
-            else (workdir or os.getcwd())
-        )
-        argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
-
-        env = self._build_env(prompt, effective_workdir, extra_env)
-
-        if not self.is_available():
-            return CliResult(
-                name=cfg.name,
-                ok=False,
-                text="",
-                error=f"executable not found on PATH: {cfg.cmd[0]!r}",
-            )
-
-        start = time.monotonic()
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *argv,
-                stdin=asyncio.subprocess.PIPE if stdin_bytes is not None else asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=effective_workdir,
-                env=env,
-                start_new_session=True,  # own process group, so we can kill the tree
-            )
-        except (OSError, ValueError) as exc:
-            return CliResult(
-                name=cfg.name, ok=False, text="",
-                error=f"failed to launch: {exc}", duration=time.monotonic() - start,
-            )
-
-        timed_out = False
-        try:
-            stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(input=stdin_bytes), timeout=cfg.timeout
-            )
-        except asyncio.TimeoutError:
-            timed_out = True
-            await self._terminate(proc)
-            stdout_b, stderr_b = b"", b""
-        duration = time.monotonic() - start
-
-        stdout = (stdout_b or b"").decode("utf-8", errors="replace")
-        stderr = (stderr_b or b"").decode("utf-8", errors="replace")
-
-        if timed_out:
-            return CliResult(
-                name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                duration=duration, timed_out=True, stderr=stderr.strip(),
-                error=f"timed out after {cfg.timeout}s",
-            )
-
-        if proc.returncode != 0:
-            return CliResult(
-                name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                duration=duration, stderr=stderr.strip(),
-                error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
-            )
-
-        text, parse_error = self._parse_output(stdout)
-        return CliResult(
-            name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
-            parse_error=parse_error, stderr=stderr.strip(),
-        )
+        result: CliResult | None = None
+        async for chunk in self.stream_run(prompt, workdir=workdir, extra_env=extra_env):
+            if chunk.final:
+                result = chunk.result
+        assert result is not None  # stream_run guarantees a terminal chunk
+        return result
 
     async def stream_run(
         self,
