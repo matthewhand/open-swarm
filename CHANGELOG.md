@@ -4,7 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-(nothing yet)
+### Added — CLI Agent Fusion (v0.4.0 line, in progress)
+
+Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
+`opencode`, …) into one-shot, OpenAI-API-addressable subagents — single
+(`cli_agent`) or a parallel panel a judge synthesizes (`cli_fusion`). See
+[docs/CLI_FUSION.md](docs/CLI_FUSION.md).
+
+- `CliAdapter` one-shot layer + `cli_agent`/`cli_fusion` blueprints (panel → judge → synthesize, bounded master plan) (#116, #117)
+- Autodiscovery: `swarm-cli cli-agents` reports install status; `--check-auth` probes each CLI's `auth_check`
+- Full-capability (auto-approve) example adapters, replacing the read-only defaults
+- Per-panelist workdir isolation (`cli_fusion.isolate_workdir` / per-request `isolate`): each write-capable panelist gets a throwaway `git worktree` (or temp dir) so parallel fan-out can't corrupt the source tree
+- Built-in adapter catalog + `swarm-cli cli-agents --suggest`: paste-ready config for supported CLIs installed but not yet configured
+- Non-interactive smoke probe + `swarm-cli cli-agents --smoke`: catches a misconfigured `cmd` that hangs instead of returning (ok/hang/error/not_installed)
+- End-to-end API coverage: real panel→synthesize and `params`-driven selection over `/v1/chat/completions`
 
 ## [0.3.3] - 2026-06-12
 
