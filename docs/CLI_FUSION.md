@@ -52,8 +52,17 @@ See which of your configured CLIs are actually installed on the host:
 swarm-cli cli-agents               # install status only (fast)
 swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
 swarm-cli cli-agents --suggest     # propose config for installed-but-unconfigured CLIs
+swarm-cli cli-agents --smoke       # run one trivial one-shot per CLI to confirm it returns
 swarm-cli cli-agents --config ./swarm_config.json
 ```
+
+`--smoke` is the counterpart to `--check-auth`: auth tells you the CLI is logged
+in; smoke tells you its configured `cmd` actually **returns** in non-interactive
+mode instead of hanging on a prompt. Each probe runs one trivial one-shot
+(`status` of `ok` / `hang` / `error` / `not_installed`) — a `hang` almost always
+means a missing or wrong non-interactive/auto-approve flag. Unlike auth, the
+smoke probe invokes the model once per CLI, so it costs a little quota; it's
+opt-in for that reason.
 
 `--suggest` checks a built-in catalog of known-good adapter configs against your
 host and prints a ready-to-paste `cli_agents` block for every supported CLI

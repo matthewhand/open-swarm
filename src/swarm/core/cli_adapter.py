@@ -47,6 +47,18 @@ AUTH_UNAUTHENTICATED = "unauthenticated"
 AUTH_UNKNOWN = "unknown"  # no auth_check configured, or the probe was inconclusive
 AUTH_NOT_INSTALLED = "not_installed"
 
+# Smoke-probe states: does the configured cmd actually *return* in print mode?
+SMOKE_OK = "ok"                          # produced output and exited 0 in time
+SMOKE_HANG = "hang"                      # timed out — almost always a wrong/missing
+                                         # non-interactive flag (the CLI waited on input)
+SMOKE_ERROR = "error"                    # ran but exited non-zero or produced nothing
+SMOKE_NOT_INSTALLED = "not_installed"
+
+# A trivial prompt for the smoke probe; cheap, but DOES invoke the model once.
+DEFAULT_SMOKE_PROMPT = "Reply with the single word: OK"
+# Smoke probes should be quick; cap well under a normal run.
+SMOKE_TIMEOUT = 60.0
+
 
 class CliAdapterError(Exception):
     """Raised for configuration/lookup problems (not runtime CLI failures)."""
@@ -151,6 +163,28 @@ class CliResult:
             "parse_error": self.parse_error,
             "error": self.error,
             "stderr": self.stderr,
+        }
+
+
+@dataclass
+class SmokeResult:
+    """Outcome of a non-interactive smoke probe (see :meth:`CliAdapter.smoke_check`)."""
+
+    name: str
+    status: str
+    detail: str = ""
+    duration: float = 0.0
+
+    @property
+    def ok(self) -> bool:
+        return self.status == SMOKE_OK
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "status": self.status,
+            "detail": self.detail,
+            "duration": round(self.duration, 3),
         }
 
 
@@ -379,6 +413,34 @@ class CliAdapter:
             return AUTH_UNKNOWN
         return AUTH_AUTHENTICATED if proc.returncode == 0 else AUTH_UNAUTHENTICATED
 
+    async def smoke_check(
+        self, *, prompt: str = DEFAULT_SMOKE_PROMPT, timeout: float | None = None
+    ) -> SmokeResult:
+        """Run one trivial one-shot to confirm the cmd *returns* in print mode.
+
+        Unlike :meth:`check_auth` (a cheap exit-code probe), this actually
+        invokes the CLI — and therefore the model — once, so it consumes a small
+        amount of quota. It exists to catch the most common misconfiguration: a
+        missing/wrong non-interactive flag, which makes the CLI block on input
+        and hang until the timeout. Returns a :class:`SmokeResult`; never raises.
+        """
+        if not self.is_available():
+            return SmokeResult(self.name, SMOKE_NOT_INSTALLED)
+        t = timeout if timeout is not None else min(self.config.timeout, SMOKE_TIMEOUT)
+        probe = CliAdapter(replace(self.config, timeout=t))
+        res = await probe.run(prompt)
+        if res.timed_out:
+            return SmokeResult(
+                self.name, SMOKE_HANG,
+                "no output before timeout — check the non-interactive flag",
+                res.duration,
+            )
+        if not res.ok:
+            return SmokeResult(self.name, SMOKE_ERROR, (res.error or "")[:200], res.duration)
+        if not (res.text or "").strip():
+            return SmokeResult(self.name, SMOKE_ERROR, "exited 0 but produced no output", res.duration)
+        return SmokeResult(self.name, SMOKE_OK, "", res.duration)
+
     @staticmethod
     async def _terminate(proc: asyncio.subprocess.Process) -> None:
         """Kill a timed-out process group: SIGTERM, grace, then SIGKILL."""
@@ -483,6 +545,20 @@ class CliAdapterRegistry:
             return row
 
         return list(await asyncio.gather(*(_fill(r) for r in rows)))
+
+    async def smoke_check_all(
+        self, *, names: list[str] | None = None, timeout: float | None = None
+    ) -> list[SmokeResult]:
+        """Smoke-probe adapters concurrently (all configured, or a subset).
+
+        Each probe runs one trivial one-shot, so this consumes a little quota per
+        installed adapter — it is opt-in, not part of plain :meth:`discover`.
+        """
+        target = names if names is not None else self.names()
+        adapters = [self._adapters[n] for n in target if n in self._adapters]
+        return list(
+            await asyncio.gather(*(a.smoke_check(timeout=timeout) for a in adapters))
+        )
 
     def resolve_panel(self, names: list[str]) -> list[CliAdapter]:
         """Resolve a list of adapter names to adapters (raises on unknown)."""

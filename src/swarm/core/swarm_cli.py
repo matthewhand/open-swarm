@@ -276,6 +276,7 @@ def cli_agents(
     config_path: str = typer.Option(None, "--config", help="Path to swarm_config.json (defaults to the usual search)."),
     check_auth: bool = typer.Option(False, "--check-auth", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
     suggest: bool = typer.Option(False, "--suggest", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
+    smoke: bool = typer.Option(False, "--smoke", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
 ):
     """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
     import asyncio
@@ -304,6 +305,18 @@ def cli_agents(
     if rows:
         installed = sum(1 for d in rows if d.installed)
         typer.echo(f"\n{installed}/{len(rows)} configured CLI agents installed on this host.")
+
+    if smoke:
+        installed = [d.name for d in rows if d.installed]
+        typer.echo("")
+        if not installed:
+            typer.echo("No installed CLI agents to smoke-test.")
+        else:
+            typer.echo(f"Smoke-testing {len(installed)} installed CLI(s) (one trivial one-shot each)…")
+            results = asyncio.run(registry.smoke_check_all(names=installed))
+            typer.echo(f"\n{'AGENT':16} {'SMOKE':6} {'TIME':>7}  DETAIL")
+            for s in results:
+                typer.echo(f"{s.name:16} {s.status:6} {s.duration:6.1f}s  {s.detail}")
 
     if suggest:
         suggestions = cli_catalog.suggest_unconfigured(registry.names())

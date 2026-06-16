@@ -14,6 +14,10 @@ import time
 import pytest
 
 from swarm.core.cli_adapter import (
+    SMOKE_ERROR,
+    SMOKE_HANG,
+    SMOKE_NOT_INSTALLED,
+    SMOKE_OK,
     CliAdapter,
     CliAdapterError,
     CliAdapterRegistry,
@@ -322,3 +326,56 @@ def test_with_overrides_is_non_mutating():
     reg2 = reg.with_overrides({"echo": {"timeout": 99}})
     assert reg.get("echo").config.timeout == 5
     assert reg2.get("echo").config.timeout == 99
+
+
+# --------------------------------------------------------------------------- #
+# Non-interactive smoke probe
+# --------------------------------------------------------------------------- #
+
+async def test_smoke_ok():
+    adapter = CliAdapter.from_config("echo", _echo_cfg())
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_OK
+    assert res.ok is True
+
+
+async def test_smoke_error_on_nonzero_exit():
+    adapter = CliAdapter.from_config(
+        "boom", {"cmd": [PY, "-c", "import sys; sys.exit(2)", "{prompt}"]}
+    )
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_ERROR
+    assert res.ok is False
+
+
+async def test_smoke_error_on_empty_output():
+    # Exits 0 but prints nothing -> not a usable answer.
+    adapter = CliAdapter.from_config("quiet", {"cmd": [PY, "-c", "pass", "{prompt}"]})
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_ERROR
+    assert "no output" in res.detail
+
+
+async def test_smoke_hang_times_out():
+    # A CLI that never returns (e.g. wrong non-interactive flag -> waits on input).
+    adapter = CliAdapter.from_config(
+        "sleeper", {"cmd": [PY, "-c", "import time; time.sleep(30)", "{prompt}"]}
+    )
+    res = await adapter.smoke_check(timeout=0.5)
+    assert res.status == SMOKE_HANG
+    assert "non-interactive flag" in res.detail
+
+
+async def test_smoke_not_installed():
+    adapter = CliAdapter.from_config("ghost", {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]})
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_NOT_INSTALLED
+
+
+async def test_smoke_check_all_runs_subset():
+    reg = CliAdapterRegistry.from_config(
+        {"cli_agents": {"a": _echo_cfg(), "b": _echo_cfg(), "c": _echo_cfg()}}
+    )
+    results = {r.name: r for r in await reg.smoke_check_all(names=["a", "c"])}
+    assert set(results) == {"a", "c"}
+    assert all(r.status == SMOKE_OK for r in results.values())
