@@ -245,6 +245,27 @@ def test_registry_resolve_panel():
     assert [a.name for a in panel] == ["a", "b"]
 
 
+def test_discover_reports_install_status():
+    reg = CliAdapterRegistry.from_config(
+        {
+            "cli_agents": {
+                "real": {**_echo_cfg(), "mode": "readonly"},
+                "ghost": {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]},
+            }
+        }
+    )
+    rows = {d.name: d for d in reg.discover()}
+    assert rows["real"].installed is True
+    assert rows["real"].executable is not None
+    assert rows["real"].mode == "readonly"
+    assert rows["ghost"].installed is False
+    assert rows["ghost"].executable is None
+
+
+def test_discover_empty_registry():
+    assert CliAdapterRegistry.from_config({}).discover() == []
+
+
 def test_with_overrides_is_non_mutating():
     reg = CliAdapterRegistry.from_config({"cli_agents": {"echo": _echo_cfg(timeout=5)}})
     reg2 = reg.with_overrides({"echo": {"timeout": 99}})

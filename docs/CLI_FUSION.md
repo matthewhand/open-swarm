@@ -44,6 +44,23 @@ curl -sf http://localhost:8000/v1/chat/completions \
 `params` is the standard Open Swarm per-request field; OpenAI SDKs send it via
 `extra_body={"params": {...}}`.
 
+### Autodiscovery
+
+See which of your configured CLIs are actually installed on the host:
+
+```bash
+swarm-cli cli-agents          # uses the usual config search
+swarm-cli cli-agents --config ./swarm_config.json
+```
+
+```
+AGENT            STATUS     MODE       EXECUTABLE
+claude           installed  readonly   /home/you/.local/bin/claude
+codex            missing    readonly   -
+gemini           installed  readonly   /home/you/.nvm/.../gemini
+3/4 configured CLI agents installed on this host.
+```
+
 ---
 
 ## Config: `cli_agents`
