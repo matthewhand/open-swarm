@@ -72,6 +72,7 @@ The `model` field selects which blueprint handles the request. Streaming is supp
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
 * **Blueprints** — `BlueprintBase` subclasses defining a team: its agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
 * **MCP servers** — external tool providers (filesystem, search, databases, …) declared **in config, not code**; agents get their tools at runtime via the Model Context Protocol.
+* **CLI agents & fusion** — wrap your installed agentic CLIs (`claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API. `model: "cli_agent"` runs one; `model: "cli_fusion"` fans a prompt to a panel of them in parallel, judges and synthesizes the answers, and can iterate a bounded master plan. OpenRouter-Fusion-style, with your local toolbox. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md).
 * **Configuration** — one JSON file (`~/.config/swarm/swarm_config.json`) holding named LLM profiles and MCP server definitions, with `${ENV_VAR}` placeholders so secrets stay in the environment / `.env`.
 
 ### Example `swarm_config.json`
@@ -176,6 +177,7 @@ Detailed nested progress lives in [ROADMAP.md](./ROADMAP.md); per-feature eviden
 - [ ] **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly and [docs/mcp_server_mode.md](./docs/mcp_server_mode.md) documents real adoption options
 - [ ] **Memory** — mem0 is wired into the agent loop (opt-in) and documented in [CONFIGURATION.md](./CONFIGURATION.md), but not yet validated against a live mem0 end-to-end; letta/langmem are placeholders
 - [ ] **Deprecation-shim sunset** — 7 import shims from the consolidation get removed in the release after v0.3.x
+- [ ] **CLI fusion follow-ups** — the `cli_agent`/`cli_fusion` blueprints work end-to-end ([docs/CLI_FUSION.md](./docs/CLI_FUSION.md)); next: extract the panel→judge→synthesize loop into a reusable `swarm.core.cli_fusion` service for the websocket/CLI front-ends, and add opt-in git-worktree isolation for write-mode panels
 
 ## Acknowledgements & Attribution
 
