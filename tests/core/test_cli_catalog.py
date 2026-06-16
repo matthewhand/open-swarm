@@ -49,6 +49,39 @@ def test_opencode_default_pins_a_model_gotcha():
     assert "--model" in cmd and cmd[cmd.index("--model") + 1]
 
 
+def test_build_starter_config_wires_every_mode():
+    cfg = cli_catalog.build_starter_config(["claude", "gemini"])
+    assert set(cfg["cli_agents"]) == {"claude", "gemini"}
+    assert cfg["llm"]["default"]["provider"] == "openai"  # passes config validation
+    # claude preferred as judge/router/reducer/planner
+    assert cfg["cli_fusion"]["presets"]["all"]["judge"] == "claude"
+    assert cfg["cli_fusion"]["presets"]["all"]["panel"] == ["claude", "gemini"]
+    assert cfg["cli_orchestrator"]["router"] == "claude"
+    assert cfg["cli_map"]["planner"] == "claude"
+    assert cfg["cli_map"]["workers"] == ["claude", "gemini"]
+
+
+def test_build_starter_config_prefers_first_when_no_claude():
+    cfg = cli_catalog.build_starter_config(["gemini", "opencode"])
+    assert cfg["cli_fusion"]["default_cli"] == "gemini"  # sorted-first fallback
+
+
+def test_build_starter_config_empty_host_still_valid():
+    cfg = cli_catalog.build_starter_config([])
+    assert cfg["cli_agents"] == {}
+    assert "llm" in cfg
+    assert "cli_fusion" not in cfg  # nothing to wire
+
+
+def test_build_starter_config_round_trips_through_registry():
+    # Whatever it generates must be loadable by the adapter registry.
+    from swarm.core.cli_adapter import CliAdapterRegistry
+
+    cfg = cli_catalog.build_starter_config(["claude", "codex", "opencode"])
+    reg = CliAdapterRegistry.from_config(cfg)
+    assert set(reg.names()) == {"claude", "codex", "opencode"}
+
+
 def test_suggest_skips_already_configured():
     s = cli_catalog.suggest_unconfigured(["claude", "gemini"], installed_only=False)
     assert "claude" not in s and "gemini" not in s

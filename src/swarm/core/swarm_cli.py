@@ -278,6 +278,8 @@ def cli_agents(
     suggest: bool = typer.Option(False, "--suggest", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
     smoke: bool = typer.Option(False, "--smoke", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
     output_json: bool = typer.Option(False, "--json", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
+    init: bool = typer.Option(False, "--init", help="Print a complete, ready-to-run swarm_config wiring every mode (cli_fusion/cli_orchestrator/cli_map) over the CLIs installed on this host."),
+    write: bool = typer.Option(False, "--write", help="With --init, write the config to your swarm config path (backs up any existing file)."),
 ):
     """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
     import asyncio
@@ -286,6 +288,26 @@ def cli_agents(
     from swarm.core.cli_adapter import CliAdapterRegistry
     from swarm.core import cli_catalog
     from swarm.core.config_loader import find_config_file, load_config
+
+    if init:
+        installed = cli_catalog.installed_catalog_clis()
+        blob = json.dumps(cli_catalog.build_starter_config(installed), indent=2)
+        if write:
+            from swarm.core import paths
+            dest = Path(config_path) if config_path else (paths.get_user_config_dir_for_swarm() / "swarm_config.json")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                backup = dest.with_suffix(dest.suffix + ".bak")
+                dest.replace(backup)
+                typer.echo(f"Backed up existing config to {backup}")
+            dest.write_text(blob)
+            typer.echo(f"Wrote starter config for {len(installed)} CLI(s) [{', '.join(installed) or 'none'}] to {dest}")
+            typer.echo("Next: export OPENAI_API_KEY, then `swarm-cli cli-agents` to verify.")
+        else:
+            if not installed:
+                typer.echo("# No catalog CLIs (claude/gemini/codex/opencode) found on this host.")
+            typer.echo(blob)
+        raise typer.Exit(code=0)
 
     cfg_file = find_config_file(specific_path=config_path)
     config = load_config(cfg_file) if cfg_file else {}

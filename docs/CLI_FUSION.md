@@ -19,7 +19,24 @@ them with no changes — just point at the Open Swarm API and pick the model nam
 
 ---
 
-## Quick start
+## Quick start (60 seconds)
+
+```bash
+pip install open-swarm
+
+# Generate a complete config wiring every mode over the CLIs you already have
+# installed (claude/gemini/codex/opencode), gotchas baked in:
+swarm-cli cli-agents --init --write
+
+export OPENAI_API_KEY=sk-...          # for the llm block
+swarm-cli cli-agents                  # confirm what's installed
+swarm-cli cli-agents --smoke          # confirm they answer non-interactively
+```
+
+`--init` autodiscovers your installed CLIs and writes a ready-to-run
+`swarm_config.json` with `cli_agents` + `cli_fusion` + `cli_orchestrator` +
+`cli_map` all pointed at them. Then start the API (`swarm-api` / `docker compose
+up`) and call any mode by `model` name. To wire it by hand instead:
 
 1. Add a `cli_agents` block (and optionally `cli_fusion`) to your
    `~/.config/swarm/swarm_config.json` — see [the example](#full-example) below.

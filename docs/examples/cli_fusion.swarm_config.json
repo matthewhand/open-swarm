@@ -51,5 +51,18 @@
       "general-high":   { "panel": ["claude", "gemini", "codex"], "judge": "claude" },
       "general-budget": { "panel": ["gemini"],                    "judge": "gemini" }
     }
+  },
+
+  "cli_orchestrator": {
+    "router": "claude",
+    "panel": ["claude", "gemini", "codex"],
+    "judge": "claude"
+  },
+
+  "cli_map": {
+    "planner": "claude",
+    "workers": ["claude", "gemini", "codex"],
+    "reducer": "claude",
+    "max_items": 6
   }
 }

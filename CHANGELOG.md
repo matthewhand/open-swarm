@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.1] - 2026-06-16
+
+### Added
+- **One-command setup:** `swarm-cli cli-agents --init [--write]` autodiscovers the CLIs installed on the host and emits a complete, ready-to-run `swarm_config.json` wiring every mode (`cli_fusion` / `cli_orchestrator` / `cli_map`) over them, with per-CLI gotchas baked in. `--write` saves it (backing up any existing file).
+- Example config now includes `cli_orchestrator` and `cli_map` blocks; docs gain a 60-second quick start.
+
+### Fixed
+- Removed a dead `[tool.hatch.version]` block in `pyproject.toml` (ignored, since the version is static).
+
 ## [0.4.0] - 2026-06-16
 
 ### Added — CLI Agent Fusion
