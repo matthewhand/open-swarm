@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Eye, EyeOff, KeyRound, ServerCog, TerminalSquare } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, KeyRound, Plug, ServerCog, TerminalSquare } from 'lucide-react'
 import { Alert, Button, Card, Input, LoadingSpinner, useToast } from '../components/DaisyUI'
+import { ApiAccessPanel } from '../components/ApiAccessPanel'
 import { useAuth } from '../lib/AuthContext'
 import {
   fetchEnvironmentVariables,
+  fetchModels,
   fetchServerSettings,
   type ServerSettingsGroup,
 } from '../lib/api'
@@ -33,6 +35,9 @@ const SettingsPage = () => {
   const { token, setToken, clearAuthError } = useAuth()
   const [draft, setDraft] = useState('')
   const [showDraft, setShowDraft] = useState(false)
+  const modelsQuery = useQuery({ queryKey: ['models'], queryFn: fetchModels })
+  const modelIds = (modelsQuery.data?.data ?? []).map((m) => m.id)
+  const apiBaseUrl = `${window.location.origin}/v1`
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -62,6 +67,15 @@ const SettingsPage = () => {
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-6">
+        {/* API access — connect any OpenAI client */}
+        <Card bordered>
+          <h2 className="card-title flex items-center gap-2">
+            <Plug className="h-5 w-5" />
+            API Access
+          </h2>
+          <ApiAccessPanel baseUrl={apiBaseUrl} token={token} models={modelIds} />
+        </Card>
+
         {/* API authentication */}
         <Card bordered>
           <h2 className="card-title flex items-center gap-2">

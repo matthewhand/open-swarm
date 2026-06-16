@@ -30,6 +30,7 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Cleanup: removed dead `progress_text()` and `CliResult.as_dict()`
 - Agent-tool layer (`swarm.core.cli_tools`): `cli_persona(adapter)` and `consensus_fn(panel, judge)` callables, `as_function_tool()` to hand either to an openai-agents `Agent` — so a real agent can call `consensus()` granularly mid-reasoning
 - New `cli_map` blueprint — decompose → distribute → reduce: a planner CLI splits one task into subtasks, workers run them in parallel (round-robin), a reducer combines (complements `cli_fusion`'s consensus)
+- Web UI **API Access** panel (Settings) — surfaces the live base URL, token, model list, and copy-paste snippets (curl / OpenAI SDK / Open WebUI) to plug any OpenAI client into the server
 - End-to-end API coverage: real panel→synthesize and `params`-driven selection over `/v1/chat/completions`
 
 ## [0.3.3] - 2026-06-12
