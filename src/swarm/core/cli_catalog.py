@@ -68,6 +68,49 @@ def catalog_names() -> list[str]:
     return sorted(CATALOG)
 
 
+def installed_catalog_clis() -> list[str]:
+    """Catalog CLIs whose executable resolves on this host (sorted)."""
+    return [n for n in catalog_names() if shutil.which(CATALOG[n]["cmd"][0])]
+
+
+def build_starter_config(installed: list[str] | None = None) -> dict[str, Any]:
+    """A complete, ready-to-run swarm_config for the installed catalog CLIs.
+
+    Wires every composition mode (cli_fusion / cli_orchestrator / cli_map) over
+    whatever catalog CLIs are present, preferring ``claude`` as the
+    judge/router/reducer/planner (it returns clean JSON) and falling back to the
+    first available. Includes a default ``llm`` block so the config passes
+    validation. When nothing is installed, returns just the llm + an empty
+    ``cli_agents`` block.
+    """
+    if installed is None:
+        installed = installed_catalog_clis()
+    agents = {n: catalog_entry(n) for n in installed if n in CATALOG}
+    names = sorted(agents)
+    cfg: dict[str, Any] = {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": "${OPENAI_API_KEY}",
+            }
+        },
+        "cli_agents": agents,
+    }
+    if names:
+        primary = "claude" if "claude" in names else names[0]
+        cfg["cli_fusion"] = {
+            "default_cli": primary,
+            "default_preset": "all",
+            "show_analysis": True,
+            "presets": {"all": {"panel": names, "judge": primary}},
+        }
+        cfg["cli_orchestrator"] = {"router": primary, "panel": names, "judge": primary}
+        cfg["cli_map"] = {"planner": primary, "workers": names, "reducer": primary}
+    return cfg
+
+
 def catalog_entry(name: str) -> dict[str, Any] | None:
     """A copy of the catalog config for ``name`` (None if unknown)."""
     entry = CATALOG.get(name)

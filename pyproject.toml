@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-swarm"
-version = "0.4.0"
+version = "0.4.1"
 description = "Open Swarm: Orchestrating AI Agent Swarms with Django"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -129,9 +129,6 @@ docs = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.hatch.version]
-path = "src/swarm/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/tests", "/README.md", "/LICENSE"]

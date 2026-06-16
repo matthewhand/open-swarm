@@ -71,6 +71,33 @@ def test_json_suggest_includes_suggestions(tmp_path, monkeypatch):
     assert set(payload["suggestions"]) == set(cli_catalog.catalog_names())
 
 
+def test_init_prints_complete_config(monkeypatch):
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["claude", "gemini"])
+    result = runner.invoke(app, ["cli-agents", "--init"])
+    assert result.exit_code == 0
+    cfg = json.loads(result.stdout)
+    assert set(cfg["cli_agents"]) == {"claude", "gemini"}
+    assert "cli_fusion" in cfg and "cli_orchestrator" in cfg and "cli_map" in cfg
+
+
+def test_init_write_creates_config_file(tmp_path, monkeypatch):
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["claude"])
+    dest = tmp_path / "swarm_config.json"
+    result = runner.invoke(app, ["cli-agents", "--init", "--write", "--config", str(dest)])
+    assert result.exit_code == 0
+    assert dest.exists()
+    cfg = json.loads(dest.read_text())
+    assert "claude" in cfg["cli_agents"]
+    # writing again backs up the existing file
+    result2 = runner.invoke(app, ["cli-agents", "--init", "--write", "--config", str(dest)])
+    assert result2.exit_code == 0
+    assert (tmp_path / "swarm_config.json.bak").exists()
+
+
 def test_table_output_without_json(tmp_path):
     cfg = _write_config(
         tmp_path, {"echo": {"cmd": [PY, "-c", "print(1)", "{prompt}"]}}
