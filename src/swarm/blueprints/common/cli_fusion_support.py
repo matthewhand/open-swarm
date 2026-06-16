@@ -21,6 +21,9 @@ PARAM_PRESET = "preset"      # fusion: named preset
 PARAM_JUDGE = "judge"        # fusion: judge adapter/profile
 PARAM_TIMEOUT = "timeout"    # override adapter timeout (seconds)
 PARAM_WORKDIR = "workdir"    # working directory for the CLI(s)
+PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
+PARAM_FALLBACK = "fallback"  # single-CLI: explicit ordered failover list
+PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:
@@ -110,6 +113,45 @@ def resolve_panel(
     return panel, judge
 
 
+def resolve_failover_chain(
+    config: dict[str, Any] | None,
+    params: dict[str, Any] | None,
+    registry: CliAdapterRegistry,
+) -> list[str]:
+    """Ordered adapter names the single-CLI blueprint should try, in order.
+
+    The primary is :func:`select_single_cli`. Then, unless failover is disabled:
+
+    * an explicit ``params['fallback']`` list is appended in order, **or**
+    * if no explicit list and ``params['failover']`` isn't ``False``, every other
+      *installed* adapter is appended (auto-failover) so a missing/broken primary
+      degrades to whatever the host actually has.
+
+    Names are deduped (order preserved) and filtered to configured adapters.
+    Returns ``[]`` when nothing is configured. Set ``failover: False`` for strict
+    single-CLI behaviour (never silently switch to a different model).
+    """
+    params = params or {}
+    primary = select_single_cli(config, params, registry)
+    if not primary:
+        return []
+    chain = [primary]
+    fallback = params.get(PARAM_FALLBACK)
+    if isinstance(fallback, list):
+        chain.extend(str(n) for n in fallback)
+    elif params.get(PARAM_FAILOVER, True):
+        chain.extend(n for n in registry.available() if n not in chain)
+
+    known = set(registry.names())
+    seen: set[str] = set()
+    out: list[str] = []
+    for n in chain:
+        if n in known and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
 def apply_overrides(
     registry: CliAdapterRegistry, params: dict[str, Any] | None
 ) -> CliAdapterRegistry:
@@ -145,13 +187,6 @@ def progress_chunk(content: str) -> dict:
     by inspecting ``chunk["type"] == PROGRESS_TYPE``.
     """
     return {"type": PROGRESS_TYPE, "content": content}
-
-
-def progress_text(chunk: dict) -> str | None:
-    """Return the text of a progress chunk, or None if it isn't one."""
-    if isinstance(chunk, dict) and chunk.get("type") == PROGRESS_TYPE:
-        return chunk.get("content")
-    return None
 
 
 def format_cli_error(adapter: CliAdapter, error: str) -> str:

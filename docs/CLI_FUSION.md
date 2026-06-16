@@ -49,15 +49,38 @@ curl -sf http://localhost:8000/v1/chat/completions \
 See which of your configured CLIs are actually installed on the host:
 
 ```bash
-swarm-cli cli-agents          # uses the usual config search
+swarm-cli cli-agents               # install status only (fast)
+swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
+swarm-cli cli-agents --suggest     # propose config for installed-but-unconfigured CLIs
+swarm-cli cli-agents --smoke       # run one trivial one-shot per CLI to confirm it returns
+swarm-cli cli-agents --json        # machine-readable output (for CI / scripts / Open WebUI)
 swarm-cli cli-agents --config ./swarm_config.json
 ```
 
+`--json` emits one JSON object on stdout (logs stay on stderr, so `| jq` is
+clean): `{"agents": [...]}`, plus `"smoke"` and `"suggestions"` keys when
+`--smoke` / `--suggest` are combined. Use it to wire discovery into automation.
+
+`--smoke` is the counterpart to `--check-auth`: auth tells you the CLI is logged
+in; smoke tells you its configured `cmd` actually **returns** in non-interactive
+mode instead of hanging on a prompt. Each probe runs one trivial one-shot
+(`status` of `ok` / `hang` / `error` / `not_installed`) — a `hang` almost always
+means a missing or wrong non-interactive/auto-approve flag. Unlike auth, the
+smoke probe invokes the model once per CLI, so it costs a little quota; it's
+opt-in for that reason.
+
+`--suggest` checks a built-in catalog of known-good adapter configs against your
+host and prints a ready-to-paste `cli_agents` block for every supported CLI
+(`claude`, `gemini`, `codex`, `opencode`) that is installed but not yet in your
+config — so getting started is "install the CLI, run `--suggest`, paste". The
+suggested flags track each CLI's non-interactive + auto-approve mode; verify them
+against the CLI's own `--help`, since flags drift by version.
+
 ```
 AGENT            STATUS     MODE       EXECUTABLE
-claude           installed  readonly   /home/you/.local/bin/claude
-codex            missing    readonly   -
-gemini           installed  readonly   /home/you/.nvm/.../gemini
+claude           installed  write      /home/you/.local/bin/claude
+codex            missing    write      -
+gemini           installed  write      /home/you/.nvm/.../gemini
 3/4 configured CLI agents installed on this host.
 ```
 
@@ -79,11 +102,30 @@ string.
 | `env_allowlist` | list[str] \| null | **null (default):** child inherits the full environment (convenient, but every panelist sees every API key). **Set it:** child gets only these vars plus essentials (`PATH`, `HOME`, …) — isolates each CLI's secrets. |
 | `timeout` | number | Seconds before the CLI (and its whole process group) is killed. Default 180. |
 | `mode` | str | Free-text label documenting safety posture (`"readonly"`, `"write"`). Advisory. |
+| `auth_check` | list[str] | Optional argv probe for `swarm-cli cli-agents --check-auth`. Exit 0 ⇒ authenticated. Should be cheap and not consume quota (capped at 30s). |
 
 > ⚠️ **Exact flags and JSON shapes vary by CLI version.** The snippets below are
 > starting points — run the CLI's `--help` and confirm its non-interactive flag,
-> its read-only/approval mode, and (if using `json:` parse) the actual key in its
-> JSON output. When in doubt, use `parse: "text"`.
+> its auto-approve flag, and (if using `json:` parse) the actual key in its JSON
+> output. When in doubt, use `parse: "text"`.
+
+### Non-interactive mode is the whole game
+
+The adapter runs each CLI with stdin closed and a timeout. The flag that makes or
+breaks a run is the **auto-approve** one: in non-interactive mode an agentic CLI
+will otherwise stop mid-task to ask "may I write this file / run this command?",
+and since there's no one to answer, it blocks until the timeout kills it. So to
+get a panelist that actually *does work*, pin down two flags from its `--help`:
+
+1. its **print/exec/run** flag (one-shot, non-interactive), and
+2. its **auto-approve / skip-permissions** flag (so it never waits on a prompt).
+
+| CLI | Print/exec | Auto-approve (full-capability) | Structured output → `parse` |
+|---|---|---|---|
+| `claude` | `-p` | `--dangerously-skip-permissions` | `--output-format json` → `json:.result` |
+| `gemini` | `-p` | `--yolo` | `-o json` → `json:.response` |
+| `codex` | `exec` | `--dangerously-bypass-approvals-and-sandbox` (or `--full-auto`) | text |
+| `opencode` | `run` | (none needed — `run` acts without an approval gate) | text |
 
 ### Example adapters
 
@@ -91,30 +133,48 @@ string.
 "cli_agents": {
   "claude": {
     "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
-            "--allowedTools", "Read,Grep,Glob"],
+            "--dangerously-skip-permissions"],
     "parse": "json:.result",
-    "mode": "readonly",
+    "mode": "write",
     "timeout": 240
   },
   "gemini": {
-    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--approval-mode", "plan"],
+    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
     "parse": "json:.response",
-    "mode": "readonly"
+    "mode": "write"
   },
   "codex": {
-    "cmd": ["codex", "exec", "{prompt}"],
-    "parse": "text"
+    "cmd": ["codex", "exec", "{prompt}", "--dangerously-bypass-approvals-and-sandbox"],
+    "parse": "text",
+    "mode": "write"
   },
   "opencode": {
-    "cmd": ["opencode", "run", "{prompt}"],
-    "parse": "text"
+    "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
+    "parse": "text",
+    "mode": "write"
   }
 }
 ```
 
-`--allowedTools Read,Grep,Glob` (claude) and `--approval-mode plan` (gemini) keep
-panelists **read-only** — strongly recommended when fanning out in parallel (see
-[Safety](#safety)).
+### Known per-CLI gotchas (baked into the defaults)
+
+These bite the moment you run a CLI non-interactively; the catalog and the
+examples above already include the fixes (verified live 2026-06-16):
+
+| CLI | Gotcha | Fix (already applied) |
+|---|---|---|
+| `gemini` | refuses to run in an "untrusted" directory | `--skip-trust` (or `GEMINI_CLI_TRUST_WORKSPACE=true`) |
+| `opencode` | built-in default model errors as "not supported" | explicit `--model` (e.g. `opencode/big-pickle`) — run `opencode models` to pick one available to your account |
+| `claude` | none for read/answer; writes need the auto-approve flag | `--dangerously-skip-permissions` (already in the write config) |
+
+The `--model` value for `opencode` is account/version-specific — it's the one
+place you'll likely need to adjust. Everything else runs as shipped.
+
+These panelists run at **full capability** — they can read, write, and run
+commands. The one real hazard of fanning several write-capable agents out in
+parallel is that they stomp each other's edits in a shared tree; `cli_fusion`
+solves that by giving each panelist its own working copy — see
+[Workdir isolation](#workdir-isolation).
 
 ---
 
@@ -127,6 +187,7 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
 | `default_preset` | str | Preset used by `cli_fusion` when the request doesn't specify a panel/preset. |
 | `max_rounds` | int | Master-plan rounds (default 1, hard-capped at 5). |
 | `max_concurrency` | int | Max CLI subprocesses launched at once per round (default 8). |
+| `isolate_workdir` | bool \| null | Give each panelist its own working copy so parallel writes don't collide. **null (default):** auto — isolate when the request's `workdir` is a git repo and the panel has >1 member. **true:** always isolate. **false:** never (all panelists share one workdir). See [Workdir isolation](#workdir-isolation). |
 | `show_analysis` | bool | Append the judge's consensus/contradictions/gaps footer to the answer. |
 
 ```jsonc
@@ -134,6 +195,7 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
   "default_cli": "claude",
   "default_preset": "general-high",
   "max_rounds": 1,
+  "isolate_workdir": true,
   "show_analysis": false,
   "presets": {
     "general-high":   { "panel": ["claude", "gemini", "codex"], "judge": "claude" },
@@ -146,11 +208,14 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
 
 | Param | Applies to | Meaning |
 |---|---|---|
-| `cli` | cli_agent | Which adapter to run. |
+| `cli` | cli_agent | Which adapter to run (the failover primary). |
+| `fallback` | cli_agent | Explicit ordered list of adapters to try if the primary fails. |
+| `failover` | cli_agent | Auto-failover to other installed adapters when the primary fails (default `true`; set `false` for strict single-CLI — never silently switch models). |
 | `panel` | cli_fusion | Explicit list of adapter names (overrides preset). |
 | `preset` | cli_fusion | Named preset to use. |
 | `judge` | cli_fusion | Judge adapter (overrides preset's). |
 | `max_rounds` | cli_fusion | Override master-plan rounds (capped at 5). |
+| `isolate` | cli_fusion | Override `isolate_workdir` for this request (`true`/`false`). |
 | `show_analysis` | cli_fusion | Override the analysis footer. |
 | `timeout` | both | Override every adapter's timeout for this request. |
 | `workdir` | both | Working directory for the CLI(s). |
@@ -185,18 +250,116 @@ prompt ─► panel: N CLIs run in PARALLEL (asyncio.gather), each one-shot
 
 ---
 
+## Decompose & distribute — `cli_map`
+
+The complement to consensus. `cli_fusion` sends the *same* question to a panel;
+`cli_map` splits *one task* into independent subtasks, distributes them across
+worker CLIs in parallel (round-robin), and reduces the results into one answer —
+divide-and-conquer for scale.
+
+```jsonc
+"cli_map": {
+  "planner": "claude",
+  "workers": ["claude", "gemini", "opencode"],
+  "reducer": "claude",
+  "max_items": 6
+}
+```
+
+A **planner** CLI decomposes the prompt into a JSON subtask list (or pass
+`params.items` to skip planning), workers run the subtasks concurrently, and a
+**reducer** combines them (falling back to a labeled concatenation if no reducer
+is configured). Falls back to `cli_fusion` config when the `cli_map` block is
+omitted.
+
+## Granular consensus — `cli_orchestrator`
+
+`cli_fusion` fans out on *every* request. `cli_orchestrator` makes consensus
+*granular*: a cheap **router** CLI runs a single inference, answers directly, and
+escalates to a consensus panel **only** when it judges the question high-stakes
+(correctness-critical, security/production-impacting, contested). Single
+inference by default, consensus on demand.
+
+```jsonc
+"cli_orchestrator": {
+  "router": "claude",
+  "panel": ["claude", "gemini", "opencode"],
+  "judge": "claude"
+}
+```
+
+```bash
+curl -sf localhost:8000/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -d '{"model":"cli_orchestrator","messages":[{"role":"user","content":"Is this migration safe?"}]}'
+```
+
+Falls back to `cli_fusion.default_cli` (router) and `default_preset` (panel/judge)
+when the `cli_orchestrator` block is omitted. The shared loop lives in
+`swarm.core.consensus.run_consensus()`, so the same panel→judge→synthesize
+primitive backs both blueprints (and can be wrapped as an agent tool).
+
+## Failover & graceful degradation
+
+Not every CLI is installed and working on every host, so the blueprints assume
+some will fail and route around them:
+
+- **`cli_agent` fails over.** It tries the primary CLI, and on failure (not
+  installed, not authenticated, non-zero exit, or hang→timeout) moves to the next
+  candidate. The chain is the primary plus either an explicit `params.fallback`
+  list or — by default — every other *installed* adapter. Each failover is
+  surfaced as a progress event. Set `params.failover: false` for strict
+  single-CLI behaviour that never silently switches models. (Streaming commits to
+  the first installed candidate — no mid-stream failover, since sent bytes can't
+  be unsent.)
+- **`cli_fusion` degrades.** A broken or missing panelist never sinks the round:
+  failures are dropped (and reported), and the judge synthesizes consensus from
+  the survivors. Only when *every* panelist fails does the round error out. So a
+  panel of `[claude, gemini, codex]` on a host missing `codex` still returns a
+  two-CLI consensus.
+
+## Streaming
+
+`cli_agent` streams the CLI's stdout **incrementally** when the request sets
+`"stream": true` and the adapter uses `parse: "text"` — each delta is forwarded
+as a `chat.completion.chunk`, so an OpenAI streaming client sees output as the
+CLI produces it instead of waiting for the whole run. `json:`-parse adapters
+can't stream (the value only exists once the full document is read), so they
+fall back to a single one-shot chunk. Non-streaming requests are unchanged: one
+full answer. `cli_fusion` does not stream panelists — the judge needs each
+panelist's complete answer before it can compare them.
+
+## Workdir isolation
+
+Panelists run at full capability, so a panel of N write-capable agents fanned out
+over the *same* `workdir` will stomp each other's edits. `cli_fusion` defuses this
+by giving each panelist its own working copy for the duration of a round:
+
+- **git repo (the common case):** each panelist gets a throwaway
+  `git worktree` checked out at `HEAD`, so it sees the full repo cheaply and its
+  edits never touch the source tree or the other panelists. The worktrees are
+  removed (`--force`, discarding scratch edits) when the round ends.
+- **non-repo `workdir` (or none):** each panelist gets a fresh empty temp
+  directory as scratch space.
+
+Controlled by `cli_fusion.isolate_workdir` (config) or the per-request `isolate`
+param. The default (`null`) auto-isolates when `workdir` is a git repo and the
+panel has more than one member; set it `true` to always isolate or `false` to
+share one workdir. The **judge** always runs in the base `workdir` (it only reads
+and compares the panel's text answers). Fusion synthesizes a single *text* answer
+— it does not merge the panelists' divergent trees, so the isolated edits are
+treated as scratch work, not a deliverable.
+
 ## Safety
 
 CLI agents can read files, run commands, and reach the network. Treat them as
 untrusted, side-effecting processes:
 
-- **Read-only panelists by default.** Use each CLI's plan/read-only mode
-  (`--approval-mode plan`, `--allowedTools Read,Grep,…`). Only opt specific
-  adapters into write mode, and avoid running several write-mode CLIs in the same
-  `workdir` in parallel — give them separate `workdir`s.
+- **Workdir isolation.** Keep `isolate_workdir` on (the default auto-isolates git
+  repos) so parallel write-capable panelists can't corrupt the source tree or
+  collide — see above.
 - **Timeouts always.** Interactive CLIs hang waiting for input if you get the
-  non-interactive flag wrong. Every adapter has a `timeout`; on expiry the whole
-  process group is killed (SIGTERM → SIGKILL).
+  non-interactive or auto-approve flag wrong. Every adapter has a `timeout`; on
+  expiry the whole process group is killed (SIGTERM → SIGKILL).
 - **Secret isolation.** By default every panelist inherits the full environment.
   Set `env_allowlist` per adapter so each CLI sees only the keys it needs.
 - **Recursion guard.** If a panelist CLI is itself pointed back at this Open

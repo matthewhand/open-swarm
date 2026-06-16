@@ -20,6 +20,7 @@ Design notes
 from __future__ import annotations
 
 import asyncio
+import codecs
 import json
 import logging
 import os
@@ -27,7 +28,7 @@ import shutil
 import signal
 import time
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, AsyncIterator
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,26 @@ WORKDIR_TOKEN = "{workdir}"
 DEFAULT_TIMEOUT = 180.0
 # Grace period between SIGTERM and SIGKILL when reaping a timed-out agent.
 TERM_GRACE = 5.0
+# Auth probes should be quick; cap them well under a normal run timeout.
+AUTH_TIMEOUT = 30.0
+
+# Authentication states reported by discovery.
+AUTH_AUTHENTICATED = "authenticated"
+AUTH_UNAUTHENTICATED = "unauthenticated"
+AUTH_UNKNOWN = "unknown"  # no auth_check configured, or the probe was inconclusive
+AUTH_NOT_INSTALLED = "not_installed"
+
+# Smoke-probe states: does the configured cmd actually *return* in print mode?
+SMOKE_OK = "ok"                          # produced output and exited 0 in time
+SMOKE_HANG = "hang"                      # timed out — almost always a wrong/missing
+                                         # non-interactive flag (the CLI waited on input)
+SMOKE_ERROR = "error"                    # ran but exited non-zero or produced nothing
+SMOKE_NOT_INSTALLED = "not_installed"
+
+# A trivial prompt for the smoke probe; cheap, but DOES invoke the model once.
+DEFAULT_SMOKE_PROMPT = "Reply with the single word: OK"
+# Smoke probes should be quick; cap well under a normal run.
+SMOKE_TIMEOUT = 60.0
 
 
 class CliAdapterError(Exception):
@@ -93,6 +114,7 @@ class CliAgentConfig:
     env_allowlist: list[str] | None = None
     timeout: float = DEFAULT_TIMEOUT
     mode: str = "default"
+    auth_check: list[str] | None = None
 
     def __post_init__(self) -> None:
         if not self.cmd:
@@ -106,6 +128,14 @@ class CliAgentConfig:
             raise CliAdapterError(
                 f"CLI adapter '{self.name}': prompt_mode 'arg' requires a "
                 f"'{PROMPT_TOKEN}' token somewhere in cmd"
+            )
+        if self.auth_check is not None and (
+            not isinstance(self.auth_check, list)
+            or not all(isinstance(p, str) for p in self.auth_check)
+            or not self.auth_check
+        ):
+            raise CliAdapterError(
+                f"CLI adapter '{self.name}': auth_check must be a non-empty list of strings"
             )
 
 
@@ -123,18 +153,40 @@ class CliResult:
     error: str | None = None
     stderr: str = ""
 
+
+@dataclass
+class SmokeResult:
+    """Outcome of a non-interactive smoke probe (see :meth:`CliAdapter.smoke_check`)."""
+
+    name: str
+    status: str
+    detail: str = ""
+    duration: float = 0.0
+
+    @property
+    def ok(self) -> bool:
+        return self.status == SMOKE_OK
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
-            "ok": self.ok,
-            "text": self.text,
-            "returncode": self.returncode,
+            "status": self.status,
+            "detail": self.detail,
             "duration": round(self.duration, 3),
-            "timed_out": self.timed_out,
-            "parse_error": self.parse_error,
-            "error": self.error,
-            "stderr": self.stderr,
         }
+
+
+@dataclass
+class CliStreamChunk:
+    """One event from :meth:`CliAdapter.stream_run`.
+
+    Either an incremental output delta (``delta`` set, ``final=False``) or the
+    terminal event (``final=True``) carrying the assembled :class:`CliResult`.
+    """
+
+    delta: str = ""
+    final: bool = False
+    result: CliResult | None = None
 
 
 def _apply_tokens(value: str, prompt: str, workdir: str) -> str:
@@ -186,6 +238,7 @@ class CliAdapter:
             env_allowlist=raw.get("env_allowlist"),
             timeout=float(raw.get("timeout", DEFAULT_TIMEOUT)),
             mode=raw.get("mode", "default"),
+            auth_check=raw.get("auth_check"),
         )
         return cls(cfg)
 
@@ -239,7 +292,34 @@ class CliAdapter:
         """Launch the CLI, await its answer, and parse the result.
 
         Never raises for runtime failures — a non-zero exit, timeout, or missing
-        executable comes back as a :class:`CliResult` with ``ok=False``.
+        executable comes back as a :class:`CliResult` with ``ok=False``. The
+        one-shot and streaming paths share a single launch/timeout/parse
+        implementation: this drains :meth:`stream_run` and returns its terminal
+        result (``stream_run`` always emits exactly one ``final`` chunk).
+        """
+        result: CliResult | None = None
+        async for chunk in self.stream_run(prompt, workdir=workdir, extra_env=extra_env):
+            if chunk.final:
+                result = chunk.result
+        assert result is not None  # stream_run guarantees a terminal chunk
+        return result
+
+    async def stream_run(
+        self,
+        prompt: str,
+        *,
+        workdir: str | None = None,
+        extra_env: dict[str, str] | None = None,
+    ) -> AsyncIterator[CliStreamChunk]:
+        """Like :meth:`run`, but yield stdout incrementally as it arrives.
+
+        Yields :class:`CliStreamChunk` deltas while the CLI produces output, then
+        a single terminal chunk (``final=True``) carrying the full
+        :class:`CliResult`. The terminal result's ``text`` is parsed per the
+        adapter's ``parse`` spec; for ``json:`` adapters the deltas are raw stdout
+        (the parsed value only exists once the whole document is read), so callers
+        that need clean incremental text should stream only ``parse="text"``
+        adapters. Never raises for runtime failures.
         """
         cfg = self.config
         effective_workdir = (
@@ -248,16 +328,17 @@ class CliAdapter:
             else (workdir or os.getcwd())
         )
         argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
-
         env = self._build_env(prompt, effective_workdir, extra_env)
 
         if not self.is_available():
-            return CliResult(
-                name=cfg.name,
-                ok=False,
-                text="",
-                error=f"executable not found on PATH: {cfg.cmd[0]!r}",
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text="",
+                    error=f"executable not found on PATH: {cfg.cmd[0]!r}",
+                ),
             )
+            return
 
         start = time.monotonic()
         try:
@@ -268,46 +349,120 @@ class CliAdapter:
                 stderr=asyncio.subprocess.PIPE,
                 cwd=effective_workdir,
                 env=env,
-                start_new_session=True,  # own process group, so we can kill the tree
+                start_new_session=True,
             )
         except (OSError, ValueError) as exc:
-            return CliResult(
-                name=cfg.name, ok=False, text="",
-                error=f"failed to launch: {exc}", duration=time.monotonic() - start,
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text="",
+                    error=f"failed to launch: {exc}", duration=time.monotonic() - start,
+                ),
             )
+            return
 
+        if stdin_bytes is not None and proc.stdin is not None:
+            try:
+                proc.stdin.write(stdin_bytes)
+                await proc.stdin.drain()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
+            finally:
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
+
+        # Drain stderr concurrently so its pipe can never fill and deadlock the
+        # process while we are only reading stdout.
+        stderr_buf: list[bytes] = []
+
+        async def _drain_stderr() -> None:
+            assert proc.stderr is not None
+            try:
+                while True:
+                    blob = await proc.stderr.read(4096)
+                    if not blob:
+                        break
+                    stderr_buf.append(blob)
+            except (asyncio.CancelledError, OSError):
+                pass
+
+        stderr_task = asyncio.ensure_future(_drain_stderr())
+
+        decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        out_parts: list[str] = []
         timed_out = False
-        try:
-            stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(input=stdin_bytes), timeout=cfg.timeout
-            )
-        except asyncio.TimeoutError:
-            timed_out = True
-            await self._terminate(proc)
-            stdout_b, stderr_b = b"", b""
-        duration = time.monotonic() - start
+        deadline = start + cfg.timeout
+        assert proc.stdout is not None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                blob = await asyncio.wait_for(proc.stdout.read(4096), timeout=remaining)
+            except asyncio.TimeoutError:
+                timed_out = True
+                break
+            if not blob:  # EOF
+                break
+            text = decoder.decode(blob)
+            if text:
+                out_parts.append(text)
+                yield CliStreamChunk(delta=text)
 
-        stdout = (stdout_b or b"").decode("utf-8", errors="replace")
-        stderr = (stderr_b or b"").decode("utf-8", errors="replace")
+        tail = decoder.decode(b"", final=True)
+        if tail:
+            out_parts.append(tail)
+            yield CliStreamChunk(delta=tail)
+
+        duration = time.monotonic() - start
+        stdout = "".join(out_parts)
 
         if timed_out:
-            return CliResult(
-                name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                duration=duration, timed_out=True, stderr=stderr.strip(),
-                error=f"timed out after {cfg.timeout}s",
+            await self._terminate(proc)
+            stderr_task.cancel()
+            try:
+                await stderr_task
+            except asyncio.CancelledError:
+                pass
+            stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                    duration=duration, timed_out=True, stderr=stderr.strip(),
+                    error=f"timed out after {cfg.timeout}s",
+                ),
             )
+            return
+
+        await proc.wait()
+        try:
+            await stderr_task
+        except asyncio.CancelledError:
+            pass
+        stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
 
         if proc.returncode != 0:
-            return CliResult(
-                name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                duration=duration, stderr=stderr.strip(),
-                error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                    duration=duration, stderr=stderr.strip(),
+                    error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
+                ),
             )
+            return
 
         text, parse_error = self._parse_output(stdout)
-        return CliResult(
-            name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
-            parse_error=parse_error, stderr=stderr.strip(),
+        yield CliStreamChunk(
+            final=True,
+            result=CliResult(
+                name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
+                parse_error=parse_error, stderr=stderr.strip(),
+            ),
         )
 
     # Always-passed vars so a locked-down CLI can still run and resolve itself.
@@ -327,6 +482,67 @@ class CliAdapter:
         if extra_env:
             env.update(extra_env)
         return env
+
+    async def check_auth(self) -> str:
+        """Probe whether this CLI is authenticated.
+
+        Returns one of AUTH_NOT_INSTALLED (executable missing), AUTH_UNKNOWN
+        (no ``auth_check`` configured, or the probe errored/timed out),
+        AUTH_AUTHENTICATED (``auth_check`` exited 0), or AUTH_UNAUTHENTICATED.
+        Never raises.
+        """
+        cfg = self.config
+        if not self.is_available():
+            return AUTH_NOT_INSTALLED
+        if not cfg.auth_check:
+            return AUTH_UNKNOWN
+        workdir = os.getcwd()
+        argv = [_apply_tokens(p, "", workdir) for p in cfg.auth_check]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self._build_env("", workdir, None),
+                start_new_session=True,
+            )
+        except (OSError, ValueError):
+            return AUTH_UNKNOWN
+        try:
+            await asyncio.wait_for(proc.communicate(), timeout=min(cfg.timeout, AUTH_TIMEOUT))
+        except asyncio.TimeoutError:
+            await self._terminate(proc)
+            return AUTH_UNKNOWN
+        return AUTH_AUTHENTICATED if proc.returncode == 0 else AUTH_UNAUTHENTICATED
+
+    async def smoke_check(
+        self, *, prompt: str = DEFAULT_SMOKE_PROMPT, timeout: float | None = None
+    ) -> SmokeResult:
+        """Run one trivial one-shot to confirm the cmd *returns* in print mode.
+
+        Unlike :meth:`check_auth` (a cheap exit-code probe), this actually
+        invokes the CLI — and therefore the model — once, so it consumes a small
+        amount of quota. It exists to catch the most common misconfiguration: a
+        missing/wrong non-interactive flag, which makes the CLI block on input
+        and hang until the timeout. Returns a :class:`SmokeResult`; never raises.
+        """
+        if not self.is_available():
+            return SmokeResult(self.name, SMOKE_NOT_INSTALLED)
+        t = timeout if timeout is not None else min(self.config.timeout, SMOKE_TIMEOUT)
+        probe = CliAdapter(replace(self.config, timeout=t))
+        res = await probe.run(prompt)
+        if res.timed_out:
+            return SmokeResult(
+                self.name, SMOKE_HANG,
+                "no output before timeout — check the non-interactive flag",
+                res.duration,
+            )
+        if not res.ok:
+            return SmokeResult(self.name, SMOKE_ERROR, (res.error or "")[:200], res.duration)
+        if not (res.text or "").strip():
+            return SmokeResult(self.name, SMOKE_ERROR, "exited 0 but produced no output", res.duration)
+        return SmokeResult(self.name, SMOKE_OK, "", res.duration)
 
     @staticmethod
     async def _terminate(proc: asyncio.subprocess.Process) -> None:
@@ -357,6 +573,7 @@ class CliDiscovery:
     installed: bool
     executable: str | None
     mode: str
+    authenticated: str = AUTH_UNKNOWN
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -364,6 +581,7 @@ class CliDiscovery:
             "installed": self.installed,
             "executable": self.executable,
             "mode": self.mode,
+            "authenticated": self.authenticated,
         }
 
 
@@ -416,6 +634,34 @@ class CliAdapterRegistry:
                 )
             )
         return out
+
+    async def discover_auth(self) -> list[CliDiscovery]:
+        """Like discover(), but also probe each adapter's authentication state.
+
+        Runs every adapter's ``auth_check`` concurrently. Slower than
+        :meth:`discover` (it launches subprocesses), so it is opt-in.
+        """
+        rows = self.discover()
+
+        async def _fill(row: CliDiscovery) -> CliDiscovery:
+            row.authenticated = await self._adapters[row.name].check_auth()
+            return row
+
+        return list(await asyncio.gather(*(_fill(r) for r in rows)))
+
+    async def smoke_check_all(
+        self, *, names: list[str] | None = None, timeout: float | None = None
+    ) -> list[SmokeResult]:
+        """Smoke-probe adapters concurrently (all configured, or a subset).
+
+        Each probe runs one trivial one-shot, so this consumes a little quota per
+        installed adapter — it is opt-in, not part of plain :meth:`discover`.
+        """
+        target = names if names is not None else self.names()
+        adapters = [self._adapters[n] for n in target if n in self._adapters]
+        return list(
+            await asyncio.gather(*(a.smoke_check(timeout=timeout) for a in adapters))
+        )
 
     def resolve_panel(self, names: list[str]) -> list[CliAdapter]:
         """Resolve a list of adapter names to adapters (raises on unknown)."""

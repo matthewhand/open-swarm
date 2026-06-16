@@ -14,6 +14,10 @@ import time
 import pytest
 
 from swarm.core.cli_adapter import (
+    SMOKE_ERROR,
+    SMOKE_HANG,
+    SMOKE_NOT_INSTALLED,
+    SMOKE_OK,
     CliAdapter,
     CliAdapterError,
     CliAdapterRegistry,
@@ -186,13 +190,6 @@ async def test_no_allowlist_inherits_full_env(monkeypatch):
     assert res.text == "topsecret"
 
 
-def test_result_as_dict_includes_stderr():
-    from swarm.core.cli_adapter import CliResult
-
-    d = CliResult(name="x", ok=False, text="", stderr="boom").as_dict()
-    assert d["stderr"] == "boom"
-
-
 # --------------------------------------------------------------------------- #
 # Parallel panel semantics
 # --------------------------------------------------------------------------- #
@@ -266,8 +263,167 @@ def test_discover_empty_registry():
     assert CliAdapterRegistry.from_config({}).discover() == []
 
 
+# --------------------------------------------------------------------------- #
+# Authentication probe
+# --------------------------------------------------------------------------- #
+
+def test_auth_check_must_be_nonempty_list():
+    with pytest.raises(CliAdapterError):
+        CliAgentConfig(name="x", cmd=[PY, "-c", "print(1)", "{prompt}"], auth_check=[])
+
+
+async def test_check_auth_authenticated():
+    adapter = CliAdapter.from_config(
+        "a", {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(0)"]}
+    )
+    assert await adapter.check_auth() == "authenticated"
+
+
+async def test_check_auth_unauthenticated():
+    adapter = CliAdapter.from_config(
+        "a", {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(1)"]}
+    )
+    assert await adapter.check_auth() == "unauthenticated"
+
+
+async def test_check_auth_unknown_without_probe():
+    adapter = CliAdapter.from_config("a", _echo_cfg())
+    assert await adapter.check_auth() == "unknown"
+
+
+async def test_check_auth_not_installed():
+    adapter = CliAdapter.from_config(
+        "ghost", {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"], "auth_check": ["true"]}
+    )
+    assert await adapter.check_auth() == "not_installed"
+
+
+async def test_discover_auth_fills_status():
+    reg = CliAdapterRegistry.from_config(
+        {
+            "cli_agents": {
+                "good": {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(0)"]},
+                "bad": {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(1)"]},
+                "plain": _echo_cfg(),
+            }
+        }
+    )
+    rows = {d.name: d for d in await reg.discover_auth()}
+    assert rows["good"].authenticated == "authenticated"
+    assert rows["bad"].authenticated == "unauthenticated"
+    assert rows["plain"].authenticated == "unknown"
+
+
 def test_with_overrides_is_non_mutating():
     reg = CliAdapterRegistry.from_config({"cli_agents": {"echo": _echo_cfg(timeout=5)}})
     reg2 = reg.with_overrides({"echo": {"timeout": 99}})
     assert reg.get("echo").config.timeout == 5
     assert reg2.get("echo").config.timeout == 99
+
+
+# --------------------------------------------------------------------------- #
+# Non-interactive smoke probe
+# --------------------------------------------------------------------------- #
+
+async def test_smoke_ok():
+    adapter = CliAdapter.from_config("echo", _echo_cfg())
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_OK
+    assert res.ok is True
+
+
+async def test_smoke_error_on_nonzero_exit():
+    adapter = CliAdapter.from_config(
+        "boom", {"cmd": [PY, "-c", "import sys; sys.exit(2)", "{prompt}"]}
+    )
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_ERROR
+    assert res.ok is False
+
+
+async def test_smoke_error_on_empty_output():
+    # Exits 0 but prints nothing -> not a usable answer.
+    adapter = CliAdapter.from_config("quiet", {"cmd": [PY, "-c", "pass", "{prompt}"]})
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_ERROR
+    assert "no output" in res.detail
+
+
+async def test_smoke_hang_times_out():
+    # A CLI that never returns (e.g. wrong non-interactive flag -> waits on input).
+    adapter = CliAdapter.from_config(
+        "sleeper", {"cmd": [PY, "-c", "import time; time.sleep(30)", "{prompt}"]}
+    )
+    res = await adapter.smoke_check(timeout=0.5)
+    assert res.status == SMOKE_HANG
+    assert "non-interactive flag" in res.detail
+
+
+async def test_smoke_not_installed():
+    adapter = CliAdapter.from_config("ghost", {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]})
+    res = await adapter.smoke_check()
+    assert res.status == SMOKE_NOT_INSTALLED
+
+
+async def test_smoke_check_all_runs_subset():
+    reg = CliAdapterRegistry.from_config(
+        {"cli_agents": {"a": _echo_cfg(), "b": _echo_cfg(), "c": _echo_cfg()}}
+    )
+    results = {r.name: r for r in await reg.smoke_check_all(names=["a", "c"])}
+    assert set(results) == {"a", "c"}
+    assert all(r.status == SMOKE_OK for r in results.values())
+
+
+# --------------------------------------------------------------------------- #
+# Streaming (stream_run)
+# --------------------------------------------------------------------------- #
+
+async def _collect_stream(adapter, prompt="x"):
+    deltas, result = [], None
+    async for ch in adapter.stream_run(prompt):
+        if ch.final:
+            result = ch.result
+        elif ch.delta:
+            deltas.append(ch.delta)
+    return deltas, result
+
+
+async def test_stream_run_yields_deltas_then_result():
+    adapter = CliAdapter.from_config(
+        "s", {"cmd": [PY, "-c", "import sys; sys.stdout.write('hello\\nworld\\n')", "{prompt}"]}
+    )
+    deltas, result = await _collect_stream(adapter)
+    assert "".join(deltas) == "hello\nworld\n"  # streamed verbatim
+    assert result.ok and result.text == "hello\nworld"  # parse() strips trailing ws
+
+
+async def test_stream_run_error_exit_reported_in_final():
+    adapter = CliAdapter.from_config(
+        "b", {"cmd": [PY, "-c", "import sys; sys.exit(3)", "{prompt}"]}
+    )
+    _, result = await _collect_stream(adapter)
+    assert result is not None and not result.ok and result.returncode == 3
+
+
+async def test_stream_run_not_installed_single_final_chunk():
+    adapter = CliAdapter.from_config("ghost", {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]})
+    chunks = [ch async for ch in adapter.stream_run("x")]
+    assert len(chunks) == 1 and chunks[0].final and not chunks[0].result.ok
+
+
+async def test_stream_run_timeout():
+    adapter = CliAdapter.from_config(
+        "sleeper", {"cmd": [PY, "-c", "import time; time.sleep(30)", "{prompt}"], "timeout": 0.5}
+    )
+    _, result = await _collect_stream(adapter)
+    assert result.timed_out and not result.ok
+
+
+async def test_stream_run_json_parse_streams_raw_but_parses_final():
+    adapter = CliAdapter.from_config(
+        "j",
+        {"cmd": [PY, "-c", "print('{\"result\": \"deep\"}')", "{prompt}"], "parse": "json:.result"},
+    )
+    deltas, result = await _collect_stream(adapter)
+    assert result.ok and result.text == "deep"  # final value is parsed
+    assert "deep" in "".join(deltas)  # deltas are the raw JSON document

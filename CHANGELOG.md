@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.0] - 2026-06-16
+
+### Added — CLI Agent Fusion
+
+Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
+`opencode`, …) into one-shot, OpenAI-API-addressable subagents — single
+(`cli_agent`) or a parallel panel a judge synthesizes (`cli_fusion`). See
+[docs/CLI_FUSION.md](docs/CLI_FUSION.md).
+
+- `CliAdapter` one-shot layer + `cli_agent`/`cli_fusion` blueprints (panel → judge → synthesize, bounded master plan) (#116, #117)
+- Autodiscovery: `swarm-cli cli-agents` reports install status; `--check-auth` probes each CLI's `auth_check`
+- Full-capability (auto-approve) example adapters, replacing the read-only defaults
+- Per-panelist workdir isolation (`cli_fusion.isolate_workdir` / per-request `isolate`): each write-capable panelist gets a throwaway `git worktree` (or temp dir) so parallel fan-out can't corrupt the source tree
+- Built-in adapter catalog + `swarm-cli cli-agents --suggest`: paste-ready config for supported CLIs installed but not yet configured
+- Catalog defaults encode known per-CLI gotchas so they run non-interactively out of the box: `gemini --skip-trust` (untrusted-dir gate), `opencode --model` (no usable built-in default) — verified live
+- Non-interactive smoke probe + `swarm-cli cli-agents --smoke`: catches a misconfigured `cmd` that hangs instead of returning (ok/hang/error/not_installed)
+- Machine-readable `swarm-cli cli-agents --json` (agents/smoke/suggestions) for CI and scripting
+- `cli_agent` streams CLI stdout incrementally for `parse: "text"` adapters when `stream: true` (json-parse adapters fall back to one-shot)
+- Failover & graceful degradation: `cli_agent` fails over down a candidate chain (`params.fallback`, or auto to other installed adapters; `failover: false` for strict) when a CLI is missing/broken/hung; `cli_fusion` drops failed panelists and reaches consensus from the survivors
+- Reusable consensus service (`swarm.core.consensus.run_consensus`) extracted from the `cli_fusion` blueprint; consensus-first synthesis (no-judge fallback now picks the **most-corroborated** panel answer, not the longest)
+- New `cli_orchestrator` blueprint — granular consensus: a cheap router CLI answers directly and escalates only high-stakes questions to a consensus panel (fusion as an on-demand tool, not a whole-request mode)
+- Cleanup: removed dead `progress_text()` and `CliResult.as_dict()`
+- Agent-tool layer (`swarm.core.cli_tools`): `cli_persona(adapter)` and `consensus_fn(panel, judge)` callables, `as_function_tool()` to hand either to an openai-agents `Agent` — so a real agent can call `consensus()` granularly mid-reasoning
+- New `cli_map` blueprint — decompose → distribute → reduce: a planner CLI splits one task into subtasks, workers run them in parallel (round-robin), a reducer combines (complements `cli_fusion`'s consensus)
+- Web UI **API Access** panel (Settings) — surfaces the live base URL, token, model list, and copy-paste snippets (curl / OpenAI SDK / Open WebUI) to plug any OpenAI client into the server
+- End-to-end API coverage: real panel→synthesize and `params`-driven selection over `/v1/chat/completions`
+
 ## [0.3.3] - 2026-06-12
 
 ### Added

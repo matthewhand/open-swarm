@@ -121,6 +121,27 @@ Import check: every module below imported successfully via `uv run python -c "im
 
 ---
 
+## 11. CLI Agent Fusion — ✅ 8 (v0.4.0 line, in progress)
+
+Turns installed agentic CLIs (`claude`, `gemini`, `codex`, `opencode`, …) into
+one-shot, API-addressable subagents. See `docs/CLI_FUSION.md`.
+
+| Feature | Status | Evidence |
+|---|---|---|
+| CliAdapter one-shot layer | ✅ | `src/swarm/core/cli_adapter.py`; argv/stdin prompt modes, text/`json:<path>` parse, process-group timeout kill; `tests/core/test_cli_adapter.py` |
+| `cli_agent` / `cli_fusion` blueprints | ✅ | `src/swarm/blueprints/cli_{agent,fusion}/`; panel→judge→synthesize + bounded master plan; `tests/blueprints/test_cli_{agent,fusion}.py` |
+| Install autodiscovery | ✅ | `CliAdapterRegistry.discover()` + `swarm-cli cli-agents` (PR 2) |
+| Auth autodiscovery | ✅ | `CliAgentConfig.auth_check` + `discover_auth()` + `--check-auth` (PR 3) |
+| Full-capability panelists + workdir isolation | ✅ | Yolo-flag example adapters; `cli_fusion.isolate_workdir` git-worktree/temp-dir isolation (PR 4); isolation tests incl. real-git end-to-end |
+| Built-in adapter catalog + `--suggest` | ✅ | `src/swarm/core/cli_catalog.py`; `swarm-cli cli-agents --suggest`; `tests/core/test_cli_catalog.py` (PR 5) |
+| Non-interactive smoke probe + `--smoke` | ✅ | `CliAdapter.smoke_check()` / `smoke_check_all()`; classifies ok/hang/error/not_installed (PR 6) |
+| End-to-end API coverage | ✅ | `tests/api/test_cli_fusion_api.py`: real panel→synthesize and `params` selection over `/v1/chat/completions` (PR 7) |
+
+Remaining v0.4.0 work (PRs 8–13): not yet specced; version bump + CHANGELOG + tag
+deferred to the release PR.
+
+---
+
 ## Regeneration
 
 This doc decays fast (a cleanup wave was rewriting the tree while it was generated). Before acting on any row, re-verify:

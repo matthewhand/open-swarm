@@ -136,6 +136,26 @@ parity is reached.
 - [ ] Demote or archive non-flagship blueprints to an examples/contrib area
 - [ ] Restore or formally drop legacy CLI commands old docs reference (`wizard`, `config`, `add`)
 
+### 3.5b CLI Agent Fusion (v0.4.0 feature line)
+
+Turns the agentic CLIs an operator already has installed (`claude`, `gemini`,
+`codex`, `opencode`, …) into one-shot, OpenAI-API-addressable subagents, composed
+four ways: single (`cli_agent`), consensus panel (`cli_fusion`), granular
+consensus (`cli_orchestrator`), and decompose-and-distribute (`cli_map`). Full
+design in [docs/CLI_FUSION.md](./docs/CLI_FUSION.md). Built as a PR series in the
+commit log; version bumped to 0.4.0.
+
+- [x] CLI Agent Fusion built for v0.4.0 (code complete; tag + PyPI publish pending)
+  - [x] Foundation: `CliAdapter` one-shot layer + `cli_agent`/`cli_fusion` blueprints
+  - [x] Install + auth autodiscovery: `swarm-cli cli-agents` (`--check-auth`/`--smoke`/`--suggest`/`--json`)
+  - [x] Full-capability panelists (auto-approve) + per-panelist workdir isolation (git worktree / temp dir)
+  - [x] Built-in adapter catalog with per-CLI gotchas baked in (gemini `--skip-trust`, opencode `--model`)
+  - [x] Incremental streaming (`cli_agent`) + failover/graceful degradation
+  - [x] Reusable `swarm.core.consensus` service (consensus-first synthesis) + `swarm.core.cli_tools` agent-tool layer (`as_tool()`)
+  - [x] `cli_orchestrator` (granular consensus) + `cli_map` (decompose → distribute → reduce) blueprints
+  - [x] End-to-end API coverage; verified live over claude+gemini+opencode
+  - [ ] Tag `v0.4.0` + PyPI publish (manual release step — owner action)
+
 ### 3.6 Release engineering
 
 - [ ] First tagged FOSS release on PyPI

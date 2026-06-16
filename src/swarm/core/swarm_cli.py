@@ -274,25 +274,74 @@ def list_blueprints(
 @app.command(name="cli-agents")
 def cli_agents(
     config_path: str = typer.Option(None, "--config", help="Path to swarm_config.json (defaults to the usual search)."),
+    check_auth: bool = typer.Option(False, "--check-auth", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
+    suggest: bool = typer.Option(False, "--suggest", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
+    smoke: bool = typer.Option(False, "--smoke", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
+    output_json: bool = typer.Option(False, "--json", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
 ):
-    """Autodiscover configured CLI agents and show which are installed on this host."""
+    """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
+    import asyncio
+    import json
+
     from swarm.core.cli_adapter import CliAdapterRegistry
+    from swarm.core import cli_catalog
     from swarm.core.config_loader import find_config_file, load_config
 
     cfg_file = find_config_file(specific_path=config_path)
     config = load_config(cfg_file) if cfg_file else {}
     registry = CliAdapterRegistry.from_config(config)
-    rows = registry.discover()
-    if not rows:
-        typer.echo("No CLI agents configured. Add a 'cli_agents' block to your swarm config (see docs/CLI_FUSION.md).")
+    rows = asyncio.run(registry.discover_auth()) if check_auth else registry.discover()
+
+    if output_json:
+        payload: dict = {"agents": [d.as_dict() for d in rows]}
+        if smoke:
+            smoke_names = [d.name for d in rows if d.installed]
+            payload["smoke"] = [
+                s.as_dict() for s in asyncio.run(registry.smoke_check_all(names=smoke_names))
+            ]
+        if suggest:
+            payload["suggestions"] = cli_catalog.suggest_unconfigured(registry.names())
+        typer.echo(json.dumps(payload, indent=2))
         raise typer.Exit(code=0)
 
-    typer.echo(f"{'AGENT':16} {'STATUS':10} {'MODE':10} EXECUTABLE")
-    for d in rows:
-        status = "installed" if d.installed else "missing"
-        typer.echo(f"{d.name:16} {status:10} {d.mode:10} {d.executable or '-'}")
-    installed = sum(1 for d in rows if d.installed)
-    typer.echo(f"\n{installed}/{len(rows)} configured CLI agents installed on this host.")
+    if not rows:
+        typer.echo("No CLI agents configured. Add a 'cli_agents' block to your swarm config (see docs/CLI_FUSION.md).")
+    elif check_auth:
+        typer.echo(f"{'AGENT':16} {'STATUS':10} {'AUTH':16} {'MODE':10} EXECUTABLE")
+        for d in rows:
+            status = "installed" if d.installed else "missing"
+            typer.echo(f"{d.name:16} {status:10} {d.authenticated:16} {d.mode:10} {d.executable or '-'}")
+    else:
+        typer.echo(f"{'AGENT':16} {'STATUS':10} {'MODE':10} EXECUTABLE")
+        for d in rows:
+            status = "installed" if d.installed else "missing"
+            typer.echo(f"{d.name:16} {status:10} {d.mode:10} {d.executable or '-'}")
+    if rows:
+        installed = sum(1 for d in rows if d.installed)
+        typer.echo(f"\n{installed}/{len(rows)} configured CLI agents installed on this host.")
+
+    if smoke:
+        installed = [d.name for d in rows if d.installed]
+        typer.echo("")
+        if not installed:
+            typer.echo("No installed CLI agents to smoke-test.")
+        else:
+            typer.echo(f"Smoke-testing {len(installed)} installed CLI(s) (one trivial one-shot each)…")
+            results = asyncio.run(registry.smoke_check_all(names=installed))
+            typer.echo(f"\n{'AGENT':16} {'SMOKE':6} {'TIME':>7}  DETAIL")
+            for s in results:
+                typer.echo(f"{s.name:16} {s.status:6} {s.duration:6.1f}s  {s.detail}")
+
+    if suggest:
+        suggestions = cli_catalog.suggest_unconfigured(registry.names())
+        typer.echo("")
+        if not suggestions:
+            typer.echo("No suggestions: every supported CLI installed on this host is already configured.")
+        else:
+            names = ", ".join(sorted(suggestions))
+            typer.echo(f"Suggested cli_agents for installed-but-unconfigured CLIs ({names}):")
+            typer.echo("Verify each CLI's flags with --help before use; see docs/CLI_FUSION.md.\n")
+            typer.echo(json.dumps({"cli_agents": suggestions}, indent=2))
 
 
 if __name__ == "__main__":

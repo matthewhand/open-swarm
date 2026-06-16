@@ -1,0 +1,77 @@
+"""Tests for the built-in CLI adapter catalog (swarm-cli cli-agents --suggest)."""
+
+from __future__ import annotations
+
+from swarm.core import cli_catalog
+from swarm.core.cli_adapter import CliAdapter
+
+
+def test_catalog_names_are_sorted_and_known():
+    names = cli_catalog.catalog_names()
+    assert names == sorted(names)
+    assert {"claude", "gemini", "codex", "opencode"} <= set(names)
+
+
+def test_every_catalog_entry_is_a_valid_adapter_config():
+    # The catalog must never ship a config the adapter layer would reject.
+    for name in cli_catalog.catalog_names():
+        adapter = CliAdapter.from_config(name, cli_catalog.catalog_entry(name))
+        assert adapter.name == name
+        assert adapter.config.cmd[0]  # has an executable
+
+
+def test_catalog_entry_returns_a_copy():
+    a = cli_catalog.catalog_entry("claude")
+    a["cmd"].append("--mutated")
+    a["mode"] = "tampered"
+    b = cli_catalog.catalog_entry("claude")
+    assert "--mutated" not in b["cmd"]
+    assert b["mode"] == "write"
+
+
+def test_catalog_entry_unknown_is_none():
+    assert cli_catalog.catalog_entry("nope-not-real") is None
+    assert cli_catalog.executable_for("nope-not-real") is None
+
+
+def test_executable_for():
+    assert cli_catalog.executable_for("gemini") == "gemini"
+
+
+def test_gemini_default_includes_skip_trust_gotcha():
+    # gemini refuses to run in an untrusted dir without this; regression guard.
+    assert "--skip-trust" in cli_catalog.catalog_entry("gemini")["cmd"]
+
+
+def test_opencode_default_pins_a_model_gotcha():
+    # opencode's built-in default model errors as "not supported".
+    cmd = cli_catalog.catalog_entry("opencode")["cmd"]
+    assert "--model" in cmd and cmd[cmd.index("--model") + 1]
+
+
+def test_suggest_skips_already_configured():
+    s = cli_catalog.suggest_unconfigured(["claude", "gemini"], installed_only=False)
+    assert "claude" not in s and "gemini" not in s
+    assert "codex" in s and "opencode" in s
+
+
+def test_suggest_all_when_nothing_configured():
+    s = cli_catalog.suggest_unconfigured([], installed_only=False)
+    assert set(s) == set(cli_catalog.catalog_names())
+
+
+def test_suggest_installed_only_filters_by_path(monkeypatch):
+    # Only 'codex' resolves on PATH -> only codex is suggested.
+    def fake_which(exe):
+        return "/usr/bin/codex" if exe == "codex" else None
+
+    monkeypatch.setattr(cli_catalog.shutil, "which", fake_which)
+    s = cli_catalog.suggest_unconfigured([], installed_only=True)
+    assert set(s) == {"codex"}
+
+
+def test_suggest_returns_deep_copies(monkeypatch):
+    monkeypatch.setattr(cli_catalog.shutil, "which", lambda exe: "/x")
+    s = cli_catalog.suggest_unconfigured([], installed_only=True)
+    s["claude"]["cmd"].append("--mutated")
+    assert "--mutated" not in cli_catalog.CATALOG["claude"]["cmd"]
