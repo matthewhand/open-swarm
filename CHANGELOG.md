@@ -24,6 +24,8 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Reusable consensus service (`swarm.core.consensus.run_consensus`) extracted from the `cli_fusion` blueprint; consensus-first synthesis (no-judge fallback now picks the **most-corroborated** panel answer, not the longest)
 - New `cli_orchestrator` blueprint — granular consensus: a cheap router CLI answers directly and escalates only high-stakes questions to a consensus panel (fusion as an on-demand tool, not a whole-request mode)
 - Cleanup: removed dead `progress_text()` and `CliResult.as_dict()`
+- Agent-tool layer (`swarm.core.cli_tools`): `cli_persona(adapter)` and `consensus_fn(panel, judge)` callables, `as_function_tool()` to hand either to an openai-agents `Agent` — so a real agent can call `consensus()` granularly mid-reasoning
+- New `cli_map` blueprint — decompose → distribute → reduce: a planner CLI splits one task into subtasks, workers run them in parallel (round-robin), a reducer combines (complements `cli_fusion`'s consensus)
 - End-to-end API coverage: real panel→synthesize and `params`-driven selection over `/v1/chat/completions`
 
 ## [0.3.3] - 2026-06-12

@@ -250,6 +250,28 @@ prompt ─► panel: N CLIs run in PARALLEL (asyncio.gather), each one-shot
 
 ---
 
+## Decompose & distribute — `cli_map`
+
+The complement to consensus. `cli_fusion` sends the *same* question to a panel;
+`cli_map` splits *one task* into independent subtasks, distributes them across
+worker CLIs in parallel (round-robin), and reduces the results into one answer —
+divide-and-conquer for scale.
+
+```jsonc
+"cli_map": {
+  "planner": "claude",
+  "workers": ["claude", "gemini", "opencode"],
+  "reducer": "claude",
+  "max_items": 6
+}
+```
+
+A **planner** CLI decomposes the prompt into a JSON subtask list (or pass
+`params.items` to skip planning), workers run the subtasks concurrently, and a
+**reducer** combines them (falling back to a labeled concatenation if no reducer
+is configured). Falls back to `cli_fusion` config when the `cli_map` block is
+omitted.
+
 ## Granular consensus — `cli_orchestrator`
 
 `cli_fusion` fans out on *every* request. `cli_orchestrator` makes consensus
