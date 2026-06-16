@@ -16,6 +16,7 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Full-capability (auto-approve) example adapters, replacing the read-only defaults
 - Per-panelist workdir isolation (`cli_fusion.isolate_workdir` / per-request `isolate`): each write-capable panelist gets a throwaway `git worktree` (or temp dir) so parallel fan-out can't corrupt the source tree
 - Built-in adapter catalog + `swarm-cli cli-agents --suggest`: paste-ready config for supported CLIs installed but not yet configured
+- Catalog defaults encode known per-CLI gotchas so they run non-interactively out of the box: `gemini --skip-trust` (untrusted-dir gate), `opencode --model` (no usable built-in default) — verified live
 - Non-interactive smoke probe + `swarm-cli cli-agents --smoke`: catches a misconfigured `cmd` that hangs instead of returning (ok/hang/error/not_installed)
 - Machine-readable `swarm-cli cli-agents --json` (agents/smoke/suggestions) for CI and scripting
 - `cli_agent` streams CLI stdout incrementally for `parse: "text"` adapters when `stream: true` (json-parse adapters fall back to one-shot)

@@ -38,6 +38,17 @@ def test_executable_for():
     assert cli_catalog.executable_for("gemini") == "gemini"
 
 
+def test_gemini_default_includes_skip_trust_gotcha():
+    # gemini refuses to run in an untrusted dir without this; regression guard.
+    assert "--skip-trust" in cli_catalog.catalog_entry("gemini")["cmd"]
+
+
+def test_opencode_default_pins_a_model_gotcha():
+    # opencode's built-in default model errors as "not supported".
+    cmd = cli_catalog.catalog_entry("opencode")["cmd"]
+    assert "--model" in cmd and cmd[cmd.index("--model") + 1]
+
+
 def test_suggest_skips_already_configured():
     s = cli_catalog.suggest_unconfigured(["claude", "gemini"], installed_only=False)
     assert "claude" not in s and "gemini" not in s

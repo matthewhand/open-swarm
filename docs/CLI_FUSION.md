@@ -139,7 +139,7 @@ get a panelist that actually *does work*, pin down two flags from its `--help`:
     "timeout": 240
   },
   "gemini": {
-    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo"],
+    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
     "parse": "json:.response",
     "mode": "write"
   },
@@ -149,12 +149,26 @@ get a panelist that actually *does work*, pin down two flags from its `--help`:
     "mode": "write"
   },
   "opencode": {
-    "cmd": ["opencode", "run", "{prompt}"],
+    "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
     "parse": "text",
     "mode": "write"
   }
 }
 ```
+
+### Known per-CLI gotchas (baked into the defaults)
+
+These bite the moment you run a CLI non-interactively; the catalog and the
+examples above already include the fixes (verified live 2026-06-16):
+
+| CLI | Gotcha | Fix (already applied) |
+|---|---|---|
+| `gemini` | refuses to run in an "untrusted" directory | `--skip-trust` (or `GEMINI_CLI_TRUST_WORKSPACE=true`) |
+| `opencode` | built-in default model errors as "not supported" | explicit `--model` (e.g. `opencode/big-pickle`) — run `opencode models` to pick one available to your account |
+| `claude` | none for read/answer; writes need the auto-approve flag | `--dangerously-skip-permissions` (already in the write config) |
+
+The `--model` value for `opencode` is account/version-specific — it's the one
+place you'll likely need to adjust. Everything else runs as shipped.
 
 These panelists run at **full capability** — they can read, write, and run
 commands. The one real hazard of fanning several write-capable agents out in

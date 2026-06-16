@@ -20,7 +20,7 @@
       "env_allowlist": ["ANTHROPIC_API_KEY"]
     },
     "gemini": {
-      "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo"],
+      "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
       "parse": "json:.response",
       "mode": "write",
       "timeout": 240,
@@ -34,7 +34,7 @@
       "env_allowlist": ["OPENAI_API_KEY"]
     },
     "opencode": {
-      "cmd": ["opencode", "run", "{prompt}"],
+      "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
       "parse": "text",
       "mode": "write",
       "timeout": 240

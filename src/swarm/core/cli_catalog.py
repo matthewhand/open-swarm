@@ -10,6 +10,15 @@ capability) — the flag that matters is the auto-approve one, without which the
 CLI blocks on a permission prompt and is killed on timeout (see
 ``docs/CLI_FUSION.md``). Exact flags and JSON shapes drift by CLI version, so
 these are suggestions to verify with each CLI's ``--help``, not guarantees.
+
+Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
+2026-06-16):
+
+* **gemini** refuses to run in an "untrusted" directory — ``--skip-trust`` (or
+  ``GEMINI_CLI_TRUST_WORKSPACE=true``) is required for non-interactive use.
+* **opencode** has no usable default model in ``run`` mode (its built-in default
+  errors as "not supported"), so an explicit ``--model`` is required. The value
+  below is account/version-specific — run ``opencode models`` to pick one.
 """
 
 from __future__ import annotations
@@ -28,7 +37,8 @@ CATALOG: dict[str, dict[str, Any]] = {
         "env_allowlist": ["ANTHROPIC_API_KEY"],
     },
     "gemini": {
-        "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo"],
+        # --skip-trust: gemini refuses to run in an untrusted dir without it.
+        "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
         "parse": "json:.response",
         "mode": "write",
         "timeout": 240,
@@ -42,7 +52,10 @@ CATALOG: dict[str, dict[str, Any]] = {
         "env_allowlist": ["OPENAI_API_KEY"],
     },
     "opencode": {
-        "cmd": ["opencode", "run", "{prompt}"],
+        # --model: opencode's built-in default errors as "not supported"; an
+        # explicit model is required. This value is account/version-specific —
+        # run `opencode models` to pick one available to you.
+        "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
         "parse": "text",
         "mode": "write",
         "timeout": 240,
