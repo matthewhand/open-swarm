@@ -98,6 +98,17 @@ def test_init_write_creates_config_file(tmp_path, monkeypatch):
     assert (tmp_path / "swarm_config.json.bak").exists()
 
 
+def test_short_flags_and_agents_alias(monkeypatch):
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok"])
+    # short -i works, and `agents` is an alias for `cli-agents`
+    r1 = runner.invoke(app, ["cli-agents", "-i"])
+    assert r1.exit_code == 0 and "cli_agents" in r1.stdout
+    r2 = runner.invoke(app, ["agents", "-i"])
+    assert r2.exit_code == 0 and json.loads(r2.stdout)["cli_agents"]
+
+
 def test_table_output_without_json(tmp_path):
     cfg = _write_config(
         tmp_path, {"echo": {"cmd": [PY, "-c", "print(1)", "{prompt}"]}}

@@ -273,13 +273,13 @@ def list_blueprints(
 
 @app.command(name="cli-agents")
 def cli_agents(
-    config_path: str = typer.Option(None, "--config", help="Path to swarm_config.json (defaults to the usual search)."),
-    check_auth: bool = typer.Option(False, "--check-auth", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
-    suggest: bool = typer.Option(False, "--suggest", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
-    smoke: bool = typer.Option(False, "--smoke", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
-    output_json: bool = typer.Option(False, "--json", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
-    init: bool = typer.Option(False, "--init", help="Print a complete, ready-to-run swarm_config wiring every mode (cli_fusion/cli_orchestrator/cli_map) over the CLIs installed on this host."),
-    write: bool = typer.Option(False, "--write", help="With --init, write the config to your swarm config path (backs up any existing file)."),
+    config_path: str = typer.Option(None, "--config", "-c", help="Path to swarm_config.json (defaults to the usual search)."),
+    check_auth: bool = typer.Option(False, "--check-auth", "-a", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
+    suggest: bool = typer.Option(False, "--suggest", "-S", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
+    smoke: bool = typer.Option(False, "--smoke", "-s", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
+    init: bool = typer.Option(False, "--init", "-i", help="Print a complete, ready-to-run swarm_config wiring every mode (cli_fusion/cli_orchestrator/cli_map) over the CLIs installed on this host."),
+    write: bool = typer.Option(False, "--write", "-w", help="With --init, write the config to your swarm config path (backs up any existing file)."),
 ):
     """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
     import asyncio
@@ -364,6 +364,10 @@ def cli_agents(
             typer.echo(f"Suggested cli_agents for installed-but-unconfigured CLIs ({names}):")
             typer.echo("Verify each CLI's flags with --help before use; see docs/CLI_FUSION.md.\n")
             typer.echo(json.dumps({"cli_agents": suggestions}, indent=2))
+
+
+# Laconic alias: `swarm-cli agents` == `swarm-cli cli-agents`.
+app.command(name="agents", help="Alias for cli-agents.")(cli_agents)
 
 
 if __name__ == "__main__":

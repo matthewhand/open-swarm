@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.3] - 2026-06-16
+
+### Added — Blueprint library (permutation matrix)
+- **`chatbot`** — minimal single-agent REST blueprint (the simplest template).
+- **`hybrid_team`** / **`hybrid_swarm`** — the Mixed column: a REST coordinator/orchestrator that reaches for **grok CLI personas** and a **consensus panel** mid-run (`swarm.core.cli_tools`). REST half wired to a real openai-agents Agent that degrades gracefully without an LLM key; CLI half verified live with grok ("Rome", unanimous consensus).
+- `docs/BLUEPRINT_LIBRARY.md` — a feature-tagged menu organized as an agents × backend matrix (1→many × REST/CLI/mixed); every cell now has a working, tested demonstrator.
+
+### Changed
+- **Laconic CLI:** `swarm-cli cli-agents` gains short flags (`-c/-a/-S/-s/-j/-i/-w`) and an `agents` alias, so `swarm-cli agents -iw` == `cli-agents --init --write`.
+
 ## [0.4.2] - 2026-06-16
 
 ### Added
