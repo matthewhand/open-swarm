@@ -109,6 +109,7 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
 | `presets` | dict | Named panels. Each preset: `{ "panel": [names], "judge": name }`. |
 | `default_preset` | str | Preset used by `cli_fusion` when the request doesn't specify a panel/preset. |
 | `max_rounds` | int | Master-plan rounds (default 1, hard-capped at 5). |
+| `max_concurrency` | int | Max CLI subprocesses launched at once per round (default 8). |
 | `show_analysis` | bool | Append the judge's consensus/contradictions/gaps footer to the answer. |
 
 ```jsonc

@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 
 # Bound the master-plan loop regardless of config, to cap cost/runaway.
 MAX_ROUNDS_CEILING = 5
+# Default cap on how many CLI subprocesses launch at once (each may spawn a tree).
+DEFAULT_MAX_CONCURRENCY = 8
 # Env flag used to stop a panelist that is itself a swarm fusion from re-fusing.
 DEPTH_ENV = "SWARM_CLI_FUSION_DEPTH"
 
@@ -115,11 +117,16 @@ class CliFusionBlueprint(BlueprintBase):
         prompt: str,
         workdir: str | None,
         child_env: dict[str, str],
+        max_concurrency: int,
     ) -> list[CliResult]:
         panel = registry.resolve_panel(panel_names)
-        return await asyncio.gather(
-            *(a.run(prompt, workdir=workdir, extra_env=child_env) for a in panel)
-        )
+        sem = asyncio.Semaphore(max(1, max_concurrency))
+
+        async def _bounded(adapter):
+            async with sem:
+                return await adapter.run(prompt, workdir=workdir, extra_env=child_env)
+
+        return await asyncio.gather(*(_bounded(a) for a in panel))
 
     async def _judge(
         self,
@@ -198,6 +205,12 @@ class CliFusionBlueprint(BlueprintBase):
 
         fusion_cfg = (self._config or {}).get("cli_fusion") or {}
         workdir = params.get(support.PARAM_WORKDIR)
+        try:
+            max_concurrency = int(
+                params.get("max_concurrency", fusion_cfg.get("max_concurrency", DEFAULT_MAX_CONCURRENCY))
+            )
+        except (TypeError, ValueError):
+            max_concurrency = DEFAULT_MAX_CONCURRENCY
 
         # Recursion guard: if we are running *inside* another fusion (a panelist
         # was itself a swarm fusion blueprint), degrade to a single panelist with
@@ -223,7 +236,7 @@ class CliFusionBlueprint(BlueprintBase):
                 f"CLI agent(s): {', '.join(panel_names)}…_"
             )
             results = await self._run_panel(
-                registry, panel_names, current_prompt, workdir, child_env
+                registry, panel_names, current_prompt, workdir, child_env, max_concurrency
             )
             for r in results:
                 if not r.ok:

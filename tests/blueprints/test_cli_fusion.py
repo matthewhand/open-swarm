@@ -151,6 +151,15 @@ async def test_max_rounds_is_capped():
 # Fusion: failure + recursion guard
 # --------------------------------------------------------------------------- #
 
+async def test_fusion_bounded_concurrency_still_runs_all():
+    cfg = _config(judge_obj={"answer": "ok", "done": True}, panel=("a", "b"), max_concurrency=1)
+    bp = CliFusionBlueprint(config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "q"}]))
+    # Serialized launches still produce the synthesized answer and name both agents.
+    assert _final_content(chunks) == "ok"
+    assert "a, b" in _all_progress(chunks)
+
+
 async def test_fusion_all_panel_fail():
     cfg = {
         "cli_agents": {"boom": {"cmd": [PY, "-c", "import sys; sys.exit(1)", "{prompt}"]}},
