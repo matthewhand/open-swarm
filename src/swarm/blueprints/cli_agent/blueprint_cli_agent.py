@@ -14,17 +14,11 @@ See :mod:`swarm.core.cli_adapter` for the lifecycle layer and
 from __future__ import annotations
 
 import logging
-import os
-import sys
 from typing import Any, ClassVar
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-src_path = os.path.join(project_root, "src")
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.cli_adapter import CliAdapterError
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +49,18 @@ class CliAgentBlueprint(BlueprintBase):
         self._params = dict(params or {})
 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
+        # Snapshot params once before any await: the API view may reuse a cached
+        # singleton instance for param-less requests, so self._params can be
+        # mutated by a concurrent request across await points.
+        params = dict(self._params)
+
         prompt = support.render_prompt(messages)
         if not prompt:
             yield support.message_chunk("No prompt provided.", final=True)
             return
 
-        registry = support.apply_overrides(
-            support.build_registry(self._config), self._params
-        )
-        name = support.select_single_cli(self._config, self._params, registry)
+        registry = support.apply_overrides(support.build_registry(self._config), params)
+        name = support.select_single_cli(self._config, params, registry)
         if not name:
             yield support.message_chunk(
                 "No CLI agents are configured. Add a 'cli_agents' block to your "
@@ -74,11 +71,11 @@ class CliAgentBlueprint(BlueprintBase):
 
         try:
             adapter = registry.get(name)
-        except Exception as exc:  # CliAdapterError
+        except CliAdapterError as exc:
             yield support.message_chunk(str(exc), final=True)
             return
 
-        workdir = self._params.get(support.PARAM_WORKDIR)
+        workdir = params.get(support.PARAM_WORKDIR)
         yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
         result = await adapter.run(prompt, workdir=workdir)
 

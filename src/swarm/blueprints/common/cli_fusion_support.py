@@ -132,9 +132,26 @@ def message_chunk(content: str, *, final: bool = False, role: str = "assistant")
     return chunk
 
 
+#: Chunk ``type`` for fusion progress side-channel events.
+PROGRESS_TYPE = "fusion_progress"
+
+
 def progress_chunk(content: str) -> dict:
-    """A streamed progress line (rendered as a delta; harmless when buffered)."""
-    return {"messages": [{"role": "assistant", "content": content}]}
+    """A progress event on a side-channel that vanilla OpenAI clients drop.
+
+    Deliberately carries no ``messages``/``message``/``choices`` key, so
+    ``swarm.views.chat_views._extract_message_from_chunk`` returns None and the
+    line never leaks into the synthesized answer. Swarm-aware UIs can render it
+    by inspecting ``chunk["type"] == PROGRESS_TYPE``.
+    """
+    return {"type": PROGRESS_TYPE, "content": content}
+
+
+def progress_text(chunk: dict) -> str | None:
+    """Return the text of a progress chunk, or None if it isn't one."""
+    if isinstance(chunk, dict) and chunk.get("type") == PROGRESS_TYPE:
+        return chunk.get("content")
+    return None
 
 
 def format_cli_error(adapter: CliAdapter, error: str) -> str:

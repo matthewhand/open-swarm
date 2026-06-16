@@ -70,6 +70,12 @@ class CliAgentConfig:
     env:
         Extra environment variables (values may contain ``{prompt}``/``{workdir}``).
         Merged onto the parent environment.
+    env_allowlist:
+        When None (default), the child inherits the full parent environment —
+        convenient, but every panelist then sees every API key. When set to a
+        list of names, the child gets only those vars (plus a small essential
+        set like ``PATH``/``HOME``) from the parent, isolating each CLI's
+        secrets. ``env`` is always applied on top.
     timeout:
         Seconds before the agent (and its process group) is killed.
     mode:
@@ -84,6 +90,7 @@ class CliAgentConfig:
     parse: str = "text"
     cwd: str | None = None
     env: dict[str, str] = field(default_factory=dict)
+    env_allowlist: list[str] | None = None
     timeout: float = DEFAULT_TIMEOUT
     mode: str = "default"
 
@@ -126,6 +133,7 @@ class CliResult:
             "timed_out": self.timed_out,
             "parse_error": self.parse_error,
             "error": self.error,
+            "stderr": self.stderr,
         }
 
 
@@ -175,6 +183,7 @@ class CliAdapter:
             parse=raw.get("parse", "text"),
             cwd=raw.get("cwd"),
             env=dict(raw.get("env", {})),
+            env_allowlist=raw.get("env_allowlist"),
             timeout=float(raw.get("timeout", DEFAULT_TIMEOUT)),
             mode=raw.get("mode", "default"),
         )
@@ -240,11 +249,7 @@ class CliAdapter:
         )
         argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
 
-        env = os.environ.copy()
-        for key, val in cfg.env.items():
-            env[key] = _apply_tokens(val, prompt, effective_workdir)
-        if extra_env:
-            env.update(extra_env)
+        env = self._build_env(prompt, effective_workdir, extra_env)
 
         if not self.is_available():
             return CliResult(
@@ -304,6 +309,24 @@ class CliAdapter:
             name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
             parse_error=parse_error, stderr=stderr.strip(),
         )
+
+    # Always-passed vars so a locked-down CLI can still run and resolve itself.
+    _ESSENTIAL_ENV = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM")
+
+    def _build_env(
+        self, prompt: str, workdir: str, extra_env: dict[str, str] | None
+    ) -> dict[str, str]:
+        cfg = self.config
+        if cfg.env_allowlist is None:
+            env = os.environ.copy()
+        else:
+            keep = (*self._ESSENTIAL_ENV, *cfg.env_allowlist)
+            env = {k: os.environ[k] for k in keep if k in os.environ}
+        for key, val in cfg.env.items():
+            env[key] = _apply_tokens(val, prompt, workdir)
+        if extra_env:
+            env.update(extra_env)
+        return env
 
     @staticmethod
     async def _terminate(proc: asyncio.subprocess.Process) -> None:

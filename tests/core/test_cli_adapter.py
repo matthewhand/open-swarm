@@ -160,6 +160,39 @@ async def test_extra_env_passed_through():
     assert res.text == "present"
 
 
+async def test_env_allowlist_isolates_secrets(monkeypatch):
+    # A secret in the parent env must NOT reach the child when an allowlist is set.
+    monkeypatch.setenv("FAKE_SECRET_KEY", "topsecret")
+    monkeypatch.setenv("ALLOWED_VAR", "ok")
+    code = (
+        "import os; "
+        "print(os.environ.get('FAKE_SECRET_KEY', 'absent'), "
+        "os.environ.get('ALLOWED_VAR', 'absent'))"
+    )
+    adapter = CliAdapter.from_config(
+        "locked",
+        {"cmd": [PY, "-c", code, "{prompt}"], "env_allowlist": ["ALLOWED_VAR"]},
+    )
+    res = await adapter.run("x")
+    assert res.ok is True
+    assert res.text == "absent ok"  # secret scrubbed, allowed var kept
+
+
+async def test_no_allowlist_inherits_full_env(monkeypatch):
+    monkeypatch.setenv("FAKE_SECRET_KEY", "topsecret")
+    code = "import os; print(os.environ.get('FAKE_SECRET_KEY', 'absent'))"
+    adapter = CliAdapter.from_config("open", {"cmd": [PY, "-c", code, "{prompt}"]})
+    res = await adapter.run("x")
+    assert res.text == "topsecret"
+
+
+def test_result_as_dict_includes_stderr():
+    from swarm.core.cli_adapter import CliResult
+
+    d = CliResult(name="x", ok=False, text="", stderr="boom").as_dict()
+    assert d["stderr"] == "boom"
+
+
 # --------------------------------------------------------------------------- #
 # Parallel panel semantics
 # --------------------------------------------------------------------------- #
