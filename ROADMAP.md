@@ -139,20 +139,22 @@ parity is reached.
 ### 3.5b CLI Agent Fusion (v0.4.0 feature line)
 
 Turns the agentic CLIs an operator already has installed (`claude`, `gemini`,
-`codex`, `opencode`, …) into one-shot, OpenAI-API-addressable subagents — single
-(`cli_agent`) or a parallel panel that a judge synthesizes (`cli_fusion`). Full
-design in [docs/CLI_FUSION.md](./docs/CLI_FUSION.md). Shipped via a PR series
-tagged `v0.4.0 PR n/13` in the commit log.
+`codex`, `opencode`, …) into one-shot, OpenAI-API-addressable subagents, composed
+four ways: single (`cli_agent`), consensus panel (`cli_fusion`), granular
+consensus (`cli_orchestrator`), and decompose-and-distribute (`cli_map`). Full
+design in [docs/CLI_FUSION.md](./docs/CLI_FUSION.md). Built as a PR series in the
+commit log; version bumped to 0.4.0.
 
-- [ ] CLI Agent Fusion shipped as v0.4.0
-  - [x] Foundation: `CliAdapter` one-shot layer + `cli_agent`/`cli_fusion` blueprints (PR 1)
-  - [x] Install autodiscovery: `Registry.discover()` + `swarm-cli cli-agents` (PR 2)
-  - [x] Auth autodiscovery: `auth_check` probe + `--check-auth` (PR 3)
-  - [x] Full-capability panelists (auto-approve flags) + per-panelist workdir isolation (git worktree / temp dir) (PR 4)
-  - [x] Built-in adapter catalog + `swarm-cli cli-agents --suggest` (PR 5)
-  - [x] Non-interactive smoke probe + `--smoke` (PR 6)
-  - [x] End-to-end API coverage over `/v1/chat/completions` (PR 7)
-  - [ ] Remaining PRs 8–13 (not yet specced) + version bump, CHANGELOG, tag in the release PR
+- [x] CLI Agent Fusion built for v0.4.0 (code complete; tag + PyPI publish pending)
+  - [x] Foundation: `CliAdapter` one-shot layer + `cli_agent`/`cli_fusion` blueprints
+  - [x] Install + auth autodiscovery: `swarm-cli cli-agents` (`--check-auth`/`--smoke`/`--suggest`/`--json`)
+  - [x] Full-capability panelists (auto-approve) + per-panelist workdir isolation (git worktree / temp dir)
+  - [x] Built-in adapter catalog with per-CLI gotchas baked in (gemini `--skip-trust`, opencode `--model`)
+  - [x] Incremental streaming (`cli_agent`) + failover/graceful degradation
+  - [x] Reusable `swarm.core.consensus` service (consensus-first synthesis) + `swarm.core.cli_tools` agent-tool layer (`as_tool()`)
+  - [x] `cli_orchestrator` (granular consensus) + `cli_map` (decompose → distribute → reduce) blueprints
+  - [x] End-to-end API coverage; verified live over claude+gemini+opencode
+  - [ ] Tag `v0.4.0` + PyPI publish (manual release step — owner action)
 
 ### 3.6 Release engineering
 

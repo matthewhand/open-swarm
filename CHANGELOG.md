@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — CLI Agent Fusion (v0.4.0 line, in progress)
+(nothing yet)
+
+## [0.4.0] - 2026-06-16
+
+### Added — CLI Agent Fusion
 
 Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 `opencode`, …) into one-shot, OpenAI-API-addressable subagents — single
