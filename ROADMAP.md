@@ -136,6 +136,24 @@ parity is reached.
 - [ ] Demote or archive non-flagship blueprints to an examples/contrib area
 - [ ] Restore or formally drop legacy CLI commands old docs reference (`wizard`, `config`, `add`)
 
+### 3.5b CLI Agent Fusion (v0.4.0 feature line)
+
+Turns the agentic CLIs an operator already has installed (`claude`, `gemini`,
+`codex`, `opencode`, …) into one-shot, OpenAI-API-addressable subagents — single
+(`cli_agent`) or a parallel panel that a judge synthesizes (`cli_fusion`). Full
+design in [docs/CLI_FUSION.md](./docs/CLI_FUSION.md). Shipped via a PR series
+tagged `v0.4.0 PR n/13` in the commit log.
+
+- [ ] CLI Agent Fusion shipped as v0.4.0
+  - [x] Foundation: `CliAdapter` one-shot layer + `cli_agent`/`cli_fusion` blueprints (PR 1)
+  - [x] Install autodiscovery: `Registry.discover()` + `swarm-cli cli-agents` (PR 2)
+  - [x] Auth autodiscovery: `auth_check` probe + `--check-auth` (PR 3)
+  - [x] Full-capability panelists (auto-approve flags) + per-panelist workdir isolation (git worktree / temp dir) (PR 4)
+  - [x] Built-in adapter catalog + `swarm-cli cli-agents --suggest` (PR 5)
+  - [x] Non-interactive smoke probe + `--smoke` (PR 6)
+  - [x] End-to-end API coverage over `/v1/chat/completions` (PR 7)
+  - [ ] Remaining PRs 8–13 (not yet specced) + version bump, CHANGELOG, tag in the release PR
+
 ### 3.6 Release engineering
 
 - [ ] First tagged FOSS release on PyPI
