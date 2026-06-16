@@ -22,6 +22,18 @@ def _echo(prefix: str) -> dict:
     return {"cmd": [PY, "-c", f"import sys; print('{prefix}:' + sys.argv[1])", "{prompt}"]}
 
 
+@pytest.fixture(autouse=True)
+def _isolate_blueprint_cache():
+    # Param-less requests reuse get_blueprint_instance()'s instance cache. Clear
+    # it before AND after each test so neither a stale empty-config instance from
+    # an earlier test leaks in, nor our fake-config instance leaks out.
+    from swarm.views import utils as view_utils
+
+    view_utils._blueprint_instance_cache.clear()
+    yield
+    view_utils._blueprint_instance_cache.clear()
+
+
 @pytest.fixture
 def fake_cli_config(monkeypatch):
     cfg = {
