@@ -190,13 +190,6 @@ async def test_no_allowlist_inherits_full_env(monkeypatch):
     assert res.text == "topsecret"
 
 
-def test_result_as_dict_includes_stderr():
-    from swarm.core.cli_adapter import CliResult
-
-    d = CliResult(name="x", ok=False, text="", stderr="boom").as_dict()
-    assert d["stderr"] == "boom"
-
-
 # --------------------------------------------------------------------------- #
 # Parallel panel semantics
 # --------------------------------------------------------------------------- #

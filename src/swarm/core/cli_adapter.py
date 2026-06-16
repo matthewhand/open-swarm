@@ -153,19 +153,6 @@ class CliResult:
     error: str | None = None
     stderr: str = ""
 
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "ok": self.ok,
-            "text": self.text,
-            "returncode": self.returncode,
-            "duration": round(self.duration, 3),
-            "timed_out": self.timed_out,
-            "parse_error": self.parse_error,
-            "error": self.error,
-            "stderr": self.stderr,
-        }
-
 
 @dataclass
 class SmokeResult:

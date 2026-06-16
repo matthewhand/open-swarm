@@ -189,12 +189,5 @@ def progress_chunk(content: str) -> dict:
     return {"type": PROGRESS_TYPE, "content": content}
 
 
-def progress_text(chunk: dict) -> str | None:
-    """Return the text of a progress chunk, or None if it isn't one."""
-    if isinstance(chunk, dict) and chunk.get("type") == PROGRESS_TYPE:
-        return chunk.get("content")
-    return None
-
-
 def format_cli_error(adapter: CliAdapter, error: str) -> str:
     return f"[{adapter.name}] failed: {error}"

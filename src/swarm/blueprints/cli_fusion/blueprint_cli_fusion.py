@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import re
@@ -28,6 +27,8 @@ from typing import Any, AsyncIterator, ClassVar
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.cli_adapter import CliAdapterRegistry, CliResult
+from swarm.core.consensus import run_consensus
+from swarm.core.consensus import safe_json as _safe_json  # re-exported for callers/tests
 
 logger = logging.getLogger(__name__)
 
@@ -37,46 +38,6 @@ MAX_ROUNDS_CEILING = 5
 DEFAULT_MAX_CONCURRENCY = 8
 # Env flag used to stop a panelist that is itself a swarm fusion from re-fusing.
 DEPTH_ENV = "SWARM_CLI_FUSION_DEPTH"
-
-JUDGE_TEMPLATE = """You are the JUDGE in a multi-agent panel. The user's request was:
-
-<request>
-{prompt}
-</request>
-
-Several independent agents answered it. Compare (do NOT merely concatenate) their answers below.
-
-{panel}
-
-Return ONLY a JSON object with these keys:
-- "consensus": list of points the agents agree on
-- "contradictions": list of points where they disagree
-- "gaps": list of things no agent covered
-- "unique_insights": list of valuable points raised by a single agent
-- "answer": a single best synthesized answer combining the strongest reasoning from all agents
-- "done": boolean — true if "answer" fully resolves the request, false if another round of work is needed
-- "next_step": if not done, one concrete instruction for the next round (else "")
-"""
-
-
-def _safe_json(text: str) -> dict[str, Any] | None:
-    """Parse a JSON object from CLI output, tolerating surrounding prose."""
-    text = (text or "").strip()
-    if not text:
-        return None
-    try:
-        obj = json.loads(text)
-        return obj if isinstance(obj, dict) else None
-    except json.JSONDecodeError:
-        pass
-    start, end = text.find("{"), text.rfind("}")
-    if 0 <= start < end:
-        try:
-            obj = json.loads(text[start : end + 1])
-            return obj if isinstance(obj, dict) else None
-        except json.JSONDecodeError:
-            return None
-    return None
 
 
 # --- Per-panelist workdir isolation --------------------------------------- #
@@ -208,57 +169,6 @@ class CliFusionBlueprint(BlueprintBase):
             n = 1
         return max(1, min(n, MAX_ROUNDS_CEILING))
 
-    async def _run_panel(
-        self,
-        registry: CliAdapterRegistry,
-        panel_names: list[str],
-        prompt: str,
-        workdirs: dict[str, str | None],
-        child_env: dict[str, str],
-        max_concurrency: int,
-    ) -> list[CliResult]:
-        panel = registry.resolve_panel(panel_names)
-        sem = asyncio.Semaphore(max(1, max_concurrency))
-
-        async def _bounded(adapter):
-            async with sem:
-                return await adapter.run(
-                    prompt, workdir=workdirs.get(adapter.name), extra_env=child_env
-                )
-
-        return await asyncio.gather(*(_bounded(a) for a in panel))
-
-    async def _judge(
-        self,
-        registry: CliAdapterRegistry,
-        judge_name: str | None,
-        prompt: str,
-        results: list[CliResult],
-        workdir: str | None,
-        child_env: dict[str, str],
-    ) -> dict[str, Any] | None:
-        if not judge_name:
-            return None
-        try:
-            judge = registry.get(judge_name)
-        except Exception:
-            return None
-        panel_text = "\n\n".join(f"### Agent: {r.name}\n{r.text}" for r in results)
-        judge_prompt = JUDGE_TEMPLATE.format(prompt=prompt, panel=panel_text)
-        res = await judge.run(judge_prompt, workdir=workdir, extra_env=child_env)
-        if not res.ok:
-            logger.warning("Judge %s failed: %s", judge_name, res.error)
-            return None
-        return _safe_json(res.text)
-
-    @staticmethod
-    def _synthesize(analysis: dict[str, Any] | None, results: list[CliResult]) -> str:
-        if analysis and isinstance(analysis.get("answer"), str) and analysis["answer"].strip():
-            return analysis["answer"].strip()
-        # No usable judge analysis: fall back to the longest successful answer.
-        best = max(results, key=lambda r: len(r.text or ""))
-        return best.text
-
     def _format_final(
         self,
         params: dict[str, Any],
@@ -344,26 +254,28 @@ class CliFusionBlueprint(BlueprintBase):
                 yield support.progress_chunk(
                     f"_Isolating {len(panel_names)} panelist(s) into private workdirs…_"
                 )
-            # Fresh per-panelist workspaces each round; torn down before judging
-            # (the judge runs in the base workdir, only comparing text answers).
+            panel = registry.resolve_panel(panel_names)
+            judge = registry.get(judge_name) if judge_name else None
+            # Fresh per-panelist workspaces each round; torn down after the round.
             async with _panel_workspaces(workdir, panel_names, isolate) as workdirs:
-                results = await self._run_panel(
-                    registry, panel_names, current_prompt, workdirs, child_env, max_concurrency
+                if judge is not None:
+                    workdirs.setdefault(judge.name, workdir)  # judge runs in the base workdir
+                cons = await run_consensus(
+                    current_prompt, panel, judge,
+                    workdirs=workdirs, child_env=child_env, max_concurrency=max_concurrency,
                 )
-            for r in results:
+            for r in cons.results:
                 if not r.ok:
                     yield support.progress_chunk(f"_• {r.name} failed: {r.error}_")
-            ok_results = [r for r in results if r.ok]
+            ok_results = cons.ok_results
             if not ok_results:
                 yield support.message_chunk("All CLI panelists failed.", final=True)
                 return
 
             if judge_name:
                 yield support.progress_chunk(f"_Judging {len(ok_results)} response(s) with `{judge_name}`…_")
-            analysis = await self._judge(
-                registry, judge_name, current_prompt, ok_results, workdir, child_env
-            )
-            answer = self._synthesize(analysis, ok_results)
+            analysis = cons.analysis
+            answer = cons.answer
             done = bool(analysis.get("done", True)) if analysis else True
 
             if done or round_i == max_rounds - 1:

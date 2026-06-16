@@ -21,6 +21,9 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Machine-readable `swarm-cli cli-agents --json` (agents/smoke/suggestions) for CI and scripting
 - `cli_agent` streams CLI stdout incrementally for `parse: "text"` adapters when `stream: true` (json-parse adapters fall back to one-shot)
 - Failover & graceful degradation: `cli_agent` fails over down a candidate chain (`params.fallback`, or auto to other installed adapters; `failover: false` for strict) when a CLI is missing/broken/hung; `cli_fusion` drops failed panelists and reaches consensus from the survivors
+- Reusable consensus service (`swarm.core.consensus.run_consensus`) extracted from the `cli_fusion` blueprint; consensus-first synthesis (no-judge fallback now picks the **most-corroborated** panel answer, not the longest)
+- New `cli_orchestrator` blueprint — granular consensus: a cheap router CLI answers directly and escalates only high-stakes questions to a consensus panel (fusion as an on-demand tool, not a whole-request mode)
+- Cleanup: removed dead `progress_text()` and `CliResult.as_dict()`
 - End-to-end API coverage: real panel→synthesize and `params`-driven selection over `/v1/chat/completions`
 
 ## [0.3.3] - 2026-06-12

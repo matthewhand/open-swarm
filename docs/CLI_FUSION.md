@@ -250,6 +250,32 @@ prompt ─► panel: N CLIs run in PARALLEL (asyncio.gather), each one-shot
 
 ---
 
+## Granular consensus — `cli_orchestrator`
+
+`cli_fusion` fans out on *every* request. `cli_orchestrator` makes consensus
+*granular*: a cheap **router** CLI runs a single inference, answers directly, and
+escalates to a consensus panel **only** when it judges the question high-stakes
+(correctness-critical, security/production-impacting, contested). Single
+inference by default, consensus on demand.
+
+```jsonc
+"cli_orchestrator": {
+  "router": "claude",
+  "panel": ["claude", "gemini", "opencode"],
+  "judge": "claude"
+}
+```
+
+```bash
+curl -sf localhost:8000/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -d '{"model":"cli_orchestrator","messages":[{"role":"user","content":"Is this migration safe?"}]}'
+```
+
+Falls back to `cli_fusion.default_cli` (router) and `default_preset` (panel/judge)
+when the `cli_orchestrator` block is omitted. The shared loop lives in
+`swarm.core.consensus.run_consensus()`, so the same panel→judge→synthesize
+primitive backs both blueprints (and can be wrapped as an agent tool).
+
 ## Failover & graceful degradation
 
 Not every CLI is installed and working on every host, so the blueprints assume
