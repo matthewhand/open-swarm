@@ -289,19 +289,23 @@ export const usePagination = (
 /**
  * Infinite scroll pagination hook
  */
-export const useInfiniteScroll = (
-  initialItems: any[] = [],
+export const useInfiniteScroll = <T,>(
+  initialItems: T[] = [],
   itemsPerPage: number = 10
 ) => {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<T[]>(initialItems);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const [page, setPage] = useState(1);
 
-  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<any[]>) => {
+  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<T[]>) => {
     if (isLoading || !hasMore) return;
 
     setIsLoading(true);
+    setIsError(false);
+    setError(null);
     try {
       const newItems = await fetchFunction(page + 1, itemsPerPage);
       
@@ -311,8 +315,10 @@ export const useInfiniteScroll = (
         setItems(prev => [...prev, ...newItems]);
         setPage(prev => prev + 1);
       }
-    } catch (error) {
-      console.error('Error loading more items:', error);
+    } catch (err) {
+      console.error('Error loading more items:', err);
+      setIsError(true);
+      setError(err instanceof Error ? err : new Error('Unknown error loading items'));
     } finally {
       setIsLoading(false);
     }
@@ -322,22 +328,28 @@ export const useInfiniteScroll = (
     setItems(initialItems);
     setHasMore(true);
     setPage(1);
+    setIsError(false);
+    setError(null);
   };
 
   return {
     items,
     hasMore,
     isLoading,
+    isError,
+    error,
     loadMore,
     reset,
     setItems,
   };
 };
 
-export default {
+const PaginationModule = {
   Pagination,
   SimplePagination,
   AdvancedPagination,
   usePagination,
   useInfiniteScroll,
 };
+
+export default PaginationModule;
