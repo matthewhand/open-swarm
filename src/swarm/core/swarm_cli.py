@@ -277,6 +277,7 @@ def cli_agents(
     check_auth: bool = typer.Option(False, "--check-auth", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
     suggest: bool = typer.Option(False, "--suggest", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
     smoke: bool = typer.Option(False, "--smoke", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
+    output_json: bool = typer.Option(False, "--json", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
 ):
     """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
     import asyncio
@@ -290,6 +291,19 @@ def cli_agents(
     config = load_config(cfg_file) if cfg_file else {}
     registry = CliAdapterRegistry.from_config(config)
     rows = asyncio.run(registry.discover_auth()) if check_auth else registry.discover()
+
+    if output_json:
+        payload: dict = {"agents": [d.as_dict() for d in rows]}
+        if smoke:
+            smoke_names = [d.name for d in rows if d.installed]
+            payload["smoke"] = [
+                s.as_dict() for s in asyncio.run(registry.smoke_check_all(names=smoke_names))
+            ]
+        if suggest:
+            payload["suggestions"] = cli_catalog.suggest_unconfigured(registry.names())
+        typer.echo(json.dumps(payload, indent=2))
+        raise typer.Exit(code=0)
+
     if not rows:
         typer.echo("No CLI agents configured. Add a 'cli_agents' block to your swarm config (see docs/CLI_FUSION.md).")
     elif check_auth:

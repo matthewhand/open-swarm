@@ -53,8 +53,13 @@ swarm-cli cli-agents               # install status only (fast)
 swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
 swarm-cli cli-agents --suggest     # propose config for installed-but-unconfigured CLIs
 swarm-cli cli-agents --smoke       # run one trivial one-shot per CLI to confirm it returns
+swarm-cli cli-agents --json        # machine-readable output (for CI / scripts / Open WebUI)
 swarm-cli cli-agents --config ./swarm_config.json
 ```
+
+`--json` emits one JSON object on stdout (logs stay on stderr, so `| jq` is
+clean): `{"agents": [...]}`, plus `"smoke"` and `"suggestions"` keys when
+`--smoke` / `--suggest` are combined. Use it to wire discovery into automation.
 
 `--smoke` is the counterpart to `--check-auth`: auth tells you the CLI is logged
 in; smoke tells you its configured `cmd` actually **returns** in non-interactive
