@@ -16,10 +16,14 @@ Request model: ``model: "cli_fusion"``. Per-request ``params`` may set
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
-from typing import Any, ClassVar
+import re
+import shutil
+import tempfile
+from typing import Any, AsyncIterator, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
@@ -75,6 +79,100 @@ def _safe_json(text: str) -> dict[str, Any] | None:
     return None
 
 
+# --- Per-panelist workdir isolation --------------------------------------- #
+
+_SLUG_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+def _slug(name: str) -> str:
+    """A filesystem-safe fragment for temp-dir names."""
+    return _SLUG_RE.sub("-", name)[:40] or "panel"
+
+
+async def _run_git(*args: str) -> tuple[int, str]:
+    """Run ``git`` and return (returncode, combined output). Never raises."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", *args,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+    except (OSError, ValueError):
+        return 127, ""
+    out, _ = await proc.communicate()
+    return (proc.returncode or 0), (out or b"").decode("utf-8", errors="replace")
+
+
+async def _is_git_repo(path: str) -> bool:
+    rc, out = await _run_git("-C", path, "rev-parse", "--is-inside-work-tree")
+    return rc == 0 and out.strip() == "true"
+
+
+async def _worktree_add(repo: str, path: str) -> bool:
+    rc, _ = await _run_git("-C", repo, "worktree", "add", "--detach", "--quiet", path, "HEAD")
+    return rc == 0
+
+
+async def _worktree_remove(repo: str, path: str) -> None:
+    await _run_git("-C", repo, "worktree", "remove", "--force", path)
+
+
+async def _should_isolate(
+    base_workdir: str | None, panel_names: list[str], setting: bool | None
+) -> bool:
+    """Decide whether panelists get private workdirs.
+
+    ``setting`` is the resolved ``isolate`` value: ``False`` never isolates,
+    ``True`` always isolates, ``None`` (auto) isolates only a multi-panelist run
+    whose ``workdir`` is a git repo (cheap, safe worktrees; nothing to gain on a
+    single panelist).
+    """
+    if setting is False:
+        return False
+    if setting is True:
+        return True
+    return len(panel_names) > 1 and bool(base_workdir) and await _is_git_repo(base_workdir)
+
+
+@contextlib.asynccontextmanager
+async def _panel_workspaces(
+    base_workdir: str | None, panel_names: list[str], isolate: bool
+) -> AsyncIterator[dict[str, str | None]]:
+    """Yield a ``name -> workdir`` map, isolating panelists when asked.
+
+    When isolating: a git ``base_workdir`` gives each panelist a throwaway
+    ``git worktree`` at HEAD (sees the repo, edits stay private); otherwise each
+    gets a fresh empty temp dir. All scratch is removed on exit. When not
+    isolating, every panelist shares ``base_workdir``.
+    """
+    if not isolate:
+        yield {name: base_workdir for name in panel_names}
+        return
+
+    is_repo = bool(base_workdir) and await _is_git_repo(base_workdir)
+    roots: list[str] = []
+    worktrees: list[tuple[str, str]] = []
+    mapping: dict[str, str | None] = {}
+    try:
+        for name in panel_names:
+            root = tempfile.mkdtemp(prefix=f"swarm-fusion-{_slug(name)}-")
+            roots.append(root)
+            if is_repo:
+                tree = os.path.join(root, "tree")
+                if await _worktree_add(base_workdir, tree):  # type: ignore[arg-type]
+                    mapping[name] = tree
+                    worktrees.append((base_workdir, tree))  # type: ignore[arg-type]
+                    continue
+            mapping[name] = root  # non-repo (or worktree failed): empty scratch dir
+        yield mapping
+    finally:
+        for repo, tree in worktrees:
+            await _worktree_remove(repo, tree)
+        for root in roots:
+            shutil.rmtree(root, ignore_errors=True)
+
+
 class CliFusionBlueprint(BlueprintBase):
     """Panel → judge → synthesize, with an optional bounded master-plan loop."""
 
@@ -115,7 +213,7 @@ class CliFusionBlueprint(BlueprintBase):
         registry: CliAdapterRegistry,
         panel_names: list[str],
         prompt: str,
-        workdir: str | None,
+        workdirs: dict[str, str | None],
         child_env: dict[str, str],
         max_concurrency: int,
     ) -> list[CliResult]:
@@ -124,7 +222,9 @@ class CliFusionBlueprint(BlueprintBase):
 
         async def _bounded(adapter):
             async with sem:
-                return await adapter.run(prompt, workdir=workdir, extra_env=child_env)
+                return await adapter.run(
+                    prompt, workdir=workdirs.get(adapter.name), extra_env=child_env
+                )
 
         return await asyncio.gather(*(_bounded(a) for a in panel))
 
@@ -205,6 +305,9 @@ class CliFusionBlueprint(BlueprintBase):
 
         fusion_cfg = (self._config or {}).get("cli_fusion") or {}
         workdir = params.get(support.PARAM_WORKDIR)
+        isolate_setting = params.get(support.PARAM_ISOLATE)
+        if isolate_setting is None:
+            isolate_setting = fusion_cfg.get("isolate_workdir")  # may stay None (=auto)
         try:
             max_concurrency = int(
                 params.get("max_concurrency", fusion_cfg.get("max_concurrency", DEFAULT_MAX_CONCURRENCY))
@@ -229,15 +332,24 @@ class CliFusionBlueprint(BlueprintBase):
             max_rounds = self._max_rounds(params, fusion_cfg)
         child_env = {DEPTH_ENV: str(depth + 1)}
 
+        isolate = await _should_isolate(workdir, panel_names, isolate_setting)
+
         current_prompt = prompt
         for round_i in range(max_rounds):
             yield support.progress_chunk(
                 f"_Round {round_i + 1}/{max_rounds}: consulting {len(panel_names)} "
                 f"CLI agent(s): {', '.join(panel_names)}…_"
             )
-            results = await self._run_panel(
-                registry, panel_names, current_prompt, workdir, child_env, max_concurrency
-            )
+            if isolate:
+                yield support.progress_chunk(
+                    f"_Isolating {len(panel_names)} panelist(s) into private workdirs…_"
+                )
+            # Fresh per-panelist workspaces each round; torn down before judging
+            # (the judge runs in the base workdir, only comparing text answers).
+            async with _panel_workspaces(workdir, panel_names, isolate) as workdirs:
+                results = await self._run_panel(
+                    registry, panel_names, current_prompt, workdirs, child_env, max_concurrency
+                )
             for r in results:
                 if not r.ok:
                     yield support.progress_chunk(f"_• {r.name} failed: {r.error}_")

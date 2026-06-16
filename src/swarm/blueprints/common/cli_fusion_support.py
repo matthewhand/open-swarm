@@ -21,6 +21,7 @@ PARAM_PRESET = "preset"      # fusion: named preset
 PARAM_JUDGE = "judge"        # fusion: judge adapter/profile
 PARAM_TIMEOUT = "timeout"    # override adapter timeout (seconds)
 PARAM_WORKDIR = "workdir"    # working directory for the CLI(s)
+PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:

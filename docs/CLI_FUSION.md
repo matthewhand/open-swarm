@@ -56,9 +56,9 @@ swarm-cli cli-agents --config ./swarm_config.json
 
 ```
 AGENT            STATUS     MODE       EXECUTABLE
-claude           installed  readonly   /home/you/.local/bin/claude
-codex            missing    readonly   -
-gemini           installed  readonly   /home/you/.nvm/.../gemini
+claude           installed  write      /home/you/.local/bin/claude
+codex            missing    write      -
+gemini           installed  write      /home/you/.nvm/.../gemini
 3/4 configured CLI agents installed on this host.
 ```
 
@@ -84,8 +84,26 @@ string.
 
 > ⚠️ **Exact flags and JSON shapes vary by CLI version.** The snippets below are
 > starting points — run the CLI's `--help` and confirm its non-interactive flag,
-> its read-only/approval mode, and (if using `json:` parse) the actual key in its
-> JSON output. When in doubt, use `parse: "text"`.
+> its auto-approve flag, and (if using `json:` parse) the actual key in its JSON
+> output. When in doubt, use `parse: "text"`.
+
+### Non-interactive mode is the whole game
+
+The adapter runs each CLI with stdin closed and a timeout. The flag that makes or
+breaks a run is the **auto-approve** one: in non-interactive mode an agentic CLI
+will otherwise stop mid-task to ask "may I write this file / run this command?",
+and since there's no one to answer, it blocks until the timeout kills it. So to
+get a panelist that actually *does work*, pin down two flags from its `--help`:
+
+1. its **print/exec/run** flag (one-shot, non-interactive), and
+2. its **auto-approve / skip-permissions** flag (so it never waits on a prompt).
+
+| CLI | Print/exec | Auto-approve (full-capability) | Structured output → `parse` |
+|---|---|---|---|
+| `claude` | `-p` | `--dangerously-skip-permissions` | `--output-format json` → `json:.result` |
+| `gemini` | `-p` | `--yolo` | `-o json` → `json:.response` |
+| `codex` | `exec` | `--dangerously-bypass-approvals-and-sandbox` (or `--full-auto`) | text |
+| `opencode` | `run` | (none needed — `run` acts without an approval gate) | text |
 
 ### Example adapters
 
@@ -93,30 +111,34 @@ string.
 "cli_agents": {
   "claude": {
     "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
-            "--allowedTools", "Read,Grep,Glob"],
+            "--dangerously-skip-permissions"],
     "parse": "json:.result",
-    "mode": "readonly",
+    "mode": "write",
     "timeout": 240
   },
   "gemini": {
-    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--approval-mode", "plan"],
+    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo"],
     "parse": "json:.response",
-    "mode": "readonly"
+    "mode": "write"
   },
   "codex": {
-    "cmd": ["codex", "exec", "{prompt}"],
-    "parse": "text"
+    "cmd": ["codex", "exec", "{prompt}", "--dangerously-bypass-approvals-and-sandbox"],
+    "parse": "text",
+    "mode": "write"
   },
   "opencode": {
     "cmd": ["opencode", "run", "{prompt}"],
-    "parse": "text"
+    "parse": "text",
+    "mode": "write"
   }
 }
 ```
 
-`--allowedTools Read,Grep,Glob` (claude) and `--approval-mode plan` (gemini) keep
-panelists **read-only** — strongly recommended when fanning out in parallel (see
-[Safety](#safety)).
+These panelists run at **full capability** — they can read, write, and run
+commands. The one real hazard of fanning several write-capable agents out in
+parallel is that they stomp each other's edits in a shared tree; `cli_fusion`
+solves that by giving each panelist its own working copy — see
+[Workdir isolation](#workdir-isolation).
 
 ---
 
@@ -129,6 +151,7 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
 | `default_preset` | str | Preset used by `cli_fusion` when the request doesn't specify a panel/preset. |
 | `max_rounds` | int | Master-plan rounds (default 1, hard-capped at 5). |
 | `max_concurrency` | int | Max CLI subprocesses launched at once per round (default 8). |
+| `isolate_workdir` | bool \| null | Give each panelist its own working copy so parallel writes don't collide. **null (default):** auto — isolate when the request's `workdir` is a git repo and the panel has >1 member. **true:** always isolate. **false:** never (all panelists share one workdir). See [Workdir isolation](#workdir-isolation). |
 | `show_analysis` | bool | Append the judge's consensus/contradictions/gaps footer to the answer. |
 
 ```jsonc
@@ -136,6 +159,7 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
   "default_cli": "claude",
   "default_preset": "general-high",
   "max_rounds": 1,
+  "isolate_workdir": true,
   "show_analysis": false,
   "presets": {
     "general-high":   { "panel": ["claude", "gemini", "codex"], "judge": "claude" },
@@ -153,6 +177,7 @@ panelists **read-only** — strongly recommended when fanning out in parallel (s
 | `preset` | cli_fusion | Named preset to use. |
 | `judge` | cli_fusion | Judge adapter (overrides preset's). |
 | `max_rounds` | cli_fusion | Override master-plan rounds (capped at 5). |
+| `isolate` | cli_fusion | Override `isolate_workdir` for this request (`true`/`false`). |
 | `show_analysis` | cli_fusion | Override the analysis footer. |
 | `timeout` | both | Override every adapter's timeout for this request. |
 | `workdir` | both | Working directory for the CLI(s). |
@@ -187,18 +212,38 @@ prompt ─► panel: N CLIs run in PARALLEL (asyncio.gather), each one-shot
 
 ---
 
+## Workdir isolation
+
+Panelists run at full capability, so a panel of N write-capable agents fanned out
+over the *same* `workdir` will stomp each other's edits. `cli_fusion` defuses this
+by giving each panelist its own working copy for the duration of a round:
+
+- **git repo (the common case):** each panelist gets a throwaway
+  `git worktree` checked out at `HEAD`, so it sees the full repo cheaply and its
+  edits never touch the source tree or the other panelists. The worktrees are
+  removed (`--force`, discarding scratch edits) when the round ends.
+- **non-repo `workdir` (or none):** each panelist gets a fresh empty temp
+  directory as scratch space.
+
+Controlled by `cli_fusion.isolate_workdir` (config) or the per-request `isolate`
+param. The default (`null`) auto-isolates when `workdir` is a git repo and the
+panel has more than one member; set it `true` to always isolate or `false` to
+share one workdir. The **judge** always runs in the base `workdir` (it only reads
+and compares the panel's text answers). Fusion synthesizes a single *text* answer
+— it does not merge the panelists' divergent trees, so the isolated edits are
+treated as scratch work, not a deliverable.
+
 ## Safety
 
 CLI agents can read files, run commands, and reach the network. Treat them as
 untrusted, side-effecting processes:
 
-- **Read-only panelists by default.** Use each CLI's plan/read-only mode
-  (`--approval-mode plan`, `--allowedTools Read,Grep,…`). Only opt specific
-  adapters into write mode, and avoid running several write-mode CLIs in the same
-  `workdir` in parallel — give them separate `workdir`s.
+- **Workdir isolation.** Keep `isolate_workdir` on (the default auto-isolates git
+  repos) so parallel write-capable panelists can't corrupt the source tree or
+  collide — see above.
 - **Timeouts always.** Interactive CLIs hang waiting for input if you get the
-  non-interactive flag wrong. Every adapter has a `timeout`; on expiry the whole
-  process group is killed (SIGTERM → SIGKILL).
+  non-interactive or auto-approve flag wrong. Every adapter has a `timeout`; on
+  expiry the whole process group is killed (SIGTERM → SIGKILL).
 - **Secret isolation.** By default every panelist inherits the full environment.
   Set `env_allowlist` per adapter so each CLI sees only the keys it needs.
 - **Recursion guard.** If a panelist CLI is itself pointed back at this Open
