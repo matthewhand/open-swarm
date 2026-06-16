@@ -51,8 +51,16 @@ See which of your configured CLIs are actually installed on the host:
 ```bash
 swarm-cli cli-agents               # install status only (fast)
 swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
+swarm-cli cli-agents --suggest     # propose config for installed-but-unconfigured CLIs
 swarm-cli cli-agents --config ./swarm_config.json
 ```
+
+`--suggest` checks a built-in catalog of known-good adapter configs against your
+host and prints a ready-to-paste `cli_agents` block for every supported CLI
+(`claude`, `gemini`, `codex`, `opencode`) that is installed but not yet in your
+config — so getting started is "install the CLI, run `--suggest`, paste". The
+suggested flags track each CLI's non-interactive + auto-approve mode; verify them
+against the CLI's own `--help`, since flags drift by version.
 
 ```
 AGENT            STATUS     MODE       EXECUTABLE
