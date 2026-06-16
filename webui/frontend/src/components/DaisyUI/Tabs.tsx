@@ -48,17 +48,25 @@ export const Tabs = ({
 
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     let newIndex = index;
+    let forward = true;
+
     if (e.key === 'ArrowRight') {
       newIndex = index + 1 >= tabs.length ? 0 : index + 1;
     } else if (e.key === 'ArrowLeft') {
       newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
+      forward = false;
+    } else if (e.key === 'Home') {
+      newIndex = 0;
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1;
+      forward = false;
     }
 
     if (newIndex !== index) {
       e.preventDefault();
       let count = 0;
       while (tabs[newIndex].disabled && count < tabs.length) {
-        newIndex = e.key === 'ArrowRight'
+        newIndex = forward
           ? (newIndex + 1 >= tabs.length ? 0 : newIndex + 1)
           : (newIndex - 1 < 0 ? tabs.length - 1 : newIndex - 1);
         count++;
