@@ -115,6 +115,11 @@ class CliAgentConfig:
     timeout: float = DEFAULT_TIMEOUT
     mode: str = "default"
     auth_check: list[str] | None = None
+    # Designate this agent as a CONSENSUS agent: calling it runs a panel instead
+    # of a single inference. ``True`` => panel of all available CLIs; a list =>
+    # a preferred whitelist (falls back to all-available if none match); a dict
+    # ``{"panel": [...], "judge": "<cli>"}`` => explicit. None (default) => normal.
+    consensus: bool | list[str] | dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.cmd:
@@ -239,6 +244,7 @@ class CliAdapter:
             timeout=float(raw.get("timeout", DEFAULT_TIMEOUT)),
             mode=raw.get("mode", "default"),
             auth_check=raw.get("auth_check"),
+            consensus=raw.get("consensus"),
         )
         return cls(cfg)
 

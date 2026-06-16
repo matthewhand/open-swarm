@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.consensus import run_consensus
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,30 @@ class CliAgentBlueprint(BlueprintBase):
             return
 
         workdir = params.get(support.PARAM_WORKDIR)
+
+        # Consensus agents: if the selected agent is designated as a consensus
+        # agent, calling it runs a PANEL (default = all available CLIs, or a
+        # preferred whitelist that falls back to default), not a single call.
+        selected = registry.get(chain[0])
+        panel_spec = support.resolve_agent_consensus(selected.config, registry)
+        if panel_spec is not None:
+            panel_names, judge_name = panel_spec
+            yield support.progress_chunk(
+                f"_`{selected.name}` is a consensus agent → panel: {', '.join(panel_names)} "
+                f"(judge: {judge_name or 'none'})…_"
+            )
+            panel = registry.resolve_panel(panel_names)
+            judge = registry.get(judge_name) if judge_name else None
+            cons = await run_consensus(
+                prompt, panel, judge, workdirs={n: workdir for n in registry.names()}
+            )
+            for r in cons.results:
+                if not r.ok:
+                    yield support.progress_chunk(f"_• {r.name} failed: {r.error}_")
+            yield support.message_chunk(
+                cons.answer or "All consensus panelists failed.", final=True
+            )
+            return
 
         # Streaming-text fast path: stream the first *installed* candidate
         # incrementally. No mid-stream failover — once bytes are on the wire we

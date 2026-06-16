@@ -265,3 +265,75 @@ def test_resolve_failover_chain_orders_and_dedups():
     assert chain == ["a", "b", "c"]
     # failover disabled -> primary only
     assert support.resolve_failover_chain(cfg, {"cli": "a", "failover": False}, reg) == ["a"]
+
+
+# --------------------------------------------------------------------------- #
+# Consensus agents — designate an agent to run a panel instead of one call
+# --------------------------------------------------------------------------- #
+
+def _ag(prefix: str, **over) -> dict:
+    base = {"cmd": [PY, "-c", f"import sys; print('{prefix}:' + sys.argv[1])", "{prompt}"]}
+    base.update(over)
+    return base
+
+
+def _progress_text(chunks):
+    return "\n".join(
+        c["content"] for c in chunks if isinstance(c, dict) and c.get("type") == "fusion_progress"
+    )
+
+
+def test_resolve_consensus_true_panels_real_clis_only():
+    reg = CliAdapterRegistry.from_config(
+        {"cli_agents": {"meta": _ag("M", consensus=True), "a": _ag("A"), "b": _ag("B")}}
+    )
+    panel, judge = support.resolve_agent_consensus(reg.get("meta").config, reg)
+    assert set(panel) == {"a", "b"}  # default = real CLIs, not the meta agent
+    assert "meta" not in panel
+    assert judge in ("a", "b")
+
+
+def test_resolve_consensus_whitelist_prefers_available():
+    reg = CliAdapterRegistry.from_config(
+        {"cli_agents": {"a": _ag("A", consensus=["b"]), "b": _ag("B")}}
+    )
+    panel, _ = support.resolve_agent_consensus(reg.get("a").config, reg)
+    assert panel == ["b"]
+
+
+def test_resolve_consensus_whitelist_no_match_falls_back_to_default():
+    reg = CliAdapterRegistry.from_config(
+        {"cli_agents": {"meta": _ag("M", consensus=["ghost", "nope"]), "a": _ag("A"), "b": _ag("B")}}
+    )
+    panel, _ = support.resolve_agent_consensus(reg.get("meta").config, reg)
+    assert set(panel) == {"a", "b"}  # whitelist matched nothing -> default (real CLIs)
+
+
+def test_resolve_consensus_none_when_not_designated():
+    reg = CliAdapterRegistry.from_config({"cli_agents": {"a": _ag("A")}})
+    assert support.resolve_agent_consensus(reg.get("a").config, reg) is None
+
+
+async def test_consensus_agent_runs_panel_with_judge():
+    judge_cfg = {"cmd": [PY, "-c", "print('{\"answer\": \"CONSENSUS\", \"done\": true}')", "{prompt}"], "parse": "text"}
+    cfg = {
+        "cli_agents": {
+            "lead": _ag("LEAD", consensus={"panel": ["a", "b"], "judge": "judge"}),
+            "a": _ag("A"),
+            "b": _ag("B"),
+            "judge": judge_cfg,
+        },
+        "cli_fusion": {"default_cli": "lead"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "q"}]))
+    assert _final_content(chunks) == "CONSENSUS"
+    assert "consensus agent" in _progress_text(chunks)
+
+
+async def test_non_consensus_agent_is_still_single_call():
+    cfg = {"cli_agents": {"solo": _ag("SOLO")}, "cli_fusion": {"default_cli": "solo"}}
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "SOLO:ping"
+    assert "consensus agent" not in _progress_text(chunks)

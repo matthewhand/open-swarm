@@ -152,6 +152,55 @@ def resolve_failover_chain(
     return out
 
 
+def resolve_agent_consensus(
+    cfg, registry: CliAdapterRegistry
+) -> tuple[list[str], str | None] | None:
+    """If this agent is consensus-designated, resolve (panel_names, judge_name).
+
+    ``cfg.consensus`` may be:
+    * ``True`` — panel of every **available** CLI (the default set);
+    * a list — a **preferred whitelist**; the available members are used, and if
+      *none* of them are available it falls back to the default (all available);
+    * a dict ``{"panel": [...], "judge": "<cli>"}`` — explicit (same fallback).
+
+    Returns None when the agent is not consensus-designated. The judge defaults
+    to the agent itself when it is in the panel, else the first panelist.
+    """
+    spec = getattr(cfg, "consensus", None)
+    if not spec:
+        return None
+
+    known = set(registry.names())
+    available = registry.available()
+    available_set = set(available)
+
+    def _non_consensus(names: list[str]) -> list[str]:
+        # The default panel is real CLIs, not other consensus *designations*.
+        return [n for n in names if not getattr(registry.get(n).config, "consensus", None)]
+
+    default_panel = (
+        _non_consensus(available) or _non_consensus(registry.names()) or list(available or registry.names())
+    )
+    judge: str | None = None
+
+    if spec is True:
+        panel = list(default_panel)
+    elif isinstance(spec, list):
+        preferred = [n for n in spec if n in available_set]
+        panel = preferred or list(default_panel)  # whitelist matched nothing -> default
+    elif isinstance(spec, dict):
+        wl = [n for n in (spec.get("panel") or []) if n in known]
+        preferred = [n for n in wl if n in available_set] or wl
+        panel = preferred or list(default_panel)
+        judge = spec.get("judge") if spec.get("judge") in known else None
+    else:
+        return None
+
+    if judge is None:
+        judge = cfg.name if cfg.name in panel else (panel[0] if panel else None)
+    return panel, judge
+
+
 def apply_overrides(
     registry: CliAdapterRegistry, params: dict[str, Any] | None
 ) -> CliAdapterRegistry:
