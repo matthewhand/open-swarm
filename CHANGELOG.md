@@ -20,6 +20,7 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Non-interactive smoke probe + `swarm-cli cli-agents --smoke`: catches a misconfigured `cmd` that hangs instead of returning (ok/hang/error/not_installed)
 - Machine-readable `swarm-cli cli-agents --json` (agents/smoke/suggestions) for CI and scripting
 - `cli_agent` streams CLI stdout incrementally for `parse: "text"` adapters when `stream: true` (json-parse adapters fall back to one-shot)
+- Failover & graceful degradation: `cli_agent` fails over down a candidate chain (`params.fallback`, or auto to other installed adapters; `failover: false` for strict) when a CLI is missing/broken/hung; `cli_fusion` drops failed panelists and reaches consensus from the survivors
 - End-to-end API coverage: real panel→synthesize and `params`-driven selection over `/v1/chat/completions`
 
 ## [0.3.3] - 2026-06-12

@@ -208,7 +208,9 @@ solves that by giving each panelist its own working copy — see
 
 | Param | Applies to | Meaning |
 |---|---|---|
-| `cli` | cli_agent | Which adapter to run. |
+| `cli` | cli_agent | Which adapter to run (the failover primary). |
+| `fallback` | cli_agent | Explicit ordered list of adapters to try if the primary fails. |
+| `failover` | cli_agent | Auto-failover to other installed adapters when the primary fails (default `true`; set `false` for strict single-CLI — never silently switch models). |
 | `panel` | cli_fusion | Explicit list of adapter names (overrides preset). |
 | `preset` | cli_fusion | Named preset to use. |
 | `judge` | cli_fusion | Judge adapter (overrides preset's). |
@@ -247,6 +249,25 @@ prompt ─► panel: N CLIs run in PARALLEL (asyncio.gather), each one-shot
   pollutes the synthesized answer.
 
 ---
+
+## Failover & graceful degradation
+
+Not every CLI is installed and working on every host, so the blueprints assume
+some will fail and route around them:
+
+- **`cli_agent` fails over.** It tries the primary CLI, and on failure (not
+  installed, not authenticated, non-zero exit, or hang→timeout) moves to the next
+  candidate. The chain is the primary plus either an explicit `params.fallback`
+  list or — by default — every other *installed* adapter. Each failover is
+  surfaced as a progress event. Set `params.failover: false` for strict
+  single-CLI behaviour that never silently switches models. (Streaming commits to
+  the first installed candidate — no mid-stream failover, since sent bytes can't
+  be unsent.)
+- **`cli_fusion` degrades.** A broken or missing panelist never sinks the round:
+  failures are dropped (and reported), and the judge synthesizes consensus from
+  the survivors. Only when *every* panelist fails does the round error out. So a
+  panel of `[claude, gemini, codex]` on a host missing `codex` still returns a
+  two-CLI consensus.
 
 ## Streaming
 

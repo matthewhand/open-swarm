@@ -174,3 +174,94 @@ async def test_blueprint_streaming_json_adapter_falls_back_to_oneshot():
     chunks = await _collect(bp.run([{"role": "user", "content": "x"}], stream=True))
     # json: can't stream incrementally -> one-shot fallback returns the parsed value.
     assert _final_content(chunks) == "answer"
+
+
+# --------------------------------------------------------------------------- #
+# Failover (single-agent resilience to broken/missing CLIs)
+# --------------------------------------------------------------------------- #
+
+def _boom(code: int = 1) -> dict:
+    return {"cmd": [PY, "-c", f"import sys; sys.exit({code})", "{prompt}"]}
+
+
+def _ok(prefix: str) -> dict:
+    return {"cmd": [PY, "-c", f"import sys; print('{prefix}: ' + sys.argv[1])", "{prompt}"]}
+
+
+async def test_failover_primary_fails_uses_explicit_fallback():
+    cfg = {
+        "cli_agents": {"boom": _boom(), "backup": _ok("BACKUP")},
+        "cli_fusion": {"default_cli": "boom"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"cli": "boom", "fallback": ["backup"]})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "BACKUP: ping"
+
+
+async def test_failover_auto_uses_other_available_when_primary_fails():
+    # No explicit fallback -> auto-failover to other available adapters.
+    cfg = {
+        "cli_agents": {"boom": _boom(), "good": _ok("GOOD")},
+        "cli_fusion": {"default_cli": "boom"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "GOOD: ping"
+
+
+async def test_failover_primary_success_does_not_fall_over():
+    cfg = {
+        "cli_agents": {"primary": _ok("PRIMARY"), "backup": _ok("BACKUP")},
+        "cli_fusion": {"default_cli": "primary"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "PRIMARY: ping"
+
+
+async def test_failover_all_candidates_fail_reports_cleanly():
+    cfg = {
+        "cli_agents": {"boom1": _boom(), "boom2": _boom(2)},
+        "cli_fusion": {"default_cli": "boom1"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"cli": "boom1", "fallback": ["boom2"]})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert "failed" in _final_content(chunks).lower()
+
+
+async def test_failover_disabled_is_strict_single_cli():
+    cfg = {
+        "cli_agents": {"boom": _boom(), "good": _ok("GOOD")},
+        "cli_fusion": {"default_cli": "boom"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"cli": "boom", "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    # Strict: it fails on the primary and does NOT silently switch models.
+    assert "GOOD" not in _final_content(chunks)
+    assert "failed" in _final_content(chunks).lower()
+
+
+async def test_failover_skips_not_installed_primary():
+    cfg = {
+        "cli_agents": {
+            "ghost": {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]},
+            "real": _ok("REAL"),
+        },
+        "cli_fusion": {"default_cli": "ghost"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "REAL: ping"
+
+
+def test_resolve_failover_chain_orders_and_dedups():
+    cfg = {"cli_agents": {"a": _ok("A"), "b": _ok("B"), "c": _ok("C")}}
+    reg = CliAdapterRegistry.from_config(cfg)
+    # explicit primary + fallback, deduped, order preserved
+    chain = support.resolve_failover_chain(cfg, {"cli": "a", "fallback": ["b", "a", "c"]}, reg)
+    assert chain == ["a", "b", "c"]
+    # failover disabled -> primary only
+    assert support.resolve_failover_chain(cfg, {"cli": "a", "failover": False}, reg) == ["a"]

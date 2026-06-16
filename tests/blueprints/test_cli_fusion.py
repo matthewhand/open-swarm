@@ -176,6 +176,34 @@ async def test_fusion_all_panel_fail():
     assert "All CLI panelists failed" in _final_content(chunks)
 
 
+async def test_fusion_degrades_to_surviving_panelist():
+    # A broken panelist must not sink the round — consensus comes from survivors.
+    cfg = {
+        "cli_agents": {
+            "boom": {"cmd": [PY, "-c", "import sys; sys.exit(1)", "{prompt}"]},
+            "a": _echo("A"),
+        },
+        "cli_fusion": {"presets": {"p": {"panel": ["boom", "a"]}}, "default_preset": "p"},
+    }
+    bp = CliFusionBlueprint(config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
+    assert _final_content(chunks) == "A:hi"  # survivor's answer
+    assert "boom failed" in _all_progress(chunks)  # failure surfaced, not hidden
+
+
+async def test_fusion_degrades_past_not_installed_panelist():
+    cfg = {
+        "cli_agents": {
+            "ghost": {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]},
+            "a": _echo("A"),
+        },
+        "cli_fusion": {"presets": {"p": {"panel": ["ghost", "a"]}}, "default_preset": "p"},
+    }
+    bp = CliFusionBlueprint(config=cfg)
+    chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
+    assert _final_content(chunks) == "A:hi"  # missing CLI skipped, survivor answers
+
+
 async def test_recursion_guard_degrades(monkeypatch):
     monkeypatch.setenv("SWARM_CLI_FUSION_DEPTH", "1")
     cfg = _config(judge_obj={"answer": "should-not-be-used", "done": True}, panel=("a", "b"))
