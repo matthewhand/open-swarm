@@ -49,7 +49,8 @@ curl -sf http://localhost:8000/v1/chat/completions \
 See which of your configured CLIs are actually installed on the host:
 
 ```bash
-swarm-cli cli-agents          # uses the usual config search
+swarm-cli cli-agents               # install status only (fast)
+swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
 swarm-cli cli-agents --config ./swarm_config.json
 ```
 
@@ -79,6 +80,7 @@ string.
 | `env_allowlist` | list[str] \| null | **null (default):** child inherits the full environment (convenient, but every panelist sees every API key). **Set it:** child gets only these vars plus essentials (`PATH`, `HOME`, …) — isolates each CLI's secrets. |
 | `timeout` | number | Seconds before the CLI (and its whole process group) is killed. Default 180. |
 | `mode` | str | Free-text label documenting safety posture (`"readonly"`, `"write"`). Advisory. |
+| `auth_check` | list[str] | Optional argv probe for `swarm-cli cli-agents --check-auth`. Exit 0 ⇒ authenticated. Should be cheap and not consume quota (capped at 30s). |
 
 > ⚠️ **Exact flags and JSON shapes vary by CLI version.** The snippets below are
 > starting points — run the CLI's `--help` and confirm its non-interactive flag,

@@ -38,6 +38,14 @@ WORKDIR_TOKEN = "{workdir}"
 DEFAULT_TIMEOUT = 180.0
 # Grace period between SIGTERM and SIGKILL when reaping a timed-out agent.
 TERM_GRACE = 5.0
+# Auth probes should be quick; cap them well under a normal run timeout.
+AUTH_TIMEOUT = 30.0
+
+# Authentication states reported by discovery.
+AUTH_AUTHENTICATED = "authenticated"
+AUTH_UNAUTHENTICATED = "unauthenticated"
+AUTH_UNKNOWN = "unknown"  # no auth_check configured, or the probe was inconclusive
+AUTH_NOT_INSTALLED = "not_installed"
 
 
 class CliAdapterError(Exception):
@@ -93,6 +101,7 @@ class CliAgentConfig:
     env_allowlist: list[str] | None = None
     timeout: float = DEFAULT_TIMEOUT
     mode: str = "default"
+    auth_check: list[str] | None = None
 
     def __post_init__(self) -> None:
         if not self.cmd:
@@ -106,6 +115,14 @@ class CliAgentConfig:
             raise CliAdapterError(
                 f"CLI adapter '{self.name}': prompt_mode 'arg' requires a "
                 f"'{PROMPT_TOKEN}' token somewhere in cmd"
+            )
+        if self.auth_check is not None and (
+            not isinstance(self.auth_check, list)
+            or not all(isinstance(p, str) for p in self.auth_check)
+            or not self.auth_check
+        ):
+            raise CliAdapterError(
+                f"CLI adapter '{self.name}': auth_check must be a non-empty list of strings"
             )
 
 
@@ -186,6 +203,7 @@ class CliAdapter:
             env_allowlist=raw.get("env_allowlist"),
             timeout=float(raw.get("timeout", DEFAULT_TIMEOUT)),
             mode=raw.get("mode", "default"),
+            auth_check=raw.get("auth_check"),
         )
         return cls(cfg)
 
@@ -328,6 +346,39 @@ class CliAdapter:
             env.update(extra_env)
         return env
 
+    async def check_auth(self) -> str:
+        """Probe whether this CLI is authenticated.
+
+        Returns one of AUTH_NOT_INSTALLED (executable missing), AUTH_UNKNOWN
+        (no ``auth_check`` configured, or the probe errored/timed out),
+        AUTH_AUTHENTICATED (``auth_check`` exited 0), or AUTH_UNAUTHENTICATED.
+        Never raises.
+        """
+        cfg = self.config
+        if not self.is_available():
+            return AUTH_NOT_INSTALLED
+        if not cfg.auth_check:
+            return AUTH_UNKNOWN
+        workdir = os.getcwd()
+        argv = [_apply_tokens(p, "", workdir) for p in cfg.auth_check]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self._build_env("", workdir, None),
+                start_new_session=True,
+            )
+        except (OSError, ValueError):
+            return AUTH_UNKNOWN
+        try:
+            await asyncio.wait_for(proc.communicate(), timeout=min(cfg.timeout, AUTH_TIMEOUT))
+        except asyncio.TimeoutError:
+            await self._terminate(proc)
+            return AUTH_UNKNOWN
+        return AUTH_AUTHENTICATED if proc.returncode == 0 else AUTH_UNAUTHENTICATED
+
     @staticmethod
     async def _terminate(proc: asyncio.subprocess.Process) -> None:
         """Kill a timed-out process group: SIGTERM, grace, then SIGKILL."""
@@ -357,6 +408,7 @@ class CliDiscovery:
     installed: bool
     executable: str | None
     mode: str
+    authenticated: str = AUTH_UNKNOWN
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -364,6 +416,7 @@ class CliDiscovery:
             "installed": self.installed,
             "executable": self.executable,
             "mode": self.mode,
+            "authenticated": self.authenticated,
         }
 
 
@@ -416,6 +469,20 @@ class CliAdapterRegistry:
                 )
             )
         return out
+
+    async def discover_auth(self) -> list[CliDiscovery]:
+        """Like discover(), but also probe each adapter's authentication state.
+
+        Runs every adapter's ``auth_check`` concurrently. Slower than
+        :meth:`discover` (it launches subprocesses), so it is opt-in.
+        """
+        rows = self.discover()
+
+        async def _fill(row: CliDiscovery) -> CliDiscovery:
+            row.authenticated = await self._adapters[row.name].check_auth()
+            return row
+
+        return list(await asyncio.gather(*(_fill(r) for r in rows)))
 
     def resolve_panel(self, names: list[str]) -> list[CliAdapter]:
         """Resolve a list of adapter names to adapters (raises on unknown)."""

@@ -274,23 +274,32 @@ def list_blueprints(
 @app.command(name="cli-agents")
 def cli_agents(
     config_path: str = typer.Option(None, "--config", help="Path to swarm_config.json (defaults to the usual search)."),
+    check_auth: bool = typer.Option(False, "--check-auth", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
 ):
-    """Autodiscover configured CLI agents and show which are installed on this host."""
+    """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
+    import asyncio
+
     from swarm.core.cli_adapter import CliAdapterRegistry
     from swarm.core.config_loader import find_config_file, load_config
 
     cfg_file = find_config_file(specific_path=config_path)
     config = load_config(cfg_file) if cfg_file else {}
     registry = CliAdapterRegistry.from_config(config)
-    rows = registry.discover()
+    rows = asyncio.run(registry.discover_auth()) if check_auth else registry.discover()
     if not rows:
         typer.echo("No CLI agents configured. Add a 'cli_agents' block to your swarm config (see docs/CLI_FUSION.md).")
         raise typer.Exit(code=0)
 
-    typer.echo(f"{'AGENT':16} {'STATUS':10} {'MODE':10} EXECUTABLE")
-    for d in rows:
-        status = "installed" if d.installed else "missing"
-        typer.echo(f"{d.name:16} {status:10} {d.mode:10} {d.executable or '-'}")
+    if check_auth:
+        typer.echo(f"{'AGENT':16} {'STATUS':10} {'AUTH':16} {'MODE':10} EXECUTABLE")
+        for d in rows:
+            status = "installed" if d.installed else "missing"
+            typer.echo(f"{d.name:16} {status:10} {d.authenticated:16} {d.mode:10} {d.executable or '-'}")
+    else:
+        typer.echo(f"{'AGENT':16} {'STATUS':10} {'MODE':10} EXECUTABLE")
+        for d in rows:
+            status = "installed" if d.installed else "missing"
+            typer.echo(f"{d.name:16} {status:10} {d.mode:10} {d.executable or '-'}")
     installed = sum(1 for d in rows if d.installed)
     typer.echo(f"\n{installed}/{len(rows)} configured CLI agents installed on this host.")
 

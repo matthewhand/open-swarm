@@ -266,6 +266,57 @@ def test_discover_empty_registry():
     assert CliAdapterRegistry.from_config({}).discover() == []
 
 
+# --------------------------------------------------------------------------- #
+# Authentication probe
+# --------------------------------------------------------------------------- #
+
+def test_auth_check_must_be_nonempty_list():
+    with pytest.raises(CliAdapterError):
+        CliAgentConfig(name="x", cmd=[PY, "-c", "print(1)", "{prompt}"], auth_check=[])
+
+
+async def test_check_auth_authenticated():
+    adapter = CliAdapter.from_config(
+        "a", {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(0)"]}
+    )
+    assert await adapter.check_auth() == "authenticated"
+
+
+async def test_check_auth_unauthenticated():
+    adapter = CliAdapter.from_config(
+        "a", {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(1)"]}
+    )
+    assert await adapter.check_auth() == "unauthenticated"
+
+
+async def test_check_auth_unknown_without_probe():
+    adapter = CliAdapter.from_config("a", _echo_cfg())
+    assert await adapter.check_auth() == "unknown"
+
+
+async def test_check_auth_not_installed():
+    adapter = CliAdapter.from_config(
+        "ghost", {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"], "auth_check": ["true"]}
+    )
+    assert await adapter.check_auth() == "not_installed"
+
+
+async def test_discover_auth_fills_status():
+    reg = CliAdapterRegistry.from_config(
+        {
+            "cli_agents": {
+                "good": {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(0)"]},
+                "bad": {**_echo_cfg(), "auth_check": [PY, "-c", "import sys; sys.exit(1)"]},
+                "plain": _echo_cfg(),
+            }
+        }
+    )
+    rows = {d.name: d for d in await reg.discover_auth()}
+    assert rows["good"].authenticated == "authenticated"
+    assert rows["bad"].authenticated == "unauthenticated"
+    assert rows["plain"].authenticated == "unknown"
+
+
 def test_with_overrides_is_non_mutating():
     reg = CliAdapterRegistry.from_config({"cli_agents": {"echo": _echo_cfg(timeout=5)}})
     reg2 = reg.with_overrides({"echo": {"timeout": 99}})
