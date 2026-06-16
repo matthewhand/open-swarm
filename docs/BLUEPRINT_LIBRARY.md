@@ -29,17 +29,18 @@ tested demonstrator.
 
 | Agents ↓ \ Backend → | **REST** (LLM API, openai-agents) | **CLI** (grok / claude / …) | **Mixed** (REST + CLI) |
 |---|---|---|---|
-| **1 agent** | `chatbot` — 1 agent, 1 REST endpoint 📋 | `cli_agent` — 1 CLI ✅ | — (n/a for a single agent) |
-| **Few agents (team)** | `geese` / `zeus` — REST team, agent-as-tool / handoff 🟢 | `cli_fusion` (consensus) · `cli_orchestrator` (routed) ✅ | **`hybrid_team`** — REST agents + CLI personas-as-tools 🆕 *to build* |
-| **Many agents (orchestrated)** | `whiskeytango_foxtrot` — hierarchical REST 🟢 | `cli_map` — decompose/distribute ✅ | **`hybrid_swarm`** — orchestrator mixing REST sub-agents and CLI panels 🆕 *to build* |
+| **1 agent** | `chatbot` — 1 agent, 1 REST endpoint ✅ | `cli_agent` — 1 CLI ✅ | — (n/a for a single agent) |
+| **Few agents (team)** | `geese` / `zeus` — REST team, agent-as-tool / handoff 🟢 | `cli_fusion` (consensus) · `cli_orchestrator` (routed) ✅ | **`hybrid_team`** — REST coordinator + grok persona + consensus panel ✅ |
+| **Many agents (orchestrated)** | `whiskeytango_foxtrot` — hierarchical REST 🟢 | `cli_map` — decompose/distribute ✅ | **`hybrid_swarm`** — REST orchestrator over REST agents + CLI consensus panel ✅ |
 
-**What already exists:** the entire **CLI column** (✅) and most of the **REST
-column** (🟢). **The gaps the matrix exposes:** a *minimal* 1-agent REST
-demonstrator (resurrect `chatbot`/`echocraft` or build a tiny one), and the
-**Mixed column** — which is the headline capability. Mixing is already *enabled*
-by `swarm.core.cli_tools` (a CLI persona / a whole consensus panel exposed as an
-`as_function_tool()` an openai-agents REST agent can call); these two blueprints
-would *demonstrate and test* it end to end.
+**Every cell now has a working, tested demonstrator.** The CLI column and the
+Mixed column are complete; most of the REST column is smoke-verified. The
+**Mixed** blueprints prove the headline capability — a REST coordinator reaching
+for grok CLI personas and a consensus panel mid-run, via `swarm.core.cli_tools`.
+Verified live: `hybrid_team` ran a real grok persona ("Rome") and a real
+consensus while the REST coordinator step degraded gracefully (the REST half is
+wired to a real openai-agents Agent; it needs your LLM key to produce a live
+plan, and falls back cleanly without one).
 
 > Note: `digitalbutlers` and `flock` are present in-tree but don't subclass
 > `BlueprintBase`, so they aren't discovered — they're stale stubs, candidates
@@ -57,6 +58,17 @@ would *demonstrate and test* it end to end.
 | `cli_map` | **Decompose → distribute → reduce** (map-reduce across CLIs) | ✅ |
 
 All four verified live with **grok** driving every role (panelist, judge, router, planner, worker, reducer).
+
+## Hybrid (REST + CLI) and minimal templates
+
+| Blueprint | Feature it demonstrates | Status |
+|---|---|---|
+| `chatbot` | The minimal single-agent REST template (1 agent, 1 endpoint) | ✅ |
+| `hybrid_team` | A REST coordinator delegating to grok CLI personas + a consensus panel | ✅ |
+| `hybrid_swarm` | A REST orchestrator routing across REST sub-agents and a CLI consensus panel | ✅ |
+
+The hybrids' REST half is wired to a real openai-agents Agent and degrades
+gracefully without an LLM key; the CLI half is verified live with grok.
 
 ## Coding & developer workflows
 
