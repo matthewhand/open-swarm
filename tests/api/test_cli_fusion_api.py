@@ -72,3 +72,46 @@ def test_cli_agent_respects_cli_param_over_api(client, fake_cli_config):
     resp = _post(client, "cli_agent", "pick", params={"cli": "b"})
     assert resp.status_code == 200, resp.content[:300]
     assert _content(resp) == "B:pick"
+
+
+def _sse_text(response):
+    import asyncio as _asyncio
+
+    stream = response.streaming_content
+    if hasattr(stream, "__aiter__"):
+        async def _collect():
+            return b"".join([c async for c in stream])
+
+        return _asyncio.run(_collect()).decode()
+    return b"".join(stream).decode()
+
+
+@pytest.fixture
+def streaming_cli_config(monkeypatch):
+    code = "import sys; sys.stdout.write('alpha\\nbeta\\n')"
+    cfg = {
+        "cli_agents": {"s": {"cmd": [PY, "-c", code, "{prompt}"], "parse": "text"}},
+        "cli_fusion": {"default_cli": "s"},
+    }
+    monkeypatch.setattr(apps.get_app_config("swarm"), "config", cfg, raising=False)
+    monkeypatch.setenv("SWARM_TEST_MODE", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-test-mode")
+    return cfg
+
+
+@pytest.mark.django_db
+def test_cli_agent_streams_incremental_deltas_over_api(client, streaming_cli_config):
+    body = {
+        "model": "cli_agent",
+        "messages": [{"role": "user", "content": "go"}],
+        "stream": True,
+    }
+    resp = client.post("/v1/chat/completions", data=json.dumps(body), content_type="application/json")
+    assert resp.status_code == 200
+    sse = _sse_text(resp)
+    assert "data: [DONE]" in sse
+    # The streamed deltas reassemble to the CLI's stdout.
+    import re
+
+    deltas = "".join(re.findall(r'"content":\s*"([^"]*)"', sse))
+    assert "alpha" in deltas and "beta" in deltas

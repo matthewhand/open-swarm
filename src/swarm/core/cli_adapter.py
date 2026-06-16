@@ -20,6 +20,7 @@ Design notes
 from __future__ import annotations
 
 import asyncio
+import codecs
 import json
 import logging
 import os
@@ -27,7 +28,7 @@ import shutil
 import signal
 import time
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, AsyncIterator
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,19 @@ class SmokeResult:
             "detail": self.detail,
             "duration": round(self.duration, 3),
         }
+
+
+@dataclass
+class CliStreamChunk:
+    """One event from :meth:`CliAdapter.stream_run`.
+
+    Either an incremental output delta (``delta`` set, ``final=False``) or the
+    terminal event (``final=True``) carrying the assembled :class:`CliResult`.
+    """
+
+    delta: str = ""
+    final: bool = False
+    result: CliResult | None = None
 
 
 def _apply_tokens(value: str, prompt: str, workdir: str) -> str:
@@ -360,6 +374,167 @@ class CliAdapter:
         return CliResult(
             name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
             parse_error=parse_error, stderr=stderr.strip(),
+        )
+
+    async def stream_run(
+        self,
+        prompt: str,
+        *,
+        workdir: str | None = None,
+        extra_env: dict[str, str] | None = None,
+    ) -> AsyncIterator[CliStreamChunk]:
+        """Like :meth:`run`, but yield stdout incrementally as it arrives.
+
+        Yields :class:`CliStreamChunk` deltas while the CLI produces output, then
+        a single terminal chunk (``final=True``) carrying the full
+        :class:`CliResult`. The terminal result's ``text`` is parsed per the
+        adapter's ``parse`` spec; for ``json:`` adapters the deltas are raw stdout
+        (the parsed value only exists once the whole document is read), so callers
+        that need clean incremental text should stream only ``parse="text"``
+        adapters. Never raises for runtime failures.
+        """
+        cfg = self.config
+        effective_workdir = (
+            _apply_tokens(cfg.cwd, prompt, workdir or os.getcwd())
+            if cfg.cwd
+            else (workdir or os.getcwd())
+        )
+        argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
+        env = self._build_env(prompt, effective_workdir, extra_env)
+
+        if not self.is_available():
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text="",
+                    error=f"executable not found on PATH: {cfg.cmd[0]!r}",
+                ),
+            )
+            return
+
+        start = time.monotonic()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdin=asyncio.subprocess.PIPE if stdin_bytes is not None else asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=effective_workdir,
+                env=env,
+                start_new_session=True,
+            )
+        except (OSError, ValueError) as exc:
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text="",
+                    error=f"failed to launch: {exc}", duration=time.monotonic() - start,
+                ),
+            )
+            return
+
+        if stdin_bytes is not None and proc.stdin is not None:
+            try:
+                proc.stdin.write(stdin_bytes)
+                await proc.stdin.drain()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
+            finally:
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
+
+        # Drain stderr concurrently so its pipe can never fill and deadlock the
+        # process while we are only reading stdout.
+        stderr_buf: list[bytes] = []
+
+        async def _drain_stderr() -> None:
+            assert proc.stderr is not None
+            try:
+                while True:
+                    blob = await proc.stderr.read(4096)
+                    if not blob:
+                        break
+                    stderr_buf.append(blob)
+            except (asyncio.CancelledError, OSError):
+                pass
+
+        stderr_task = asyncio.ensure_future(_drain_stderr())
+
+        decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        out_parts: list[str] = []
+        timed_out = False
+        deadline = start + cfg.timeout
+        assert proc.stdout is not None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                blob = await asyncio.wait_for(proc.stdout.read(4096), timeout=remaining)
+            except asyncio.TimeoutError:
+                timed_out = True
+                break
+            if not blob:  # EOF
+                break
+            text = decoder.decode(blob)
+            if text:
+                out_parts.append(text)
+                yield CliStreamChunk(delta=text)
+
+        tail = decoder.decode(b"", final=True)
+        if tail:
+            out_parts.append(tail)
+            yield CliStreamChunk(delta=tail)
+
+        duration = time.monotonic() - start
+        stdout = "".join(out_parts)
+
+        if timed_out:
+            await self._terminate(proc)
+            stderr_task.cancel()
+            try:
+                await stderr_task
+            except asyncio.CancelledError:
+                pass
+            stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                    duration=duration, timed_out=True, stderr=stderr.strip(),
+                    error=f"timed out after {cfg.timeout}s",
+                ),
+            )
+            return
+
+        await proc.wait()
+        try:
+            await stderr_task
+        except asyncio.CancelledError:
+            pass
+        stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
+
+        if proc.returncode != 0:
+            yield CliStreamChunk(
+                final=True,
+                result=CliResult(
+                    name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                    duration=duration, stderr=stderr.strip(),
+                    error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
+                ),
+            )
+            return
+
+        text, parse_error = self._parse_output(stdout)
+        yield CliStreamChunk(
+            final=True,
+            result=CliResult(
+                name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
+                parse_error=parse_error, stderr=stderr.strip(),
+            ),
         )
 
     # Always-passed vars so a locked-down CLI can still run and resolve itself.

@@ -234,6 +234,17 @@ prompt ─► panel: N CLIs run in PARALLEL (asyncio.gather), each one-shot
 
 ---
 
+## Streaming
+
+`cli_agent` streams the CLI's stdout **incrementally** when the request sets
+`"stream": true` and the adapter uses `parse: "text"` — each delta is forwarded
+as a `chat.completion.chunk`, so an OpenAI streaming client sees output as the
+CLI produces it instead of waiting for the whole run. `json:`-parse adapters
+can't stream (the value only exists once the full document is read), so they
+fall back to a single one-shot chunk. Non-streaming requests are unchanged: one
+full answer. `cli_fusion` does not stream panelists — the judge needs each
+panelist's complete answer before it can compare them.
+
 ## Workdir isolation
 
 Panelists run at full capability, so a panel of N write-capable agents fanned out

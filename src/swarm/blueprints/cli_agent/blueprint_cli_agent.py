@@ -77,8 +77,27 @@ class CliAgentBlueprint(BlueprintBase):
 
         workdir = params.get(support.PARAM_WORKDIR)
         yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
-        result = await adapter.run(prompt, workdir=workdir)
 
+        # Stream the CLI's stdout incrementally only when the caller wants a
+        # stream AND the adapter returns plain text (a `json:` parse can't be
+        # resolved until the whole document is read). Otherwise run one-shot.
+        if kwargs.get("stream") and (adapter.config.parse or "text") == "text":
+            result = None
+            async for chunk in adapter.stream_run(prompt, workdir=workdir):
+                if chunk.final:
+                    result = chunk.result
+                elif chunk.delta:
+                    yield support.message_chunk(chunk.delta)  # incremental delta
+            if result is None or not result.ok:
+                err = (result.error if result else None) or "unknown error"
+                yield support.message_chunk(support.format_cli_error(adapter, err), final=True)
+            elif result.parse_error:
+                logger.warning("CLI %s parse issue: %s", name, result.parse_error)
+            # On success the content was already streamed as deltas; the API view
+            # appends the [DONE] terminator, so nothing more to yield.
+            return
+
+        result = await adapter.run(prompt, workdir=workdir)
         if not result.ok:
             yield support.message_chunk(
                 support.format_cli_error(adapter, result.error or "unknown error"),

@@ -379,3 +379,58 @@ async def test_smoke_check_all_runs_subset():
     results = {r.name: r for r in await reg.smoke_check_all(names=["a", "c"])}
     assert set(results) == {"a", "c"}
     assert all(r.status == SMOKE_OK for r in results.values())
+
+
+# --------------------------------------------------------------------------- #
+# Streaming (stream_run)
+# --------------------------------------------------------------------------- #
+
+async def _collect_stream(adapter, prompt="x"):
+    deltas, result = [], None
+    async for ch in adapter.stream_run(prompt):
+        if ch.final:
+            result = ch.result
+        elif ch.delta:
+            deltas.append(ch.delta)
+    return deltas, result
+
+
+async def test_stream_run_yields_deltas_then_result():
+    adapter = CliAdapter.from_config(
+        "s", {"cmd": [PY, "-c", "import sys; sys.stdout.write('hello\\nworld\\n')", "{prompt}"]}
+    )
+    deltas, result = await _collect_stream(adapter)
+    assert "".join(deltas) == "hello\nworld\n"  # streamed verbatim
+    assert result.ok and result.text == "hello\nworld"  # parse() strips trailing ws
+
+
+async def test_stream_run_error_exit_reported_in_final():
+    adapter = CliAdapter.from_config(
+        "b", {"cmd": [PY, "-c", "import sys; sys.exit(3)", "{prompt}"]}
+    )
+    _, result = await _collect_stream(adapter)
+    assert result is not None and not result.ok and result.returncode == 3
+
+
+async def test_stream_run_not_installed_single_final_chunk():
+    adapter = CliAdapter.from_config("ghost", {"cmd": ["definitely-not-a-real-cli-zzz", "{prompt}"]})
+    chunks = [ch async for ch in adapter.stream_run("x")]
+    assert len(chunks) == 1 and chunks[0].final and not chunks[0].result.ok
+
+
+async def test_stream_run_timeout():
+    adapter = CliAdapter.from_config(
+        "sleeper", {"cmd": [PY, "-c", "import time; time.sleep(30)", "{prompt}"], "timeout": 0.5}
+    )
+    _, result = await _collect_stream(adapter)
+    assert result.timed_out and not result.ok
+
+
+async def test_stream_run_json_parse_streams_raw_but_parses_final():
+    adapter = CliAdapter.from_config(
+        "j",
+        {"cmd": [PY, "-c", "print('{\"result\": \"deep\"}')", "{prompt}"], "parse": "json:.result"},
+    )
+    deltas, result = await _collect_stream(adapter)
+    assert result.ok and result.text == "deep"  # final value is parsed
+    assert "deep" in "".join(deltas)  # deltas are the raw JSON document
