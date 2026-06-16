@@ -139,6 +139,7 @@ get a panelist that actually *does work*, pin down two flags from its `--help`:
 
 | CLI | Print/exec | Auto-approve (full-capability) | Structured output → `parse` |
 |---|---|---|---|
+| `grok` | `-p` / `--single` (also installed as `agent`) | `--always-approve` | `--output-format json` → `json:.text` |
 | `claude` | `-p` | `--dangerously-skip-permissions` | `--output-format json` → `json:.result` |
 | `gemini` | `-p` | `--yolo` | `-o json` → `json:.response` |
 | `codex` | `exec` | `--dangerously-bypass-approvals-and-sandbox` (or `--full-auto`) | text |

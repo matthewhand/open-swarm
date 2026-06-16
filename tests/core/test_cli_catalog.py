@@ -66,6 +66,23 @@ def test_build_starter_config_prefers_first_when_no_claude():
     assert cfg["cli_fusion"]["default_cli"] == "gemini"  # sorted-first fallback
 
 
+def test_grok_is_in_catalog():
+    e = cli_catalog.catalog_entry("grok")
+    assert e["cmd"][0] == "grok" and e["parse"] == "json:.text"
+    assert "--always-approve" in e["cmd"]
+
+
+def test_build_starter_config_prefers_grok_for_single_agent_roles():
+    cfg = cli_catalog.build_starter_config(["claude", "grok", "gemini"])
+    # grok preferred for every single-agent / judge role...
+    assert cfg["cli_fusion"]["default_cli"] == "grok"
+    assert cfg["cli_fusion"]["presets"]["all"]["judge"] == "grok"
+    assert cfg["cli_orchestrator"]["router"] == "grok"
+    assert cfg["cli_map"]["planner"] == "grok" and cfg["cli_map"]["reducer"] == "grok"
+    # ...but the panel includes every CLI (others tapped only for multi-agent)
+    assert set(cfg["cli_fusion"]["presets"]["all"]["panel"]) == {"claude", "grok", "gemini"}
+
+
 def test_build_starter_config_empty_host_still_valid():
     cfg = cli_catalog.build_starter_config([])
     assert cfg["cli_agents"] == {}

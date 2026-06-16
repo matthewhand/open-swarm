@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.2] - 2026-06-16
+
+### Added
+- **grok** (xAI's CLI, also installed as `agent`) added to the catalog: `grok -p {prompt} --output-format json --always-approve` → `json:.text`. Verified live.
+- `grok` is now the **preferred** single-agent CLI: `--init` (and the example config) make it the `cli_agent` default and the orchestrator router / map planner+reducer / fusion judge, while panels still include every installed CLI — so the other agents are only engaged for the multi-agent paths.
+
 ## [0.4.1] - 2026-06-16
 
 ### Added

@@ -11,6 +11,12 @@
   },
 
   "cli_agents": {
+    "grok": {
+      "cmd": ["grok", "-p", "{prompt}", "--output-format", "json", "--always-approve"],
+      "parse": "json:.text",
+      "mode": "write",
+      "timeout": 240
+    },
     "claude": {
       "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
               "--dangerously-skip-permissions"],
@@ -42,27 +48,27 @@
   },
 
   "cli_fusion": {
-    "default_cli": "claude",
+    "default_cli": "grok",
     "default_preset": "general-high",
     "max_rounds": 1,
     "isolate_workdir": true,
     "show_analysis": false,
     "presets": {
-      "general-high":   { "panel": ["claude", "gemini", "codex"], "judge": "claude" },
-      "general-budget": { "panel": ["gemini"],                    "judge": "gemini" }
+      "general-high":   { "panel": ["grok", "claude", "gemini", "codex"], "judge": "grok" },
+      "general-budget": { "panel": ["gemini"],                            "judge": "gemini" }
     }
   },
 
   "cli_orchestrator": {
-    "router": "claude",
-    "panel": ["claude", "gemini", "codex"],
-    "judge": "claude"
+    "router": "grok",
+    "panel": ["grok", "claude", "gemini", "codex"],
+    "judge": "grok"
   },
 
   "cli_map": {
-    "planner": "claude",
-    "workers": ["claude", "gemini", "codex"],
-    "reducer": "claude",
+    "planner": "grok",
+    "workers": ["grok", "claude", "gemini", "codex"],
+    "reducer": "grok",
     "max_items": 6
   }
 }
