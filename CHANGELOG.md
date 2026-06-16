@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.4] - 2026-06-16
+
+### Added
+- **Consensus agents:** designate any agent as a consensus agent via `consensus` in its `cli_agents` config — calling it runs a *panel* instead of a single inference. `true` => all available CLIs; a list => a preferred whitelist that falls back to all-available if it matches nothing; `{panel, judge}` => explicit. The default panel is real CLIs (other consensus *designations* are excluded). Verified live with grok (whitelist `[grok, claude]` and a no-match whitelist that fell back to the full panel — both returned "Tokyo").
+- `docs/BLUEPRINT_LIBRARY.md` gains a **Consensus modes** taxonomy (single / agent-designated / self-consensus / call-time flag / orchestrated multi-persona) — a roadmap of permutations on the shared `run_consensus` engine.
+
 ## [0.4.3] - 2026-06-16
 
 ### Added — Blueprint library (permutation matrix)

@@ -120,6 +120,7 @@ string.
 | `timeout` | number | Seconds before the CLI (and its whole process group) is killed. Default 180. |
 | `mode` | str | Free-text label documenting safety posture (`"readonly"`, `"write"`). Advisory. |
 | `auth_check` | list[str] | Optional argv probe for `swarm-cli cli-agents --check-auth`. Exit 0 ⇒ authenticated. Should be cheap and not consume quota (capped at 30s). |
+| `consensus` | bool \| list[str] \| dict | Designate this agent as a **consensus agent** — calling it runs a panel, not a single call. `true` ⇒ all available CLIs; a list ⇒ a preferred whitelist (falls back to all-available if it matches nothing); `{"panel":[…],"judge":"…"}` ⇒ explicit. See [Consensus modes](BLUEPRINT_LIBRARY.md#consensus-modes-a-second-axis--partly-built-partly-roadmap). |
 
 > ⚠️ **Exact flags and JSON shapes vary by CLI version.** The snippets below are
 > starting points — run the CLI's `--help` and confirm its non-interactive flag,

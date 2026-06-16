@@ -59,6 +59,25 @@ plan, and falls back cleanly without one).
 
 All four verified live with **grok** driving every role (panelist, judge, router, planner, worker, reducer).
 
+## Consensus modes (a second axis — partly built, partly roadmap)
+
+Consensus isn't one thing; it's a *mode* you select per call. The same persona
+named `coder` can be invoked many ways, and each is a blueprint permutation:
+
+| Mode | How you call it | What happens | Status |
+|---|---|---|---|
+| **Single** | `coder` | one inference | ✅ `cli_agent` |
+| **Agent-designated consensus** | `coder` (config `consensus: true` / `["grok","claude"]` / `{panel,judge}`) | calling the agent runs a heterogeneous **panel of CLIs** and synthesizes; preferred whitelist falls back to all-available | ✅ shipped (0.4.4) |
+| **Self-consensus (homogeneous)** | `coder` + `consensus: N` | run the **same persona N times** (sampling variance) and vote/synthesize — "many inferences, one persona" | 📋 planned (small: panel = `[coder] × N`) |
+| **Call-time flag** | `coder` + `params.consensus` | consensus chosen **per request**, not baked into config | 📋 planned (param override of the designation) |
+| **Orchestrated multi-persona** | `coder` + `architect` (+ …) | an **orchestrator** agent runs each *distinct* persona and does the consensus/synthesis across them | 🟢 `cli_fusion` / `cli_orchestrator` already panel distinct agents; formalize "named personas" |
+
+The shared engine for every mode is `swarm.core.consensus.run_consensus()`; the
+modes differ only in how the *panel* is assembled (one CLI, N copies of one CLI,
+a whitelist of CLIs, or a set of named personas an orchestrator coordinates).
+Each will get a demonstrating blueprint + a grok-verified test, like the rest of
+the matrix.
+
 ## Hybrid (REST + CLI) and minimal templates
 
 | Blueprint | Feature it demonstrates | Status |
