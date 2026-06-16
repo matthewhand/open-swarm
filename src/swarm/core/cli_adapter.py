@@ -349,6 +349,24 @@ class CliAdapter:
                 continue
 
 
+@dataclass
+class CliDiscovery:
+    """Autodiscovery status for one configured CLI adapter."""
+
+    name: str
+    installed: bool
+    executable: str | None
+    mode: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "installed": self.installed,
+            "executable": self.executable,
+            "mode": self.mode,
+        }
+
+
 class CliAdapterRegistry:
     """Holds the configured CLI adapters and resolves them by name."""
 
@@ -381,6 +399,23 @@ class CliAdapterRegistry:
     def available(self) -> list[str]:
         """Names of adapters whose executable is present on this host."""
         return sorted(n for n, a in self._adapters.items() if a.is_available())
+
+    def discover(self) -> list[CliDiscovery]:
+        """Report install status for every configured adapter (sorted by name)."""
+        out: list[CliDiscovery] = []
+        for name in self.names():
+            cfg = self._adapters[name].config
+            exe = cfg.cmd[0]
+            resolved = exe if os.path.sep in exe else shutil.which(exe)
+            out.append(
+                CliDiscovery(
+                    name=name,
+                    installed=self._adapters[name].is_available(),
+                    executable=resolved,
+                    mode=cfg.mode,
+                )
+            )
+        return out
 
     def resolve_panel(self, names: list[str]) -> list[CliAdapter]:
         """Resolve a list of adapter names to adapters (raises on unknown)."""
