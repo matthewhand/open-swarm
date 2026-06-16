@@ -28,6 +28,15 @@ from typing import Any
 
 # name -> adapter config dict (same shape as one `cli_agents` entry).
 CATALOG: dict[str, dict[str, Any]] = {
+    "grok": {
+        # xAI's grok CLI (also installed as `agent`). -p/--single is the
+        # non-interactive print mode; --always-approve auto-approves tool use.
+        # Inherits the full env (auth is file-based, not a single known var).
+        "cmd": ["grok", "-p", "{prompt}", "--output-format", "json", "--always-approve"],
+        "parse": "json:.text",
+        "mode": "write",
+        "timeout": 240,
+    },
     "claude": {
         "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
                 "--dangerously-skip-permissions"],
@@ -77,11 +86,12 @@ def build_starter_config(installed: list[str] | None = None) -> dict[str, Any]:
     """A complete, ready-to-run swarm_config for the installed catalog CLIs.
 
     Wires every composition mode (cli_fusion / cli_orchestrator / cli_map) over
-    whatever catalog CLIs are present, preferring ``claude`` as the
-    judge/router/reducer/planner (it returns clean JSON) and falling back to the
-    first available. Includes a default ``llm`` block so the config passes
-    validation. When nothing is installed, returns just the llm + an empty
-    ``cli_agents`` block.
+    whatever catalog CLIs are present. The single-agent default and the
+    judge/router/reducer/planner roles prefer ``grok`` (then ``claude``, then the
+    first available); the panels include *every* installed CLI, so the other
+    agents are only engaged for the multi-agent paths. Includes a default ``llm``
+    block so the config passes validation. When nothing is installed, returns
+    just the llm + an empty ``cli_agents`` block.
     """
     if installed is None:
         installed = installed_catalog_clis()
@@ -99,7 +109,7 @@ def build_starter_config(installed: list[str] | None = None) -> dict[str, Any]:
         "cli_agents": agents,
     }
     if names:
-        primary = "claude" if "claude" in names else names[0]
+        primary = next((c for c in ("grok", "claude") if c in names), names[0])
         cfg["cli_fusion"] = {
             "default_cli": primary,
             "default_preset": "all",
