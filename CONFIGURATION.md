@@ -84,6 +84,7 @@ Swarm supports both interactive and manual configuration. The recommended way to
 - **Per-Blueprint Model Overrides:** `blueprints` section allows each blueprint to specify a `default_model`.
 - **Agent/Task Overrides:** Blueprints themselves can choose models per agent/task.
 - **MCP Servers:** The `mcpServers` section defines available MCP servers, their endpoints, and credentials.
+- **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 - **Fallbacks:**
   - If a requested model is not configured, the system falls back to the default and prints a warning.
   - If config is missing, a default config is generated (uses OpenAI endpoint).
