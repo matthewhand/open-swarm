@@ -7,7 +7,7 @@
 **Open Swarm** is a Python framework for building, running, and deploying multi-agent AI workflows. Agent teams are defined as **Blueprints** — self-contained, discoverable Python modules — and can be used two ways:
 
 1. **As a CLI tool (`swarm-cli`):** run blueprints locally, interactively or one-shot, and optionally compile them into standalone executables.
-2. **As an API service (`swarm-api`):** serve blueprints over an **OpenAI-compatible REST API** (`/v1/models`, `/v1/chat/completions`), so any OpenAI client — SDKs, chat UIs, integrations — can talk to your agents.
+2. **As an API service (`swarm-api`):** serve blueprints over an **OpenAI-compatible REST API** (`/v1/models`, `/v1/chat/completions`, `/v1/responses`), so any OpenAI client — SDKs, chat UIs, integrations — can talk to your agents. The OpenAPI spec is served at `/api/schema/` (with Swagger UI at `/api/schema/swagger-ui/`).
 
 Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python). Derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm) (see [Attribution](#acknowledgements--attribution)).
 
@@ -61,9 +61,15 @@ curl -sf http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
   -d '{"model": "suggestion", "messages": [{"role":"user","content":"ping"}]}' | jq .
+
+# OpenAI Responses API (input as a string or a message array):
+curl -sf http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
+  -d '{"model": "suggestion", "input": "ping"}' | jq .
 ```
 
-The `model` field selects which blueprint handles the request. Streaming is supported. A Django web UI (teams, blueprint library, agent creator, settings, websocket chat) is served at `/` — built with server-rendered templates + HTMx; it is the supported UI.
+The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). A Django web UI (teams, blueprint library, agent creator, settings, websocket chat) is served at `/` — built with server-rendered templates + HTMx; it is the supported UI.
 
 ---
 
