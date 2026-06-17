@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Home, Settings, Bot, Book, Users, PlusCircle, MessageSquare, ShieldAlert, Wand2, X, Sun, Moon } from 'lucide-react'
+import { Home, Settings, Bot, Book, Users, PlusCircle, MessageSquare, ShieldAlert, Wand2, X, Sun, Moon, Wrench } from 'lucide-react'
 import { Card, Alert, Badge, LoadingSpinner, ToastProvider } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
+import BuilderPage from './pages/BuilderPage'
 import ChatPage from './pages/ChatPage'
 import SettingsPage from './pages/SettingsPage'
 import AgentCreatorPage from './pages/AgentCreatorPage'
@@ -49,6 +50,10 @@ function App() {
                         <Book className="h-4 w-4 mr-1" />
                         Blueprints
                       </Link>
+                      <Link to="/builder" className="btn btn-ghost btn-sm">
+                        <Wrench className="h-4 w-4 mr-1" />
+                        Builder
+                      </Link>
                       <Link to="/agent-creator" className="btn btn-ghost btn-sm">
                         <Wand2 className="h-4 w-4 mr-1" />
                         Agent Creator
@@ -83,6 +88,7 @@ function App() {
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/teams" element={<TeamsPage />} />
                 <Route path="/blueprints" element={<BlueprintsPage />} />
+                <Route path="/builder" element={<BuilderPage />} />
                 <Route path="/agent-creator" element={<AgentCreatorPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
