@@ -46,9 +46,20 @@ planner** roles (in the `cli_fusion` / `cli_orchestrator` / `cli_map` blocks)
 point only at CLIs that showed as authenticated — `--init` prefers `grok` then
 `claude` by default; change them to match your host.
 
+> **Point the server at the config explicitly.** `swarm-cli` finds the XDG file
+> automatically, but the **server** resolves config from `SWARM_CONFIG_PATH` (or
+> its working directory) — it does *not* search the XDG path. Export it so the
+> server loads what you just generated:
+> ```bash
+> export SWARM_CONFIG_PATH="$HOME/.config/swarm/swarm_config.json"
+> ```
+> See [CONFIGURATION.md §1](../CONFIGURATION.md#1-config-file-location-and-discovery)
+> for the full resolution rules.
+
 ## 3. Run
 
 ```bash
+export SWARM_CONFIG_PATH="$HOME/.config/swarm/swarm_config.json"  # see note above
 swarm-api                 # ASGI server on :8000 (also powers websocket chat)
 # or:
 docker compose up -d
@@ -56,6 +67,12 @@ docker compose up -d
 
 Point any OpenAI client at `http://<host>:8000/v1` with
 `Authorization: Bearer $API_AUTH_TOKEN`.
+
+> **Persist Responses state.** `/v1/responses` is stateful: stored responses (for
+> `previous_response_id` chaining and `GET`/`DELETE`) live under
+> `SWARM_RESPONSES_DIR` (default `~/.local/share/swarm/responses`). In Docker,
+> mount a volume there — or set `SWARM_RESPONSES_DIR` to a mounted path — or
+> chained responses won't survive a container restart.
 
 ## 4. Prove it works
 

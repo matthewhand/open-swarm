@@ -15,9 +15,30 @@ Swarm supports both interactive and manual configuration. The recommended way to
 
 ## 1. Config File Location and Discovery
 
-- **Preferred:** `~/.config/swarm/swarm_config.json` (XDG Base Directory Spec)
-- **Fallbacks:** Current working directory, project root, blueprint directories
+**Recommended location:** `~/.config/swarm/swarm_config.json` (XDG Base Directory
+Spec — overridable with `XDG_CONFIG_HOME`).
+
+**Resolution differs slightly between the two entry points:**
+
+| Entry point | How `swarm_config.json` is found |
+|---|---|
+| `swarm-cli` (CLI tooling) | XDG path first, then an upward search from the working directory, then the current directory. |
+| `swarm-api` / `manage.py runserver` (the API server) | `SWARM_CONFIG_PATH` if set, otherwise `./swarm_config.json` in the server's working directory. |
+
+> **Tip:** set `SWARM_CONFIG_PATH=/abs/path/swarm_config.json` — it is honored by
+> both entry points and removes all ambiguity. Unifying the server to the same
+> XDG-first discovery as `swarm-cli` is planned (see [ROADMAP.md](./ROADMAP.md)).
+
 - **If missing:** Swarm generates a default config using `OPENAI_API_KEY` and the official OpenAI endpoint (with a warning).
+
+### Paths & environment variables
+
+| Variable / path | Purpose | Default |
+|---|---|---|
+| `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (both entry points). | unset → discovery above |
+| `~/.config/swarm/swarm_config.json` | Recommended config location. | `XDG_CONFIG_HOME`/swarm/… |
+| `SWARM_RESPONSES_DIR` | Where the stateful Responses API (`/v1/responses`) stores response records for `previous_response_id` chaining and `GET`/`DELETE`. | `XDG_DATA_HOME`/swarm/responses (i.e. `~/.local/share/swarm/responses`) |
+| `~/.config/swarm/teams.json` | Saved teams (web UI / CLI). | `XDG_CONFIG_HOME`/swarm/… |
 
 ---
 
