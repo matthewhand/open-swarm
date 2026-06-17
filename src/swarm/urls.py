@@ -5,6 +5,12 @@ from django.http import HttpResponse, FileResponse
 from django.views.static import serve
 from pathlib import Path
 
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+
 from swarm.views.agent_creator_pro import agent_creator_pro_page
 from swarm.views.agent_creator_views import (
     agent_creator_page,
@@ -37,6 +43,7 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.responses_views import ResponsesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.settings_views import (
     environment_variables,
@@ -79,6 +86,21 @@ urlpatterns = [
     path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
     path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
+    # OpenAI Responses API (MVP) — normalizes `input`/`instructions` to messages
+    # and reuses the same blueprint-resolution + run path as chat completions.
+    path("v1/responses", ResponsesView.as_view(), name="responses"),
+    # OpenAPI schema + interactive docs (drf-spectacular).
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/schema/swagger-ui/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "api/schema/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
     # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),

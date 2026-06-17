@@ -202,7 +202,7 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Open Swarm API',
     'DESCRIPTION': 'API for managing autonomous agent swarms',
-    'VERSION': '0.2.0',
+    'VERSION': '0.4.11',
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
