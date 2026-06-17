@@ -23,6 +23,7 @@ API unchanged.
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -148,3 +149,24 @@ def apply_skill(skill: Skill, task: str) -> str:
         ]
     parts += ["--- TASK ---", task]
     return "\n".join(parts)
+
+
+def stage_assets(skill: Skill, workdir: str | Path) -> list[str]:
+    """Copy a skill's bundled asset files into ``workdir``.
+
+    A skill can ship scripts/templates alongside SKILL.md; ``apply_skill`` only
+    *names* them, so they must be placed in the CLI's working directory for a
+    write-mode CLI to read or execute. Returns the staged filenames. No-op when
+    the skill has no path on disk or no assets.
+    """
+    if not skill.path or not skill.assets:
+        return []
+    dest = Path(workdir)
+    dest.mkdir(parents=True, exist_ok=True)
+    staged: list[str] = []
+    for name in skill.assets:
+        src = skill.path / name
+        if src.is_file():
+            shutil.copy2(src, dest / name)
+            staged.append(name)
+    return staged

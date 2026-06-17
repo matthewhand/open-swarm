@@ -123,6 +123,15 @@ async def test_blueprint_unknown_skill_warns_and_runs_bare():
     assert any("not found" in str(c) for c in chunks)
 
 
+async def test_blueprint_stages_skill_assets_into_workdir(tmp_path):
+    # The bundled counting-lines skill ships count.py; running with a workdir
+    # must stage it so a write-mode CLI could execute it.
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"cli": "echo", "skill": "counting-lines", "workdir": str(tmp_path)})
+    await _collect(bp.run([{"role": "user", "content": "count lines in foo.txt"}]))
+    assert (tmp_path / "count.py").is_file()
+
+
 async def test_blueprint_no_agents_configured():
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config={})
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))

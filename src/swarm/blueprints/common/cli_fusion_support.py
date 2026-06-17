@@ -48,7 +48,7 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
 
 
 def apply_skill_to_prompt(
-    prompt: str, params: dict[str, Any] | None
+    prompt: str, params: dict[str, Any] | None, workdir: str | None = None
 ) -> tuple[str, str | None]:
     """Apply a named skill (``params['skill']``) to ``prompt``.
 
@@ -56,6 +56,9 @@ def apply_skill_to_prompt(
     unchanged and ``applied_name`` is None. An unknown skill name also leaves
     the prompt unchanged (the caller can warn) — we never fail the run over a
     bad skill name. Skills load from the standard ``skills/`` directory.
+
+    When ``workdir`` is given and the skill bundles assets (scripts/templates),
+    they are copied into ``workdir`` so a write-mode CLI can read or execute them.
     """
     name = (params or {}).get(PARAM_SKILL)
     if not name:
@@ -65,6 +68,8 @@ def apply_skill_to_prompt(
     skill = skills.discover_skills().get(name)
     if skill is None:
         return prompt, None
+    if workdir and skill.assets:
+        skills.stage_assets(skill, workdir)
     return skills.apply_skill(skill, prompt), skill.name
 
 

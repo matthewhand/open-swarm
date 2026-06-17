@@ -60,9 +60,12 @@ class CliAgentBlueprint(BlueprintBase):
             return
 
         # Optional skill: `skill=<name>` prepends a discovered skill's
-        # instructions to the prompt (portable across whichever CLI runs).
+        # instructions to the prompt (portable across whichever CLI runs) and
+        # stages any bundled assets into the workdir for write-mode CLIs.
         if params.get(support.PARAM_SKILL):
-            prompt, applied = support.apply_skill_to_prompt(prompt, params)
+            prompt, applied = support.apply_skill_to_prompt(
+                prompt, params, workdir=params.get(support.PARAM_WORKDIR)
+            )
             if applied:
                 yield support.progress_chunk(f"_Applying skill `{applied}`…_")
             else:

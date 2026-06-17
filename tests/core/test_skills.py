@@ -96,6 +96,29 @@ def test_apply_skill_mentions_assets_when_present():
     assert "run.py" in prompt
 
 
+def test_stage_assets_copies_bundled_files(tmp_path: Path):
+    src = tmp_path / "skill"
+    src.mkdir()
+    (src / "SKILL.md").write_text(SKILL_MD)
+    (src / "run.py").write_text("print('hi')\n")
+    skill = skills.load_skill(src)
+
+    workdir = tmp_path / "wd"
+    staged = skills.stage_assets(skill, workdir)
+    assert staged == ["run.py"]
+    assert (workdir / "run.py").read_text() == "print('hi')\n"
+
+
+def test_stage_assets_noop_without_assets(tmp_path: Path):
+    s = skills.Skill(name="x", description="", instructions="do x")  # no path/assets
+    assert skills.stage_assets(s, tmp_path) == []
+
+
+def test_bundled_counting_lines_skill_ships_count_script():
+    skill = skills.discover_skills()["counting-lines"]
+    assert "count.py" in skill.assets
+
+
 def test_bundled_skills_are_discoverable_and_standard_compliant():
     # The repo ships these skills under <root>/skills; each must satisfy the
     # Agent Skills standard (valid name + a what+when description).
