@@ -17,6 +17,7 @@ from swarm.views.agent_creator_views import (
 from swarm.views.api_views import (
     BlueprintsListView,
     BlueprintSourceView,
+    CliAgentsView,
     CustomBlueprintDetailView,
     CustomBlueprintsView,
     MarketplaceGitHubBlueprintsView,
@@ -67,6 +68,7 @@ urlpatterns = [
     path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
     path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
     path("v1/blueprints/<str:blueprint_id>/source", BlueprintSourceView.as_view(), name="blueprint-source"),
+    path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
     path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
     # GitHub-topics marketplace discovery (returns empty list if disabled)

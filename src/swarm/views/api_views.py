@@ -388,3 +388,19 @@ class BlueprintSourceView(APIView):
             "selected": target.name,
             "content": content,
         })
+
+
+class CliAgentsView(APIView):
+    """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
+
+    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]}}.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import cli_catalog
+
+        return Response({
+            "clis": cli_catalog.catalog_names(),
+            "native_consensus": cli_catalog.NATIVE_CONSENSUS,
+        })

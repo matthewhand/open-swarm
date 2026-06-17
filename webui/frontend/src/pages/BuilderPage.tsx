@@ -4,31 +4,29 @@ import CodeMirror from '@uiw/react-codemirror'
 import { python } from '@codemirror/lang-python'
 import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI'
 import { Wrench, Cpu, Sparkles, FileCode, FileText } from 'lucide-react'
-import { fetchBlueprints, fetchBlueprintSource, type Blueprint } from '../lib/api'
+import { fetchBlueprints, fetchBlueprintSource, fetchCliAgents, type Blueprint } from '../lib/api'
 
-/**
- * Which CLIs have a built-in "best-of-N" consensus mode. Mirrors the backend
- * `swarm.core.cli_catalog.NATIVE_CONSENSUS` (exposed by `cli-agents --json`); a
- * `/v1/cli-agents/` endpoint will replace this hard-coded map.
- */
+/** Fallback native-consensus map used until /v1/cli-agents/ loads. */
 export const NATIVE_CONSENSUS: Record<string, string[]> = {
   grok: ['--best-of-n', '{n}'],
 }
 
-const CLI_CHOICES = ['grok', 'claude', 'gemini', 'opencode'] as const
-
-/** Resolve the argv a "best-of-N" toggle would append for a CLI, or null. */
-export function bestOfNFlags(cli: string, n: number): string[] | null {
-  const tmpl = NATIVE_CONSENSUS[cli]
+/** Resolve the argv a "best-of-N" toggle appends for a CLI given a native map, or null. */
+export function bestOfNFlags(
+  cli: string,
+  n: number,
+  map: Record<string, string[]> = NATIVE_CONSENSUS,
+): string[] | null {
+  const tmpl = map[cli]
   if (!tmpl) return null
   return tmpl.map((p) => (p === '{n}' ? String(Math.max(2, n)) : p))
 }
 
-function BestOfNToggle({ cli }: { cli: string }) {
-  const supported = cli in NATIVE_CONSENSUS
+function BestOfNToggle({ cli, nativeMap }: { cli: string; nativeMap: Record<string, string[]> }) {
+  const supported = cli in nativeMap
   const [on, setOn] = useState(false)
   const [n, setN] = useState(3)
-  const flags = on && supported ? bestOfNFlags(cli, n) : null
+  const flags = on && supported ? bestOfNFlags(cli, n, nativeMap) : null
 
   return (
     <div className="mt-3 rounded-lg border border-base-300 p-3">
@@ -77,6 +75,10 @@ export default function BuilderPage() {
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
+  const cliAgents = useQuery({ queryKey: ['cli-agents'], queryFn: fetchCliAgents })
+  const nativeMap = cliAgents.data?.native_consensus ?? NATIVE_CONSENSUS
+  const cliChoices = cliAgents.data?.clis ?? ['grok', 'claude', 'gemini', 'opencode']
+
   const blueprints: Blueprint[] = data?.data ?? []
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [cli, setCli] = useState<string>('grok')
@@ -116,7 +118,7 @@ export default function BuilderPage() {
                       setOpenFile(null)
                     }}
                   >
-                    {b.name || b.id}
+                    <span className="font-mono text-xs">{b.id}</span>
                   </button>
                 </li>
               ))}
@@ -147,14 +149,14 @@ export default function BuilderPage() {
                   aria-label="cli"
                   onChange={(e) => setCli(e.target.value)}
                 >
-                  {CLI_CHOICES.map((c) => (
+                  {cliChoices.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
                   ))}
                 </select>
               </label>
-              <BestOfNToggle cli={cli} />
+              <BestOfNToggle cli={cli} nativeMap={nativeMap} />
             </Card>
 
             <Card bordered>

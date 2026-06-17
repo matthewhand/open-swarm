@@ -397,3 +397,13 @@ export function fetchBlueprintSource(id: string, file?: string): Promise<Bluepri
   const q = file ? `?file=${encodeURIComponent(file)}` : ''
   return apiGet<BlueprintSource>(`/v1/blueprints/${encodeURIComponent(id)}/source${q}`)
 }
+
+/** GET /v1/cli-agents/ — CLI catalog + native (built-in) consensus capability. */
+export interface CliAgentsInfo {
+  clis: string[]
+  native_consensus: Record<string, string[]>
+}
+
+export function fetchCliAgents(): Promise<CliAgentsInfo> {
+  return apiGet<CliAgentsInfo>('/v1/cli-agents/')
+}
