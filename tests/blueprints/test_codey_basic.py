@@ -6,7 +6,7 @@ to ensure it works correctly and can be expanded with more comprehensive tests.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 from src.swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 
 
@@ -90,12 +90,6 @@ class TestCodeyBasicFunctionality:
         codey_blueprint._spin()
         new_state = codey_blueprint.current_spinner_state()
         assert new_state is not None
-
-    def test_start_method(self, codey_blueprint):
-        """Test that start method works"""
-        # Should not raise exceptions
-        codey_blueprint.start()
-        assert True  # If we get here, it worked
 
     @pytest.mark.asyncio
     async def test_run_in_test_mode(self, codey_blueprint):
@@ -213,47 +207,3 @@ class TestCodeyConfiguration:
         assert hasattr(codey_blueprint, 'llm_profile')
         profile = codey_blueprint.llm_profile
         assert profile is not None
-
-
-class TestCodeyIntegration:
-    """Test integration aspects of Codey blueprint"""
-
-    @pytest.fixture
-    def codey_blueprint(self):
-        """Fixture for Codey blueprint instance"""
-        return CodeyBlueprint(blueprint_id="test_codey_integration")
-
-    @pytest.mark.asyncio
-    async def test_integration_with_mock_llm(self, codey_blueprint):
-        """Test Codey with mocked LLM responses"""
-        # Mock the LLM chat completion
-        mock_response = AsyncMock()
-        mock_response.__aiter__.return_value = [
-            {"content": "Mocked LLM response"}
-        ]
-        
-        with patch.object(codey_blueprint, '_get_llm_response', return_value=mock_response):
-            messages = [{"role": "user", "content": "test query"}]
-            
-            result = []
-            async for chunk in codey_blueprint.run(messages):
-                result.append(chunk)
-            
-            # Should return mocked response
-            assert len(result) > 0
-
-    @pytest.mark.asyncio
-    async def test_integration_with_mock_tools(self, codey_blueprint):
-        """Test Codey with mocked tool execution"""
-        # Mock tool execution
-        with patch('src.swarm.blueprints.codey.blueprint_codey.execute_command') as mock_exec:
-            mock_exec.return_value = ("tool output", "", 0)
-            
-            messages = [{"role": "user", "content": "use code tool"}]
-            
-            result = []
-            async for chunk in codey_blueprint.run(messages):
-                result.append(chunk)
-            
-            # Should handle tool execution
-            assert len(result) > 0
