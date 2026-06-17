@@ -174,6 +174,8 @@ def apply_model(entry: dict[str, Any], name: str, model: str) -> dict[str, Any]:
     if flag is None:
         return entry
     cmd = list(entry.get("cmd") or [])
+    if not cmd:
+        return entry  # no command to pin a model on; don't fabricate a flag-only cmd
     if flag in cmd:
         i = cmd.index(flag)
         if i + 1 < len(cmd):

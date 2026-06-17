@@ -87,3 +87,11 @@ def test_suggest_mcp_config_prefers_non_auth():
     assert "filesystem" in servers
     # non-auth server has no env block; the generated config is runnable as-is
     assert "env" not in servers["duckduckgo"]
+
+
+def test_resolve_tolerates_provides_given_as_a_string():
+    # A single capability given as a string (common config mistake) should still
+    # provide it, not be split into characters.
+    cfg = {"mcpServers": {"x": {"command": "y", "args": [], "provides": "web_search"}}}
+    res = tc.resolve_requirements({"web_search": "mandatory"}, cfg, env={})
+    assert res.satisfied["web_search"] == "x"

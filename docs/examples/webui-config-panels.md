@@ -194,3 +194,17 @@ a hyphen boundary (`claude-opus` → `claude`, never `c`), used by both
 `buildCandidates` and the trait-editor seeding. Tests added; 61 vitest pass.
 (The Python backend was unaffected — it uses explicit config `models` blocks, no
 prefix matching.)
+
+## Bug-hunt round 2 (Python robustness)
+
+Two more real edge-case bugs found by probing and fixed with tests:
+- `tool_capabilities`: a server's `provides` given as a **string** (not a list) was
+  `list()`-ed into individual characters, so the capability silently went
+  unmatched. Now a string `provides` is tolerated as a single capability.
+- `cli_catalog.apply_model`: pinning a model on an entry with **no `cmd`**
+  fabricated a flag-only `cmd: ['-m', 'm']`. Now it's a no-op (nothing to pin).
+
+Other probes (CRLF / BOM / trailing-space names in SKILL.md; two non-auth
+providers for one capability — deterministic non-auth-first pick; `with_model`
+for a CLI with no model flag; `suggest_mcp_config` for an unknown capability)
+all already behaved correctly.

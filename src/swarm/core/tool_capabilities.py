@@ -122,7 +122,10 @@ def _provider_capabilities(config: dict[str, Any] | None) -> dict[str, tuple[lis
     out: dict[str, tuple[list[str], McpServer | None]] = {}
     for name, entry in servers.items():
         known = known_server(name)
-        provides = list((entry or {}).get("provides") or (known.provides if known else ()))
+        raw = (entry or {}).get("provides")
+        if isinstance(raw, str):  # tolerate a single capability given as a string
+            raw = [raw]
+        provides = list(raw) if raw else (list(known.provides) if known else [])
         out[name] = (provides, known)
     return out
 

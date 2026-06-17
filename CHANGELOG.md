@@ -10,7 +10,13 @@ All notable changes to this project will be documented in this file.
 - Verified live across gemini + `claude -p` + grok: skill portability (3/3) and bundled-asset tool calling (2/2). See `docs/examples/`.
 
 ### Added — Inference profiles (decouple blueprints from models)
-- A blueprint can declare *what kind of thinking it wants* — `intelligence`, `speed`, `cost` as 0–1 priorities (`inference_profile`) — instead of naming a CLI. Backends carry capability traits (defaults in `cli_catalog.CLI_TRAITS`, overridable per-agent via a `traits` block); the best match is chosen by a weighted dot product. Opt-in `profile=` param; precedence: explicit `cli` > `profile` > `default_cli`. Live routing verified (deep-reasoning → claude, fast&cheap → gemini). See `docs/examples/inference-profile-routing.md`.
+- A blueprint can declare *what kind of thinking it wants* — `intelligence`, `speed`, `cost` as 0–1 targets (`inference_profile`) — instead of naming a CLI. Backends carry capability traits, **per-provider** (`cli_catalog.CLI_TRAITS`) and **per-model** (`MODEL_TRAITS`, overridable via a config `models` block); the closest backend is chosen by **distance-from-ideal** over only the axes the blueprint specifies. Opt-in `profile=` param resolving to a `cli` or `cli@model`; precedence: explicit `cli` > `default_cli` > `profile`. Live routing verified (deep-reasoning → claude, fast&cheap → gemini, balanced → opencode). See `docs/examples/inference-profile-routing.md`.
+
+### Added — Tool capabilities endpoint + playwright-mcp
+- `GET /v1/blueprints/<id>/tools` resolves a blueprint's `tool_requirements` to concrete MCP providers. Official **microsoft/playwright-mcp** added to the catalog (non-auth `browser`), auto-provisioned for blueprints needing it (jeeves, whiskeytango_foxtrot); verified live (23 browser tools).
+
+### Added — Web UI Builder config panels
+- The Builder gained four config panels bound to `GET /v1/config-options/`: **inference profile** (live resolve preview), **per-model trait editor**, **tool capabilities/MCP** (non-auth preferred), and a **skills picker** (with SKILL.md preview). Each snippet has Copy/Download; selected blueprints show a "resolved MCP" badge; accessible header tooltips. 0 axe violations; Playwright e2e. See `docs/examples/webui-config-panels.md`.
 
 ### Added — Tool capabilities (decouple blueprints from MCP providers)
 - A blueprint can declare an abstract tool capability and whether it's mandatory/optional (`tool_requirements`) instead of naming a server. `swarm.core.tool_capabilities` resolves each capability to a configured MCP provider, **preferring non-auth providers**; unmet optional needs never block. `suggest_mcp_config()` emits a ready-to-paste, keyless `mcpServers` block (duckduckgo/fetch/filesystem/…). See `docs/examples/tool-capabilities.md`.
