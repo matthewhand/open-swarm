@@ -116,7 +116,7 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
 
       <div className="mt-3">
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">cli_agents config</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-base-content/70">cli_agents config</span>
           <div className="flex gap-1">
             <button type="button" className="btn btn-xs gap-1" onClick={download} aria-label="Download config">
               <Download className="h-3.5 w-3.5" /> Download
@@ -127,7 +127,12 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
             </button>
           </div>
         </div>
-        <pre className="max-h-64 overflow-auto rounded-lg bg-base-300 p-3 text-xs"><code>{json}</code></pre>
+        <pre
+          tabIndex={0}
+          role="region"
+          aria-label="Generated cli_agents config JSON"
+          className="max-h-64 overflow-auto rounded-lg bg-base-300 p-3 text-xs focus:outline focus:outline-2 focus:outline-primary"
+        ><code>{json}</code></pre>
       </div>
     </Card>
   )
@@ -153,7 +158,7 @@ export default function BuilderPage() {
       <h1 className="mb-1 flex items-center gap-2 text-3xl font-bold">
         <Wrench className="h-7 w-7" /> Blueprint Builder
       </h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <p className="mb-6 text-sm text-base-content/70">
         Configure and edit any blueprint — its agents, model setup, and files.
       </p>
 
@@ -169,6 +174,7 @@ export default function BuilderPage() {
                 <li key={b.id}>
                   <button
                     className={b.id === selected?.id ? 'active' : ''}
+                    aria-current={b.id === selected?.id ? 'true' : undefined}
                     onClick={() => {
                       setSelectedId(b.id)
                       setOpenFile(null)
@@ -186,7 +192,7 @@ export default function BuilderPage() {
               <h2 className="card-title flex items-center gap-2 text-base">
                 {selected?.id ?? '—'}
               </h2>
-              <p className="text-sm text-gray-500">{selected?.description || 'No description.'}</p>
+              <p className="text-sm text-base-content/70">{selected?.description || 'No description.'}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {(selected?.tags ?? []).map((t) => (
                   <Badge key={t}>{t}</Badge>
@@ -200,7 +206,7 @@ export default function BuilderPage() {
               <h2 className="card-title flex items-center gap-2 text-base">
                 <FileCode className="h-5 w-5" /> Source
                 {source.data?.selected && (
-                  <code className="text-xs font-normal text-gray-500">{source.data.selected}</code>
+                  <code className="text-xs font-normal text-base-content/70">{source.data.selected}</code>
                 )}
               </h2>
               {source.isPending && <LoadingSpinner size="sm" />}
@@ -212,6 +218,7 @@ export default function BuilderPage() {
                       <li key={f.path}>
                         <button
                           className={f.name === source.data!.selected ? 'active' : ''}
+                          aria-current={f.name === source.data!.selected ? 'true' : undefined}
                           onClick={() => setOpenFile(f.name)}
                         >
                           <FileText className="h-3.5 w-3.5" />

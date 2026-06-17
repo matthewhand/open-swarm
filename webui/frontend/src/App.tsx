@@ -70,7 +70,7 @@ function App() {
                       <Sun className="swap-on h-5 w-5" />
                       <Moon className="swap-off h-5 w-5" />
                     </label>
-                    <Link to="/settings" className="btn btn-ghost btn-sm">
+                    <Link to="/settings" className="btn btn-ghost btn-sm" aria-label="Settings">
                       <Settings className="h-5 w-5" />
                     </Link>
                   </div>
@@ -207,7 +207,7 @@ function Dashboard() {
         <Card compact bordered>
           <div className="stat">
             <div className="stat-title">Models</div>
-            <div className="stat-value text-accent">
+            <div className="stat-value text-primary">
               <StatValue
                 isPending={modelsQuery.isPending}
                 isError={modelsQuery.isError}

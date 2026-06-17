@@ -276,7 +276,7 @@ const ChatPage = () => {
                       ? 'Connecting to the chat websocket…'
                       : 'Websocket not connected'}
                 </p>
-                <p className="text-sm text-base-content/50">
+                <p className="text-sm text-base-content/70">
                   {status === 'open'
                     ? 'Send a message below to start the conversation.'
                     : status === 'connecting'

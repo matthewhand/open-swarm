@@ -100,7 +100,7 @@ const TeamsPageContent = () => {
             <Users className="h-8 w-8" />
             Team Management
           </h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-base-content/70 mt-1">
             Create and manage dynamic AI teams (served by /v1/teams/)
           </p>
         </div>
@@ -150,7 +150,7 @@ const TeamsPageContent = () => {
                     {team.llm_profile}
                   </Badge>
                 </div>
-                <p className="text-sm text-gray-500 mb-4 whitespace-pre-line">
+                <p className="text-sm text-base-content/70 mb-4 whitespace-pre-line">
                   {team.description || 'No description provided.'}
                 </p>
                 <div className="card-actions justify-end">
@@ -185,10 +185,10 @@ const TeamsPageContent = () => {
       {!isPending && !isError && teams.length === 0 && (
         <Card bordered className="text-center py-12">
           <div className="mb-4">
-            <Users className="h-16 w-16 mx-auto text-gray-400" />
+            <Users className="h-16 w-16 mx-auto text-base-content/60" />
           </div>
           <h3 className="text-xl font-semibold mb-2">No teams yet</h3>
-          <p className="text-gray-500 mb-4">
+          <p className="text-base-content/70 mb-4">
             No dynamic teams are registered on this server.
           </p>
           <div>
@@ -227,7 +227,7 @@ const TeamsPageContent = () => {
             value={llmProfile}
             onChange={(e) => setLlmProfile(e.target.value)}
           />
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-base-content/60">
             The name is slugified server-side (lowercase letters, numbers and
             dashes) and exposed as a model id via /v1/models.
           </p>
