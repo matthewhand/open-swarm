@@ -95,3 +95,17 @@ Run with `npm run test:e2e` (opt-in; not in the default `npm test`, and vitest's
 tool-capabilities panel resolves `web_search → duckduckgo` (non-auth preferred)
 after selecting mandatory + duckduckgo, and the skills panel emits a
 `{"skill": ...}` request snippet on selection.
+
+## Bug-hunt: profile resolution declines when there's nothing to score
+
+Edge-case probing of the new code found a wart: an **empty or all-unknown-axis**
+inference profile silently resolved to the alphabetically-first backend (every
+candidate ties at distance 0). Fixed in both the Python (`inference_profile.resolve`)
+and the TS mirror — with no scorable axis, `resolve` now returns `None`/`null`,
+so the caller falls through to its normal default (`default_cli` / first
+available) instead of an arbitrary pick. Tests added both sides. Backend 1183
+pass; frontend vitest + e2e green; 0 a11y.
+
+Other probes (None mcpServers entries, unknown capabilities, uppercase skill
+names, list-shaped frontmatter, unknown trait keys) all already behaved
+correctly — no further bugs.

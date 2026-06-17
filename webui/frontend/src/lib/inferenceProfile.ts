@@ -39,8 +39,11 @@ export function rank(
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
 }
 
-/** The single closest-matching candidate name, or null when there are none. */
+/** The single closest-matching candidate name, or null. Null when there are no
+ *  candidates, or when `desired` names no known axis (nothing to score on, so we
+ *  decline rather than return an arbitrary alphabetically-first backend). */
 export function resolve(desired: TraitVector, candidates: Record<string, TraitVector>): string | null {
+  if (Object.keys(targetAxes(desired)).length === 0) return null
   const r = rank(desired, candidates)
   return r.length ? r[0].name : null
 }

@@ -86,6 +86,13 @@ def rank(
 def resolve(
     desired: dict[str, Any] | None, candidates: dict[str, dict[str, Any]]
 ) -> str | None:
-    """Pick the single closest-matching backend name, or None if there are none."""
-    ranked = rank(desired, candidates)
-    return ranked[0][0] if ranked else None
+    """Pick the single closest-matching backend name, or None.
+
+    Returns None when there are no candidates, or when ``desired`` names no known
+    axis — with nothing to score on, every backend ties, so we decline to pick
+    (the caller falls through to its normal default rather than getting an
+    arbitrary alphabetically-first backend).
+    """
+    if not candidates or not _target_axes(desired):
+        return None
+    return rank(desired, candidates)[0][0]

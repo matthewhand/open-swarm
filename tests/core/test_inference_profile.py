@@ -53,3 +53,10 @@ def test_unspecified_axes_do_not_penalize():
 
 def test_resolve_none_when_no_candidates():
     assert ip.resolve({"intelligence": 1}, {}) is None
+
+
+def test_resolve_none_when_no_scorable_axis():
+    # Empty or all-unknown-axis target -> decline (caller uses its default),
+    # rather than silently picking the alphabetically-first backend.
+    assert ip.resolve({}, CANDIDATES) is None
+    assert ip.resolve({"bogus": 1.0}, CANDIDATES) is None

@@ -29,6 +29,11 @@ describe('inferenceProfile.resolve (distance-from-ideal)', () => {
   it('resolve returns null with no candidates', () => {
     expect(resolve({ intelligence: 1 }, {})).toBeNull()
   })
+
+  it('resolve returns null when no scorable axis (empty or all-unknown)', () => {
+    expect(resolve({}, CANDIDATES)).toBeNull()
+    expect(resolve({ bogus: 1 }, CANDIDATES)).toBeNull()
+  })
 })
 
 describe('splitCandidate', () => {
