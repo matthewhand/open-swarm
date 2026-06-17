@@ -109,13 +109,10 @@ const ToastContainer = ({ toasts, removeToast }: ToastContainerProps) => {
  * Get position classes for toast container
  */
 const getPositionClasses = (position: string) => {
-  switch (position) {
-    case 'top-right': return 'top-4 right-4';
-    case 'top-left': return 'top-4 left-4';
-    case 'bottom-right': return 'bottom-4 right-4';
-    case 'bottom-left': return 'bottom-4 left-4';
-    default: return 'top-4 right-4';
-  }
+  if (position === 'top-left') return 'top-4 left-4';
+  if (position === 'bottom-right') return 'bottom-4 right-4';
+  if (position === 'bottom-left') return 'bottom-4 left-4';
+  return 'top-4 right-4';
 };
 
 /**
@@ -166,38 +163,14 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
  * Get toast style based on type
  */
 const getToastStyle = (type: ToastType) => {
-  switch (type) {
-    case 'success':
-      return {
-        icon: CheckCircle2,
-        bgColor: 'bg-success text-success-content',
-        textColor: 'text-success-content'
-      };
-    case 'error':
-      return {
-        icon: AlertCircle,
-        bgColor: 'bg-error text-error-content',
-        textColor: 'text-error-content'
-      };
-    case 'warning':
-      return {
-        icon: AlertTriangle,
-        bgColor: 'bg-warning text-warning-content',
-        textColor: 'text-warning-content'
-      };
-    case 'info':
-      return {
-        icon: Info,
-        bgColor: 'bg-info text-info-content',
-        textColor: 'text-info-content'
-      };
-    default:
-      return {
-        icon: Info,
-        bgColor: 'bg-info text-info-content',
-        textColor: 'text-info-content'
-      };
+  if (type === 'success') {
+    return { icon: CheckCircle2, bgColor: 'bg-success text-success-content', textColor: 'text-success-content' };
+  } else if (type === 'error') {
+    return { icon: AlertCircle, bgColor: 'bg-error text-error-content', textColor: 'text-error-content' };
+  } else if (type === 'warning') {
+    return { icon: AlertTriangle, bgColor: 'bg-warning text-warning-content', textColor: 'text-warning-content' };
   }
+  return { icon: Info, bgColor: 'bg-info text-info-content', textColor: 'text-info-content' };
 };
 
 /**
@@ -234,7 +207,7 @@ export const useInfoToast = () => {
   return info;
 };
 
-export default {
+const toastExport = {
   ToastProvider,
   useToast,
   useSuccessToast,
@@ -242,3 +215,5 @@ export default {
   useWarningToast,
   useInfoToast,
 };
+
+export default toastExport;

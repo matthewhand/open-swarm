@@ -16,3 +16,7 @@
 ## 2024-06-11 | [Architectural Audit] | Insight: Type safety and `any` types | Protocol: Refactor `FormValidation.tsx` and `Pagination.tsx` to use robust generics instead of `any`, ensuring strict TypeScript integrity.
 
 ## 2024-06-11 | [Architectural Audit] | Insight: Missing Accessibility Attributes in Loading States | Protocol: Add `aria-live="polite"` and `aria-busy="true"` to Loading components (LoadingSpinner, LoadingDots, etc) and `aria-disabled="true"` to LoadingButton.
+
+## 2024-05-18 | [Architectural Audit] | Insight: Modal focus traps are frequently overlooked leading to focus bleeding into the body underneath. | Protocol: Trap focus natively by tracking `activeElement` on open and restoring it on close, alongside wrapping Tab keydown behavior within the boundary of standard `<dialog>` components.
+## 2024-05-18 | [Architectural Audit] | Insight: Keyboard-driven accessible widgets like Tabs lack complete standard implementations. Users expect `Home` and `End` keys to navigate bounded lists. | Protocol: Expand standard UI keystroke handlers (Left, Right, Home, End) on interactive lists and ensure `aria-selected` stays fully synchronized with local state without redeclaring shared interface types.
+## 2024-05-18 | [Architectural Audit] | Insight: WebSocket chat connectivity creates highly volatile states with unclear feedback loops to visually impaired users. | Protocol: Enforce rigorous deterministic loading and error bounds directly wrapped in `aria-live="polite"` and `aria-busy` containers for connection phases and failures.

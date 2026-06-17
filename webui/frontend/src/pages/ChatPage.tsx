@@ -238,7 +238,7 @@ const ChatPage = () => {
       {/* Fallback when the websocket is unavailable */}
       {(status === 'failed' || status === 'closed') && (
         <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-          <div className="space-y-1">
+          <div className="space-y-1" role="alert" aria-live="assertive">
             <span className="font-medium">
               {status === 'failed'
                 ? 'Websocket connection failed.'
@@ -251,7 +251,7 @@ const ChatPage = () => {
               accepts authenticated Django sessions. Your message history
               above is kept; reconnect when the server is available.
             </p>
-            <Button size="sm" variant="ghost" onClick={reconnect}>
+            <Button size="sm" variant="ghost" onClick={reconnect} aria-label="Reconnect to chat server">
               <RefreshCw className="h-4 w-4 mr-1" />
               Reconnect
             </Button>
@@ -269,8 +269,12 @@ const ChatPage = () => {
           tabIndex={0}
         >
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <MessageSquare className="h-10 w-10 opacity-20" />
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center" aria-live="polite" aria-busy={status === 'connecting'}>
+              {status === 'connecting' ? (
+                <LoadingSpinner size="lg" aria-label="Connecting to chat" />
+              ) : (
+                <MessageSquare className="h-10 w-10 opacity-20" />
+              )}
               <div>
                 <p className="font-medium text-base-content/70">
                   {status === 'open'

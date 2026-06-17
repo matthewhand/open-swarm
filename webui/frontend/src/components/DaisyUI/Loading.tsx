@@ -385,7 +385,7 @@ export const LoadingButton = ({
 };
 
 // Export individual components as well as the default object
-export default {
+const defaultExport = {
   LoadingSpinner,
   LoadingDots,
   LoadingRing,
@@ -399,3 +399,4 @@ export default {
   LoadingOverlay,
   LoadingButton,
 };
+export default defaultExport;

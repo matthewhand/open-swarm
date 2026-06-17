@@ -21,8 +21,10 @@ export const Modal = ({
   size = 'md',
   className = '',
 }: ModalProps) => {
+
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const previouslyFocusedElement = useRef<HTMLElement | null>(null);
 
   // Sync open state with native dialog methods
   useEffect(() => {
@@ -31,14 +33,29 @@ export const Modal = ({
 
     if (isOpen) {
       if (!dialog.open) {
+        previouslyFocusedElement.current = document.activeElement as HTMLElement;
         dialog.showModal();
+
+        // Focus trap
+        const focusableElements = dialog.querySelectorAll(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="radio"]:not([disabled]), input[type="checkbox"]:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+
+        if (firstElement) {
+          setTimeout(() => firstElement.focus(), 10);
+        }
       }
     } else {
       if (dialog.open) {
         dialog.close();
+        if (previouslyFocusedElement.current) {
+          previouslyFocusedElement.current.focus();
+        }
       }
     }
   }, [isOpen]);
+
 
   // Handle native cancel event (e.g. Escape key)
   useEffect(() => {
@@ -85,6 +102,32 @@ export const Modal = ({
       className={`modal ${isOpen ? 'modal-open' : ''}`}
       onClick={handleBackdropClick}
       aria-labelledby={title ? titleId : undefined}
+      onKeyDown={(e) => {
+        if (e.key === 'Tab') {
+          const dialog = dialogRef.current;
+          if (!dialog) return;
+
+          const focusableElements = dialog.querySelectorAll(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="radio"]:not([disabled]), input[type="checkbox"]:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+
+          if (focusableElements.length === 0) {
+            e.preventDefault();
+            return;
+          }
+
+          const firstElement = focusableElements[0] as HTMLElement;
+          const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+          if (!e.shiftKey && document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          } else if (e.shiftKey && document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        }
+      }}
     >
       <div 
         className={`modal-box ${sizeClasses[size]} ${className}`}
