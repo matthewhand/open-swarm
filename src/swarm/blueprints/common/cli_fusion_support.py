@@ -98,18 +98,19 @@ def select_single_cli(
     requested = params.get(PARAM_CLI)
     if requested:
         return requested
+    # An explicit ``default_cli`` is a deliberate global choice and wins over a
+    # blueprint's soft profile suggestion.
+    default = _fusion_config(config).get("default_cli")
+    if default:
+        return default
     # Inference-profile match: a blueprint (or request) can declare *desired*
-    # traits instead of naming a CLI; resolve to the best-matching available one.
-    # Opt-in — only engages when a profile is present — so it never disturbs the
-    # explicit ``default_cli`` path for blueprints that don't use it.
+    # traits instead of naming a CLI; resolve to the closest available backend.
+    # Opt-in — only engages when a profile is present and no default_cli is set.
     desired = params.get(PARAM_PROFILE) or _fusion_config(config).get("profile")
     if desired:
         picked = resolve_by_profile(desired, config, registry)
         if picked:
             return picked
-    default = _fusion_config(config).get("default_cli")
-    if default:
-        return default
     available = registry.available()
     if available:
         return available[0]

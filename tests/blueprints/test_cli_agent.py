@@ -152,6 +152,16 @@ async def test_blueprint_selects_cli_by_profile_param():
     assert _final_content(chunks) == "SPEEDY: x"
 
 
+async def test_default_cli_outranks_profile():
+    # An explicit default_cli is a deliberate global choice; it beats a profile.
+    cfg = _traited_config()
+    cfg["cli_fusion"] = {"default_cli": "speedy"}
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"profile": {"intelligence": 1.0}, "failover": False})  # would pick brainy
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
 async def test_explicit_cli_param_overrides_profile():
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
     # Profile wants intelligence (brainy) but an explicit cli wins.

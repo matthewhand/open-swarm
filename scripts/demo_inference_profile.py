@@ -20,9 +20,10 @@ from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint  # 
 from swarm.blueprints.common import cli_fusion_support as support  # noqa: E402
 from swarm.core import cli_catalog  # noqa: E402
 
+# Targets name only the axes the blueprint cares about (distance-from-ideal):
 PROFILES = [
-    ("deep reasoning",  {"intelligence": 1.0, "speed": 0.1, "cost": 0.1}),
-    ("fast & cheap",    {"intelligence": 0.1, "speed": 1.0, "cost": 1.0}),
+    ("deep reasoning",  {"intelligence": 1.0}),
+    ("fast & cheap",    {"speed": 1.0, "cost": 1.0}),
     ("balanced",        {"intelligence": 0.6, "speed": 0.6, "cost": 0.6}),
 ]
 Q = "In one word, what is the capital of France?"
