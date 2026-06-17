@@ -1,42 +1,18 @@
-# swarm_config.json Documentation
+# `swarm_config.json`
 
-## Purpose
-`swarm_config.json` is the primary configuration file for the Open Swarm framework. It defines global settings, agent/blueprint registration, model defaults, environment variables, and other core options that control Swarm’s behavior.
+> **This page has moved.** The configuration reference now lives in one place to
+> avoid drift:
+>
+> ### → [CONFIGURATION.md](../CONFIGURATION.md)
 
-## Typical Fields
-- **agents**: List of agent/blueprint definitions, each with a unique ID, type, and configuration.
-- **models**: Default LLM or model configuration (e.g., model name, provider, API key reference).
-- **env**: Environment variables to be set for subprocesses or agent runs.
-- **logging**: Logging level, output file, and format options.
-- **blueprints**: (optional) Blueprint-specific overrides or registration.
-- **other**: Any additional fields required for custom extensions or plugins.
+That canonical guide covers everything `swarm_config.json`:
 
-## Example
-```json
-{
-  "agents": [
-    {"id": "jeeves", "type": "butler", "config": {"home_assistant_url": "http://..."}},
-    {"id": "codey", "type": "coder", "config": {"model": "gpt-4"}}
-  ],
-  "models": {
-    "default": "gpt-4",
-    "providers": ["openai", "local"]
-  },
-  "env": {
-    "OPENAI_API_KEY": "..."
-  },
-  "logging": {
-    "level": "info",
-    "file": "swarm.log"
-  }
-}
-```
+- **File location, discovery precedence, and environment variables** (XDG path,
+  `SWARM_CONFIG_PATH`, `SWARM_RESPONSES_DIR`) — [§1](../CONFIGURATION.md#1-config-file-location-and-discovery)
+- **The real config schema** — `llm` profiles, `settings`, `blueprints`,
+  `mcpServers` — with a full example ([§2](../CONFIGURATION.md#2-example-config-structure))
+- Env-var substitution, per-blueprint model overrides, memory, security/redaction,
+  and troubleshooting.
 
-## Best Practices
-- Always validate your config with `swarm-cli` before running agents.
-- Use environment variable references for secrets (never hardcode API keys).
-- Document custom fields with comments in a separate `.md` file, as JSON does not support comments.
-
----
-
-**Reference this file for all questions about configuring Open Swarm via `swarm_config.json`.**
+For wrapping agentic CLIs (`cli_agents` / `cli_fusion` blocks) see
+[CLI_FUSION.md](./CLI_FUSION.md).
