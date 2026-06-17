@@ -180,6 +180,7 @@ Documentation map:
 * [USERGUIDE.md](./USERGUIDE.md) — task-oriented `swarm-cli` reference.
 * [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md) — screenshot-illustrated end-to-end story (install → CLI → web UI → API) with real transcripts.
 * [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) — visual page-by-page tour of the web UI (React SPA + Django templates).
+* [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.
 
