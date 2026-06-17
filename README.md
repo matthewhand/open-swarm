@@ -23,7 +23,7 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 <br/><em>One blueprint — CLI and OpenAI-compatible API.</em>
 </div>
 
-> **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 860+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
+> **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 1100+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
 ---
 
@@ -48,7 +48,7 @@ uv run swarm-cli launch codey --message "Explain this repo's structure"
 uv run swarm-cli install codey
 ```
 
-`swarm-cli` commands available today: `list`, `launch`, `install`, `install-executable`.
+`swarm-cli` commands available today: `list`, `launch`, `install`, `install-executable`, and `cli-agents` (alias `agents`) — the last autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated.
 
 ## Quickstart (API server)
 
@@ -72,7 +72,13 @@ The `model` field selects which blueprint handles the request. Streaming is supp
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
 * **Blueprints** — `BlueprintBase` subclasses defining a team: its agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
 * **MCP servers** — external tool providers (filesystem, search, databases, …) declared **in config, not code**; agents get their tools at runtime via the Model Context Protocol.
-* **CLI agents & fusion** — wrap your installed agentic CLIs (`claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API. `model: "cli_agent"` runs one; `model: "cli_fusion"` fans a prompt to a panel of them in parallel, judges and synthesizes the answers, and can iterate a bounded master plan. OpenRouter-Fusion-style, with your local toolbox. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md).
+* **CLI agents & fusion** — wrap your installed agentic CLIs (`grok`/`agent`, `claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API, and compose them four ways:
+  * `model: "cli_agent"` — run a single CLI as one agent.
+  * `model: "cli_fusion"` — fan a prompt to a panel in parallel, then judge and synthesize the answers (a bounded master plan can iterate the panel).
+  * `model: "cli_orchestrator"` — a cheap router CLI answers directly and escalates only high-stakes questions to a consensus panel (fusion as a granular tool, not a whole-request mode).
+  * `model: "cli_map"` — decompose a task, distribute the subtasks across worker CLIs in parallel, and reduce the results into one answer.
+
+  Consensus can be framework-driven (self-consensus: the same persona N times; or a multi-persona panel) **or** delegated to a CLI's own built-in mode where one exists (e.g. grok's `--best-of-n N`) — and the two compose. `grok` is the preferred default for judge/router/planner roles. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md).
 * **Configuration** — one JSON file (`~/.config/swarm/swarm_config.json`) holding named LLM profiles and MCP server definitions, with `${ENV_VAR}` placeholders so secrets stay in the environment / `.env`.
 
 ### Example `swarm_config.json`
@@ -121,6 +127,15 @@ Flagship blueprints (maintained, with the unified spinner/result-box CLI UX):
 | `zeus` | General-purpose team launcher |
 | `poets` | SQLite-backed creative-writing agents |
 
+CLI Agent Fusion blueprints (wrap your installed agentic CLIs — see [docs/CLI_FUSION.md](docs/CLI_FUSION.md)):
+
+| Blueprint | What it does |
+|---|---|
+| `cli_agent` | Run a single installed CLI (`grok`, `claude`, `gemini`, …) as one agent |
+| `cli_fusion` | Fan a prompt to a panel of CLIs in parallel, then judge and synthesize |
+| `cli_orchestrator` | Cheap router CLI answers directly; escalates hard questions to a consensus panel |
+| `cli_map` | Decompose a task, distribute subtasks across worker CLIs, reduce to one answer |
+
 More live under `src/swarm/blueprints/` (see its README); some are demos or Django-app experiments of varying maturity. Scaffold a new compliant blueprint with `python3 scripts/scaffold_blueprint.py`.
 
 ---
@@ -151,7 +166,7 @@ Feature-flag variables for experimental subsystems (`ENABLE_MCP_SERVER`, `ENABLE
 
 ```bash
 uv sync --all-extras                  # install with all extras
-uv run pytest -q --timeout=120       # full suite (860+ tests, no API keys needed)
+uv run pytest -q --timeout=120       # full suite (1100+ tests, no API keys needed)
 uv run python manage.py check         # Django sanity
 ruff check .                          # lint
 ```
