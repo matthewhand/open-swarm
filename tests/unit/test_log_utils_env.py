@@ -1,0 +1,52 @@
+"""Unit tests for the env-driven log config helpers in swarm.utils.log_utils.
+
+get_env_log_level / get_env_log_format are pure reads of SWARM_LOG_LEVEL /
+SWARM_LOG_FORMAT with documented defaults and fallbacks; they had no test
+coverage. Tests drive them deterministically via monkeypatch (no logging is
+configured here — setup_logging is intentionally left alone).
+"""
+
+import pytest
+
+from swarm.utils.log_utils import LogFormat, get_env_log_format, get_env_log_level
+
+
+def test_log_level_defaults_to_debug_when_unset(monkeypatch):
+    monkeypatch.delenv("SWARM_LOG_LEVEL", raising=False)
+    assert get_env_log_level() == "DEBUG"
+
+
+def test_log_level_reads_env_verbatim(monkeypatch):
+    monkeypatch.setenv("SWARM_LOG_LEVEL", "WARNING")
+    assert get_env_log_level() == "WARNING"
+
+
+def test_log_format_defaults_to_verbose_when_unset(monkeypatch):
+    monkeypatch.delenv("SWARM_LOG_FORMAT", raising=False)
+    assert get_env_log_format() is LogFormat.VERBOSE
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("VERBOSE", LogFormat.VERBOSE),
+    ("SIMPLE", LogFormat.SIMPLE),
+    ("RICH", LogFormat.RICH),
+])
+def test_log_format_resolves_known_names(monkeypatch, value, expected):
+    monkeypatch.setenv("SWARM_LOG_FORMAT", value)
+    assert get_env_log_format() is expected
+
+
+def test_log_format_is_case_insensitive(monkeypatch):
+    monkeypatch.setenv("SWARM_LOG_FORMAT", "simple")
+    assert get_env_log_format() is LogFormat.SIMPLE
+
+
+def test_log_format_falls_back_to_verbose_on_unknown(monkeypatch):
+    monkeypatch.setenv("SWARM_LOG_FORMAT", "nonsense")
+    assert get_env_log_format() is LogFormat.VERBOSE
+
+
+def test_logformat_is_a_str_enum():
+    # str-Enum: members compare/serialize as their format-string value.
+    assert isinstance(LogFormat.SIMPLE, str)
+    assert LogFormat.SIMPLE.value == "[{levelname}] {message}"
