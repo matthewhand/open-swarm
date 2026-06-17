@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.9] - 2026-06-17
+
+### Fixed — responsive / mobile (web UI)
+- Builder: the blueprint list (a desktop sidebar) buried the config + editor on mobile; below `lg` it's now a compact blueprint **dropdown**, so the agent/model config and source editor are immediately reachable.
+- Mobile a11y: the API Access snippet `<pre>` blocks and the chat message list became scrollable-region-focusable violations at narrow widths — made keyboard-focusable + labeled. **0 axe WCAG2 A/AA violations across mobile (light+dark) and desktop.**
+
 ## [0.4.8] - 2026-06-17
 
 ### Fixed — accessibility (web UI)
