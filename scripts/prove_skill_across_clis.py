@@ -63,10 +63,13 @@ async def main() -> int:
         except Exception as e:  # noqa: BLE001
             print(f"  {cli:8} ERR  {e}")
             continue
-        first = out.splitlines()[0] if out else ""
-        ok = bool(CC_RE.match(first))
+        # Agentic CLIs (e.g. grok) may narrate tool use before the answer, so
+        # match the contract on ANY line, not just the first.
+        lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+        hit = next((ln for ln in lines if CC_RE.match(ln)), None)
+        ok = hit is not None
         npass += ok
-        print(f"  {cli:8} {'PASS' if ok else 'FAIL'}  {first[:70]}")
+        print(f"  {cli:8} {'PASS' if ok else 'FAIL'}  {(hit or (lines[0] if lines else ''))[:70]}")
     print("=" * 78)
     print(f"  {npass}/{len(clis)} CLIs honored the '{skill.name}' skill")
     return 0 if npass == len(clis) and clis else 1
