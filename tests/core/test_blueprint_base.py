@@ -70,14 +70,6 @@ class TestBlueprintBase(TestCase):
             blueprint = ConcreteBlueprint(self.blueprint_id)
             assert blueprint._config == {}
 
-    @pytest.mark.skip(reason="Complex mocking required for env var config loading")
-    @patch('swarm.core.blueprint_base.Path.cwd')
-    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}, clear=True)
-    def test_config_loading_fallback_to_env(self, mock_cwd):
-        """Test config loading falls back to OPENAI_API_KEY env var"""
-        # This test is complex due to mocking requirements, skipping for now
-        pass
-
     def test_config_property_access(self):
         """Test accessing config property"""
         blueprint = ConcreteBlueprint(self.blueprint_id, config=self.test_config)

@@ -128,12 +128,6 @@ class TestSearchReposByTopics:
 
         assert result == []
 
-    def test_search_cache_hit(self):
-        """Returns cached result if within TTL - tests cache logic."""
-        # Skip this test - cache key generation is complex and hard to mock correctly
-        # The other tests cover the core functionality
-        pass
-
     def test_search_with_auth_token(self, monkeypatch):
         """Includes Authorization header when token provided."""
         def mock_get(self, url, **kwargs):
@@ -225,18 +219,6 @@ class TestFetchRepoManifests:
             assert result[0]["name"] == "item1"
             assert result[1]["name"] == "item2"
 
-    def test_per_item_manifests_blueprints(self):
-        """Fetches per-item manifests from swarm/blueprints directory - simplified."""
-        # Skip this test - URL matching is complex
-        # Basic functionality is covered by other tests
-        pass
-
-    def test_per_item_manifests_mcp(self):
-        """Fetches per-item manifests from swarm/mcp directory - simplified."""
-        # Skip this test - URL matching is complex
-        # Basic functionality is covered by other tests
-        pass
-
     def test_invalid_repo_format(self):
         """Returns empty list for invalid repo full_name."""
         repo = {"full_name": "invalid"}  # Missing second part
@@ -282,22 +264,6 @@ class TestFetchRepoManifests:
 
 class TestEnrichItemWithMetrics:
     """Tests for enrich_item_with_metrics function."""
-
-    def test_file_and_line_count(self):
-        """Counts files and lines correctly - simplified."""
-        # Skip this test - mocking is complex
-        # Basic functionality is tested indirectly via fetch_repo_manifests
-        pass
-
-    def test_extracts_python_metadata(self):
-        """Extracts metadata from Python file - simplified."""
-        # Skip this test - mocking is complex
-        pass
-
-    def test_skips_large_files(self):
-        """Skips counting lines for files > 200KB - simplified."""
-        # Skip this test - mocking is complex
-        pass
 
     def test_handles_listing_error(self):
         """Handles directory listing errors gracefully."""
