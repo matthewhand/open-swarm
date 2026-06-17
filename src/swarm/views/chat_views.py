@@ -33,11 +33,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request  # Import DRF Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .openai_schema import chat_completions_schema
 
 # Import custom permission
 # Assuming serializers are in the same app
 from swarm.serializers import ChatCompletionRequestSerializer
+
+from .openai_schema import chat_completions_schema
 
 # Assuming utils are in the same app/directory level
 # Make sure these utils are async-safe or wrapped if they perform sync I/O
@@ -119,6 +120,20 @@ def _chunk_is_final(chunk: Any) -> bool:
 # API Views (DRF based)
 # ==============================================================================
 
+def usage_counts(messages: list[dict[str, Any]] | None, answer: Any, model: str) -> tuple[int, int, int]:
+    """Approximate (prompt, completion, total) token counts for a response.
+
+    Uses tiktoken via ``get_token_count`` (word-count fallback). Better than the
+    zeros we used to return, so OpenAI clients can do cost/usage tracking. It is
+    an estimate of the text in/out of the API, not the CLIs' own tokenisation.
+    """
+    from swarm.utils.context_utils import get_token_count
+
+    prompt = sum(get_token_count(m, model) for m in (messages or []))
+    completion = get_token_count(answer if answer is not None else "", model)
+    return prompt, completion, prompt + completion
+
+
 class HealthCheckView(APIView):
     """ Simple health check endpoint. """
     permission_classes = [AllowAny]
@@ -166,7 +181,8 @@ class ChatCompletionsView(APIView):
                  logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not yield any valid message chunk.")
                  raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None }
+            p_tok, c_tok, t_tok = usage_counts(messages, final_message.get("content"), model_name)
+            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": p_tok, "completion_tokens": c_tok, "total_tokens": t_tok}, "system_fingerprint": None }
             end_time = time.time()
             logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)

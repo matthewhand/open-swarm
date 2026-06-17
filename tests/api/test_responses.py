@@ -181,3 +181,17 @@ class TestResponsesStateful:
         get_url = reverse("responses-detail", kwargs={"response_id": "resp_missing"})
         got = await async_client.get(get_url, SERVER_NAME="localhost")
         assert got.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_responses_reports_nonzero_token_usage(client):
+    resp = client.post(
+        "/v1/responses",
+        data='{"model": "cli_fusion", "input": "In one word, capital of France?"}',
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    usage = resp.json()["usage"]
+    assert usage["input_tokens"] > 0
+    assert usage["output_tokens"] > 0
+    assert usage["total_tokens"] == usage["input_tokens"] + usage["output_tokens"]
