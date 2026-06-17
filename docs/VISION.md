@@ -70,6 +70,9 @@ This is verified, shipped, and covered by an 1100+ test suite. Status marks:
 | **`cli_fusion`** — panel → judge → synthesize, bounded master-plan loop | ✅ | `blueprints/cli_fusion/` |
 | **`cli_orchestrator`** — cheap router, escalate to a panel only when high-stakes | ✅ | `blueprints/cli_orchestrator/` |
 | **`cli_map`** — decompose → distribute → reduce (divide-and-conquer) | ✅ | `blueprints/cli_map/` |
+| **`cli_pipeline`** — sequential refinement (draft → review → polish) | ✅ | `blueprints/cli_pipeline/` |
+| **`cli_roundtable`** — group-chat debate, moderated to a conclusion | ✅ | `blueprints/cli_roundtable/` |
+| **`cli_planner`** — Magentic-One-style task ledger, re-plans on stall | ✅ | `blueprints/cli_planner/` |
 | CLI autodiscovery + auth probe (`swarm-cli cli-agents --init/--check-auth`) | ✅ | `swarm/core/cli_adapter.py`, `cli_catalog.py` |
 | Per-panelist **git-worktree isolation** for write-mode CLIs | ✅ | `cli_fusion` |
 | **Inference profiles** — pick a backend by traits (intelligence/speed/cost), not brand | ✅ | `docs/examples/inference-profile-routing.md` |
@@ -100,21 +103,17 @@ under [`docs/proofs/`](./proofs/).
 
 ## What remains (honest)
 
-### Orchestration patterns not yet built
+### Orchestration patterns — complete ✅
 
-We have concurrent (`cli_fusion`), handoff/escalation (`cli_orchestrator`), and
-map-reduce (`cli_map`). To reach parity with the field's standard pattern set,
-three remain. These are the active build targets:
-
-| Planned blueprint | Pattern it mirrors | What it adds over what we have |
-|---|---|---|
-| **`cli_pipeline`** | Sequential | Output of CLI A becomes input to CLI B to C — staged refinement (draft → review → polish), distinct from `cli_fusion`'s parallel panel. |
-| **`cli_roundtable`** | Group chat | CLIs *debate in a shared thread* across bounded rounds; a moderator decides continue-vs-conclude. Distinct from `cli_fusion`'s single-shot panel + one judge pass. |
-| **`cli_planner`** | Magentic-One | A planner maintains a **task ledger**, delegates subtasks to specialist CLIs, tracks progress, and **re-plans on stall**. Distinct from `cli_map`'s single decompose→reduce. |
-
-Their sequence diagrams are already drawn in
-[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) (marked *planned*) so the
-contract is fixed before the code lands.
+The standard pattern set is now built end to end: concurrent (`cli_fusion`),
+handoff/escalation (`cli_orchestrator`), map-reduce (`cli_map`), sequential
+(`cli_pipeline`), group-chat (`cli_roundtable`), and Magentic-One
+(`cli_planner`). Each has a sequence diagram in
+[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) and tests under
+`tests/blueprints/`. Remaining work here is depth, not coverage: streaming
+progress for the multi-round patterns, and live multi-CLI proof transcripts for
+pipeline / roundtable / planner alongside the consensus and routing ones in
+[`docs/proofs/`](./proofs/).
 
 ### Other known gaps (unchanged from the roadmap)
 
@@ -138,13 +137,16 @@ flowchart LR
     BP -->|concurrent| F[cli_fusion]
     BP -->|handoff| O[cli_orchestrator]
     BP -->|map reduce| M[cli_map]
-    BP -.planned.-> P[cli_pipeline]
-    BP -.planned.-> R[cli_roundtable]
-    BP -.planned.-> PL[cli_planner]
+    BP -->|sequential| P[cli_pipeline]
+    BP -->|group chat| R[cli_roundtable]
+    BP -->|planner| PL[cli_planner]
     A --> REG[CLI adapter registry]
     F --> REG
     O --> REG
     M --> REG
+    P --> REG
+    R --> REG
+    PL --> REG
     REG --> g[gemini]
     REG --> c[claude]
     REG --> k[grok]
