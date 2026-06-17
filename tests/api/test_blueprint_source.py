@@ -27,3 +27,13 @@ def test_source_rejects_path_traversal(client):
     assert resp.status_code == 200
     # the requested out-of-dir file is ignored; it falls back to the primary
     assert resp.json()["selected"] == "blueprint_cli_fusion.py"
+
+
+@pytest.mark.django_db
+def test_cli_agents_endpoint_exposes_native_consensus(client):
+    resp = client.get("/v1/cli-agents/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "grok" in data["clis"]
+    assert data["native_consensus"]["grok"] == ["--best-of-n", "{n}"]
+    assert data["catalog"]["grok"]["parse"] == "json:.text"

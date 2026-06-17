@@ -1,17 +1,22 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import CodeMirror from '@uiw/react-codemirror'
-import { python } from '@codemirror/lang-python'
 import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI'
-import { Wrench, Cpu, Sparkles, FileCode, FileText } from 'lucide-react'
-import { fetchBlueprints, fetchBlueprintSource, fetchCliAgents, type Blueprint } from '../lib/api'
+import { Wrench, Cpu, Sparkles, FileCode, FileText, Copy, Check } from 'lucide-react'
+import {
+  fetchBlueprints,
+  fetchBlueprintSource,
+  fetchCliAgents,
+  type Blueprint,
+  type CliAgentsInfo,
+} from '../lib/api'
+
+const CodeViewer = lazy(() => import('../components/CodeViewer'))
 
 /** Fallback native-consensus map used until /v1/cli-agents/ loads. */
-export const NATIVE_CONSENSUS: Record<string, string[]> = {
-  grok: ['--best-of-n', '{n}'],
-}
+export const NATIVE_CONSENSUS: Record<string, string[]> = { grok: ['--best-of-n', '{n}'] }
 
-/** Resolve the argv a "best-of-N" toggle appends for a CLI given a native map, or null. */
+export type ConsensusMode = 'single' | 'self' | 'native' | 'panel'
+
 export function bestOfNFlags(
   cli: string,
   n: number,
@@ -22,66 +27,103 @@ export function bestOfNFlags(
   return tmpl.map((p) => (p === '{n}' ? String(Math.max(2, n)) : p))
 }
 
-function BestOfNToggle({ cli, nativeMap }: { cli: string; nativeMap: Record<string, string[]> }) {
-  const supported = cli in nativeMap
-  const [on, setOn] = useState(false)
+/** Build a `cli_agents` config entry for a CLI given the chosen consensus mode. */
+export function buildAgentConfig(
+  cli: string,
+  mode: ConsensusMode,
+  n: number,
+  info: Pick<CliAgentsInfo, 'catalog' | 'native_consensus'> | undefined,
+): Record<string, unknown> {
+  const base = { ...(info?.catalog?.[cli] ?? { cmd: [cli, '-p', '{prompt}'], parse: 'text' }) }
+  const cmd = Array.isArray(base.cmd) ? [...(base.cmd as string[])] : [cli]
+  if (mode === 'self') return { ...base, consensus: Math.max(2, n) }
+  if (mode === 'panel') return { ...base, consensus: true }
+  if (mode === 'native') {
+    const flags = bestOfNFlags(cli, n, info?.native_consensus)
+    return flags ? { ...base, cmd: [...cmd, ...flags] } : base
+  }
+  return base // single
+}
+
+function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
+  const clis = info?.clis ?? ['grok', 'claude', 'gemini', 'opencode']
+  const nativeMap = info?.native_consensus ?? NATIVE_CONSENSUS
+  const [cli, setCli] = useState('grok')
+  const [mode, setMode] = useState<ConsensusMode>('single')
   const [n, setN] = useState(3)
-  const flags = on && supported ? bestOfNFlags(cli, n, nativeMap) : null
+  const [copied, setCopied] = useState(false)
+
+  const nativeSupported = cli in nativeMap
+  const effectiveMode = mode === 'native' && !nativeSupported ? 'single' : mode
+  const config = { cli_agents: { [cli]: buildAgentConfig(cli, effectiveMode, n, info) } }
+  const json = JSON.stringify(config, null, 2)
+  const showN = effectiveMode === 'self' || effectiveMode === 'native'
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard?.writeText(json)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
 
   return (
-    <div className="mt-3 rounded-lg border border-base-300 p-3">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-2 text-sm font-medium">
-          <Sparkles className="h-4 w-4 text-primary" />
-          Built-in consensus (best-of-N)
-        </span>
-        <input
-          type="checkbox"
-          className="toggle toggle-primary toggle-sm"
-          aria-label="Enable built-in consensus"
-          disabled={!supported}
-          checked={on && supported}
-          onChange={(e) => setOn(e.target.checked)}
-        />
+    <Card bordered>
+      <h2 className="card-title flex items-center gap-2 text-base">
+        <Cpu className="h-5 w-5" /> Agent / model setup
+      </h2>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="form-control">
+          <span className="label-text text-xs">CLI / model</span>
+          <select className="select select-bordered select-sm" value={cli} aria-label="cli" onChange={(e) => setCli(e.target.value)}>
+            {clis.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <label className="form-control">
+          <span className="label-text text-xs flex items-center gap-1">
+            <Sparkles className="h-3.5 w-3.5 text-primary" /> consensus mode
+          </span>
+          <select className="select select-bordered select-sm" value={mode} aria-label="consensus mode" onChange={(e) => setMode(e.target.value as ConsensusMode)}>
+            <option value="single">single (one inference)</option>
+            <option value="self">self-consensus (same persona ×N)</option>
+            <option value="native" disabled={!nativeSupported}>
+              built-in best-of-N{nativeSupported ? '' : ' (unavailable)'}
+            </option>
+            <option value="panel">panel (all available CLIs)</option>
+          </select>
+        </label>
+        {showN && (
+          <label className="form-control">
+            <span className="label-text text-xs">N</span>
+            <input type="number" min={2} max={16} value={n} onChange={(e) => setN(Number(e.target.value))} className="input input-bordered input-sm w-20" aria-label="n" />
+          </label>
+        )}
       </div>
-      {!supported ? (
-        <p className="mt-1 text-xs text-gray-500">
-          <code>{cli}</code> has no built-in consensus mode — use framework consensus instead.
-        </p>
-      ) : (
-        <div className="mt-2 flex items-center gap-3">
-          <label className="text-xs text-gray-500">candidates (N)</label>
-          <input
-            type="number"
-            min={2}
-            max={16}
-            value={n}
-            disabled={!on}
-            onChange={(e) => setN(Number(e.target.value))}
-            className="input input-bordered input-xs w-16"
-            aria-label="best-of-n count"
-          />
-          <code className="text-xs text-gray-500">
-            {flags ? flags.join(' ') : '(off)'}
-          </code>
+
+      <div className="mt-3">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">cli_agents config</span>
+          <button type="button" className="btn btn-xs gap-1" onClick={copy} aria-label="Copy config">
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
         </div>
-      )}
-    </div>
+        <pre className="max-h-64 overflow-auto rounded-lg bg-base-300 p-3 text-xs"><code>{json}</code></pre>
+      </div>
+    </Card>
   )
 }
 
 export default function BuilderPage() {
-  const { data, isPending, isError } = useQuery({
-    queryKey: ['blueprints'],
-    queryFn: fetchBlueprints,
-  })
+  const { data, isPending, isError } = useQuery({ queryKey: ['blueprints'], queryFn: fetchBlueprints })
   const cliAgents = useQuery({ queryKey: ['cli-agents'], queryFn: fetchCliAgents })
-  const nativeMap = cliAgents.data?.native_consensus ?? NATIVE_CONSENSUS
-  const cliChoices = cliAgents.data?.clis ?? ['grok', 'claude', 'gemini', 'opencode']
 
   const blueprints: Blueprint[] = data?.data ?? []
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [cli, setCli] = useState<string>('grok')
   const [openFile, setOpenFile] = useState<string | null>(null)
   const selected = blueprints.find((b) => b.id === selectedId) ?? blueprints[0]
 
@@ -104,8 +146,7 @@ export default function BuilderPage() {
       {isError && <Alert type="error">Failed to load blueprints.</Alert>}
 
       {!isPending && !isError && (
-        <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-          {/* Blueprint list */}
+        <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
           <Card bordered>
             <h2 className="card-title text-base">Blueprints ({blueprints.length})</h2>
             <ul className="menu menu-sm px-0">
@@ -125,11 +166,10 @@ export default function BuilderPage() {
             </ul>
           </Card>
 
-          {/* Selected blueprint config */}
           <div className="space-y-4">
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
-                <Cpu className="h-5 w-5" /> {selected?.name || selected?.id || '—'}
+                {selected?.id ?? '—'}
               </h2>
               <p className="text-sm text-gray-500">{selected?.description || 'No description.'}</p>
               <div className="mt-2 flex flex-wrap gap-1">
@@ -139,25 +179,7 @@ export default function BuilderPage() {
               </div>
             </Card>
 
-            <Card bordered>
-              <h2 className="card-title text-base">Agent / model setup</h2>
-              <label className="form-control max-w-xs">
-                <span className="label-text text-xs">CLI / model</span>
-                <select
-                  className="select select-bordered select-sm"
-                  value={cli}
-                  aria-label="cli"
-                  onChange={(e) => setCli(e.target.value)}
-                >
-                  {cliChoices.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <BestOfNToggle cli={cli} nativeMap={nativeMap} />
-            </Card>
+            <AgentConfigBuilder info={cliAgents.data} />
 
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
@@ -167,12 +189,9 @@ export default function BuilderPage() {
                 )}
               </h2>
               {source.isPending && <LoadingSpinner size="sm" />}
-              {source.isError && (
-                <Alert type="warning">Source unavailable for this blueprint.</Alert>
-              )}
+              {source.isError && <Alert type="warning">Source unavailable for this blueprint.</Alert>}
               {source.data && (
                 <div className="grid gap-3 md:grid-cols-[180px_1fr]">
-                  {/* file browser */}
                   <ul className="menu menu-xs rounded-box bg-base-200 px-1">
                     {source.data.files.map((f) => (
                       <li key={f.path}>
@@ -186,15 +205,10 @@ export default function BuilderPage() {
                       </li>
                     ))}
                   </ul>
-                  {/* pretty-printed, read-only editor */}
                   <div className="overflow-hidden rounded-lg border border-base-300">
-                    <CodeMirror
-                      value={source.data.content}
-                      height="420px"
-                      extensions={[python()]}
-                      editable={false}
-                      basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: false }}
-                    />
+                    <Suspense fallback={<div className="p-4"><LoadingSpinner size="sm" /></div>}>
+                      <CodeViewer value={source.data.content} />
+                    </Suspense>
                   </div>
                 </div>
               )}

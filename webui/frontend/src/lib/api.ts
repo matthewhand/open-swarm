@@ -402,6 +402,7 @@ export function fetchBlueprintSource(id: string, file?: string): Promise<Bluepri
 export interface CliAgentsInfo {
   clis: string[]
   native_consensus: Record<string, string[]>
+  catalog: Record<string, Record<string, unknown>>
 }
 
 export function fetchCliAgents(): Promise<CliAgentsInfo> {
