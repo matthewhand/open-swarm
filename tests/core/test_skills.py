@@ -32,6 +32,25 @@ def test_parse_skill_md_without_name_raises():
         skills.parse_skill_md("body only, no frontmatter, no hint")
 
 
+@pytest.mark.parametrize("bad_name", ["Bad_Name", "UPPER", "has space", "x" * 65])
+def test_parse_skill_md_rejects_invalid_name(bad_name):
+    # Aligns with the Agent Skills standard: lowercase/digits/hyphens, <= 64.
+    with pytest.raises(ValueError):
+        skills.parse_skill_md("some body", name_hint=bad_name)
+
+
+@pytest.mark.parametrize("reserved", ["claude-helper", "my-anthropic-skill"])
+def test_parse_skill_md_rejects_reserved_words(reserved):
+    with pytest.raises(ValueError):
+        skills.parse_skill_md("some body", name_hint=reserved)
+
+
+def test_parse_skill_md_rejects_overlong_description():
+    md = f"---\nname: x\ndescription: {'d' * (skills.MAX_DESCRIPTION + 1)}\n---\nbody"
+    with pytest.raises(ValueError):
+        skills.parse_skill_md(md)
+
+
 def test_discover_skills_finds_skill_dirs(tmp_path: Path):
     d = tmp_path / "haiku"
     d.mkdir()
@@ -77,8 +96,13 @@ def test_apply_skill_mentions_assets_when_present():
     assert "run.py" in prompt
 
 
-def test_bundled_conventional_commit_skill_is_discoverable():
-    # The repo ships at least this skill under <root>/skills.
+def test_bundled_skills_are_discoverable_and_standard_compliant():
+    # The repo ships these skills under <root>/skills; each must satisfy the
+    # Agent Skills standard (valid name + a what+when description).
     found = skills.discover_skills()
-    assert "conventional-commit" in found
-    assert found["conventional-commit"].description
+    for name in ("conventional-commit", "reviewing-code", "writing-changelog"):
+        assert name in found, f"missing bundled skill: {name}"
+        skill = found[name]
+        assert skills._NAME_RE.match(skill.name)
+        assert skill.description and len(skill.description) <= skills.MAX_DESCRIPTION
+        assert "use when" in skill.description.lower()  # description states *when*

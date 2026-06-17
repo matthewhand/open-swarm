@@ -10,6 +10,11 @@ grok, or any other adapter, because "applying" a skill just prepends its
 instructions to the user's task. This mirrors the agentic-CLI "skill"/"extension"
 idea but keeps it portable across every CLI in the fusion catalog.
 
+The SKILL.md format and the name/description validation follow Anthropic's
+`Agent Skills <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview>`_
+open standard, so skills authored here also load in Claude Code and the Skills
+API unchanged.
+
     from swarm.core import skills
     catalog = skills.discover_skills()          # {name: Skill}
     prompt = skills.apply_skill(catalog["conventional-commit"], "diff: ...")
@@ -29,7 +34,14 @@ from swarm.core.paths import get_project_root_dir  # noqa: E402
 
 SKILL_FILE = "SKILL.md"
 
+# Frontmatter + validation follow Anthropic's Agent Skills open standard so our
+# skills are portable to Claude Code / the Skills API:
+#   name        — 1-64 chars, lowercase letters/digits/hyphens, no reserved words
+#   description — non-empty (recommended), <= 1024 chars; says what + when
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
+_NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+_RESERVED_WORDS = ("anthropic", "claude")
+MAX_DESCRIPTION = 1024
 
 
 @dataclass
@@ -63,14 +75,21 @@ def parse_skill_md(text: str, *, name_hint: str | None = None) -> Skill:
     name = str(meta.get("name") or name_hint or "").strip()
     if not name:
         raise ValueError("skill has no 'name' (frontmatter or directory name)")
+    if not _NAME_RE.match(name):
+        raise ValueError(
+            f"skill name '{name}' must be 1-64 chars of lowercase letters, digits, or hyphens"
+        )
+    if any(w in name for w in _RESERVED_WORDS):
+        raise ValueError(f"skill name '{name}' may not contain reserved words {_RESERVED_WORDS}")
+
+    description = str(meta.get("description") or "").strip()
+    if len(description) > MAX_DESCRIPTION:
+        raise ValueError(f"skill '{name}' description exceeds {MAX_DESCRIPTION} chars")
+
     instructions = body.strip()
     if not instructions:
         raise ValueError(f"skill '{name}' has no instructions (empty SKILL.md body)")
-    return Skill(
-        name=name,
-        description=str(meta.get("description") or "").strip(),
-        instructions=instructions,
-    )
+    return Skill(name=name, description=description, instructions=instructions)
 
 
 def load_skill(skill_dir: Path) -> Skill:
