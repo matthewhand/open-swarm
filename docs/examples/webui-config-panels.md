@@ -54,3 +54,26 @@ white `<body>`; axe then saw dark text on white and reported false
 seeding the theme via `addInitScript` before load and setting `data-theme` on
 `<html>`, plus waiting for a real selector instead of `networkidle`. Result: 0
 violations, deterministic across repeated runs.
+
+## Panel 3 — Skills picker
+
+Browse discovered skills (name, description, bundled-asset badges) and attach one
+to a `cli_agent` request. Selecting `counting-lines` shows its `count.py` asset
+and emits `{"model":"cli_agent","params":{"skill":"counting-lines"}}`.
+
+![Skills picker panel](../screenshots/webui/skills-dark.png)
+
+**Verification**
+- Pure helper `src/lib/skills.ts` (`buildSkillRequest`) unit-tested.
+- axe full-ruleset audit: **0 violations**.
+
+### Fixed: vitest collected the Playwright e2e spec
+
+`npx vitest run` was pulling in `e2e/smoke.spec.ts` (a Playwright spec), which
+errors at collection (`test() not expected here`). Scoped vitest's `include` to
+`src/**/*.{test,spec}.{ts,tsx}` so unit tests run under vitest and e2e stays
+under Playwright. 6 files / 34 tests pass clean.
+
+### Builder — all three panels
+
+![Builder full page](../screenshots/webui/builder-dark.png)

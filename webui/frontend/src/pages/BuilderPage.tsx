@@ -12,6 +12,7 @@ import {
 } from '../lib/api'
 import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
 import { ToolCapabilitiesPanel } from '../components/ToolCapabilitiesPanel'
+import { SkillsPanel } from '../components/SkillsPanel'
 
 const CodeViewer = lazy(() => import('../components/CodeViewer'))
 
@@ -231,6 +232,8 @@ export default function BuilderPage() {
             <InferenceProfilePanel info={configOptions.data} />
 
             <ToolCapabilitiesPanel info={configOptions.data} />
+
+            <SkillsPanel info={configOptions.data} />
 
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
