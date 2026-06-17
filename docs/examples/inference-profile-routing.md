@@ -12,18 +12,18 @@ installed CLIs using the default `CLI_TRAITS`):
 
 | Desired profile | Resolved CLI | Why |
 |---|---|---|
-| deep reasoning (`intelligence 1.0`) | **claude** | highest intelligence trait (0.95) |
-| fast & cheap (`speed 1.0, cost 1.0`) | **gemini** | highest speed (0.92) + cheapness (0.90) |
-| balanced (`0.6 / 0.6 / 0.6`) | **gemini** | highest *aggregate* capability |
+| `{intelligence: 1.0}` | **claude** | closest on the one axis asked for (0.95) |
+| `{speed: 1.0, cost: 1.0}` | **gemini** | closest on speed (0.92) + cheapness (0.90) |
+| `{0.6, 0.6, 0.6}` (balanced) | **opencode** | the genuine all-rounder (0.55/0.65/0.75 is nearest 0.6/0.6/0.6) |
 
 All three resolved CLIs then answered the live prompt correctly (3/3).
 
-#### Modeling note (worth tuning)
+#### How matching works
 
-Selection is a weighted dot product of priorities × capabilities. A consequence:
-when priorities are **equal** ("balanced"), the backend with the highest *total*
-trait sum wins — here gemini, because its high speed+cost outweigh a mid
-intelligence. If you'd rather "balanced" favor a generalist, options are to (a)
-tune the per-backend `traits` for your plans, (b) normalize priorities, or (c)
-switch the metric to distance-from-ideal. The defaults are a starting point; the
-user is expected to label their own models' traits in config.
+Selection is **distance-from-ideal**: the profile is a *target* and the backend
+whose traits are closest (Euclidean distance) wins, measured **only over the
+axes the blueprint specifies** — unspecified axes are "don't care" and never
+penalize. So `{intelligence: 1.0}` picks the smartest backend regardless of how
+fast or cheap it is, and "balanced" picks a true generalist (opencode here)
+rather than whoever has the highest total capability. Tune the per-backend
+`traits` in config to match your own plans/models.
