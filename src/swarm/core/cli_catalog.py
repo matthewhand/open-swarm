@@ -72,6 +72,42 @@ CATALOG: dict[str, dict[str, Any]] = {
 }
 
 
+# CLIs with a BUILT-IN "run N candidates and pick the best" mode (native
+# consensus) — the CLI fans out internally in one call, distinct from the
+# framework running it N times. Maps cli name -> argv to APPEND, with "{n}"
+# substituted for the candidate count.
+NATIVE_CONSENSUS: dict[str, list[str]] = {
+    "grok": ["--best-of-n", "{n}"],  # verified live: grok runs an N-candidate tournament
+}
+
+
+def has_native_consensus(name: str) -> bool:
+    """True when this CLI has a built-in consensus/heavy mode the catalog knows."""
+    return name in NATIVE_CONSENSUS
+
+
+def native_consensus_flags(name: str, n: int = 2) -> list[str] | None:
+    """argv to append to enable ``name``'s built-in consensus for N candidates, or None."""
+    tmpl = NATIVE_CONSENSUS.get(name)
+    if not tmpl:
+        return None
+    count = str(max(2, int(n)))
+    return [count if part == "{n}" else part for part in tmpl]
+
+
+def with_native_consensus(name: str, n: int = 2) -> dict[str, Any] | None:
+    """A catalog entry for ``name`` with its built-in consensus mode enabled.
+
+    Returns None if the CLI is unknown or has no native consensus flag.
+    """
+    entry = catalog_entry(name)
+    flags = native_consensus_flags(name, n)
+    if entry is None or flags is None:
+        return None
+    entry["cmd"] = list(entry["cmd"]) + flags
+    return entry
+
+
 def catalog_names() -> list[str]:
     """Names of every CLI the catalog knows about (sorted)."""
     return sorted(CATALOG)

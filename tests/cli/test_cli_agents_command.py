@@ -44,7 +44,9 @@ def test_json_empty_config_emits_empty_agents(tmp_path):
     cfg = _write_config(tmp_path, {})
     result = runner.invoke(app, ["cli-agents", "--json", "--config", cfg])
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"agents": []}
+    payload = json.loads(result.stdout)
+    assert payload["agents"] == []
+    assert payload["native_consensus"] == {}  # no configured agents -> none
 
 
 def test_json_lists_configured_agents(tmp_path):

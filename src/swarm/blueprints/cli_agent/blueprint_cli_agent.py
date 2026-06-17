@@ -72,10 +72,12 @@ class CliAgentBlueprint(BlueprintBase):
         workdir = params.get(support.PARAM_WORKDIR)
 
         # Consensus agents: if the selected agent is designated as a consensus
-        # agent, calling it runs a PANEL (default = all available CLIs, or a
-        # preferred whitelist that falls back to default), not a single call.
+        # agent (or the request asks for consensus), calling it runs a PANEL
+        # instead of a single call. A per-request `consensus` param overrides the
+        # agent's config designation (set it falsy to force a single call).
         selected = registry.get(chain[0])
-        panel_spec = support.resolve_agent_consensus(selected.config, registry)
+        spec = params[support.PARAM_CONSENSUS] if support.PARAM_CONSENSUS in params else selected.config.consensus
+        panel_spec = support.resolve_consensus_spec(spec, selected.name, registry)
         if panel_spec is not None:
             panel_names, judge_name = panel_spec
             yield support.progress_chunk(

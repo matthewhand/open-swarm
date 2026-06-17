@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.5] - 2026-06-17
+
+### Added — more consensus modes
+- **Self-consensus:** `consensus: N` (int) runs the **same persona N times** and synthesizes — self-consistency sampling. Verified live (grok ×3 → "operational/distributed complexity… no material disagreement on substance").
+- **Call-time consensus flag:** a per-request `params.consensus` (bool/int/list/dict) overrides the agent's config designation; falsy forces a single call.
+- **Native (built-in) consensus catalog:** `cli_catalog.NATIVE_CONSENSUS` records CLIs whose *own* flag fans out (grok `--best-of-n N`, verified live), with `has_native_consensus()` / `native_consensus_flags()` / `with_native_consensus()`. `swarm-cli cli-agents --json` now emits a `native_consensus` map so a UI can offer a "use this CLI's built-in consensus" toggle only where available. Framework and native consensus compose (N framework samples × M native candidates).
+
 ## [0.4.4] - 2026-06-16
 
 ### Added

@@ -67,10 +67,17 @@ named `coder` can be invoked many ways, and each is a blueprint permutation:
 | Mode | How you call it | What happens | Status |
 |---|---|---|---|
 | **Single** | `coder` | one inference | ✅ `cli_agent` |
-| **Agent-designated consensus** | `coder` (config `consensus: true` / `["grok","claude"]` / `{panel,judge}`) | calling the agent runs a heterogeneous **panel of CLIs** and synthesizes; preferred whitelist falls back to all-available | ✅ shipped (0.4.4) |
-| **Self-consensus (homogeneous)** | `coder` + `consensus: N` | run the **same persona N times** (sampling variance) and vote/synthesize — "many inferences, one persona" | 📋 planned (small: panel = `[coder] × N`) |
-| **Call-time flag** | `coder` + `params.consensus` | consensus chosen **per request**, not baked into config | 📋 planned (param override of the designation) |
+| **Agent-designated consensus** | `coder` (config `consensus: true` / `["grok","claude"]` / `{panel,judge}`) | calling the agent runs a heterogeneous **panel of CLIs** and synthesizes; preferred whitelist falls back to all-available | ✅ (0.4.4) |
+| **Self-consensus (homogeneous)** | `coder` + `consensus: N` | run the **same persona N times** (sampling variance) and synthesize — "many inferences, one persona" | ✅ (0.4.5) |
+| **Call-time flag** | `coder` + `params.consensus` | consensus chosen **per request** (overrides config; falsy forces single) | ✅ (0.4.5) |
+| **Native (built-in) consensus** | a CLI whose own flag fans out (grok `--best-of-n N`, `--check`) | the **CLI itself** runs N candidates internally and picks the best — one call | ✅ catalog-aware (0.4.5) |
 | **Orchestrated multi-persona** | `coder` + `architect` (+ …) | an **orchestrator** agent runs each *distinct* persona and does the consensus/synthesis across them | 🟢 `cli_fusion` / `cli_orchestrator` already panel distinct agents; formalize "named personas" |
+
+**Framework vs native, and they compose.** Framework consensus (rows 2–4) is the
+framework orchestrating multiple calls and synthesizing — works for any CLI.
+Native consensus is the CLI's *own* internal fan-out via a flag — only for CLIs
+that have one. They stack: a `consensus: 3` agent whose CLI also carries
+`--best-of-n 2` runs 3 framework samples × 2 native candidates each.
 
 The shared engine for every mode is `swarm.core.consensus.run_consensus()`; the
 modes differ only in how the *panel* is assembled (one CLI, N copies of one CLI,
