@@ -176,3 +176,14 @@ without tool needs.
 Live on `whiskeytango_foxtrot`: browser (mandatory) → playwright, web_search
 (optional) → brave-search. **Verification**: 47 vitest pass; e2e asserts the
 badge renders + resolves (5 pass); 0 a11y.
+
+## Bug-hunt: model→CLI prefix mis-attribution
+
+Probing the inference panel's model→CLI matching exposed a real bug: it used
+`model.startsWith(cli)`, so with overlapping CLI names (e.g. a CLI `c` and
+`claude`) a model like `claude-opus-4-8` was attributed to `c`, not `claude`.
+Fixed with a shared `cliForModel` helper that matches the **longest** CLI name at
+a hyphen boundary (`claude-opus` → `claude`, never `c`), used by both
+`buildCandidates` and the trait-editor seeding. Tests added; 61 vitest pass.
+(The Python backend was unaffected — it uses explicit config `models` blocks, no
+prefix matching.)

@@ -77,3 +77,24 @@ describe('candidatesFromEdits', () => {
     expect(Object.keys(c).sort()).toEqual(['grok', 'grok@fast'])
   })
 })
+
+describe('buildCandidates prefix matching (bug hunt)', () => {
+  it('attributes a model to the longest matching CLI, not a short prefix', () => {
+    const cli = { c: { intelligence: 0.5 }, claude: { intelligence: 0.9 } }
+    const models = { 'claude-opus-4-8': { intelligence: 0.98 } }
+    const out = buildCandidates(cli, models)
+    expect(out['claude@claude-opus-4-8']).toBeDefined()
+    expect(out['c@claude-opus-4-8']).toBeUndefined()
+  })
+})
+
+import { cliForModel } from '../inferenceProfile'
+
+describe('cliForModel', () => {
+  it('picks the longest CLI matching at a hyphen boundary', () => {
+    expect(cliForModel('claude-opus-4-8', ['c', 'claude'])).toBe('claude')
+    expect(cliForModel('gemini-3-pro', ['gemini', 'gem'])).toBe('gemini')
+    expect(cliForModel('grok', ['grok'])).toBe('grok') // exact
+    expect(cliForModel('unknown-x', ['claude', 'gemini'])).toBeUndefined()
+  })
+})

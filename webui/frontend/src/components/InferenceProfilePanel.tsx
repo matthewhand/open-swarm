@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card } from './DaisyUI'
 import { Brain, Gauge, DollarSign, Target } from 'lucide-react'
 import type { ConfigOptions, TraitVector } from '../lib/api'
-import { TRAITS, resolve, splitCandidate, type Trait } from '../lib/inferenceProfile'
+import { TRAITS, resolve, splitCandidate, cliForModel, type Trait } from '../lib/inferenceProfile'
 import { ConfigSnippet } from './ConfigSnippet'
 
 /** Build the resolution candidate map: a provider candidate per CLI plus a
@@ -13,8 +13,9 @@ export function buildCandidates(
   modelTraits: Record<string, TraitVector>,
 ): Record<string, TraitVector> {
   const out: Record<string, TraitVector> = { ...cliTraits }
+  const names = Object.keys(cliTraits)
   for (const [model, traits] of Object.entries(modelTraits)) {
-    const cli = Object.keys(cliTraits).find((c) => model.startsWith(c))
+    const cli = cliForModel(model, names)
     if (cli) out[`${cli}@${model}`] = traits
   }
   return out

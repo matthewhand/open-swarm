@@ -8,6 +8,7 @@ import {
   candidatesFromEdits,
   resolve,
   splitCandidate,
+  cliForModel,
   type ModelRow,
   type Trait,
 } from '../lib/inferenceProfile'
@@ -26,7 +27,7 @@ export function TraitEditorPanel({ info }: { info: ConfigOptions | undefined }) 
     if (!info) return
     setCliTraits(structuredClone(info.inference.cli_traits))
     const seeded: ModelRow[] = Object.entries(info.inference.model_traits).map(([model, traits]) => ({
-      cli: Object.keys(info.inference.cli_traits).find((c) => model.startsWith(c)) ?? Object.keys(info.inference.cli_traits)[0] ?? '',
+      cli: cliForModel(model, Object.keys(info.inference.cli_traits)) ?? Object.keys(info.inference.cli_traits)[0] ?? '',
       model,
       traits: { ...traits },
     }))

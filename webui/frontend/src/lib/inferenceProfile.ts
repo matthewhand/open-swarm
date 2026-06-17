@@ -48,6 +48,14 @@ export function resolve(desired: TraitVector, candidates: Record<string, TraitVe
   return r.length ? r[0].name : null
 }
 
+/** The CLI a model id belongs to: the longest CLI name that the model equals or
+ *  is prefixed by at a hyphen boundary (so `claude-opus` → `claude`, never `c`). */
+export function cliForModel(model: string, cliNames: string[]): string | undefined {
+  return cliNames
+    .filter((c) => model === c || model.startsWith(`${c}-`))
+    .sort((a, b) => b.length - a.length)[0]
+}
+
 /** Split a candidate key into [cli, model | null] ("cli@model"). */
 export function splitCandidate(key: string): [string, string | null] {
   const i = key.indexOf('@')
