@@ -35,13 +35,21 @@ for (const vp of VIEWPORTS) {
   for (const theme of THEMES) {
     for (const route of ROUTES) {
       const url = `${BASE}${route}`
-      await page.goto(url, { waitUntil: 'networkidle' }).catch(() => {})
-      // App stores theme on a data-theme attr toggled by a checkbox; force it.
+      // Theme BEFORE load so React initialises with it, and set it on
+      // <html> too so a transparent body resolves to the themed background
+      // (otherwise axe sees elements on the default white body — a false
+      // contrast failure that flaked between desktop/mobile dark).
+      await page.addInitScript((t) => {
+        try { localStorage.setItem('swarm_theme', t) } catch { /* opaque origin */ }
+      }, theme)
+      await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {})
       await page.evaluate((t) => {
-        localStorage.setItem('swarm_theme', t)
+        document.documentElement.setAttribute('data-theme', t)
         document.querySelectorAll('[data-theme]').forEach((el) => el.setAttribute('data-theme', t))
       }, theme)
-      await page.waitForTimeout(150)
+      // Wait for the SPA to render real content (not a flake-prone networkidle).
+      await page.waitForSelector('main h1', { timeout: 10000 }).catch(() => {})
+      await page.waitForLoadState('networkidle').catch(() => {})
       await page.addScriptTag({ content: axeSource })
       const result = await page.evaluate(async () => await window.axe.run(document))
       const tag = `${vp.name}/${theme}${route}`

@@ -181,6 +181,10 @@ class JeevesBlueprint(BlueprintBase):
             "author": "Open Swarm Team (Refactored)",
             "tags": ["web search", "home automation", "duckduckgo", "home assistant", "multi-agent", "delegation"],
             "required_mcp_servers": ["duckduckgo-search", "home-assistant"],
+            # Capability-based tool needs (see swarm.core.tool_capabilities):
+            # optional browser automation, auto-provisioned from the non-auth
+            # official microsoft/playwright-mcp when no provider is configured.
+            "tool_requirements": {"web_search": "mandatory", "browser": "optional"},
         }
 
     _openai_client_cache: dict[str, AsyncOpenAI] = {}

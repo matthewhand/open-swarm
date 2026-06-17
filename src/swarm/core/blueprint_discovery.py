@@ -27,6 +27,7 @@ class BlueprintMetadata(TypedDict, total=False):
     # Optional extended fields commonly used by blueprints
     required_mcp_servers: list[str] | None
     env_vars: list[str] | None
+    tool_requirements: dict[str, str] | None
     # Add other common metadata fields here if needed for typing
 
 class DiscoveredBlueprintInfo(TypedDict):
@@ -172,6 +173,8 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
                             'abbreviation': full_meta.get('abbreviation'),
                             'required_mcp_servers': full_meta.get('required_mcp_servers'),
                             'env_vars': full_meta.get('env_vars'),
+                            # Capability-based tool needs (swarm.core.tool_capabilities).
+                            'tool_requirements': full_meta.get('tool_requirements'),
                         }
 
                         found_bp_class_details = DiscoveredBlueprintInfo(

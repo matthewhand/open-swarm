@@ -377,5 +377,49 @@ def cli_agents(
 app.command(name="agents", help="Alias for cli-agents.")(cli_agents)
 
 
+@app.command(name="skills")
+def skills_command(
+    show: str = typer.Option(None, "--show", "-s", help="Print the full SKILL.md instructions for one skill."),
+    skills_dir: str = typer.Option(None, "--dir", "-d", help="Skills directory to scan (defaults to <project>/skills)."),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit a machine-readable JSON object instead of a table."),
+):
+    """List discoverable skills (reusable capabilities applied via the cli_agent `skill=` param)."""
+    import json
+
+    from swarm.core import skills as skills_mod
+
+    catalog = skills_mod.discover_skills(skills_dir)
+
+    if show:
+        skill = catalog.get(show)
+        if skill is None:
+            typer.echo(f"No skill named '{show}'. Available: {', '.join(sorted(catalog)) or 'none'}")
+            raise typer.Exit(code=1)
+        if output_json:
+            typer.echo(json.dumps(
+                {"name": skill.name, "description": skill.description,
+                 "assets": skill.assets, "instructions": skill.instructions}, indent=2))
+        else:
+            typer.echo(f"# {skill.name}\n{skill.description}\n")
+            if skill.assets:
+                typer.echo(f"Bundled assets: {', '.join(skill.assets)}\n")
+            typer.echo(skill.instructions)
+        raise typer.Exit(code=0)
+
+    if output_json:
+        typer.echo(json.dumps(
+            {"skills": [{"name": s.name, "description": s.description, "assets": s.assets}
+                        for s in catalog.values()]}, indent=2))
+        raise typer.Exit(code=0)
+
+    if not catalog:
+        typer.echo("No skills found. Add a SKILL.md under the skills/ directory (see docs/CLI_FUSION.md).")
+        raise typer.Exit(code=0)
+    typer.echo(f"{'SKILL':22} {'ASSETS':>6}  DESCRIPTION")
+    for s in sorted(catalog.values(), key=lambda x: x.name):
+        typer.echo(f"{s.name:22} {len(s.assets):>6}  {s.description[:70]}")
+    typer.echo(f"\n{len(catalog)} skill(s). Apply one: `model=cli_agent`, param `skill=<name>`.")
+
+
 if __name__ == "__main__":
     app()

@@ -95,6 +95,139 @@ async def test_blueprint_respects_cli_param():
     assert _final_content(chunks) == "TWO: ping"
 
 
+def test_apply_skill_to_prompt_helper():
+    # No skill → unchanged. Known bundled skill → instructions prepended.
+    assert support.apply_skill_to_prompt("do x", {}) == ("do x", None)
+    prompt, name = support.apply_skill_to_prompt("do x", {"skill": "conventional-commit"})
+    assert name == "conventional-commit"
+    assert "Conventional Commit" in prompt and prompt.rstrip().endswith("do x")
+    # Unknown skill → unchanged, name None (caller warns).
+    assert support.apply_skill_to_prompt("do x", {"skill": "nope-not-real"}) == ("do x", None)
+
+
+async def test_blueprint_applies_skill_param():
+    # echo prints the rendered prompt, so the injected skill text is observable.
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"cli": "echo", "skill": "conventional-commit"})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    final = _final_content(chunks)
+    assert "Conventional Commit" in final and final.rstrip().endswith("ping")
+    assert any("Applying skill `conventional-commit`" in str(c) for c in chunks)
+
+
+async def test_blueprint_unknown_skill_warns_and_runs_bare():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"cli": "echo", "skill": "nope-not-real"})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "ECHO: ping"  # ran bare, no skill text
+    assert any("not found" in str(c) for c in chunks)
+
+
+def _traited_config() -> dict:
+    # Two always-available echo agents with opposite capability traits.
+    return {
+        "cli_agents": {
+            "brainy": {
+                "cmd": [PY, "-c", "import sys; print('BRAINY: ' + sys.argv[1])", "{prompt}"],
+                "parse": "text",
+                "traits": {"intelligence": 0.95, "speed": 0.2, "cost": 0.2},
+            },
+            "speedy": {
+                "cmd": [PY, "-c", "import sys; print('SPEEDY: ' + sys.argv[1])", "{prompt}"],
+                "parse": "text",
+                "traits": {"intelligence": 0.3, "speed": 0.95, "cost": 0.95},
+            },
+        }
+    }
+
+
+async def test_blueprint_selects_cli_by_profile_param():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
+    bp.set_params({"profile": {"intelligence": 1, "speed": 0, "cost": 0}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "BRAINY: x"
+
+    bp.set_params({"profile": {"intelligence": 0, "speed": 1, "cost": 1}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
+def _per_model_config() -> dict:
+    # One provider with two declared models carrying opposite traits.
+    return {
+        "cli_agents": {
+            "gem": {
+                "cmd": [PY, "-c", "import sys; print('GEM: ' + sys.argv[1])", "{prompt}"],
+                "parse": "text",
+                "traits": {"intelligence": 0.6, "speed": 0.95, "cost": 0.92},
+                "models": {
+                    "pro": {"traits": {"intelligence": 0.95, "speed": 0.30, "cost": 0.20}},
+                    "flash": {"traits": {"intelligence": 0.60, "speed": 0.95, "cost": 0.92}},
+                },
+            }
+        }
+    }
+
+
+def test_resolve_profile_candidate_picks_per_model():
+    cfg = _per_model_config()
+    reg = support.build_registry(cfg)
+    # deep reasoning -> the pro model (per-model override beats provider default)
+    assert support.resolve_profile_candidate({"intelligence": 1.0}, cfg, reg) == ("gem", "pro")
+    # fast/cheap -> provider/flash granularity (same traits); cli is gem either way
+    cli, _model = support.resolve_profile_candidate({"speed": 1.0, "cost": 1.0}, cfg, reg)
+    assert cli == "gem"
+
+
+def test_split_candidate():
+    assert support.split_candidate("gemini@pro") == ("gemini", "pro")
+    assert support.split_candidate("grok") == ("grok", None)
+
+
+async def test_blueprint_announces_resolved_model():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_per_model_config())
+    bp.set_params({"profile": {"intelligence": 1.0}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    # ran the resolved provider and announced the per-model pick
+    assert _final_content(chunks) == "GEM: x"
+    assert any("model `pro`" in str(c) for c in chunks)
+
+
+async def test_default_cli_outranks_profile():
+    # An explicit default_cli is a deliberate global choice; it beats a profile.
+    cfg = _traited_config()
+    cfg["cli_fusion"] = {"default_cli": "speedy"}
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"profile": {"intelligence": 1.0}, "failover": False})  # would pick brainy
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
+async def test_explicit_cli_param_overrides_profile():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
+    # Profile wants intelligence (brainy) but an explicit cli wins.
+    bp.set_params({"cli": "speedy", "profile": {"intelligence": 1}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
+async def test_blueprint_metadata_profile_drives_selection(monkeypatch):
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
+    # A blueprint that *declares* it wants fast/cheap inference in its metadata.
+    monkeypatch.setitem(bp.metadata, "inference_profile", {"intelligence": 0, "speed": 1, "cost": 1})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
+async def test_blueprint_stages_skill_assets_into_workdir(tmp_path):
+    # The bundled counting-lines skill ships count.py; running with a workdir
+    # must stage it so a write-mode CLI could execute it.
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"cli": "echo", "skill": "counting-lines", "workdir": str(tmp_path)})
+    await _collect(bp.run([{"role": "user", "content": "count lines in foo.txt"}]))
+    assert (tmp_path / "count.py").is_file()
+
+
 async def test_blueprint_no_agents_configured():
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config={})
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))

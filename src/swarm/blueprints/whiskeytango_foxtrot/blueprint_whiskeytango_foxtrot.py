@@ -122,7 +122,11 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         "author": "Open Swarm Team (Refactored)",
         "tags": ["web scraping", "database", "sqlite", "multi-agent", "hierarchy", "mcp"],
         "required_mcp_servers": ["sqlite", "brave-search", "mcp-npx-fetch", "mcp-doc-forge", "filesystem"],
-        "env_vars": ["BRAVE_API_KEY", "SQLITE_DB_PATH", "ALLOWED_PATH"] # Actual required vars
+        "env_vars": ["BRAVE_API_KEY", "SQLITE_DB_PATH", "ALLOWED_PATH"], # Actual required vars
+        # Capability-based tool needs (see swarm.core.tool_capabilities): this
+        # scraper wants real browser automation — auto-provisioned from the
+        # non-auth official microsoft/playwright-mcp.
+        "tool_requirements": {"browser": "mandatory", "web_search": "optional"},
     }
 
     # Caches

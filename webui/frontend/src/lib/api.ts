@@ -408,3 +408,50 @@ export interface CliAgentsInfo {
 export function fetchCliAgents(): Promise<CliAgentsInfo> {
   return apiGet<CliAgentsInfo>('/v1/cli-agents/')
 }
+
+/** A 0..1 capability/priority vector over inference traits. */
+export type TraitVector = Record<string, number>
+
+/** GET /v1/config-options/ — everything the Builder needs to configure the
+ *  skills / inference-profile / tool-capability decoupling features. */
+export interface ConfigOptions {
+  skills: { name: string; description: string; assets: string[]; instructions: string }[]
+  inference: {
+    traits: string[]
+    cli_traits: Record<string, TraitVector>
+    model_traits: Record<string, TraitVector>
+    model_flags: Record<string, string>
+  }
+  tools: {
+    capabilities: string[]
+    mcp_catalog: {
+      name: string
+      provides: string[]
+      command: string
+      args: string[]
+      needs_auth: boolean
+      auth_env: string[]
+      note: string
+    }[]
+  }
+}
+
+export function fetchConfigOptions(): Promise<ConfigOptions> {
+  return apiGet<ConfigOptions>('/v1/config-options/')
+}
+
+/** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements
+ *  resolved to concrete MCP providers (non-auth preferred, auto-provisioned). */
+export interface BlueprintTools {
+  blueprint: string
+  requirements: Record<string, 'mandatory' | 'optional'>
+  servers: Record<string, { command: string; args: string[]; provides?: string[] }>
+  satisfied: Record<string, string>
+  missing_mandatory: string[]
+  skipped_optional: string[]
+  ok: boolean
+}
+
+export function fetchBlueprintTools(id: string): Promise<BlueprintTools> {
+  return apiGet<BlueprintTools>(`/v1/blueprints/${encodeURIComponent(id)}/tools`)
+}

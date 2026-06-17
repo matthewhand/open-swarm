@@ -6,9 +6,15 @@ import {
   fetchBlueprints,
   fetchBlueprintSource,
   fetchCliAgents,
+  fetchConfigOptions,
   type Blueprint,
   type CliAgentsInfo,
 } from '../lib/api'
+import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
+import { ToolCapabilitiesPanel } from '../components/ToolCapabilitiesPanel'
+import { TraitEditorPanel } from '../components/TraitEditorPanel'
+import { SkillsPanel } from '../components/SkillsPanel'
+import { BlueprintToolsBadges } from '../components/BlueprintToolsBadges'
 
 const CodeViewer = lazy(() => import('../components/CodeViewer'))
 
@@ -141,6 +147,7 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
 export default function BuilderPage() {
   const { data, isPending, isError } = useQuery({ queryKey: ['blueprints'], queryFn: fetchBlueprints })
   const cliAgents = useQuery({ queryKey: ['cli-agents'], queryFn: fetchCliAgents })
+  const configOptions = useQuery({ queryKey: ['config-options'], queryFn: fetchConfigOptions })
 
   const blueprints: Blueprint[] = data?.data ?? []
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -220,9 +227,18 @@ export default function BuilderPage() {
                   <Badge key={t}>{t}</Badge>
                 ))}
               </div>
+              <BlueprintToolsBadges blueprintId={selected?.id} />
             </Card>
 
             <AgentConfigBuilder info={cliAgents.data} />
+
+            <InferenceProfilePanel info={configOptions.data} />
+
+            <TraitEditorPanel info={configOptions.data} />
+
+            <ToolCapabilitiesPanel info={configOptions.data} />
+
+            <SkillsPanel info={configOptions.data} />
 
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">

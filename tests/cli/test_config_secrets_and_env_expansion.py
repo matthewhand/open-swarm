@@ -27,6 +27,15 @@ def run_cli(env_overrides: dict, args: list[str]) -> tuple[int, str, str]:
         env.pop("XDG_CONFIG_HOME", None)
     env.update(env_overrides)
 
+    # The editable `swarm` install lives under the real user site-packages
+    # (resolved via HOME); an overridden HOME hides it -> "No module named
+    # 'swarm'" in the subprocess. Put src/ on PYTHONPATH so it imports
+    # regardless of HOME. Also let Django settings load without a production
+    # SECRET_KEY (the CLI imports settings at startup).
+    src_path = str(PYTEST_ROOT / "src")
+    env["PYTHONPATH"] = src_path + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    env.setdefault("DJANGO_DEBUG", "true")
+
     cmd = [sys.executable, "-m", SWARM_MODULE] + args
     proc = subprocess.run(
         cmd,

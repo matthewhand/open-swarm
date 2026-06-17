@@ -54,13 +54,61 @@ class CliAgentBlueprint(BlueprintBase):
         # mutated by a concurrent request across await points.
         params = dict(self._params)
 
+        # A blueprint can declare desired inference traits in its metadata
+        # ("inference_profile") instead of naming a CLI; honor it unless the
+        # request explicitly set a cli or its own profile.
+        if support.PARAM_CLI not in params and support.PARAM_PROFILE not in params:
+            bp_profile = self.metadata.get("inference_profile")
+            if bp_profile:
+                params[support.PARAM_PROFILE] = bp_profile
+
         prompt = support.render_prompt(messages)
         if not prompt:
             yield support.message_chunk("No prompt provided.", final=True)
             return
 
-        registry = support.apply_overrides(support.build_registry(self._config), params)
-        chain = support.resolve_failover_chain(self._config, params, registry)
+        # Optional skill: `skill=<name>` prepends a discovered skill's
+        # instructions to the prompt (portable across whichever CLI runs) and
+        # stages any bundled assets into the workdir for write-mode CLIs.
+        if params.get(support.PARAM_SKILL):
+            prompt, applied = support.apply_skill_to_prompt(
+                prompt, params, workdir=params.get(support.PARAM_WORKDIR)
+            )
+            if applied:
+                yield support.progress_chunk(f"_Applying skill `{applied}`…_")
+            else:
+                yield support.progress_chunk(
+                    f"_Skill `{params[support.PARAM_SKILL]}` not found — running without it._"
+                )
+
+        # Per-model inference-profile resolution: with a profile in play and
+        # neither an explicit cli nor a default_cli set, resolve to the closest
+        # (cli, model) and pin both — so e.g. a "deep reasoning" ask lands on
+        # gemini's pro model, not its flash default.
+        config = self._config
+        default_cli = ((config or {}).get("cli_fusion") or {}).get("default_cli")
+        desired = params.get(support.PARAM_PROFILE)
+        if desired and not params.get(support.PARAM_CLI) and not default_cli:
+            cli, model = support.resolve_profile_candidate(
+                desired, config, support.build_registry(config)
+            )
+            if cli:
+                params[support.PARAM_CLI] = cli
+                if model:
+                    from swarm.core import cli_catalog
+
+                    agents = dict((config or {}).get("cli_agents") or {})
+                    if cli in agents:
+                        agents[cli] = cli_catalog.apply_model(agents[cli], cli, model)
+                        config = {**config, "cli_agents": agents}
+                    yield support.progress_chunk(
+                        f"_Inference profile → `{cli}` model `{model}`…_"
+                    )
+                else:
+                    yield support.progress_chunk(f"_Inference profile → `{cli}`…_")
+
+        registry = support.apply_overrides(support.build_registry(config), params)
+        chain = support.resolve_failover_chain(config, params, registry)
         if not chain:
             yield support.message_chunk(
                 "No CLI agents are configured. Add a 'cli_agents' block to your "

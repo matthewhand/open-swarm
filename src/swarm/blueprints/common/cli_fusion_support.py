@@ -25,6 +25,8 @@ PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
 PARAM_FALLBACK = "fallback"  # single-CLI: explicit ordered failover list
 PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
 PARAM_CONSENSUS = "consensus"  # single-CLI: per-request consensus override (bool/int/list/dict)
+PARAM_SKILL = "skill"        # apply a named skill's instructions to the prompt
+PARAM_PROFILE = "profile"    # desired inference traits {intelligence,speed,cost} 0..1
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:
@@ -44,6 +46,32 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
         role = (m.get("role") or "user").upper()
         lines.append(f"{role}: {str(m['content']).strip()}")
     return "\n\n".join(lines)
+
+
+def apply_skill_to_prompt(
+    prompt: str, params: dict[str, Any] | None, workdir: str | None = None
+) -> tuple[str, str | None]:
+    """Apply a named skill (``params['skill']``) to ``prompt``.
+
+    Returns ``(prompt, applied_name)``. With no skill requested, the prompt is
+    unchanged and ``applied_name`` is None. An unknown skill name also leaves
+    the prompt unchanged (the caller can warn) — we never fail the run over a
+    bad skill name. Skills load from the standard ``skills/`` directory.
+
+    When ``workdir`` is given and the skill bundles assets (scripts/templates),
+    they are copied into ``workdir`` so a write-mode CLI can read or execute them.
+    """
+    name = (params or {}).get(PARAM_SKILL)
+    if not name:
+        return prompt, None
+    from swarm.core import skills  # lazy: only pay discovery cost when used
+
+    skill = skills.discover_skills().get(name)
+    if skill is None:
+        return prompt, None
+    if workdir and skill.assets:
+        skills.stage_assets(skill, workdir)
+    return skills.apply_skill(skill, prompt), skill.name
 
 
 def build_registry(config: dict[str, Any] | None) -> CliAdapterRegistry:
@@ -70,14 +98,82 @@ def select_single_cli(
     requested = params.get(PARAM_CLI)
     if requested:
         return requested
+    # An explicit ``default_cli`` is a deliberate global choice and wins over a
+    # blueprint's soft profile suggestion.
     default = _fusion_config(config).get("default_cli")
     if default:
         return default
+    # Inference-profile match: a blueprint (or request) can declare *desired*
+    # traits instead of naming a CLI; resolve to the closest available backend.
+    # Opt-in — only engages when a profile is present and no default_cli is set.
+    desired = params.get(PARAM_PROFILE) or _fusion_config(config).get("profile")
+    if desired:
+        picked = resolve_by_profile(desired, config, registry)
+        if picked:
+            return picked
     available = registry.available()
     if available:
         return available[0]
     names = registry.names()
     return names[0] if names else None
+
+
+def candidate_traits(
+    config: dict[str, Any] | None, registry: CliAdapterRegistry
+) -> dict[str, dict[str, Any]]:
+    """Capability traits per resolution candidate for the *available* CLIs.
+
+    Two granularities of candidate, keyed so the result maps back to a runnable
+    target:
+    * ``"<cli>"`` — the provider default (config ``traits`` > catalog
+      ``CLI_TRAITS`` > neutral). All models from that provider inherit it.
+    * ``"<cli>@<model>"`` — a per-model override, for each model the config
+      declares under that CLI's ``models`` block (model ``traits`` > catalog
+      ``MODEL_TRAITS`` > the provider default). Lets gemini-flash and gemini-pro
+      be told apart.
+    """
+    from swarm.core import cli_catalog
+
+    cli_agents = (config or {}).get("cli_agents") or {}
+    out: dict[str, dict[str, Any]] = {}
+    for name in registry.available():
+        entry = cli_agents.get(name) or {}
+        provider = entry.get("traits") or cli_catalog.cli_traits(name) or {}
+        out[name] = provider
+        for model_id, mcfg in (entry.get("models") or {}).items():
+            mtraits = (mcfg or {}).get("traits") or cli_catalog.model_traits(model_id) or provider
+            out[f"{name}@{model_id}"] = mtraits
+    return out
+
+
+def split_candidate(key: str) -> tuple[str, str | None]:
+    """Split a candidate key into ``(cli, model_or_None)`` (``"cli@model"``)."""
+    cli, sep, model = key.partition("@")
+    return (cli, model) if sep else (cli, None)
+
+
+def resolve_profile_candidate(
+    desired: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    registry: CliAdapterRegistry,
+) -> tuple[str | None, str | None]:
+    """Closest ``(cli, model)`` to the desired profile, or ``(None, None)``."""
+    from swarm.core import inference_profile
+
+    candidates = candidate_traits(config, registry)
+    if not candidates:
+        return (None, None)
+    key = inference_profile.resolve(desired, candidates)
+    return split_candidate(key) if key else (None, None)
+
+
+def resolve_by_profile(
+    desired: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    registry: CliAdapterRegistry,
+) -> str | None:
+    """Pick the available CLI (provider granularity) best matching ``desired``."""
+    return resolve_profile_candidate(desired, config, registry)[0]
 
 
 def resolve_panel(

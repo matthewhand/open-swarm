@@ -177,3 +177,13 @@ def test_with_model_no_flag_known_returns_entry_unchanged():
 def test_with_model_does_not_mutate_catalog():
     cli_catalog.with_model("gemini", "gemini-3-pro-preview")
     assert "-m" not in cli_catalog.CATALOG["gemini"]["cmd"]
+
+
+def test_apply_model_noop_on_entry_without_cmd():
+    # Pinning a model on a cmd-less entry must not fabricate a flag-only cmd.
+    assert cli_catalog.apply_model({"parse": "text"}, "gemini", "m") == {"parse": "text"}
+
+
+def test_with_model_unknown_flag_cli_returns_entry_unchanged():
+    base = cli_catalog.catalog_entry("grok")  # grok has no MODEL_FLAG
+    assert cli_catalog.with_model("grok", "anything")["cmd"] == base["cmd"]

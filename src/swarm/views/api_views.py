@@ -405,3 +405,103 @@ class CliAgentsView(APIView):
             "native_consensus": cli_catalog.NATIVE_CONSENSUS,
             "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
         })
+
+
+class ConfigOptionsView(APIView):
+    """Everything the Builder UI needs to configure the new decoupling features.
+
+    GET /v1/config-options/ ->
+      {
+        skills:        [{name, description, assets}],
+        inference: {
+          traits:      ["intelligence","speed","cost"],
+          cli_traits:  {cli: {trait: 0..1}},     # per-provider defaults
+          model_traits:{model: {trait: 0..1}},   # per-model overrides
+          model_flags: {cli: "<flag>"},          # how each CLI pins a model
+        },
+        tools: {
+          capabilities: ["web_search","browser",...],
+          mcp_catalog:  [{name, provides, command, args, needs_auth, env, note}],
+        },
+      }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import cli_catalog, inference_profile, skills, tool_capabilities
+
+        return Response({
+            "skills": [
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "assets": s.assets,
+                    "instructions": s.instructions,
+                }
+                for s in skills.discover_skills().values()
+            ],
+            "inference": {
+                "traits": list(inference_profile.TRAITS),
+                "cli_traits": cli_catalog.CLI_TRAITS,
+                "model_traits": cli_catalog.MODEL_TRAITS,
+                "model_flags": cli_catalog.MODEL_FLAG,
+            },
+            "tools": {
+                "capabilities": sorted(
+                    {c for s in tool_capabilities.CATALOG for c in s.provides}
+                ),
+                "mcp_catalog": [
+                    {
+                        "name": s.name,
+                        "provides": list(s.provides),
+                        "command": s.command,
+                        "args": list(s.args),
+                        "needs_auth": s.needs_auth,
+                        "auth_env": list(s.auth_env),
+                        "note": s.note,
+                    }
+                    for s in tool_capabilities.CATALOG
+                ],
+            },
+        })
+
+
+class BlueprintToolsView(APIView):
+    """Resolve a blueprint's abstract tool needs to concrete MCP providers.
+
+    GET /v1/blueprints/<id>/tools -> for a blueprint declaring ``tool_requirements``
+    in its metadata, returns the providers each capability resolves to (non-auth
+    preferred, auto-provisioned from the catalog), so the decoupling is inspectable:
+      {
+        requirements: {capability: "mandatory"|"optional"},
+        servers:      {name: {command, args, provides, ...}},  # what to launch
+        satisfied:    {capability: server_name},
+        missing_mandatory: [...], skipped_optional: [...], ok: bool,
+      }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, _request, blueprint_id: str, *_args, **_kwargs):
+        from swarm.core import tool_capabilities
+        from swarm.core.config_loader import find_config_file, load_config
+
+        blueprints = async_to_sync(get_available_blueprints)()
+        info = blueprints.get(blueprint_id) if isinstance(blueprints, dict) else None
+        if info is None:
+            return Response({"detail": f"Unknown blueprint '{blueprint_id}'."},
+                            status=status.HTTP_404_NOT_FOUND)
+        meta = info.get("metadata", {}) if isinstance(info, dict) else {}
+        requirements = meta.get("tool_requirements") or {}
+
+        cfg_file = find_config_file()
+        config = load_config(cfg_file) if cfg_file else {}
+        servers, res = tool_capabilities.resolve_mcp_servers(requirements, config)
+        return Response({
+            "blueprint": blueprint_id,
+            "requirements": tool_capabilities.normalize_requirements(requirements),
+            "servers": servers,
+            "satisfied": res.satisfied,
+            "missing_mandatory": res.missing_mandatory,
+            "skipped_optional": res.skipped_optional,
+            "ok": res.ok,
+        })

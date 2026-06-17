@@ -12,8 +12,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from openai.types.chat import ChatCompletionMessageFunctionToolCall
 from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,
+    ChatCompletionMessageToolCall,  # noqa: F401  (now a Union; kept for type annotation)
     Function,
 )
 
@@ -200,8 +201,12 @@ class TestHandleFunctionResult:
 
 
 def make_tool_call(tool_id: str, name: str, arguments: str) -> ChatCompletionMessageToolCall:
-    """Helper to create a ChatCompletionMessageToolCall for testing."""
-    return ChatCompletionMessageToolCall(
+    """Helper to create a tool call for testing.
+
+    openai>=1.99 made ChatCompletionMessageToolCall a discriminated Union (not
+    instantiable); use the concrete function-tool-call class.
+    """
+    return ChatCompletionMessageFunctionToolCall(
         id=tool_id,
         function=Function(name=name, arguments=arguments),
         type="function",
