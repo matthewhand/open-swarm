@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.8] - 2026-06-17
+
+### Fixed — accessibility (web UI)
+- Pedantic a11y pass (axe-core, WCAG 2 A/AA): **0 violations across all pages in both light and dark mode** (was several "serious"). Fixes: CodeMirror editor/scroller given an accessible name + keyboard focus (read-only, not editable=false); the config `<pre>` made focusable + labeled; the Settings icon-link labeled; `aria-current` on active list items; replaced fixed `text-gray-*`/low-opacity text with theme-adaptive `text-base-content` tokens (fixed dark-mode contrast); fixed a low-contrast stat color and the CodeMirror dark gutter.
+
 ## [0.4.7] - 2026-06-17
 
 ### Changed — Blueprint Builder polish

@@ -56,7 +56,7 @@ function CopyBlock({ label, code }: { label: string; code: string }) {
   return (
     <div className="mt-3">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-base-content/70">{label}</span>
         <button type="button" className="btn btn-xs" onClick={onCopy} aria-label={`Copy ${label} snippet`}>
           {copied ? 'Copied' : 'Copy'}
         </button>
@@ -81,7 +81,7 @@ export function ApiAccessPanel({ baseUrl, token, models }: ApiAccessPanelProps) 
 
   return (
     <div>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-base-content/70">
         Point any OpenAI-compatible client at this server. The <code>model</code> field selects the
         blueprint (e.g. <code>cli_fusion</code>).{' '}
         {token ? 'Use your API token as the key.' : 'Auth is disabled — any key works.'}

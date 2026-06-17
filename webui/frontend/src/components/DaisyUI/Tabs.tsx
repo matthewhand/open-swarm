@@ -288,7 +288,7 @@ export const Stepper = ({
           </button>
         ))}
       </div>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-base-content/70">
         Step {activeStep + 1} of {steps.length}
       </div>
     </div>

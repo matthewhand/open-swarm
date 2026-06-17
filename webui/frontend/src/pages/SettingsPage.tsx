@@ -82,7 +82,7 @@ const SettingsPage = () => {
             <KeyRound className="h-5 w-5" />
             API Authentication
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-base-content/70">
             The backend uses a static bearer token (its{' '}
             <code>API_AUTH_TOKEN</code> setting). The token is stored locally
             in your browser and sent as an <code>Authorization: Bearer</code>{' '}
@@ -193,14 +193,14 @@ function SettingsGroupTable({ group }: { group: ServerSettingsGroup }) {
     <details className="collapse collapse-arrow bg-base-200">
       <summary className="collapse-title font-medium">
         {group.icon} {group.title}{' '}
-        <span className="text-sm font-normal text-gray-500">
+        <span className="text-sm font-normal text-base-content/70">
           ({entries.length} {entries.length === 1 ? 'setting' : 'settings'})
         </span>
       </summary>
       <div className="collapse-content overflow-x-auto">
-        <p className="text-sm text-gray-500 mb-2">{group.description}</p>
+        <p className="text-sm text-base-content/70 mb-2">{group.description}</p>
         {entries.length === 0 ? (
-          <p className="text-sm text-gray-400">No settings reported in this group.</p>
+          <p className="text-sm text-base-content/60">No settings reported in this group.</p>
         ) : (
           <table className="table table-sm">
             <thead>
@@ -215,7 +215,7 @@ function SettingsGroupTable({ group }: { group: ServerSettingsGroup }) {
                 <tr key={settingName}>
                   <td>
                     <div className="font-mono text-xs">{settingName}</div>
-                    <div className="text-xs text-gray-500">{entry.description}</div>
+                    <div className="text-xs text-base-content/70">{entry.description}</div>
                   </td>
                   <td className="font-mono text-xs break-all">
                     {formatSettingValue(settingName, entry.value)}
@@ -245,7 +245,7 @@ function ServerSettingsCard() {
         <ServerCog className="h-5 w-5" />
         Server Settings
       </h2>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-base-content/70">
         Read-only view of the server configuration reported by{' '}
         <code>/settings/api/</code>. Sensitive values are masked by the server;
         anything secret-looking is additionally reduced to its last 4
@@ -254,7 +254,7 @@ function ServerSettingsCard() {
 
       <div className="mt-3">
         {isPending && (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-base-content/70">
             <LoadingSpinner size="sm" /> Loading server settings…
           </div>
         )}
@@ -266,7 +266,7 @@ function ServerSettingsCard() {
           />
         )}
         {!isPending && !isError && groups.length === 0 && (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-base-content/60">
             The server reported no settings groups.
           </p>
         )}
@@ -296,7 +296,7 @@ function EnvironmentVariablesCard() {
         <TerminalSquare className="h-5 w-5" />
         Environment Variables
       </h2>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-base-content/70">
         Swarm-related environment variables on the server, from{' '}
         <code>/settings/environment/</code>. The server replaces values of
         key/token/secret/password variables with <code>***SET***</code>; the
@@ -305,7 +305,7 @@ function EnvironmentVariablesCard() {
 
       <div className="mt-3">
         {isPending && (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-base-content/70">
             <LoadingSpinner size="sm" /> Loading environment variables…
           </div>
         )}
@@ -317,7 +317,7 @@ function EnvironmentVariablesCard() {
           />
         )}
         {!isPending && !isError && variables.length === 0 && (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-base-content/60">
             No swarm-related environment variables are set on the server.
           </p>
         )}

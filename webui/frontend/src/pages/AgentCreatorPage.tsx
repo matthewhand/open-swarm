@@ -178,7 +178,7 @@ const AgentCreatorPageContent = () => {
           <Wand2 className="h-8 w-8" />
           Agent Creator
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-base-content/70 mt-1">
           Generate a blueprint from a persona spec, validate the Python code
           server-side, and save it to the custom blueprint library
           (/v1/blueprints/custom/).
@@ -256,7 +256,7 @@ const AgentCreatorPageContent = () => {
             <ShieldCheck className="h-5 w-5" />
             Blueprint code
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-base-content/70">
             Generated code lands here; you can also paste or edit code by hand
             before validating and saving.
           </p>
@@ -384,9 +384,9 @@ const AgentCreatorPageContent = () => {
 
         {!customQuery.isPending && !customQuery.isError && customBlueprints.length === 0 && (
           <Card bordered className="text-center py-10">
-            <Bot className="h-14 w-14 mx-auto text-gray-400 mb-3" />
+            <Bot className="h-14 w-14 mx-auto text-base-content/60 mb-3" />
             <h3 className="text-lg font-semibold mb-1">No custom blueprints yet</h3>
-            <p className="text-gray-500 text-sm">
+            <p className="text-base-content/70 text-sm">
               Agents saved from this page appear here (stored in the server's
               blueprint library).
             </p>
@@ -404,7 +404,7 @@ const AgentCreatorPageContent = () => {
                       {blueprint.category}
                     </Badge>
                   </div>
-                  <p className="text-sm text-gray-500 mb-2">
+                  <p className="text-sm text-base-content/70 mb-2">
                     {blueprint.description || 'No description provided.'}
                   </p>
                   {blueprint.tags.length > 0 && (

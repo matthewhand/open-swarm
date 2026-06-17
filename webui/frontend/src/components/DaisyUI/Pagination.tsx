@@ -195,13 +195,13 @@ export const AdvancedPagination = ({
 
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-base-content/70">
         Showing {(currentPage - 1) * itemsPerPage + 1} to 
         {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">Items per page:</span>
+        <span className="text-sm text-base-content/70">Items per page:</span>
         <select
           className="select select-bordered select-sm"
           value={itemsPerPage}

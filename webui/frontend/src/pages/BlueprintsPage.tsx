@@ -184,7 +184,7 @@ const BlueprintsPageContent = () => {
                     </span>
                   </div>
 
-                  <p className="text-xs text-base-content/50 font-mono">{blueprint.id}</p>
+                  <p className="text-xs text-base-content/70 font-mono">{blueprint.id}</p>
                   <p
                     className="text-sm text-base-content/70 line-clamp-3"
                     title={blueprint.description}
@@ -260,7 +260,7 @@ const BlueprintsPageContent = () => {
       {!isPending && !isError && filteredBlueprints.length === 0 && (
         <Card bordered className="text-center py-12">
           <div className="mb-4">
-            <Book className="h-16 w-16 mx-auto text-base-content/40" />
+            <Book className="h-16 w-16 mx-auto text-base-content/70" />
           </div>
           <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
           <p className="text-base-content/70 mb-4">
