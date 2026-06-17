@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolve, rank, splitCandidate } from '../inferenceProfile'
+import { buildCandidates } from '../../components/InferenceProfilePanel'
 
 const CANDIDATES = {
   smart: { intelligence: 0.95, speed: 0.4, cost: 0.3 },
@@ -36,8 +37,6 @@ describe('splitCandidate', () => {
     expect(splitCandidate('grok')).toEqual(['grok', null])
   })
 })
-
-import { buildCandidates } from '../../components/InferenceProfilePanel'
 
 describe('buildCandidates', () => {
   it('adds cli@model candidates matched to their CLI by name prefix', () => {
