@@ -148,3 +148,32 @@ def test_with_native_consensus_appends_flag():
 def test_with_native_consensus_does_not_mutate_catalog():
     cli_catalog.with_native_consensus("grok", 2)
     assert "--best-of-n" not in cli_catalog.CATALOG["grok"]["cmd"]
+
+
+def test_with_model_appends_flag_for_gemini():
+    entry = cli_catalog.with_model("gemini", "gemini-3-pro-preview", timeout=600)
+    assert entry["cmd"][-2:] == ["-m", "gemini-3-pro-preview"]
+    assert entry["timeout"] == 600
+    assert entry["parse"] == "json:.response"  # base entry preserved
+
+
+def test_with_model_replaces_existing_model_for_opencode():
+    # opencode pins a default --model; with_model must replace, not duplicate it.
+    entry = cli_catalog.with_model("opencode", "opencode/other")
+    assert entry["cmd"].count("--model") == 1
+    assert entry["cmd"][entry["cmd"].index("--model") + 1] == "opencode/other"
+
+
+def test_with_model_unknown_cli_is_none():
+    assert cli_catalog.with_model("nope", "x") is None
+
+
+def test_with_model_no_flag_known_returns_entry_unchanged():
+    # grok has no MODEL_FLAG entry: return the base entry, don't guess a flag.
+    base = cli_catalog.catalog_entry("grok")
+    assert cli_catalog.with_model("grok", "whatever")["cmd"] == base["cmd"]
+
+
+def test_with_model_does_not_mutate_catalog():
+    cli_catalog.with_model("gemini", "gemini-3-pro-preview")
+    assert "-m" not in cli_catalog.CATALOG["gemini"]["cmd"]

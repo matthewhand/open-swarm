@@ -19,6 +19,12 @@ Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
 * **opencode** has no usable default model in ``run`` mode (its built-in default
   errors as "not supported"), so an explicit ``--model`` is required. The value
   below is account/version-specific — run ``opencode models`` to pick one.
+
+The gemini default uses the fast flash tier (no ``-m``). To select the pro tier
+use ``with_model("gemini", "gemini-3-pro-preview", timeout=600)`` — but note
+that on the free ``oauth-personal`` login the pro model is heavily throttled and
+can take minutes (or stall) even on a one-word prompt; it is far more usable on a
+paid ``GEMINI_API_KEY``. Flash answers in a few seconds.
 """
 
 from __future__ import annotations
@@ -105,6 +111,44 @@ def with_native_consensus(name: str, n: int = 2) -> dict[str, Any] | None:
     if entry is None or flags is None:
         return None
     entry["cmd"] = list(entry["cmd"]) + flags
+    return entry
+
+
+# Flag each CLI uses to pin a specific model, so callers can request a
+# particular tier (e.g. gemini's pro vs. flash). Only flags verified against the
+# installed CLI version belong here; omit a CLI rather than guess.
+MODEL_FLAG: dict[str, str] = {
+    "gemini": "-m",        # verified live (gemini 0.45): -m gemini-3-pro-preview
+    "claude": "--model",   # claude -p --model <name>
+    "opencode": "--model", # opencode run --model <name>
+}
+
+
+def with_model(name: str, model: str, *, timeout: int | None = None) -> dict[str, Any] | None:
+    """A catalog entry for ``name`` pinned to a specific ``model``.
+
+    Pro/heavy tiers (notably ``gemini-3-pro-preview``) think for much longer than
+    the flash default, so pass a larger ``timeout`` when selecting one. Returns
+    None for an unknown CLI; returns the entry unchanged if the catalog has no
+    known model flag for it.
+    """
+    entry = catalog_entry(name)
+    if entry is None:
+        return None
+    flag = MODEL_FLAG.get(name)
+    if flag is not None:
+        cmd = list(entry["cmd"])
+        if flag in cmd:  # replace any model already pinned (e.g. opencode's default)
+            i = cmd.index(flag)
+            if i + 1 < len(cmd):
+                cmd[i + 1] = model
+            else:
+                cmd.append(model)
+        else:
+            cmd += [flag, model]
+        entry["cmd"] = cmd
+    if timeout is not None:
+        entry["timeout"] = timeout
     return entry
 
 
