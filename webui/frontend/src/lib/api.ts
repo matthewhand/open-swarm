@@ -439,3 +439,19 @@ export interface ConfigOptions {
 export function fetchConfigOptions(): Promise<ConfigOptions> {
   return apiGet<ConfigOptions>('/v1/config-options/')
 }
+
+/** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements
+ *  resolved to concrete MCP providers (non-auth preferred, auto-provisioned). */
+export interface BlueprintTools {
+  blueprint: string
+  requirements: Record<string, 'mandatory' | 'optional'>
+  servers: Record<string, { command: string; args: string[]; provides?: string[] }>
+  satisfied: Record<string, string>
+  missing_mandatory: string[]
+  skipped_optional: string[]
+  ok: boolean
+}
+
+export function fetchBlueprintTools(id: string): Promise<BlueprintTools> {
+  return apiGet<BlueprintTools>(`/v1/blueprints/${encodeURIComponent(id)}/tools`)
+}

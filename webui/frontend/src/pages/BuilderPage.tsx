@@ -14,6 +14,7 @@ import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
 import { ToolCapabilitiesPanel } from '../components/ToolCapabilitiesPanel'
 import { TraitEditorPanel } from '../components/TraitEditorPanel'
 import { SkillsPanel } from '../components/SkillsPanel'
+import { BlueprintToolsBadges } from '../components/BlueprintToolsBadges'
 
 const CodeViewer = lazy(() => import('../components/CodeViewer'))
 
@@ -226,6 +227,7 @@ export default function BuilderPage() {
                   <Badge key={t}>{t}</Badge>
                 ))}
               </div>
+              <BlueprintToolsBadges blueprintId={selected?.id} />
             </Card>
 
             <AgentConfigBuilder info={cliAgents.data} />

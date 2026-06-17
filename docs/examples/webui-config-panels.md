@@ -163,3 +163,16 @@ Extracted a shared `ConfigSnippet` component (Copy to clipboard + Download as
 `.json`, keyboard-focusable + labelled) and swapped it into all four panels'
 config snippets, replacing four near-duplicate `<pre>` blocks. Pure `toFilename`
 helper unit-tested; 40 vitest pass; e2e 4 pass; 0 a11y.
+
+## UI: resolved-MCP badge on the Builder source card (item G)
+
+When a selected blueprint declares `tool_requirements`, the Builder now shows a
+"Resolved tools (MCP)" section (via `GET /v1/blueprints/<id>/tools`) listing each
+capability resolved to its concrete MCP provider. Renders nothing for blueprints
+without tool needs.
+
+![Resolved tools badge](../screenshots/webui/blueprint-tools-badge-dark.png)
+
+Live on `whiskeytango_foxtrot`: browser (mandatory) → playwright, web_search
+(optional) → brave-search. **Verification**: 47 vitest pass; e2e asserts the
+badge renders + resolves (5 pass); 0 a11y.

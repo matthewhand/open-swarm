@@ -38,6 +38,15 @@ async function mockApi(page: Page) {
   await page.route('**/v1/blueprints/cli_agent/source*', (r) =>
     r.fulfill({ json: { id: 'cli_agent', primary: 'x.py', selected: 'x.py', files: [{ name: 'x.py', path: 'x.py' }], content: '# x' } }),
   )
+  await page.route('**/blueprints/*/tools', (r) =>
+    r.fulfill({ json: {
+      blueprint: 'cli_agent',
+      requirements: { browser: 'mandatory' },
+      servers: { playwright: { command: 'npx', args: [] } },
+      satisfied: { browser: 'playwright' },
+      missing_mandatory: [], skipped_optional: [], ok: true,
+    } }),
+  )
 }
 
 test.beforeEach(async ({ page }) => {
@@ -70,6 +79,13 @@ test('trait editor emits cli_agents config and resolves the sample', async ({ pa
   // Seeded per-model override + live sample resolution to the smartest model.
   await expect(panel.getByLabel('cli_agents traits config snippet')).toContainText('"models"')
   await expect(panel.getByText(/claude/).first()).toBeVisible()
+})
+
+test('source card shows resolved MCP tools for a blueprint with tool_requirements', async ({ page }) => {
+  const section = page.getByRole('group', { name: 'Resolved tools' })
+  await expect(section).toBeVisible()
+  await expect(section.getByText('browser')).toBeVisible()
+  await expect(section.getByText('playwright')).toBeVisible()
 })
 
 test('skills panel emits a request snippet on selection', async ({ page }) => {
