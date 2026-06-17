@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-(nothing yet)
+### Added — Skills
+- Reusable **skills**: `SKILL.md` directories (Anthropic [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) open standard) discoverable via `swarm-cli skills` (`--show`/`--json`) and applied to any CLI with the `cli_agent` `skill=<name>` param. Applying a skill prepends its instructions and stages any bundled assets into the workdir so a write-mode CLI can execute them.
+- Bundled skills: `conventional-commit`, `reviewing-code`, `writing-changelog`, and `counting-lines` (ships an executable `count.py`).
+- Verified live across gemini + `claude -p` + grok: skill portability (3/3) and bundled-asset tool calling (2/2). See `docs/examples/`.
 
 ## [0.4.11] - 2026-06-17
 
