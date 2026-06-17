@@ -234,7 +234,7 @@ export const useInfoToast = () => {
   return info;
 };
 
-export default {
+const ToastComponents = {
   ToastProvider,
   useToast,
   useSuccessToast,
@@ -242,3 +242,5 @@ export default {
   useWarningToast,
   useInfoToast,
 };
+
+export default ToastComponents;

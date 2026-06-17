@@ -372,7 +372,7 @@ export const ContentTabs = ({
   );
 };
 
-export default {
+const TabsComponents = {
   Tabs,
   TabPanel,
   SimpleTabs,
@@ -382,3 +382,5 @@ export default {
   VerticalTabs,
   ContentTabs,
 };
+
+export default TabsComponents;
