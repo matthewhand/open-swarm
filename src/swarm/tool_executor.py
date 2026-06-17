@@ -18,6 +18,20 @@ from .types import (
     Result,  # Structure for returning result of a single tool call
 )
 
+# openai>=1.99 turned ChatCompletionMessageToolCall into a discriminated Union, which
+# cannot be used with isinstance(). Build a concrete tuple for the runtime type check.
+try:  # new openai (>=1.99)
+    from openai.types.chat import (
+        ChatCompletionMessageCustomToolCall,
+        ChatCompletionMessageFunctionToolCall,
+    )
+    _TOOL_CALL_TYPES = (
+        ChatCompletionMessageFunctionToolCall,
+        ChatCompletionMessageCustomToolCall,
+    )
+except ImportError:  # older openai where it was a concrete class
+    _TOOL_CALL_TYPES = (ChatCompletionMessageToolCall,)
+
 
 def redact_sensitive_data(data: Any) -> Any:
     """
@@ -164,7 +178,7 @@ async def handle_tool_calls(
     # Process each requested tool call
     for tool_call in tool_calls:
         # Ensure it's the expected Pydantic model type
-        if not isinstance(tool_call, ChatCompletionMessageToolCall):
+        if not isinstance(tool_call, _TOOL_CALL_TYPES):
             logger.warning(f"Skipping invalid item in tool_calls list: Expected ChatCompletionMessageToolCall, got {type(tool_call)}.")
             continue
 
