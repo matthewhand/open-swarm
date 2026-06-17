@@ -43,7 +43,7 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView
-from swarm.views.responses_views import ResponsesView
+from swarm.views.responses_views import ResponsesView, ResponsesDetailView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.settings_views import (
     environment_variables,
@@ -89,6 +89,7 @@ urlpatterns = [
     # OpenAI Responses API (MVP) — normalizes `input`/`instructions` to messages
     # and reuses the same blueprint-resolution + run path as chat completions.
     path("v1/responses", ResponsesView.as_view(), name="responses"),
+    path("v1/responses/<str:response_id>", ResponsesDetailView.as_view(), name="responses-detail"),
     # OpenAPI schema + interactive docs (drf-spectacular).
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
