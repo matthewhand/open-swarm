@@ -11,6 +11,7 @@ export interface ApiAccessPanelProps {
 
 export interface Snippets {
   curl: string
+  responses: string
   python: string
   openWebUI: string
 }
@@ -24,6 +25,12 @@ export function buildSnippets(baseUrl: string, token: string | null, model: stri
       `  -H "Authorization: Bearer ${key}" \\`,
       `  -H "Content-Type: application/json" \\`,
       `  -d '{"model":"${model}","messages":[{"role":"user","content":"ping"}]}'`,
+    ].join('\n'),
+    responses: [
+      `curl -sf ${baseUrl}/responses \\`,
+      `  -H "Authorization: Bearer ${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","input":"ping"}'`,
     ].join('\n'),
     python: [
       'from openai import OpenAI',
@@ -121,6 +128,7 @@ export function ApiAccessPanel({ baseUrl, token, models }: ApiAccessPanelProps) 
       )}
 
       <CopyBlock label="curl" code={snippets.curl} />
+      <CopyBlock label="curl (Responses API)" code={snippets.responses} />
       <CopyBlock label="OpenAI Python SDK" code={snippets.python} />
       <CopyBlock label="Open WebUI" code={snippets.openWebUI} />
     </div>

@@ -11,6 +11,8 @@ describe('buildSnippets', () => {
     expect(s.python).toContain('base_url="http://host:8000/v1"')
     expect(s.python).toContain('model="cli_fusion"')
     expect(s.openWebUI).toContain('Base URL: http://host:8000/v1')
+    expect(s.responses).toContain('http://host:8000/v1/responses')
+    expect(s.responses).toContain('"input":"ping"')
   })
 
   it('uses a placeholder key when auth is disabled (no token)', () => {
@@ -32,7 +34,7 @@ describe('ApiAccessPanel', () => {
     expect(screen.getByText('http://localhost:8000/v1')).toBeInTheDocument()
     expect(screen.getByText(/any key works/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'cli_fusion' })).toBeInTheDocument()
-    expect(screen.getAllByText('Copy').length).toBe(3)
+    expect(screen.getAllByText('Copy').length).toBe(4)
   })
 
   it('shows the token suffix when a token is set', () => {
