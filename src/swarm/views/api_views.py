@@ -405,3 +405,57 @@ class CliAgentsView(APIView):
             "native_consensus": cli_catalog.NATIVE_CONSENSUS,
             "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
         })
+
+
+class ConfigOptionsView(APIView):
+    """Everything the Builder UI needs to configure the new decoupling features.
+
+    GET /v1/config-options/ ->
+      {
+        skills:        [{name, description, assets}],
+        inference: {
+          traits:      ["intelligence","speed","cost"],
+          cli_traits:  {cli: {trait: 0..1}},     # per-provider defaults
+          model_traits:{model: {trait: 0..1}},   # per-model overrides
+          model_flags: {cli: "<flag>"},          # how each CLI pins a model
+        },
+        tools: {
+          capabilities: ["web_search","browser",...],
+          mcp_catalog:  [{name, provides, command, args, needs_auth, env, note}],
+        },
+      }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import cli_catalog, inference_profile, skills, tool_capabilities
+
+        return Response({
+            "skills": [
+                {"name": s.name, "description": s.description, "assets": s.assets}
+                for s in skills.discover_skills().values()
+            ],
+            "inference": {
+                "traits": list(inference_profile.TRAITS),
+                "cli_traits": cli_catalog.CLI_TRAITS,
+                "model_traits": cli_catalog.MODEL_TRAITS,
+                "model_flags": cli_catalog.MODEL_FLAG,
+            },
+            "tools": {
+                "capabilities": sorted(
+                    {c for s in tool_capabilities.CATALOG for c in s.provides}
+                ),
+                "mcp_catalog": [
+                    {
+                        "name": s.name,
+                        "provides": list(s.provides),
+                        "command": s.command,
+                        "args": list(s.args),
+                        "needs_auth": s.needs_auth,
+                        "auth_env": list(s.auth_env),
+                        "note": s.note,
+                    }
+                    for s in tool_capabilities.CATALOG
+                ],
+            },
+        })
