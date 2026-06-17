@@ -53,3 +53,36 @@ export function splitCandidate(key: string): [string, string | null] {
   const i = key.indexOf('@')
   return i === -1 ? [key, null] : [key.slice(0, i), key.slice(i + 1)]
 }
+
+export interface ModelRow {
+  cli: string
+  model: string
+  traits: TraitVector
+}
+
+/** Emit a cli_agents config carrying edited per-provider `traits` and per-model
+ *  `models[<id>].traits`, ready to paste into a swarm config. */
+export function buildTraitsConfig(
+  cliTraits: Record<string, TraitVector>,
+  modelRows: ModelRow[],
+): { cli_agents: Record<string, { traits?: TraitVector; models?: Record<string, { traits: TraitVector }> }> } {
+  const cli_agents: Record<string, { traits?: TraitVector; models?: Record<string, { traits: TraitVector }> }> = {}
+  for (const [cli, traits] of Object.entries(cliTraits)) cli_agents[cli] = { traits }
+  for (const { cli, model, traits } of modelRows) {
+    if (!model) continue
+    cli_agents[cli] ??= {}
+    cli_agents[cli].models ??= {}
+    cli_agents[cli].models![model] = { traits }
+  }
+  return { cli_agents }
+}
+
+/** Candidate map ({cli, cli@model}) from edited provider traits + model rows. */
+export function candidatesFromEdits(
+  cliTraits: Record<string, TraitVector>,
+  modelRows: ModelRow[],
+): Record<string, TraitVector> {
+  const out: Record<string, TraitVector> = { ...cliTraits }
+  for (const { cli, model, traits } of modelRows) if (model) out[`${cli}@${model}`] = traits
+  return out
+}

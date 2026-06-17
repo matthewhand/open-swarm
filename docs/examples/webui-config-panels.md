@@ -120,3 +120,17 @@ on select, so you can read exactly what a skill does before attaching it.
 
 **Verification**: api test asserts `instructions` is served; vitest 35 pass; e2e
 asserts the preview renders the instructions on select (3 pass); 0 a11y violations.
+
+## Polish: per-model trait editing
+
+The "Tune backend traits" panel makes the inference traits editable: a table of
+each CLI's intelligence/speed/cost, plus add/remove per-model override rows
+(model id + traits). A live sample shows where `{intelligence: 1}` resolves given
+your edits, and it emits a `cli_agents` config with `traits` + `models` blocks.
+
+![Trait editor panel](../screenshots/webui/trait-editor-dark.png)
+
+**Verification**: pure helpers `buildTraitsConfig` + `candidatesFromEdits`
+unit-tested; 38 vitest pass; e2e asserts the config + sample resolution (4 pass);
+0 a11y. (The emitted grok traits were verified via DOM read = `{intelligence:0.9,
+speed:0.6,cost:0.55}` — the low-res screenshot only *looked* like 0.0.)

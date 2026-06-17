@@ -64,6 +64,14 @@ test('tool capabilities panel resolves web_search to the non-auth duckduckgo', a
   await expect(panel.getByText('duckduckgo').last()).toBeVisible()
 })
 
+test('trait editor emits cli_agents config and resolves the sample', async ({ page }) => {
+  const panel = page.locator('.card', { has: page.getByRole('heading', { name: 'Tune backend traits' }) })
+  await expect(panel).toBeVisible()
+  // Seeded per-model override + live sample resolution to the smartest model.
+  await expect(panel.getByLabel('cli_agents traits config')).toContainText('"models"')
+  await expect(panel.getByText(/claude/).first()).toBeVisible()
+})
+
 test('skills panel emits a request snippet on selection', async ({ page }) => {
   const panel = page.locator('.card', { has: page.getByRole('heading', { name: 'Skills' }) })
   await expect(panel).toBeVisible()

@@ -51,3 +51,29 @@ describe('buildCandidates', () => {
     expect(Object.keys(c).sort()).toEqual(['gemini', 'gemini@gemini-3-pro-preview', 'grok'])
   })
 })
+
+import { buildTraitsConfig, candidatesFromEdits } from '../inferenceProfile'
+
+describe('buildTraitsConfig', () => {
+  it('emits cli traits + per-model models block', () => {
+    const cfg = buildTraitsConfig(
+      { gemini: { intelligence: 0.6, speed: 0.9, cost: 0.9 } },
+      [{ cli: 'gemini', model: 'gemini-3-pro', traits: { intelligence: 0.95, speed: 0.3, cost: 0.2 } }],
+    )
+    expect(cfg.cli_agents.gemini.traits).toEqual({ intelligence: 0.6, speed: 0.9, cost: 0.9 })
+    expect(cfg.cli_agents.gemini.models?.['gemini-3-pro'].traits.intelligence).toBe(0.95)
+  })
+  it('skips blank model names', () => {
+    const cfg = buildTraitsConfig({}, [{ cli: 'x', model: '', traits: {} }])
+    expect(cfg.cli_agents).toEqual({})
+  })
+})
+
+describe('candidatesFromEdits', () => {
+  it('adds cli@model candidates from rows', () => {
+    const c = candidatesFromEdits({ grok: { intelligence: 0.9 } }, [
+      { cli: 'grok', model: 'fast', traits: { speed: 1 } },
+    ])
+    expect(Object.keys(c).sort()).toEqual(['grok', 'grok@fast'])
+  })
+})

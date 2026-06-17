@@ -12,6 +12,7 @@ import {
 } from '../lib/api'
 import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
 import { ToolCapabilitiesPanel } from '../components/ToolCapabilitiesPanel'
+import { TraitEditorPanel } from '../components/TraitEditorPanel'
 import { SkillsPanel } from '../components/SkillsPanel'
 
 const CodeViewer = lazy(() => import('../components/CodeViewer'))
@@ -230,6 +231,8 @@ export default function BuilderPage() {
             <AgentConfigBuilder info={cliAgents.data} />
 
             <InferenceProfilePanel info={configOptions.data} />
+
+            <TraitEditorPanel info={configOptions.data} />
 
             <ToolCapabilitiesPanel info={configOptions.data} />
 
