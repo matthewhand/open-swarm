@@ -37,6 +37,7 @@ from rest_framework.exceptions import (
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .openai_schema import responses_schema
 
 from .chat_views import _chunk_is_final, _extract_message_from_chunk
 from .utils import get_blueprint_instance, validate_model_access
@@ -154,6 +155,7 @@ class ResponsesView(APIView):
         self.response = self.finalize_response(drf_request, response, *args, **kwargs)
         return self.response
 
+    @responses_schema
     async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
         request_id = str(uuid.uuid4())
         logger.info(f"[ReqID: {request_id}] Processing /v1/responses POST request.")

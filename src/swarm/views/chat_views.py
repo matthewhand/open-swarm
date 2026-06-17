@@ -33,6 +33,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request  # Import DRF Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .openai_schema import chat_completions_schema
 
 # Import custom permission
 # Assuming serializers are in the same app
@@ -273,6 +274,7 @@ class ChatCompletionsView(APIView):
         return self.response
 
     # --- POST Handler (Keep sync_to_async wrappers here too) ---
+    @chat_completions_schema
     async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
         """
         Handles POST requests for chat completions. Assumes dispatch has handled auth/perms.
