@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.6] - 2026-06-17
+
+### Added — Blueprint Builder web UI
+- New **/builder** page (React + TanStack Query + DaisyUI): lists all blueprints, shows their source in a lazy-loaded **CodeMirror** editor with a file browser, and an **editable agent/model config builder** — pick a CLI + consensus mode (single / self-consensus N / native best-of-N / panel) + N and get a live, copy-pasteable `cli_agents` JSON block.
+- Backend endpoints: `GET /v1/blueprints/<id>/source` (read-only source, path-traversal guarded) and `GET /v1/cli-agents/` (CLI catalog + `native_consensus` map). 4 API tests.
+
 ## [0.4.5] - 2026-06-17
 
 ### Added — more consensus modes

@@ -340,3 +340,68 @@ def get_last_used_map() -> dict[tuple[str, str], float]:
     per-user usage from the database. Tests monkeypatch this function.
     """
     return {}
+
+
+class BlueprintSourceView(APIView):
+    """Read-only source of a blueprint's directory: file list + one file's content.
+
+    GET /v1/blueprints/<id>/source[?file=<name>] -> {files, primary, selected, content}.
+    Confined to the blueprint's own directory under BLUEPRINT_DIRECTORY (no traversal).
+    """
+    permission_classes = [AllowAny]
+
+    _ALLOWED_SUFFIXES = (".py", ".md", ".json", ".txt", ".toml", ".yaml", ".yml", ".cfg")
+
+    def get(self, request, blueprint_id, *_args, **_kwargs):
+        from pathlib import Path
+
+        from swarm.settings import BLUEPRINT_DIRECTORY
+
+        base = Path(BLUEPRINT_DIRECTORY).resolve()
+        bp_dir = (base / blueprint_id).resolve()
+        if base not in bp_dir.parents or not bp_dir.is_dir():
+            return Response({"error": "blueprint not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        files = sorted(
+            p for p in bp_dir.iterdir()
+            if p.is_file() and p.suffix in self._ALLOWED_SUFFIXES
+        )
+        if not files:
+            return Response({"id": blueprint_id, "files": [], "primary": None, "selected": None, "content": ""})
+
+        primary = next((p for p in files if p.name.startswith("blueprint_")), files[0])
+        target = primary
+        req_name = request.query_params.get("file")
+        if req_name:
+            cand = (bp_dir / req_name).resolve()
+            if cand.is_file() and cand.parent == bp_dir and cand.suffix in self._ALLOWED_SUFFIXES:
+                target = cand
+        try:
+            content = target.read_text(encoding="utf-8", errors="replace")[:200_000]
+        except OSError:
+            content = ""
+
+        return Response({
+            "id": blueprint_id,
+            "files": [{"name": p.name, "path": p.name} for p in files],
+            "primary": primary.name,
+            "selected": target.name,
+            "content": content,
+        })
+
+
+class CliAgentsView(APIView):
+    """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
+
+    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]}}.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import cli_catalog
+
+        return Response({
+            "clis": cli_catalog.catalog_names(),
+            "native_consensus": cli_catalog.NATIVE_CONSENSUS,
+            "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
+        })
