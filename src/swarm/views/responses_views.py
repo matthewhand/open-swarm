@@ -37,9 +37,11 @@ from rest_framework.exceptions import (
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .openai_schema import responses_schema
+
+from swarm.core import responses_store
 
 from .chat_views import _chunk_is_final, _extract_message_from_chunk
+from .openai_schema import responses_schema
 from .utils import get_blueprint_instance, validate_model_access
 
 logger = logging.getLogger(__name__)
@@ -109,51 +111,54 @@ def _coerce_content(content: Any) -> str:
     return str(content)
 
 
+async def _async_auth_dispatch(view: APIView, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
+    """Shared async dispatch (mirrors ChatCompletionsView): authenticate, enforce
+    ``ENABLE_API_AUTH``, run the (async or sync) handler, finalize."""
+    view.args = args
+    view.kwargs = kwargs
+    drf_request: Request = view.initialize_request(request, *args, **kwargs)
+    view.request = drf_request
+    view.headers = view.default_response_headers
+
+    response = None
+    try:
+        await sync_to_async(view.perform_authentication)(drf_request)
+
+        if bool(getattr(settings, 'ENABLE_API_AUTH', False)):
+            has_token = getattr(drf_request, 'auth', None) is not None
+            user_obj = getattr(drf_request, 'user', None)
+            is_authenticated = bool(user_obj and getattr(user_obj, 'is_authenticated', False))
+            if not (has_token or is_authenticated):
+                raise PermissionDenied('Authentication credentials were not provided')
+
+        view.check_permissions(drf_request)
+        view.check_throttles(drf_request)
+
+        method = drf_request.method.lower()
+        handler = getattr(view, method, view.http_method_not_allowed) if method in view.http_method_names else view.http_method_not_allowed
+
+        if asyncio.iscoroutinefunction(handler):
+            response = await handler(drf_request, *args, **kwargs)
+        else:
+            response = await sync_to_async(handler)(drf_request, *args, **kwargs)
+    except Exception as exc:
+        response = view.handle_exception(exc)
+
+    view.response = view.finalize_response(drf_request, response, *args, **kwargs)
+    return view.response
+
+
 class ResponsesView(APIView):
     """Handles OpenAI Responses API requests (``/v1/responses``).
 
-    Reuses ``ChatCompletionsView``'s blueprint-resolution + run path. Auth /
-    permission behavior matches ``ChatCompletionsView`` (same custom ``dispatch``
-    wrapping ``perform_authentication`` and enforcing ``ENABLE_API_AUTH``).
+    Reuses ``ChatCompletionsView``'s blueprint-resolution + run path. Stateful:
+    a response is persisted (unless ``store: false``) and ``previous_response_id``
+    continues a prior conversation. See :mod:`swarm.core.responses_store`.
     """
 
-    # --- Auth dispatch (mirrors ChatCompletionsView) ---
     @method_decorator(csrf_exempt)
     async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
-        self.args = args
-        self.kwargs = kwargs
-        drf_request: Request = self.initialize_request(request, *args, **kwargs)
-        self.request = drf_request
-        self.headers = self.default_response_headers
-
-        response = None
-        try:
-            await sync_to_async(self.perform_authentication)(drf_request)
-
-            if bool(getattr(settings, 'ENABLE_API_AUTH', False)):
-                has_token = getattr(drf_request, 'auth', None) is not None
-                user_obj = getattr(drf_request, 'user', None)
-                is_authenticated = bool(user_obj and getattr(user_obj, 'is_authenticated', False))
-                if not (has_token or is_authenticated):
-                    raise PermissionDenied('Authentication credentials were not provided')
-
-            self.check_permissions(drf_request)
-            self.check_throttles(drf_request)
-
-            if drf_request.method.lower() in self.http_method_names:
-                handler = getattr(self, drf_request.method.lower(), self.http_method_not_allowed)
-            else:
-                handler = self.http_method_not_allowed
-
-            if asyncio.iscoroutinefunction(handler):
-                response = await handler(drf_request, *args, **kwargs)
-            else:
-                response = await sync_to_async(handler)(drf_request, *args, **kwargs)
-        except Exception as exc:
-            response = self.handle_exception(exc)
-
-        self.response = self.finalize_response(drf_request, response, *args, **kwargs)
-        return self.response
+        return await _async_auth_dispatch(self, request, *args, **kwargs)
 
     @responses_schema
     async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
@@ -182,10 +187,19 @@ class ResponsesView(APIView):
 
         stream = bool(request_data.get('stream', False))
         instructions = request_data.get('instructions')
+        previous_response_id = request_data.get('previous_response_id')
+        store = request_data.get('store', True) is not False  # persist unless store:false
 
         messages = _normalize_input_to_messages(request_data.get('input'), instructions)
         if not messages:
             raise ParseError("'input' did not yield any messages.")
+
+        # --- Statefulness: continue a prior conversation by id ---
+        if previous_response_id:
+            prior = await sync_to_async(responses_store.load)(str(previous_response_id))
+            if prior is None:
+                raise NotFound(f"Previous response '{previous_response_id}' not found.")
+            messages = list(prior.get("messages") or []) + messages
 
         # --- Model access validation (same helper as ChatCompletionsView) ---
         try:
@@ -210,10 +224,10 @@ class ResponsesView(APIView):
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
         if stream:
-            return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
-        return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
+            return await self._handle_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
+        return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
 
-    async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name) -> Response:
+    async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
         """Consume the blueprint generator, keep the last message, shape a response object."""
         final_message = None
         try:
@@ -237,9 +251,12 @@ class ResponsesView(APIView):
             logger.error(f"[ReqID: {request_id}] Unexpected error during /v1/responses generation: {e}", exc_info=True)
             raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
-        return Response(_build_response_payload(request_id, model_name, answer), status=status.HTTP_200_OK)
+        payload = _build_response_payload(request_id, model_name, answer, previous_response_id)
+        if store:
+            await sync_to_async(_persist)(payload, messages, answer)
+        return Response(payload, status=status.HTTP_200_OK)
 
-    async def _handle_streaming(self, blueprint_instance, messages, request_id, model_name) -> StreamingHttpResponse:
+    async def _handle_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> StreamingHttpResponse:
         """Stream ``response.output_text.delta`` SSE events, then a final completed response."""
         response_id = f"resp_{request_id}"
 
@@ -264,10 +281,10 @@ class ResponsesView(APIView):
                     await asyncio.sleep(0.01)
 
                 final_text = "".join(full_text_parts)
-                completed = {
-                    "type": "response.completed",
-                    "response": _build_response_payload(request_id, model_name, final_text),
-                }
+                payload = _build_response_payload(request_id, model_name, final_text, previous_response_id)
+                if store:
+                    await sync_to_async(_persist)(payload, messages, final_text)
+                completed = {"type": "response.completed", "response": payload}
                 yield f"data: {json.dumps(completed)}\n\n"
                 yield "data: [DONE]\n\n"
             except Exception as e:
@@ -279,7 +296,9 @@ class ResponsesView(APIView):
         return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
 
 
-def _build_response_payload(request_id: str, model_name: str, answer: str) -> dict[str, Any]:
+def _build_response_payload(
+    request_id: str, model_name: str, answer: str, previous_response_id: str | None = None
+) -> dict[str, Any]:
     """Shape an OpenAI Responses-style ``response`` object."""
     return {
         "id": f"resp_{request_id}",
@@ -287,6 +306,7 @@ def _build_response_payload(request_id: str, model_name: str, answer: str) -> di
         "created_at": int(time.time()),
         "model": model_name,
         "status": "completed",
+        "previous_response_id": previous_response_id,
         "output": [
             {
                 "type": "message",
@@ -298,3 +318,35 @@ def _build_response_payload(request_id: str, model_name: str, answer: str) -> di
         "output_text": answer,
         "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
     }
+
+
+def _persist(payload: dict[str, Any], messages: list[dict[str, Any]], answer: str) -> None:
+    """Save a response record so it can be retrieved and chained from later."""
+    record = {
+        "id": payload["id"],
+        "object": "response",
+        "response": payload,
+        # Full transcript incl. the assistant reply, so previous_response_id replays it.
+        "messages": list(messages) + [{"role": "assistant", "content": answer}],
+    }
+    responses_store.save(record)
+
+
+class ResponsesDetailView(APIView):
+    """Retrieve or delete a stored response (``/v1/responses/<id>``)."""
+
+    @method_decorator(csrf_exempt)
+    async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
+        return await _async_auth_dispatch(self, request, *args, **kwargs)
+
+    async def get(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+        record = await sync_to_async(responses_store.load)(response_id)
+        if record is None:
+            raise NotFound(f"Response '{response_id}' not found.")
+        return Response(record.get("response") or record, status=status.HTTP_200_OK)
+
+    async def delete(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+        deleted = await sync_to_async(responses_store.delete)(response_id)
+        if not deleted:
+            raise NotFound(f"Response '{response_id}' not found.")
+        return Response({"id": response_id, "object": "response.deleted", "deleted": True}, status=status.HTTP_200_OK)

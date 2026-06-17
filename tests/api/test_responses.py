@@ -84,3 +84,100 @@ class TestResponsesAPI:
             url, data=json.dumps(data), content_type="application/json", SERVER_NAME="localhost"
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db(transaction=True)
+class TestResponsesStateful:
+    """Statefulness: store, retrieve, chain via previous_response_id, delete."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_test_mode(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("SWARM_TEST_MODE", "1")
+        # Isolate the on-disk response store to a per-test tmp dir.
+        monkeypatch.setenv("SWARM_RESPONSES_DIR", str(tmp_path))
+        monkeypatch.setattr("swarm.views.responses_views.validate_model_access", lambda *a, **k: True)
+
+    async def _create(self, async_client, data):
+        url = reverse("responses")
+        return await async_client.post(
+            url, data=json.dumps(data), content_type="application/json", SERVER_NAME="localhost"
+        )
+
+    @pytest.mark.asyncio
+    async def test_response_is_stored_and_retrievable(self, async_client):
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping"})
+        assert resp.status_code == status.HTTP_200_OK
+        rid = json.loads(resp.content)["id"]
+
+        get_url = reverse("responses-detail", kwargs={"response_id": rid})
+        got = await async_client.get(get_url, SERVER_NAME="localhost")
+        assert got.status_code == status.HTTP_200_OK
+        body = json.loads(got.content)
+        assert body["id"] == rid
+        assert body["object"] == "response"
+
+    @pytest.mark.asyncio
+    async def test_previous_response_id_chains_context(self, async_client):
+        first = await self._create(async_client, {"model": "chatbot", "input": "my name is Ada"})
+        first_id = json.loads(first.content)["id"]
+
+        second = await self._create(
+            async_client,
+            {"model": "chatbot", "input": "again", "previous_response_id": first_id},
+        )
+        assert second.status_code == status.HTTP_200_OK
+        body = json.loads(second.content)
+        assert body["previous_response_id"] == first_id
+        assert body["id"] != first_id
+
+        # The chained request must replay the prior transcript: the stored record
+        # for the second response contains the first turn's user + assistant
+        # messages ahead of the new turn.
+        from swarm.core import responses_store
+
+        record = responses_store.load(body["id"])
+        assert record is not None
+        contents = [m.get("content") for m in record["messages"]]
+        assert "my name is Ada" in contents  # replayed prior user message
+        assert "again" in contents           # the new turn
+
+    @pytest.mark.asyncio
+    async def test_unknown_previous_response_id_is_404(self, async_client):
+        resp = await self._create(
+            async_client,
+            {"model": "chatbot", "input": "hi", "previous_response_id": "resp_doesnotexist"},
+        )
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_store_false_is_not_persisted(self, async_client):
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping", "store": False})
+        assert resp.status_code == status.HTTP_200_OK
+        rid = json.loads(resp.content)["id"]
+
+        get_url = reverse("responses-detail", kwargs={"response_id": rid})
+        got = await async_client.get(get_url, SERVER_NAME="localhost")
+        assert got.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_delete_response(self, async_client):
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping"})
+        rid = json.loads(resp.content)["id"]
+        detail_url = reverse("responses-detail", kwargs={"response_id": rid})
+
+        deleted = await async_client.delete(detail_url, SERVER_NAME="localhost")
+        assert deleted.status_code == status.HTTP_200_OK
+        body = json.loads(deleted.content)
+        assert body["id"] == rid
+        assert body["object"] == "response.deleted"
+        assert body["deleted"] is True
+
+        # Gone afterwards.
+        got = await async_client.get(detail_url, SERVER_NAME="localhost")
+        assert got.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_get_unknown_response_is_404(self, async_client):
+        get_url = reverse("responses-detail", kwargs={"response_id": "resp_missing"})
+        got = await async_client.get(get_url, SERVER_NAME="localhost")
+        assert got.status_code == status.HTTP_404_NOT_FOUND
