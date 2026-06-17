@@ -1,0 +1,34 @@
+## GOAL
+From your own knowledge (do not search any files), produce a concise numbered checklist for safely deleting an unused database column in production.
+
+[progress] _Planning with `claude`…_
+[progress] _Ledger seeded with 1 subtask(s)._
+[progress] _Round 1/3: `grok` on “From internal knowledge, write a concise numbered checklist ”…_
+[progress] _Planner marked the goal met after round 1._
+
+## FINAL (planner claude, workers grok+claude)  [34.9s]
+## Safe production column deletion checklist
+
+1. **Confirm the column is unused** — Search the repo, ORM models, raw SQL, reports, ETL, BI tools, cron jobs, and external integrations; check DB logs/audit trails for reads/writes on that column.
+
+2. **Document intent and get sign-off** — Record why it's safe to drop, who owns the data, blast radius, and rollback plan; get approval from engineering, DBA/platform, and any data/compliance stakeholders.
+
+3. **Back up column data** — Export or snapshot the column (and key identifiers) before any schema change; store backups with a defined retention period.
+
+4. **Stop application dependency first (deploy before drop)** — Remove reads/writes, API fields, serializers, and any code that references it; deploy and confirm no code path still touches the column. On databases that scan or rewrite on drop, consider first renaming or marking the column deprecated.
+
+5. **Observe in production** — Run for at least one normal traffic cycle (or agreed soak period); watch errors, query plans, and metrics to confirm zero dependency.
+
+6. **Schedule the drop in a low-traffic window** — Pick a maintenance window with on-call coverage and a clear go/no-go owner.
+
+7. **Use a reversible migration** — Prefer `DROP COLUMN` paired with a down-migration that can re-add the column (and restore data from backup if needed); avoid irreversible steps until verification is complete. Check for dependent objects (indexes, views, constraints, triggers) first.
+
+8. **Drop the column** — Apply the migration; keep the transaction/window short and avoid coupling unrelated schema changes.
+
+9. **Verify immediately** — Confirm the schema change applied, app health checks pass, critical flows work, and no new errors reference the old column.
+
+10. **Monitor post-change** — Watch error rates, latency, replication lag, and job failures for 24–72 hours (or your team's standard soak period).
+
+11. **Keep rollback ready until soak completes** — Rollback = re-add column + restore data from backup + redeploy previous app version if code was already decoupled.
+
+12. **Close out** — Update schema docs/runbooks, remove dead backup artifacts per retention policy, and mark the deprecation complete.

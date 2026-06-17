@@ -96,6 +96,11 @@ under [`docs/proofs/`](./proofs/).
 - **Tool calling** — `gemini` and `claude` each *read a real file*
   (`pyproject.toml`) via their own tools and returned the exact version string.
   See [`docs/proofs/tool_calling_run.txt`](./proofs/tool_calling_run.txt).
+- **Sequential / group-chat / planner** — `cli_pipeline` (gemini draft → claude
+  review), `cli_roundtable` (gemini + grok debate, claude moderator concludes),
+  and `cli_planner` (claude plans a ledger, a worker executes, planner concludes
+  with a 12-point checklist). See the `pipeline_run`, `roundtable_run`, and
+  `planner_run` transcripts in [`docs/proofs/`](./proofs/).
 - **Full permutation matrix** — every installed CLI through every framework mode,
   12/12 passing: `scripts/prove_cli_permutations.py`.
 
@@ -109,11 +114,11 @@ The standard pattern set is now built end to end: concurrent (`cli_fusion`),
 handoff/escalation (`cli_orchestrator`), map-reduce (`cli_map`), sequential
 (`cli_pipeline`), group-chat (`cli_roundtable`), and Magentic-One
 (`cli_planner`). Each has a sequence diagram in
-[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) and tests under
-`tests/blueprints/`. Remaining work here is depth, not coverage: streaming
-progress for the multi-round patterns, and live multi-CLI proof transcripts for
-pipeline / roundtable / planner alongside the consensus and routing ones in
-[`docs/proofs/`](./proofs/).
+[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md), tests under
+`tests/blueprints/`, and a live cross-CLI transcript in
+[`docs/proofs/`](./proofs/). Remaining work here is depth, not coverage:
+richer streaming progress for the multi-round patterns, and per-stage usage
+accounting.
 
 ### Other known gaps (unchanged from the roadmap)
 

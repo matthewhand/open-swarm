@@ -1,0 +1,10 @@
+## QUESTION
+Should a small team adopt trunk-based development or long-lived feature branches? Take a clear side.
+
+[progress] _Roundtable: 2 debater(s) over up to 1 round(s)…_
+[progress] _Round 1/1: debaters responding…_
+[progress] _Moderator `claude` reviewing round 1…_
+[progress] _Moderator concluded after round 1._
+
+## MODERATED CONCLUSION (debaters gemini+grok, moderator claude)  [22.1s]
+A small team should adopt trunk-based development. Both panelists agree: long-lived feature branches only appear safer—they defer integration to a costly 'merge day' of conflicts, duplicated work, and 'works on my branch' surprises, while also delaying code review. Trunk-based development keeps changes small, frequently reviewed, and continuously integrated, producing the tight feedback loops a small team benefits from most. Incomplete work is kept off the critical path with feature flags rather than isolated on divergent branches. The coordination overhead that branches supposedly solve is smaller, for a team of a few people, than the integration debt they accrue. Practical guardrails: short-lived branches (hours to a day) that merge to trunk quickly are an acceptable variant, paired with CI on every commit, feature flags for incomplete work, and a fast review cadence so the trunk stays releasable.
