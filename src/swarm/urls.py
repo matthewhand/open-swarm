@@ -17,6 +17,7 @@ from swarm.views.agent_creator_views import (
 from swarm.views.api_views import (
     BlueprintsListView,
     BlueprintSourceView,
+    BlueprintToolsView,
     CliAgentsView,
     ConfigOptionsView,
     CustomBlueprintDetailView,
@@ -69,6 +70,7 @@ urlpatterns = [
     path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
     path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
     path("v1/blueprints/<str:blueprint_id>/source", BlueprintSourceView.as_view(), name="blueprint-source"),
+    path("v1/blueprints/<str:blueprint_id>/tools", BlueprintToolsView.as_view(), name="blueprint-tools"),
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
     path("v1/config-options/", ConfigOptionsView.as_view(), name="config-options-api"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),

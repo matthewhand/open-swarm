@@ -464,3 +464,44 @@ class ConfigOptionsView(APIView):
                 ],
             },
         })
+
+
+class BlueprintToolsView(APIView):
+    """Resolve a blueprint's abstract tool needs to concrete MCP providers.
+
+    GET /v1/blueprints/<id>/tools -> for a blueprint declaring ``tool_requirements``
+    in its metadata, returns the providers each capability resolves to (non-auth
+    preferred, auto-provisioned from the catalog), so the decoupling is inspectable:
+      {
+        requirements: {capability: "mandatory"|"optional"},
+        servers:      {name: {command, args, provides, ...}},  # what to launch
+        satisfied:    {capability: server_name},
+        missing_mandatory: [...], skipped_optional: [...], ok: bool,
+      }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, _request, blueprint_id: str, *_args, **_kwargs):
+        from swarm.core import tool_capabilities
+        from swarm.core.config_loader import find_config_file, load_config
+
+        blueprints = async_to_sync(get_available_blueprints)()
+        info = blueprints.get(blueprint_id) if isinstance(blueprints, dict) else None
+        if info is None:
+            return Response({"detail": f"Unknown blueprint '{blueprint_id}'."},
+                            status=status.HTTP_404_NOT_FOUND)
+        meta = info.get("metadata", {}) if isinstance(info, dict) else {}
+        requirements = meta.get("tool_requirements") or {}
+
+        cfg_file = find_config_file()
+        config = load_config(cfg_file) if cfg_file else {}
+        servers, res = tool_capabilities.resolve_mcp_servers(requirements, config)
+        return Response({
+            "blueprint": blueprint_id,
+            "requirements": tool_capabilities.normalize_requirements(requirements),
+            "servers": servers,
+            "satisfied": res.satisfied,
+            "missing_mandatory": res.missing_mandatory,
+            "skipped_optional": res.skipped_optional,
+            "ok": res.ok,
+        })

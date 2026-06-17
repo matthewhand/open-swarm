@@ -134,3 +134,25 @@ your edits, and it emits a `cli_agents` config with `traits` + `models` blocks.
 unit-tested; 38 vitest pass; e2e asserts the config + sample resolution (4 pass);
 0 a11y. (The emitted grok traits were verified via DOM read = `{intelligence:0.9,
 speed:0.6,cost:0.55}` — the low-res screenshot only *looked* like 0.0.)
+
+## Wired: capability → MCP provider resolution endpoint (item D)
+
+`GET /v1/blueprints/<id>/tools` resolves a blueprint's declared
+`tool_requirements` to concrete MCP providers via
+`tool_capabilities.resolve_mcp_servers` — the decoupling is now consumable, not
+just a library. Also fixed blueprint discovery, which was **whitelisting**
+metadata fields and silently dropping `tool_requirements` (so it never reached
+any consumer); added it to the extracted metadata + `BlueprintMetadata` TypedDict.
+
+Live (jeeves / whiskeytango_foxtrot, which declare `tool_requirements`):
+
+```
+GET /v1/blueprints/whiskeytango_foxtrot/tools
+  requirements: {browser: mandatory, web_search: optional}
+  satisfied:    {browser: playwright, web_search: <configured or duckduckgo>}
+  ok: true
+```
+
+With no user config the mandatory `browser` auto-provisions the non-auth official
+**playwright-mcp** (zero config). 3 api tests (deterministic via mocked config),
+404 on unknown blueprint.
