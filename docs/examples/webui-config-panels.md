@@ -77,3 +77,21 @@ under Playwright. 6 files / 34 tests pass clean.
 ### Builder — all three panels
 
 ![Builder full page](../screenshots/webui/builder-dark.png)
+
+## Builder e2e (Playwright)
+
+`e2e/builder.spec.ts` route-mocks the API (deterministic, no backend) and drives
+the real panels:
+
+```
+✓ inference profile panel resolves to a CLI
+✓ tool capabilities panel resolves web_search to the non-auth duckduckgo
+✓ skills panel emits a request snippet on selection
+3 passed (2.9s)
+```
+
+Run with `npm run test:e2e` (opt-in; not in the default `npm test`, and vitest's
+`include` excludes `e2e/`). Asserts the inference panel resolves to a CLI, the
+tool-capabilities panel resolves `web_search → duckduckgo` (non-auth preferred)
+after selecting mandatory + duckduckgo, and the skills panel emits a
+`{"skill": ...}` request snippet on selection.
