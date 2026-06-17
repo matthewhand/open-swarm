@@ -59,6 +59,17 @@ class CliAgentBlueprint(BlueprintBase):
             yield support.message_chunk("No prompt provided.", final=True)
             return
 
+        # Optional skill: `skill=<name>` prepends a discovered skill's
+        # instructions to the prompt (portable across whichever CLI runs).
+        if params.get(support.PARAM_SKILL):
+            prompt, applied = support.apply_skill_to_prompt(prompt, params)
+            if applied:
+                yield support.progress_chunk(f"_Applying skill `{applied}`…_")
+            else:
+                yield support.progress_chunk(
+                    f"_Skill `{params[support.PARAM_SKILL]}` not found — running without it._"
+                )
+
         registry = support.apply_overrides(support.build_registry(self._config), params)
         chain = support.resolve_failover_chain(self._config, params, registry)
         if not chain:

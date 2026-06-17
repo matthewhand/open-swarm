@@ -95,6 +95,34 @@ async def test_blueprint_respects_cli_param():
     assert _final_content(chunks) == "TWO: ping"
 
 
+def test_apply_skill_to_prompt_helper():
+    # No skill → unchanged. Known bundled skill → instructions prepended.
+    assert support.apply_skill_to_prompt("do x", {}) == ("do x", None)
+    prompt, name = support.apply_skill_to_prompt("do x", {"skill": "conventional-commit"})
+    assert name == "conventional-commit"
+    assert "Conventional Commit" in prompt and prompt.rstrip().endswith("do x")
+    # Unknown skill → unchanged, name None (caller warns).
+    assert support.apply_skill_to_prompt("do x", {"skill": "nope-not-real"}) == ("do x", None)
+
+
+async def test_blueprint_applies_skill_param():
+    # echo prints the rendered prompt, so the injected skill text is observable.
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"cli": "echo", "skill": "conventional-commit"})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    final = _final_content(chunks)
+    assert "Conventional Commit" in final and final.rstrip().endswith("ping")
+    assert any("Applying skill `conventional-commit`" in str(c) for c in chunks)
+
+
+async def test_blueprint_unknown_skill_warns_and_runs_bare():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"cli": "echo", "skill": "nope-not-real"})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "ECHO: ping"  # ran bare, no skill text
+    assert any("not found" in str(c) for c in chunks)
+
+
 async def test_blueprint_no_agents_configured():
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config={})
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))

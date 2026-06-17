@@ -25,6 +25,7 @@ PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
 PARAM_FALLBACK = "fallback"  # single-CLI: explicit ordered failover list
 PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
 PARAM_CONSENSUS = "consensus"  # single-CLI: per-request consensus override (bool/int/list/dict)
+PARAM_SKILL = "skill"        # apply a named skill's instructions to the prompt
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:
@@ -44,6 +45,27 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
         role = (m.get("role") or "user").upper()
         lines.append(f"{role}: {str(m['content']).strip()}")
     return "\n\n".join(lines)
+
+
+def apply_skill_to_prompt(
+    prompt: str, params: dict[str, Any] | None
+) -> tuple[str, str | None]:
+    """Apply a named skill (``params['skill']``) to ``prompt``.
+
+    Returns ``(prompt, applied_name)``. With no skill requested, the prompt is
+    unchanged and ``applied_name`` is None. An unknown skill name also leaves
+    the prompt unchanged (the caller can warn) — we never fail the run over a
+    bad skill name. Skills load from the standard ``skills/`` directory.
+    """
+    name = (params or {}).get(PARAM_SKILL)
+    if not name:
+        return prompt, None
+    from swarm.core import skills  # lazy: only pay discovery cost when used
+
+    skill = skills.discover_skills().get(name)
+    if skill is None:
+        return prompt, None
+    return skills.apply_skill(skill, prompt), skill.name
 
 
 def build_registry(config: dict[str, Any] | None) -> CliAdapterRegistry:
