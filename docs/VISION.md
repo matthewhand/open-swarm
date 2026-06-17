@@ -70,6 +70,9 @@ This is verified, shipped, and covered by an 1100+ test suite. Status marks:
 | **`cli_fusion`** — panel → judge → synthesize, bounded master-plan loop | ✅ | `blueprints/cli_fusion/` |
 | **`cli_orchestrator`** — cheap router, escalate to a panel only when high-stakes | ✅ | `blueprints/cli_orchestrator/` |
 | **`cli_map`** — decompose → distribute → reduce (divide-and-conquer) | ✅ | `blueprints/cli_map/` |
+| **`cli_pipeline`** — sequential refinement (draft → review → polish) | ✅ | `blueprints/cli_pipeline/` |
+| **`cli_roundtable`** — group-chat debate, moderated to a conclusion | ✅ | `blueprints/cli_roundtable/` |
+| **`cli_planner`** — Magentic-One-style task ledger, re-plans on stall | ✅ | `blueprints/cli_planner/` |
 | CLI autodiscovery + auth probe (`swarm-cli cli-agents --init/--check-auth`) | ✅ | `swarm/core/cli_adapter.py`, `cli_catalog.py` |
 | Per-panelist **git-worktree isolation** for write-mode CLIs | ✅ | `cli_fusion` |
 | **Inference profiles** — pick a backend by traits (intelligence/speed/cost), not brand | ✅ | `docs/examples/inference-profile-routing.md` |
@@ -93,6 +96,11 @@ under [`docs/proofs/`](./proofs/).
 - **Tool calling** — `gemini` and `claude` each *read a real file*
   (`pyproject.toml`) via their own tools and returned the exact version string.
   See [`docs/proofs/tool_calling_run.txt`](./proofs/tool_calling_run.txt).
+- **Sequential / group-chat / planner** — `cli_pipeline` (gemini draft → claude
+  review), `cli_roundtable` (gemini + grok debate, claude moderator concludes),
+  and `cli_planner` (claude plans a ledger, a worker executes, planner concludes
+  with a 12-point checklist). See the `pipeline_run`, `roundtable_run`, and
+  `planner_run` transcripts in [`docs/proofs/`](./proofs/).
 - **Full permutation matrix** — every installed CLI through every framework mode,
   12/12 passing: `scripts/prove_cli_permutations.py`.
 
@@ -100,21 +108,17 @@ under [`docs/proofs/`](./proofs/).
 
 ## What remains (honest)
 
-### Orchestration patterns not yet built
+### Orchestration patterns — complete ✅
 
-We have concurrent (`cli_fusion`), handoff/escalation (`cli_orchestrator`), and
-map-reduce (`cli_map`). To reach parity with the field's standard pattern set,
-three remain. These are the active build targets:
-
-| Planned blueprint | Pattern it mirrors | What it adds over what we have |
-|---|---|---|
-| **`cli_pipeline`** | Sequential | Output of CLI A becomes input to CLI B to C — staged refinement (draft → review → polish), distinct from `cli_fusion`'s parallel panel. |
-| **`cli_roundtable`** | Group chat | CLIs *debate in a shared thread* across bounded rounds; a moderator decides continue-vs-conclude. Distinct from `cli_fusion`'s single-shot panel + one judge pass. |
-| **`cli_planner`** | Magentic-One | A planner maintains a **task ledger**, delegates subtasks to specialist CLIs, tracks progress, and **re-plans on stall**. Distinct from `cli_map`'s single decompose→reduce. |
-
-Their sequence diagrams are already drawn in
-[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) (marked *planned*) so the
-contract is fixed before the code lands.
+The standard pattern set is now built end to end: concurrent (`cli_fusion`),
+handoff/escalation (`cli_orchestrator`), map-reduce (`cli_map`), sequential
+(`cli_pipeline`), group-chat (`cli_roundtable`), and Magentic-One
+(`cli_planner`). Each has a sequence diagram in
+[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md), tests under
+`tests/blueprints/`, and a live cross-CLI transcript in
+[`docs/proofs/`](./proofs/). Remaining work here is depth, not coverage:
+richer streaming progress for the multi-round patterns, and per-stage usage
+accounting.
 
 ### Other known gaps (unchanged from the roadmap)
 
@@ -138,13 +142,16 @@ flowchart LR
     BP -->|concurrent| F[cli_fusion]
     BP -->|handoff| O[cli_orchestrator]
     BP -->|map reduce| M[cli_map]
-    BP -.planned.-> P[cli_pipeline]
-    BP -.planned.-> R[cli_roundtable]
-    BP -.planned.-> PL[cli_planner]
+    BP -->|sequential| P[cli_pipeline]
+    BP -->|group chat| R[cli_roundtable]
+    BP -->|planner| PL[cli_planner]
     A --> REG[CLI adapter registry]
     F --> REG
     O --> REG
     M --> REG
+    P --> REG
+    R --> REG
+    PL --> REG
     REG --> g[gemini]
     REG --> c[claude]
     REG --> k[grok]

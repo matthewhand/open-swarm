@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Orchestration patterns (MAF-class, over CLIs)
+- Three new orchestration blueprints complete the field-standard pattern set over heterogeneous agentic CLIs: **`cli_pipeline`** (sequential — each stage refines the prior stage's output, draft → review → polish), **`cli_roundtable`** (group-chat — debaters react to each other in a shared transcript across bounded rounds, a moderator concludes and synthesizes), and **`cli_planner`** (Magentic-One — a planner keeps a task ledger, delegates to workers, and re-plans on stall until the goal is met). All follow the existing `BlueprintBase` + `cli_fusion_support` conventions, degrade gracefully on a dead backend, and are auto-discovered at `/v1/models`. 20 new tests.
+- New docs: **[docs/VISION.md](docs/VISION.md)** (front-and-centre vision + honest built-vs-remaining) and **[docs/ORCHESTRATION_PATTERNS.md](docs/ORCHESTRATION_PATTERNS.md)** (GitHub Mermaid sequence diagrams for all seven patterns). Live cross-CLI transcripts (consensus, routing, tool calling) under `docs/proofs/`.
+
 ### Added — Skills
 - Reusable **skills**: `SKILL.md` directories (Anthropic [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) open standard) discoverable via `swarm-cli skills` (`--show`/`--json`) and applied to any CLI with the `cli_agent` `skill=<name>` param. Applying a skill prepends its instructions and stages any bundled assets into the workdir so a write-mode CLI can execute them.
 - Bundled skills: `conventional-commit`, `reviewing-code`, `writing-changelog`, and `counting-lines` (ships an executable `count.py`).

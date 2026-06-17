@@ -15,9 +15,9 @@ All diagrams are GitHub-rendered Mermaid. Backends shown (`gemini`, `claude`,
 | [`cli_fusion`](#cli_fusion--concurrent-panel--judge) | concurrent | ✅ built |
 | [`cli_orchestrator`](#cli_orchestrator--handoff--escalation) | handoff / escalation | ✅ built |
 | [`cli_map`](#cli_map--map-reduce) | map-reduce | ✅ built |
-| [`cli_pipeline`](#cli_pipeline--sequential-refinement) | sequential | ⏳ planned |
-| [`cli_roundtable`](#cli_roundtable--group-chat-debate) | group chat | ⏳ planned |
-| [`cli_planner`](#cli_planner--magentic-one-ledger) | Magentic-One | ⏳ planned |
+| [`cli_pipeline`](#cli_pipeline--sequential-refinement) | sequential | ✅ built |
+| [`cli_roundtable`](#cli_roundtable--group-chat-debate) | group chat | ✅ built |
+| [`cli_planner`](#cli_planner--magentic-one-ledger) | Magentic-One | ✅ built |
 
 ---
 
@@ -136,7 +136,7 @@ sequenceDiagram
 
 ---
 
-## `cli_pipeline` — sequential refinement ⏳ planned
+## `cli_pipeline` — sequential refinement ✅
 
 A staged chain where each CLI refines the previous stage's output. Different
 backends play to their strengths in order — for example a fast model drafts, a
@@ -163,7 +163,7 @@ sequenceDiagram
 
 ---
 
-## `cli_roundtable` — group-chat debate ⏳ planned
+## `cli_roundtable` — group-chat debate ✅
 
 Several CLIs **debate in a shared transcript** across bounded rounds. Each round
 every debater sees the others' latest positions; a moderator decides whether to
@@ -197,7 +197,7 @@ sequenceDiagram
 
 ---
 
-## `cli_planner` — Magentic-One ledger ⏳ planned
+## `cli_planner` — Magentic-One ledger ✅
 
 A planner maintains a **task ledger**, delegates subtasks to specialist CLIs,
 inspects results, and **re-plans on stall** up to a bound before synthesizing.
@@ -241,9 +241,9 @@ sequenceDiagram
 | The best single answer from several models | `cli_fusion` |
 | Cheap by default, rigorous only when it matters | `cli_orchestrator` |
 | To split a big task across workers and merge | `cli_map` |
-| Staged refinement, draft then review then polish | `cli_pipeline` ⏳ |
-| Models to argue toward a conclusion | `cli_roundtable` ⏳ |
-| A planner to drive specialists toward a goal | `cli_planner` ⏳ |
+| Staged refinement, draft then review then polish | `cli_pipeline` |
+| Models to argue toward a conclusion | `cli_roundtable` |
+| A planner to drive specialists toward a goal | `cli_planner` |
 
 See [VISION.md](./VISION.md) for how these fit the larger picture, and
 [CLI_FUSION.md](./CLI_FUSION.md) for configuration of the built blueprints.
