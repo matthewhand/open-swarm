@@ -78,11 +78,10 @@ function App() {
               </div>
             </nav>
 
-            {/* Auth failure banner (only shown after a real 401/403) */}
-            <AuthErrorBanner />
-
             {/* Main Content (pb-24 clears the fixed mobile dock below lg) */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 lg:pb-8">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 lg:pb-8">
+              {/* Auth failure banner (only shown after a real 401/403) */}
+              <AuthErrorBanner />
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/chat" element={<ChatPage />} />
@@ -92,7 +91,7 @@ function App() {
                 <Route path="/agent-creator" element={<AgentCreatorPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
-            </div>
+            </main>
 
             {/* Bottom Navigation (Mobile) — DaisyUI 5 "dock" (btm-nav was
                 removed in v5); fixed to the viewport bottom below lg. */}
@@ -182,6 +181,10 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <h1 className="text-3xl font-bold flex items-center gap-2">
+        <Home className="h-7 w-7" /> Dashboard
+      </h1>
+
       {/* Welcome Alert */}
       <Alert type="info" icon={<Home className="h-5 w-5" />}>
         <span className="font-medium">Welcome to Open Swarm!&nbsp;</span>
