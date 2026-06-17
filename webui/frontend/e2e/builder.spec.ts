@@ -68,7 +68,7 @@ test('trait editor emits cli_agents config and resolves the sample', async ({ pa
   const panel = page.locator('.card', { has: page.getByRole('heading', { name: 'Tune backend traits' }) })
   await expect(panel).toBeVisible()
   // Seeded per-model override + live sample resolution to the smartest model.
-  await expect(panel.getByLabel('cli_agents traits config')).toContainText('"models"')
+  await expect(panel.getByLabel('cli_agents traits config snippet')).toContainText('"models"')
   await expect(panel.getByText(/claude/).first()).toBeVisible()
 })
 

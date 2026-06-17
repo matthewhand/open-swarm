@@ -11,6 +11,7 @@ import {
   type ModelRow,
   type Trait,
 } from '../lib/inferenceProfile'
+import { ConfigSnippet } from './ConfigSnippet'
 
 const round2 = (v: number) => Math.round(v * 100) / 100
 
@@ -146,19 +147,7 @@ export function TraitEditorPanel({ info }: { info: ConfigOptions | undefined }) 
         {sampleModel && <span className="font-mono"> @{sampleModel}</span>}
       </div>
 
-      <div className="mt-3">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-          cli_agents config
-        </div>
-        <pre
-          tabIndex={0}
-          role="region"
-          aria-label="cli_agents traits config"
-          className="max-h-64 overflow-auto rounded-lg bg-base-300 p-3 text-xs focus:outline focus:outline-2 focus:outline-primary"
-        >
-          <code>{JSON.stringify(config, null, 2)}</code>
-        </pre>
-      </div>
+      <ConfigSnippet json={JSON.stringify(config, null, 2)} label="cli_agents traits config" />
     </Card>
   )
 }

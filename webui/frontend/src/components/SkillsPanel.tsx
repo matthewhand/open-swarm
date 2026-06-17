@@ -3,6 +3,7 @@ import { Card } from './DaisyUI'
 import { Sparkles, Paperclip, Check } from 'lucide-react'
 import type { ConfigOptions } from '../lib/api'
 import { buildSkillRequest } from '../lib/skills'
+import { ConfigSnippet } from './ConfigSnippet'
 
 /** Panel 3: browse discovered skills and attach one to a cli_agent request. */
 export function SkillsPanel({ info }: { info: ConfigOptions | undefined }) {
@@ -81,21 +82,7 @@ export function SkillsPanel({ info }: { info: ConfigOptions | undefined }) {
         </details>
       )}
 
-      {request && (
-        <div className="mt-3">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-            Request snippet
-          </div>
-          <pre
-            tabIndex={0}
-            role="region"
-            aria-label="Skill request snippet"
-            className="overflow-auto rounded-lg bg-base-300 p-3 text-xs focus:outline focus:outline-2 focus:outline-primary"
-          >
-            <code>{JSON.stringify(request, null, 2)}</code>
-          </pre>
-        </div>
-      )}
+      {request && <ConfigSnippet json={JSON.stringify(request, null, 2)} label="Skill request" />}
     </Card>
   )
 }

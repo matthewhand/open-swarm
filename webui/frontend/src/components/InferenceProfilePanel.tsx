@@ -3,6 +3,7 @@ import { Card } from './DaisyUI'
 import { Brain, Gauge, DollarSign, Target } from 'lucide-react'
 import type { ConfigOptions, TraitVector } from '../lib/api'
 import { TRAITS, resolve, splitCandidate, type Trait } from '../lib/inferenceProfile'
+import { ConfigSnippet } from './ConfigSnippet'
 
 /** Build the resolution candidate map: a provider candidate per CLI plus a
  *  `<cli>@<model>` candidate for each known model (matched to its CLI by name
@@ -109,19 +110,7 @@ export function InferenceProfilePanel({ info }: { info: ConfigOptions | undefine
         )}
       </div>
 
-      <div className="mt-3">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-          Request snippet
-        </div>
-        <pre
-          tabIndex={0}
-          role="region"
-          aria-label="Inference profile request snippet"
-          className="max-h-40 overflow-auto rounded-lg bg-base-300 p-3 text-xs focus:outline focus:outline-2 focus:outline-primary"
-        >
-          <code>{requestSnippet}</code>
-        </pre>
-      </div>
+      <ConfigSnippet json={requestSnippet} label="Inference profile request" />
     </Card>
   )
 }

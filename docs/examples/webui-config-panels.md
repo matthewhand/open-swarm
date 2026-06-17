@@ -156,3 +156,10 @@ GET /v1/blueprints/whiskeytango_foxtrot/tools
 With no user config the mandatory `browser` auto-provisions the non-auth official
 **playwright-mcp** (zero config). 3 api tests (deterministic via mocked config),
 404 on unknown blueprint.
+
+## Polish: Copy + Download on every panel snippet (item E)
+
+Extracted a shared `ConfigSnippet` component (Copy to clipboard + Download as
+`.json`, keyboard-focusable + labelled) and swapped it into all four panels'
+config snippets, replacing four near-duplicate `<pre>` blocks. Pure `toFilename`
+helper unit-tested; 40 vitest pass; e2e 4 pass; 0 a11y.

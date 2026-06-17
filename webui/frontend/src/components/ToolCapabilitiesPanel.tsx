@@ -8,6 +8,7 @@ import {
   type Level,
   type McpServerInfo,
 } from '../lib/toolCapabilities'
+import { ConfigSnippet } from './ConfigSnippet'
 
 const LEVELS: (Level | 'off')[] = ['off', 'optional', 'mandatory']
 
@@ -144,19 +145,7 @@ export function ToolCapabilitiesPanel({ info }: { info: ConfigOptions | undefine
         </div>
       )}
 
-      <div className="mt-3">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-          Config snippet
-        </div>
-        <pre
-          tabIndex={0}
-          role="region"
-          aria-label="Tool capabilities config snippet"
-          className="max-h-56 overflow-auto rounded-lg bg-base-300 p-3 text-xs focus:outline focus:outline-2 focus:outline-primary"
-        >
-          <code>{json}</code>
-        </pre>
-      </div>
+      <ConfigSnippet json={json} label="Tool capabilities config" />
     </Card>
   )
 }
