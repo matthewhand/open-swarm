@@ -262,8 +262,11 @@ const ChatPage = () => {
       {/* Conversation: scrollable message list + composer pinned at bottom */}
       <div className="card flex min-h-0 flex-1 flex-col overflow-hidden border border-base-300 bg-base-100">
         <div
-          className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4"
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4 focus:outline focus:outline-2 focus:outline-primary"
           aria-live="polite"
+          role="log"
+          aria-label="Conversation"
+          tabIndex={0}
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">

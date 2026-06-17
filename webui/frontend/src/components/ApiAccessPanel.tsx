@@ -61,7 +61,12 @@ function CopyBlock({ label, code }: { label: string; code: string }) {
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="bg-base-300 rounded p-3 text-xs overflow-x-auto">
+      <pre
+        tabIndex={0}
+        role="region"
+        aria-label={`${label} snippet`}
+        className="bg-base-300 rounded p-3 text-xs overflow-x-auto focus:outline focus:outline-2 focus:outline-primary"
+      >
         <code>{code}</code>
       </pre>
     </div>

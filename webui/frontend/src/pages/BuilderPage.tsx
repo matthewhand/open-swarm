@@ -167,7 +167,9 @@ export default function BuilderPage() {
 
       {!isPending && !isError && (
         <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-          <Card bordered>
+          {/* Sidebar list on desktop; a compact dropdown on mobile so the config
+              and editor aren't buried below a 21-item list. */}
+          <Card bordered className="hidden lg:block">
             <h2 className="card-title text-base">Blueprints ({blueprints.length})</h2>
             <ul className="menu menu-sm px-0">
               {blueprints.map((b) => (
@@ -188,6 +190,26 @@ export default function BuilderPage() {
           </Card>
 
           <div className="space-y-4">
+            {/* Mobile blueprint picker (the desktop sidebar is hidden < lg). */}
+            <label className="form-control lg:hidden">
+              <span className="label-text text-xs">Blueprint ({blueprints.length})</span>
+              <select
+                className="select select-bordered select-sm font-mono"
+                aria-label="Select blueprint"
+                value={selected?.id ?? ''}
+                onChange={(e) => {
+                  setSelectedId(e.target.value)
+                  setOpenFile(null)
+                }}
+              >
+                {blueprints.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
                 {selected?.id ?? '—'}
