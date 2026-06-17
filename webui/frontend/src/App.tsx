@@ -102,6 +102,7 @@ function App() {
                 { to: '/chat', label: 'Chat', icon: MessageSquare },
                 { to: '/teams', label: 'Teams', icon: Users },
                 { to: '/blueprints', label: 'Blueprints', icon: Book },
+                { to: '/builder', label: 'Builder', icon: Wrench },
                 { to: '/agent-creator', label: 'Creator', icon: Wand2 },
                 { to: '/settings', label: 'Settings', icon: Settings },
               ].map(({ to, label, icon: Icon, end }) => (

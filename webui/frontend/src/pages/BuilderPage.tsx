@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI'
-import { Wrench, Cpu, Sparkles, FileCode, FileText, Copy, Check } from 'lucide-react'
+import { Wrench, Cpu, Sparkles, FileCode, FileText, Copy, Check, Download } from 'lucide-react'
 import {
   fetchBlueprints,
   fetchBlueprintSource,
@@ -69,6 +69,16 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
     }
   }
 
+  const download = () => {
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${cli}.cli_agents.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <Card bordered>
       <h2 className="card-title flex items-center gap-2 text-base">
@@ -107,10 +117,15 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
       <div className="mt-3">
         <div className="mb-1 flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">cli_agents config</span>
-          <button type="button" className="btn btn-xs gap-1" onClick={copy} aria-label="Copy config">
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
+          <div className="flex gap-1">
+            <button type="button" className="btn btn-xs gap-1" onClick={download} aria-label="Download config">
+              <Download className="h-3.5 w-3.5" /> Download
+            </button>
+            <button type="button" className="btn btn-xs gap-1" onClick={copy} aria-label="Copy config">
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
         </div>
         <pre className="max-h-64 overflow-auto rounded-lg bg-base-300 p-3 text-xs"><code>{json}</code></pre>
       </div>
