@@ -316,6 +316,13 @@ def cli_agents(
 
     if output_json:
         payload: dict = {"agents": [d.as_dict() for d in rows]}
+        # Native (built-in) consensus capability per configured CLI, so a UI can
+        # offer a "use this CLI's own consensus mode" toggle only where available.
+        payload["native_consensus"] = {
+            d.name: cli_catalog.NATIVE_CONSENSUS[d.name]
+            for d in rows
+            if cli_catalog.has_native_consensus(d.name)
+        }
         if smoke:
             smoke_names = [d.name for d in rows if d.installed]
             payload["smoke"] = [

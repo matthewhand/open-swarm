@@ -125,3 +125,26 @@ def test_suggest_returns_deep_copies(monkeypatch):
     s = cli_catalog.suggest_unconfigured([], installed_only=True)
     s["claude"]["cmd"].append("--mutated")
     assert "--mutated" not in cli_catalog.CATALOG["claude"]["cmd"]
+
+
+def test_grok_has_native_consensus():
+    assert cli_catalog.has_native_consensus("grok") is True
+    assert cli_catalog.has_native_consensus("claude") is False
+
+
+def test_native_consensus_flags_substitutes_n():
+    assert cli_catalog.native_consensus_flags("grok", 3) == ["--best-of-n", "3"]
+    assert cli_catalog.native_consensus_flags("grok", 1) == ["--best-of-n", "2"]  # clamped >=2
+    assert cli_catalog.native_consensus_flags("claude", 3) is None
+
+
+def test_with_native_consensus_appends_flag():
+    entry = cli_catalog.with_native_consensus("grok", 4)
+    assert entry["cmd"][-2:] == ["--best-of-n", "4"]
+    assert entry["parse"] == "json:.text"  # base entry preserved
+    assert cli_catalog.with_native_consensus("claude", 2) is None  # no native mode
+
+
+def test_with_native_consensus_does_not_mutate_catalog():
+    cli_catalog.with_native_consensus("grok", 2)
+    assert "--best-of-n" not in cli_catalog.CATALOG["grok"]["cmd"]

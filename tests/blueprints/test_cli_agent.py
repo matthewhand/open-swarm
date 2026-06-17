@@ -337,3 +337,36 @@ async def test_non_consensus_agent_is_still_single_call():
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
     assert _final_content(chunks) == "SOLO:ping"
     assert "consensus agent" not in _progress_text(chunks)
+
+
+def test_resolve_consensus_int_is_self_consensus():
+    reg = CliAdapterRegistry.from_config({"cli_agents": {"coder": _ag("C")}})
+    panel, judge = support.resolve_consensus_spec(3, "coder", reg)
+    assert panel == ["coder", "coder", "coder"]  # same persona x3
+    assert judge == "coder"
+
+
+def test_resolve_consensus_int_below_two_is_single():
+    reg = CliAdapterRegistry.from_config({"cli_agents": {"coder": _ag("C")}})
+    assert support.resolve_consensus_spec(1, "coder", reg) is None
+
+
+async def test_param_consensus_self_consensus_runs_n():
+    cfg = {"cli_agents": {"coder": _ag("SOLO")}, "cli_fusion": {"default_cli": "coder"}}
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"consensus": 3})
+    chunks = await _collect(bp.run([{"role": "user", "content": "q"}]))
+    assert _final_content(chunks) == "SOLO:q"  # 3 identical samples -> that answer
+    assert "consensus agent" in _progress_text(chunks)
+
+
+async def test_param_consensus_overrides_config_to_single():
+    cfg = {
+        "cli_agents": {"coder": _ag("SOLO", consensus=True), "b": _ag("B")},
+        "cli_fusion": {"default_cli": "coder"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"cli": "coder", "consensus": False})  # force single despite config
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "SOLO:ping"
+    assert "consensus agent" not in _progress_text(chunks)

@@ -24,6 +24,7 @@ PARAM_WORKDIR = "workdir"    # working directory for the CLI(s)
 PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
 PARAM_FALLBACK = "fallback"  # single-CLI: explicit ordered failover list
 PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
+PARAM_CONSENSUS = "consensus"  # single-CLI: per-request consensus override (bool/int/list/dict)
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:
@@ -152,21 +153,21 @@ def resolve_failover_chain(
     return out
 
 
-def resolve_agent_consensus(
-    cfg, registry: CliAdapterRegistry
+def resolve_consensus_spec(
+    spec: Any, name: str | None, registry: CliAdapterRegistry
 ) -> tuple[list[str], str | None] | None:
-    """If this agent is consensus-designated, resolve (panel_names, judge_name).
+    """Resolve a consensus ``spec`` into (panel_names, judge_name), or None.
 
-    ``cfg.consensus`` may be:
-    * ``True`` — panel of every **available** CLI (the default set);
-    * a list — a **preferred whitelist**; the available members are used, and if
-      *none* of them are available it falls back to the default (all available);
+    ``spec`` may be:
+    * ``True`` — panel of every available CLI (real CLIs, not other designations);
+    * an ``int`` N≥2 — **self-consensus**: the same persona (``name``) run N times;
+    * a list — a preferred **whitelist** that falls back to the default if it
+      matches nothing;
     * a dict ``{"panel": [...], "judge": "<cli>"}`` — explicit (same fallback).
 
-    Returns None when the agent is not consensus-designated. The judge defaults
-    to the agent itself when it is in the panel, else the first panelist.
+    Anything falsy (``None``/``False``/``0``/``[]``) returns None (single call).
+    The judge defaults to the persona when it's in the panel, else the first.
     """
-    spec = getattr(cfg, "consensus", None)
     if not spec:
         return None
 
@@ -185,6 +186,10 @@ def resolve_agent_consensus(
 
     if spec is True:
         panel = list(default_panel)
+    elif isinstance(spec, int) and not isinstance(spec, bool):
+        if spec < 2 or not name:
+            return None  # <2 is just a single call
+        panel = [name] * min(int(spec), 16)  # self-consensus: same persona, N times
     elif isinstance(spec, list):
         preferred = [n for n in spec if n in available_set]
         panel = preferred or list(default_panel)  # whitelist matched nothing -> default
@@ -197,8 +202,15 @@ def resolve_agent_consensus(
         return None
 
     if judge is None:
-        judge = cfg.name if cfg.name in panel else (panel[0] if panel else None)
+        judge = name if name in panel else (panel[0] if panel else None)
     return panel, judge
+
+
+def resolve_agent_consensus(
+    cfg, registry: CliAdapterRegistry
+) -> tuple[list[str], str | None] | None:
+    """Resolve the consensus panel for a configured agent (its ``cfg.consensus``)."""
+    return resolve_consensus_spec(getattr(cfg, "consensus", None), getattr(cfg, "name", None), registry)
 
 
 def apply_overrides(
