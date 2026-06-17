@@ -144,6 +144,48 @@ MODEL_FLAG: dict[str, str] = {
 }
 
 
+# Default capability traits (0..1) per known MODEL, keyed by model id. These
+# refine the per-provider CLI_TRAITS default: a provider runs many models (e.g.
+# gemini flash vs pro) with very different intelligence/speed/cost. Illustrative
+# starting points — users override per-model via config. cost = cheapness.
+MODEL_TRAITS: dict[str, dict[str, float]] = {
+    "gemini-3-pro-preview":   {"intelligence": 0.92, "speed": 0.35, "cost": 0.30},
+    "gemini-3-flash-preview": {"intelligence": 0.62, "speed": 0.95, "cost": 0.92},
+    "claude-opus-4-8":        {"intelligence": 0.98, "speed": 0.45, "cost": 0.20},
+    "claude-sonnet-4-6":      {"intelligence": 0.90, "speed": 0.70, "cost": 0.55},
+    "claude-haiku-4-5":       {"intelligence": 0.70, "speed": 0.92, "cost": 0.85},
+}
+
+
+def model_traits(model: str) -> dict[str, float] | None:
+    """Default capability traits for a known model id, or None if unknown."""
+    t = MODEL_TRAITS.get(model)
+    return dict(t) if t is not None else None
+
+
+def apply_model(entry: dict[str, Any], name: str, model: str) -> dict[str, Any]:
+    """Return a copy of ``entry`` with ``name``'s model flag set to ``model``.
+
+    Replaces an already-pinned model (e.g. opencode's default) rather than
+    duplicating it; a no-op for CLIs with no known model flag.
+    """
+    entry = _deepcopy(entry)
+    flag = MODEL_FLAG.get(name)
+    if flag is None:
+        return entry
+    cmd = list(entry.get("cmd") or [])
+    if flag in cmd:
+        i = cmd.index(flag)
+        if i + 1 < len(cmd):
+            cmd[i + 1] = model
+        else:
+            cmd.append(model)
+    else:
+        cmd += [flag, model]
+    entry["cmd"] = cmd
+    return entry
+
+
 def with_model(name: str, model: str, *, timeout: int | None = None) -> dict[str, Any] | None:
     """A catalog entry for ``name`` pinned to a specific ``model``.
 
@@ -152,21 +194,10 @@ def with_model(name: str, model: str, *, timeout: int | None = None) -> dict[str
     None for an unknown CLI; returns the entry unchanged if the catalog has no
     known model flag for it.
     """
-    entry = catalog_entry(name)
-    if entry is None:
+    base = catalog_entry(name)
+    if base is None:
         return None
-    flag = MODEL_FLAG.get(name)
-    if flag is not None:
-        cmd = list(entry["cmd"])
-        if flag in cmd:  # replace any model already pinned (e.g. opencode's default)
-            i = cmd.index(flag)
-            if i + 1 < len(cmd):
-                cmd[i + 1] = model
-            else:
-                cmd.append(model)
-        else:
-            cmd += [flag, model]
-        entry["cmd"] = cmd
+    entry = apply_model(base, name, model)
     if timeout is not None:
         entry["timeout"] = timeout
     return entry

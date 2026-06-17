@@ -121,9 +121,16 @@ def select_single_cli(
 def candidate_traits(
     config: dict[str, Any] | None, registry: CliAdapterRegistry
 ) -> dict[str, dict[str, Any]]:
-    """Capability traits per *available* CLI: config ``traits`` override catalog
-    defaults. CLIs with neither known traits nor a config block are still
-    included (neutral), so resolution always has candidates when CLIs exist.
+    """Capability traits per resolution candidate for the *available* CLIs.
+
+    Two granularities of candidate, keyed so the result maps back to a runnable
+    target:
+    * ``"<cli>"`` — the provider default (config ``traits`` > catalog
+      ``CLI_TRAITS`` > neutral). All models from that provider inherit it.
+    * ``"<cli>@<model>"`` — a per-model override, for each model the config
+      declares under that CLI's ``models`` block (model ``traits`` > catalog
+      ``MODEL_TRAITS`` > the provider default). Lets gemini-flash and gemini-pro
+      be told apart.
     """
     from swarm.core import cli_catalog
 
@@ -131,8 +138,33 @@ def candidate_traits(
     out: dict[str, dict[str, Any]] = {}
     for name in registry.available():
         entry = cli_agents.get(name) or {}
-        out[name] = entry.get("traits") or cli_catalog.cli_traits(name) or {}
+        provider = entry.get("traits") or cli_catalog.cli_traits(name) or {}
+        out[name] = provider
+        for model_id, mcfg in (entry.get("models") or {}).items():
+            mtraits = (mcfg or {}).get("traits") or cli_catalog.model_traits(model_id) or provider
+            out[f"{name}@{model_id}"] = mtraits
     return out
+
+
+def split_candidate(key: str) -> tuple[str, str | None]:
+    """Split a candidate key into ``(cli, model_or_None)`` (``"cli@model"``)."""
+    cli, sep, model = key.partition("@")
+    return (cli, model) if sep else (cli, None)
+
+
+def resolve_profile_candidate(
+    desired: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    registry: CliAdapterRegistry,
+) -> tuple[str | None, str | None]:
+    """Closest ``(cli, model)`` to the desired profile, or ``(None, None)``."""
+    from swarm.core import inference_profile
+
+    candidates = candidate_traits(config, registry)
+    if not candidates:
+        return (None, None)
+    key = inference_profile.resolve(desired, candidates)
+    return split_candidate(key) if key else (None, None)
 
 
 def resolve_by_profile(
@@ -140,11 +172,8 @@ def resolve_by_profile(
     config: dict[str, Any] | None,
     registry: CliAdapterRegistry,
 ) -> str | None:
-    """Pick the available CLI whose traits best match ``desired``, or None."""
-    from swarm.core import inference_profile
-
-    candidates = candidate_traits(config, registry)
-    return inference_profile.resolve(desired, candidates) if candidates else None
+    """Pick the available CLI (provider granularity) best matching ``desired``."""
+    return resolve_profile_candidate(desired, config, registry)[0]
 
 
 def resolve_panel(

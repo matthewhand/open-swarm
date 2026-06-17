@@ -152,6 +152,47 @@ async def test_blueprint_selects_cli_by_profile_param():
     assert _final_content(chunks) == "SPEEDY: x"
 
 
+def _per_model_config() -> dict:
+    # One provider with two declared models carrying opposite traits.
+    return {
+        "cli_agents": {
+            "gem": {
+                "cmd": [PY, "-c", "import sys; print('GEM: ' + sys.argv[1])", "{prompt}"],
+                "parse": "text",
+                "traits": {"intelligence": 0.6, "speed": 0.95, "cost": 0.92},
+                "models": {
+                    "pro": {"traits": {"intelligence": 0.95, "speed": 0.30, "cost": 0.20}},
+                    "flash": {"traits": {"intelligence": 0.60, "speed": 0.95, "cost": 0.92}},
+                },
+            }
+        }
+    }
+
+
+def test_resolve_profile_candidate_picks_per_model():
+    cfg = _per_model_config()
+    reg = support.build_registry(cfg)
+    # deep reasoning -> the pro model (per-model override beats provider default)
+    assert support.resolve_profile_candidate({"intelligence": 1.0}, cfg, reg) == ("gem", "pro")
+    # fast/cheap -> provider/flash granularity (same traits); cli is gem either way
+    cli, _model = support.resolve_profile_candidate({"speed": 1.0, "cost": 1.0}, cfg, reg)
+    assert cli == "gem"
+
+
+def test_split_candidate():
+    assert support.split_candidate("gemini@pro") == ("gemini", "pro")
+    assert support.split_candidate("grok") == ("grok", None)
+
+
+async def test_blueprint_announces_resolved_model():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_per_model_config())
+    bp.set_params({"profile": {"intelligence": 1.0}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    # ran the resolved provider and announced the per-model pick
+    assert _final_content(chunks) == "GEM: x"
+    assert any("model `pro`" in str(c) for c in chunks)
+
+
 async def test_default_cli_outranks_profile():
     # An explicit default_cli is a deliberate global choice; it beats a profile.
     cfg = _traited_config()
