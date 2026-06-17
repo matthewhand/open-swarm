@@ -383,3 +383,17 @@ export function fetchServerSettings(): Promise<ServerSettingsResponse> {
 export function fetchEnvironmentVariables(): Promise<EnvironmentVariablesResponse> {
   return apiGet<EnvironmentVariablesResponse>('/settings/environment/')
 }
+
+/** GET /v1/blueprints/<id>/source — read-only blueprint source (file list + content). */
+export interface BlueprintSource {
+  id: string
+  files: { name: string; path: string }[]
+  primary: string | null
+  selected: string | null
+  content: string
+}
+
+export function fetchBlueprintSource(id: string, file?: string): Promise<BlueprintSource> {
+  const q = file ? `?file=${encodeURIComponent(file)}` : ''
+  return apiGet<BlueprintSource>(`/v1/blueprints/${encodeURIComponent(id)}/source${q}`)
+}

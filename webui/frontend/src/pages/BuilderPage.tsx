@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import CodeMirror from '@uiw/react-codemirror'
+import { python } from '@codemirror/lang-python'
 import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI'
-import { Wrench, Cpu, Sparkles, FileCode, FolderTree } from 'lucide-react'
-import { fetchBlueprints, type Blueprint } from '../lib/api'
+import { Wrench, Cpu, Sparkles, FileCode, FileText } from 'lucide-react'
+import { fetchBlueprints, fetchBlueprintSource, type Blueprint } from '../lib/api'
 
 /**
  * Which CLIs have a built-in "best-of-N" consensus mode. Mirrors the backend
@@ -78,7 +80,14 @@ export default function BuilderPage() {
   const blueprints: Blueprint[] = data?.data ?? []
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [cli, setCli] = useState<string>('grok')
+  const [openFile, setOpenFile] = useState<string | null>(null)
   const selected = blueprints.find((b) => b.id === selectedId) ?? blueprints[0]
+
+  const source = useQuery({
+    queryKey: ['bp-source', selected?.id, openFile],
+    queryFn: () => fetchBlueprintSource(selected!.id, openFile ?? undefined),
+    enabled: !!selected,
+  })
 
   return (
     <div>
@@ -102,7 +111,10 @@ export default function BuilderPage() {
                 <li key={b.id}>
                   <button
                     className={b.id === selected?.id ? 'active' : ''}
-                    onClick={() => setSelectedId(b.id)}
+                    onClick={() => {
+                      setSelectedId(b.id)
+                      setOpenFile(null)
+                    }}
                   >
                     {b.name || b.id}
                   </button>
@@ -147,13 +159,43 @@ export default function BuilderPage() {
 
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
-                <FileCode className="h-5 w-5" /> Code <span className="text-xs text-gray-400">(coming next)</span>
+                <FileCode className="h-5 w-5" /> Source
+                {source.data?.selected && (
+                  <code className="text-xs font-normal text-gray-500">{source.data.selected}</code>
+                )}
               </h2>
-              <p className="text-sm text-gray-500">
-                <FolderTree className="mr-1 inline h-4 w-4" />
-                A CodeMirror editor for the primary blueprint file + a file browser for auxiliary
-                files lands in the next increment.
-              </p>
+              {source.isPending && <LoadingSpinner size="sm" />}
+              {source.isError && (
+                <Alert type="warning">Source unavailable for this blueprint.</Alert>
+              )}
+              {source.data && (
+                <div className="grid gap-3 md:grid-cols-[180px_1fr]">
+                  {/* file browser */}
+                  <ul className="menu menu-xs rounded-box bg-base-200 px-1">
+                    {source.data.files.map((f) => (
+                      <li key={f.path}>
+                        <button
+                          className={f.name === source.data!.selected ? 'active' : ''}
+                          onClick={() => setOpenFile(f.name)}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          {f.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {/* pretty-printed, read-only editor */}
+                  <div className="overflow-hidden rounded-lg border border-base-300">
+                    <CodeMirror
+                      value={source.data.content}
+                      height="420px"
+                      extensions={[python()]}
+                      editable={false}
+                      basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: false }}
+                    />
+                  </div>
+                </div>
+              )}
             </Card>
           </div>
         </div>
