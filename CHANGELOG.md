@@ -9,6 +9,15 @@ All notable changes to this project will be documented in this file.
 - Bundled skills: `conventional-commit`, `reviewing-code`, `writing-changelog`, and `counting-lines` (ships an executable `count.py`).
 - Verified live across gemini + `claude -p` + grok: skill portability (3/3) and bundled-asset tool calling (2/2). See `docs/examples/`.
 
+### Added — Inference profiles (decouple blueprints from models)
+- A blueprint can declare *what kind of thinking it wants* — `intelligence`, `speed`, `cost` as 0–1 priorities (`inference_profile`) — instead of naming a CLI. Backends carry capability traits (defaults in `cli_catalog.CLI_TRAITS`, overridable per-agent via a `traits` block); the best match is chosen by a weighted dot product. Opt-in `profile=` param; precedence: explicit `cli` > `profile` > `default_cli`. Live routing verified (deep-reasoning → claude, fast&cheap → gemini). See `docs/examples/inference-profile-routing.md`.
+
+### Added — Tool capabilities (decouple blueprints from MCP providers)
+- A blueprint can declare an abstract tool capability and whether it's mandatory/optional (`tool_requirements`) instead of naming a server. `swarm.core.tool_capabilities` resolves each capability to a configured MCP provider, **preferring non-auth providers**; unmet optional needs never block. `suggest_mcp_config()` emits a ready-to-paste, keyless `mcpServers` block (duckduckgo/fetch/filesystem/…). See `docs/examples/tool-capabilities.md`.
+
+### Added — Docs
+- Illustrated [Skills & Consensus walkthrough](docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) with regenerable terminal screenshots; `docs/CLI_FUSION.md` Skills + Inference-profiles sections; README Core Concepts bullets.
+
 ## [0.4.11] - 2026-06-17
 
 ### Fixed — accessibility best-practice (web UI)
