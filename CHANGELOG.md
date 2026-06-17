@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.7] - 2026-06-17
+
+### Changed — Blueprint Builder polish
+- Builder added to the mobile dock nav; agent/model config gains a **Download** button (client-side JSON); CodeMirror editor follows the app **dark/light theme**; dark mode verified across the page.
+
 ## [0.4.6] - 2026-06-17
 
 ### Added — Blueprint Builder web UI
