@@ -282,6 +282,7 @@ class CliFusionBlueprint(BlueprintBase):
                 yield support.message_chunk(
                     self._format_final(params, answer, analysis, ok_results, rounds=round_i + 1),
                     final=True,
+                    meta=support.backend_meta([r.name for r in ok_results], judge_name),
                 )
                 return
 

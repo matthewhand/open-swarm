@@ -134,6 +134,27 @@ def usage_counts(messages: list[dict[str, Any]] | None, answer: Any, model: str)
     return prompt, completion, prompt + completion
 
 
+def backend_fingerprint(model_name: str, meta: dict[str, Any] | None) -> str:
+    """Build ``system_fingerprint`` naming the resolved CLI backends + judge.
+
+    A blueprint may yield a ``meta`` side-channel (see
+    ``cli_fusion_support.backend_meta``) on its final chunk. We render it as e.g.
+    ``cli_fusion:gemini+claude+grok|judge=claude`` so any OpenAI client can read
+    ``resp.system_fingerprint`` to see which CLI(s) actually answered. Falls back
+    to the blueprint id when a blueprint emits no backend meta.
+    """
+    if not isinstance(meta, dict):
+        return model_name
+    fp = model_name
+    backends = [str(b) for b in (meta.get("backends") or []) if b]
+    if backends:
+        fp += ":" + "+".join(backends)
+    judge = meta.get("judge")
+    if judge:
+        fp += f"|judge={judge}"
+    return fp
+
+
 class HealthCheckView(APIView):
     """ Simple health check endpoint. """
     permission_classes = [AllowAny]
@@ -158,6 +179,7 @@ class ChatCompletionsView(APIView):
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
         final_message = None
+        backend_meta = None
         start_time = time.time()
         try:
             # The blueprint's run method should be an async generator. Blueprints
@@ -168,6 +190,8 @@ class ChatCompletionsView(APIView):
             # short-circuit the scan.
             async_generator = blueprint_instance.run(messages, stream=False)
             async for chunk in async_generator:
+                if isinstance(chunk, dict) and chunk.get("meta"):
+                    backend_meta = chunk["meta"]  # which CLI(s) answered (system_fingerprint)
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     logger.debug(f"[ReqID: {request_id}] Skipping non-message chunk during non-streaming run: {chunk}")
@@ -182,7 +206,7 @@ class ChatCompletionsView(APIView):
                  raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             p_tok, c_tok, t_tok = usage_counts(messages, final_message.get("content"), model_name)
-            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": p_tok, "completion_tokens": c_tok, "total_tokens": t_tok}, "system_fingerprint": None }
+            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": p_tok, "completion_tokens": c_tok, "total_tokens": t_tok}, "system_fingerprint": backend_fingerprint(model_name, backend_meta) }
             end_time = time.time()
             logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)
@@ -198,18 +222,21 @@ class ChatCompletionsView(APIView):
         async def event_stream():
             start_time = time.time()
             chunk_index = 0
+            backend_meta = None
             try:
                 logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()...")
                 async_generator = blueprint_instance.run(messages, stream=True)
                 logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
+                    if isinstance(chunk, dict) and chunk.get("meta"):
+                        backend_meta = chunk["meta"]  # which CLI(s) answered
                     message = _extract_message_from_chunk(chunk)
                     if message is None:
                         logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}")
                         continue
                     delta = {"role": "assistant", "content": message["content"]}
-                    response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
+                    response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}], "system_fingerprint": backend_fingerprint(model_name, backend_meta) }
                     logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}")
                     yield f"data: {json.dumps(response_chunk)}\n\n"
                     chunk_index += 1

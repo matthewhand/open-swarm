@@ -323,12 +323,29 @@ def apply_overrides(
 
 # --- Chunk helpers (match what swarm.views.chat_views expects to consume) --- #
 
-def message_chunk(content: str, *, final: bool = False, role: str = "assistant") -> dict:
-    """A content-bearing chunk. ``final=True`` lets the API short-circuit."""
+def message_chunk(
+    content: str, *, final: bool = False, role: str = "assistant", meta: dict[str, Any] | None = None
+) -> dict:
+    """A content-bearing chunk. ``final=True`` lets the API short-circuit.
+
+    ``meta`` (e.g. ``{"backends": ["gemini", "claude"], "judge": "claude"}``) is a
+    side-channel the API view reads to populate ``system_fingerprint`` — which
+    CLI(s) actually answered. It is not part of the message content.
+    """
     chunk: dict[str, Any] = {"messages": [{"role": role, "content": content}]}
     if final:
         chunk["final"] = True
+    if meta:
+        chunk["meta"] = meta
     return chunk
+
+
+def backend_meta(backends: list[str], judge: str | None = None) -> dict[str, Any]:
+    """Build the ``meta`` payload naming the resolved CLI backends (+ optional judge)."""
+    meta: dict[str, Any] = {"backends": [b for b in backends if b]}
+    if judge:
+        meta["judge"] = judge
+    return meta
 
 
 #: Chunk ``type`` for fusion progress side-channel events.
