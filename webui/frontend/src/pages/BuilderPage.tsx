@@ -234,21 +234,25 @@ export default function BuilderPage() {
               {source.isPending && <LoadingSpinner size="sm" />}
               {source.isError && <Alert type="warning">Source unavailable for this blueprint.</Alert>}
               {source.data && (
-                <div className="grid gap-3 md:grid-cols-[180px_1fr]">
-                  <ul className="menu menu-xs rounded-box bg-base-200 px-1">
-                    {source.data.files.map((f) => (
-                      <li key={f.path}>
-                        <button
-                          className={f.name === source.data!.selected ? 'active' : ''}
-                          aria-current={f.name === source.data!.selected ? 'true' : undefined}
-                          onClick={() => setOpenFile(f.name)}
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          {f.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                // Show the file browser only when there's more than one file;
+                // otherwise the editor takes the full width (no lonely 1-item list).
+                <div className={source.data.files.length > 1 ? 'grid gap-3 md:grid-cols-[180px_1fr]' : ''}>
+                  {source.data.files.length > 1 && (
+                    <ul className="menu menu-xs rounded-box bg-base-200 px-1" aria-label="Blueprint files">
+                      {source.data.files.map((f) => (
+                        <li key={f.path}>
+                          <button
+                            className={f.name === source.data!.selected ? 'active' : ''}
+                            aria-current={f.name === source.data!.selected ? 'true' : undefined}
+                            onClick={() => setOpenFile(f.name)}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            {f.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="overflow-hidden rounded-lg border border-base-300">
                     <Suspense fallback={<div className="p-4"><LoadingSpinner size="sm" /></div>}>
                       <CodeViewer value={source.data.content} />
