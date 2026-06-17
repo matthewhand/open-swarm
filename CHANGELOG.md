@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.11] - 2026-06-17
+
+### Fixed — accessibility best-practice (web UI)
+- A deeper axe pass with the **full** ruleset (not just WCAG2 A/AA) surfaced best-practice violations the scoped run missed, now all fixed:
+  - `landmark-one-main` / `region`: page content is wrapped in a single `<main>` so every region sits inside a landmark.
+  - `page-has-heading-one`: the Dashboard had no `<h1>` — added one.
+  - `heading-order`: Blueprints/Teams card titles jumped from `<h1>` to `<h3>`; demoted to `<h2>`.
+- Adds reusable `webui/frontend/scripts/a11y-audit.mjs` (full ruleset, 7 routes × light/dark × desktop/mobile). **0 violations across all 28 combinations.**
+
+### Added — CLI permutation proof
+- `scripts/prove_cli_permutations.py` exercises every installed CLI through every framework mode (cli_agent, cli_fusion panel, cli_orchestrator, cli_map, self-consensus ×2, native best-of-n). Verified live: **12/12 permutations PASS** across claude + gemini + grok + opencode.
+
 ## [0.4.10] - 2026-06-17
 
 ### Changed — Builder visual polish

@@ -145,7 +145,7 @@ const TeamsPageContent = () => {
             <Card key={team.id} bordered className="hover:shadow-lg transition-shadow">
               <div className="card-body">
                 <div className="flex justify-between items-start gap-2 mb-2">
-                  <h3 className="card-title font-mono text-lg">{team.id}</h3>
+                  <h2 className="card-title font-mono text-lg">{team.id}</h2>
                   <Badge type="info" size="sm">
                     {team.llm_profile}
                   </Badge>
@@ -187,7 +187,7 @@ const TeamsPageContent = () => {
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-base-content/60" />
           </div>
-          <h3 className="text-xl font-semibold mb-2">No teams yet</h3>
+          <h2 className="text-xl font-semibold mb-2">No teams yet</h2>
           <p className="text-base-content/70 mb-4">
             No dynamic teams are registered on this server.
           </p>

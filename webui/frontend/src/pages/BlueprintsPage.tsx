@@ -178,7 +178,7 @@ const BlueprintsPageContent = () => {
                       WhiskeyTangoFoxtrotBlueprint) must not push the badge
                       outside the card / widen the page on small screens. */}
                   <div className="flex flex-wrap justify-between items-start gap-2">
-                    <h3 className="card-title text-base leading-snug min-w-0 break-words">{blueprint.name}</h3>
+                    <h2 className="card-title text-base leading-snug min-w-0 break-words">{blueprint.name}</h2>
                     <span className="badge badge-neutral badge-sm font-mono shrink-0">
                       {blueprint.abbreviation || blueprint.id}
                     </span>
@@ -262,7 +262,7 @@ const BlueprintsPageContent = () => {
           <div className="mb-4">
             <Book className="h-16 w-16 mx-auto text-base-content/70" />
           </div>
-          <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
+          <h2 className="text-xl font-semibold mb-2">No blueprints found</h2>
           <p className="text-base-content/70 mb-4">
             {searchTerm || libraryOnly
               ? 'No blueprints match your search criteria'

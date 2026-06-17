@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-swarm"
-version = "0.4.10"
+version = "0.4.11"
 description = "Open Swarm: Orchestrating AI Agent Swarms with Django"
 readme = "README.md"
 requires-python = ">=3.10"
