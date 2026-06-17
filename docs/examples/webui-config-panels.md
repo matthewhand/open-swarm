@@ -26,3 +26,31 @@ any OpenAI-compatible call.
 - axe full-ruleset audit: **0 violations** across builder light/dark, desktop/mobile.
 
 _(Panels 2 (tool capabilities/MCP) and 3 (skills picker) follow.)_
+
+## Panel 2 — Tool capabilities / MCP
+
+Declare abstract capabilities (off / optional / mandatory) and pick MCP
+providers. Non-auth servers are surfaced first with a green "no key" badge;
+`brave-search` is opt-in with a key badge. The panel live-resolves each required
+capability to a provider (non-auth preferred) and emits `mcpServers` +
+`tool_requirements`.
+
+![Tool capabilities panel](../screenshots/webui/tool-capabilities-dark.png)
+
+Example above: `web_search` (mandatory) → `duckduckgo`, `browser` (optional) →
+`playwright` — both non-auth, runnable with no API key.
+
+**Verification**
+- Pure resolver `src/lib/toolCapabilities.ts` unit-tested (6 cases: non-auth
+  preference, missing mandatory, optional skip, auth-key gating, suggestion,
+  config emission). 32 vitest tests pass; `tsc` clean; build OK.
+- axe full-ruleset audit: **0 violations**, now stable across runs.
+
+### Fixed: a11y-audit theme-forcing (item 4)
+
+The audit set `data-theme` only on existing `[data-theme]` nodes, leaving a
+white `<body>`; axe then saw dark text on white and reported false
+`color-contrast` failures that flaked between desktop/mobile dark. Fixed by
+seeding the theme via `addInitScript` before load and setting `data-theme` on
+`<html>`, plus waiting for a real selector instead of `networkidle`. Result: 0
+violations, deterministic across repeated runs.

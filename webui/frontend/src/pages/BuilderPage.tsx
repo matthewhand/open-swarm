@@ -11,6 +11,7 @@ import {
   type CliAgentsInfo,
 } from '../lib/api'
 import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
+import { ToolCapabilitiesPanel } from '../components/ToolCapabilitiesPanel'
 
 const CodeViewer = lazy(() => import('../components/CodeViewer'))
 
@@ -228,6 +229,8 @@ export default function BuilderPage() {
             <AgentConfigBuilder info={cliAgents.data} />
 
             <InferenceProfilePanel info={configOptions.data} />
+
+            <ToolCapabilitiesPanel info={configOptions.data} />
 
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
