@@ -26,6 +26,7 @@ PARAM_FALLBACK = "fallback"  # single-CLI: explicit ordered failover list
 PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
 PARAM_CONSENSUS = "consensus"  # single-CLI: per-request consensus override (bool/int/list/dict)
 PARAM_SKILL = "skill"        # apply a named skill's instructions to the prompt
+PARAM_PROFILE = "profile"    # desired inference traits {intelligence,speed,cost} 0..1
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:
@@ -97,6 +98,15 @@ def select_single_cli(
     requested = params.get(PARAM_CLI)
     if requested:
         return requested
+    # Inference-profile match: a blueprint (or request) can declare *desired*
+    # traits instead of naming a CLI; resolve to the best-matching available one.
+    # Opt-in — only engages when a profile is present — so it never disturbs the
+    # explicit ``default_cli`` path for blueprints that don't use it.
+    desired = params.get(PARAM_PROFILE) or _fusion_config(config).get("profile")
+    if desired:
+        picked = resolve_by_profile(desired, config, registry)
+        if picked:
+            return picked
     default = _fusion_config(config).get("default_cli")
     if default:
         return default
@@ -105,6 +115,35 @@ def select_single_cli(
         return available[0]
     names = registry.names()
     return names[0] if names else None
+
+
+def candidate_traits(
+    config: dict[str, Any] | None, registry: CliAdapterRegistry
+) -> dict[str, dict[str, Any]]:
+    """Capability traits per *available* CLI: config ``traits`` override catalog
+    defaults. CLIs with neither known traits nor a config block are still
+    included (neutral), so resolution always has candidates when CLIs exist.
+    """
+    from swarm.core import cli_catalog
+
+    cli_agents = (config or {}).get("cli_agents") or {}
+    out: dict[str, dict[str, Any]] = {}
+    for name in registry.available():
+        entry = cli_agents.get(name) or {}
+        out[name] = entry.get("traits") or cli_catalog.cli_traits(name) or {}
+    return out
+
+
+def resolve_by_profile(
+    desired: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    registry: CliAdapterRegistry,
+) -> str | None:
+    """Pick the available CLI whose traits best match ``desired``, or None."""
+    from swarm.core import inference_profile
+
+    candidates = candidate_traits(config, registry)
+    return inference_profile.resolve(desired, candidates) if candidates else None
 
 
 def resolve_panel(

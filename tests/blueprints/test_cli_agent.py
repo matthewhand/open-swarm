@@ -123,6 +123,51 @@ async def test_blueprint_unknown_skill_warns_and_runs_bare():
     assert any("not found" in str(c) for c in chunks)
 
 
+def _traited_config() -> dict:
+    # Two always-available echo agents with opposite capability traits.
+    return {
+        "cli_agents": {
+            "brainy": {
+                "cmd": [PY, "-c", "import sys; print('BRAINY: ' + sys.argv[1])", "{prompt}"],
+                "parse": "text",
+                "traits": {"intelligence": 0.95, "speed": 0.2, "cost": 0.2},
+            },
+            "speedy": {
+                "cmd": [PY, "-c", "import sys; print('SPEEDY: ' + sys.argv[1])", "{prompt}"],
+                "parse": "text",
+                "traits": {"intelligence": 0.3, "speed": 0.95, "cost": 0.95},
+            },
+        }
+    }
+
+
+async def test_blueprint_selects_cli_by_profile_param():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
+    bp.set_params({"profile": {"intelligence": 1, "speed": 0, "cost": 0}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "BRAINY: x"
+
+    bp.set_params({"profile": {"intelligence": 0, "speed": 1, "cost": 1}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
+async def test_explicit_cli_param_overrides_profile():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
+    # Profile wants intelligence (brainy) but an explicit cli wins.
+    bp.set_params({"cli": "speedy", "profile": {"intelligence": 1}, "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
+async def test_blueprint_metadata_profile_drives_selection(monkeypatch):
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_traited_config())
+    # A blueprint that *declares* it wants fast/cheap inference in its metadata.
+    monkeypatch.setitem(bp.metadata, "inference_profile", {"intelligence": 0, "speed": 1, "cost": 1})
+    chunks = await _collect(bp.run([{"role": "user", "content": "x"}]))
+    assert _final_content(chunks) == "SPEEDY: x"
+
+
 async def test_blueprint_stages_skill_assets_into_workdir(tmp_path):
     # The bundled counting-lines skill ships count.py; running with a workdir
     # must stage it so a write-mode CLI could execute it.

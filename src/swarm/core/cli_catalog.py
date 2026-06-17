@@ -87,6 +87,26 @@ NATIVE_CONSENSUS: dict[str, list[str]] = {
 }
 
 
+# Default capability traits (0..1) per known CLI for inference-profile matching
+# (see swarm.core.inference_profile). These are sensible starting points the
+# USER is expected to tune for their own plans/models via a per-agent ``traits``
+# block in config — e.g. someone on a top grok plan may rate it 1.0 intelligence.
+# cost = cheapness (1.0 = cheapest). gemini defaults to its fast/cheap flash tier.
+CLI_TRAITS: dict[str, dict[str, float]] = {
+    "grok":     {"intelligence": 0.90, "speed": 0.60, "cost": 0.55},
+    "claude":   {"intelligence": 0.95, "speed": 0.55, "cost": 0.35},
+    "gemini":   {"intelligence": 0.60, "speed": 0.92, "cost": 0.90},
+    "codex":    {"intelligence": 0.75, "speed": 0.60, "cost": 0.50},
+    "opencode": {"intelligence": 0.55, "speed": 0.65, "cost": 0.75},
+}
+
+
+def cli_traits(name: str) -> dict[str, float] | None:
+    """Default capability traits for a known CLI, or None if unknown."""
+    t = CLI_TRAITS.get(name)
+    return dict(t) if t is not None else None
+
+
 def has_native_consensus(name: str) -> bool:
     """True when this CLI has a built-in consensus/heavy mode the catalog knows."""
     return name in NATIVE_CONSENSUS

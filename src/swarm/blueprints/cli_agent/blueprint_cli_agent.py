@@ -54,6 +54,14 @@ class CliAgentBlueprint(BlueprintBase):
         # mutated by a concurrent request across await points.
         params = dict(self._params)
 
+        # A blueprint can declare desired inference traits in its metadata
+        # ("inference_profile") instead of naming a CLI; honor it unless the
+        # request explicitly set a cli or its own profile.
+        if support.PARAM_CLI not in params and support.PARAM_PROFILE not in params:
+            bp_profile = self.metadata.get("inference_profile")
+            if bp_profile:
+                params[support.PARAM_PROFILE] = bp_profile
+
         prompt = support.render_prompt(messages)
         if not prompt:
             yield support.message_chunk("No prompt provided.", final=True)
