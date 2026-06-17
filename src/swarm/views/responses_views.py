@@ -251,7 +251,7 @@ class ResponsesView(APIView):
             logger.error(f"[ReqID: {request_id}] Unexpected error during /v1/responses generation: {e}", exc_info=True)
             raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
-        payload = _build_response_payload(request_id, model_name, answer, previous_response_id)
+        payload = _build_response_payload(request_id, model_name, answer, previous_response_id, messages)
         if store:
             await sync_to_async(_persist)(payload, messages, answer)
         return Response(payload, status=status.HTTP_200_OK)
@@ -281,7 +281,7 @@ class ResponsesView(APIView):
                     await asyncio.sleep(0.01)
 
                 final_text = "".join(full_text_parts)
-                payload = _build_response_payload(request_id, model_name, final_text, previous_response_id)
+                payload = _build_response_payload(request_id, model_name, final_text, previous_response_id, messages)
                 if store:
                     await sync_to_async(_persist)(payload, messages, final_text)
                 completed = {"type": "response.completed", "response": payload}
@@ -297,9 +297,16 @@ class ResponsesView(APIView):
 
 
 def _build_response_payload(
-    request_id: str, model_name: str, answer: str, previous_response_id: str | None = None
+    request_id: str,
+    model_name: str,
+    answer: str,
+    previous_response_id: str | None = None,
+    messages: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Shape an OpenAI Responses-style ``response`` object."""
+    from .chat_views import usage_counts
+
+    input_tok, output_tok, total_tok = usage_counts(messages, answer, model_name)
     return {
         "id": f"resp_{request_id}",
         "object": "response",
@@ -316,7 +323,7 @@ def _build_response_payload(
             }
         ],
         "output_text": answer,
-        "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        "usage": {"input_tokens": input_tok, "output_tokens": output_tok, "total_tokens": total_tok},
     }
 
 
