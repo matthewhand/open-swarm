@@ -202,7 +202,7 @@ def resolve_mcp_servers(
     configured = (config or {}).get("mcpServers") or {}
     servers: dict[str, dict[str, Any]] = {}
 
-    for cap, name in res.satisfied.items():
+    for name in res.satisfied.values():
         entry = configured.get(name)
         if entry:
             servers[name] = dict(entry)
