@@ -175,13 +175,16 @@ class CliMapBlueprint(BlueprintBase):
 
         # 3. Reduce — a reducer CLI combines, else labeled concatenation.
         block = "\n\n".join(f"### Subtask: {s}\n_(by {w})_\n{r.text}" for s, w, r in ok)
+        worker_names = list(dict.fromkeys(w for _s, w, _r in ok))  # unique, order-preserving
         if reducer:
             yield support.progress_chunk(f"_Reducing {len(ok)} result(s) with `{reducer}`…_")
             rres = await registry.get(reducer).run(
                 REDUCE_TEMPLATE.format(prompt=prompt, results=block), workdir=workdir
             )
             if rres.ok and rres.text.strip():
-                yield support.message_chunk(rres.text, final=True)
+                yield support.message_chunk(
+                    rres.text, final=True, meta=support.backend_meta(worker_names, judge=reducer)
+                )
                 return
             yield support.progress_chunk(f"_Reducer failed ({rres.error}); returning subtask results._")
-        yield support.message_chunk(block, final=True)
+        yield support.message_chunk(block, final=True, meta=support.backend_meta(worker_names))

@@ -201,14 +201,16 @@ class CliPlannerBlueprint(BlueprintBase):
             return
 
         # 4. Synthesize — prefer the planner's last synthesis, else a final synth call.
+        worker_names = list(dict.fromkeys(w for _s, w, _r in completed))  # unique, order-preserving
+        meta = support.backend_meta(worker_names, judge=planner)
         if synthesis:
-            yield support.message_chunk(synthesis, final=True)
+            yield support.message_chunk(synthesis, final=True, meta=meta)
             return
         yield support.progress_chunk(f"_Synthesizing final answer with `{planner}`…_")
         sres = await registry.get(planner).run(
             SYNTH_TEMPLATE.format(goal=goal, completed=self._completed_block(completed)), workdir=workdir
         )
         if sres.ok and sres.text.strip():
-            yield support.message_chunk(sres.text, final=True)
+            yield support.message_chunk(sres.text, final=True, meta=meta)
             return
-        yield support.message_chunk(self._completed_block(completed), final=True)
+        yield support.message_chunk(self._completed_block(completed), final=True, meta=meta)

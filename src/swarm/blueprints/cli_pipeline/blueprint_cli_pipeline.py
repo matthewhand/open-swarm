@@ -124,6 +124,7 @@ class CliPipelineBlueprint(BlueprintBase):
         yield support.progress_chunk(f"_Pipeline of {len(stages)} stage(s): {names}…_")
 
         draft: str | None = None
+        contributed: list[str] = []  # stages that actually shaped the output
         for i, (name, instruction) in enumerate(stages):
             adapter = registry.get(name)
             if draft is None:
@@ -140,6 +141,7 @@ class CliPipelineBlueprint(BlueprintBase):
             res = await adapter.run(stage_prompt, workdir=workdir)
             if res.ok and res.text.strip():
                 draft = res.text
+                contributed.append(name)
             else:
                 # Skip a failed stage; the last good draft carries forward.
                 yield support.progress_chunk(
@@ -149,4 +151,4 @@ class CliPipelineBlueprint(BlueprintBase):
         if draft is None:
             yield support.message_chunk("Every pipeline stage failed.", final=True)
             return
-        yield support.message_chunk(draft, final=True)
+        yield support.message_chunk(draft, final=True, meta=support.backend_meta(contributed))

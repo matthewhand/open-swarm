@@ -141,7 +141,9 @@ class CliAgentBlueprint(BlueprintBase):
                 if not r.ok:
                     yield support.progress_chunk(f"_• {r.name} failed: {r.error}_")
             yield support.message_chunk(
-                cons.answer or "All consensus panelists failed.", final=True
+                cons.answer or "All consensus panelists failed.",
+                final=True,
+                meta=support.backend_meta([r.name for r in cons.ok_results], judge_name),
             )
             return
 
@@ -180,7 +182,7 @@ class CliAgentBlueprint(BlueprintBase):
             if result.ok:
                 if result.parse_error:
                     logger.warning("CLI %s parse issue: %s", name, result.parse_error)
-                yield support.message_chunk(result.text, final=True)
+                yield support.message_chunk(result.text, final=True, meta=support.backend_meta([name]))
                 return
             last = (name, result.error or "unknown error")
             yield support.progress_chunk(f"_`{name}` failed: {last[1]} — failing over…_")

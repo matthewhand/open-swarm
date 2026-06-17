@@ -230,9 +230,12 @@ class ResponsesView(APIView):
     async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
         """Consume the blueprint generator, keep the last message, shape a response object."""
         final_message = None
+        backend_meta = None
         try:
             async_generator = blueprint_instance.run(messages, stream=False)
             async for chunk in async_generator:
+                if isinstance(chunk, dict) and chunk.get("meta"):
+                    backend_meta = chunk["meta"]  # which CLI(s) answered (system_fingerprint)
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     continue
@@ -251,7 +254,7 @@ class ResponsesView(APIView):
             logger.error(f"[ReqID: {request_id}] Unexpected error during /v1/responses generation: {e}", exc_info=True)
             raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
 
-        payload = _build_response_payload(request_id, model_name, answer, previous_response_id, messages)
+        payload = _build_response_payload(request_id, model_name, answer, previous_response_id, messages, backend_meta)
         if store:
             await sync_to_async(_persist)(payload, messages, answer)
         return Response(payload, status=status.HTTP_200_OK)
@@ -262,9 +265,12 @@ class ResponsesView(APIView):
 
         async def event_stream():
             full_text_parts: list[str] = []
+            backend_meta = None
             try:
                 async_generator = blueprint_instance.run(messages, stream=True)
                 async for chunk in async_generator:
+                    if isinstance(chunk, dict) and chunk.get("meta"):
+                        backend_meta = chunk["meta"]
                     message = _extract_message_from_chunk(chunk)
                     if message is None:
                         continue
@@ -281,7 +287,7 @@ class ResponsesView(APIView):
                     await asyncio.sleep(0.01)
 
                 final_text = "".join(full_text_parts)
-                payload = _build_response_payload(request_id, model_name, final_text, previous_response_id, messages)
+                payload = _build_response_payload(request_id, model_name, final_text, previous_response_id, messages, backend_meta)
                 if store:
                     await sync_to_async(_persist)(payload, messages, final_text)
                 completed = {"type": "response.completed", "response": payload}
@@ -302,9 +308,10 @@ def _build_response_payload(
     answer: str,
     previous_response_id: str | None = None,
     messages: list[dict[str, str]] | None = None,
+    backend_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Shape an OpenAI Responses-style ``response`` object."""
-    from .chat_views import usage_counts
+    from .chat_views import backend_fingerprint, usage_counts
 
     input_tok, output_tok, total_tok = usage_counts(messages, answer, model_name)
     return {
@@ -314,6 +321,8 @@ def _build_response_payload(
         "model": model_name,
         "status": "completed",
         "previous_response_id": previous_response_id,
+        # Which CLI(s) answered — mirrors chat.completion's system_fingerprint.
+        "system_fingerprint": backend_fingerprint(model_name, backend_meta),
         "output": [
             {
                 "type": "message",

@@ -184,12 +184,15 @@ class CliRoundtableBlueprint(BlueprintBase):
                 if isinstance(nxt, str) and nxt.strip():
                     transcript = f"{transcript}\n\n[moderator] Focus next on: {nxt.strip()}"
 
+        debater_names = [name for name, _ in last_positions]
         if synthesis:
-            yield support.message_chunk(synthesis, final=True)
+            yield support.message_chunk(
+                synthesis, final=True, meta=support.backend_meta(debater_names, judge=moderator)
+            )
             return
         # No moderator synthesis — return the final round's positions, labeled.
         if last_positions:
             block = "\n\n".join(f"### {name}\n{text}" for name, text in last_positions)
-            yield support.message_chunk(block, final=True)
+            yield support.message_chunk(block, final=True, meta=support.backend_meta(debater_names))
             return
         yield support.message_chunk("The roundtable produced no positions.", final=True)

@@ -120,7 +120,7 @@ class CliOrchestratorBlueprint(BlueprintBase):
         # 2. Resolve directly unless the router escalated (and a panel exists).
         if rres.ok and not escalate:
             yield support.progress_chunk(f"_Resolved directly — no consensus needed ({reason or 'low-stakes'})._")
-            yield support.message_chunk(quick, final=True)
+            yield support.message_chunk(quick, final=True, meta=support.backend_meta([router]))
             return
         if not panel_names:
             yield support.message_chunk(
@@ -143,4 +143,6 @@ class CliOrchestratorBlueprint(BlueprintBase):
         if not cons.ok:
             yield support.message_chunk(quick or "All consensus panelists failed.", final=True)
             return
-        yield support.message_chunk(cons.answer, final=True)
+        yield support.message_chunk(
+            cons.answer, final=True, meta=support.backend_meta([r.name for r in cons.ok_results], judge_name)
+        )

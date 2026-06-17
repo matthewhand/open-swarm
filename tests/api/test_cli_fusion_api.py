@@ -79,6 +79,25 @@ def test_cli_fusion_uses_default_preset_without_params(client, fake_cli_config):
 
 
 @pytest.mark.django_db
+def test_system_fingerprint_names_resolved_backends(client, fake_cli_config):
+    # The response's system_fingerprint reports which CLI(s) actually answered,
+    # not just the blueprint id — so an OpenAI client can attribute the answer.
+    resp = _post(client, "cli_fusion", "hello", params={"panel": ["a", "b"], "judge": "a"})
+    assert resp.status_code == 200, resp.content[:300]
+    fp = resp.json().get("system_fingerprint") or ""
+    assert fp.startswith("cli_fusion:")
+    assert "a" in fp and "b" in fp
+    assert "judge=a" in fp
+
+
+@pytest.mark.django_db
+def test_system_fingerprint_single_cli_agent(client, fake_cli_config):
+    resp = _post(client, "cli_agent", "hello", params={"cli": "b"})
+    assert resp.status_code == 200, resp.content[:300]
+    assert resp.json().get("system_fingerprint") == "cli_agent:b"
+
+
+@pytest.mark.django_db
 def test_cli_agent_respects_cli_param_over_api(client, fake_cli_config):
     # The single-CLI blueprint should run exactly the adapter named in params.
     resp = _post(client, "cli_agent", "pick", params={"cli": "b"})
