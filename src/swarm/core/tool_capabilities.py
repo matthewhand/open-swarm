@@ -27,6 +27,7 @@ from typing import Any
 # A capability is just a string; these are the well-known ones we tag/suggest.
 WEB_SEARCH = "web_search"
 WEB_FETCH = "web_fetch"
+BROWSER = "browser"  # full browser automation (navigate/click/snapshot)
 FILESYSTEM = "filesystem"
 GIT = "git"
 TIME = "time"
@@ -71,6 +72,9 @@ CATALOG: tuple[McpServer, ...] = (
     # --- fetch a URL ---
     McpServer("fetch", (WEB_FETCH,), "uvx", ("mcp-server-fetch",),
               note="Non-auth: fetch and read a URL."),
+    # --- full browser automation (official Microsoft Playwright MCP) ---
+    McpServer("playwright", (BROWSER, WEB_FETCH), "npx", ("-y", "@playwright/mcp@latest"),
+              note="Non-auth: official microsoft/playwright-mcp browser automation."),
     # --- local, non-auth utilities ---
     McpServer("filesystem", (FILESYSTEM,), "npx",
               ("-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATH}"),
@@ -174,6 +178,48 @@ def resolve_requirements(
         else:
             (res.missing_mandatory if level == "mandatory" else res.skipped_optional).append(cap)
     return res
+
+
+def resolve_mcp_servers(
+    requirements: Any,
+    config: dict[str, Any] | None,
+    env: dict[str, str] | None = None,
+    *,
+    autostart_catalog: bool = True,
+) -> tuple[dict[str, dict[str, Any]], ToolResolution]:
+    """Concrete MCP servers to launch for a blueprint's capability requirements.
+
+    Returns ``({server_name: server_config}, resolution)``. For each satisfied
+    capability the configured provider's config is used. For an unmet capability,
+    when ``autostart_catalog`` is set and a **non-auth** catalog server provides
+    it, that server is auto-provisioned (so a blueprint that needs ``browser``
+    gets playwright-mcp with zero config) and recorded in ``resolution.satisfied``.
+    Mandatory capabilities with no non-auth fallback remain in
+    ``resolution.missing_mandatory``.
+    """
+    env = os.environ if env is None else env
+    res = resolve_requirements(requirements, config, env)
+    configured = (config or {}).get("mcpServers") or {}
+    servers: dict[str, dict[str, Any]] = {}
+
+    for cap, name in res.satisfied.items():
+        entry = configured.get(name)
+        if entry:
+            servers[name] = dict(entry)
+        elif (known := known_server(name)) is not None:
+            servers[name] = known.to_config()
+
+    if autostart_catalog:
+        for cap in list(res.missing_mandatory) + list(res.skipped_optional):
+            non_auth = next((s for s in servers_for(cap) if not s.needs_auth), None)
+            if non_auth is not None:
+                servers[non_auth.name] = non_auth.to_config()
+                res.satisfied[cap] = non_auth.name
+                if cap in res.missing_mandatory:
+                    res.missing_mandatory.remove(cap)
+                if cap in res.skipped_optional:
+                    res.skipped_optional.remove(cap)
+    return servers, res
 
 
 def suggest_mcp_config(capabilities: Any, *, prefer_non_auth: bool = True) -> dict[str, Any]:

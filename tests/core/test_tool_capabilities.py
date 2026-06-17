@@ -50,6 +50,36 @@ def test_provides_override_lets_any_server_satisfy_a_capability():
     assert res.satisfied["web_search"] == "my-search"
 
 
+def test_playwright_is_a_non_auth_browser_provider():
+    pw = tc.known_server("playwright")
+    assert pw is not None and not pw.needs_auth
+    assert tc.BROWSER in pw.provides
+    assert tc.servers_for(tc.BROWSER)[0].name == "playwright"
+
+
+def test_resolve_mcp_servers_uses_configured_provider():
+    cfg = {"mcpServers": {"duckduckgo": {"command": "uvx", "args": ["duckduckgo-mcp-server"]}}}
+    servers, res = tc.resolve_mcp_servers({"web_search": "mandatory"}, cfg, env={})
+    assert "duckduckgo" in servers and res.ok
+
+
+def test_resolve_mcp_servers_autostarts_playwright_for_browser():
+    # Nothing configured; a mandatory browser need is auto-provisioned from the
+    # non-auth catalog (official playwright-mcp) so it just works.
+    servers, res = tc.resolve_mcp_servers({"browser": "mandatory"}, {"mcpServers": {}}, env={})
+    assert "playwright" in servers
+    assert servers["playwright"]["command"] == "npx"
+    assert res.ok and res.satisfied["browser"] == "playwright"
+    assert "env" not in servers["playwright"]  # non-auth, runnable as-is
+
+
+def test_resolve_mcp_servers_can_disable_autostart():
+    servers, res = tc.resolve_mcp_servers(
+        {"browser": "mandatory"}, {"mcpServers": {}}, env={}, autostart_catalog=False
+    )
+    assert servers == {} and not res.ok
+
+
 def test_suggest_mcp_config_prefers_non_auth():
     cfg = tc.suggest_mcp_config(["web_search", "filesystem"])
     servers = cfg["mcpServers"]
