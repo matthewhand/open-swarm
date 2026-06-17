@@ -5,7 +5,6 @@ import pytest
 
 from swarm.core import skills
 
-
 SKILL_MD = """---
 name: haiku
 description: Reply with a 5-7-5 haiku.
@@ -46,17 +45,17 @@ def test_discover_skills_finds_skill_dirs(tmp_path: Path):
 
 
 def test_discover_skills_skips_malformed(tmp_path: Path):
-    bad = tmp_path / "bad"
-    bad.mkdir()
-    (bad / "SKILL.md").write_text("no name, no hint via... actually dir name is 'bad'")
+    # A SKILL.md with no body (no instructions) is malformed → skipped.
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "SKILL.md").write_text("---\nname: empty\ndescription: x\n---\n")
     good = tmp_path / "ok"
     good.mkdir()
     (good / "SKILL.md").write_text(SKILL_MD)
-    # 'bad' still parses (dir name is a valid name_hint), so both are found;
-    # a truly malformed (empty) SKILL.md is skipped.
-    empty = tmp_path / ""  # noqa: F841
+
     found = skills.discover_skills(tmp_path)
-    assert "haiku" in found and "bad" in found
+    assert "haiku" in found
+    assert "empty" not in found
 
 
 def test_discover_skills_missing_root_is_empty(tmp_path: Path):

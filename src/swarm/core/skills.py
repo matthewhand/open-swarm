@@ -43,15 +43,6 @@ class Skill:
     # Bundled non-SKILL.md files shipped with the skill (scripts, templates, …).
     assets: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "description": self.description,
-            "instructions": self.instructions,
-            "assets": list(self.assets),
-            "path": str(self.path) if self.path else None,
-        }
-
 
 def parse_skill_md(text: str, *, name_hint: str | None = None) -> Skill:
     """Parse a ``SKILL.md`` string into a :class:`Skill`.
@@ -72,10 +63,13 @@ def parse_skill_md(text: str, *, name_hint: str | None = None) -> Skill:
     name = str(meta.get("name") or name_hint or "").strip()
     if not name:
         raise ValueError("skill has no 'name' (frontmatter or directory name)")
+    instructions = body.strip()
+    if not instructions:
+        raise ValueError(f"skill '{name}' has no instructions (empty SKILL.md body)")
     return Skill(
         name=name,
         description=str(meta.get("description") or "").strip(),
-        instructions=body.strip(),
+        instructions=instructions,
     )
 
 

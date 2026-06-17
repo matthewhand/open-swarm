@@ -19,9 +19,9 @@ import django  # noqa: E402
 
 django.setup()
 
+from swarm.blueprints.common import cli_fusion_support as support  # noqa: E402
 from swarm.core import cli_catalog  # noqa: E402
 from swarm.core.consensus import run_consensus  # noqa: E402
-from swarm.blueprints.common import cli_fusion_support as support  # noqa: E402
 
 PANEL = ["gemini", "claude", "grok"]
 JUDGE = "grok"
@@ -54,7 +54,7 @@ async def main() -> int:
 
     panel = registry.resolve_panel(panel_names)
     judge = registry.get(JUDGE) if JUDGE in available else None
-    workdirs = {n: workdir for n in panel_names + [JUDGE]}
+    workdirs = dict.fromkeys(panel_names + [JUDGE], workdir)
 
     cons = await run_consensus(question, panel, judge, workdirs=workdirs)
 
@@ -70,7 +70,7 @@ async def main() -> int:
 
     a = cons.analysis or {}
     if a:
-        L.append("\n#### Judge's analysis (`%s`)\n" % JUDGE)
+        L.append(f"\n#### Judge's analysis (`{JUDGE}`)\n")
         for key, label in [
             ("consensus", "Where the agents agree"),
             ("contradictions", "Where they disagree"),

@@ -22,8 +22,8 @@ import django  # noqa: E402
 
 django.setup()
 
-from swarm.core import cli_catalog  # noqa: E402
 from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint  # noqa: E402
+from swarm.core import cli_catalog  # noqa: E402
 
 CLI = sys.argv[1] if len(sys.argv) > 1 else "gemini"
 MODEL = sys.argv[2] if len(sys.argv) > 2 else None
