@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 (nothing yet)
 
+## [0.4.10] - 2026-06-17
+
+### Changed — Builder visual polish
+- The source file-browser is shown only when a blueprint has more than one file; single-file blueprints get a full-width editor instead of a lonely 1-item list. Verified: tap targets all >=24px across pages; axe stays at 0 (mobile+desktop, light+dark).
+
 ## [0.4.9] - 2026-06-17
 
 ### Fixed — responsive / mobile (web UI)
