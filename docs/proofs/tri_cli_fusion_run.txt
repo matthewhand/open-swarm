@@ -1,0 +1,15 @@
+## TASK
+In ONE sentence each, name the single biggest risk of running multiple coding CLIs concurrently on the same git repo, and the standard mitigation. Be concrete.
+
+[progress] _Round 1/1: consulting 3 CLI agent(s): gemini, claude, grok…_
+[progress] _Judging 3 response(s) with `claude`…_
+
+## SYNTHESIZED ANSWER (judge=claude)  [27.3s]
+Biggest risk: when two CLIs write the same working tree concurrently they clobber each other — one agent's edit or `git add`/checkout overwrites the other's half-written files (writes from stale snapshots), yielding silently lost changes, interleaved diffs, or a `.git/index.lock` failure that aborts a commit mid-operation. Standard mitigation: give each CLI its own `git worktree add` (or a separate clone) so it edits and commits in an isolated working directory + index against the shared object store, then merge the branches via normal git review. All three agents agree on both points with no material disagreement; the only addition is that gemini lists file-level locking as a fallback when full isolation isn't possible, and note that worktrees defer the cost to later merge conflicts rather than eliminating it.
+
+---
+_Fusion: 3 agents, 1 round(s)._
+- **consensus**: The single biggest risk is concurrent writes to the same git working tree, causing lost/overwritten changes and a corrupted or half-applied tree (race conditions on shared files and/or the .git index).; The standard mitigation is per-process isolation via `git worktree` (each CLI gets its own working directory + index, shared object store), then merging the resulting branches through normal git review.
+- **contradictions**: No material disagreement on the core risk or mitigation. Minor mechanism emphasis differs: claude foregrounds the literal `.git/index.lock` collision mid-commit; grok/gemini emphasize stale-snapshot writes causing silent lost updates. gemini also offers file-level locking as an alternative mitigation, which the others omit (they treat worktrees/clones as the standard answer).
+- **gaps**: None mention non-file shared state that worktrees do NOT isolate: the shared object store, git config, hooks, stashes, or refs — so worktrees don't fully isolate everything.; No mention of the merge-conflict cost deferred by isolation: worktrees trade live corruption for later integration conflicts.; No mention of build/test artifacts, caches, or lockfiles (node_modules, __pycache__, .venv) as a concurrency hazard separate from git itself.; No mention of detection/recovery (e.g., what an index.lock error looks like and how to safely clear a stale lock).
+- **unique_insights**: gemini: file-level locking as an alternative mitigation when full isolation isn't feasible.; claude: names the concrete `index.lock` failure mode mid-commit, the most directly observable symptom.; grok: explicitly frames the root cause as writing from stale snapshots, and notes a separate clone is an acceptable alternative to a worktree.
