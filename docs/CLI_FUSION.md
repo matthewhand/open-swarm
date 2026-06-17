@@ -317,6 +317,65 @@ when the `cli_orchestrator` block is omitted. The shared loop lives in
 `swarm.core.consensus.run_consensus()`, so the same panel→judge→synthesize
 primitive backs both blueprints (and can be wrapped as an agent tool).
 
+## Skills — reusable capabilities, portable across CLIs
+
+A **skill** is a directory with a `SKILL.md` (YAML frontmatter `name` +
+`description`, then markdown instructions, optionally bundled scripts), following
+Anthropic's [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+open standard — so a skill authored here also loads in Claude Code / the Skills
+API. Skills live under the repo's `skills/` directory.
+
+```bash
+swarm-cli skills                      # list discoverable skills + asset counts
+swarm-cli skills --show counting-lines  # print one skill's full SKILL.md
+swarm-cli skills --json               # machine-readable
+```
+
+Apply a skill to **any** CLI with the `cli_agent` `skill=` param — it prepends
+the skill's instructions and stages any bundled assets into the workdir so a
+write-mode CLI can execute them:
+
+```bash
+curl -sf localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{
+  "model": "cli_agent",
+  "messages": [{"role":"user","content":"Added retry-with-backoff to the upload client."}],
+  "extra_body": {"params": {"cli": "grok", "skill": "conventional-commit"}}
+}'
+```
+
+The same skill works on grok, claude, or gemini (verified live, 3/3). Bundled
+examples: `conventional-commit`, `reviewing-code`, `writing-changelog`,
+`counting-lines` (ships an executable `count.py`). See the illustrated
+[walkthrough](SKILLS_AND_CONSENSUS_WALKTHROUGH.md).
+
+## Inference profiles — say what you want, not which model
+
+A blueprint can declare *what kind of thinking it wants* instead of naming a CLI,
+along three 0–1 axes — `intelligence`, `speed`, `cost` (cheapness) — as priority
+weights. Each CLI carries 0–1 **capability** traits (defaults in
+`cli_catalog.CLI_TRAITS`, override per-agent in config), and the best match is
+chosen by a weighted dot product. This keeps blueprints portable: "I want smart"
+runs on whatever *you* labelled smart.
+
+```jsonc
+// tag your backends (per cli_agents entry) — e.g. rate your top plan highly
+"cli_agents": {
+  "claude": { "cmd": [...], "traits": {"intelligence": 1.0, "speed": 0.5, "cost": 0.3} },
+  "gemini": { "cmd": [...], "traits": {"intelligence": 0.6, "speed": 0.95, "cost": 0.95} }
+}
+```
+
+```bash
+# request-level: ask for traits, not a model
+curl ... -d '{"model":"cli_agent","messages":[...],
+  "extra_body":{"params":{"profile":{"intelligence":0.9,"speed":0.2,"cost":0.1}}}}'
+```
+
+A blueprint declares it once in metadata (`inference_profile = {...}`).
+Precedence: explicit `cli` param > `profile` > `default_cli` > first available.
+Live routing: deep-reasoning → claude, fast&cheap → gemini (see
+[docs/examples/inference-profile-routing.md](examples/inference-profile-routing.md)).
+
 ## Failover & graceful degradation
 
 Not every CLI is installed and working on every host, so the blueprints assume
