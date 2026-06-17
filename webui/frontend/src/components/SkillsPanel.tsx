@@ -9,6 +9,7 @@ export function SkillsPanel({ info }: { info: ConfigOptions | undefined }) {
   const skills = info?.skills ?? []
   const [selected, setSelected] = useState<string | null>(null)
   const request = buildSkillRequest(selected)
+  const selectedSkill = skills.find((s) => s.name === selected)
 
   return (
     <Card bordered>
@@ -62,6 +63,22 @@ export function SkillsPanel({ info }: { info: ConfigOptions | undefined }) {
             )
           })}
         </ul>
+      )}
+
+      {selectedSkill?.instructions && (
+        <details className="mt-3 rounded-lg border border-base-300 bg-base-200">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
+            SKILL.md — {selectedSkill.name}
+          </summary>
+          <pre
+            tabIndex={0}
+            role="region"
+            aria-label={`${selectedSkill.name} SKILL.md instructions`}
+            className="max-h-64 overflow-auto whitespace-pre-wrap px-3 pb-3 text-xs text-base-content focus:outline focus:outline-2 focus:outline-primary"
+          >
+            {selectedSkill.instructions}
+          </pre>
+        </details>
       )}
 
       {request && (

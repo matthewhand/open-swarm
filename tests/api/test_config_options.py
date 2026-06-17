@@ -7,9 +7,11 @@ import pytest
 def test_config_options_exposes_all_decoupling_primitives(client):
     data = client.get("/v1/config-options/").json()
 
-    # Skills the UI can offer for the skill= param.
+    # Skills the UI can offer for the skill= param (with full SKILL.md body).
     names = {s["name"] for s in data["skills"]}
     assert {"conventional-commit", "counting-lines"} <= names
+    cc = next(s for s in data["skills"] if s["name"] == "conventional-commit")
+    assert cc["instructions"] and "Conventional Commit" in cc["instructions"]
 
     # Inference: axes + per-provider and per-model traits + model flags.
     inf = data["inference"]

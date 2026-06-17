@@ -109,3 +109,14 @@ pass; frontend vitest + e2e green; 0 a11y.
 Other probes (None mcpServers entries, unknown capabilities, uppercase skill
 names, list-shaped frontmatter, unknown trait keys) all already behaved
 correctly — no further bugs.
+
+## Polish: SKILL.md preview in the skills picker
+
+`/v1/config-options/` now includes each skill's full `instructions` (SKILL.md
+body). The skills picker renders it in a collapsible "SKILL.md — <name>" section
+on select, so you can read exactly what a skill does before attaching it.
+
+![Skills picker with SKILL.md preview](../screenshots/webui/skills-preview-dark.png)
+
+**Verification**: api test asserts `instructions` is served; vitest 35 pass; e2e
+asserts the preview renders the instructions on select (3 pass); 0 a11y violations.

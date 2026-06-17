@@ -432,7 +432,12 @@ class ConfigOptionsView(APIView):
 
         return Response({
             "skills": [
-                {"name": s.name, "description": s.description, "assets": s.assets}
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "assets": s.assets,
+                    "instructions": s.instructions,
+                }
                 for s in skills.discover_skills().values()
             ],
             "inference": {

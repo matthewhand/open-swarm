@@ -5,8 +5,8 @@ import { test, expect, type Page } from '@playwright/test'
 
 const CONFIG_OPTIONS = {
   skills: [
-    { name: 'conventional-commit', description: 'Writes a commit message.', assets: [] },
-    { name: 'counting-lines', description: 'Counts non-blank lines.', assets: ['count.py'] },
+    { name: 'conventional-commit', description: 'Writes a commit message.', assets: [], instructions: 'Output one Conventional Commits message.' },
+    { name: 'counting-lines', description: 'Counts non-blank lines.', assets: ['count.py'], instructions: 'Run count.py and report the number.' },
   ],
   inference: {
     traits: ['intelligence', 'speed', 'cost'],
@@ -69,4 +69,6 @@ test('skills panel emits a request snippet on selection', async ({ page }) => {
   await expect(panel).toBeVisible()
   await panel.getByRole('button', { name: /counting-lines/ }).click()
   await expect(panel.getByLabel('Skill request snippet')).toContainText('"skill": "counting-lines"')
+  // SKILL.md preview renders the full instructions on select.
+  await expect(panel.getByLabel('counting-lines SKILL.md instructions')).toContainText('Run count.py')
 })

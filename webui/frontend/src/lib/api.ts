@@ -415,7 +415,7 @@ export type TraitVector = Record<string, number>
 /** GET /v1/config-options/ — everything the Builder needs to configure the
  *  skills / inference-profile / tool-capability decoupling features. */
 export interface ConfigOptions {
-  skills: { name: string; description: string; assets: string[] }[]
+  skills: { name: string; description: string; assets: string[]; instructions: string }[]
   inference: {
     traits: string[]
     cli_traits: Record<string, TraitVector>
