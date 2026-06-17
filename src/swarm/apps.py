@@ -58,5 +58,49 @@ class SwarmConfig(AppConfig):
                 "DJANGO_SETTINGS_MODULE not set, setting default 'swarm.settings'"
             )
 
+        # Load the swarm config ONCE and cache it on the AppConfig so every
+        # blueprint reads the same file. BlueprintBase._load_configuration already
+        # prefers ``apps.get_app_config('swarm').config`` — populating it here from
+        # the XDG path is what makes the server honor ~/.config/swarm/swarm_config.json
+        # (like swarm-cli does). We load ONLY SWARM_CONFIG_PATH or the XDG path;
+        # if neither exists we leave config empty and BlueprintBase's own
+        # working-directory fallback still picks up a ./swarm_config.json — so cwd
+        # behavior is unchanged, we only *add* XDG.
+        self.config = self._load_swarm_config()
+
         logger.info("Swarm app initialization checks completed.")
+
+    @staticmethod
+    def _load_swarm_config() -> dict:
+        """Resolve + load swarm_config.json (XDG-aware), env-substituted. Never raises.
+
+        Loads the JSON leniently (no ``llm``-section requirement) — a CLI-fusion
+        gateway config is often ``cli_agents``-only, and the validation in
+        ``config_loader.load_config`` would otherwise reject it and lose the config.
+        """
+        import json
+        from pathlib import Path
+
+        from swarm.core import config_loader
+
+        try:
+            env_path = os.environ.get("SWARM_CONFIG_PATH")
+            if env_path and Path(env_path).is_file():
+                path = Path(env_path)
+            else:
+                # XDG only here; ./swarm_config.json is handled by BlueprintBase's
+                # own cwd fallback so we don't change cwd behavior (or break tests
+                # that simulate "no config files").
+                xdg = config_loader._xdg_config_path()
+                path = xdg if xdg.is_file() else None
+            if not path:
+                logger.info("No XDG/SWARM_CONFIG_PATH swarm_config.json; deferring to cwd fallback.")
+                return {}
+            raw = json.loads(Path(path).read_text())
+            cfg = config_loader._substitute_env_vars(raw)
+            logger.info("Swarm config loaded from %s", path)
+            return cfg if isinstance(cfg, dict) else {}
+        except Exception as e:
+            logger.warning("Failed to load swarm config (%s); using empty config.", e)
+            return {}
 

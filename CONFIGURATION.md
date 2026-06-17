@@ -18,16 +18,17 @@ Swarm supports both interactive and manual configuration. The recommended way to
 **Recommended location:** `~/.config/swarm/swarm_config.json` (XDG Base Directory
 Spec — overridable with `XDG_CONFIG_HOME`).
 
-**Resolution differs slightly between the two entry points:**
+Config is resolved in this order:
 
-| Entry point | How `swarm_config.json` is found |
-|---|---|
-| `swarm-cli` (CLI tooling) | XDG path first, then an upward search from the working directory, then the current directory. |
-| `swarm-api` / `manage.py runserver` (the API server) | `SWARM_CONFIG_PATH` if set, otherwise `./swarm_config.json` in the server's working directory. |
+1. `SWARM_CONFIG_PATH` (explicit absolute path) — wins if set and the file exists.
+2. **XDG**: `~/.config/swarm/swarm_config.json` (or `$XDG_CONFIG_HOME/swarm/…`).
+3. `./swarm_config.json` in the current working directory.
 
-> **Tip:** set `SWARM_CONFIG_PATH=/abs/path/swarm_config.json` — it is honored by
-> both entry points and removes all ambiguity. Unifying the server to the same
-> XDG-first discovery as `swarm-cli` is planned (see [ROADMAP.md](./ROADMAP.md)).
+So dropping a config at `~/.config/swarm/swarm_config.json` is enough — both
+`swarm-cli` and the API server (`swarm-api` / `manage.py runserver`) pick it up
+with no environment variable. Set `SWARM_CONFIG_PATH` only when you want to point
+at a non-standard path explicitly. (`swarm-cli` additionally does an upward
+directory search for a project-local `swarm_config.json`.)
 
 - **If missing:** Swarm generates a default config using `OPENAI_API_KEY` and the official OpenAI endpoint (with a warning).
 

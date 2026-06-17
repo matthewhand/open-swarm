@@ -46,20 +46,14 @@ planner** roles (in the `cli_fusion` / `cli_orchestrator` / `cli_map` blocks)
 point only at CLIs that showed as authenticated — `--init` prefers `grok` then
 `claude` by default; change them to match your host.
 
-> **Point the server at the config explicitly.** `swarm-cli` finds the XDG file
-> automatically, but the **server** resolves config from `SWARM_CONFIG_PATH` (or
-> its working directory) — it does *not* search the XDG path. Export it so the
-> server loads what you just generated:
-> ```bash
-> export SWARM_CONFIG_PATH="$HOME/.config/swarm/swarm_config.json"
-> ```
-> See [CONFIGURATION.md §1](../CONFIGURATION.md#1-config-file-location-and-discovery)
-> for the full resolution rules.
+The server and `swarm-cli` both find this XDG file automatically — no extra
+step. Set `SWARM_CONFIG_PATH` only to point at a non-standard path. See
+[CONFIGURATION.md §1](../CONFIGURATION.md#1-config-file-location-and-discovery)
+for the full resolution rules.
 
 ## 3. Run
 
 ```bash
-export SWARM_CONFIG_PATH="$HOME/.config/swarm/swarm_config.json"  # see note above
 swarm-api                 # ASGI server on :8000 (also powers websocket chat)
 # or:
 docker compose up -d
