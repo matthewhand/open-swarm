@@ -4,6 +4,7 @@ import { Brain, Gauge, DollarSign, Target } from 'lucide-react'
 import type { ConfigOptions, TraitVector } from '../lib/api'
 import { TRAITS, resolve, splitCandidate, cliForModel, type Trait } from '../lib/inferenceProfile'
 import { ConfigSnippet } from './ConfigSnippet'
+import { InfoTip } from './InfoTip'
 
 /** Build the resolution candidate map: a provider candidate per CLI plus a
  *  `<cli>@<model>` candidate for each known model (matched to its CLI by name
@@ -56,6 +57,7 @@ export function InferenceProfilePanel({ info }: { info: ConfigOptions | undefine
     <Card bordered>
       <h2 className="card-title flex items-center gap-2 text-base">
         <Target className="h-5 w-5" /> Inference profile
+        <InfoTip text="Declare what kind of inference you want (intelligence / speed / cost). The closest installed CLI/model is chosen automatically." />
       </h2>
       <p className="text-sm text-base-content/70">
         Say what kind of thinking you want — the closest installed CLI/model is chosen for you.

@@ -4,6 +4,7 @@ import { Sparkles, Paperclip, Check } from 'lucide-react'
 import type { ConfigOptions } from '../lib/api'
 import { buildSkillRequest } from '../lib/skills'
 import { ConfigSnippet } from './ConfigSnippet'
+import { InfoTip } from './InfoTip'
 
 /** Panel 3: browse discovered skills and attach one to a cli_agent request. */
 export function SkillsPanel({ info }: { info: ConfigOptions | undefined }) {
@@ -16,6 +17,7 @@ export function SkillsPanel({ info }: { info: ConfigOptions | undefined }) {
     <Card bordered>
       <h2 className="card-title flex items-center gap-2 text-base">
         <Sparkles className="h-5 w-5" /> Skills
+        <InfoTip text="Attach a reusable SKILL.md capability. Its instructions are prepended to the prompt and any bundled scripts are staged for the CLI." />
       </h2>
       <p className="text-sm text-base-content/70">
         Attach a reusable capability — its instructions are prepended and any bundled scripts are

@@ -9,6 +9,7 @@ import {
   type McpServerInfo,
 } from '../lib/toolCapabilities'
 import { ConfigSnippet } from './ConfigSnippet'
+import { InfoTip } from './InfoTip'
 
 const LEVELS: (Level | 'off')[] = ['off', 'optional', 'mandatory']
 
@@ -50,6 +51,7 @@ export function ToolCapabilitiesPanel({ info }: { info: ConfigOptions | undefine
     <Card bordered>
       <h2 className="card-title flex items-center gap-2 text-base">
         <Wrench className="h-5 w-5" /> Tool capabilities
+        <InfoTip text="Ask for an abstract capability (e.g. web_search, browser). A non-auth MCP server is preferred so it runs with no API key." />
       </h2>
       <p className="text-sm text-base-content/70">
         Ask for a capability; a non-auth MCP server is preferred so it runs with no API key.

@@ -4,6 +4,13 @@ Proof of the Builder UI panels that configure the decoupling features, each
 bound to `GET /v1/config-options/`. Built on the existing React + TanStack Query
 + DaisyUI stack. 0 axe violations (full ruleset, light/dark, desktop/mobile).
 
+**Current status:** all four config panels + the resolved-MCP badge are live,
+each header carries an accessible info tooltip. Green: **61 frontend unit
+(vitest) + 5 Playwright e2e**, **1186 backend**, **0 axe violations**. The
+per-section figures below are historical (state at that commit).
+
+![Builder — all config panels](../screenshots/webui/builder-all-panels-dark.png)
+
 ## Panel 1 — Inference profile (+ per-model traits)
 
 Declare what kind of inference you want (intelligence / speed / cost, each an

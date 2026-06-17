@@ -13,6 +13,7 @@ import {
   type Trait,
 } from '../lib/inferenceProfile'
 import { ConfigSnippet } from './ConfigSnippet'
+import { InfoTip } from './InfoTip'
 
 const round2 = (v: number) => Math.round(v * 100) / 100
 
@@ -64,6 +65,7 @@ export function TraitEditorPanel({ info }: { info: ConfigOptions | undefined }) 
     <Card bordered>
       <h2 className="card-title flex items-center gap-2 text-base">
         <SlidersHorizontal className="h-5 w-5" /> Tune backend traits
+        <InfoTip text="Edit each CLI's 0–1 capability traits and add per-model overrides. cost = cheapness (1 = cheapest)." />
       </h2>
       <p className="text-sm text-base-content/70">
         Edit each CLI's capability traits and add per-model overrides; emits a <code>cli_agents</code> config.
