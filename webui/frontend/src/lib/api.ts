@@ -408,3 +408,34 @@ export interface CliAgentsInfo {
 export function fetchCliAgents(): Promise<CliAgentsInfo> {
   return apiGet<CliAgentsInfo>('/v1/cli-agents/')
 }
+
+/** A 0..1 capability/priority vector over inference traits. */
+export type TraitVector = Record<string, number>
+
+/** GET /v1/config-options/ — everything the Builder needs to configure the
+ *  skills / inference-profile / tool-capability decoupling features. */
+export interface ConfigOptions {
+  skills: { name: string; description: string; assets: string[] }[]
+  inference: {
+    traits: string[]
+    cli_traits: Record<string, TraitVector>
+    model_traits: Record<string, TraitVector>
+    model_flags: Record<string, string>
+  }
+  tools: {
+    capabilities: string[]
+    mcp_catalog: {
+      name: string
+      provides: string[]
+      command: string
+      args: string[]
+      needs_auth: boolean
+      auth_env: string[]
+      note: string
+    }[]
+  }
+}
+
+export function fetchConfigOptions(): Promise<ConfigOptions> {
+  return apiGet<ConfigOptions>('/v1/config-options/')
+}

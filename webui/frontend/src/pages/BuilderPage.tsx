@@ -6,9 +6,11 @@ import {
   fetchBlueprints,
   fetchBlueprintSource,
   fetchCliAgents,
+  fetchConfigOptions,
   type Blueprint,
   type CliAgentsInfo,
 } from '../lib/api'
+import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
 
 const CodeViewer = lazy(() => import('../components/CodeViewer'))
 
@@ -141,6 +143,7 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
 export default function BuilderPage() {
   const { data, isPending, isError } = useQuery({ queryKey: ['blueprints'], queryFn: fetchBlueprints })
   const cliAgents = useQuery({ queryKey: ['cli-agents'], queryFn: fetchCliAgents })
+  const configOptions = useQuery({ queryKey: ['config-options'], queryFn: fetchConfigOptions })
 
   const blueprints: Blueprint[] = data?.data ?? []
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -223,6 +226,8 @@ export default function BuilderPage() {
             </Card>
 
             <AgentConfigBuilder info={cliAgents.data} />
+
+            <InferenceProfilePanel info={configOptions.data} />
 
             <Card bordered>
               <h2 className="card-title flex items-center gap-2 text-base">
