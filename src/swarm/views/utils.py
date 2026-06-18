@@ -7,7 +7,10 @@ from django.conf import settings
 from swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlueprint
 
 # Assuming the discovery functions are correctly located now
-from swarm.core.blueprint_discovery import discover_blueprints
+from swarm.core.blueprint_discovery import (
+    discover_blueprints,
+    merge_community_blueprints,
+)
 from swarm.core.paths import (
     ensure_swarm_directories_exist,
     get_user_config_dir_for_swarm,
@@ -102,6 +105,9 @@ def _load_all_blueprint_metadata_sync():
     global _blueprint_meta_cache
     logger.info("Discovering blueprint classes (sync)...")
     blueprint_classes = discover_blueprints(settings.BLUEPRINT_DIRECTORY)
+    blueprint_classes = merge_community_blueprints(
+        blueprint_classes, getattr(settings, "BLUEPRINT_EXTRA_DIRS", None)
+    )
 
     # Merge dynamic teams as blueprints
     dyn = load_dynamic_registry()

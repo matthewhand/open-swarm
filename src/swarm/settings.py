@@ -49,6 +49,27 @@ if ENABLE_API_AUTH:
 SWARM_CONFIG_PATH = get_swarm_config_path()
 BLUEPRINT_DIRECTORY = get_blueprint_directory()
 
+
+def _blueprint_extra_dirs() -> list[str]:
+    """External/community blueprint roots, scanned in addition to the bundled dir.
+
+    Order: the user data 'blueprints' dir (where community packs are installed),
+    then any paths in ``SWARM_BLUEPRINT_PATHS`` (os.pathsep-separated). The bundled
+    dir always wins on name collisions (see ``discover_all_blueprints``).
+    """
+    dirs: list[str] = []
+    try:
+        from swarm.core.paths import get_user_blueprints_dir
+        dirs.append(str(get_user_blueprints_dir()))
+    except Exception:
+        pass
+    extra = os.getenv("SWARM_BLUEPRINT_PATHS", "")
+    dirs.extend(p for p in extra.split(os.pathsep) if p.strip())
+    return dirs
+
+
+BLUEPRINT_EXTRA_DIRS = _blueprint_extra_dirs()
+
 # Web UI Configuration
 ENABLE_WEBUI = os.getenv('ENABLE_WEBUI', 'true').lower() in ('true', '1', 'yes')
 WEBUI_STATIC_DIR = BASE_DIR.parent / 'staticfiles' / 'webui'
