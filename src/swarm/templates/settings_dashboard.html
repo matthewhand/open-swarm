@@ -563,8 +563,12 @@
 }
 </style>
 
+{{ settings_groups|json_script:"swarm-settings-data" }}
 <script>
-let settingsData = {{ settings_groups|safe }};
+// json_script auto-escapes </script>, <, >, & — safe even though sensitive
+// values are already masked server-side. Also fixes the previously-invalid JS
+// (a raw Python dict rendered True/None as bare identifiers).
+const settingsData = JSON.parse(document.getElementById("swarm-settings-data").textContent);
 
 function toggleGroup(groupId) {
   const content = document.getElementById(`content-${groupId}`);

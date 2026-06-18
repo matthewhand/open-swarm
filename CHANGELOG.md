@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security — settings dashboard XSS
+- `templates/settings_dashboard.html` injected server settings into a `<script>` via `{{ settings_groups|safe }}` — an XSS vector (any value containing `</script>` could break out) that also emitted invalid JS (a raw Python dict). Replaced with Django's `json_script` (auto-escapes `<`/`>`/`&`) read via `JSON.parse`. Sensitive values were already masked server-side. Regression tests added.
+
 ### Fixed — index page silently listed zero blueprints
 - `web_views.py` called `discover_blueprints(directories=[BLUEPRINT_DIRECTORY])` — a wrong kwarg that raised `TypeError`, swallowed by a `try/except`, so the Django index page showed **no** blueprints and the team-name collision check never fired against existing blueprints. Fixed to the real positional signature.
 
