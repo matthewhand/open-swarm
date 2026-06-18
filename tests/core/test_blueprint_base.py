@@ -62,11 +62,17 @@ class TestBlueprintBase(TestCase):
     @patch.dict(os.environ, {}, clear=True)
     def test_config_loading_no_config_files(self, mock_home, mock_cwd):
         """Test config loading when no config files exist"""
+        from django.apps import apps
+
         mock_cwd.return_value = Path('/fake/cwd')
         mock_home.return_value = Path('/fake/home')
 
-        # Mock paths to not exist
-        with patch.object(Path, 'exists', return_value=False):
+        # Force the AppConfig.config (loaded once at startup, XDG-aware) empty so
+        # this test is hermetic — it must not depend on whether the dev's machine
+        # happens to have a ~/.config/swarm/swarm_config.json.
+        # Mock paths to not exist.
+        with patch.object(apps.get_app_config('swarm'), 'config', {}), \
+             patch.object(Path, 'exists', return_value=False):
             blueprint = ConcreteBlueprint(self.blueprint_id)
             assert blueprint._config == {}
 
