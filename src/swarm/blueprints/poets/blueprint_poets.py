@@ -131,10 +131,8 @@ AGENT_BASE_INSTRUCTIONS = {
 
 # --- FileOps Tool Logic Definitions ---
 # Patch: Expose underlying fileops functions for direct testing
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
+from agents import function_tool
+
 
 def read_file(path: str) -> str:
     try:
@@ -177,10 +175,10 @@ def execute_shell_command(command: str) -> str:
     except Exception as e:
         logger.error(f"Error executing command '{command}': {e}", exc_info=True)
         return f"Error executing command: {e}"
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+read_file_tool = function_tool(read_file)
+write_file_tool = function_tool(write_file)
+list_files_tool = function_tool(list_files)
+execute_shell_command_tool = function_tool(execute_shell_command)
 
 # --- Spinner and ANSI/emoji operation box for unified UX ---
 import threading
