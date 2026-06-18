@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import sys
+import threading
 import time
 import uuid
 from typing import Any
@@ -189,6 +190,10 @@ class ResponsesView(APIView):
         instructions = request_data.get('instructions')
         previous_response_id = request_data.get('previous_response_id')
         store = request_data.get('store', True) is not False  # persist unless store:false
+        params = request_data.get('params') if isinstance(request_data.get('params'), dict) else None
+        # Async (fire-and-forget): return a queued resp_id immediately, run in the
+        # background, poll via GET /v1/responses/{id}. OpenAI-compatible flag.
+        background = bool(request_data.get('background', False))
 
         messages = _normalize_input_to_messages(request_data.get('input'), instructions)
         if not messages:
@@ -210,7 +215,7 @@ class ResponsesView(APIView):
 
         # --- Get blueprint instance (existence determines 404) ---
         try:
-            blueprint_instance = await get_blueprint_instance(model_name, params=None)
+            blueprint_instance = await get_blueprint_instance(model_name, params=params)
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Error getting blueprint instance for '{model_name}': {e}", exc_info=True)
             raise APIException(f"Failed to load model '{model_name}': {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
@@ -223,9 +228,36 @@ class ResponsesView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
+        # Async fire-and-forget: persist a "queued" record, kick off a background
+        # worker, and return the handle immediately. Polled via GET. (Streaming and
+        # background are mutually exclusive; background wins.)
+        if background:
+            return await self._handle_background(request_id, model_name, messages, params, previous_response_id)
+
+        if hasattr(blueprint_instance, "set_params"):
+            blueprint_instance.set_params(params)
         if stream:
             return await self._handle_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
         return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
+
+    async def _handle_background(self, request_id, model_name, messages, params, previous_response_id) -> Response:
+        """Persist a queued record, start a worker thread, return the handle now."""
+        response_id = f"resp_{request_id}"
+        payload = _build_response_payload(
+            request_id, model_name, "", previous_response_id, None, None, status="queued"
+        )
+        await sync_to_async(responses_store.save)(
+            {"id": response_id, "object": "response", "response": payload, "messages": None}
+        )
+        # Daemon thread with its own event loop — decoupled from the request
+        # lifecycle so it survives after we return the response.
+        threading.Thread(
+            target=_run_background_response,
+            args=(response_id, request_id, model_name, list(messages), params, previous_response_id),
+            daemon=True,
+        ).start()
+        logger.info(f"[ReqID: {request_id}] /v1/responses queued async task {response_id} (model '{model_name}').")
+        return Response(payload, status=status.HTTP_202_ACCEPTED)
 
     async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
         """Consume the blueprint generator, keep the last message, shape a response object."""
@@ -309,20 +341,28 @@ def _build_response_payload(
     previous_response_id: str | None = None,
     messages: list[dict[str, str]] | None = None,
     backend_meta: dict[str, Any] | None = None,
+    status: str = "completed",
 ) -> dict[str, Any]:
-    """Shape an OpenAI Responses-style ``response`` object."""
+    """Shape an OpenAI Responses-style ``response`` object.
+
+    ``status`` is one of ``queued`` / ``in_progress`` / ``completed`` / ``failed``
+    (async lifecycle). For non-completed states ``answer`` is empty and ``output``
+    is left empty; the worker fills them in when it finishes.
+    """
     from .chat_views import backend_fingerprint, usage_counts
 
-    input_tok, output_tok, total_tok = usage_counts(messages, answer, model_name)
+    done = status == "completed"
+    input_tok, output_tok, total_tok = usage_counts(messages, answer, model_name) if done else (0, 0, 0)
     return {
         "id": f"resp_{request_id}",
         "object": "response",
         "created_at": int(time.time()),
         "model": model_name,
-        "status": "completed",
+        "status": status,
         "previous_response_id": previous_response_id,
         # Which CLI(s) answered — mirrors chat.completion's system_fingerprint.
-        "system_fingerprint": backend_fingerprint(model_name, backend_meta),
+        "system_fingerprint": backend_fingerprint(model_name, backend_meta) if done else None,
+        "error": None,
         "output": [
             {
                 "type": "message",
@@ -330,8 +370,8 @@ def _build_response_payload(
                 "role": "assistant",
                 "content": [{"type": "output_text", "text": answer}],
             }
-        ],
-        "output_text": answer,
+        ] if done else [],
+        "output_text": answer if done else "",
         "usage": {"input_tokens": input_tok, "output_tokens": output_tok, "total_tokens": total_tok},
     }
 
@@ -346,6 +386,74 @@ def _persist(payload: dict[str, Any], messages: list[dict[str, Any]], answer: st
         "messages": list(messages) + [{"role": "assistant", "content": answer}],
     }
     responses_store.save(record)
+
+
+async def _consume_blueprint(blueprint_instance: Any, messages: list[dict[str, Any]]) -> tuple[str, dict | None]:
+    """Drive a blueprint to its final answer. Returns (answer, backend_meta).
+
+    Shared by the synchronous handler and the async worker.
+    """
+    final_message = None
+    backend_meta = None
+    async for chunk in blueprint_instance.run(messages, stream=False):
+        if isinstance(chunk, dict) and chunk.get("meta"):
+            backend_meta = chunk["meta"]
+        message = _extract_message_from_chunk(chunk)
+        if message is None:
+            continue
+        final_message = message
+        if _chunk_is_final(chunk):
+            break
+    if not isinstance(final_message, dict) or final_message.get("content") is None:
+        raise RuntimeError("Blueprint did not return valid data.")
+    return final_message["content"], backend_meta
+
+
+def _run_background_response(
+    response_id: str,
+    request_id: str,
+    model_name: str,
+    messages: list[dict[str, Any]],
+    params: dict | None,
+    previous_response_id: str | None,
+) -> None:
+    """Worker (own thread + event loop): run the blueprint, update the stored record
+    queued -> in_progress -> completed/failed, with execution timing for observability."""
+    started = time.time()
+
+    def _save(payload: dict[str, Any], transcript: list[dict[str, Any]] | None) -> None:
+        payload["execution_ms"] = int((time.time() - started) * 1000)
+        responses_store.save(
+            {"id": response_id, "object": "response", "response": payload, "messages": transcript}
+        )
+
+    # Mark in_progress so a poller sees movement.
+    in_prog = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="in_progress")
+    in_prog["started_at"] = int(started)
+    _save(in_prog, None)
+
+    try:
+        async def _go():
+            bp = await get_blueprint_instance(model_name, params=params)
+            if bp is None:
+                raise RuntimeError(f"Model '{model_name}' could not be initialized.")
+            if hasattr(bp, "set_params"):
+                bp.set_params(params)
+            return await _consume_blueprint(bp, messages)
+
+        answer, backend_meta = asyncio.run(_go())
+        payload = _build_response_payload(
+            request_id, model_name, answer, previous_response_id, messages, backend_meta, status="completed"
+        )
+        payload["started_at"] = int(started)
+        _save(payload, list(messages) + [{"role": "assistant", "content": answer}])
+        logger.info(f"[ReqID: {request_id}] async task {response_id} completed in {payload['execution_ms']}ms.")
+    except Exception as e:
+        logger.error(f"[ReqID: {request_id}] async task {response_id} failed: {e}", exc_info=True)
+        payload = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="failed")
+        payload["started_at"] = int(started)
+        payload["error"] = {"message": str(e)}
+        _save(payload, None)
 
 
 class ResponsesDetailView(APIView):
