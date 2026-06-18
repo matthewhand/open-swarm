@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security — settings dashboard XSS
+- `templates/settings_dashboard.html` injected server settings into a `<script>` via `{{ settings_groups|safe }}` — an XSS vector (any value containing `</script>` could break out) that also emitted invalid JS (a raw Python dict). Replaced with Django's `json_script` (auto-escapes `<`/`>`/`&`) read via `JSON.parse`. Sensitive values were already masked server-side. Regression tests added.
+
 ### Fixed — MCP server mode module name
 - `ENABLE_MCP_SERVER` mode was dead on a clean install: the code imported `django_mcp_server` while the `django-mcp-server` distribution actually installs the module **`mcp_server`**. Corrected the module name in `settings.py`/`urls.py`/`mcp/integration.py`, so the `/mcp/` mount loads cleanly once the package is present (verified: Django check passes, mount present). It's installed manually — `pip install django-mcp-server` — not as an extra, because its transitive `mcp` SDK dep needs pre-releases that would break `uv lock`. Note: the blueprint→tool *bridge* (`register_blueprints_with_mcp`) targets a flat `registry.register_tool` API that `mcp_server` ≥0.5 replaced with an `MCPToolset` paradigm — a no-op until ported (ROADMAP §3.3).
 
