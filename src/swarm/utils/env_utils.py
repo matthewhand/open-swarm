@@ -151,22 +151,30 @@ def get_enforced_api_auth_token() -> str | None:
     token = get_api_auth_token()
     if token:
         return token
-    if is_django_debug():
+    # Permissive (no-auth) is allowed without a token when EITHER debug is on OR
+    # the operator explicitly opts out via SWARM_ALLOW_NO_AUTH — e.g. when an
+    # external layer (a cloud OAuth proxy / API gateway) already gates access.
+    # Either way we log a clear one-time warning rather than silently disabling.
+    allow_no_auth = os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 't', 'yes', 'y')
+    if is_django_debug() or allow_no_auth:
         global _api_auth_disabled_warning_emitted
         if not _api_auth_disabled_warning_emitted:
             _api_auth_disabled_warning_emitted = True
+            reason = "DJANGO_DEBUG=true" if is_django_debug() else "SWARM_ALLOW_NO_AUTH is set"
             _logger.warning(
-                "API authentication is DISABLED because API_AUTH_TOKEN is not set. "
-                "This permissive default is allowed only because DJANGO_DEBUG=true. "
-                "Set API_AUTH_TOKEN to require authentication."
+                "API authentication is DISABLED because API_AUTH_TOKEN is not set "
+                "(%s). Anyone who can reach this server can call it — make sure an "
+                "external layer (OAuth proxy / firewall) gates access, or set "
+                "API_AUTH_TOKEN to require a bearer token.",
+                reason,
             )
         return None
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
         "API_AUTH_TOKEN (or SWARM_API_KEY) environment variable is required "
-        "when DJANGO_DEBUG is not enabled (production). Refusing to start "
-        "with API authentication disabled. Set API_AUTH_TOKEN, or set "
-        "DJANGO_DEBUG=true for local development."
+        "when DJANGO_DEBUG is not enabled (production). Refusing to start with "
+        "API authentication disabled. Set API_AUTH_TOKEN, or set "
+        "SWARM_ALLOW_NO_AUTH=true if an external layer already gates access."
     )
 
 

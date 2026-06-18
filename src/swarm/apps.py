@@ -68,7 +68,34 @@ class SwarmConfig(AppConfig):
         # behavior is unchanged, we only *add* XDG.
         self.config = self._load_swarm_config()
 
+        # Resume async /v1/responses tasks left in-flight by a restart — server
+        # processes only (not migrate/test), guarded against the runserver
+        # reloader's parent process to avoid double-resume.
+        self._maybe_resume_async_tasks()
+
         logger.info("Swarm app initialization checks completed.")
+
+    @staticmethod
+    def _maybe_resume_async_tasks() -> None:
+        import sys
+
+        if os.environ.get("SWARM_TEST_MODE"):
+            return
+        argv = " ".join(sys.argv)
+        if "runserver" in argv:
+            serving = ("--noreload" in argv) or os.environ.get("RUN_MAIN") == "true"
+        else:
+            serving = any(s in argv for s in ("swarm-api", "daphne", "uvicorn", "gunicorn"))
+        if not serving:
+            return
+        try:
+            import threading
+
+            from swarm.views.responses_views import resume_pending_responses
+
+            threading.Thread(target=resume_pending_responses, daemon=True).start()
+        except Exception as e:  # never let resume break startup
+            logger.warning("Could not schedule async-task resume: %s", e)
 
     @staticmethod
     def _load_swarm_config() -> dict:
