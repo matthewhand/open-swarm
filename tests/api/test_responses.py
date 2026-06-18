@@ -258,3 +258,37 @@ class TestResponsesAsync:
         body = json.loads(resp.content)
         assert body["status"] == "completed"
         assert "ping" in body["output_text"]
+
+    @pytest.mark.asyncio
+    async def test_max_wait_fast_task_returns_inline(self, async_client):
+        # A fast task that beats the deadline comes back inline (200, completed).
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping", "max_wait_seconds": 30})
+        assert resp.status_code == status.HTTP_200_OK
+        body = json.loads(resp.content)
+        assert body["status"] == "completed"
+        assert "ping" in body["output_text"]
+
+    @pytest.mark.asyncio
+    async def test_slow_task_escalates_to_handle_then_completes(self, async_client, monkeypatch):
+        # Worker slower than the wait window -> 202 handle; then it finishes and polls completed.
+        import swarm.views.responses_views as rv
+
+        async def _slow(bp, messages, cancel_check=None):
+            await asyncio.sleep(0.8)
+            return "You said: slow", None
+
+        monkeypatch.setattr(rv, "_consume_blueprint", _slow)
+        resp = await self._create(async_client, {"model": "chatbot", "input": "x", "max_wait_seconds": 0.2})
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        body = json.loads(resp.content)
+        assert body["status"] in ("queued", "in_progress")
+        final = await self._poll(async_client, body["id"])
+        assert final["status"] == "completed"
+        assert "slow" in final["output_text"]
+
+    @pytest.mark.asyncio
+    async def test_env_default_sync_timeout_applies(self, async_client, monkeypatch):
+        monkeypatch.setenv("SWARM_RESPONSES_SYNC_TIMEOUT", "30")
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping"})
+        assert resp.status_code == status.HTTP_200_OK  # hybrid kicked in via env default
+        assert json.loads(resp.content)["status"] == "completed"

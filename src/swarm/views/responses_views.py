@@ -13,6 +13,7 @@ and emits ``response.output_text.delta`` events.
 import asyncio
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -110,6 +111,29 @@ def _coerce_content(content: Any) -> str:
                 parts.append(part)
         return "".join(parts)
     return str(content)
+
+
+def _resolve_sync_wait(request_data: dict[str, Any], background: bool) -> float | None:
+    """How long to wait synchronously before returning a queued handle.
+
+    Precedence: ``background:true`` -> 0 (immediate handle) > per-request
+    ``max_wait_seconds`` > server default ``SWARM_RESPONSES_SYNC_TIMEOUT`` (env).
+    Returns None when nothing is configured — the classic fully-blocking sync path.
+    """
+    if background:
+        return 0.0
+    if "max_wait_seconds" in request_data:
+        try:
+            return max(0.0, float(request_data["max_wait_seconds"]))
+        except (TypeError, ValueError):
+            return None
+    env = os.environ.get("SWARM_RESPONSES_SYNC_TIMEOUT")
+    if env:
+        try:
+            return max(0.0, float(env))
+        except ValueError:
+            return None
+    return None
 
 
 async def _async_auth_dispatch(view: APIView, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
@@ -228,11 +252,16 @@ class ResponsesView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
-        # Async fire-and-forget: persist a "queued" record, kick off a background
-        # worker, and return the handle immediately. Polled via GET. (Streaming and
-        # background are mutually exclusive; background wins.)
-        if background:
-            return await self._handle_background(request_id, model_name, messages, params, previous_response_id)
+        # Fast-path sync vs queued. The server runs the task on a background worker
+        # and waits up to `wait_seconds` for it to finish: returns the result inline
+        # (200) if it beats the deadline, else a handle (202, in_progress) the client
+        # polls. background:true => wait 0 (immediate handle). No wait configured =>
+        # the classic fully-blocking sync path. Streaming is always inline.
+        wait_seconds = _resolve_sync_wait(request_data, background)
+        if wait_seconds is not None and not stream:
+            return await self._handle_hybrid(
+                request_id, model_name, messages, params, previous_response_id, wait_seconds
+            )
 
         if hasattr(blueprint_instance, "set_params"):
             blueprint_instance.set_params(params)
@@ -240,8 +269,13 @@ class ResponsesView(APIView):
             return await self._handle_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
         return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
 
-    async def _handle_background(self, request_id, model_name, messages, params, previous_response_id) -> Response:
-        """Persist a queued record (with a resumable task spec), start a worker, return now."""
+    async def _handle_hybrid(self, request_id, model_name, messages, params, previous_response_id, wait_seconds) -> Response:
+        """Run on a background worker; wait up to ``wait_seconds`` for completion.
+
+        Returns the completed result inline (200) if it finishes within the window,
+        else the in-progress handle (202) to poll. ``wait_seconds == 0`` returns the
+        queued handle immediately (background mode).
+        """
         response_id = f"resp_{request_id}"
         payload = _build_response_payload(
             request_id, model_name, "", previous_response_id, None, None, status="queued"
@@ -254,8 +288,21 @@ class ResponsesView(APIView):
         # Daemon thread with its own event loop — decoupled from the request
         # lifecycle so it survives after we return the response.
         _spawn_worker(response_id, request_id, model_name, list(messages), params, previous_response_id)
-        logger.info(f"[ReqID: {request_id}] /v1/responses queued async task {response_id} (model '{model_name}').")
-        return Response(payload, status=status.HTTP_202_ACCEPTED)
+        logger.info(f"[ReqID: {request_id}] /v1/responses task {response_id} started (wait={wait_seconds}s, model '{model_name}').")
+
+        if wait_seconds <= 0:
+            return Response(payload, status=status.HTTP_202_ACCEPTED)
+
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            await asyncio.sleep(0.15)
+            rec = await sync_to_async(responses_store.load)(response_id)
+            done = (rec or {}).get("response", {}).get("status") in ("completed", "failed", "cancelled")
+            if done:
+                return Response(rec["response"], status=status.HTTP_200_OK)  # beat the deadline
+        # Escalate to async: hand back the current (in_progress) handle to poll.
+        rec = await sync_to_async(responses_store.load)(response_id)
+        return Response((rec or {}).get("response") or payload, status=status.HTTP_202_ACCEPTED)
 
     async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
         """Consume the blueprint generator, keep the last message, shape a response object."""
