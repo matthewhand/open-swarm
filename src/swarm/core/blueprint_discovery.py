@@ -254,12 +254,52 @@ def merge_community_blueprints(
     return merged
 
 
+# Canonical 'swarm_*' names for the multi-agent orchestration *patterns*. The
+# implementations live in the original 'cli_*' dirs (the prefix once meant "runs
+# over CLIs"); these patterns are really Swarm primitives, so 'swarm_*' is the
+# promoted public name while 'cli_*' stays as a back-compat alias. cli_agent
+# keeps its name — it literally runs one CLI. Maps canonical -> implementation key.
+BLUEPRINT_ALIASES: dict[str, str] = {
+    "swarm_ensemble": "cli_fusion",
+    "swarm_map": "cli_map",
+    "swarm_recurse": "cli_recurse",
+    "swarm_pipeline": "cli_pipeline",
+    "swarm_roundtable": "cli_roundtable",
+    "swarm_planner": "cli_planner",
+    "swarm_orchestrator": "cli_orchestrator",
+}
+
+
+def apply_blueprint_aliases(
+    blueprints: dict[str, DiscoveredBlueprintInfo],
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Register canonical ``swarm_*`` aliases for discovered ``cli_*`` patterns.
+
+    Each alias points at the SAME class as its target but advertises the canonical
+    name in its metadata. The ``model`` value the client sends is what drives the
+    ``system_fingerprint``, so ``swarm_recurse`` and ``cli_recurse`` both work and
+    self-describe correctly. Skips an alias whose target wasn't discovered, and
+    never overwrites a real blueprint of the same name.
+    """
+    for alias, target in BLUEPRINT_ALIASES.items():
+        if alias in blueprints or target not in blueprints:
+            continue
+        info = dict(blueprints[target])
+        meta = dict(info.get("metadata") or {})
+        meta["name"] = alias
+        info["metadata"] = meta
+        blueprints[alias] = info
+    return blueprints
+
+
 def discover_all_blueprints(
     bundled_dir: str,
     extra_dirs: "list[str] | None" = None,
 ) -> dict[str, DiscoveredBlueprintInfo]:
-    """Convenience: discover the bundled root, then merge community roots."""
-    return merge_community_blueprints(discover_blueprints(bundled_dir), extra_dirs)
+    """Convenience: discover the bundled root, merge community roots, add aliases."""
+    return apply_blueprint_aliases(
+        merge_community_blueprints(discover_blueprints(bundled_dir), extra_dirs)
+    )
 
 
 if __name__ == '__main__':

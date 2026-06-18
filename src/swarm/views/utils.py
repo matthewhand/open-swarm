@@ -8,6 +8,7 @@ from swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlue
 
 # Assuming the discovery functions are correctly located now
 from swarm.core.blueprint_discovery import (
+    apply_blueprint_aliases,
     discover_blueprints,
     merge_community_blueprints,
 )
@@ -108,6 +109,7 @@ def _load_all_blueprint_metadata_sync():
     blueprint_classes = merge_community_blueprints(
         blueprint_classes, getattr(settings, "BLUEPRINT_EXTRA_DIRS", None)
     )
+    blueprint_classes = apply_blueprint_aliases(blueprint_classes)
 
     # Merge dynamic teams as blueprints
     dyn = load_dynamic_registry()
