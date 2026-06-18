@@ -55,7 +55,7 @@ export function buildToolsConfig(
   const mcpServers: Record<string, unknown> = {}
   for (const s of servers) {
     const entry: Record<string, unknown> = { command: s.command, args: s.args, provides: s.provides }
-    if (s.needs_auth) entry.env = Object.fromEntries(s.auth_env.map((k) => [k, `\${${k}}`]))
+    if (s.needs_auth) entry.env = Object.fromEntries(s.auth_env.map((k) => [k, '']))
     mcpServers[s.name] = entry
   }
   return { mcpServers, tool_requirements: requirements }
