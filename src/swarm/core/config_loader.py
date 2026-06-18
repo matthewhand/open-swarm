@@ -42,20 +42,14 @@ def find_config_file(
 ) -> Path | None:
     """
     Locate swarm_config.json using precedence:
-      1) XDG (~/.config/swarm/swarm_config.json)
-      2) User-specified path
+      1) User-specified path (explicit ``--config`` always wins)
+      2) XDG (~/.config/swarm/swarm_config.json)
       3) Upwards search from start_dir
       4) default_dir/swarm_config.json
       5) CWD/swarm_config.json
     Logs actionable hints on common mistakes.
     """
-    # 1. XDG config path
-    xdg_config = _xdg_config_path()
-    if xdg_config.is_file():
-        logger.debug(f"Found config XDG: {xdg_config}")
-        return xdg_config.resolve()
-
-    # 2. User-specified path
+    # 1. User-specified path — an explicit choice must win over the XDG default.
     if specific_path:
         p = Path(specific_path)
         if p.is_file():
@@ -66,6 +60,12 @@ def find_config_file(
                     f"{specific_path}")
         )
         # Fall through
+
+    # 2. XDG config path
+    xdg_config = _xdg_config_path()
+    if xdg_config.is_file():
+        logger.debug(f"Found config XDG: {xdg_config}")
+        return xdg_config.resolve()
 
     # 3. Upwards from start_dir
     if start_dir:
