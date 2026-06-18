@@ -1,0 +1,27 @@
+[Unit]
+Description=Open Swarm ORACLE — authenticated OpenAI-compatible gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/YOURUSER/open-swarm
+# The wrapped CLIs are host tools (gemini in nvm, claude/grok in ~/.local/bin).
+# PATH MUST include them or the adapters can't exec the CLIs. Adjust the node
+# version path to match `which gemini` on the host.
+Environment=PATH=/home/YOURUSER/.nvm/versions/node/v22.22.3/bin:/home/YOURUSER/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=DJANGO_DEBUG=true
+# Add your public hostname here once TLS/nginx is in front:
+Environment=DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,oracle.example.com
+Environment=SWARM_CONFIG_PATH=/home/YOURUSER/.config/swarm/swarm_config.json
+Environment=SWARM_RESPONSES_DIR=/home/YOURUSER/.local/share/swarm/responses
+# REQUIRE a bearer token. Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
+Environment=API_AUTH_TOKEN=CHANGE_ME_GENERATE_A_TOKEN
+# Bind localhost-only; nginx terminates TLS and proxies to it. (Use 0.0.0.0:8001
+# only if you intend to expose it directly without a TLS proxy — not recommended.)
+ExecStart=/home/YOURUSER/open-swarm/.venv/bin/python manage.py runserver 127.0.0.1:8001 --noreload
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
