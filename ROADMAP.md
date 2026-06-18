@@ -200,3 +200,109 @@ commit log; version bumped to 0.4.0.
   - [x] CONTRIBUTING.md added (honest: references only scripts that exist; lint scoped to touched files)
   - [x] License headers / NOTICE decision: **NOTICE file instead of per-file headers** (decided 2026-06-11). `NOTICE` covers the MIT grant, OpenAI Swarm/openai-agents attribution, and vendored static assets (marked.js, Tabler Icons, Font Awesome webfonts); linked from README's License section
   - [x] Cut the actual first release (tag, release notes from CHANGELOG) — through v0.5.1
+
+---
+
+## 4. Critique findings — multi-agent audit (2026-06-19)
+
+A read-only fan-out audited the web UI, end-to-end workflows, code/repo
+structure, and cruft. Findings below are prioritized; each cites `file:line`.
+Bright spots confirmed: the `/v1/responses` async engine, the `swarm-cli
+cli-agents --init/--check-auth/--suggest` flow, the OpenAPI-served REST surface,
+USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
+
+### 4.1 Security (do first)
+- [ ] **XSS / secret leak:** `templates/settings_dashboard.html:567`
+  `let settingsData = {{ settings_groups|safe }}` injects server settings
+  (incl. values flagged `sensitive`) unescaped into a `<script>`. Use
+  `json_script` + server-side redaction.
+- [ ] **Unauthed web save + unsandboxed exec:** `views/agent_creator_views.py`
+  `save_custom_agent`/`save_team_swarm` are POST-only (no `login_required`); the
+  generated blueprints (which can carry `execute_shell_command`/`write_file`)
+  are `exec_module`'d by discovery unsandboxed.
+
+### 4.2 Broken-but-shipped (erodes trust)
+- [ ] **`django_chat` is a stub** — `blueprints/django_chat/blueprint_django_chat.py:200-221`
+  never calls an LLM (`"[DjangoChat LLM] Would respond to: …"`). Implement or label demo.
+- [ ] **Web create→run loop is broken** — `save_custom_agent`/`save_team_swarm`
+  (`agent_creator_views.py:431-453,773-792`) and `blueprint_creator`
+  (`blueprint_library_views.py:473-530`) save to a relative `user_blueprints/` /
+  JSON catalog that discovery never scans (`views/utils.py`, XDG dir). Nothing
+  built in the web UI is runnable. Point saves at `get_user_blueprints_dir()`.
+- [ ] **Agent Creator Pro is non-functional clickware** — route exists
+  (`urls.py:127`) but no generate/validate/save routes and the JS handlers are
+  undefined (`agent_creator_pro.html`). Finish or hide behind a flag.
+- [ ] **Fake buttons (Django UI):** `my_blueprints.html:445-463` "Run Blueprint"
+  is a `setTimeout` simulation; `settings_dashboard.html:661-672`
+  Validate/Check/Export only toast "coming soon"; `team_creator.html:341`
+  validation is a no-op demo toast. Wire or remove.
+- [ ] **SPA `loading` button shows no spinner (DaisyUI 5)** —
+  `components/DaisyUI/Button.tsx:56` uses the bare `loading` class (removed in
+  v5; needs a `loading-spinner` span). Every mutating action lacks feedback.
+  Also dead `active`/`disabled` variants (`:8,38`).
+
+### 4.3 Docs-vs-reality (breaks onboarding)
+- [ ] **Docs instruct nonexistent CLI commands** — QUICKSTART (`swarm-cli llm add`,
+  `config add`, `config validate`) and CONFIGURATION.md (`configure`,
+  `list-config`, `set`, `config init`) reference commands the shipped
+  `swarm.core.swarm_cli:app` (`list`/`wizard`/`install`/`cli-agents`/`skills`/…)
+  does not have. The config loader's own error hints do too
+  (`config_loader.py:113,144,157`). Rewrite docs to the real commands (or wire a
+  `config`/`llm` group). [partially started: QUICKSTART §6/§7 fixed 2026-06-19]
+- [ ] **`install` misdescribed** — QUICKSTART §2 says "downloads"; it actually
+  runs PyInstaller to compile a binary (`swarm_cli.py` `install_executable`).
+- [ ] **swarm-cli dead-alias warnings** — see 4.4 (orphaned `extensions/cli/main.py`).
+
+### 4.4 Dead code / parallel trees
+- [ ] **`extensions/` vs `core/` parallel CLI trees (~700 LOC)** — `swarm-cli`→`core`,
+  `swarm-api`→`extensions.launchers` (opposite trees); two tests import the
+  non-shipped `extensions.launchers.swarm_cli`. Pick `core/`, repoint `swarm-api`,
+  delete `extensions/launchers` + `extensions/cli`.
+- [ ] **`extensions/cli/main.py` orphaned** — unreferenced; source of the
+  "Execute function for alias 'X' not found" warnings (8/11 aliases lack
+  `execute`). Delete. (supersedes §3.4b)
+- [ ] **Dead view+template:** `views/web_views.py:122` `blueprint_webpage` (no URL)
+  + its only template `templates/simple_blueprint_page.html`. Delete both.
+- [ ] **Unrendered `templates/chat.html`** (only a `routing.py:6` docstring) + ~8
+  orphaned `templates/rest_mode/*` files. Delete.
+- [ ] **`stewie` ships a broken nested Django app** — `blueprints/stewie/{settings,views,serializers,models}.py`
+  import a nonexistent `blueprints.chc`. Fix paths or delete.
+
+### 4.5 Structure
+- [ ] **God-modules:** `blueprints/codey/blueprint_codey.py` (1021 lines),
+  `core/blueprint_base.py` (919 lines, 35 methods — memory/approval/config all
+  inlined). Extract `MemoryMixin`/`ApprovalMixin`/`ConfigResolver`; pull
+  `CodeySpinner`/`DummyTool` into shared infra.
+- [ ] **Spinner reimplemented ≥13×** and **`ansi_box` duplicated & divergent**
+  (`utils/ansi_box.py` 23 lines vs `ux/ansi_box.py` 42). Consolidate to one `ux/`.
+- [ ] **Blueprint metadata inconsistent** — `name`≠dirname in 9 blueprints;
+  3 declaration styles (`ClassVar`, bare, `@property`); absent in `gawd`/`geese`/
+  `whinge_surf`/`zeus`; no machine-readable `category`. Define a schema +
+  discovery-time validator (CI-enforced).
+- [ ] **`urls.py` REST inconsistency** — hand-duplicated slash/no-slash route
+  pairs, mixed CBV/FBV, 4 auth styles. Adopt a DRF router for `v1/*` resources.
+- [ ] **9 `cli_*` deliberation blueprints overlap** — a strategy family as 9
+  top-level blueprints. Consider one blueprint + `strategy` param, or a shared base.
+
+### 4.6 UX / SPA (medium)
+- [ ] **Toast a11y + duplication** — `components/DaisyUI/Toast.tsx:98` no
+  `aria-live` (primary feedback is SR-invisible); `ToastProvider` triple-nested
+  (App + 3 pages).
+- [ ] **Modal triple focus/dismiss** — native `<dialog>` + `focus-trap-react` +
+  manual backdrop math (`Modal.tsx:84-105`); pick one.
+- [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
+  (`:324`), no markdown/code rendering (`:301`).
+- [ ] **BuilderPage** titled "Builder" but read-only (no save); no list filter.
+  **AgentCreator** code field is a plain textarea (no editor); custom cards offer
+  only Delete (dead end).
+- [ ] **Django legacy surface off-brand/broken** — Bootstrap CDN (offline breaks),
+  `profiles.html` uses DaisyUI classes on a Bootstrap base (unstyled),
+  `base.html` missing `title`/`head` blocks. Decide retire-vs-migrate.
+
+### 4.7 API + tests
+- [ ] **`/v1/responses` missing trailing-slash twin** (`urls.py:91`) — `…/responses/` 404s.
+- [ ] **Silent model fallback** — unknown `default_model` silently uses `default`
+  (`config_loader.py:303-304`, DEBUG-only log). Warn or 400.
+- [ ] **`/v1/teams/` oversold** — only `{name, description, llm_profile}`, an LLM-
+  profile alias, not a team builder (`teams_api.py:51-120`). Relabel or extend.
+- [ ] **Zero test coverage:** `stewie`, `whinge_surf` (both have real `run()`).
