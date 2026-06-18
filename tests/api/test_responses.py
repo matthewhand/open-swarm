@@ -6,6 +6,7 @@ API key. ``validate_model_access`` is patched to True (it normally requires the
 blueprint to appear in discovery, which it does, but patching keeps the test
 isolated from discovery state).
 """
+import asyncio
 import json
 import os
 
@@ -195,3 +196,65 @@ def test_responses_reports_nonzero_token_usage(client):
     assert usage["input_tokens"] > 0
     assert usage["output_tokens"] > 0
     assert usage["total_tokens"] == usage["input_tokens"] + usage["output_tokens"]
+
+
+@pytest.mark.django_db(transaction=True)
+class TestResponsesAsync:
+    """Async fire-and-forget: background:true queues, runs in a worker, polled via GET."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_test_mode(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("SWARM_TEST_MODE", "1")
+        monkeypatch.setenv("SWARM_RESPONSES_DIR", str(tmp_path))
+        monkeypatch.setattr("swarm.views.responses_views.validate_model_access", lambda *a, **k: True)
+
+    async def _create(self, async_client, data):
+        return await async_client.post(
+            reverse("responses"), data=json.dumps(data), content_type="application/json", SERVER_NAME="localhost"
+        )
+
+    async def _poll(self, async_client, rid, tries=80):
+        url = reverse("responses-detail", kwargs={"response_id": rid})
+        for _ in range(tries):
+            got = await async_client.get(url, SERVER_NAME="localhost")
+            body = json.loads(got.content)
+            if body.get("status") in ("completed", "failed"):
+                return body
+            await asyncio.sleep(0.1)
+        return None
+
+    @pytest.mark.asyncio
+    async def test_background_queues_then_completes(self, async_client):
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping", "background": True})
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        body = json.loads(resp.content)
+        assert body["status"] == "queued"
+        assert body["id"].startswith("resp_")
+        assert body["output"] == [] and body["output_text"] == ""
+
+        final = await self._poll(async_client, body["id"])
+        assert final is not None, "async task never finished"
+        assert final["status"] == "completed"
+        assert "ping" in final["output_text"]
+        assert isinstance(final.get("execution_ms"), int)  # observability
+
+    @pytest.mark.asyncio
+    async def test_background_result_is_chainable(self, async_client):
+        resp = await self._create(async_client, {"model": "chatbot", "input": "my name is Ada", "background": True})
+        rid = json.loads(resp.content)["id"]
+        final = await self._poll(async_client, rid)
+        assert final["status"] == "completed"
+        # The completed async result can seed a follow-up turn.
+        chained = await self._create(
+            async_client, {"model": "chatbot", "input": "again", "previous_response_id": rid}
+        )
+        assert chained.status_code == status.HTTP_200_OK
+        assert json.loads(chained.content)["previous_response_id"] == rid
+
+    @pytest.mark.asyncio
+    async def test_sync_path_unchanged_without_background(self, async_client):
+        resp = await self._create(async_client, {"model": "chatbot", "input": "ping"})
+        assert resp.status_code == status.HTTP_200_OK
+        body = json.loads(resp.content)
+        assert body["status"] == "completed"
+        assert "ping" in body["output_text"]

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Async tasking (`/v1/responses` background mode)
+- Fire-and-forget for long-running agent work: `POST /v1/responses` with `"background": true` returns **202** immediately with a `resp_<id>` and `status: "queued"`; the blueprint runs in a daemon worker that updates the file-backed store `queued → in_progress → completed/failed` with `execution_ms`/`started_at`. Poll via `GET /v1/responses/{id}`; completed results carry `output_text`/`system_fingerprint`/`usage` and are chainable via `previous_response_id`. Sync behavior unchanged when `background` is absent. Also wired per-request `params` into `/v1/responses`. See **[docs/ASYNC_RESPONSES.md](docs/ASYNC_RESPONSES.md)**.
+
 ### Added — Orchestration patterns (MAF-class, over CLIs)
 - Three new orchestration blueprints complete the field-standard pattern set over heterogeneous agentic CLIs: **`cli_pipeline`** (sequential — each stage refines the prior stage's output, draft → review → polish), **`cli_roundtable`** (group-chat — debaters react to each other in a shared transcript across bounded rounds, a moderator concludes and synthesizes), and **`cli_planner`** (Magentic-One — a planner keeps a task ledger, delegates to workers, and re-plans on stall until the goal is met). All follow the existing `BlueprintBase` + `cli_fusion_support` conventions, degrade gracefully on a dead backend, and are auto-discovered at `/v1/models`. 20 new tests.
 - New docs: **[docs/VISION.md](docs/VISION.md)** (front-and-centre vision + honest built-vs-remaining) and **[docs/ORCHESTRATION_PATTERNS.md](docs/ORCHESTRATION_PATTERNS.md)** (GitHub Mermaid sequence diagrams for all seven patterns). Live cross-CLI transcripts (consensus, routing, tool calling) under `docs/proofs/`.
