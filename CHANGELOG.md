@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-06-19
+
+### Added — Docker
+- API-only base `docker-compose.yml` (the gateway serving the REST surface; CLIs are host-bound and opt-in) plus a rewritten `docker-compose.override.example.yml` catalog of per-CLI mount blocks.
+
 ### Added — `cli_recurse` (recursive divide & conquer)
 - New blueprint that breaks a problem down to **any depth**: each node decides to solve directly or split into sub-problems, and every sub-problem is handed to a **freshly-instantiated child of the same blueprint** — recursing until each leaf is atomic, then synthesizing back up. Three limiters keep it finite: `max_depth`, `max_subproblems` (fan-out width), and `max_nodes` (a shared global budget; once spent, remaining nodes solve directly). Config block `cli_recurse` (decomposer/solver/synthesizer + limits), falls back to `cli_fusion`. The recursive generalization of `cli_map`'s single-level decompose.
 
