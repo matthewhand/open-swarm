@@ -36,9 +36,17 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from agents import set_default_openai_client
+from agents import set_default_openai_client, set_tracing_disabled
 from django.apps import apps  # Import Django apps registry
 from openai import AsyncOpenAI
+
+# Disable the openai-agents SDK's tracing exporter by default. It uploads run
+# traces to OpenAI's platform (api.openai.com/v1/traces/ingest) using the default
+# OpenAI key — which on a CLI-fusion / non-OpenAI gateway is absent or invalid,
+# producing a 401 on every agent run AND leaking run data off-box. Opt back in
+# with SWARM_ENABLE_AGENT_TRACING=1 (and a valid OPENAI_API_KEY).
+if os.environ.get("SWARM_ENABLE_AGENT_TRACING", "").lower() not in ("1", "true", "yes"):
+    set_tracing_disabled(True)
 
 # Keep the function import
 from swarm.core.config_loader import _substitute_env_vars
