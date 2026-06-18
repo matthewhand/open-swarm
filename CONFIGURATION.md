@@ -237,6 +237,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_RESPONSES_DIR` | Where `/v1/responses` stores records for `previous_response_id` chaining and `GET`/`DELETE`. | `$XDG_DATA_HOME/swarm/responses` (i.e. `~/.local/share/swarm/responses`) |
 | `SWARM_RESPONSES_SYNC_TIMEOUT` | Default seconds a `/v1/responses` request waits inline before auto-escalating to a queued handle (per-request override: `max_wait_seconds`). Unset = fully-blocking sync. | unset |
 | `XDG_DATA_HOME` | Base for state data (responses store). | `~/.local/share` |
+| `SWARM_BLUEPRINT_PATHS` | Extra blueprint roots scanned **in addition** to the bundled set (os.pathsep-separated). The user data blueprints dir (`$XDG_DATA_HOME/swarm/blueprints`) is always scanned too. Bundled blueprints win on name collision. | unset |
 
 ### Server, security & auth
 

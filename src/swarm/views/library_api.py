@@ -28,9 +28,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from swarm.core.blueprint_discovery import discover_blueprints
+from swarm.core.blueprint_discovery import (
+    discover_blueprints,
+    merge_community_blueprints,
+)
 from swarm.permissions import HasValidTokenOrSession
-from swarm.settings import BLUEPRINT_DIRECTORY, ENABLE_API_AUTH
+from swarm.settings import BLUEPRINT_DIRECTORY, BLUEPRINT_EXTRA_DIRS, ENABLE_API_AUTH
 from swarm.views.blueprint_library_views import (
     BLUEPRINT_METADATA,
     get_user_blueprint_library,
@@ -98,7 +101,9 @@ class LibraryAPIView(APIView):
                 )
 
             # Verify the blueprint exists, mirroring add_blueprint_to_library.
-            discovered = discover_blueprints(BLUEPRINT_DIRECTORY)
+            discovered = merge_community_blueprints(
+                discover_blueprints(BLUEPRINT_DIRECTORY), BLUEPRINT_EXTRA_DIRS
+            )
             if name not in discovered:
                 return Response(
                     {"error": f"Blueprint '{name}' not found."},

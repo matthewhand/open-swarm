@@ -49,7 +49,9 @@ class BlueprintLoadError(Exception):
 #         return dir_name[len(prefix):]
 #     return dir_name
 
-def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo]:
+def discover_blueprints(
+    blueprint_dir: str, namespace: str | None = None
+) -> dict[str, DiscoveredBlueprintInfo]:
     """
     Discovers blueprints by looking for Python files within subdirectories
     of the given blueprint directory. Extracts metadata including name, version,
@@ -57,6 +59,12 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
 
     Args:
         blueprint_dir: The path to the directory containing blueprint subdirectories.
+        namespace: When set, modules are loaded under
+            ``<namespace>.<dir>.<file>`` instead of being derived from the
+            on-disk folder structure, and the directory tree is NOT added to
+            ``sys.path``. Use this for *external* (community) blueprint roots so
+            they cannot collide with or shadow the bundled ``swarm.blueprints``
+            package. Leave ``None`` for the bundled root (legacy behavior).
 
     Returns:
         A dictionary mapping blueprint directory names (as keys) to
@@ -101,7 +109,11 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
         # This assumes 'swarm.blueprints' is a package containing subdirectories for each blueprint.
         # The base_dir is typically .../swarm/blueprints/
         # So, subdir.name would be 'codey', py_file_path.stem would be 'codey'
-        module_import_path = f"{base_dir.parent.name}.{base_dir.name}.{subdir.name}.{py_file_path.stem}"
+        if namespace:
+            # External/community root: synthetic, collision-proof module name.
+            module_import_path = f"{namespace}.{subdir.name}.{py_file_path.stem}"
+        else:
+            module_import_path = f"{base_dir.parent.name}.{base_dir.name}.{subdir.name}.{py_file_path.stem}"
         # A more robust way if base_dir is not always '.../swarm/blueprints':
         # Find the 'swarm' package root relative to py_file_path and build from there.
         # For now, assuming a fixed structure like 'swarm.blueprints.blueprint_name.module_name'
@@ -112,10 +124,16 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
             # Ensure the parent of 'swarm' (e.g., 'src') is in sys.path if not already.
             # This helps Python find the 'swarm' package.
             # If blueprint_dir is 'src/swarm/blueprints', then base_dir.parent.parent is 'src'.
-            project_src_dir = str(base_dir.parent.parent)
-            if project_src_dir not in sys.path:
-                logger.debug(f"Adding '{project_src_dir}' to sys.path for module import.")
-                sys.path.insert(0, project_src_dir)
+            # Only the bundled root is added to sys.path (so 'swarm.blueprints.*'
+            # resolves). External roots are loaded purely by file path under a
+            # synthetic namespace and must NOT inject their tree onto sys.path —
+            # a community dir named '.../swarm/blueprints' would otherwise shadow
+            # the installed package.
+            if not namespace:
+                project_src_dir = str(base_dir.parent.parent)
+                if project_src_dir not in sys.path:
+                    logger.debug(f"Adding '{project_src_dir}' to sys.path for module import.")
+                    sys.path.insert(0, project_src_dir)
 
             module_spec = importlib.util.spec_from_file_location(module_import_path, py_file_path)
 
@@ -198,6 +216,51 @@ def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo
 
     logger.info(f"Blueprint discovery complete. Found {len(blueprints)} blueprints: {list(blueprints.keys())}")
     return blueprints
+
+
+def merge_community_blueprints(
+    base: dict[str, DiscoveredBlueprintInfo],
+    extra_dirs: "list[str] | None" = None,
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Merge external/community blueprint roots into an already-discovered dict.
+
+    ``base`` (the bundled blueprints) is authoritative: a community blueprint
+    whose key collides with one already present is ignored (and logged), never
+    allowed to shadow it. Each external root is loaded under its own synthetic
+    namespace so module names cannot clash. Missing/!dir roots are skipped
+    silently — the common case is that the community dir doesn't exist yet.
+
+    Kept separate from :func:`discover_blueprints` so call sites can still patch
+    the bundled discovery in tests while this no-ops over empty community roots.
+    """
+    merged = dict(base)
+    for index, directory in enumerate(extra_dirs or []):
+        if not directory or not Path(directory).is_dir():
+            continue
+        namespace = f"swarm_community_{index}"
+        try:
+            found = discover_blueprints(directory, namespace=namespace)
+        except Exception:
+            logger.exception("Failed discovering community blueprints in %s", directory)
+            continue
+        for name, info in found.items():
+            if name in merged:
+                logger.warning(
+                    "Community blueprint %r in %s collides with a bundled blueprint; ignoring it.",
+                    name, directory,
+                )
+                continue
+            merged[name] = info
+    return merged
+
+
+def discover_all_blueprints(
+    bundled_dir: str,
+    extra_dirs: "list[str] | None" = None,
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Convenience: discover the bundled root, then merge community roots."""
+    return merge_community_blueprints(discover_blueprints(bundled_dir), extra_dirs)
+
 
 if __name__ == '__main__':
     # Example Usage (assuming you have a 'blueprints' directory structured correctly)

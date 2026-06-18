@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Community blueprints (discovery foundation)
+- Blueprint discovery now scans **external roots** in addition to the bundled set: the user data dir `$XDG_DATA_HOME/swarm/blueprints` (where community packs install) plus any paths in `SWARM_BLUEPRINT_PATHS`. External roots load under a synthetic module namespace so they can't shadow or collide with `swarm.blueprints`; the bundled set always wins on name collisions. New `merge_community_blueprints()` / `discover_all_blueprints()` in `swarm.core.blueprint_discovery`. This is the foundation for installing community blueprint packs from GitHub (explicit opt-in; running third-party blueprint code is a code-execution trust decision).
+
 ## [0.5.0] — 2026-06-19
 
 ### Removed — Dead code cleanup (pre-release)

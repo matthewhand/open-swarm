@@ -17,10 +17,13 @@ import subprocess
 import time
 from typing import Any
 
-from swarm.core.blueprint_discovery import discover_blueprints
+from swarm.core.blueprint_discovery import (
+    discover_blueprints,
+    merge_community_blueprints,
+)
 from swarm.core.mcp_server_config import MCPServerConfig
 from swarm.core.requirements import load_active_config
-from swarm.settings import BLUEPRINT_DIRECTORY
+from swarm.settings import BLUEPRINT_DIRECTORY, BLUEPRINT_EXTRA_DIRS
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +52,9 @@ class BlueprintMCPProvider:
 
     def refresh(self) -> None:
         """Re-discover blueprints and rebuild the internal index."""
-        discovered = discover_blueprints(self._blueprint_dir)
+        discovered = merge_community_blueprints(
+            discover_blueprints(self._blueprint_dir), BLUEPRINT_EXTRA_DIRS
+        )
         index: dict[str, dict[str, Any]] = {}
         for key, info in discovered.items():
             meta = info.get("metadata", {}) if isinstance(info, dict) else {}
