@@ -19,7 +19,32 @@ goes stale fast).
 | `[x]` | Done and shipped |
 | `[ ]` | Not done / planned — partially-done parents stay unchecked, with checked sub-items showing progress |
 
-Last updated: 2026-06-11 (post PR waves #80–#85; origin reduced to main; Docker-verified).
+Last updated: 2026-06-19 (v0.5.1 on PyPI; CLI Agent Fusion + async + persona councils + recursion shipped).
+
+---
+
+## 0. Current release — v0.5.1 (on PyPI)
+
+The first tagged FOSS releases shipped: **v0.3.0 → v0.4.x → v0.5.0 → v0.5.1** are
+live on PyPI (`pip install open-swarm`). Highlights since the 2026-06-11 snapshot:
+
+- [x] **CLI Agent Fusion line** shipped & tagged (was §3.5b/§3.6 "publish pending"):
+  `cli_agent`, `cli_fusion`, `cli_orchestrator`, `cli_map`, plus MAF-class
+  `cli_pipeline`/`cli_roundtable`/`cli_planner`, and recursive `cli_recurse`.
+- [x] **Canonical `swarm_*` names** for the orchestration patterns (`swarm_ensemble`,
+  `swarm_recurse`, …); `cli_*` kept as aliases. `cli_fusion`→`cli_ensemble`.
+- [x] **Async tasking** — `/v1/responses` + `/v1/chat/completions` `background:true`
+  (queued→poll→cancel, restart-durable), `system_fingerprint` provenance.
+- [x] **Persona councils** (`persona_council`) — diverse-lens consensus.
+- [x] **Community-blueprint discovery foundation** — external roots + `SWARM_BLUEPRINT_PATHS`.
+- [x] **Docker** — API-only base compose + opt-in CLI mapping override.
+- [x] **First tagged release + PyPI publish** (was §3.6 open).
+- [x] **Memory configuration documented** in CONFIGURATION.md §9 (mem0 default) (was §3.2 open).
+
+Still open (see below + new items): SPA↔Django parity, MCP-server dependency,
+letta/langmem backends, blueprint ecosystem curation, deprecation-shim sunset,
+and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
+"not found or not callable" — only `list`/`wizard`/`install` work cleanly).
 
 ---
 
@@ -112,7 +137,7 @@ parity is reached.
   - [x] Wired into the agent loop: opt-in per-blueprint `memory` config block; retrieval injected pre-run, conversation stored post-run; no-op when unconfigured
   - [x] End-to-end validation against a real mem0 instance: opt-in `tests/integration/test_memory_mem0_e2e.py` (skips unless `RUN_MEM0_E2E=1` + `OPENAI_API_KEY`; local qdrant + sqlite under tmp_path). 2026-06-11 real run: mem0ai 2.0.4 initialized and the store cycle reached OpenAI embeddings, but the repo `.env` key is revoked (401) — full green pass pending a valid key
   - [ ] letta/langmem backends (placeholder modules raising clear errors today)
-  - [ ] Decide on a default backend and document configuration in CONFIGURATION.md
+  - [x] Decide on a default backend and document configuration in CONFIGURATION.md — **DONE** (mem0 default, CONFIGURATION.md §9)
 
 ### 3.3 MCP server mode (`ENABLE_MCP_SERVER`)
 
@@ -136,6 +161,17 @@ parity is reached.
 - [ ] Demote or archive non-flagship blueprints to an examples/contrib area
 - [ ] Restore or formally drop legacy CLI commands old docs reference (`wizard`, `config`, `add`)
 
+### 3.4b CLI command-registration cruft (NEW — found 2026-06-19)
+
+`swarm-cli` discovery emits a wall of `Warning: Execute function for alias 'X'
+not found or not callable. Skipping.` on every invocation (config, add, delete,
+edit-config, validate-env, validate-envvars, …). Only `list`, `wizard`, and
+`install` resolve cleanly; `swarm-cli config` errors `invalid choice`.
+
+- [ ] Prune the dead alias registrations (or wire their `execute` functions)
+- [ ] Silence the per-invocation warnings for unregistered aliases
+- [ ] Reconcile docs to the commands that actually work
+
 ### 3.5b CLI Agent Fusion (v0.4.0 feature line)
 
 Turns the agentic CLIs an operator already has installed (`claude`, `gemini`,
@@ -158,9 +194,9 @@ commit log; version bumped to 0.4.0.
 
 ### 3.6 Release engineering
 
-- [ ] First tagged FOSS release on PyPI
+- [x] First tagged FOSS release on PyPI — **DONE**: v0.3.0 → v0.5.1 all published
   - [x] Fix publish workflow: old workflows deleted (one published to REAL PyPI on every main push with timestamp versions!); new `publish.yml` is release/tag-driven with manual dispatch, version from pyproject
   - [x] CI tests Python 3.10/3.11/3.12 via uv, with `uv lock --check` guarding against phantom pins
   - [x] CONTRIBUTING.md added (honest: references only scripts that exist; lint scoped to touched files)
   - [x] License headers / NOTICE decision: **NOTICE file instead of per-file headers** (decided 2026-06-11). `NOTICE` covers the MIT grant, OpenAI Swarm/openai-agents attribution, and vendored static assets (marked.js, Tabler Icons, Font Awesome webfonts); linked from README's License section
-  - [ ] Cut the actual first release (tag, release notes from CHANGELOG)
+  - [x] Cut the actual first release (tag, release notes from CHANGELOG) — through v0.5.1
