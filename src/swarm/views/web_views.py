@@ -104,7 +104,7 @@ def index(request):
     try:
         # Discover blueprints dynamically each time the index is loaded
         # Consider caching this if performance becomes an issue
-        discovered_metadata = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
+        discovered_metadata = discover_blueprints(BLUEPRINT_DIRECTORY)
         blueprint_names = list(discovered_metadata.keys())
         logger.debug(f"Rendering index with blueprints: {blueprint_names}")
     except Exception as e:
@@ -117,31 +117,6 @@ def index(request):
         "blueprints": blueprint_names # Use the dynamically discovered list
     }
     return render(request, "index.html", context)
-
-@csrf_exempt
-def blueprint_webpage(request, blueprint_name):
-    """Render a simple webpage for querying agents of a specific blueprint."""
-    logger.debug(f"Received request for blueprint webpage: '{blueprint_name}'")
-    try:
-        # Discover blueprints to check if the requested one exists
-        discovered_metadata = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
-        if blueprint_name not in discovered_metadata:
-            logger.warning(f"Blueprint '{blueprint_name}' not found during discovery.")
-            available_blueprints = "".join(f"<li>{bp}</li>" for bp in discovered_metadata)
-            return HttpResponse(
-                f"<h1>Blueprint '{blueprint_name}' not found.</h1><p>Available blueprints:</p><ul>{available_blueprints}</ul>",
-                status=404,
-            )
-        # Blueprint exists, render the page
-        context = {
-            "blueprint_name": blueprint_name,
-            "dark_mode": request.session.get('dark_mode', True),
-            "is_chatbot": False # Adjust if needed based on blueprint type
-            }
-        return render(request, "simple_blueprint_page.html", context)
-    except Exception as e:
-        logger.error(f"Error processing blueprint page for '{blueprint_name}': {e}", exc_info=True)
-        return HttpResponse("<h1>Error loading blueprint page.</h1>", status=500)
 
 
 @csrf_exempt
@@ -371,7 +346,7 @@ def team_admin(request):
             return render(request, "teams_admin.html", {"error": f"Team '{slug}' already exists.", "teams": teams_current, **_profiles_ctx()})
         # Guard against collisions with statically discovered blueprints
         try:
-            discovered = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
+            discovered = discover_blueprints(BLUEPRINT_DIRECTORY)
             if isinstance(discovered, dict) and slug in discovered:
                 return render(request, "teams_admin.html", {"error": f"Name '{slug}' conflicts with an existing blueprint.", "teams": teams_current, **_profiles_ctx()})
         except Exception:
