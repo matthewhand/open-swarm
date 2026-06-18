@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Persona councils (diverse-lens consensus)
+- **`persona_council`** blueprint: examine one question through a council of distinct **expert lenses** (each a system-prompt persona) in parallel, then a judge reconciles agreement, tensions, and a synthesized position. Consensus from *perspective diversity*, not redundant runs. Built-in councils — `ethics` (Utilitarian/Kantian/Virtue/Rawlsian/Care), `science`, `psych`, `decision`, `red_team` — work with zero config; select via `params.council`, pass an explicit `personas` roster, or define your own in a `persona_council` config block. Verified live (ethics council on claude). The bundled persona blueprints are reframed as *examples* of this composition system. See **[docs/ORCHESTRATION_PATTERNS.md](docs/ORCHESTRATION_PATTERNS.md)**.
+
 ### Added — Async tasking (`/v1/responses` background mode)
 - Fire-and-forget for long-running agent work: `POST /v1/responses` with `"background": true` returns **202** immediately with a `resp_<id>` and `status: "queued"`; the blueprint runs in a daemon worker that updates the file-backed store `queued → in_progress → completed/failed` with `execution_ms`/`started_at`. Poll via `GET /v1/responses/{id}`; completed results carry `output_text`/`system_fingerprint`/`usage` and are chainable via `previous_response_id`. Sync behavior unchanged when `background` is absent. Also wired per-request `params` into `/v1/responses`. See **[docs/ASYNC_RESPONSES.md](docs/ASYNC_RESPONSES.md)**.
 - **Cancellation:** `POST /v1/responses/{id}/cancel` — cooperative cancel, `status → cancelled` (idempotent on finished tasks).
