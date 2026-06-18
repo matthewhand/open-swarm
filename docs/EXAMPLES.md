@@ -25,12 +25,18 @@ curl -s $B/chat/completions -d '{"model":"cli_agent","messages":[{"role":"user",
 ```
 One CLI, falls over to the next installed one if it's down.
 
-### Consensus panel — always (`cli_fusion`)
+### Consensus panel — always (`cli_ensemble`)
 ```bash
-curl -s $B/chat/completions -d '{"model":"cli_fusion","messages":[{"role":"user","content":"capital of Canada?"}],"params":{"preset":"tri","show_analysis":true}}'
+curl -s $B/chat/completions -d '{"model":"cli_ensemble","messages":[{"role":"user","content":"capital of Canada?"}],"params":{"preset":"tri","show_analysis":true}}'
 ```
-Fan to a panel in parallel → a judge synthesizes. `show_analysis` surfaces
-consensus / contradictions / gaps per model.
+Fan to a panel in parallel → a judge synthesizes (a Mixture-of-Agents ensemble
+over your CLIs). `show_analysis` surfaces consensus / contradictions / gaps per
+model. Configured via the shared `cli_fusion` config block.
+
+> **Naming:** `cli_ensemble` is the canonical name; **`cli_fusion` still works**
+> as a back-compat alias (same behavior, same config). We renamed it to avoid
+> colliding with OpenRouter's "Fusion" *tool* — ours is the inverse: the panel
+> *is* the endpoint you call, not a tool a model invokes.
 
 ### Gated consensus — router decides (`cli_orchestrator`)
 ```bash
