@@ -75,6 +75,50 @@ The `model` field selects which blueprint handles the request. Streaming is supp
 
 ---
 
+## Architecture
+
+One OpenAI-compatible endpoint. Point any client at it; the `model` field selects
+a **blueprint** (a team/strategy), which runs the request over your **CLI agents**
+(`gemini`/`claude`/`grok`/`opencode` — each self-authenticated) and/or **REST/LLM
+profiles** (any OpenAI-compatible backend — local LiteLLM, Ollama, Groq, OpenAI).
+
+```mermaid
+flowchart LR
+    Client["OpenAI client — SDK, Open WebUI, curl, MCP"] -->|v1 chat or responses| API[Open Swarm API]
+    API -->|model selects| BP{Blueprint = team or strategy}
+    BP --> REG[CLI adapter registry]
+    BP --> LLM["REST / LLM profiles"]
+    REG --> g[gemini]
+    REG --> c[claude]
+    REG --> k[grok]
+    REG --> o[opencode]
+    LLM --> lite["local LiteLLM / Ollama"]
+    LLM --> cloud["Groq / OpenAI / any OpenAI-compatible"]
+```
+
+The blueprints are **examples of a composition system** — you assemble your own
+personas, teams, and consensus rules. The architectural choice that matters most
+is **how consensus is invoked**: always, or only when an orchestration agent
+decides it's worth the spend.
+
+```mermaid
+flowchart TB
+    Q[Request] --> MODE{Consensus strategy}
+    MODE -->|single| S["one agent — cli_agent"]
+    MODE -->|always| F["panel plus judge — cli_fusion"]
+    MODE -->|gated| R["router decides, escalate only if high stakes — cli_orchestrator"]
+    MODE -->|debate| D["group chat — cli_roundtable"]
+    MODE -->|lenses| P["diverse expert lenses — persona_council"]
+    MODE -->|mixed| H["REST coordinator plus CLI tools — hybrid_team"]
+```
+
+📖 **All the recipes are in [docs/EXAMPLES.md](docs/EXAMPLES.md)** — two sections:
+**Team examples** (consensus blueprints + persona councils, with curl for each)
+and **CLI + REST config** (wiring `cli_agents`, `llm` profiles, and the mix).
+Diagrams + sequence flows for every pattern: [docs/ORCHESTRATION_PATTERNS.md](docs/ORCHESTRATION_PATTERNS.md).
+
+---
+
 ## Core Concepts
 
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
