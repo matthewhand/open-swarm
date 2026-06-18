@@ -1,0 +1,64 @@
+# Open Swarm — containerized gateway.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHAT THIS GIVES YOU BY DEFAULT: the OpenAI-compatible API only.
+# ─────────────────────────────────────────────────────────────────────────────
+# Out of the box this container serves /v1/chat/completions, /v1/responses and
+# /v1/models backed by your REST / LLM profiles (the `llm` block in
+# swarm_config.json). That covers the pure-REST blueprints (chatbot, the REST
+# half of hybrid_team, anything that talks to an OpenAI-compatible HTTP backend).
+#
+# It does NOT include the agentic CLIs (claude, grok, gemini, codex, opencode).
+# Those carry their OWN host-bound auth (OAuth / device login living in your home
+# dir) and cannot be baked into a portable image. So the CLI-driven blueprints
+# (cli_agent, cli_fusion, cli_orchestrator, cli_map, persona_council, the cli_*
+# orchestrators, the CLI half of the hybrids) will NOT work until you map each
+# CLI in yourself.
+#
+# ── The trade-off of running in a container ──
+# To use any CLI blueprint you must map that CLI's binary, runtime and auth
+# folder into the container MANUALLY. This is deliberate — the project does not
+# ship/maintain mappings for every CLI (paths, runtimes and login state differ
+# per host and per version). Copy docker-compose.override.example.yml to
+# docker-compose.override.yml, uncomment the CLIs you actually have, and adjust
+# the paths to your machine. Compose auto-merges the override on `up`.
+#
+# Native (systemd-on-host) deployment avoids all of this — the CLIs are already
+# installed and authed. See docs/ORACLE_DEPLOY.md. Use the container when you
+# only need the REST surface, or you're willing to map the CLIs by hand.
+#
+# Quick start:
+#   echo "DOCKER_UID=$(id -u)" >  .env
+#   echo "DOCKER_GID=$(id -g)" >> .env
+#   docker compose up --build        # API-only
+#   # …then add the override for CLIs.
+
+services:
+  swarm:
+    build:
+      context: .
+      args:
+        PORT: "8000"
+    image: open-swarm:local
+    # Run as your host user so any folders you later bind-mount (CLI auth, config)
+    # stay readable/writable and files the app writes don't end up root-owned.
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    ports:
+      - "8000:8000"
+    environment:
+      # Keep HOME identical to the host so configs that reference absolute paths
+      # resolve, and the bare CLI commands find their state once you map them in.
+      HOME: "${HOME}"
+      # The CLIs self-authenticate and local REST backends are commonly keyless,
+      # so the gateway itself needs no provider key. Front prod with OAuth/proxy.
+      SWARM_ALLOW_NO_AUTH: "true"
+      # Keep the DB and async task store on the writable mounted volume (the app
+      # runs as a non-root host UID and cannot write the image's /app).
+      SQLITE_DB_PATH: "${HOME}/.local/share/swarm/db.sqlite3"
+      SWARM_RESPONSES_DIR: "${HOME}/.local/share/swarm/responses"
+    volumes:
+      # Your swarm config (llm profiles + any cli_agents) — read-only.
+      - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"
+      # Writable state: SQLite DB + async /v1/responses task store.
+      - "${HOME}/.local/share/swarm:${HOME}/.local/share/swarm"
+    restart: unless-stopped

@@ -1,11 +1,67 @@
-version: '3.8'
+# Open Swarm — CLI mapping override (EXAMPLE).
+#
+# The base docker-compose.yml serves the REST API only. To use any agentic-CLI
+# blueprint inside the container you must map that CLI into it yourself: its
+# executable, its runtime (e.g. node for gemini), AND its host-bound auth/state
+# folder. There is no maintained "all CLIs" image — paths, runtimes and login
+# state vary per host/version, so you wire in only what you have.
+#
+# HOW TO USE
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#   # uncomment the block(s) for the CLI(s) you have; fix the host paths/versions
+#   docker compose up --build         # compose auto-merges this override
+#   # verify inside the container:
+#   docker compose exec swarm sh -lc 'which claude gemini grok && claude -p hi'
+#
+# CAVEATS (why this is opt-in, not baked in)
+#   • Bind-mounting host binaries couples the container to your exact paths,
+#     runtime versions and glibc — it works on the machine that built it, it is
+#     NOT portable. The alternative is to install the CLI in a custom Dockerfile.
+#   • The auth folder must be writable if the CLI refreshes tokens (most do) —
+#     mount it read/write (no `:ro`).
+#   • `PATH` below must list every dir holding a CLI you enabled, plus the system
+#     defaults. Trim it to match.
+#   • Paths use ${HOME} so source and target match the host; the container HOME
+#     is set to the same value in the base file. Versions (e.g. node v22.x) are
+#     examples — set yours.
 
 services:
   swarm:
+    environment:
+      # Make the host CLI dirs discoverable. Keep the system defaults at the end.
+      # Trim to only the dirs for CLIs you actually enable below.
+      PATH: "${HOME}/.nvm/versions/node/v22.22.3/bin:${HOME}/.local/bin:${HOME}/.opencode/bin:/usr/local/bin:/usr/bin:/bin"
+
+      # Per-CLI env keys (only if you use API-key auth instead of device login):
+      # ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"   # claude
+      # GEMINI_API_KEY:    "${GEMINI_API_KEY}"      # gemini (or GOOGLE_API_KEY)
+      # OPENAI_API_KEY:    "${OPENAI_API_KEY}"      # codex
+
     volumes:
-      # Map the Roo-Cline MCP settings file into the container.
-      - ${HOME}/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/cline_mcp_settings.json:/home/chatgpt/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/cline_mcp_settings.json:ro
-      
-      # If running on Windows, uncomment the following line to map the Claude Desktop MCP settings.
-      # The host path uses the APPDATA environment variable; adjust if necessary.
-      # - "%APPDATA%\Claude\claude_desktop_config.json:/home/chatgpt/Claude/claude_desktop_config.json:ro"
+      # ── claude (Claude Code) ──────────────────────────────────────────────
+      # Launcher in ~/.local/bin, login/state in ~/.claude.
+      # - "${HOME}/.local/bin:${HOME}/.local/bin:ro"
+      # - "${HOME}/.claude:${HOME}/.claude"
+
+      # ── grok (xAI) ────────────────────────────────────────────────────────
+      # Binary in ~/.local/bin (mount shared with claude above), login in ~/.grok.
+      # - "${HOME}/.local/bin:${HOME}/.local/bin:ro"
+      # - "${HOME}/.grok:${HOME}/.grok"
+
+      # ── gemini (Google) ───────────────────────────────────────────────────
+      # npm global under nvm: mount the WHOLE node version dir so both the
+      # `gemini` symlink target (lib/node_modules) and `node` resolve. OAuth in
+      # ~/.gemini. Match your node version (run: node -v).
+      # - "${HOME}/.nvm/versions/node/v22.22.3:${HOME}/.nvm/versions/node/v22.22.3:ro"
+      # - "${HOME}/.gemini:${HOME}/.gemini"
+
+      # ── codex (OpenAI) ────────────────────────────────────────────────────
+      # Binary wherever you installed it (add its dir to PATH above); state in ~/.codex.
+      # - "${HOME}/.local/bin:${HOME}/.local/bin:ro"
+      # - "${HOME}/.codex:${HOME}/.codex"
+
+      # ── opencode ──────────────────────────────────────────────────────────
+      # Binary + state under ~/.opencode (writable: it caches there); extra
+      # config in ~/.config/opencode.
+      # - "${HOME}/.opencode:${HOME}/.opencode"
+      # - "${HOME}/.config/opencode:${HOME}/.config/opencode"
