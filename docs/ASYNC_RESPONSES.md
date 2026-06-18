@@ -42,6 +42,29 @@ Each queued/in-progress task persists a task spec, so if the server restarts
 mid-flight it **resumes** interrupted tasks on startup (re-runs from the stored
 input — at-least-once). Terminal tasks are left alone.
 
+## Fast-path sync vs queued (auto-escalation)
+
+You don't have to pre-decide sync vs async. Set a deadline and the server returns
+the result **inline** if the task beats it, or a **handle** to poll if it runs
+long:
+
+- `max_wait_seconds: N` on the request — wait up to N seconds, then escalate.
+- `SWARM_RESPONSES_SYNC_TIMEOUT=N` (env) — a server-wide default for every request.
+- `background: true` — don't wait at all (immediate handle).
+- Neither set — classic fully-blocking sync (returns whenever the task finishes).
+
+Same task either way; only the *return* differs:
+
+```
+POST /v1/responses {"model":"cli_fusion","input":"...","max_wait_seconds":10}
+  -> 200 {status:"completed", ...}   # finished within 10s — inline
+  -> 202 {status:"in_progress", id:"resp_…"}   # still running — poll the handle
+```
+
+The task keeps running in the background after a 202, so a long job is never
+lost just because the HTTP call returned. `execution_ms` is recorded for tuning
+the deadline to real task durations.
+
 ## How a client (e.g. Grok) uses it
 
 ```bash
