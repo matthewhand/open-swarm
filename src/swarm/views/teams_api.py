@@ -21,7 +21,9 @@ deployments.
 import logging
 
 from django.conf import settings as dj_settings
-from rest_framework import status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -75,6 +77,42 @@ class TeamsAPIView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        operation_id="v1_teams_create",
+        summary="Register a dynamic team",
+        description=(
+            "Register a named dynamic team (a saved alias over an `llm_profile`). "
+            "`name` is **required**; it is slugified into the team id."
+        ),
+        request=inline_serializer(
+            name="TeamCreateRequest",
+            fields={
+                "name": serializers.CharField(
+                    help_text="Team name (required). Slugified into the team id."
+                ),
+                "description": serializers.CharField(
+                    required=False, allow_blank=True, help_text="Optional human description."
+                ),
+                "llm_profile": serializers.CharField(
+                    required=False,
+                    allow_blank=True,
+                    help_text="LLM profile name to use (defaults to 'default').",
+                ),
+            },
+        ),
+        examples=[
+            OpenApiExample(
+                "Minimal",
+                value={"name": "research-squad", "llm_profile": "default"},
+                request_only=True,
+            )
+        ],
+        responses={
+            201: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            409: OpenApiTypes.OBJECT,
+        },
+    )
     def post(self, request, *_args, **_kwargs):
         try:
             body = request.data or {}
