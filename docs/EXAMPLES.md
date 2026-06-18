@@ -19,6 +19,13 @@ Base URL in examples: `http://localhost:8000/v1` (swap for your host). Add
 Every team is selected by the `model` field; per-request options go in `params`.
 Most work with **config defaults** — `params` only overrides.
 
+> **Naming:** the multi-agent orchestration *patterns* are published as
+> **`swarm_*`** — `swarm_ensemble`, `swarm_map`, `swarm_recurse`, `swarm_pipeline`,
+> `swarm_roundtable`, `swarm_planner`, `swarm_orchestrator` — because they're Swarm
+> primitives, not CLI wrappers. The older **`cli_*`** names (and `cli_fusion`) still
+> work as aliases. `cli_agent` keeps its name (it literally runs one CLI). Examples
+> below use the `cli_*` names; swap in `swarm_*` freely.
+
 ### Single agent (with failover)
 ```bash
 curl -s $B/chat/completions -d '{"model":"cli_agent","messages":[{"role":"user","content":"explain async/await"}],"params":{"cli":"claude"}}'

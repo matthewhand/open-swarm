@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — orchestration patterns published as `swarm_*` (aliases; `cli_*` kept)
+- The multi-agent *pattern* blueprints now have canonical `swarm_*` names — `swarm_ensemble`, `swarm_map`, `swarm_recurse`, `swarm_pipeline`, `swarm_roundtable`, `swarm_planner`, `swarm_orchestrator` — registered via a central alias map (same classes, canonical name advertised in metadata). They're Swarm primitives, not CLI wrappers, so `swarm_` is the honest brand. The `cli_*` names (and `cli_fusion`) keep working as back-compat aliases; `cli_agent` stays `cli_` (it runs one CLI). New `apply_blueprint_aliases()` / `BLUEPRINT_ALIASES` in `swarm.core.blueprint_discovery`.
+
 ## [0.5.1] — 2026-06-19
 
 ### Added — Docker

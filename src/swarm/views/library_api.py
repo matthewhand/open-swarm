@@ -29,6 +29,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.core.blueprint_discovery import (
+    apply_blueprint_aliases,
     discover_blueprints,
     merge_community_blueprints,
 )
@@ -101,8 +102,10 @@ class LibraryAPIView(APIView):
                 )
 
             # Verify the blueprint exists, mirroring add_blueprint_to_library.
-            discovered = merge_community_blueprints(
-                discover_blueprints(BLUEPRINT_DIRECTORY), BLUEPRINT_EXTRA_DIRS
+            discovered = apply_blueprint_aliases(
+                merge_community_blueprints(
+                    discover_blueprints(BLUEPRINT_DIRECTORY), BLUEPRINT_EXTRA_DIRS
+                )
             )
             if name not in discovered:
                 return Response(
