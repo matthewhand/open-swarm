@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pytz
-from agents import Runner
+from agents import Runner, function_tool
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.output_utils import get_spinner_state
@@ -121,12 +121,8 @@ gutenberg_instructions = (
 )
 
 # --- FileOps Tool Logic Definitions ---
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
-
 def read_file(path: str) -> str:
+    """Read a text file and return its contents."""
     try:
         with open(path) as f:
             return f.read()
@@ -134,6 +130,7 @@ def read_file(path: str) -> str:
         return f"ERROR: {e}"
 
 def write_file(path: str, content: str) -> str:
+    """Write content to a text file, overwriting any existing file."""
     try:
         with open(path, 'w') as f:
             f.write(content)
@@ -142,12 +139,14 @@ def write_file(path: str, content: str) -> str:
         return f"ERROR: {e}"
 
 def list_files(directory: str = '.') -> str:
+    """List the entries in a directory (defaults to the current directory)."""
     try:
         return '\n'.join(os.listdir(directory))
     except Exception as e:
         return f"ERROR: {e}"
 
 def execute_shell_command(command: str) -> str:
+    """Run a shell command and return its combined stdout and stderr."""
     import subprocess
     try:
         result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True)
@@ -155,10 +154,12 @@ def execute_shell_command(command: str) -> str:
     except Exception as e:
         return f"ERROR: {e}"
 
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+# Wrap as real openai-agents FunctionTools (the old PatchedFunctionTool stub was
+# not a FunctionTool, so the ChatCompletions path mis-flagged it as a hosted tool).
+read_file_tool = function_tool(read_file)
+write_file_tool = function_tool(write_file)
+list_files_tool = function_tool(list_files)
+execute_shell_command_tool = function_tool(execute_shell_command)
 
 # --- Unified Operation/Result Box for UX ---
 class JeevesBlueprint(BlueprintBase):
