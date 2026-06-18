@@ -4,7 +4,6 @@ Unit tests for src/swarm/views/web_views.py
 
 Tests for web views covering:
 - index: main page with blueprint discovery
-- blueprint_webpage: blueprint detail page (valid/invalid)
 - serve_swarm_config: config endpoint
 - custom_login: login handling
 - team_launcher: team launcher UI (gated by ENABLE_WEBUI)
@@ -128,80 +127,6 @@ class TestIndexView:
 
         # Should still render, but with empty blueprints
         assert response.status_code == 200
-
-
-# =============================================================================
-# Tests for blueprint_webpage view
-# =============================================================================
-
-class TestBlueprintWebpageView:
-    """Tests for the blueprint detail page view."""
-
-    @patch("swarm.views.web_views.discover_blueprints")
-    @patch("swarm.views.web_views.render")
-    def test_blueprint_page_valid(self, mock_render, mock_discover, client, mock_blueprints_metadata):
-        """Test blueprint page for valid blueprint name."""
-        mock_discover.return_value = mock_blueprints_metadata
-        mock_render.return_value = HttpResponse(status=200)
-
-        # Test via request factory for direct view testing
-        from swarm.views.web_views import blueprint_webpage
-
-        factory = RequestFactory()
-        request = factory.get("/blueprint/assistant/")
-        # Add session attribute to request
-        request.session = {}
-
-        response = blueprint_webpage(request, "assistant")
-
-        assert response.status_code == 200
-
-    @patch("swarm.views.web_views.discover_blueprints")
-    def test_blueprint_page_not_found(self, mock_discover, client, mock_blueprints_metadata):
-        """Test blueprint page for invalid blueprint name returns 404."""
-        mock_discover.return_value = mock_blueprints_metadata
-
-        # Test via request factory for direct view testing
-        from swarm.views.web_views import blueprint_webpage
-
-        factory = RequestFactory()
-        request = factory.get("/blueprint/nonexistent/")
-
-        response = blueprint_webpage(request, "nonexistent")
-
-        assert response.status_code == 404
-        assert "not found" in str(response.content).lower()
-
-    @patch("swarm.views.web_views.discover_blueprints")
-    def test_blueprint_page_lists_available(self, mock_discover, client, mock_blueprints_metadata):
-        """Test blueprint page lists available blueprints when not found."""
-        mock_discover.return_value = mock_blueprints_metadata
-
-        from swarm.views.web_views import blueprint_webpage
-
-        factory = RequestFactory()
-        request = factory.get("/blueprint/nonexistent/")
-
-        response = blueprint_webpage(request, "nonexistent")
-
-        # Should list available blueprints
-        content = str(response.content)
-        assert "assistant" in content or "developer" in content
-
-    @patch("swarm.views.web_views.discover_blueprints")
-    def test_blueprint_page_error(self, mock_discover, client):
-        """Test blueprint page handles discovery errors gracefully."""
-        mock_discover.side_effect = Exception("Discovery error")
-
-        from swarm.views.web_views import blueprint_webpage
-
-        factory = RequestFactory()
-        request = factory.get("/blueprint/assistant/")
-
-        response = blueprint_webpage(request, "assistant")
-
-        assert response.status_code == 500
-        assert "Error" in str(response.content)
 
 
 # =============================================================================

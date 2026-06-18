@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — index page silently listed zero blueprints
+- `web_views.py` called `discover_blueprints(directories=[BLUEPRINT_DIRECTORY])` — a wrong kwarg that raised `TypeError`, swallowed by a `try/except`, so the Django index page showed **no** blueprints and the team-name collision check never fired against existing blueprints. Fixed to the real positional signature.
+
+### Removed — dead view + templates
+- Deleted the unrouted, broken `blueprint_webpage` view (and its 4 tests that exercised it directly) plus its only template `simple_blueprint_page.html`, and the never-rendered `chat.html`. (From the critique audit, ROADMAP §4.4.)
+
 ### Fixed — MCP server mode module name
 - `ENABLE_MCP_SERVER` mode was dead on a clean install: the code imported `django_mcp_server` while the `django-mcp-server` distribution actually installs the module **`mcp_server`**. Corrected the module name in `settings.py`/`urls.py`/`mcp/integration.py`, so the `/mcp/` mount loads cleanly once the package is present (verified: Django check passes, mount present). It's installed manually — `pip install django-mcp-server` — not as an extra, because its transitive `mcp` SDK dep needs pre-releases that would break `uv lock`. Note: the blueprint→tool *bridge* (`register_blueprints_with_mcp`) targets a flat `registry.register_tool` API that `mcp_server` ≥0.5 replaced with an `MCPToolset` paradigm — a no-op until ported (ROADMAP §3.3).
 
