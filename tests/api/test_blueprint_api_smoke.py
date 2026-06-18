@@ -44,6 +44,14 @@ def _test_mode(monkeypatch):
     # Keyless CI: some blueprints construct an OpenAI client even on the
     # test-mode path; a dummy key keeps the matrix deterministic everywhere.
     monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-test-mode")
+    # Hermetic config: the AppConfig loads ~/.config/swarm/swarm_config.json at
+    # startup (XDG). A dev box with a real LLM backend configured there would make
+    # LLM-backed blueprints (e.g. dynamic_team) attempt a live call instead of the
+    # test-mode canned path — failing only locally. Force an empty config so the
+    # smoke matrix behaves identically everywhere (matches CI).
+    from django.apps import apps
+
+    monkeypatch.setattr(apps.get_app_config("swarm"), "config", {}, raising=False)
 
 
 def _post_completion(client: Client, model: str, stream: bool):
