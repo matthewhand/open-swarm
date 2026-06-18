@@ -32,14 +32,9 @@ directory search for a project-local `swarm_config.json`.)
 
 - **If missing:** Swarm generates a default config using `OPENAI_API_KEY` and the official OpenAI endpoint (with a warning).
 
-### Paths & environment variables
-
-| Variable / path | Purpose | Default |
-|---|---|---|
-| `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (both entry points). | unset → discovery above |
-| `~/.config/swarm/swarm_config.json` | Recommended config location. | `XDG_CONFIG_HOME`/swarm/… |
-| `SWARM_RESPONSES_DIR` | Where the stateful Responses API (`/v1/responses`) stores response records for `previous_response_id` chaining and `GET`/`DELETE`. | `XDG_DATA_HOME`/swarm/responses (i.e. `~/.local/share/swarm/responses`) |
-| `~/.config/swarm/teams.json` | Saved teams (web UI / CLI). | `XDG_CONFIG_HOME`/swarm/… |
+> Paths and all environment variables (`SWARM_CONFIG_PATH`, `SWARM_RESPONSES_DIR`,
+> server/auth/feature flags, provider keys) are consolidated in one place:
+> **[Environment Variables](#environment-variables)** below.
 
 ---
 
@@ -223,6 +218,66 @@ for its vector store, not just a chat model.
 ### Status
 
 This integration is covered by unit tests using fake in-memory backends; it has **not yet been validated end-to-end against a live mem0 instance**. The `langmem` and `papr` backends are placeholders: selecting them in config logs a warning and disables memory, and instantiating their classes directly raises `NotImplementedError`.
+
+---
+
+## Environment Variables
+
+The canonical reference. [`.env.example`](./.env.example) is the copy-paste
+template; this table explains what each variable does. Secrets belong in the
+environment / `.env`, never in `swarm_config.json` (reference them with
+`${VAR}`).
+
+### Config & state paths
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (wins over discovery). | unset → XDG-first discovery (see [§1](#1-config-file-location-and-discovery)) |
+| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json`). | `~/.config` |
+| `SWARM_RESPONSES_DIR` | Where `/v1/responses` stores records for `previous_response_id` chaining and `GET`/`DELETE`. | `$XDG_DATA_HOME/swarm/responses` (i.e. `~/.local/share/swarm/responses`) |
+| `XDG_DATA_HOME` | Base for state data (responses store). | `~/.local/share` |
+
+### Server, security & auth
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | none (dev random) |
+| `DJANGO_DEBUG` | Debug mode (verbose errors, DEBUG logging, relaxed auth). Keep **off** in prod. | `false` |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts. **Required in production.** | dev: localhost |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes. | none |
+| `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. | none |
+| `ENABLE_API_AUTH` | Require auth on `/v1/*`. Forced on in production. | prod: on |
+| `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
+| `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |
+
+### Feature flags
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `ENABLE_WEBUI` | Serve the web UI at `/`. | on |
+| `ENABLE_ADMIN` | Mount the Django admin. | off |
+| `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery. | off |
+| `ENABLE_MCP_SERVER` | Aspirational MCP-server mode — warns loudly; see [docs/mcp_server_mode.md](./docs/mcp_server_mode.md). | off |
+
+### Behavior & diagnostics
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `SWARM_TEST_MODE` | Deterministic, network-free blueprint output (testing). | off |
+| `DJANGO_LOG_LEVEL` / `LOGLEVEL` | Log verbosity. | `INFO` |
+
+### Provider credentials & integrations
+
+Model/provider keys and service endpoints — `OPENAI_API_KEY`, `OPENAI_BASE_URL`,
+`ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`,
+`LITELLM_*`, `OLLAMA_BASE_URL`, plus MCP/tool keys (`BRAVE_API_KEY`,
+`GITHUB_TOKEN`, `QDRANT_*`, …) — are listed with inline guidance in
+[`.env.example`](./.env.example). Reference them in `swarm_config.json` via
+`${VAR}`.
+
+> **Note for CLI agents:** wrapped CLIs (`claude`, `gemini`, `grok`, …) carry
+> **their own** authentication — Open Swarm never reads or stores it. These
+> provider keys are only for `llm` profiles and MCP tool servers.
 
 ---
 
