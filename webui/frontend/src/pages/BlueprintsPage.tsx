@@ -141,7 +141,11 @@ const BlueprintsPageContent = () => {
 
       {/* Loading state */}
       {isPending && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          aria-busy="true"
+          aria-live="polite"
+        >
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -150,17 +154,19 @@ const BlueprintsPageContent = () => {
 
       {/* Error state */}
       {isError && (
-        <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-          <div className="flex flex-col gap-2">
-            <span className="font-medium">Failed to load blueprints</span>
-            <span className="text-sm">{error instanceof Error ? error.message : 'Unknown error'}</span>
-            <div>
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                Retry
-              </Button>
+        <div aria-live="assertive" role="alert">
+          <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+            <div className="flex flex-col gap-2">
+              <span className="font-medium">Failed to load blueprints</span>
+              <span className="text-sm">{error instanceof Error ? error.message : 'Unknown error'}</span>
+              <div>
+                <Button variant="outline" size="sm" onClick={() => refetch()}>
+                  Retry
+                </Button>
+              </div>
             </div>
-          </div>
-        </Alert>
+          </Alert>
+        </div>
       )}
 
       {/* Blueprint grid */}
@@ -258,7 +264,7 @@ const BlueprintsPageContent = () => {
 
       {/* Empty state */}
       {!isPending && !isError && filteredBlueprints.length === 0 && (
-        <Card bordered className="text-center py-12">
+        <Card bordered className="text-center py-12" role="status" aria-live="polite">
           <div className="mb-4">
             <Book className="h-16 w-16 mx-auto text-base-content/70" />
           </div>

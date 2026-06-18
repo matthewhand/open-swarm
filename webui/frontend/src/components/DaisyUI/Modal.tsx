@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useId } from 'react';
+import FocusTrap from 'focus-trap-react';
 
 /**
  * Modal component using DaisyUI classes
@@ -79,12 +80,13 @@ export const Modal = ({
     xl: 'max-w-xl',
   };
 
-  return (
+  const dialogContent = (
     <dialog
       ref={dialogRef}
       className={`modal ${isOpen ? 'modal-open' : ''}`}
       onClick={handleBackdropClick}
       aria-labelledby={title ? titleId : undefined}
+      aria-modal="true"
     >
       <div 
         className={`modal-box ${sizeClasses[size]} ${className}`}
@@ -98,9 +100,17 @@ export const Modal = ({
         </div>
       </div>
       <form method="dialog" className="modal-backdrop">
-        <button onClick={onClose}>close</button>
+        <button type="button" onClick={onClose}>close</button>
       </form>
     </dialog>
+  );
+
+  return isOpen ? (
+    <FocusTrap focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
+      {dialogContent}
+    </FocusTrap>
+  ) : (
+    dialogContent
   );
 };
 

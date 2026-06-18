@@ -165,7 +165,7 @@ export const SimpleTabs = ({
  * Accordion component
  * Docs: https://daisyui.com/components/accordion/
  */
-export interface AccordionItem {
+export interface AccordionItemType {
   key: string;
   title: ReactNode;
   content: ReactNode;
@@ -174,7 +174,7 @@ export interface AccordionItem {
 }
 
 export interface AccordionProps {
-  items: AccordionItem[];
+  items: AccordionItemType[];
   allowMultiple?: boolean;
   className?: string;
 }

@@ -11,10 +11,11 @@ describe('Modal Accessibility', () => {
   it('should use HTML5 dialog and sync state', () => {
     const { rerender } = render(<Modal isOpen={false} onClose={() => {}}>Content</Modal>);
     const dialog = screen.getByRole('dialog', { hidden: true });
-    expect(dialog).not.toHaveAttribute('open');
+    expect(dialog).not.toHaveClass('modal-open');
 
     rerender(<Modal isOpen={true} onClose={() => {}}>Content</Modal>);
-    expect(dialog).toHaveAttribute('open');
+    const openDialog = screen.getByRole('dialog', { hidden: true });
+    expect(openDialog).toHaveClass('modal-open');
   });
 
   it('should link title via aria-labelledby', () => {

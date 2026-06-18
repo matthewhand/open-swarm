@@ -4,7 +4,7 @@ import { ReactNode } from 'react';
  * Card component using DaisyUI classes
  * Docs: https://daisyui.com/components/card/
  */
-export interface CardProps {
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   title?: string;
   bordered?: boolean;
@@ -26,6 +26,7 @@ export const Card = ({
   imageFull = false,
   className = '',
   actions,
+  ...props
 }: CardProps) => {
   // Build class list
   const classes = [
@@ -41,7 +42,7 @@ export const Card = ({
   ].filter(Boolean);
 
   return (
-    <div className={classes.join(' ')}>
+    <div className={classes.join(' ')} {...props}>
       {title && (
         <div className="card-title p-4 pb-0">
           {title}
