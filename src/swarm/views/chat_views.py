@@ -383,11 +383,45 @@ class ChatCompletionsView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
+        # --- Async fire-and-forget: return a queued handle immediately, run in a
+        #     background worker, poll via GET /v1/responses/{id}. Reuses the
+        #     Responses async machinery. (Streaming is always inline.) ---
+        background = bool(request_data.get('background', False)) if isinstance(request_data, dict) else False
+        if background and not stream:
+            return await self._handle_background_chat(request_id, model_name, messages, blueprint_params)
+
         # --- Handle Streaming or Non-Streaming Response ---
         if stream:
             return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
         else:
             return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
+
+    async def _handle_background_chat(self, request_id: str, model_name: str, messages, params) -> Response:
+        """Queue a chat-completions task on the shared Responses worker; return a
+        chat.completion-shaped handle to poll at GET /v1/responses/{id}."""
+        # Lazy import to avoid the chat_views <-> responses_views import cycle.
+        from swarm.core import responses_store
+
+        from .responses_views import _build_response_payload, _spawn_worker, _task_spec
+
+        response_id = f"resp_{request_id}"
+        rpayload = _build_response_payload(request_id, model_name, "", None, None, None, status="queued")
+        await sync_to_async(responses_store.save)({
+            "id": response_id, "object": "response", "response": rpayload, "messages": None,
+            "_task": _task_spec(request_id, model_name, list(messages), params, None),
+        })
+        _spawn_worker(response_id, request_id, model_name, list(messages), params, None)
+        logger.info(f"[ReqID: {request_id}] /v1/chat/completions queued async task {response_id} (model '{model_name}').")
+        ack = {
+            "id": response_id,
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model_name,
+            "status": "queued",
+            "choices": [],
+            "poll_url": f"/v1/responses/{response_id}",
+        }
+        return Response(ack, status=status.HTTP_202_ACCEPTED)
 
 
 # ==============================================================================
