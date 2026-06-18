@@ -26,7 +26,7 @@ All diagrams are GitHub-rendered Mermaid. Backends shown (`gemini`, `claude`,
 | [`cli_roundtable`](#cli_roundtable--group-chat-debate) | group chat | ✅ built |
 | [`cli_planner`](#cli_planner--magentic-one-ledger) | Magentic-One | ✅ built |
 | [`hybrid_team` / `hybrid_swarm`](#hybrid--rest-coordinator--cli-consensus) | REST + CLI mixed | ✅ built |
-| [persona council](#persona-council--diverse-lens-consensus) | diverse-lens consensus | 🧩 compose |
+| [`persona_council`](#persona-council--diverse-lens-consensus) | diverse-lens consensus | ✅ built |
 
 ---
 
@@ -328,13 +328,19 @@ Berlin / Consensus: Berlin`.
 
 ---
 
-## Persona council — diverse-lens consensus 🧩
+## Persona council — diverse-lens consensus ✅
 
-Not a single shipped blueprint but the **intended composition**: a panel where
-each member is the same machinery wearing a different **expert lens** (a
-system-prompt persona), fanned out in parallel, then reconciled. Consensus comes
-from *perspective diversity*, not redundancy — the judge reports agreement,
-genuine disagreement, and a synthesized position with the trade-offs named.
+`persona_council` is a panel where each member is the same backend wearing a
+different **expert lens** (a system-prompt persona), fanned out in parallel, then
+reconciled. Consensus comes from *perspective diversity*, not redundancy — the
+judge reports agreement, genuine disagreement, and a synthesized position with
+the trade-offs named. Built-in councils (`ethics`, `science`, `psych`,
+`decision`, `red_team`) need no config; pick one with `params.council`, pass an
+explicit `personas` roster, or add your own in a `persona_council` config block.
+
+Verified live (`council: ethics` on claude): the judge reported *"four of the
+five lenses converge… Kantian, Virtue, Rawlsian, and Care all reject
+pre-programmed sacrifice"* — agreement and the utilitarian tension, both named.
 
 ```mermaid
 sequenceDiagram
@@ -376,7 +382,7 @@ code.
 | Models to argue toward a conclusion | `cli_roundtable` |
 | A planner to drive specialists toward a goal | `cli_planner` |
 | An LLM that reasons, then reaches for CLI personas + consensus | `hybrid_team` / `hybrid_swarm` |
-| Consensus from diverse expert lenses, not redundant runs | a persona council (compose) |
+| Consensus from diverse expert lenses, not redundant runs | `persona_council` (`params.council`) |
 | Your own personas + your own consensus rule | the web Builder / a config preset |
 
 See [VISION.md](./VISION.md) for how these fit the larger picture, and
