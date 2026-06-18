@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `cli_fusion` → `cli_ensemble` (canonical rename, alias kept)
+- The multi-CLI deliberation blueprint is now published as **`cli_ensemble`** (ML-standard "ensemble" / Mixture-of-Agents terminology). **`cli_fusion` still works** as a back-compat model alias with identical behavior, and the shared `cli_fusion` config block / `cli_fusion_support` internals are unchanged (used family-wide). Renamed to avoid colliding with OpenRouter's "Fusion" — which is a *tool a model invokes*, the inverse of ours (the panel *is* the endpoint).
+
 ### Added — Community blueprints (discovery foundation)
 - Blueprint discovery now scans **external roots** in addition to the bundled set: the user data dir `$XDG_DATA_HOME/swarm/blueprints` (where community packs install) plus any paths in `SWARM_BLUEPRINT_PATHS`. External roots load under a synthetic module namespace so they can't shadow or collide with `swarm.blueprints`; the bundled set always wins on name collisions. New `merge_community_blueprints()` / `discover_all_blueprints()` in `swarm.core.blueprint_discovery`. This is the foundation for installing community blueprint packs from GitHub (explicit opt-in; running third-party blueprint code is a code-execution trust decision).
 
