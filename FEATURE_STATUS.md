@@ -1,5 +1,11 @@
 # Feature Status Audit
 
+> ⚠️ **Historical audit (2026-06-10).** Point-in-time evidence snapshot; it has
+> drifted — the project has since shipped v0.4.x–**v0.5.1** on PyPI (CLI Agent
+> Fusion, async `/v1/responses`, persona councils, recursion, community-blueprint
+> discovery). For **current** status see [ROADMAP.md §0](./ROADMAP.md) and
+> [CHANGELOG.md](./CHANGELOG.md). Rows below are lineage, not live state.
+
 **Date:** 2026-06-10
 **Baseline:** working tree on top of commit `720a08ae` ("fix(packaging): repair uv resolution…"), generated **during** the cleanup wave — 8 blueprint packages and legacy modules (`swarm/repl`, `swarm/agent`, `swarm/llm`, …) are deleted in the worktree but not yet committed. Re-verify before acting (see Regeneration at bottom).
 **Test run (this audit):** 621 collected — **560 passed, 59 failed, 2 skipped** (`uv run pytest -q`). All 59 failures were in `tests/views/` + `tests/mcp/test_mcp_urls.py`, order-dependent, root-caused to the SPA-fallback bug in `src/swarm/urls.py:155`.

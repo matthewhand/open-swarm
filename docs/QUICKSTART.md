@@ -170,11 +170,14 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 
 - The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
 - Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
-- Manage via CLI:
-  ```bash
-  swarm-cli config add --section llm --name openai_default --json '{"provider":"openai","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}"}'
+- Edit it directly (it's plain JSON), then add an `llm` profile like:
+  ```jsonc
+  {"llm": {"openai_default": {"provider": "openai", "model": "gpt-4o",
+    "base_url": "https://api.openai.com/v1", "api_key": "${OPENAI_API_KEY}"}}}
   ```
-- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) for details.
+- For the agentic CLIs, generate the `cli_agents` block from what's installed:
+  `swarm-cli cli-agents --init --write`.
+- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [CONFIGURATION.md](../CONFIGURATION.md) for the full schema.
 
 ---
 
@@ -182,7 +185,7 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 
 - **Blueprint/command not found:** Ensure `~/.local/bin` is in your `$PATH`.
 - **API errors:** Check your API key and network connectivity.
-- **Config issues:** Validate your config with `swarm-cli config validate` (if available).
+- **Config issues:** The config is plain JSON — check it parses (`python -m json.tool ~/.config/swarm/swarm_config.json`); for CLI auth, run `swarm-cli cli-agents --check-auth`.
 - **Logs:** Check `~/.swarm/swarm.log` or run with increased verbosity if supported.
 
 ---
