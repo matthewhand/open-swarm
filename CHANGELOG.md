@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — MCP server mode module name
+- `ENABLE_MCP_SERVER` mode was dead on a clean install: the code imported `django_mcp_server` while the `django-mcp-server` distribution actually installs the module **`mcp_server`**. Corrected the module name in `settings.py`/`urls.py`/`mcp/integration.py`, so the `/mcp/` mount loads cleanly once the package is present (verified: Django check passes, mount present). It's installed manually — `pip install django-mcp-server` — not as an extra, because its transitive `mcp` SDK dep needs pre-releases that would break `uv lock`. Note: the blueprint→tool *bridge* (`register_blueprints_with_mcp`) targets a flat `registry.register_tool` API that `mcp_server` ≥0.5 replaced with an `MCPToolset` paradigm — a no-op until ported (ROADMAP §3.3).
+
 ### Changed — orchestration patterns published as `swarm_*` (aliases; `cli_*` kept)
 - The multi-agent *pattern* blueprints now have canonical `swarm_*` names — `swarm_ensemble`, `swarm_map`, `swarm_recurse`, `swarm_pipeline`, `swarm_roundtable`, `swarm_planner`, `swarm_orchestrator` — registered via a central alias map (same classes, canonical name advertised in metadata). They're Swarm primitives, not CLI wrappers, so `swarm_` is the honest brand. The `cli_*` names (and `cli_fusion`) keep working as back-compat aliases; `cli_agent` stays `cli_` (it runs one CLI). New `apply_blueprint_aliases()` / `BLUEPRINT_ALIASES` in `swarm.core.blueprint_discovery`.
 

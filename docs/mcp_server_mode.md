@@ -1,35 +1,42 @@
 # MCP Server Mode (`ENABLE_MCP_SERVER`)
 
-**Status: aspirational.** Setting `ENABLE_MCP_SERVER=true` does not currently expose a
-working MCP endpoint on any standard install. Worse, it breaks startup outright:
-`swarm/settings.py` appends `'django_mcp_server'` to `INSTALLED_APPS` when the flag is
-set, and since no package provides that module, `django.setup()` raises
-`ModuleNotFoundError` before any URL is served. (The `try/except` around the append is
-ineffective — appending a string never raises; the failure happens later in
-`apps.populate()`.)
+**Status: the `/mcp/` mount works once the package is installed; the
+blueprint→tool bridge is not yet ported.**
 
-Independently, `src/swarm/urls.py` tries to mount
-`path('mcp/', include('django_mcp_server.urls'))` when the flag is set; that import
-also fails, and the mount is skipped with a logged warning naming the missing package
-(previously this failed silently).
+`ENABLE_MCP_SERVER=true` makes `swarm/settings.py` add `'mcp_server'` to
+`INSTALLED_APPS` and `swarm/urls.py` mount `path('mcp/', include('mcp_server.urls'))`.
+Both are gated on the module being importable, so with the package **absent** the
+flag is a no-op with a clear logged warning (it no longer breaks startup).
 
-## Why no dependency is declared
+## Install
 
-The closest PyPI distribution, [`django-mcp-server`](https://pypi.org/project/django-mcp-server/)
-(v0.5.7 as of Oct 2025, actively maintained, Python >= 3.10, Django 4/5), installs the
-module **`mcp_server`** — not `django_mcp_server` — and requires adding `'mcp_server'`
-to `INSTALLED_APPS` plus `path('', include('mcp_server.urls'))`. Pinning it without
-those settings changes would still leave the flag dead, so it is intentionally not
-declared yet.
+The endpoint is provided by the [`django-mcp-server`](https://pypi.org/project/django-mcp-server/)
+distribution, whose import module is **`mcp_server`** (not `django_mcp_server` —
+that mismatch is what previously made the flag dead on a clean install). Install
+it manually:
 
-## Real options for serving MCP from this project
+```bash
+pip install django-mcp-server
+export ENABLE_MCP_SERVER=true
+```
 
-1. Adopt `django-mcp-server`: add it as an optional extra, register `'mcp_server'`
-   (not `'django_mcp_server'`) in `INSTALLED_APPS`, and switch the include in
-   `swarm/urls.py` to `mcp_server.urls`.
-2. Mount the official MCP Python SDK (`mcp` on PyPI) as an ASGI sub-application
-   (e.g. Streamable HTTP transport) alongside Django.
-3. Leave the flag aspirational (current state) — the warning makes that explicit.
+It is **not** declared as an `open-swarm` extra: its transitive `mcp` SDK
+dependency only resolves with pre-releases enabled, which would break
+`uv lock --check` in CI. Verified working at the Django layer — with the package
+installed and the flag set, `manage.py check` passes and `/mcp/` is mounted.
 
-`tests/mcp/test_mcp_urls.py` exercises the mount by stubbing `django_mcp_server` in
-`sys.modules`; `tests/mcp/test_mcp_missing_package_warning.py` guards the warning path.
+## Known gap — blueprint→tool bridge
+
+`swarm/mcp/integration.py::register_blueprints_with_mcp()` was written against a
+flat `registry.register_tool(...)` API. `mcp_server` ≥0.5 replaced that with an
+`MCPToolset` / decorator paradigm, so the bridge is currently a **no-op** (it
+returns 0 without raising). Porting it to expose Open Swarm blueprints as MCP
+tools is tracked in [ROADMAP.md §3.3](../ROADMAP.md). Until then, the `/mcp/`
+mount serves django-mcp-server's own toolset surface, not the blueprints.
+
+## Tests
+
+`tests/mcp/test_mcp_urls.py` exercises the mount by stubbing `mcp_server` in
+`sys.modules`; `tests/mcp/test_mcp_missing_package_warning.py` guards the
+warning path by masking `mcp_server.urls` (hermetic whether or not the real
+package is installed).

@@ -155,17 +155,16 @@ if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
     try:
         from django.urls import include
         urlpatterns += [
-            path('mcp/', include('django_mcp_server.urls')),
+            path('mcp/', include('mcp_server.urls')),
         ]
     except Exception as exc:
         import logging
 
         logging.getLogger(__name__).warning(
             "ENABLE_MCP_SERVER is set but the '/mcp/' mount was skipped: could not "
-            "import 'django_mcp_server.urls' (%s). No installed package provides a "
-            "'django_mcp_server' module; the PyPI distribution 'django-mcp-server' "
-            "exposes 'mcp_server' instead and needs INSTALLED_APPS changes. "
-            "See docs/mcp_server_mode.md for the supported options.",
+            "import 'mcp_server.urls' (%s). Install the MCP server package with "
+            "`pip install django-mcp-server` (provides the 'mcp_server' module). "
+            "See docs/mcp_server_mode.md.",
             exc,
         )
 
