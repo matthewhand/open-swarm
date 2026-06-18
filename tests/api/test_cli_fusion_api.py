@@ -146,3 +146,37 @@ def test_cli_agent_streams_incremental_deltas_over_api(client, streaming_cli_con
 
     deltas = "".join(re.findall(r'"content":\s*"([^"]*)"', sse))
     assert "alpha" in deltas and "beta" in deltas
+
+
+@pytest.mark.django_db(transaction=True)
+def test_chat_completions_background_then_poll(client, fake_cli_config, monkeypatch, tmp_path):
+    """Async on /v1/chat/completions: background -> 202 queued handle, poll via responses."""
+    import time
+
+    monkeypatch.setenv("SWARM_RESPONSES_DIR", str(tmp_path))
+    resp = client.post(
+        "/v1/chat/completions",
+        data=json.dumps({
+            "model": "cli_agent",
+            "messages": [{"role": "user", "content": "hi"}],
+            "params": {"cli": "a"},
+            "background": True,
+        }),
+        content_type="application/json",
+    )
+    assert resp.status_code == 202, resp.content[:300]
+    ack = resp.json()
+    assert ack["status"] == "queued"
+    assert ack["id"].startswith("resp_")
+    assert ack["poll_url"] == f"/v1/responses/{ack['id']}"
+
+    final = None
+    for _ in range(80):
+        d = client.get(f"/v1/responses/{ack['id']}").json()
+        if d.get("status") in ("completed", "failed"):
+            final = d
+            break
+        time.sleep(0.1)
+    assert final is not None and final["status"] == "completed"
+    assert "A:hi" in final["output_text"]
+    assert isinstance(final.get("execution_ms"), int)
