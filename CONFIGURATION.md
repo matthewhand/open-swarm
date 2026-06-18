@@ -246,7 +246,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts. **Required in production.** | dev: localhost |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes. | none |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. | none |
-| `ENABLE_API_AUTH` | Require auth on `/v1/*`. Forced on in production. | prod: on |
+| `ENABLE_API_AUTH` | Require auth on `/v1/*`. Auto-on when `API_AUTH_TOKEN` is set. | prod: on |
+| `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
 | `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
 | `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |
 

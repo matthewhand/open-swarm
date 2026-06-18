@@ -241,21 +241,19 @@ class ResponsesView(APIView):
         return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
 
     async def _handle_background(self, request_id, model_name, messages, params, previous_response_id) -> Response:
-        """Persist a queued record, start a worker thread, return the handle now."""
+        """Persist a queued record (with a resumable task spec), start a worker, return now."""
         response_id = f"resp_{request_id}"
         payload = _build_response_payload(
             request_id, model_name, "", previous_response_id, None, None, status="queued"
         )
-        await sync_to_async(responses_store.save)(
-            {"id": response_id, "object": "response", "response": payload, "messages": None}
-        )
+        # The _task spec lets a server restart resume this (see resume_pending_responses).
+        await sync_to_async(responses_store.save)({
+            "id": response_id, "object": "response", "response": payload, "messages": None,
+            "_task": _task_spec(request_id, model_name, list(messages), params, previous_response_id),
+        })
         # Daemon thread with its own event loop — decoupled from the request
         # lifecycle so it survives after we return the response.
-        threading.Thread(
-            target=_run_background_response,
-            args=(response_id, request_id, model_name, list(messages), params, previous_response_id),
-            daemon=True,
-        ).start()
+        _spawn_worker(response_id, request_id, model_name, list(messages), params, previous_response_id)
         logger.info(f"[ReqID: {request_id}] /v1/responses queued async task {response_id} (model '{model_name}').")
         return Response(payload, status=status.HTTP_202_ACCEPTED)
 
@@ -388,14 +386,49 @@ def _persist(payload: dict[str, Any], messages: list[dict[str, Any]], answer: st
     responses_store.save(record)
 
 
-async def _consume_blueprint(blueprint_instance: Any, messages: list[dict[str, Any]]) -> tuple[str, dict | None]:
+# --- Cancellation registry -------------------------------------------------- #
+# Cooperative cancel: a cancel request adds the id here; the worker checks it
+# between blueprint chunks and stops. A single in-flight CLI call still runs to
+# completion (or its own timeout) — cancellation takes effect at the next chunk
+# boundary, which for multi-step blueprints (fusion/pipeline/planner) is between
+# CLI calls.
+_CANCELLED: set[str] = set()
+_CANCELLED_LOCK = threading.Lock()
+
+
+def _request_cancel(response_id: str) -> None:
+    with _CANCELLED_LOCK:
+        _CANCELLED.add(response_id)
+
+
+def _is_cancel_requested(response_id: str) -> bool:
+    with _CANCELLED_LOCK:
+        return response_id in _CANCELLED
+
+
+def _clear_cancel(response_id: str) -> None:
+    with _CANCELLED_LOCK:
+        _CANCELLED.discard(response_id)
+
+
+class _Cancelled(Exception):
+    """Raised inside the worker when a cancel was requested mid-run."""
+
+
+async def _consume_blueprint(
+    blueprint_instance: Any, messages: list[dict[str, Any]], cancel_check: Any = None
+) -> tuple[str, dict | None]:
     """Drive a blueprint to its final answer. Returns (answer, backend_meta).
 
-    Shared by the synchronous handler and the async worker.
+    Shared by the synchronous handler and the async worker. ``cancel_check`` (a
+    zero-arg callable) is polled between chunks; if it returns True we raise
+    :class:`_Cancelled`.
     """
     final_message = None
     backend_meta = None
     async for chunk in blueprint_instance.run(messages, stream=False):
+        if cancel_check is not None and cancel_check():
+            raise _Cancelled()
         if isinstance(chunk, dict) and chunk.get("meta"):
             backend_meta = chunk["meta"]
         message = _extract_message_from_chunk(chunk)
@@ -409,6 +442,26 @@ async def _consume_blueprint(blueprint_instance: Any, messages: list[dict[str, A
     return final_message["content"], backend_meta
 
 
+def _task_spec(request_id, model_name, messages, params, previous_response_id) -> dict[str, Any]:
+    """The minimal spec needed to (re)run an async task — persisted for resume."""
+    return {
+        "request_id": request_id,
+        "model": model_name,
+        "messages": messages,
+        "params": params,
+        "previous_response_id": previous_response_id,
+    }
+
+
+def _spawn_worker(response_id, request_id, model_name, messages, params, previous_response_id) -> None:
+    """Start a daemon worker thread (own event loop) for an async response task."""
+    threading.Thread(
+        target=_run_background_response,
+        args=(response_id, request_id, model_name, list(messages), params, previous_response_id),
+        daemon=True,
+    ).start()
+
+
 def _run_background_response(
     response_id: str,
     request_id: str,
@@ -418,42 +471,101 @@ def _run_background_response(
     previous_response_id: str | None,
 ) -> None:
     """Worker (own thread + event loop): run the blueprint, update the stored record
-    queued -> in_progress -> completed/failed, with execution timing for observability."""
+    queued -> in_progress -> completed/failed/cancelled, with execution timing.
+
+    The record keeps a ``_task`` spec while queued/in_progress so a server restart
+    can resume it; the spec is dropped once the task reaches a terminal state.
+    """
     started = time.time()
+    spec = _task_spec(request_id, model_name, messages, params, previous_response_id)
 
-    def _save(payload: dict[str, Any], transcript: list[dict[str, Any]] | None) -> None:
+    def _save(payload, transcript, *, keep_task=False):
         payload["execution_ms"] = int((time.time() - started) * 1000)
-        responses_store.save(
-            {"id": response_id, "object": "response", "response": payload, "messages": transcript}
-        )
+        record = {"id": response_id, "object": "response", "response": payload, "messages": transcript}
+        if keep_task:
+            record["_task"] = spec
+        responses_store.save(record)
 
-    # Mark in_progress so a poller sees movement.
+    def _terminal(status_str, *, answer="", backend_meta=None, transcript=None, error=None):
+        payload = _build_response_payload(
+            request_id, model_name, answer, previous_response_id, messages if answer else None,
+            backend_meta, status=status_str,
+        )
+        payload["started_at"] = int(started)
+        if error is not None:
+            payload["error"] = {"message": str(error)}
+        _save(payload, transcript)  # no _task: terminal states aren't resumed
+
+    # Mark in_progress (keep the task spec for restart-resume).
     in_prog = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="in_progress")
     in_prog["started_at"] = int(started)
-    _save(in_prog, None)
+    _save(in_prog, None, keep_task=True)
 
     try:
+        if _is_cancel_requested(response_id):
+            raise _Cancelled()
+
         async def _go():
             bp = await get_blueprint_instance(model_name, params=params)
             if bp is None:
                 raise RuntimeError(f"Model '{model_name}' could not be initialized.")
             if hasattr(bp, "set_params"):
                 bp.set_params(params)
-            return await _consume_blueprint(bp, messages)
+            return await _consume_blueprint(bp, messages, cancel_check=lambda: _is_cancel_requested(response_id))
 
         answer, backend_meta = asyncio.run(_go())
-        payload = _build_response_payload(
-            request_id, model_name, answer, previous_response_id, messages, backend_meta, status="completed"
-        )
-        payload["started_at"] = int(started)
-        _save(payload, list(messages) + [{"role": "assistant", "content": answer}])
-        logger.info(f"[ReqID: {request_id}] async task {response_id} completed in {payload['execution_ms']}ms.")
+        # A cancel may have landed between the last chunk and here.
+        if _is_cancel_requested(response_id):
+            _terminal("cancelled")
+            logger.info(f"[ReqID: {request_id}] async task {response_id} cancelled.")
+        else:
+            _terminal(
+                "completed", answer=answer, backend_meta=backend_meta,
+                transcript=list(messages) + [{"role": "assistant", "content": answer}],
+            )
+            logger.info(f"[ReqID: {request_id}] async task {response_id} completed.")
+    except _Cancelled:
+        _terminal("cancelled")
+        logger.info(f"[ReqID: {request_id}] async task {response_id} cancelled mid-run.")
     except Exception as e:
         logger.error(f"[ReqID: {request_id}] async task {response_id} failed: {e}", exc_info=True)
-        payload = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="failed")
-        payload["started_at"] = int(started)
-        payload["error"] = {"message": str(e)}
-        _save(payload, None)
+        _terminal("failed", error=e)
+    finally:
+        _clear_cancel(response_id)
+
+
+def resume_pending_responses() -> int:
+    """On server startup, resume async tasks left queued/in_progress by a restart.
+
+    Returns the number resumed. Safe to call once at boot; terminal tasks are
+    ignored. Re-runs from the persisted ``_task`` spec (at-least-once semantics).
+    """
+    import glob
+    import os
+
+    base = responses_store._store_dir()
+    if not base.is_dir():
+        return 0
+    resumed = 0
+    for path in glob.glob(os.path.join(str(base), "resp_*.json")):
+        try:
+            with open(path) as f:
+                record = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        status_str = (record.get("response") or {}).get("status")
+        spec = record.get("_task")
+        if status_str not in ("queued", "in_progress") or not isinstance(spec, dict):
+            continue
+        logger.warning("Resuming interrupted async task %s (was %s).", record.get("id"), status_str)
+        _spawn_worker(
+            record["id"], spec.get("request_id"), spec.get("model"),
+            spec.get("messages") or [], spec.get("params"), spec.get("previous_response_id"),
+        )
+        resumed += 1
+    if resumed:
+        logger.info("Resumed %d interrupted async response task(s).", resumed)
+    return resumed
 
 
 class ResponsesDetailView(APIView):
@@ -474,3 +586,29 @@ class ResponsesDetailView(APIView):
         if not deleted:
             raise NotFound(f"Response '{response_id}' not found.")
         return Response({"id": response_id, "object": "response.deleted", "deleted": True}, status=status.HTTP_200_OK)
+
+
+class ResponsesCancelView(APIView):
+    """Cancel an in-flight async response (``POST /v1/responses/<id>/cancel``)."""
+
+    @method_decorator(csrf_exempt)
+    async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
+        return await _async_auth_dispatch(self, request, *args, **kwargs)
+
+    async def post(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+        record = await sync_to_async(responses_store.load)(response_id)
+        if record is None:
+            raise NotFound(f"Response '{response_id}' not found.")
+        payload = record.get("response") or {}
+        current = payload.get("status")
+        # No-op on already-finished tasks (idempotent) — return the current state.
+        if current in ("completed", "failed", "cancelled"):
+            return Response(payload, status=status.HTTP_200_OK)
+        # Request cooperative cancel and reflect it immediately so a poller sees it
+        # even before the worker reaches its next checkpoint.
+        _request_cancel(response_id)
+        payload["status"] = "cancelled"
+        await sync_to_async(responses_store.save)(
+            {"id": response_id, "object": "response", "response": payload, "messages": record.get("messages")}
+        )
+        return Response(payload, status=status.HTTP_200_OK)
