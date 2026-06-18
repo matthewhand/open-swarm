@@ -14,8 +14,8 @@ def test_register_blueprints_with_mcp(monkeypatch):
     }
 
     # Stub registry module
-    reg_pkg = ModuleType("django_mcp_server")
-    reg_mod = ModuleType("django_mcp_server.registry")
+    reg_pkg = ModuleType("mcp_server")
+    reg_mod = ModuleType("mcp_server.registry")
     calls = []
 
     def register_tool(name, parameters, description, handler):  # noqa: D401
@@ -24,8 +24,8 @@ def test_register_blueprints_with_mcp(monkeypatch):
     # Add the register_tool function to the module's namespace
     reg_mod.register_tool = register_tool  # type: ignore
     reg_pkg.registry = reg_mod  # type: ignore
-    sys.modules["django_mcp_server"] = reg_pkg
-    sys.modules["django_mcp_server.registry"] = reg_mod
+    sys.modules["mcp_server"] = reg_pkg
+    sys.modules["mcp_server.registry"] = reg_mod
 
     from swarm.mcp import provider as prov
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)

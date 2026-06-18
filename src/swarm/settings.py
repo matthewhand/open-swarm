@@ -104,18 +104,21 @@ ENABLE_MCP_SERVER = is_enable_mcp_server()
 if ENABLE_MCP_SERVER:
     import importlib.util
     import sys as _sys
+    # The `django-mcp-server` distribution installs the `mcp_server` module
+    # (NOT `django_mcp_server`). Install it manually: `pip install django-mcp-server`.
     try:
-        _mcp_available = importlib.util.find_spec('django_mcp_server') is not None
+        _mcp_available = importlib.util.find_spec('mcp_server') is not None
     except ValueError:
         # Module placed in sys.modules without a __spec__ (e.g. test stubs).
-        _mcp_available = 'django_mcp_server' in _sys.modules
+        _mcp_available = 'mcp_server' in _sys.modules
     if _mcp_available:
-        INSTALLED_APPS += ['django_mcp_server']
+        INSTALLED_APPS += ['mcp_server']
     else:
         import logging as _logging
         _logging.getLogger(__name__).warning(
-            "ENABLE_MCP_SERVER is set but no 'django_mcp_server' module is "
-            "installed; skipping app registration (see docs/mcp_server_mode.md)."
+            "ENABLE_MCP_SERVER is set but the 'mcp_server' module is not installed; "
+            "skipping app registration. Install it with `pip install django-mcp-server` "
+            "(see docs/mcp_server_mode.md)."
         )
 
 # Optional GitHub marketplace discovery (disabled by default)
