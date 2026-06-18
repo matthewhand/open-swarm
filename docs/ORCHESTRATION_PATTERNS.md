@@ -9,15 +9,79 @@ Magentic-One).
 All diagrams are GitHub-rendered Mermaid. Backends shown (`gemini`, `claude`,
 `grok`) are illustrative — any configured CLI fills any role.
 
+> **The bundled blueprints are *examples*, not the product.** Open Swarm is a
+> **composition system**: you define your own personas and teams (via config or
+> the web Builder) and choose *how* consensus is invoked. The patterns below are
+> the architectural primitives you compose from — see
+> [Composing your own](#composing-your-own) and
+> [Consensus invocation: always vs gated](#consensus-invocation--always-vs-gated).
+
 | Blueprint | Pattern | Status |
 |---|---|---|
 | [`cli_agent`](#cli_agent--single-backend) | single agent + failover | ✅ built |
-| [`cli_fusion`](#cli_fusion--concurrent-panel--judge) | concurrent | ✅ built |
-| [`cli_orchestrator`](#cli_orchestrator--handoff--escalation) | handoff / escalation | ✅ built |
+| [`cli_fusion`](#cli_fusion--concurrent-panel--judge) | concurrent (always consensus) | ✅ built |
+| [`cli_orchestrator`](#cli_orchestrator--handoff--escalation) | handoff / **gated** consensus | ✅ built |
 | [`cli_map`](#cli_map--map-reduce) | map-reduce | ✅ built |
 | [`cli_pipeline`](#cli_pipeline--sequential-refinement) | sequential | ✅ built |
 | [`cli_roundtable`](#cli_roundtable--group-chat-debate) | group chat | ✅ built |
 | [`cli_planner`](#cli_planner--magentic-one-ledger) | Magentic-One | ✅ built |
+| [`hybrid_team` / `hybrid_swarm`](#hybrid--rest-coordinator--cli-consensus) | REST + CLI mixed | ✅ built |
+| [persona council](#persona-council--diverse-lens-consensus) | diverse-lens consensus | 🧩 compose |
+
+---
+
+## Composing your own
+
+The blueprints ship as worked examples; the framework's intent is that **you
+assemble teams**. A team is three choices:
+
+```mermaid
+flowchart LR
+    U[You — config or web Builder] --> P[Pick personas]
+    P --> B[Pick backends per persona]
+    B --> S{Pick a consensus strategy}
+    S --> A1[single — cli_agent]
+    S --> A2[always consensus — cli_fusion]
+    S --> A3[gated consensus — cli_orchestrator]
+    S --> A4[debate — cli_roundtable]
+    S --> A5[sequential — cli_pipeline]
+    S --> A6[plan and delegate — cli_planner]
+    S --> A7[REST plus CLI — hybrid_team]
+```
+
+A **persona** is just a backend plus a system-prompt lens. The same machinery
+that runs a joke-named team runs a council of real expert lenses — only the
+prompts change.
+
+---
+
+## Consensus invocation: always vs gated
+
+The architectural fork that matters most: **is consensus always paid, or does a
+router decide it's worth it?** Open Swarm supports both, because the underlying
+openai-agents framework lets a routing/orchestration agent *decide whether to
+hand off* to a consensus panel.
+
+```mermaid
+flowchart TB
+    Q[Request] --> MODE{Consensus strategy}
+
+    MODE -->|always — cli_fusion| F[Run full panel every time]
+    F --> FJ[Judge synthesizes]
+    FJ --> FO[Answer]
+
+    MODE -->|gated — cli_orchestrator| R[Cheap router answers and decides]
+    R --> D{High stakes?}
+    D -->|no| RO[Return router answer — 1 inference]
+    D -->|yes| ESC[Escalate to consensus panel]
+    ESC --> EJ[Judge synthesizes]
+    EJ --> EO[Answer]
+```
+
+**Always** (`cli_fusion`) maximizes confidence on every call. **Gated**
+(`cli_orchestrator`) is the agentic-handoff model: spend one cheap inference,
+and only pay for consensus when the question is correctness-critical or
+contested. Same panel, different *trigger*.
 
 ---
 
@@ -233,6 +297,73 @@ sequenceDiagram
 
 ---
 
+## Hybrid — REST coordinator + CLI consensus ✅
+
+`hybrid_team` / `hybrid_swarm` mix the two worlds: a **REST/LLM coordinator** (an
+openai-agents `Agent`) reasons, then **delegates mid-run** to CLI personas and a
+consensus panel — both exposed to it as *function tools*. This is the agentic
+handoff in its fullest form: the model itself decides to reach for a CLI persona
+or to call for consensus.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Co as REST coordinator LLM
+    participant Persona as grok CLI persona
+    participant Panel as consensus panel
+    participant J as judge
+    Client->>Co: prompt
+    Co->>Co: reason and plan
+    Co->>Persona: delegate sub-question via tool call
+    Persona-->>Co: persona answer
+    Co->>Panel: call for consensus via tool call
+    Panel->>J: compare answers
+    J-->>Panel: synthesis
+    Panel-->>Co: consensus answer
+    Co-->>Client: REST plan plus persona plus consensus, combined
+```
+
+Verified live — one response carried all three: `REST plan: … / grok persona:
+Berlin / Consensus: Berlin`.
+
+---
+
+## Persona council — diverse-lens consensus 🧩
+
+Not a single shipped blueprint but the **intended composition**: a panel where
+each member is the same machinery wearing a different **expert lens** (a
+system-prompt persona), fanned out in parallel, then reconciled. Consensus comes
+from *perspective diversity*, not redundancy — the judge reports agreement,
+genuine disagreement, and a synthesized position with the trade-offs named.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant BP as persona council
+    participant L1 as lens A — e.g. Utilitarian
+    participant L2 as lens B — e.g. Kantian
+    participant L3 as lens C — e.g. Virtue ethics
+    participant J as judge or moderator
+    Client->>BP: question
+    par each lens answers through its framework
+        BP->>L1: question framed as lens A
+        BP->>L2: question framed as lens B
+        BP->>L3: question framed as lens C
+    end
+    L1-->>BP: view A
+    L2-->>BP: view B
+    L3-->>BP: view C
+    BP->>J: reconcile the views
+    J-->>BP: consensus, tensions, synthesized position
+    BP-->>Client: multi-lens answer
+```
+
+Swap the roster for any domain: philosophers, scientists, psychologists,
+economists, a security red-team. The lenses are **data** (config presets), not
+code.
+
+---
+
 ## Choosing a pattern
 
 | If you want | Use |
@@ -244,6 +375,9 @@ sequenceDiagram
 | Staged refinement, draft then review then polish | `cli_pipeline` |
 | Models to argue toward a conclusion | `cli_roundtable` |
 | A planner to drive specialists toward a goal | `cli_planner` |
+| An LLM that reasons, then reaches for CLI personas + consensus | `hybrid_team` / `hybrid_swarm` |
+| Consensus from diverse expert lenses, not redundant runs | a persona council (compose) |
+| Your own personas + your own consensus rule | the web Builder / a config preset |
 
 See [VISION.md](./VISION.md) for how these fit the larger picture, and
 [CLI_FUSION.md](./CLI_FUSION.md) for configuration of the built blueprints.
