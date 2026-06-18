@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-19
+
+### Removed — Dead code cleanup (pre-release)
+- Deleted the non-functional `digitalbutlers` and `flock` blueprint stubs (empty placeholder classes, superseded by `jeeves`) and the orphaned `services/monitor.py` fixture, along with their trivial import/shell tests. No functional blueprint or production path referenced them.
+
 ### Added — Persona councils (diverse-lens consensus)
 - **`persona_council`** blueprint: examine one question through a council of distinct **expert lenses** (each a system-prompt persona) in parallel, then a judge reconciles agreement, tensions, and a synthesized position. Consensus from *perspective diversity*, not redundant runs. Built-in councils — `ethics` (Utilitarian/Kantian/Virtue/Rawlsian/Care), `science`, `psych`, `decision`, `red_team` — work with zero config; select via `params.council`, pass an explicit `personas` roster, or define your own in a `persona_council` config block. The published persona names stay generic but the lens prompts **channel the actual thinkers** (Mill, Kant, Rawls, Feynman, Munger, Schneier, …) for sharper, more distinct voices. Verified live. The bundled persona blueprints are reframed as *examples* of this composition system.
 

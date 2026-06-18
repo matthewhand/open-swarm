@@ -4,11 +4,6 @@ Codey Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
-# [Swarm Propagation] Next Blueprint: digitalbutlers
-# digitalbutlers key vars: logger, project_root, src_path
-# digitalbutlers guard: if src_path not in sys.path: sys.path.insert(0, src_path)
-# digitalbutlers debug: logger.debug("Digital Butlers team created: Jeeves (Coordinator), Mycroft (Search), Gutenberg (Home).")
-# digitalbutlers error handling: try/except ImportError with sys.exit(1)
 
 import asyncio
 import json
