@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `cli_recurse` (recursive divide & conquer)
+- New blueprint that breaks a problem down to **any depth**: each node decides to solve directly or split into sub-problems, and every sub-problem is handed to a **freshly-instantiated child of the same blueprint** — recursing until each leaf is atomic, then synthesizing back up. Three limiters keep it finite: `max_depth`, `max_subproblems` (fan-out width), and `max_nodes` (a shared global budget; once spent, remaining nodes solve directly). Config block `cli_recurse` (decomposer/solver/synthesizer + limits), falls back to `cli_fusion`. The recursive generalization of `cli_map`'s single-level decompose.
+
 ### Changed — `cli_fusion` → `cli_ensemble` (canonical rename, alias kept)
 - The multi-CLI deliberation blueprint is now published as **`cli_ensemble`** (ML-standard "ensemble" / Mixture-of-Agents terminology). **`cli_fusion` still works** as a back-compat model alias with identical behavior, and the shared `cli_fusion` config block / `cli_fusion_support` internals are unchanged (used family-wide). Renamed to avoid colliding with OpenRouter's "Fusion" — which is a *tool a model invokes*, the inverse of ours (the panel *is* the endpoint).
 

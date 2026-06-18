@@ -63,6 +63,18 @@ curl -s $B/chat/completions -d '{"model":"cli_map","messages":[{"role":"user","c
 ```
 Decompose → distribute across workers → reduce. Best for decomposable tasks.
 
+### Recursive divide & conquer (`cli_recurse`)
+```bash
+curl -s $B/chat/completions -d '{"model":"cli_recurse","messages":[{"role":"user","content":"design a fault-tolerant URL shortener"}],"params":{"max_depth":3,"max_subproblems":4,"max_nodes":20}}'
+```
+Each node decides to **solve** a problem directly or **split** it into
+sub-problems — and every sub-problem is handed to a *fresh instance of the same
+blueprint*, recursing until each leaf is atomic, then synthesizing back up. Three
+limiters bound the tree so it can't run away: `max_depth` (how deep), `max_subproblems`
+(fan-out width), `max_nodes` (a shared global budget — once spent, remaining nodes
+solve directly). This is how the swarm breaks an arbitrarily large problem into
+pieces of any size. (`cli_map` is the single-level version; this recurses.)
+
 ### Planner with a ledger (`cli_planner`)
 ```bash
 curl -s $B/chat/completions -d '{"model":"cli_planner","messages":[{"role":"user","content":"checklist to safely drop a DB column"}]}'
@@ -164,6 +176,8 @@ Each team reads its own block (and falls back to `cli_fusion`):
   "cli_pipeline":     {"stages": [{"cli":"grok","instruction":"draft"},{"cli":"claude","instruction":"review"}]},
   "cli_roundtable":   {"debaters": ["claude","grok"], "moderator": "claude", "rounds": 1},
   "cli_planner":      {"planner": "claude", "workers": ["grok"], "max_rounds": 3},
+  "cli_recurse":      {"decomposer": "claude", "solver": "claude", "synthesizer": "claude",
+                       "max_depth": 3, "max_subproblems": 4, "max_nodes": 20},
   "persona_council":  {"cli": "claude", "judge": "claude", "default_council": "ethics",
                        "councils": {"my_panel": [{"name":"A","lens":"..."},{"name":"B","lens":"..."}]}}
 }
