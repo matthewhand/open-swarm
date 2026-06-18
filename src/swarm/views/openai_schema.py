@@ -14,6 +14,17 @@ _MESSAGES = serializers.ListField(
     help_text='OpenAI-style messages, e.g. [{"role": "user", "content": "..."}].',
 )
 
+_PARAMS = serializers.DictField(
+    required=False,
+    help_text=(
+        "Per-request blueprint options (free-form object). Drives the CLI-fusion "
+        "blueprints. Common keys: preset, cli, panel, judge, router, planner, "
+        "workers, reducer, stages, debaters, moderator, rounds, max_rounds, "
+        "workdir, show_analysis. Most blueprints also work with config defaults "
+        "if omitted."
+    ),
+)
+
 chat_completions_schema = extend_schema(
     tags=["OpenAI"],
     summary="Create a chat completion",
@@ -28,6 +39,7 @@ chat_completions_schema = extend_schema(
             "model": serializers.CharField(help_text="Blueprint id, e.g. cli_fusion."),
             "messages": _MESSAGES,
             "stream": serializers.BooleanField(required=False, default=False),
+            "params": _PARAMS,
         },
     ),
     responses={
@@ -69,6 +81,20 @@ responses_schema = extend_schema(
             "input": serializers.JSONField(help_text="A string, or an array of message objects."),
             "instructions": serializers.CharField(required=False, help_text="Optional system instructions."),
             "stream": serializers.BooleanField(required=False, default=False),
+            "params": _PARAMS,
+            "previous_response_id": serializers.CharField(
+                required=False, help_text="Chain from a prior response id (stateful multi-turn)."
+            ),
+            "store": serializers.BooleanField(
+                required=False, default=True, help_text="Persist the response (default true)."
+            ),
+            "background": serializers.BooleanField(
+                required=False, help_text="Async: return a queued resp_id immediately; poll GET /v1/responses/{id}."
+            ),
+            "max_wait_seconds": serializers.FloatField(
+                required=False,
+                help_text="Wait inline up to N seconds, then return a handle to poll (auto-escalation).",
+            ),
         },
     ),
     responses={

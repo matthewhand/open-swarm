@@ -29,6 +29,7 @@ from django.http import (
 )
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import (
     APIException,
@@ -642,6 +643,11 @@ class ResponsesCancelView(APIView):
     async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
         return await _async_auth_dispatch(self, request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Cancel an async response",
+        description="Cooperatively cancel an in-flight async task. No request body. Idempotent on finished tasks.",
+        request=None,
+    )
     async def post(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
         record = await sync_to_async(responses_store.load)(response_id)
         if record is None:

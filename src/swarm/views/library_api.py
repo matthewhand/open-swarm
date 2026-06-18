@@ -22,7 +22,8 @@ HasValidTokenOrSession is required; otherwise AllowAny.
 
 import logging
 
-from rest_framework import status
+from drf_spectacular.utils import OpenApiExample, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -74,6 +75,18 @@ class LibraryAPIView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        summary="Add a blueprint to the library",
+        request=inline_serializer(
+            name="LibraryAddRequest",
+            fields={
+                "name": serializers.CharField(
+                    help_text="Blueprint id to install (must be a discovered blueprint). Required."
+                ),
+            },
+        ),
+        examples=[OpenApiExample("Install", value={"name": "cli_fusion"}, request_only=True)],
+    )
     def post(self, request, *_args, **_kwargs):
         try:
             body = request.data or {}

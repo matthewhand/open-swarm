@@ -3,10 +3,28 @@ import time
 
 # *** Import async_to_sync ***
 from asgiref.sync import async_to_sync
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+# Shared request body for creating/updating a custom blueprint (documents the
+# OpenAPI requestBody so MCP/codegen clients know what fields to send).
+_custom_blueprint_request = inline_serializer(
+    name="CustomBlueprintRequest",
+    fields={
+        "id": serializers.CharField(required=False, help_text="Blueprint id (or provide name)."),
+        "name": serializers.CharField(required=False, help_text="Display name (id or name is required)."),
+        "description": serializers.CharField(required=False, allow_blank=True),
+        "category": serializers.CharField(required=False, help_text="Default: ai_assistants."),
+        "tags": serializers.ListField(child=serializers.CharField(), required=False),
+        "requirements": serializers.CharField(required=False, allow_blank=True),
+        "code": serializers.CharField(required=False, allow_blank=True, help_text="Blueprint source."),
+        "required_mcp_servers": serializers.ListField(child=serializers.CharField(), required=False),
+        "env_vars": serializers.ListField(child=serializers.CharField(), required=False),
+    },
+)
 
 from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
@@ -164,6 +182,7 @@ class CustomBlueprintsView(APIView):
         filtered = [i for i in items if match(i)]
         return Response({"object": "list", "data": filtered}, status=status.HTTP_200_OK)
 
+    @extend_schema(summary="Create a custom blueprint", request=_custom_blueprint_request)
     def post(self, request, *_args, **_kwargs):
         try:
             body = request.data or {}
@@ -241,6 +260,7 @@ class CustomBlueprintDetailView(APIView):
             return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @extend_schema(summary="Update a custom blueprint", request=_custom_blueprint_request)
     def patch(self, request, blueprint_id: str, *_args, **_kwargs):
         try:
             lib, items, item = self._load(blueprint_id)
