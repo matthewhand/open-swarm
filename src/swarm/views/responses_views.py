@@ -115,11 +115,20 @@ def _coerce_content(content: Any) -> str:
 
 
 def _resolve_sync_wait(request_data: dict[str, Any], background: bool) -> float | None:
-    """How long to wait synchronously before returning a queued handle.
+    """How long to wait synchronously before handing back a pollable handle.
 
     Precedence: ``background:true`` -> 0 (immediate handle) > per-request
-    ``max_wait_seconds`` > server default ``SWARM_RESPONSES_SYNC_TIMEOUT`` (env).
-    Returns None when nothing is configured — the classic fully-blocking sync path.
+    ``max_wait_seconds`` > server default ``SWARM_RESPONSES_SYNC_TIMEOUT`` (env) >
+    the **async-by-default** bounded window ``SWARM_RESPONSES_SYNC_DEFAULT`` (env,
+    default 10s).
+
+    Async-by-default: non-streaming work always runs on a background worker and
+    is persisted to disk under its ``response_id``. A POST returns within this
+    window — inline (200) for fast blueprints, or a 202 handle for long
+    claude-p + delegation runs that finish in the background and are polled via
+    ``GET /v1/responses/<id>``. This is what makes timeouts irrelevant. Set
+    ``SWARM_RESPONSES_SYNC_DEFAULT`` very high to approximate the old fully-
+    blocking behaviour.
     """
     if background:
         return 0.0
@@ -127,14 +136,17 @@ def _resolve_sync_wait(request_data: dict[str, Any], background: bool) -> float 
         try:
             return max(0.0, float(request_data["max_wait_seconds"]))
         except (TypeError, ValueError):
-            return None
+            pass  # malformed -> fall through to the server default
     env = os.environ.get("SWARM_RESPONSES_SYNC_TIMEOUT")
     if env:
         try:
             return max(0.0, float(env))
         except ValueError:
-            return None
-    return None
+            pass
+    try:
+        return max(0.0, float(os.environ.get("SWARM_RESPONSES_SYNC_DEFAULT", "10")))
+    except ValueError:
+        return 10.0
 
 
 async def _async_auth_dispatch(view: APIView, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
@@ -253,13 +265,14 @@ class ResponsesView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
-        # Fast-path sync vs queued. The server runs the task on a background worker
-        # and waits up to `wait_seconds` for it to finish: returns the result inline
-        # (200) if it beats the deadline, else a handle (202, in_progress) the client
-        # polls. background:true => wait 0 (immediate handle). No wait configured =>
-        # the classic fully-blocking sync path. Streaming is always inline.
+        # Async-by-default: the task runs on a background worker (persisted to disk
+        # under its response_id) and we wait up to `wait_seconds` for it to finish —
+        # returns the result inline (200) if it beats the deadline, else a pollable
+        # handle (202, in_progress). background:true => wait 0 (immediate handle).
+        # Streaming is always inline. `store:false` can't be polled (nothing is
+        # persisted), so it always takes the inline blocking path.
         wait_seconds = _resolve_sync_wait(request_data, background)
-        if wait_seconds is not None and not stream:
+        if wait_seconds is not None and not stream and store:
             return await self._handle_hybrid(
                 request_id, model_name, messages, params, previous_response_id, wait_seconds
             )
@@ -559,7 +572,16 @@ def _run_background_response(
                 raise RuntimeError(f"Model '{model_name}' could not be initialized.")
             if hasattr(bp, "set_params"):
                 bp.set_params(params)
-            return await _consume_blueprint(bp, messages, cancel_check=lambda: _is_cancel_requested(response_id))
+            # Hard execution ceiling so a hung CLI/LLM (e.g. a stuck claude -p)
+            # fails the record instead of pinning the worker forever.
+            try:
+                exec_timeout = float(os.environ.get("SWARM_RESPONSES_EXEC_TIMEOUT", "600"))
+            except ValueError:
+                exec_timeout = 600.0
+            return await asyncio.wait_for(
+                _consume_blueprint(bp, messages, cancel_check=lambda: _is_cancel_requested(response_id)),
+                timeout=exec_timeout,
+            )
 
         answer, backend_meta = asyncio.run(_go())
         # A cancel may have landed between the last chunk and here.
@@ -572,6 +594,9 @@ def _run_background_response(
                 transcript=list(messages) + [{"role": "assistant", "content": answer}],
             )
             logger.info(f"[ReqID: {request_id}] async task {response_id} completed.")
+    except (TimeoutError, asyncio.TimeoutError):
+        logger.error(f"[ReqID: {request_id}] async task {response_id} timed out.")
+        _terminal("failed", error="execution timed out")
     except _Cancelled:
         _terminal("cancelled")
         logger.info(f"[ReqID: {request_id}] async task {response_id} cancelled mid-run.")
