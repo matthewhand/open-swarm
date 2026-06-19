@@ -21,15 +21,10 @@ def test_init_does_not_null_passed_config():
     assert bp.get_llm_profile(bp.llm_profile_name).get("base_url") == "http://x/v1"
 
 
-def test_unconfigured_degrades_gracefully():
+async def test_unconfigured_degrades_gracefully():
     bp = DjangoChatBlueprint(config={})
     # No usable profile -> a clear message, never the old "Would respond to:" stub.
-    import asyncio
-
-    async def _collect():
-        return [c async for c in bp.run([{"role": "user", "content": "hi"}])]
-
-    chunks = asyncio.get_event_loop().run_until_complete(_collect())
+    chunks = [c async for c in bp.run([{"role": "user", "content": "hi"}])]
     content = chunks[-1]["messages"][0]["content"]
     assert "not configured" in content
     assert "Would respond to" not in content
