@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-06-19
+
+### Fixed — `django_chat` now calls a real LLM
+- The `django_chat` blueprint shipped as a stub that only yielded a simulated `"[DjangoChat LLM] Would respond to: …"` box — it never called a model. It now proxies the conversation to the configured `llm` profile (OpenAI-compatible, mirroring `dynamic_team`), degrading to a clear "not configured" message when no profile is set.
+
 ### Security — settings dashboard XSS
 - `templates/settings_dashboard.html` injected server settings into a `<script>` via `{{ settings_groups|safe }}` — an XSS vector (any value containing `</script>` could break out) that also emitted invalid JS (a raw Python dict). Replaced with Django's `json_script` (auto-escapes `<`/`>`/`&`) read via `JSON.parse`. Sensitive values were already masked server-side. Regression tests added.
 
