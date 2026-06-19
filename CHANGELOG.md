@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — test cruft + orphan CLI
+- Deleted ~15 low-quality tests (tautological dict/`isinstance` checks, import-only smokes, over-mocked tests that only verify their own mock, and a suite testing an orphan root `swarm_cli.py`). Removed that orphan `swarm_cli.py` (a stale `click` CLI superseded by `swarm.core.swarm_cli:app`). Net: leaner, higher-signal suite (1293 passing).
+
 ## [0.5.2] — 2026-06-19
 
 ### Fixed — `django_chat` now calls a real LLM
