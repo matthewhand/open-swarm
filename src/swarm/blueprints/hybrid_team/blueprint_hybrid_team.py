@@ -54,6 +54,11 @@ class HybridTeamBlueprint(BlueprintBase):
         "version": "0.1.0",
         "author": "Open Swarm Team",
         "tags": ["cli", "fusion", "rest", "consensus", "hybrid", "openai-compatible"],
+        # The coordinator reasons and plans, so it asks for high intelligence;
+        # speed/cost are "don't care". Scored against swarm_config.json `llm`
+        # profiles (see core/inference_profile.py). A hint only — explicit
+        # llm_profile / DEFAULT_LLM / LITELLM_MODEL still take priority.
+        "inference_profile": {"intelligence": 0.9},
         "required_mcp_servers": [],
         "env_vars": [],
     }
