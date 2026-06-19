@@ -275,7 +275,7 @@ class TestResponsesAsync:
         # Worker slower than the wait window -> 202 handle; then it finishes and polls completed.
         import swarm.views.responses_views as rv
 
-        async def _slow(bp, messages, cancel_check=None):
+        async def _slow(bp, messages, cancel_check=None, on_progress=None):
             await asyncio.sleep(0.8)
             return "You said: slow", None
 

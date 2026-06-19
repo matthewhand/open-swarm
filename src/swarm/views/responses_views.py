@@ -477,21 +477,27 @@ class _Cancelled(Exception):
 
 
 async def _consume_blueprint(
-    blueprint_instance: Any, messages: list[dict[str, Any]], cancel_check: Any = None
+    blueprint_instance: Any, messages: list[dict[str, Any]], cancel_check: Any = None,
+    on_progress: Any = None,
 ) -> tuple[str, dict | None]:
     """Drive a blueprint to its final answer. Returns (answer, backend_meta).
 
     Shared by the synchronous handler and the async worker. ``cancel_check`` (a
     zero-arg callable) is polled between chunks; if it returns True we raise
-    :class:`_Cancelled`.
+    :class:`_Cancelled`. ``on_progress(entry)`` (if given) is called for each
+    structured progress chunk that carries a ``delegation`` payload — used to
+    stream per-delegation status into the persisted record.
     """
     final_message = None
     backend_meta = None
     async for chunk in blueprint_instance.run(messages, stream=False):
         if cancel_check is not None and cancel_check():
             raise _Cancelled()
-        if isinstance(chunk, dict) and chunk.get("meta"):
-            backend_meta = chunk["meta"]
+        if isinstance(chunk, dict):
+            if chunk.get("meta"):
+                backend_meta = chunk["meta"]
+            if on_progress is not None and chunk.get("delegation") is not None:
+                on_progress(chunk["delegation"])
         message = _extract_message_from_chunk(chunk)
         if message is None:
             continue
@@ -540,8 +546,17 @@ def _run_background_response(
     started = time.time()
     spec = _task_spec(request_id, model_name, messages, params, previous_response_id)
 
+    # Per-delegation progress, streamed into the persisted record as each
+    # parallel sub-task completes. Guarded by a lock for safe concurrent JSON
+    # updates from the blueprint's worker threads.
+    progress: list[dict] = []
+    progress_lock = threading.Lock()
+
     def _save(payload, transcript, *, keep_task=False):
         payload["execution_ms"] = int((time.time() - started) * 1000)
+        with progress_lock:
+            if progress:
+                payload["progress"] = list(progress)
         record = {"id": response_id, "object": "response", "response": payload, "messages": transcript}
         if keep_task:
             record["_task"] = spec
@@ -556,6 +571,15 @@ def _run_background_response(
         if error is not None:
             payload["error"] = {"message": str(error)}
         _save(payload, transcript)  # no _task: terminal states aren't resumed
+
+    def _on_progress(entry: dict) -> None:
+        # Append a {role, status, result/error, model_used} entry and re-persist
+        # the in_progress record so pollers see delegations as they finish.
+        with progress_lock:
+            progress.append(entry)
+        in_prog = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="in_progress")
+        in_prog["started_at"] = int(started)
+        _save(in_prog, None, keep_task=True)
 
     # Mark in_progress (keep the task spec for restart-resume).
     in_prog = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="in_progress")
@@ -579,7 +603,11 @@ def _run_background_response(
             except ValueError:
                 exec_timeout = 600.0
             return await asyncio.wait_for(
-                _consume_blueprint(bp, messages, cancel_check=lambda: _is_cancel_requested(response_id)),
+                _consume_blueprint(
+                    bp, messages,
+                    cancel_check=lambda: _is_cancel_requested(response_id),
+                    on_progress=_on_progress,
+                ),
                 timeout=exec_timeout,
             )
 

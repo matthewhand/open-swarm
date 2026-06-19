@@ -43,10 +43,14 @@ falls back to the ``cli_fusion`` ``default_cli`` / ``default_preset``. Per-reque
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import json
 import logging
 import os
 import re
+import threading
+import time
 from typing import Any, AsyncGenerator, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
@@ -110,6 +114,13 @@ class HybridTeamBlueprint(BlueprintBase):
         "general coding and reasoning, and 'orchestration' for further "
         "planning/coordination. At most 3 delegations; use [] if none are needed."
     )
+
+    # Parallel-delegation tuning. Delegations run concurrently on a small thread
+    # pool; launches are staggered to be gentle on free-CLI rate limits, and each
+    # delegation has a hard timeout so one slow/hung sub-task can't stall the rest.
+    _DELEGATION_MAX_WORKERS: ClassVar[int] = 4
+    _DELEGATION_TIMEOUT_S: ClassVar[float] = 120.0
+    _DELEGATION_LAUNCH_DELAY_S: ClassVar[float] = 0.25
 
     def __init__(
         self,
@@ -274,6 +285,53 @@ class HybridTeamBlueprint(BlueprintBase):
         except Exception as exc:  # noqa: BLE001
             return f"[{role} unavailable: {exc}] {task}"
 
+    def _role_model(self, role: str) -> str | None:
+        """The llm profile name a role would resolve to (for observability), or None."""
+        profile = self.ROLE_PROFILES.get(role)
+        if not profile:
+            return None
+        try:
+            from swarm.core.inference_profile import resolve
+            return resolve(profile, self._llm_candidates())
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _execute_delegations(self, delegations: list[dict]) -> AsyncGenerator[dict, None]:
+        """Run delegations in parallel on a ThreadPoolExecutor, yielding each result
+        dict as it completes (out of order).
+
+        Each result is ``{role, task, status: completed|failed, result|error,
+        model_used}``. Failures are isolated (one bad sub-task never kills the
+        others), each has a hard ``_DELEGATION_TIMEOUT_S`` ceiling, and launches
+        are staggered by ``_DELEGATION_LAUNCH_DELAY_S`` to protect free-CLI rate
+        limits. Deterministic under ``SWARM_TEST_MODE`` (``_run_delegation`` stubs).
+        """
+        loop = asyncio.get_event_loop()
+        launch_gate = threading.Lock()  # serialize *starts* to stagger launches
+
+        def _work(d: dict) -> dict:
+            role, task = d["role"], d["task"]
+            model_used = self._role_model(role)
+            with launch_gate:
+                time.sleep(self._DELEGATION_LAUNCH_DELAY_S)
+            base = {"role": role, "task": task, "model_used": model_used}
+            try:
+                # Own event loop per worker thread, with a hard per-task timeout.
+                out = asyncio.run(
+                    asyncio.wait_for(self._run_delegation(d), timeout=self._DELEGATION_TIMEOUT_S)
+                )
+                return {**base, "status": "completed", "result": out}
+            except (TimeoutError, asyncio.TimeoutError):
+                return {**base, "status": "failed", "error": f"timed out after {self._DELEGATION_TIMEOUT_S:.0f}s"}
+            except Exception as exc:  # noqa: BLE001 — isolate per-delegation failures
+                return {**base, "status": "failed", "error": str(exc)}
+
+        max_workers = min(self._DELEGATION_MAX_WORKERS, max(1, len(delegations)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [loop.run_in_executor(pool, _work, d) for d in delegations]
+            for fut in asyncio.as_completed(futures):
+                yield await fut
+
     # --- the REST step (deterministic under SWARM_TEST_MODE) -------------- #
 
     async def _rest_reason(self, prompt: str) -> str:
@@ -361,14 +419,31 @@ class HybridTeamBlueprint(BlueprintBase):
         # The plan steers the CLI sub-questions below.
         sub_question = f"{prompt}\n\n--- Plan ---\n{plan}"
 
-        # ---- 1b. execute the brain's delegations via the role machinery -- #
-        # Each {role, task} from claude is routed to its role's model
-        # (orchestration/agent/auxiliary) through _agent_for_role. Empty under
-        # SWARM_TEST_MODE / when no claude brain is configured.
+        # ---- 1b. execute the brain's delegations IN PARALLEL ------------- #
+        # Each {role, task} from claude runs on its role's model
+        # (orchestration/agent/auxiliary) via _agent_for_role, concurrently on a
+        # small thread pool. Results arrive out of order; each is surfaced as a
+        # `delegation_progress` chunk (also captured into the persisted Responses
+        # progress array). Empty under SWARM_TEST_MODE / when no claude brain.
         delegated: list[tuple[str, str]] = []
-        for d in delegations:
-            yield support.progress_chunk(f"_Delegating ({d['role']}) → {d['task'][:60]}…_")
-            delegated.append((d["role"], await self._run_delegation(d)))
+        if delegations:
+            yield support.progress_chunk(
+                f"_Delegating {len(delegations)} sub-task(s) in parallel…_"
+            )
+            async for ev in self._execute_delegations(delegations):
+                summary = ev["result"] if ev["status"] == "completed" else (
+                    f"[{ev['role']} {ev['status']}: {ev.get('error')}]"
+                )
+                delegated.append((ev["role"], summary))
+                yield {
+                    "type": "delegation_progress",
+                    "content": (
+                        f"_• {ev['role']} {ev['status']}"
+                        + (f" on `{ev['model_used']}`" if ev.get("model_used") else "")
+                        + "_"
+                    ),
+                    "delegation": ev,
+                }
 
         # ---- 2. grok CLI persona step ------------------------------------ #
         grok_answer = ""
