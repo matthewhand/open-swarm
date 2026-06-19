@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-06-19
+
+### Fixed — `django_chat` actually resolves its LLM profile
+- Follow-up to 0.5.2: `django_chat` returned "not configured" at runtime even with a valid `llm` profile, because its `__init__` re-assigned `self._config = config if config is not None else None` (and nulled `_llm_profile_name`) *after* the base `__init__` had already loaded the config — clobbering it. Removed those redundant overrides; verified live (real answer over the local backend). Regression tests added.
+
 ## [0.5.3] — 2026-06-19
 
 ### Fixed — SPA loading buttons show a spinner (DaisyUI 5)
