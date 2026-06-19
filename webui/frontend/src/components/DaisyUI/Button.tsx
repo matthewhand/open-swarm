@@ -52,8 +52,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     glass ? 'glass' : '',
     // Animation
     noAnimation ? 'no-animation' : '',
-    // Loading state
-    loading ? 'loading' : '',
     // Custom classes
     className
   ].filter(Boolean);
@@ -67,6 +65,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
       aria-busy={loading}
       {...props}
     >
+      {/* DaisyUI 5: the bare `loading` btn class no longer renders a spinner —
+          an explicit loading-spinner span is required for visible feedback. */}
+      {loading && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
       {loading && <span className="sr-only">Loading</span>}
       {children}
     </button>

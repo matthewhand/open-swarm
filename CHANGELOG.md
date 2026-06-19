@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-06-19
+
+### Fixed — SPA loading buttons show a spinner (DaisyUI 5)
+- `Button` used the bare `loading` class, which DaisyUI 5 no longer renders as a spinner — so every mutating action (save/delete/create) across Teams/Blueprints/Agent-Creator showed a disabled button with **no visible feedback**. Now renders an explicit `loading loading-spinner` element (with `aria-busy`/SR text retained). Tests added.
+
+
 ### Removed — test cruft + orphan CLI
 - Deleted ~15 low-quality tests (tautological dict/`isinstance` checks, import-only smokes, over-mocked tests that only verify their own mock, and a suite testing an orphan root `swarm_cli.py`). Removed that orphan `swarm_cli.py` (a stale `click` CLI superseded by `swarm.core.swarm_cli:app`). Net: leaner, higher-signal suite (1293 passing).
 
