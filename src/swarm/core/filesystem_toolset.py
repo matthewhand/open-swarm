@@ -147,6 +147,22 @@ class FilesystemToolset:
         self._audit("read", str(rp), True, f"{size}b truncated={truncated}")
         return data + ("\n…[truncated]" if truncated else "")
 
+    def head(self, path: str, n: int = 50) -> str:
+        """First *n* lines (numbered) — quick peek at a file's start."""
+        return self.read(path, start_line=1, end_line=max(1, int(n)))
+
+    def tail(self, path: str, n: int = 50) -> str:
+        """Last *n* lines (numbered) — the go-to for log inspection."""
+        self._require(READONLY, READWRITE)
+        rp = self._resolve(path)
+        if not rp.is_file():
+            raise FilesystemError(f"not a file: {rp}")
+        lines = rp.read_text(encoding="utf-8", errors="replace").splitlines()
+        n = max(1, int(n))
+        start = max(0, len(lines) - n)
+        self._audit("tail", str(rp), True, f"last {len(lines) - start}/{len(lines)}")
+        return "\n".join(f"{start + i + 1}: {ln}" for i, ln in enumerate(lines[start:]))
+
     def grep(self, pattern: str, path: str, *, max_matches: int = 200, ignore_case: bool = True) -> str:
         """Regex-search a file (or every file under a dir) for *pattern*; return
         ``relpath:lineno: line`` hits (capped). Allow-list enforced per file."""

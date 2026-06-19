@@ -37,7 +37,7 @@ from swarm.core.filesystem_toolset import FilesystemError, FilesystemToolset
 
 logger = logging.getLogger(__name__)
 
-_OPS = {"read", "cat", "list", "ls", "stat", "tree", "grep", "find"}
+_OPS = {"read", "cat", "list", "ls", "stat", "tree", "grep", "find", "head", "tail"}
 
 
 class FsIntrospectBlueprint(BlueprintBase):
@@ -119,6 +119,16 @@ class FsIntrospectBlueprint(BlueprintBase):
                     glob = parts[0]
                     root = parts[2] if len(parts) >= 3 and parts[1] == "in" else (parts[1] if len(parts) >= 2 else None)
                 out = fs.find(glob, root)
+            elif op in ("head", "tail"):
+                # grammar: head|tail <path> [n]   (params: path, n)
+                n = self._params.get("n")
+                target = path
+                if n is None and len(path.split()) >= 2:
+                    bits = path.split()
+                    target = bits[0]
+                    n = int(bits[1]) if bits[1].isdigit() else None
+                n = int(n) if n is not None else 50
+                out = fs.head(target, n) if op == "head" else fs.tail(target, n)
             elif op in ("read", "cat"):
                 sl = self._params.get("start_line")
                 el = self._params.get("end_line")

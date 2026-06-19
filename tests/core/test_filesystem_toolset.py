@@ -102,3 +102,10 @@ def test_grep_bad_regex(sandbox):
     fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)])
     with pytest.raises(FilesystemError):
         fs.grep("(unclosed", str(sandbox))
+
+
+def test_head_and_tail(sandbox):
+    (sandbox / "log.txt").write_text("\n".join(f"line{i}" for i in range(1, 11)), encoding="utf-8")
+    fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)])
+    assert fs.head(str(sandbox / "log.txt"), 2) == "1: line1\n2: line2"
+    assert fs.tail(str(sandbox / "log.txt"), 2) == "9: line9\n10: line10"
