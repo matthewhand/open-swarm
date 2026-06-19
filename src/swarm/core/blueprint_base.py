@@ -467,6 +467,66 @@ class BlueprintBase(ABC):
             # Fallback to empty config on unexpected errors
             self._config = {}
 
+    def _llm_candidates(self) -> dict[str, Any]:
+        """Profiles in the config 'llm' section that declare capability axes.
+
+        Only profiles tagging at least one of intelligence/speed/cost are treated
+        as scorable candidates, so untagged profiles (e.g. 'default', 'reason')
+        never win a match merely by defaulting to a neutral 0.5 on every axis.
+        """
+        from swarm.core.inference_profile import TRAITS
+        cfg = self._config if isinstance(self._config, dict) else {}
+        llm_section = cfg.get("llm", {}) or {}
+        candidates: dict[str, Any] = {}
+        for prof_name, prof in llm_section.items():
+            if isinstance(prof, dict) and any(t in prof for t in TRAITS):
+                candidates[prof_name] = {t: prof[t] for t in TRAITS if t in prof}
+        return candidates
+
+    def _desired_inference_profile(self) -> dict[str, Any] | None:
+        """The inference-profile *suggestion* for this blueprint, if any.
+
+        A value set programmatically (e.g. via make_agent(inference_profile=...))
+        takes precedence over a static metadata['inference_profile']. Returns
+        None when the blueprint expresses no preference (the resolver then falls
+        through to its normal default).
+        """
+        ip = getattr(self, "_inference_profile", None)
+        if isinstance(ip, dict) and ip:
+            return ip
+        md = getattr(self, "metadata", None)
+        if isinstance(md, dict) and isinstance(md.get("inference_profile"), dict) and md["inference_profile"]:
+            return md["inference_profile"]
+        return None
+
+    def _select_profile_by_inference(self):
+        """Score the blueprint's inference_profile suggestion against the tagged
+        config profiles and return the best-matching profile name, or None.
+
+        This is a *suggestion*: it only ever fills in a profile when no explicit
+        name/env override was chosen, and it declines (returns None) when the
+        suggestion names no known axis or no candidate is tagged.
+        """
+        desired = self._desired_inference_profile()
+        if not desired:
+            return None
+        from swarm.core.inference_profile import rank, resolve
+        candidates = self._llm_candidates()
+        chosen = resolve(desired, candidates)
+        if not chosen:
+            logger.debug(
+                "[inference_profile] no scorable match for desired=%s among %d candidate(s); "
+                "falling through to default", desired, len(candidates),
+            )
+            return None
+        ranking = rank(desired, candidates)
+        logger.info(
+            "[inference_profile] blueprint '%s' requested %s -> selected '%s' (top: %s)",
+            getattr(self, "blueprint_id", None) or type(self).__name__,
+            desired, chosen, [(n, round(s, 3)) for n, s in ranking[:3]],
+        )
+        return chosen
+
     def _resolve_llm_profile(self):
         """Resolve the LLM profile for this blueprint using the following order:
         1. If self._llm_profile_name is set, use it.
@@ -476,6 +536,11 @@ class BlueprintBase(ABC):
         5. If global swarm_config has blueprints.<BlueprintName>.llm_profile, use it.
         6. If settings.default_llm in global config, use it.
         7. If env var DEFAULT_LLM is set, use it.
+        7b. inference_profile scoring: if the blueprint declares a desired
+            inference_profile (metadata or make_agent param), pick the closest
+            tagged profile via inference_profile.resolve(). This is the primary
+            path for blueprints that only declare *intent*; explicit names and
+            env overrides above still win.
         8. Otherwise, use 'default'.
         """
         # Use cached value if already resolved
@@ -532,6 +597,10 @@ class BlueprintBase(ABC):
         if not profile:
             import os
             profile = os.environ.get('DEFAULT_LLM')
+        # 7b. inference_profile scoring (suggestion) — primary path for blueprints
+        #     that declare only intent; runs below explicit names/env overrides.
+        if not profile:
+            profile = self._select_profile_by_inference()
         # 8. Otherwise, use 'default'
         if not profile:
             profile = 'default'
@@ -803,9 +872,22 @@ class BlueprintBase(ABC):
         self.run = run_with_memory
         self._memory_run_wrapped = True
 
-    def make_agent(self, name, instructions, tools, mcp_servers=None, memory_type=None, memory_config=None, **kwargs):
-        """Factory for creating an Agent with the correct model instance from framework config."""
+    def make_agent(self, name, instructions, tools, mcp_servers=None, memory_type=None, memory_config=None, inference_profile=None, **kwargs):
+        """Factory for creating an Agent with the correct model instance from framework config.
+
+        ``inference_profile`` (optional) is a *suggestion* of the kind of inference
+        wanted (e.g. ``{"intelligence": 1.0}`` or ``{"speed": 0.9, "cost": 0.9}``).
+        It is scored against the tagged profiles in swarm_config.json's ``llm``
+        section and only takes effect when no explicit profile name or env override
+        (LITELLM_MODEL/DEFAULT_LLM) is set. Equivalent to declaring
+        ``metadata['inference_profile']`` on the blueprint.
+        """
         from agents import Agent  # Ensure Agent is always in scope
+        if inference_profile is not None:
+            self._inference_profile = inference_profile
+            # Bust any cached resolution so the suggestion is honored.
+            if hasattr(self, '_resolved_llm_profile'):
+                del self._resolved_llm_profile
         model_instance = self._get_model_instance(self._resolve_llm_profile())
         
         # Resolve memory settings
