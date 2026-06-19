@@ -189,9 +189,20 @@ async def _async_auth_dispatch(view: APIView, request: HttpRequest, *args: Any, 
 class ResponsesView(APIView):
     """Handles OpenAI Responses API requests (``/v1/responses``).
 
-    Reuses ``ChatCompletionsView``'s blueprint-resolution + run path. Stateful:
-    a response is persisted (unless ``store: false``) and ``previous_response_id``
-    continues a prior conversation. See :mod:`swarm.core.responses_store`.
+    Reuses ``ChatCompletionsView``'s blueprint-resolution + run path (identical
+    model/inference_profile resolution — no Responses-specific resolver), so it
+    is first-class for the full tiered flow, including ``hybrid_team``'s
+    claude-orchestrated structured delegation.
+
+    **Async-by-default + stateful.** Non-streaming work runs on a background
+    worker, persisted to disk by ``response_id`` (see
+    :mod:`swarm.core.responses_store`): a POST returns within a bounded window
+    (``SWARM_RESPONSES_SYNC_DEFAULT``, 10s) — inline (200) for fast blueprints, or
+    a pollable 202 handle for long claude-p + delegation runs that finish in the
+    background. Poll/continue via ``GET /v1/responses/<id>``; while in progress the
+    record carries a ``progress`` array of per-delegation status. ``store:false``
+    runs inline (nothing to poll); ``previous_response_id`` continues a prior
+    conversation.
     """
 
     @method_decorator(csrf_exempt)
