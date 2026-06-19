@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .sd-wrap { max-width:980px; margin:1.5rem auto; padding:0 1rem; color:#cbd5e1; }
+  .sd-wrap a { color:#93c5fd; }
+  .sd-id { font-family:ui-monospace,monospace; color:#93c5fd; }
+  .sd-meta { color:#94a3b8; font-size:.85rem; }
+  .sd-section { background:#1b1f29; border:1px solid #2b3140; border-radius:12px; padding:1rem 1.15rem; margin:1rem 0; }
+  .sd-section h4 { margin:.1rem 0 .8rem; font-size:.95rem; color:#e2e8f0; }
+  pre.sd-out { white-space:pre-wrap; word-break:break-word; background:#0f1219; border:1px solid #2b3140;
+               border-radius:8px; padding:.8rem; color:#e2e8f0; font-size:.88rem; }
+  .badge-status { font-size:.72rem; padding:.22rem .55rem; border-radius:6px; text-transform:uppercase; }
+  .st-completed{background:#14532d;color:#86efac;} .st-failed{background:#4c1d1d;color:#fca5a5;}
+  .st-in_progress,.st-queued{background:#1e3a5f;color:#93c5fd;} .st-cancelled,.st-unknown{background:#3b3b3b;color:#d1d5db;}
+  /* delegation timeline */
+  .tl { list-style:none; margin:0; padding:0; position:relative; }
+  .tl:before { content:''; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:#2b3140; }
+  .tl li { position:relative; padding:.1rem 0 .9rem 1.6rem; }
+  .tl .node { position:absolute; left:0; top:.25rem; width:16px; height:16px; border-radius:50%;
+              border:3px solid #0f1219; }
+  .node.completed{background:#22c55e;} .node.failed{background:#ef4444;}
+  .node.in_progress{background:#3b82f6;} .node.queued{background:#64748b;}
+  .tl .role { font-weight:600; color:#e2e8f0; } .tl .model { color:#94a3b8; font-size:.8rem; }
+  .tl .task { color:#cbd5e1; font-size:.88rem; margin:.15rem 0; }
+  .tl .result { color:#a7f3d0; font-size:.85rem; } .tl .error { color:#fca5a5; font-size:.85rem; }
+  .msg { border-left:3px solid #2b3140; padding:.2rem .7rem; margin:.4rem 0; }
+  .msg .role { color:#94a3b8; font-size:.78rem; text-transform:uppercase; }
+</style>
+
+<div class="sd-wrap">
+  <p><a href="{% url 'session-explorer' %}">&larr; All sessions</a></p>
+  <h2 style="margin:.2rem 0;">Session <span class="sd-id">{{ session.id }}</span></h2>
+  <div class="sd-meta">
+    <span class="badge-status st-{{ session.status|default:'unknown' }}">{{ session.status|default:'unknown' }}</span>
+    &nbsp; model <strong>{{ session.model|default:'—' }}</strong>
+    {% if session.execution_ms %}&nbsp;&middot;&nbsp; {{ session.execution_ms }} ms{% endif %}
+    {% if session.usage %}&nbsp;&middot;&nbsp; {{ session.usage.total_tokens }} tokens{% endif %}
+  </div>
+
+  {% if delegations %}
+  <div class="sd-section">
+    <h4>⛓ Delegation timeline ({{ delegations|length }})</h4>
+    <ul class="tl">
+      {% for d in delegations %}
+        <li>
+          <span class="node {{ d.status }}"></span>
+          <span class="role">{{ d.role }}</span>
+          {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
+          <span class="badge-status st-{{ d.status }}" style="margin-left:.4rem;">{{ d.status }}</span>
+          {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
+          {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
+          {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="sd-section">
+    <h4>Output</h4>
+    <pre class="sd-out">{{ session.output_text|default:'(no output yet)' }}</pre>
+    {% if session.error %}<div class="error">Error: {{ session.error.message }}</div>{% endif %}
+  </div>
+
+  {% if messages %}
+  <div class="sd-section">
+    <h4>Transcript</h4>
+    {% for m in messages %}
+      <div class="msg"><div class="role">{{ m.role }}</div><div>{{ m.content }}</div></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

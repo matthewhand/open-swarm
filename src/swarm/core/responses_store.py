@@ -71,6 +71,38 @@ def load(response_id: str, *, base_dir: Path | None = None) -> dict[str, Any] | 
         return None
 
 
+def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> list[dict[str, Any]]:
+    """Lightweight summaries of stored sessions, newest first.
+
+    Each summary: ``{id, model, status, created_at, execution_ms, output_preview,
+    delegations}`` where ``delegations`` is the per-role progress array (possibly
+    empty). Used by the Session Explorer web UI; reads each record once.
+    """
+    base = base_dir or _store_dir()
+    if not base.is_dir():
+        return []
+    summaries: list[dict[str, Any]] = []
+    for path in base.glob("resp_*.json"):
+        try:
+            with open(path) as f:
+                record = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        resp = record.get("response") or {}
+        text = resp.get("output_text") or ""
+        summaries.append({
+            "id": resp.get("id") or record.get("id"),
+            "model": resp.get("model"),
+            "status": resp.get("status"),
+            "created_at": resp.get("created_at") or resp.get("started_at") or 0,
+            "execution_ms": resp.get("execution_ms"),
+            "output_preview": (text[:160] + "…") if len(text) > 160 else text,
+            "delegations": resp.get("progress") or [],
+        })
+    summaries.sort(key=lambda s: s.get("created_at") or 0, reverse=True)
+    return summaries[:limit] if limit else summaries
+
+
 def delete(response_id: str, *, base_dir: Path | None = None) -> bool:
     """Delete the stored record; True if one was removed."""
     path = _path_for(response_id, base_dir)
