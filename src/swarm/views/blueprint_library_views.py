@@ -78,15 +78,6 @@ BLUEPRINT_METADATA = {
         "version": "1.0.0",
         "difficulty": "beginner"
     },
-    "whinge_surf": {
-        "name": "Whinge Surf",
-        "description": "System monitoring and process management tool",
-        "category": "system_tools",
-        "tags": ["monitoring", "system", "processes"],
-        "author": "Open Swarm Team",
-        "version": "1.0.0",
-        "difficulty": "intermediate"
-    },
     "poets": {
         "name": "Poets",
         "description": "Creative writing and poetry generation assistant",
