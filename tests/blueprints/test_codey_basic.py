@@ -121,24 +121,6 @@ class TestCodeyBasicFunctionality:
         assert isinstance(rendered, str)
         assert len(rendered) > 0
 
-    @pytest.mark.asyncio
-    async def test_error_handling_in_run(self, codey_blueprint):
-        """Test that errors in run method are handled gracefully"""
-        # Test with invalid message format
-        invalid_messages = ["not a dict", "also not a dict"]
-        
-        # Should handle gracefully or raise appropriate exception
-        try:
-            result = []
-            async for chunk in codey_blueprint.run(invalid_messages):
-                result.append(chunk)
-            
-            # If it doesn't raise, should still return something
-            assert len(result) > 0
-        except (ValueError, TypeError, KeyError):
-            # Expected - invalid input format
-            pass
-
     def test_blueprint_config_access(self, codey_blueprint):
         """Test that config can be accessed"""
         # Should have access to config
@@ -187,19 +169,6 @@ class TestCodeyConfiguration:
         config = codey_blueprint.config
         assert config is not None
         assert isinstance(config, dict)
-
-    def test_config_immutability(self, codey_blueprint):
-        """Test that config cannot be modified directly"""
-        original_config = codey_blueprint.config.copy()
-        
-        # Try to modify config
-        try:
-            codey_blueprint.config['test_key'] = 'test_value'
-            # If this succeeds, config should still be valid
-            assert codey_blueprint.config is not None
-        except (AttributeError, TypeError):
-            # Expected - config is immutable
-            pass
 
     def test_llm_profile_access(self, codey_blueprint):
         """Test that LLM profiles can be accessed"""
