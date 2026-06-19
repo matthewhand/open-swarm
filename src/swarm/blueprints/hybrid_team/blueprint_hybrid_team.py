@@ -30,6 +30,7 @@ falls back to the ``cli_fusion`` ``default_cli`` / ``default_preset``. Per-reque
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, AsyncGenerator, ClassVar
 
@@ -38,6 +39,8 @@ from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.cli_adapter import CliAdapterRegistry
 from swarm.core.cli_tools import cli_persona, consensus_fn  # the granular tool layer
 from swarm.core.consensus import run_consensus  # noqa: F401  (Option B; see run())
+
+logger = logging.getLogger(__name__)
 
 
 class HybridTeamBlueprint(BlueprintBase):
@@ -54,13 +57,28 @@ class HybridTeamBlueprint(BlueprintBase):
         "version": "0.1.0",
         "author": "Open Swarm Team",
         "tags": ["cli", "fusion", "rest", "consensus", "hybrid", "openai-compatible"],
-        # The coordinator reasons and plans, so it asks for high intelligence;
-        # speed/cost are "don't care". Scored against swarm_config.json `llm`
-        # profiles (see core/inference_profile.py). A hint only — explicit
-        # llm_profile / DEFAULT_LLM / LITELLM_MODEL still take priority.
-        "inference_profile": {"intelligence": 0.9},
+        # Blueprint-level default for any step that does NOT request a specific
+        # role (see ROLE_PROFILES). hybrid_team mixes a smart coordinator with
+        # cheaper execution steps, so the default leans capable-but-not-maximal:
+        # good reasoning, some weight on speed. Per-step roles below override it.
+        # A hint only — explicit llm_profile / DEFAULT_LLM / LITELLM_MODEL win.
+        "inference_profile": {"intelligence": 0.7, "speed": 0.5},
         "required_mcp_servers": [],
         "env_vars": [],
+    }
+
+    # Per-step inference intents. Each maps a sub-task *role* to an
+    # inference_profile (see core/inference_profile.py) that BlueprintBase scores
+    # against the tagged profiles in swarm_config.json's `llm` section. This is
+    # what lets a single run() mix models by step: planning gets the smartest
+    # model; cheap/simple steps get a fast, inexpensive one.
+    ROLE_PROFILES: ClassVar[dict[str, dict[str, float]]] = {
+        # planning, coordination, multi-agent work -> the smartest available
+        "orchestration": {"intelligence": 0.95},
+        # general coding / reasoning -> capable, with mild cost awareness
+        "agent": {"intelligence": 0.7, "cost": 0.4},
+        # testing, revision, simple execution -> fast and cheap
+        "auxiliary": {"speed": 0.9, "cost": 0.9},
     }
 
     def __init__(
@@ -105,37 +123,89 @@ class HybridTeamBlueprint(BlueprintBase):
             judge = None
         return grok, panel, judge
 
+    # --- per-step model routing ------------------------------------------- #
+
+    def _agent_for_role(self, role: str, name: str, instructions: str, tools=None):
+        """Create an openai-agents Agent whose model is chosen for a sub-task ``role``.
+
+        Maps ``role`` (e.g. "orchestration", "agent", "auxiliary") to an
+        inference_profile via :attr:`ROLE_PROFILES` and lets BlueprintBase score
+        it against the configured ``llm`` profiles. An unknown role falls back to
+        the blueprint's own metadata ``inference_profile``. The choice is logged
+        so it is obvious which model each step used.
+        """
+        profile = self.ROLE_PROFILES.get(role)
+        logger.info("[hybrid_team] step role=%s -> inference_profile=%s", role, profile)
+        return self.make_agent(
+            name=name,
+            instructions=instructions,
+            tools=list(tools or []),
+            inference_profile=profile,
+        )
+
     # --- the REST step (deterministic under SWARM_TEST_MODE) -------------- #
 
     async def _rest_reason(self, prompt: str) -> str:
-        """A single REST-style LLM reasoning call (the coordinator).
+        """The coordinator's master-plan step — an *orchestration* sub-task.
 
         Under ``SWARM_TEST_MODE`` we return a fixed stub so the REST half is
         deterministic with no network — the same idiom blueprint_gawd /
-        blueprint_zeus use. Replace the body below with a real OpenAI/Anthropic
-        client call in production.
+        blueprint_zeus use. In production it runs an Agent on the smartest
+        available model (the "orchestration" role) and degrades gracefully — if
+        no LLM is configured/reachable, the CLI half still runs — so a missing
+        key never sinks the whole hybrid.
         """
         if os.environ.get("SWARM_TEST_MODE"):
             return f"[rest-plan] {prompt}"
-        # Real REST reasoning: one openai-agents Agent (the LLM coordinator). It
-        # degrades gracefully — if no LLM is configured/reachable, the CLI half
-        # still runs — so a missing key never sinks the whole hybrid.
         try:
             from agents import Runner
 
-            agent = self.make_agent(
+            agent = self._agent_for_role(
+                "orchestration",
                 name="Coordinator",
                 instructions=(
                     "You are a planning coordinator. In 1-2 sentences, give a brief "
                     "plan for answering the user's request — what to check and which "
                     "sub-questions to delegate."
                 ),
-                tools=[],
             )
             result = await Runner.run(agent, prompt)
             return str(result.final_output)
         except Exception as exc:  # noqa: BLE001 — degrade, don't crash the run
             return f"[rest-plan unavailable: {exc}] {prompt}"
+
+    async def _synthesize(self, parts: list[str], params: dict[str, Any]) -> str:
+        """Optionally polish the combined sections into one answer on a *cheap*
+        model (the "auxiliary" role) — a simple-execution sub-task.
+
+        Opt-in via ``params['synthesize']`` or the ``hybrid_team`` config block's
+        ``synthesize`` flag. Disabled under ``SWARM_TEST_MODE`` and on any
+        failure, where it returns the plain concatenation (the default,
+        deterministic behaviour). This is what makes routing dynamic *per step*:
+        the coordinator plans on an ``orchestration`` model while this final pass
+        runs on an ``auxiliary`` one — two models in a single run.
+        """
+        joined = "\n\n".join(parts)
+        hc = (self._config or {}).get("hybrid_team") or {}
+        want = bool(params.get("synthesize", hc.get("synthesize", False)))
+        if not want or os.environ.get("SWARM_TEST_MODE"):
+            return joined
+        try:
+            from agents import Runner
+
+            agent = self._agent_for_role(
+                "auxiliary",
+                name="Synthesizer",
+                instructions=(
+                    "Combine the sections below into one concise, well-formatted "
+                    "answer for the user. Preserve the facts; do not invent."
+                ),
+            )
+            result = await Runner.run(agent, joined)
+            return str(result.final_output)
+        except Exception as exc:  # noqa: BLE001 — degrade to the raw join
+            logger.info("[hybrid_team] auxiliary synthesis unavailable: %s", exc)
+            return joined
 
     # --- entry point ------------------------------------------------------ #
 
@@ -203,4 +273,8 @@ class HybridTeamBlueprint(BlueprintBase):
                 "(no CLI agents configured — add a 'cli_agents' block; see docs/CLI_FUSION.md)"
             )
 
-        yield support.message_chunk("\n\n".join(parts), final=True)
+        # Optional cheap "auxiliary" synthesis pass (off by default / in tests):
+        # demonstrates per-step routing — planning ran on 'orchestration', this
+        # final polish runs on 'auxiliary'.
+        final = await self._synthesize(parts, params)
+        yield support.message_chunk(final, final=True)
