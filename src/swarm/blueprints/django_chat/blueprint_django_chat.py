@@ -118,9 +118,10 @@ class DjangoChatBlueprint(Blueprint):
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
         self.config_path = config_path
-        self._config = config if config is not None else None
-        self._llm_profile_name = None
-        self._llm_profile_data = None
+        # NOTE: do NOT re-assign self._config / self._llm_profile_name here — the
+        # base __init__ already loads the config (from app.config when none is
+        # passed). Nulling them broke LLM-profile resolution at runtime (the
+        # blueprint reported "not configured" even with a valid llm profile).
         self._markdown_output = None
         class DummyLLM:
             def chat_completion_stream(self, _messages, **_):
