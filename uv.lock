@@ -1782,7 +1782,7 @@ wheels = [
 
 [[package]]
 name = "open-swarm"
-version = "0.5.1"
+version = "0.5.2"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },

@@ -23,7 +23,6 @@ from rich.text import Text
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
-from swarm.core.blueprint_ux import BlueprintUXImproved
 from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
 
@@ -189,46 +188,38 @@ class DjangoChatBlueprint(Blueprint):
         Accepts **kwargs (e.g. ``stream=``) for compatibility with the
         OpenAI-compatible API layer, which always passes ``stream``.
         """
+        # Proxy the conversation to the configured LLM profile (OpenAI-compatible),
+        # mirroring DynamicTeamBlueprint. Previously this only yielded a simulated
+        # "[DjangoChat LLM] Would respond to: …" box — it never called a model.
+        from openai import AsyncOpenAI
+
         logger.info("DjangoChatBlueprint run method called.")
-        instruction = messages[-1].get("content", "") if messages else ""
-        ux = BlueprintUXImproved(style="serious")
-        spinner_idx = 0
-        start_time = time.time()
-        spinner_yield_interval = 1.0  # seconds
-        last_spinner_time = start_time
         try:
-            # Simulate agent runner pattern (replace with actual agent logic if available)
-            prompt_context = {
-                "user_request": instruction,
-                "history": messages[:-1],
-                "available_tools": ["django_chat"]
-            }
-            rendered_prompt = self.render_prompt("django_chat_prompt.j2", prompt_context)
-            # Simulate progressive spinner for a few cycles
-            for _ in range(3):
-                now = time.time()
-                if now - last_spinner_time >= spinner_yield_interval:
-                    taking_long = (now - start_time > 10)
-                    spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
-                    yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
-                    spinner_idx += 1
-                    last_spinner_time = now
-                    await asyncio.sleep(0.2)
-            # Final result
-            summary = ux.summary("Operation", 1, {"instruction": instruction[:40]})
-            box = ux.ansi_emoji_box(
-                title="DjangoChat Result",
-                content=f"[DjangoChat LLM] Would respond to: {rendered_prompt}",
-                summary=summary,
-                params={"instruction": instruction[:40]},
-                result_count=1,
-                op_type="run",
-                status="success"
+            profile = self.get_llm_profile(self.llm_profile_name)
+            base_url = profile.get("base_url")
+            api_key = profile.get("api_key") or "ollama"  # local backends ignore the key
+            model_name = profile.get("model") or "gpt-oss:20b"
+        except Exception as e:  # config not initialized / no profile
+            logger.warning("DjangoChat: LLM profile unavailable (%s)", e)
+            base_url = None
+
+        if not base_url:
+            yield {"messages": [{"role": "assistant", "content": (
+                "DjangoChat is not configured with an LLM profile. "
+                "Add an 'llm' profile in swarm_config.json to enable responses."
+            )}]}
+            return
+
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        try:
+            resp = await client.chat.completions.create(
+                model=model_name, messages=messages, stream=False
             )
-            yield {"messages": [{"role": "assistant", "content": box}]}
+            text = (resp.choices[0].message.content or "").strip()
+            yield {"messages": [{"role": "assistant", "content": text}]}
         except Exception as e:
-            logger.error(f"Error during DjangoChat run: {e}", exc_info=True)
-            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+            logger.error(f"DjangoChat LLM call failed: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"[DjangoChat Error] {e}"}]}
 
     def run_with_context(self, _messages: list[dict[str, str]], context_variables: dict) -> dict:
         """Minimal implementation for CLI compatibility without agents."""
