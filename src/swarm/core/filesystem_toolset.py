@@ -64,6 +64,16 @@ def _is_within(child: Path, root: Path) -> bool:
         return False
 
 
+_NOISE_DIRS = {"__pycache__", ".git", "node_modules", ".pytest_cache", ".mypy_cache", ".venv"}
+
+
+def _is_noise(p: Path) -> bool:
+    """Skip VCS/build/cache dirs and obvious compiled artifacts during scans."""
+    if any(part in _NOISE_DIRS for part in p.parts):
+        return True
+    return p.suffix in {".pyc", ".pyo", ".so", ".o", ".class"}
+
+
 @dataclass
 class FilesystemToolset:
     """A scoped, auditable filesystem accessor."""
@@ -115,18 +125,89 @@ class FilesystemToolset:
             )
 
     # ---- read-side operations -------------------------------------------
-    def read(self, path: str) -> str:
+    def read(self, path: str, *, start_line: int | None = None, end_line: int | None = None) -> str:
+        """Read a text file. With ``start_line``/``end_line`` (1-based, inclusive)
+        return just that slice — handy for peeking at a region of a large log."""
         self._require(READONLY, READWRITE)
         rp = self._resolve(path)
         if not rp.is_file():
             raise FilesystemError(f"not a file: {rp}")
         size = rp.stat().st_size
         data = rp.read_text(encoding="utf-8", errors="replace")
+        if start_line is not None or end_line is not None:
+            lines = data.splitlines()
+            s = max(1, int(start_line or 1))
+            e = min(len(lines), int(end_line or len(lines)))
+            sliced = lines[s - 1 : e]
+            self._audit("read", str(rp), True, f"lines {s}-{e}/{len(lines)}")
+            return "\n".join(f"{s + i}: {ln}" for i, ln in enumerate(sliced))
         truncated = len(data.encode("utf-8", "replace")) > self.max_read_bytes
         if truncated:
             data = data[: self.max_read_bytes]
         self._audit("read", str(rp), True, f"{size}b truncated={truncated}")
         return data + ("\n…[truncated]" if truncated else "")
+
+    def grep(self, pattern: str, path: str, *, max_matches: int = 200, ignore_case: bool = True) -> str:
+        """Regex-search a file (or every file under a dir) for *pattern*; return
+        ``relpath:lineno: line`` hits (capped). Allow-list enforced per file."""
+        import re
+
+        self._require(READONLY, READWRITE)
+        root = self._resolve(path)
+        flags = re.IGNORECASE if ignore_case else 0
+        try:
+            rx = re.compile(pattern, flags)
+        except re.error as exc:
+            raise FilesystemError(f"bad regex: {exc}") from exc
+        targets = [root] if root.is_file() else [
+            p for p in sorted(root.rglob("*")) if p.is_file() and not _is_noise(p)
+        ]
+        hits: list[str] = []
+        scanned = 0
+        for fp in targets:
+            if len(hits) >= max_matches:
+                break
+            try:
+                if not any(_is_within(fp.resolve(), r) or fp.resolve() == r for r in self._roots):
+                    continue
+                if fp.stat().st_size > self.max_read_bytes:
+                    continue
+                raw = fp.read_bytes()
+                if b"\x00" in raw[:1024]:  # looks binary — skip
+                    continue
+                scanned += 1
+                for n, line in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
+                    if rx.search(line):
+                        rel = fp.relative_to(root) if root.is_dir() else fp.name
+                        hits.append(f"{rel}:{n}: {line.strip()[:200]}")
+                        if len(hits) >= max_matches:
+                            hits.append("…[truncated]")
+                            break
+            except OSError:
+                continue
+        self._audit("grep", str(root), True, f"{len(hits)} hits in {scanned} files")
+        return "\n".join(hits) if hits else f"(no matches for /{pattern}/ under {root})"
+
+    def find(self, glob: str, path: str | None = None, *, max_results: int = 500) -> str:
+        """Glob for files under an allow-listed root (e.g. ``find '*.py' src``)."""
+        self._require(READONLY, READWRITE)
+        root = self._resolve(path) if path else self._roots[0]
+        if not root.is_dir():
+            raise FilesystemError(f"not a directory: {root}")
+        out: list[str] = []
+        for p in sorted(root.rglob(glob)):
+            if len(out) >= max_results:
+                out.append("…[truncated]")
+                break
+            if _is_noise(p):
+                continue
+            try:
+                if any(_is_within(p.resolve(), r) or p.resolve() == r for r in self._roots):
+                    out.append(str(p))
+            except OSError:
+                continue
+        self._audit("find", str(root), True, f"{len(out)} results for {glob}")
+        return "\n".join(out) if out else f"(no files matching {glob} under {root})"
 
     def list(self, path: str) -> list[dict[str, Any]]:
         self._require(READONLY, READWRITE)

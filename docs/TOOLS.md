@@ -75,8 +75,11 @@ POST /v1/chat/completions
 ```
 
 Grammar (first word, else inferred): `read|cat <path>`, `list|ls <path>`,
-`stat <path>`, `tree <path>`, or a bare path. Structured params also work:
-`params: {"op":"read","path":"..."}`.
+`stat <path>`, `tree <path>`, `grep <pattern> <path>`, `find <glob> in <dir>`,
+`read <path> <start> <end>` (line range), or a bare path. Structured params also
+work: `params: {"op":"read","path":"...","start_line":1,"end_line":40}` and
+`{"op":"grep","pattern":"...","path":"..."}`. `grep`/`find` skip VCS/cache/binary
+noise (`.git`, `__pycache__`, `.pyc`, …).
 
 Measured on the oracle host: `read swarm_config.json` returns in **~0.45s** vs
 **~133–200s** for the same ask routed through `cli_agent`.

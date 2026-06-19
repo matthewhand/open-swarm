@@ -37,7 +37,7 @@ from swarm.core.filesystem_toolset import FilesystemError, FilesystemToolset
 
 logger = logging.getLogger(__name__)
 
-_OPS = {"read", "cat", "list", "ls", "stat", "tree"}
+_OPS = {"read", "cat", "list", "ls", "stat", "tree", "grep", "find"}
 
 
 class FsIntrospectBlueprint(BlueprintBase):
@@ -102,8 +102,33 @@ class FsIntrospectBlueprint(BlueprintBase):
 
         fs = FilesystemToolset.from_config(self._config, overrides=self._params)
         try:
-            if op in ("read", "cat"):
-                out = fs.read(path)
+            if op == "grep":
+                # grammar: grep <pattern> <path>   (params: pattern, path)
+                pattern = self._params.get("pattern")
+                target = path
+                if not pattern:
+                    pattern, _, rest = path.partition(" ")
+                    target = rest.strip() or "."
+                out = fs.grep(pattern, target)
+            elif op == "find":
+                # grammar: find <glob> [in <dir>]   (params: glob, path)
+                glob = self._params.get("glob")
+                root = self._params.get("path")
+                if not glob:
+                    parts = path.split()
+                    glob = parts[0]
+                    root = parts[2] if len(parts) >= 3 and parts[1] == "in" else (parts[1] if len(parts) >= 2 else None)
+                out = fs.find(glob, root)
+            elif op in ("read", "cat"):
+                sl = self._params.get("start_line")
+                el = self._params.get("end_line")
+                # grammar: read <path> <start> <end>
+                if sl is None and el is None and len(path.split()) >= 2:
+                    bits = path.split()
+                    path = bits[0]
+                    sl = int(bits[1]) if len(bits) >= 2 and bits[1].isdigit() else None
+                    el = int(bits[2]) if len(bits) >= 3 and bits[2].isdigit() else None
+                out = fs.read(path, start_line=sl, end_line=el)
             elif op in ("list", "ls"):
                 out = "\n".join(
                     f"{e['type']:5} {str(e.get('size','-')):>10}  {e['name']}" for e in fs.list(path)
