@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import uuid
+from functools import wraps
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -112,6 +113,40 @@ def _coerce_content(content: Any) -> str:
                 parts.append(part)
         return "".join(parts)
     return str(content)
+
+
+def async_retry(max_attempts: int = 3, base_delay: float = 1.0, backoff_factor: float = 2.0, exceptions: tuple = (Exception,)):
+    """Retry an async function with exponential backoff on *transient* failures.
+
+    Deterministic client errors (DRF 4xx: ParseError/PermissionDenied/NotFound/
+    NotAuthenticated/ValidationError/Throttled/…) are re-raised immediately — they
+    won't succeed on retry and would only add latency. Anything else in
+    ``exceptions`` (5xx APIException, connection/timeout errors) is retried.
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            attempt = 0
+            delay = float(base_delay)
+            while True:
+                try:
+                    return await func(*args, **kwargs)
+                except exceptions as exc:
+                    # Fail fast on 4xx (client/deterministic) — retrying can't help.
+                    code = getattr(exc, "status_code", None)
+                    if isinstance(code, int) and 400 <= code < 500:
+                        raise
+                    attempt += 1
+                    if attempt >= max_attempts:
+                        raise
+                    logger.warning(
+                        "Retrying %s after transient error (attempt %d/%d, backoff %.1fs): %s",
+                        getattr(func, "__name__", "?"), attempt, max_attempts, delay, exc,
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= backoff_factor
+        return wrapper
+    return decorator
 
 
 def _resolve_sync_wait(request_data: dict[str, Any], background: bool) -> float | None:
@@ -329,8 +364,13 @@ class ResponsesView(APIView):
         rec = await sync_to_async(responses_store.load)(response_id)
         return Response((rec or {}).get("response") or payload, status=status.HTTP_202_ACCEPTED)
 
+    @async_retry(max_attempts=3, base_delay=1.0, backoff_factor=2.0)
     async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
-        """Consume the blueprint generator, keep the last message, shape a response object."""
+        """Consume the blueprint generator, keep the last message, shape a response object.
+
+        Retries transient (5xx/connection) failures with exponential backoff
+        (up to 3 attempts, 1s then 2s); 4xx client errors fail fast.
+        """
         final_message = None
         backend_meta = None
         try:
