@@ -13,6 +13,19 @@ The REST coordinator holds the master plan and delegates sub-questions to the
 grok/claude CLI personas (exposed as ``cli_tools`` callables) and to a consensus
 panel — that is the MIX: one REST inference reaching for CLI personas mid-run.
 
+**claude-orchestrated delegation.** When a ``claude`` cli_agent is configured,
+the coordinator step uses ``claude -p`` as the *orchestration brain*: it returns
+a JSON plan + role delegations,
+
+    {"plan": "...", "delegations": [{"role": "agent", "task": "..."}, ...]}
+
+which :meth:`run` parses (:meth:`_parse_delegations`) and routes back through the
+per-step model machinery — each delegation runs on its role's model
+(``orchestration`` / ``agent`` / ``auxiliary``; see :attr:`ROLE_PROFILES` and
+:meth:`_agent_for_role`). Without claude it falls back to the orchestration-role
+LLM plan with no delegations, so the per-step routing from the prior change still
+applies and behaviour is unchanged under ``SWARM_TEST_MODE``.
+
 Deterministic in tests two ways, independently:
 
   * REST half -> stubbed when ``os.environ["SWARM_TEST_MODE"]`` is set.
@@ -30,8 +43,10 @@ falls back to the ``cli_fusion`` ``default_cli`` / ``default_preset``. Per-reque
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
 from typing import Any, AsyncGenerator, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
@@ -80,6 +95,21 @@ class HybridTeamBlueprint(BlueprintBase):
         # testing, revision, simple execution -> fast and cheap
         "auxiliary": {"speed": 0.9, "cost": 0.9},
     }
+
+    # The orchestration brain (claude -p, when configured) is asked to emit a
+    # structured plan + role delegations as JSON, which run() parses and routes
+    # back through _agent_for_role. Plain-text replies degrade to "plan, no
+    # delegations" so a non-JSON model never breaks the run.
+    _DELEGATION_INSTRUCTIONS: ClassVar[str] = (
+        "You are the orchestration brain for a small agent team. Read the user's "
+        "request, produce a brief plan, then delegate concrete sub-tasks to roles. "
+        "Respond with ONLY a JSON object (no prose, no code fences) of the form: "
+        '{"plan": "<1-2 sentence plan>", "delegations": '
+        '[{"role": "orchestration|agent|auxiliary", "task": "<what to do>"}]}. '
+        "Use 'auxiliary' for cheap/simple/testing/revision steps, 'agent' for "
+        "general coding and reasoning, and 'orchestration' for further "
+        "planning/coordination. At most 3 delegations; use [] if none are needed."
+    )
 
     def __init__(
         self,
@@ -142,6 +172,107 @@ class HybridTeamBlueprint(BlueprintBase):
             tools=list(tools or []),
             inference_profile=profile,
         )
+
+    # --- claude-orchestrated delegation ----------------------------------- #
+
+    def _claude_persona(self, registry):
+        """An async ``(str) -> str`` persona backed by the ``claude`` cli_agent.
+
+        Returns None when no ``claude`` CLI is configured, so the coordinator
+        degrades to the orchestration-role LLM instead.
+        """
+        try:
+            if "claude" in set(registry.names()):
+                return cli_persona(registry.get("claude"))
+        except Exception:  # noqa: BLE001 — never let wiring issues sink the run
+            pass
+        return None
+
+    @staticmethod
+    def _extract_json_object(raw: str) -> dict | None:
+        """Best-effort JSON object from a model reply (handles prose / fences)."""
+        if not raw:
+            return None
+        try:
+            obj = json.loads(raw)
+            return obj if isinstance(obj, dict) else None
+        except Exception:  # noqa: BLE001
+            m = re.search(r"\{.*\}", raw, re.S)
+            if m:
+                try:
+                    obj = json.loads(m.group(0))
+                    return obj if isinstance(obj, dict) else None
+                except Exception:  # noqa: BLE001
+                    return None
+        return None
+
+    def _parse_delegations(self, raw: str, fallback: str = "") -> tuple[str, list[dict]]:
+        """Parse the brain's reply into ``(plan, delegations)``.
+
+        Accepts ``{"plan": ..., "delegations": [{"role", "task"}]}`` (possibly
+        wrapped in prose). Delegations with an empty task or a role outside
+        :attr:`ROLE_PROFILES` are dropped. Any non-JSON reply degrades to
+        ``(raw or fallback, [])`` — a plain plan with no delegations.
+        """
+        obj = self._extract_json_object(raw)
+        if obj is None:
+            return (raw or fallback), []
+        plan = str(obj.get("plan") or "").strip() or (raw or fallback)
+        delegations: list[dict] = []
+        for d in obj.get("delegations") or []:
+            if not isinstance(d, dict):
+                continue
+            role = str(d.get("role") or "").strip().lower()
+            task = str(d.get("task") or "").strip()
+            if not task:
+                continue
+            if role in self.ROLE_PROFILES:
+                delegations.append({"role": role, "task": task})
+            else:
+                logger.info("[hybrid_team] dropping delegation with unknown role=%r", d.get("role"))
+        return plan, delegations
+
+    async def _orchestrate(self, prompt: str, registry) -> tuple[str, list[dict]]:
+        """Run the orchestration brain; return ``(plan, delegations)``.
+
+        Prefers ``claude -p`` (the orchestration brain) when a ``claude``
+        cli_agent is configured: it returns structured JSON that we parse into
+        role delegations. Without claude, falls back to the orchestration-role
+        LLM plan (no delegations). Deterministic stub under ``SWARM_TEST_MODE``.
+        Always degrades gracefully — a missing brain never sinks the run.
+        """
+        if os.environ.get("SWARM_TEST_MODE"):
+            return f"[rest-plan] {prompt}", []
+        claude = self._claude_persona(registry)
+        if claude is None:
+            return await self._rest_reason(prompt), []
+        try:
+            raw = await claude(f"{self._DELEGATION_INSTRUCTIONS}\n\nUser request:\n{prompt}")
+        except Exception as exc:  # noqa: BLE001 — degrade to a plain plan
+            return f"[orchestration unavailable: {exc}] {prompt}", []
+        return self._parse_delegations(raw, fallback=prompt)
+
+    async def _run_delegation(self, deleg: dict) -> str:
+        """Execute one delegation on its role's model (per ROLE_PROFILES).
+
+        Deterministic under ``SWARM_TEST_MODE``; degrades to a marker string on
+        any failure so one bad sub-task never sinks the run.
+        """
+        role, task = deleg["role"], deleg["task"]
+        if os.environ.get("SWARM_TEST_MODE"):
+            return f"[{role}] {task}"
+        try:
+            from agents import Runner
+
+            agent = self._agent_for_role(
+                role,
+                name=f"{role.title()}Worker",
+                instructions="Complete the delegated sub-task concisely and accurately.",
+            )
+            result = await Runner.run(agent, task)
+            return str(result.final_output)
+        except Exception as exc:  # noqa: BLE001
+            return f"[{role} unavailable: {exc}] {task}"
 
     # --- the REST step (deterministic under SWARM_TEST_MODE) -------------- #
 
@@ -224,11 +355,20 @@ class HybridTeamBlueprint(BlueprintBase):
         grok_name, panel_names, judge_name = self._resolve(params, registry)
         workdir = params.get(support.PARAM_WORKDIR)
 
-        # ---- 1. REST reasoning step (the coordinator's master plan) ------ #
+        # ---- 1. orchestration: plan + (optional) claude-driven delegations  #
         yield support.progress_chunk("_Coordinator reasoning (REST step)…_")
-        plan = await self._rest_reason(prompt)
-        # The REST plan steers the CLI sub-questions below.
+        plan, delegations = await self._orchestrate(prompt, registry)
+        # The plan steers the CLI sub-questions below.
         sub_question = f"{prompt}\n\n--- Plan ---\n{plan}"
+
+        # ---- 1b. execute the brain's delegations via the role machinery -- #
+        # Each {role, task} from claude is routed to its role's model
+        # (orchestration/agent/auxiliary) through _agent_for_role. Empty under
+        # SWARM_TEST_MODE / when no claude brain is configured.
+        delegated: list[tuple[str, str]] = []
+        for d in delegations:
+            yield support.progress_chunk(f"_Delegating ({d['role']}) → {d['task'][:60]}…_")
+            delegated.append((d["role"], await self._run_delegation(d)))
 
         # ---- 2. grok CLI persona step ------------------------------------ #
         grok_answer = ""
@@ -262,8 +402,10 @@ class HybridTeamBlueprint(BlueprintBase):
                 consensus = consensus_fn(panel, judge)  # async (str) -> str
                 consensus_answer = await consensus(sub_question)
 
-        # ---- 4. combine REST + CLI outputs into the final answer --------- #
+        # ---- 4. combine REST + delegated + CLI outputs into the answer --- #
         parts = [f"REST plan:\n{plan}"]
+        for role, out in delegated:
+            parts.append(f"Delegated [{role}]:\n{out}")
         if grok_answer:
             parts.append(f"grok persona:\n{grok_answer}")
         if consensus_answer:
