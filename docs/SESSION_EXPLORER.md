@@ -27,14 +27,18 @@ Sessions are listed newest-first.
 
 ![Session Explorer — detail view](screenshots/session-explorer-detail.png)
 
-1. **Delegation timeline** — a vertical, colour-coded timeline of the
-   orchestration brain's delegations. Each node shows the **role**
-   (`orchestration` / `agent` / `auxiliary`), the **model** it ran on (chosen by
-   the `inference_profile` scorer), its **status**, and its **result** (or error).
-   This is the inter-agent communication view: how claude planned the work and
-   which model each sub-task executed on.
-2. **Session status** — the overall session state, plus model, latency and token
-   usage. The full output and input transcript follow below.
+1. **Inter-agent communication graph** — a hub-and-spoke view of the run: the
+   central `claude -p` **orchestration brain** with an edge to each delegated
+   sub-agent node (role + the model it ran on). Edge and node colour encode
+   status (green = completed, blue = in progress, red = failed), so you can see
+   the fan-out and where work succeeded or stalled at a glance.
+2. **Delegation timeline** — the same delegations as a vertical, colour-coded
+   timeline: each entry shows the **role** (`orchestration` / `agent` /
+   `auxiliary`), the **model** it ran on (chosen by the `inference_profile`
+   scorer), its **status**, the **task**, and its **result** (or error).
+
+Above these, the header shows the overall **session status**, model, latency and
+token usage; the full output and input transcript follow below.
 
 ## How it works
 
