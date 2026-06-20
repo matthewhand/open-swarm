@@ -37,3 +37,31 @@ def test_redact_sensitive_data_custom_keys():
     assert redacted["custom_secret"].startswith("shou") and redacted["custom_secret"].endswith("hide")
     assert "[REDACTED]" in redacted["custom_secret"]
     assert redacted["foo"] == "bar"
+
+
+def test_sensitive_keys_are_case_insensitive():
+    redacted = redact_sensitive_data({"API_KEY": "sk-x", "Password": "p", "Secret": "s"})
+    assert redacted["API_KEY"] == "[REDACTED]"
+    assert redacted["Password"] == "[REDACTED]"
+    assert redacted["Secret"] == "[REDACTED]"
+
+
+def test_reveal_chars_short_value_is_fully_masked():
+    # Too short to safely reveal head+tail -> fall back to a full mask.
+    assert redact_sensitive_data({"token": "abc"}, reveal_chars=4)["token"] == "[REDACTED]"
+
+
+def test_reveal_chars_partial_format():
+    assert redact_sensitive_data({"token": "abcdefghij"}, reveal_chars=3)["token"] == "abc[REDACTED]hij"
+
+
+def test_non_string_sensitive_value_is_masked():
+    # A secret stored as a non-string must not leak through unmasked.
+    assert redact_sensitive_data({"api_key": 12345})["api_key"] == "[REDACTED]"
+    assert redact_sensitive_data({"password": True})["password"] == "[REDACTED]"
+
+
+def test_sensitive_key_with_structured_value_is_masked():
+    # A dict/list under a sensitive key must be masked wholesale, not passed through.
+    assert redact_sensitive_data({"secret": {"inner": "leak"}})["secret"] == "[REDACTED]"
+    assert redact_sensitive_data({"token": ["leak1", "leak2"]})["token"] == "[REDACTED]"

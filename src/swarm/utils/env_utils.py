@@ -75,8 +75,8 @@ def get_django_log_level() -> str:
 
 
 def get_django_csrf_trusted_origins() -> list[str]:
-    """Get CSRF trusted origins."""
-    return os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
+    """Get CSRF trusted origins (whitespace-trimmed, empties dropped)."""
+    return get_csv_env('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000')
 
 
 # Swarm Core Settings
@@ -403,9 +403,9 @@ def get_loglevel() -> str | None:
 
 # Utility Functions
 def get_csv_env(name: str, default: str = '') -> list[str]:
-    """Get a CSV environment variable as a list."""
+    """Get a CSV environment variable as a list (whitespace-trimmed, empties dropped)."""
     val = os.getenv(name, default)
-    return val.split(',') if val else []
+    return [v.strip() for v in val.split(',') if v.strip()] if val else []
 
 
 def is_truthy(value: str) -> bool:

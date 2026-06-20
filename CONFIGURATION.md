@@ -135,6 +135,18 @@ directory search for a project-local `swarm_config.json`.)
 - All sensitive config values (API keys, tokens) are redacted in logs.
 - Never log full secrets.
 
+`swarm.utils.redact.redact_sensitive_data` walks dicts/lists recursively and
+masks any value whose **key** matches a sensitive name (e.g. `api_key`,
+`password`, `token`, `secret`). Details:
+
+- **Case-insensitive** key matching (`API_KEY`, `Password` are caught).
+- **Type-agnostic** — a sensitive value is masked even if it isn't a string
+  (ints, bools, or a nested dict/list stored under a secret key are masked
+  wholesale, never passed through).
+- By default the value is replaced with `[REDACTED]`. Pass `reveal_chars=N` to
+  keep the first/last `N` characters for debugging (`abc…hij`); values too short
+  to reveal safely are fully masked.
+
 ---
 
 ## 7. Troubleshooting
@@ -243,10 +255,10 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | none (dev random) |
+| `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | dev only: fixed insecure fallback |
 | `DJANGO_DEBUG` | Debug mode (verbose errors, DEBUG logging, relaxed auth). Keep **off** in prod. | `false` |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts. **Required in production.** | dev: localhost |
-| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes. | none |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** | dev: `localhost,127.0.0.1` |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). | `http://localhost:8000,http://127.0.0.1:8000` |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. | none |
 | `ENABLE_API_AUTH` | Require auth on `/v1/*`. Auto-on when `API_AUTH_TOKEN` is set. | prod: on |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
@@ -268,6 +280,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 |---|---|---|
 | `SWARM_TEST_MODE` | Deterministic, network-free blueprint output (testing). | off |
 | `DJANGO_LOG_LEVEL` / `LOGLEVEL` | Log verbosity. | `INFO` |
+| `STATEFUL_CHAT_ID_PATH` | `\|\|`-separated JMESPath expressions used to extract the chat/session id from an incoming request payload (first non-empty match wins). | `metadata.channelInfo.channelId`, `metadata.userInfo.userId`, … |
+| `SWARM_TRUNCATION_MODE` | Context truncation strategy when trimming message history to fit the token budget: `pairs` (sophisticated — keeps assistant/tool call pairs intact) or `simple` (most-recent only). Unknown values fall back to `simple`. | `pairs` |
 
 ### Provider credentials & integrations
 

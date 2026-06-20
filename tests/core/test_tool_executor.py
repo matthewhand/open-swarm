@@ -12,9 +12,17 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from openai.types.chat import ChatCompletionMessageFunctionToolCall
+
+try:
+    # openai >= 1.99: ChatCompletionMessageToolCall became a discriminated Union
+    # and the concrete function variant is ChatCompletionMessageFunctionToolCall.
+    from openai.types.chat import ChatCompletionMessageFunctionToolCall
+except ImportError:  # openai < 1.99: the concrete class is ChatCompletionMessageToolCall
+    from openai.types.chat.chat_completion_message_tool_call import (
+        ChatCompletionMessageToolCall as ChatCompletionMessageFunctionToolCall,
+    )
 from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,  # noqa: F401  (now a Union; kept for type annotation)
+    ChatCompletionMessageToolCall,  # noqa: F401  (Union on >=1.99; concrete class on <1.99)
     Function,
 )
 
