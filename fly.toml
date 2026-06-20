@@ -27,7 +27,10 @@ grace_period = "120s"  # Wait 120s after machine starts
 interval = "30s"       # Check every 30s
 timeout = "15s"        # Double default timeout to 15 seconds
 method = "GET"
-path = "/health"       # Your healthcheck endpoint
+# Root renders index.html (200, no auth) on every image; the dedicated
+# /health route isn't wired in the currently-deployed image, so point the
+# check at "/" to avoid 404s. (urls.py now wires /health for future images.)
+path = "/"
 # Send a real Host header so Django's ALLOWED_HOSTS accepts the check.
 # (Fly's checker otherwise uses the machine's private IP, which rotates and
 #  would force a fragile per-IP allow-list entry.)
