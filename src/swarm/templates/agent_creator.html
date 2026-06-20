@@ -32,56 +32,76 @@
         <div class="card-body">
           <form id="agentForm">
             {% csrf_token %}
-            <div class="mb-3">
-              <label for="agentName" class="form-label">Agent Name *</label>
-              <input type="text" class="form-control" id="agentName" name="name" required>
+            <div class="accordion mb-3" id="agentAccordion">
+              <!-- Identity -->
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#acc-identity">Identity</button>
+                </h2>
+                <div id="acc-identity" class="accordion-collapse collapse show">
+                  <div class="accordion-body">
+                    <div class="mb-3">
+                      <label for="agentName" class="form-label">Agent Name *</label>
+                      <input type="text" class="form-control" id="agentName" name="name" required>
+                    </div>
+                    <div class="mb-0">
+                      <label for="agentDescription" class="form-label">Description *</label>
+                      <textarea class="form-control" id="agentDescription" name="description" rows="3" required></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Persona (optional traits — collapsed to reduce clutter) -->
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#acc-persona">Persona <span class="os-meta ms-2">optional</span></button>
+                </h2>
+                <div id="acc-persona" class="accordion-collapse collapse">
+                  <div class="accordion-body">
+                    <div class="mb-3">
+                      <label for="personality" class="form-label">Personality</label>
+                      <select class="form-select" id="personality" name="personality">
+                        {% for option in form_data.personality_options %}<option value="{{ option }}">{{ option|title }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-3">
+                      <label for="expertise" class="form-label">Areas of Expertise</label>
+                      <select class="form-select" id="expertise" name="expertise" multiple>
+                        {% for option in form_data.expertise_options %}<option value="{{ option }}">{{ option|title }}</option>{% endfor %}
+                      </select>
+                      <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+                    </div>
+                    <div class="mb-0">
+                      <label for="communicationStyle" class="form-label">Communication Style</label>
+                      <select class="form-select" id="communicationStyle" name="communication_style">
+                        {% for option in form_data.communication_options %}<option value="{{ option }}">{{ option|title }}</option>{% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Behavior -->
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#acc-behavior">Behavior</button>
+                </h2>
+                <div id="acc-behavior" class="accordion-collapse collapse show">
+                  <div class="accordion-body">
+                    <div class="mb-3">
+                      <label for="instructions" class="form-label">Special Instructions *</label>
+                      <textarea class="form-control" id="instructions" name="instructions" rows="4"
+                                placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
+                    </div>
+                    <div class="mb-0">
+                      <label for="tags" class="form-label">Tags</label>
+                      <input type="text" class="form-control" id="tags" name="tags"
+                             placeholder="custom, helpful, coding (comma-separated)">
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <div class="mb-3">
-              <label for="agentDescription" class="form-label">Description *</label>
-              <textarea class="form-control" id="agentDescription" name="description" rows="3" required></textarea>
-            </div>
-            
-            <div class="mb-3">
-              <label for="personality" class="form-label">Personality</label>
-              <select class="form-select" id="personality" name="personality">
-                {% for option in form_data.personality_options %}
-                <option value="{{ option }}">{{ option|title }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            <div class="mb-3">
-              <label for="expertise" class="form-label">Areas of Expertise</label>
-              <select class="form-select" id="expertise" name="expertise" multiple>
-                {% for option in form_data.expertise_options %}
-                <option value="{{ option }}">{{ option|title }}</option>
-                {% endfor %}
-              </select>
-              <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
-            </div>
-            
-            <div class="mb-3">
-              <label for="communicationStyle" class="form-label">Communication Style</label>
-              <select class="form-select" id="communicationStyle" name="communication_style">
-                {% for option in form_data.communication_options %}
-                <option value="{{ option }}">{{ option|title }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            <div class="mb-3">
-              <label for="instructions" class="form-label">Special Instructions *</label>
-              <textarea class="form-control" id="instructions" name="instructions" rows="4" 
-                        placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
-            </div>
-            
-            <div class="mb-3">
-              <label for="tags" class="form-label">Tags</label>
-              <input type="text" class="form-control" id="tags" name="tags" 
-                     placeholder="custom, helpful, coding (comma-separated)">
-            </div>
-            
+
             <div class="d-grid gap-2">
               <button type="button" class="btn btn-primary" onclick="generateAgentCode()">
                 🔧 Generate Agent Code
