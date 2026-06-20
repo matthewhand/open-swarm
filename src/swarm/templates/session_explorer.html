@@ -22,6 +22,8 @@
   .dot.completed { background:#22c55e; } .dot.failed { background:#ef4444; }
   .dot.in_progress { background:#3b82f6; } .dot.queued { background:#64748b; }
   .se-empty { color:#94a3b8; text-align:center; padding:3rem 1rem; }
+  .se-filter { cursor:pointer; user-select:none; }
+  .se-filter.active { outline:2px solid #3b82f6; }
   @media (max-width:640px){ .se-head{ flex-direction:column; align-items:flex-start; } }
 </style>
 
@@ -32,9 +34,9 @@
       <div class="se-meta">Stateful <code>/v1/responses</code> sessions &middot; claude-orchestrated delegation timelines</div>
     </div>
     <div class="se-chips">
-      <span class="se-chip"><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
+      <span class="se-chip se-filter active" data-filter=""><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
       {% for status, n in status_counts.items %}
-        <span class="se-chip"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
+        <span class="se-chip se-filter" data-filter="{{ status }}"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
       {% endfor %}
       <label class="se-chip" style="cursor:pointer;"><input type="checkbox" id="se-live" checked> live</label>
     </div>
@@ -42,7 +44,7 @@
 
   <div id="se-list">
     {% for s in sessions %}
-      <div class="se-card">
+      <div class="se-card" data-status="{{ s.status|default:'unknown' }}">
         <div class="se-row">
           <span class="badge-status st-{{ s.status|default:'unknown' }}">{{ s.status|default:'unknown' }}</span>
           <a class="se-id" href="{% url 'session-detail' s.id %}">{{ s.id }}</a>
@@ -74,7 +76,7 @@
     document.getElementById('se-list').innerHTML = sessions.length ? sessions.map(function(s){
       var st = s.status||'unknown';
       var deleg = (s.delegations&&s.delegations.length) ? '<span class="se-deleg se-meta">⛓ '+dots(s.delegations)+' '+s.delegations.length+' delegation'+(s.delegations.length===1?'':'s')+'</span>' : '';
-      return '<div class="se-card"><div class="se-row">'
+      return '<div class="se-card" data-status="'+esc(st)+'"><div class="se-row">'
         + '<span class="badge-status st-'+esc(st)+'">'+esc(st)+'</span>'
         + '<a class="se-id" href="/sessions/'+encodeURIComponent(s.id)+'/">'+esc(s.id)+'</a>'
         + '<span class="se-meta">'+esc(s.model||'—')+'</span>'
@@ -83,11 +85,26 @@
         + (s.output_preview?'<div class="se-preview">'+esc(s.output_preview)+'</div>':'') + '</div>';
     }).join('') : '<div class="se-empty">No sessions yet.</div>';
   }
+  // --- status filtering (click a status chip) ---
+  var currentFilter = "";
+  function applyFilter(){
+    document.querySelectorAll('#se-list .se-card').forEach(function(c){
+      c.style.display = (!currentFilter || c.getAttribute('data-status') === currentFilter) ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.se-filter').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      currentFilter = chip.getAttribute('data-filter') || "";
+      document.querySelectorAll('.se-filter').forEach(function(c){ c.classList.toggle('active', c === chip); });
+      applyFilter();
+    });
+  });
   function poll(){
     if(!live.checked) return;
     fetch(feed, {headers:{'Accept':'application/json'}}).then(function(r){return r.json();})
-      .then(function(d){ render(d.sessions||[]); }).catch(function(){});
+      .then(function(d){ render(d.sessions||[]); applyFilter(); }).catch(function(){});
   }
+  applyFilter();
   setInterval(poll, 3000);
 })();
 </script>
