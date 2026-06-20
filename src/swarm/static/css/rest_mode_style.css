@@ -146,6 +146,20 @@ input[type="password"], input[type="email"], input[type="number"] {
   border-radius: 0 0 var(--os-radius) var(--os-radius); padding: 1rem 1.15rem;
 }
 
+/* ---- dropdown menus (overflow / "…" actions) --------------------------- */
+.dropdown-menu { background: var(--os-panel); border: 1px solid var(--os-border); }
+.dropdown-item { color: var(--os-text); }
+.dropdown-item:hover, .dropdown-item:focus { background: var(--os-panel-2); color: var(--os-text-strong); }
+.dropdown-divider { border-color: var(--os-border); }
+
+/* ---- blueprint cards: compact, clamped description ---------------------- */
+.blueprint-card .bp-desc {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: .88rem; color: var(--os-muted); margin: 0 0 .6rem;
+}
+.blueprint-card .bp-avatar { width: 44px; height: 44px; flex: 0 0 44px; }
+.min-w-0 { min-width: 0; }
+
 /* ---- accordion (de-clutter: collapse long forms / sections) ------------- */
 .accordion-item { background: var(--os-panel); border-color: var(--os-border); }
 .accordion-button { background: var(--os-panel-2); color: var(--os-text-strong); }
