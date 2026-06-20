@@ -45,46 +45,54 @@
     {% if session.usage %}&nbsp;&middot;&nbsp; {{ session.usage.total_tokens }} tokens{% endif %}
   </div>
 
-  {% if delegations %}
-  <div class="sd-section">
-    <h4>🕸 Inter-agent communication graph</h4>
-    {{ delegations|json_script:"deleg-data" }}
-    <div id="agent-graph" style="overflow-x:auto;"></div>
-    <div class="sd-meta" style="margin-top:.4rem;">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
-  </div>
+  <ul class="nav nav-tabs" role="tablist">
+    {% if delegations %}
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sd-graph" type="button">🕸 Graph</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
+    {% endif %}
+    <li class="nav-item"><button class="nav-link {% if not delegations %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sd-output" type="button">Output</button></li>
+    {% if messages %}
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-transcript" type="button">Transcript <span class="sd-meta">{{ messages|length }}</span></button></li>
+    {% endif %}
+  </ul>
 
-  <div class="sd-section">
-    <h4>⛓ Delegation timeline ({{ delegations|length }})</h4>
-    <ul class="tl">
-      {% for d in delegations %}
-        <li>
-          <span class="node {{ d.status }}"></span>
-          <span class="role">{{ d.role }}</span>
-          {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
-          <span class="badge-status st-{{ d.status }}" style="margin-left:.4rem;">{{ d.status }}</span>
-          {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
-          {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
-          {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}
-        </li>
+  <div class="tab-content">
+    {% if delegations %}
+    <div class="tab-pane fade show active" id="sd-graph" role="tabpanel">
+      {{ delegations|json_script:"deleg-data" }}
+      <div id="agent-graph" style="overflow-x:auto;"></div>
+      <div class="sd-meta" style="margin-top:.4rem;">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
+    </div>
+    <div class="tab-pane fade" id="sd-timeline" role="tabpanel">
+      <ul class="tl">
+        {% for d in delegations %}
+          <li>
+            <span class="node {{ d.status }}"></span>
+            <span class="role">{{ d.role }}</span>
+            {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
+            <span class="badge-status st-{{ d.status }}" style="margin-left:.4rem;">{{ d.status }}</span>
+            {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
+            {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
+            {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="tab-pane fade {% if not delegations %}show active{% endif %}" id="sd-output" role="tabpanel">
+      <pre class="sd-out">{{ session.output_text|default:'(no output yet)' }}</pre>
+      {% if session.error %}<div class="error">Error: {{ session.error.message }}</div>{% endif %}
+    </div>
+
+    {% if messages %}
+    <div class="tab-pane fade" id="sd-transcript" role="tabpanel">
+      {% for m in messages %}
+        <div class="msg"><div class="role">{{ m.role }}</div><div>{{ m.content }}</div></div>
       {% endfor %}
-    </ul>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
-
-  <div class="sd-section">
-    <h4>Output</h4>
-    <pre class="sd-out">{{ session.output_text|default:'(no output yet)' }}</pre>
-    {% if session.error %}<div class="error">Error: {{ session.error.message }}</div>{% endif %}
-  </div>
-
-  {% if messages %}
-  <div class="sd-section">
-    <h4>Transcript</h4>
-    {% for m in messages %}
-      <div class="msg"><div class="role">{{ m.role }}</div><div>{{ m.content }}</div></div>
-    {% endfor %}
-  </div>
-  {% endif %}
 </div>
 
 <script>

@@ -129,3 +129,27 @@ input[type="password"], input[type="email"], input[type="number"] {
 
 /* the shared "Select a Blueprint" toolbar in base.html sits on white by default */
 .bp-selector-bar, .container-fluid > .dropdown.my-2 { background: transparent; }
+
+/* ---- nav tabs (de-clutter: split stacked sections into tabs) ------------ */
+.nav-tabs { border-bottom: 1px solid var(--os-border); gap: .15rem; }
+.nav-tabs .nav-link {
+  color: var(--os-muted); background: transparent; border: 1px solid transparent;
+  border-bottom: none; border-radius: var(--os-radius-sm) var(--os-radius-sm) 0 0;
+}
+.nav-tabs .nav-link:hover { color: var(--os-text); border-color: var(--os-border) var(--os-border) transparent; }
+.nav-tabs .nav-link.active {
+  color: var(--os-text-strong); background: var(--os-panel);
+  border-color: var(--os-border) var(--os-border) var(--os-panel);
+}
+.tab-content {
+  background: var(--os-panel); border: 1px solid var(--os-border); border-top: none;
+  border-radius: 0 0 var(--os-radius) var(--os-radius); padding: 1rem 1.15rem;
+}
+
+/* ---- accordion (de-clutter: collapse long forms / sections) ------------- */
+.accordion-item { background: var(--os-panel); border-color: var(--os-border); }
+.accordion-button { background: var(--os-panel-2); color: var(--os-text-strong); }
+.accordion-button:not(.collapsed) { background: var(--os-panel-2); color: var(--os-text-strong); box-shadow: none; }
+.accordion-button:focus { box-shadow: 0 0 0 .2rem rgba(59, 130, 246, .25); border-color: var(--os-accent); }
+.accordion-button::after { filter: invert(.7); }
+.accordion-body { background: var(--os-panel); color: var(--os-text); }
