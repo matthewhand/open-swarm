@@ -116,6 +116,15 @@ input[type="password"], input[type="email"], input[type="number"] {
            color: var(--os-text); border: 1px solid var(--os-border); }
 .os-empty { color: var(--os-muted); text-align: center; padding: 3rem 1rem; }
 .os-empty .os-empty-icon { font-size: 2.25rem; opacity: .35; margin-bottom: .5rem; }
+
+/* pulsing "live" dot for streaming status chips */
+.live-dot { width: .55rem; height: .55rem; border-radius: 50%; background: #4ade80;
+            box-shadow: 0 0 0 0 rgba(74, 222, 128, .6); animation: os-pulse 1.4s infinite; }
+@keyframes os-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(74, 222, 128, .55); }
+  70%  { box-shadow: 0 0 0 .4rem rgba(74, 222, 128, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
 .os-section-title { color: var(--os-muted); font-size: .8rem; text-transform: uppercase;
                     letter-spacing: .05em; margin: 1.25rem 0 .5rem; }
 

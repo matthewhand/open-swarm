@@ -1,49 +1,67 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4" id="team-launcher">
-  <h2 class="mb-3">Team Launcher</h2>
-  <p class="text-muted">Select a team blueprint and enter your task. Results stream below.</p>
+<div class="os-wrap" id="team-launcher">
+  <h2 class="mb-1">Team Launcher</h2>
+  <p class="text-muted mb-3">Select a team blueprint and enter your task. Results stream below.</p>
 
-  <div class="row g-3">
-    <div class="col-12 col-md-6">
-      <label for="blueprintSelect" class="form-label">Team Blueprint</label>
-      <select id="blueprintSelect" class="form-select">
-        <option value="" selected disabled>Loading blueprints…</option>
-      </select>
-    </div>
-    <div class="col-12 col-md-6">
-      <label for="profileInput" class="form-label">Model/Profile (optional)</label>
-      <input id="profileInput" class="form-control" list="profiles_list" placeholder="e.g., default or ollama_llama2" />
-      <datalist id="profiles_list">
-        {% for p in profiles %}
-        <option value="{{ p }}"></option>
-        {% endfor %}
-      </datalist>
-    </div>
-    {% if api_auth_enabled %}
-    <div class="col-12">
-      <label for="tokenInput" class="form-label">API Token (Bearer) — saved locally</label>
-      <input id="tokenInput" class="form-control" placeholder="Paste token for API auth" />
-      <div class="form-text">Saved in browser localStorage as 'swarm_api_token'.</div>
-    </div>
-    {% endif %}
-    <div class="col-12">
-      <label for="instruction" class="form-label">Task / Instruction</label>
-      <textarea id="instruction" class="form-control" rows="4" placeholder="Describe the task for the team…"></textarea>
-    </div>
-    <div class="col-12 d-flex gap-2">
-      <button id="launchBtn" class="btn btn-primary">Launch</button>
-      <button id="clearBtn" class="btn btn-outline-secondary">Clear Output</button>
+  <!-- Configuration card -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label for="blueprintSelect" class="form-label">Team Blueprint</label>
+          <select id="blueprintSelect" class="form-select">
+            <option value="" selected disabled>Loading blueprints…</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label for="profileInput" class="form-label">Model/Profile <span class="text-muted">(optional)</span></label>
+          <input id="profileInput" class="form-control" list="profiles_list" placeholder="e.g., default or ollama_llama2" />
+          <datalist id="profiles_list">
+            {% for p in profiles %}
+            <option value="{{ p }}"></option>
+            {% endfor %}
+          </datalist>
+        </div>
+        {% if api_auth_enabled %}
+        <div class="col-12">
+          <label for="tokenInput" class="form-label">API Token (Bearer) — saved locally</label>
+          <input id="tokenInput" class="form-control" placeholder="Paste token for API auth" />
+          <div class="form-text">Saved in browser localStorage as 'swarm_api_token'.</div>
+        </div>
+        {% endif %}
+        <div class="col-12">
+          <label for="instruction" class="form-label">Task / Instruction</label>
+          <textarea id="instruction" class="form-control" rows="4" placeholder="Describe the task for the team…"></textarea>
+        </div>
+        <div class="col-12 d-flex align-items-center gap-2">
+          <button id="launchBtn" class="btn btn-primary">
+            <span class="launch-label"><i class="fas fa-rocket me-1"></i>Launch</span>
+            <span class="launch-spinner" style="display:none;"><i class="fas fa-spinner fa-spin me-1"></i>Launching…</span>
+          </button>
+          <button id="clearBtn" class="btn btn-outline-secondary">Clear Output</button>
+          <span id="launchError" class="text-danger small ms-1" style="display:none;"></span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <hr class="my-4" />
-  <div class="d-flex align-items-center gap-3">
-    <h5 class="mb-0">Output</h5>
-    <div id="streamStatus" class="text-muted" style="display:none;">Streaming…</div>
+  <!-- Output card -->
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="fas fa-stream text-muted"></i>
+      <span>Output</span>
+      <span id="streamStatus" class="os-chip ms-auto" style="display:none;"><span class="live-dot"></span>Streaming…</span>
+    </div>
+    <div class="card-body p-0">
+      <div id="outputEmpty" class="os-empty">
+        <div class="os-empty-icon"><i class="fas fa-stream"></i></div>
+        Output will stream here once you launch a team.
+      </div>
+      <pre id="output" class="mb-0 p-3" style="display:none; min-height: 220px; white-space: pre-wrap; overflow:auto; background: var(--os-well); border-radius: 0 0 var(--os-radius) var(--os-radius);"></pre>
+    </div>
   </div>
-  <pre id="output" class="p-3 bg-light border rounded" style="min-height: 200px; white-space: pre-wrap; overflow:auto;"></pre>
 </div>
 
 <script>
@@ -56,6 +74,38 @@
   const launchBtn = sel('launchBtn');
   const clearBtn = sel('clearBtn');
   const tokenInput = sel('tokenInput');
+  const outputEmpty = sel('outputEmpty');
+  const launchError = sel('launchError');
+
+  // Show the output pre (hide the empty-state placeholder)
+  function showOutput() {
+    if (outputEmpty) outputEmpty.style.display = 'none';
+    output.style.display = 'block';
+  }
+  // Reset back to the empty-state placeholder
+  function resetOutput() {
+    output.textContent = '';
+    output.style.display = 'none';
+    if (outputEmpty) outputEmpty.style.display = '';
+  }
+  // Inline validation instead of blocking alert()s
+  function showError(msg) {
+    if (!launchError) return;
+    launchError.textContent = msg;
+    launchError.style.display = msg ? 'inline' : 'none';
+  }
+  // Toggle the Launch button between idle and in-flight states
+  function setLaunching(on) {
+    launchBtn.disabled = on;
+    const label = launchBtn.querySelector('.launch-label');
+    const spin = launchBtn.querySelector('.launch-spinner');
+    if (label) label.style.display = on ? 'none' : 'inline';
+    if (spin) spin.style.display = on ? 'inline' : 'none';
+  }
+  function setStatus(visible) {
+    const statusEl = sel('streamStatus');
+    if (statusEl) statusEl.style.display = visible ? 'inline-flex' : 'none';
+  }
 
   // Load/save token if present
   if (tokenInput) {
@@ -93,6 +143,7 @@
   }
 
   function append(text) {
+    showOutput();
     output.textContent += text;
     // auto-scroll
     output.scrollTop = output.scrollHeight;
@@ -104,13 +155,13 @@
     const model = bpSelect.value;
     const task = instruction.value.trim();
     const profile = profileInput.value.trim();
-    if (!model) { alert('Select a team blueprint'); return; }
-    if (!task) { alert('Enter a task/instruction'); return; }
+    if (!model) { showError('Select a team blueprint to launch.'); bpSelect.focus(); return; }
+    if (!task) { showError('Enter a task or instruction for the team.'); instruction.focus(); return; }
+    showError('');
 
-    launchBtn.disabled = true;
-    output.textContent += `\n--- Launching ${model} ---\n`;
-    const statusEl = sel('streamStatus');
-    if (statusEl) statusEl.style.display = 'inline';
+    setLaunching(true);
+    append(`\n--- Launching ${model} ---\n`);
+    setStatus(true);
 
     const body = {
       model,
@@ -134,9 +185,8 @@
       });
     } catch (e) {
       appendLine(`Request error: ${e}`);
-      launchBtn.disabled = false;
-      const statusEl = sel('streamStatus');
-      if (statusEl) statusEl.style.display = 'none';
+      setLaunching(false);
+      setStatus(false);
       return;
     }
     if (!res.ok) {
@@ -146,7 +196,8 @@
       } catch {
         appendLine(`HTTP ${res.status}`);
       }
-      launchBtn.disabled = false;
+      setLaunching(false);
+      setStatus(false);
       return;
     }
 
@@ -181,13 +232,12 @@
     } catch (e) {
       appendLine(`Stream error: ${e}`);
     } finally {
-      launchBtn.disabled = false;
-      const statusEl = sel('streamStatus');
-      if (statusEl) statusEl.style.display = 'none';
+      setLaunching(false);
+      setStatus(false);
     }
   }
 
-  clearBtn.addEventListener('click', () => { output.textContent = ''; });
+  clearBtn.addEventListener('click', () => { resetOutput(); showError(''); });
   launchBtn.addEventListener('click', launch);
   loadBlueprints();
 })();
