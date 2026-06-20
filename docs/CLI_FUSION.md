@@ -189,6 +189,20 @@ examples above already include the fixes (verified live 2026-06-16):
 The `--model` value for `opencode` is account/version-specific — it's the one
 place you'll likely need to adjust. Everything else runs as shipped.
 
+**Per-CLI model flag.** When a request (or an inference profile) pins a specific
+model, the catalog rewrites the CLI's command using that CLI's model flag:
+
+| CLI | Model flag |
+|---|---|
+| `gemini` | `-m` |
+| `claude` | `--model` |
+| `opencode` | `--model` |
+
+`cli_catalog.apply_model` replaces an already-pinned model in place (rather than
+duplicating the flag) and is a no-op for CLIs with no known model flag or no
+`cmd`; `with_model` returns a catalog entry pinned to a model (with an optional
+larger `timeout` for slower "pro" tiers).
+
 These panelists run at **full capability** — they can read, write, and run
 commands. The one real hazard of fanning several write-capable agents out in
 parallel is that they stomp each other's edits in a shared tree; `cli_fusion`
