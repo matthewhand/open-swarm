@@ -286,15 +286,16 @@
 
 <!-- Custom Styles -->
 <style>
+/* Dark page to match the app; the purple gradient is retained as the hero band
+   below so the "Pro" brand identity survives the re-theme. */
 .agent-creator-pro {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--os-bg, #0f1219);
   min-height: 100vh;
   padding-top: 2rem;
 }
 
 .hero-section {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 20px;
   margin: 0 auto 2rem;
   padding: 3rem 0;
@@ -374,8 +375,8 @@
   justify-content: center;
   align-items: center;
   gap: 2rem;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--os-panel, #1b1f29);
+  border: 1px solid var(--os-border, #2b3140);
   border-radius: 15px;
   padding: 1.5rem;
 }
@@ -406,11 +407,11 @@
 }
 
 .config-panel, .code-panel {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: var(--os-panel, #1b1f29);
+  border: 1px solid var(--os-border, #2b3140);
   border-radius: 20px;
   padding: 2rem;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
   height: fit-content;
 }
 
@@ -420,12 +421,12 @@
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid var(--os-border, #2b3140);
 }
 
 .panel-header h3 {
   margin: 0;
-  color: #333;
+  color: var(--os-text-strong, #e2e8f0);
   font-weight: 600;
 }
 
@@ -438,9 +439,9 @@
 .form-section {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: #f8f9fa;
+  background: var(--os-panel-2, #161a22);
   border-radius: 15px;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #818cf8;
 }
 
 .section-title {
@@ -448,7 +449,7 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
-  color: #333;
+  color: var(--os-text-strong, #e2e8f0);
   font-size: 1.1rem;
   font-weight: 600;
 }
@@ -463,12 +464,14 @@
 
 .form-label {
   font-weight: 600;
-  color: #555;
+  color: var(--os-text, #cbd5e1);
   margin-bottom: 0.5rem;
 }
 
 .form-control.enhanced, .form-select.enhanced {
-  border: 2px solid #e9ecef;
+  background: var(--os-well, #0f1219);
+  color: var(--os-text-strong, #e2e8f0);
+  border: 2px solid var(--os-border, #2b3140);
   border-radius: 10px;
   padding: 0.75rem 1rem;
   transition: all 0.3s ease;
@@ -476,8 +479,10 @@
 }
 
 .form-control.enhanced:focus, .form-select.enhanced:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+  background: var(--os-well, #0f1219);
+  color: var(--os-text-strong, #e2e8f0);
+  border-color: #818cf8;
+  box-shadow: 0 0 0 0.2rem rgba(129, 140, 248, 0.25);
 }
 
 .expertise-grid {
@@ -498,8 +503,9 @@
 .expertise-label {
   display: block;
   padding: 0.5rem 1rem;
-  background: #fff;
-  border: 2px solid #e9ecef;
+  background: var(--os-well, #0f1219);
+  color: var(--os-text, #cbd5e1);
+  border: 2px solid var(--os-border, #2b3140);
   border-radius: 8px;
   text-align: center;
   cursor: pointer;
@@ -508,9 +514,9 @@
 }
 
 .expertise-item input[type="checkbox"]:checked + .expertise-label {
-  background: #667eea;
+  background: #4f46e5;
   color: white;
-  border-color: #667eea;
+  border-color: #4f46e5;
 }
 
 .action-buttons {
@@ -533,7 +539,7 @@
 .empty-state {
   text-align: center;
   padding: 3rem 2rem;
-  color: #666;
+  color: var(--os-muted, #94a3b8);
 }
 
 .empty-icon {
@@ -550,14 +556,16 @@
 
 .feature-item {
   padding: 0.5rem;
-  background: rgba(102, 126, 234, 0.1);
+  background: rgba(129, 140, 248, 0.12);
+  color: var(--os-text, #cbd5e1);
   border-radius: 8px;
   font-size: 0.9rem;
 }
 
 .code-display {
   min-height: 400px;
-  background: #f8f9fa;
+  background: var(--os-well, #0f1219);
+  border: 1px solid var(--os-border, #2b3140);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -571,7 +579,8 @@
 
 .validation-panel, .preview-panel {
   margin-top: 1rem;
-  background: #f8f9fa;
+  background: var(--os-panel-2, #161a22);
+  border: 1px solid var(--os-border, #2b3140);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -605,7 +614,8 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: white;
+  background: var(--os-panel-2, #161a22);
+  border: 1px solid var(--os-border, #2b3140);
   border-radius: 10px;
   margin: 1rem;
 }
