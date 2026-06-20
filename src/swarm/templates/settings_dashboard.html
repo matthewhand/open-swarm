@@ -565,9 +565,9 @@
 
 {{ settings_groups|json_script:"swarm-settings-data" }}
 <script>
-// json_script auto-escapes </script>, <, >, & — safe even though sensitive
-// values are already masked server-side. Also fixes the previously-invalid JS
-// (a raw Python dict rendered True/None as bare identifiers).
+// json_script auto-escapes the closing script tag plus <, >, & — safe even
+// though sensitive values are already masked server-side. Also fixes the
+// previously-invalid JS (a raw Python dict rendered True/None as bare identifiers).
 const settingsData = JSON.parse(document.getElementById("swarm-settings-data").textContent);
 
 function toggleGroup(groupId) {
