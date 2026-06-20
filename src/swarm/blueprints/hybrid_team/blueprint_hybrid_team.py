@@ -13,6 +13,19 @@ The REST coordinator holds the master plan and delegates sub-questions to the
 grok/claude CLI personas (exposed as ``cli_tools`` callables) and to a consensus
 panel — that is the MIX: one REST inference reaching for CLI personas mid-run.
 
+**claude-orchestrated delegation.** When a ``claude`` cli_agent is configured,
+the coordinator step uses ``claude -p`` as the *orchestration brain*: it returns
+a JSON plan + role delegations,
+
+    {"plan": "...", "delegations": [{"role": "agent", "task": "..."}, ...]}
+
+which :meth:`run` parses (:meth:`_parse_delegations`) and routes back through the
+per-step model machinery — each delegation runs on its role's model
+(``orchestration`` / ``agent`` / ``auxiliary``; see :attr:`ROLE_PROFILES` and
+:meth:`_agent_for_role`). Without claude it falls back to the orchestration-role
+LLM plan with no delegations, so the per-step routing from the prior change still
+applies and behaviour is unchanged under ``SWARM_TEST_MODE``.
+
 Deterministic in tests two ways, independently:
 
   * REST half -> stubbed when ``os.environ["SWARM_TEST_MODE"]`` is set.
@@ -30,8 +43,14 @@ falls back to the ``cli_fusion`` ``default_cli`` / ``default_preset``. Per-reque
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
+import json
 import logging
 import os
+import re
+import threading
+import time
 from typing import Any, AsyncGenerator, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
@@ -80,6 +99,28 @@ class HybridTeamBlueprint(BlueprintBase):
         # testing, revision, simple execution -> fast and cheap
         "auxiliary": {"speed": 0.9, "cost": 0.9},
     }
+
+    # The orchestration brain (claude -p, when configured) is asked to emit a
+    # structured plan + role delegations as JSON, which run() parses and routes
+    # back through _agent_for_role. Plain-text replies degrade to "plan, no
+    # delegations" so a non-JSON model never breaks the run.
+    _DELEGATION_INSTRUCTIONS: ClassVar[str] = (
+        "You are the orchestration brain for a small agent team. Read the user's "
+        "request, produce a brief plan, then delegate concrete sub-tasks to roles. "
+        "Respond with ONLY a JSON object (no prose, no code fences) of the form: "
+        '{"plan": "<1-2 sentence plan>", "delegations": '
+        '[{"role": "orchestration|agent|auxiliary", "task": "<what to do>"}]}. '
+        "Use 'auxiliary' for cheap/simple/testing/revision steps, 'agent' for "
+        "general coding and reasoning, and 'orchestration' for further "
+        "planning/coordination. At most 3 delegations; use [] if none are needed."
+    )
+
+    # Parallel-delegation tuning. Delegations run concurrently on a small thread
+    # pool; launches are staggered to be gentle on free-CLI rate limits, and each
+    # delegation has a hard timeout so one slow/hung sub-task can't stall the rest.
+    _DELEGATION_MAX_WORKERS: ClassVar[int] = 4
+    _DELEGATION_TIMEOUT_S: ClassVar[float] = 120.0
+    _DELEGATION_LAUNCH_DELAY_S: ClassVar[float] = 0.25
 
     def __init__(
         self,
@@ -142,6 +183,154 @@ class HybridTeamBlueprint(BlueprintBase):
             tools=list(tools or []),
             inference_profile=profile,
         )
+
+    # --- claude-orchestrated delegation ----------------------------------- #
+
+    def _claude_persona(self, registry):
+        """An async ``(str) -> str`` persona backed by the ``claude`` cli_agent.
+
+        Returns None when no ``claude`` CLI is configured, so the coordinator
+        degrades to the orchestration-role LLM instead.
+        """
+        try:
+            if "claude" in set(registry.names()):
+                return cli_persona(registry.get("claude"))
+        except Exception:  # noqa: BLE001 — never let wiring issues sink the run
+            pass
+        return None
+
+    @staticmethod
+    def _extract_json_object(raw: str) -> dict | None:
+        """Best-effort JSON object from a model reply (handles prose / fences)."""
+        if not raw:
+            return None
+        try:
+            obj = json.loads(raw)
+            return obj if isinstance(obj, dict) else None
+        except Exception:  # noqa: BLE001
+            m = re.search(r"\{.*\}", raw, re.S)
+            if m:
+                try:
+                    obj = json.loads(m.group(0))
+                    return obj if isinstance(obj, dict) else None
+                except Exception:  # noqa: BLE001
+                    return None
+        return None
+
+    def _parse_delegations(self, raw: str, fallback: str = "") -> tuple[str, list[dict]]:
+        """Parse the brain's reply into ``(plan, delegations)``.
+
+        Accepts ``{"plan": ..., "delegations": [{"role", "task"}]}`` (possibly
+        wrapped in prose). Delegations with an empty task or a role outside
+        :attr:`ROLE_PROFILES` are dropped. Any non-JSON reply degrades to
+        ``(raw or fallback, [])`` — a plain plan with no delegations.
+        """
+        obj = self._extract_json_object(raw)
+        if obj is None:
+            return (raw or fallback), []
+        plan = str(obj.get("plan") or "").strip() or (raw or fallback)
+        delegations: list[dict] = []
+        for d in obj.get("delegations") or []:
+            if not isinstance(d, dict):
+                continue
+            role = str(d.get("role") or "").strip().lower()
+            task = str(d.get("task") or "").strip()
+            if not task:
+                continue
+            if role in self.ROLE_PROFILES:
+                delegations.append({"role": role, "task": task})
+            else:
+                logger.info("[hybrid_team] dropping delegation with unknown role=%r", d.get("role"))
+        return plan, delegations
+
+    async def _orchestrate(self, prompt: str, registry) -> tuple[str, list[dict]]:
+        """Run the orchestration brain; return ``(plan, delegations)``.
+
+        Prefers ``claude -p`` (the orchestration brain) when a ``claude``
+        cli_agent is configured: it returns structured JSON that we parse into
+        role delegations. Without claude, falls back to the orchestration-role
+        LLM plan (no delegations). Deterministic stub under ``SWARM_TEST_MODE``.
+        Always degrades gracefully — a missing brain never sinks the run.
+        """
+        if os.environ.get("SWARM_TEST_MODE"):
+            return f"[rest-plan] {prompt}", []
+        claude = self._claude_persona(registry)
+        if claude is None:
+            return await self._rest_reason(prompt), []
+        try:
+            raw = await claude(f"{self._DELEGATION_INSTRUCTIONS}\n\nUser request:\n{prompt}")
+        except Exception as exc:  # noqa: BLE001 — degrade to a plain plan
+            return f"[orchestration unavailable: {exc}] {prompt}", []
+        return self._parse_delegations(raw, fallback=prompt)
+
+    async def _run_delegation(self, deleg: dict) -> str:
+        """Execute one delegation on its role's model (per ROLE_PROFILES).
+
+        Deterministic under ``SWARM_TEST_MODE``; degrades to a marker string on
+        any failure so one bad sub-task never sinks the run.
+        """
+        role, task = deleg["role"], deleg["task"]
+        if os.environ.get("SWARM_TEST_MODE"):
+            return f"[{role}] {task}"
+        try:
+            from agents import Runner
+
+            agent = self._agent_for_role(
+                role,
+                name=f"{role.title()}Worker",
+                instructions="Complete the delegated sub-task concisely and accurately.",
+            )
+            result = await Runner.run(agent, task)
+            return str(result.final_output)
+        except Exception as exc:  # noqa: BLE001
+            return f"[{role} unavailable: {exc}] {task}"
+
+    def _role_model(self, role: str) -> str | None:
+        """The llm profile name a role would resolve to (for observability), or None."""
+        profile = self.ROLE_PROFILES.get(role)
+        if not profile:
+            return None
+        try:
+            from swarm.core.inference_profile import resolve
+            return resolve(profile, self._llm_candidates())
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _execute_delegations(self, delegations: list[dict]) -> AsyncGenerator[dict, None]:
+        """Run delegations in parallel on a ThreadPoolExecutor, yielding each result
+        dict as it completes (out of order).
+
+        Each result is ``{role, task, status: completed|failed, result|error,
+        model_used}``. Failures are isolated (one bad sub-task never kills the
+        others), each has a hard ``_DELEGATION_TIMEOUT_S`` ceiling, and launches
+        are staggered by ``_DELEGATION_LAUNCH_DELAY_S`` to protect free-CLI rate
+        limits. Deterministic under ``SWARM_TEST_MODE`` (``_run_delegation`` stubs).
+        """
+        loop = asyncio.get_event_loop()
+        launch_gate = threading.Lock()  # serialize *starts* to stagger launches
+
+        def _work(d: dict) -> dict:
+            role, task = d["role"], d["task"]
+            model_used = self._role_model(role)
+            with launch_gate:
+                time.sleep(self._DELEGATION_LAUNCH_DELAY_S)
+            base = {"role": role, "task": task, "model_used": model_used}
+            try:
+                # Own event loop per worker thread, with a hard per-task timeout.
+                out = asyncio.run(
+                    asyncio.wait_for(self._run_delegation(d), timeout=self._DELEGATION_TIMEOUT_S)
+                )
+                return {**base, "status": "completed", "result": out}
+            except (TimeoutError, asyncio.TimeoutError):
+                return {**base, "status": "failed", "error": f"timed out after {self._DELEGATION_TIMEOUT_S:.0f}s"}
+            except Exception as exc:  # noqa: BLE001 — isolate per-delegation failures
+                return {**base, "status": "failed", "error": str(exc)}
+
+        max_workers = min(self._DELEGATION_MAX_WORKERS, max(1, len(delegations)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [loop.run_in_executor(pool, _work, d) for d in delegations]
+            for fut in asyncio.as_completed(futures):
+                yield await fut
 
     # --- the REST step (deterministic under SWARM_TEST_MODE) -------------- #
 
@@ -224,11 +413,37 @@ class HybridTeamBlueprint(BlueprintBase):
         grok_name, panel_names, judge_name = self._resolve(params, registry)
         workdir = params.get(support.PARAM_WORKDIR)
 
-        # ---- 1. REST reasoning step (the coordinator's master plan) ------ #
+        # ---- 1. orchestration: plan + (optional) claude-driven delegations  #
         yield support.progress_chunk("_Coordinator reasoning (REST step)…_")
-        plan = await self._rest_reason(prompt)
-        # The REST plan steers the CLI sub-questions below.
+        plan, delegations = await self._orchestrate(prompt, registry)
+        # The plan steers the CLI sub-questions below.
         sub_question = f"{prompt}\n\n--- Plan ---\n{plan}"
+
+        # ---- 1b. execute the brain's delegations IN PARALLEL ------------- #
+        # Each {role, task} from claude runs on its role's model
+        # (orchestration/agent/auxiliary) via _agent_for_role, concurrently on a
+        # small thread pool. Results arrive out of order; each is surfaced as a
+        # `delegation_progress` chunk (also captured into the persisted Responses
+        # progress array). Empty under SWARM_TEST_MODE / when no claude brain.
+        delegated: list[tuple[str, str]] = []
+        if delegations:
+            yield support.progress_chunk(
+                f"_Delegating {len(delegations)} sub-task(s) in parallel…_"
+            )
+            async for ev in self._execute_delegations(delegations):
+                summary = ev["result"] if ev["status"] == "completed" else (
+                    f"[{ev['role']} {ev['status']}: {ev.get('error')}]"
+                )
+                delegated.append((ev["role"], summary))
+                yield {
+                    "type": "delegation_progress",
+                    "content": (
+                        f"_• {ev['role']} {ev['status']}"
+                        + (f" on `{ev['model_used']}`" if ev.get("model_used") else "")
+                        + "_"
+                    ),
+                    "delegation": ev,
+                }
 
         # ---- 2. grok CLI persona step ------------------------------------ #
         grok_answer = ""
@@ -262,8 +477,10 @@ class HybridTeamBlueprint(BlueprintBase):
                 consensus = consensus_fn(panel, judge)  # async (str) -> str
                 consensus_answer = await consensus(sub_question)
 
-        # ---- 4. combine REST + CLI outputs into the final answer --------- #
+        # ---- 4. combine REST + delegated + CLI outputs into the answer --- #
         parts = [f"REST plan:\n{plan}"]
+        for role, out in delegated:
+            parts.append(f"Delegated [{role}]:\n{out}")
         if grok_answer:
             parts.append(f"grok persona:\n{grok_answer}")
         if consensus_answer:

@@ -186,9 +186,11 @@ class TestResponsesStateful:
 
 @pytest.mark.django_db
 def test_responses_reports_nonzero_token_usage(client):
+    # Usage reporting is model-agnostic; use the fast, deterministic chatbot stub
+    # (cli_fusion drives real CLIs with unpredictable latency under async-default).
     resp = client.post(
         "/v1/responses",
-        data='{"model": "cli_fusion", "input": "In one word, capital of France?"}',
+        data='{"model": "chatbot", "input": "In one word, capital of France?"}',
         content_type="application/json",
     )
     assert resp.status_code == 200
@@ -273,7 +275,7 @@ class TestResponsesAsync:
         # Worker slower than the wait window -> 202 handle; then it finishes and polls completed.
         import swarm.views.responses_views as rv
 
-        async def _slow(bp, messages, cancel_check=None):
+        async def _slow(bp, messages, cancel_check=None, on_progress=None):
             await asyncio.sleep(0.8)
             return "You said: slow", None
 

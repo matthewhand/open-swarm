@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import uuid
+from functools import wraps
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -114,12 +115,55 @@ def _coerce_content(content: Any) -> str:
     return str(content)
 
 
+def async_retry(max_attempts: int = 3, base_delay: float = 1.0, backoff_factor: float = 2.0, exceptions: tuple = (Exception,)):
+    """Retry an async function with exponential backoff on *transient* failures.
+
+    Deterministic client errors (DRF 4xx: ParseError/PermissionDenied/NotFound/
+    NotAuthenticated/ValidationError/Throttled/…) are re-raised immediately — they
+    won't succeed on retry and would only add latency. Anything else in
+    ``exceptions`` (5xx APIException, connection/timeout errors) is retried.
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            attempt = 0
+            delay = float(base_delay)
+            while True:
+                try:
+                    return await func(*args, **kwargs)
+                except exceptions as exc:
+                    # Fail fast on 4xx (client/deterministic) — retrying can't help.
+                    code = getattr(exc, "status_code", None)
+                    if isinstance(code, int) and 400 <= code < 500:
+                        raise
+                    attempt += 1
+                    if attempt >= max_attempts:
+                        raise
+                    logger.warning(
+                        "Retrying %s after transient error (attempt %d/%d, backoff %.1fs): %s",
+                        getattr(func, "__name__", "?"), attempt, max_attempts, delay, exc,
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= backoff_factor
+        return wrapper
+    return decorator
+
+
 def _resolve_sync_wait(request_data: dict[str, Any], background: bool) -> float | None:
-    """How long to wait synchronously before returning a queued handle.
+    """How long to wait synchronously before handing back a pollable handle.
 
     Precedence: ``background:true`` -> 0 (immediate handle) > per-request
-    ``max_wait_seconds`` > server default ``SWARM_RESPONSES_SYNC_TIMEOUT`` (env).
-    Returns None when nothing is configured — the classic fully-blocking sync path.
+    ``max_wait_seconds`` > server default ``SWARM_RESPONSES_SYNC_TIMEOUT`` (env) >
+    the **async-by-default** bounded window ``SWARM_RESPONSES_SYNC_DEFAULT`` (env,
+    default 10s).
+
+    Async-by-default: non-streaming work always runs on a background worker and
+    is persisted to disk under its ``response_id``. A POST returns within this
+    window — inline (200) for fast blueprints, or a 202 handle for long
+    claude-p + delegation runs that finish in the background and are polled via
+    ``GET /v1/responses/<id>``. This is what makes timeouts irrelevant. Set
+    ``SWARM_RESPONSES_SYNC_DEFAULT`` very high to approximate the old fully-
+    blocking behaviour.
     """
     if background:
         return 0.0
@@ -127,14 +171,17 @@ def _resolve_sync_wait(request_data: dict[str, Any], background: bool) -> float 
         try:
             return max(0.0, float(request_data["max_wait_seconds"]))
         except (TypeError, ValueError):
-            return None
+            pass  # malformed -> fall through to the server default
     env = os.environ.get("SWARM_RESPONSES_SYNC_TIMEOUT")
     if env:
         try:
             return max(0.0, float(env))
         except ValueError:
-            return None
-    return None
+            pass
+    try:
+        return max(0.0, float(os.environ.get("SWARM_RESPONSES_SYNC_DEFAULT", "10")))
+    except ValueError:
+        return 10.0
 
 
 async def _async_auth_dispatch(view: APIView, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
@@ -177,9 +224,20 @@ async def _async_auth_dispatch(view: APIView, request: HttpRequest, *args: Any, 
 class ResponsesView(APIView):
     """Handles OpenAI Responses API requests (``/v1/responses``).
 
-    Reuses ``ChatCompletionsView``'s blueprint-resolution + run path. Stateful:
-    a response is persisted (unless ``store: false``) and ``previous_response_id``
-    continues a prior conversation. See :mod:`swarm.core.responses_store`.
+    Reuses ``ChatCompletionsView``'s blueprint-resolution + run path (identical
+    model/inference_profile resolution — no Responses-specific resolver), so it
+    is first-class for the full tiered flow, including ``hybrid_team``'s
+    claude-orchestrated structured delegation.
+
+    **Async-by-default + stateful.** Non-streaming work runs on a background
+    worker, persisted to disk by ``response_id`` (see
+    :mod:`swarm.core.responses_store`): a POST returns within a bounded window
+    (``SWARM_RESPONSES_SYNC_DEFAULT``, 10s) — inline (200) for fast blueprints, or
+    a pollable 202 handle for long claude-p + delegation runs that finish in the
+    background. Poll/continue via ``GET /v1/responses/<id>``; while in progress the
+    record carries a ``progress`` array of per-delegation status. ``store:false``
+    runs inline (nothing to poll); ``previous_response_id`` continues a prior
+    conversation.
     """
 
     @method_decorator(csrf_exempt)
@@ -253,13 +311,14 @@ class ResponsesView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
-        # Fast-path sync vs queued. The server runs the task on a background worker
-        # and waits up to `wait_seconds` for it to finish: returns the result inline
-        # (200) if it beats the deadline, else a handle (202, in_progress) the client
-        # polls. background:true => wait 0 (immediate handle). No wait configured =>
-        # the classic fully-blocking sync path. Streaming is always inline.
+        # Async-by-default: the task runs on a background worker (persisted to disk
+        # under its response_id) and we wait up to `wait_seconds` for it to finish —
+        # returns the result inline (200) if it beats the deadline, else a pollable
+        # handle (202, in_progress). background:true => wait 0 (immediate handle).
+        # Streaming is always inline. `store:false` can't be polled (nothing is
+        # persisted), so it always takes the inline blocking path.
         wait_seconds = _resolve_sync_wait(request_data, background)
-        if wait_seconds is not None and not stream:
+        if wait_seconds is not None and not stream and store:
             return await self._handle_hybrid(
                 request_id, model_name, messages, params, previous_response_id, wait_seconds
             )
@@ -305,8 +364,13 @@ class ResponsesView(APIView):
         rec = await sync_to_async(responses_store.load)(response_id)
         return Response((rec or {}).get("response") or payload, status=status.HTTP_202_ACCEPTED)
 
+    @async_retry(max_attempts=3, base_delay=1.0, backoff_factor=2.0)
     async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
-        """Consume the blueprint generator, keep the last message, shape a response object."""
+        """Consume the blueprint generator, keep the last message, shape a response object.
+
+        Retries transient (5xx/connection) failures with exponential backoff
+        (up to 3 attempts, 1s then 2s); 4xx client errors fail fast.
+        """
         final_message = None
         backend_meta = None
         try:
@@ -464,21 +528,27 @@ class _Cancelled(Exception):
 
 
 async def _consume_blueprint(
-    blueprint_instance: Any, messages: list[dict[str, Any]], cancel_check: Any = None
+    blueprint_instance: Any, messages: list[dict[str, Any]], cancel_check: Any = None,
+    on_progress: Any = None,
 ) -> tuple[str, dict | None]:
     """Drive a blueprint to its final answer. Returns (answer, backend_meta).
 
     Shared by the synchronous handler and the async worker. ``cancel_check`` (a
     zero-arg callable) is polled between chunks; if it returns True we raise
-    :class:`_Cancelled`.
+    :class:`_Cancelled`. ``on_progress(entry)`` (if given) is called for each
+    structured progress chunk that carries a ``delegation`` payload — used to
+    stream per-delegation status into the persisted record.
     """
     final_message = None
     backend_meta = None
     async for chunk in blueprint_instance.run(messages, stream=False):
         if cancel_check is not None and cancel_check():
             raise _Cancelled()
-        if isinstance(chunk, dict) and chunk.get("meta"):
-            backend_meta = chunk["meta"]
+        if isinstance(chunk, dict):
+            if chunk.get("meta"):
+                backend_meta = chunk["meta"]
+            if on_progress is not None and chunk.get("delegation") is not None:
+                on_progress(chunk["delegation"])
         message = _extract_message_from_chunk(chunk)
         if message is None:
             continue
@@ -527,8 +597,17 @@ def _run_background_response(
     started = time.time()
     spec = _task_spec(request_id, model_name, messages, params, previous_response_id)
 
+    # Per-delegation progress, streamed into the persisted record as each
+    # parallel sub-task completes. Guarded by a lock for safe concurrent JSON
+    # updates from the blueprint's worker threads.
+    progress: list[dict] = []
+    progress_lock = threading.Lock()
+
     def _save(payload, transcript, *, keep_task=False):
         payload["execution_ms"] = int((time.time() - started) * 1000)
+        with progress_lock:
+            if progress:
+                payload["progress"] = list(progress)
         record = {"id": response_id, "object": "response", "response": payload, "messages": transcript}
         if keep_task:
             record["_task"] = spec
@@ -543,6 +622,15 @@ def _run_background_response(
         if error is not None:
             payload["error"] = {"message": str(error)}
         _save(payload, transcript)  # no _task: terminal states aren't resumed
+
+    def _on_progress(entry: dict) -> None:
+        # Append a {role, status, result/error, model_used} entry and re-persist
+        # the in_progress record so pollers see delegations as they finish.
+        with progress_lock:
+            progress.append(entry)
+        in_prog = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="in_progress")
+        in_prog["started_at"] = int(started)
+        _save(in_prog, None, keep_task=True)
 
     # Mark in_progress (keep the task spec for restart-resume).
     in_prog = _build_response_payload(request_id, model_name, "", previous_response_id, None, None, status="in_progress")
@@ -559,7 +647,20 @@ def _run_background_response(
                 raise RuntimeError(f"Model '{model_name}' could not be initialized.")
             if hasattr(bp, "set_params"):
                 bp.set_params(params)
-            return await _consume_blueprint(bp, messages, cancel_check=lambda: _is_cancel_requested(response_id))
+            # Hard execution ceiling so a hung CLI/LLM (e.g. a stuck claude -p)
+            # fails the record instead of pinning the worker forever.
+            try:
+                exec_timeout = float(os.environ.get("SWARM_RESPONSES_EXEC_TIMEOUT", "600"))
+            except ValueError:
+                exec_timeout = 600.0
+            return await asyncio.wait_for(
+                _consume_blueprint(
+                    bp, messages,
+                    cancel_check=lambda: _is_cancel_requested(response_id),
+                    on_progress=_on_progress,
+                ),
+                timeout=exec_timeout,
+            )
 
         answer, backend_meta = asyncio.run(_go())
         # A cancel may have landed between the last chunk and here.
@@ -572,6 +673,9 @@ def _run_background_response(
                 transcript=list(messages) + [{"role": "assistant", "content": answer}],
             )
             logger.info(f"[ReqID: {request_id}] async task {response_id} completed.")
+    except (TimeoutError, asyncio.TimeoutError):
+        logger.error(f"[ReqID: {request_id}] async task {response_id} timed out.")
+        _terminal("failed", error="execution timed out")
     except _Cancelled:
         _terminal("cancelled")
         logger.info(f"[ReqID: {request_id}] async task {response_id} cancelled mid-run.")

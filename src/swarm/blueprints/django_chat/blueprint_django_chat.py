@@ -199,12 +199,16 @@ class DjangoChatBlueprint(Blueprint):
             profile = self.get_llm_profile(self.llm_profile_name)
             base_url = profile.get("base_url")
             api_key = profile.get("api_key") or "ollama"  # local backends ignore the key
-            model_name = profile.get("model") or "gpt-oss:20b"
+            # No hardcoded model fallback: the profile's model is authoritative,
+            # with LITELLM_MODEL/DEFAULT_LLM as the only escape hatch.
+            import os
+            model_name = profile.get("model") or os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM")
         except Exception as e:  # config not initialized / no profile
             logger.warning("DjangoChat: LLM profile unavailable (%s)", e)
             base_url = None
+            model_name = None
 
-        if not base_url:
+        if not base_url or not model_name:
             yield {"messages": [{"role": "assistant", "content": (
                 "DjangoChat is not configured with an LLM profile. "
                 "Add an 'llm' profile in swarm_config.json to enable responses."
