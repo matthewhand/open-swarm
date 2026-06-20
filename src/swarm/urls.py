@@ -42,8 +42,9 @@ from swarm.views.blueprint_library_views import (
     my_blueprints,
     remove_blueprint_from_library,
 )
-from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
 from swarm.views.responses_views import ResponsesCancelView, ResponsesDetailView, ResponsesView
+from swarm.views.session_explorer import session_detail, session_explorer, session_list_api
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.settings_views import (
     environment_variables,
@@ -65,6 +66,13 @@ from swarm.views.webui import WebUIView
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
     path("", index, name="index"),  # Root path for web UI
+    # Lightweight liveness probe (no auth) — used by the Fly health check.
+    path("health", HealthCheckView.as_view(), name="health"),
+    path("health/", HealthCheckView.as_view()),
+    # Session Explorer web UI (browse stateful /v1/responses sessions + delegation timelines)
+    path("sessions/", session_explorer, name="session-explorer"),
+    path("sessions/<str:response_id>/", session_detail, name="session-detail"),
+    path("api/sessions/", session_list_api, name="session-list-api"),
     # Authentication. Two aliases for the same view:
     # - accounts/login/ matches Django's default LOGIN_URL ('/accounts/login/')
     #   and is the canonical 'login' name used by auth machinery.

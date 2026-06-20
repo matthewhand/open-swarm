@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .se-wrap { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+  .se-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
+  .se-chips { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .se-chip { font-size:.8rem; padding:.2rem .6rem; border-radius:999px; background:#2b3140; color:#cbd5e1; }
+  .se-card { background:#1b1f29; border:1px solid #2b3140; border-radius:12px; padding:1rem 1.15rem;
+             margin:.65rem 0; transition:border-color .15s, transform .05s; }
+  .se-card:hover { border-color:#3b82f6; }
+  .se-card a.se-id { color:#93c5fd; text-decoration:none; font-family:ui-monospace,monospace; font-size:.9rem; }
+  .se-row { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+  .se-meta { color:#94a3b8; font-size:.82rem; }
+  .se-preview { color:#cbd5e1; margin-top:.45rem; font-size:.9rem; }
+  .badge-status { font-size:.72rem; padding:.22rem .55rem; border-radius:6px; text-transform:uppercase; letter-spacing:.03em; }
+  .st-completed { background:#14532d; color:#86efac; }
+  .st-in_progress, .st-queued { background:#1e3a5f; color:#93c5fd; }
+  .st-failed { background:#4c1d1d; color:#fca5a5; }
+  .st-cancelled, .st-unknown { background:#3b3b3b; color:#d1d5db; }
+  .se-deleg { display:inline-flex; gap:.3rem; align-items:center; }
+  .dot { width:.6rem; height:.6rem; border-radius:50%; display:inline-block; }
+  .dot.completed { background:#22c55e; } .dot.failed { background:#ef4444; }
+  .dot.in_progress { background:#3b82f6; } .dot.queued { background:#64748b; }
+  .se-empty { color:#94a3b8; text-align:center; padding:3rem 1rem; }
+  .se-filter { cursor:pointer; user-select:none; }
+  .se-filter.active { outline:2px solid #3b82f6; }
+  .se-filter:focus-visible { outline:2px solid #93c5fd; outline-offset:2px; }
+  .se-error { display:none; background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
+              border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem; }
+  .se-live-dot { width:.5rem; height:.5rem; border-radius:50%; background:#22c55e; display:inline-block;
+                 margin-right:.35rem; vertical-align:middle; transition:background .2s; }
+  .se-live-dot.refreshing { background:#3b82f6; animation:se-pulse 1s ease-in-out infinite; }
+  .se-live-dot.stalled { background:#ef4444; animation:none; }
+  @keyframes se-pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+  @media (max-width:640px){ .se-head{ flex-direction:column; align-items:flex-start; } }
+</style>
+
+<div class="se-wrap" id="se-app" data-feed="{% url 'session-list-api' %}">
+  <div class="se-head">
+    <div>
+      <h2 style="margin:0;">🧭 Session Explorer</h2>
+      <div class="se-meta">Stateful <code>/v1/responses</code> sessions &middot; claude-orchestrated delegation timelines</div>
+    </div>
+    <div class="se-chips">
+      <span class="se-chip se-filter active" data-filter="" role="button" tabindex="0" aria-pressed="true"><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
+      {% for status, n in status_counts.items %}
+        <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
+      {% endfor %}
+      <label class="se-chip" style="cursor:pointer;"><span class="se-live-dot" id="se-live-dot"></span><input type="checkbox" id="se-live" checked> live</label>
+    </div>
+  </div>
+
+  <div class="se-error" id="se-error" role="alert" aria-live="assertive"></div>
+
+  <div id="se-list" aria-live="polite" aria-busy="false">
+    {% for s in sessions %}
+      <div class="se-card" data-status="{{ s.status|default:'unknown' }}">
+        <div class="se-row">
+          <span class="badge-status st-{{ s.status|default:'unknown' }}">{{ s.status|default:'unknown' }}</span>
+          <a class="se-id" href="{% url 'session-detail' s.id %}">{{ s.id }}</a>
+          <span class="se-meta">{{ s.model|default:'—' }}</span>
+          {% if s.execution_ms %}<span class="se-meta">{{ s.execution_ms }} ms</span>{% endif %}
+          {% if s.delegations %}
+            <span class="se-deleg se-meta">⛓
+              {% for d in s.delegations %}<span class="dot {{ d.status }}" title="{{ d.role }}: {{ d.status }}"></span>{% endfor %}
+              {{ s.delegations|length }} delegation{{ s.delegations|length|pluralize }}
+            </span>
+          {% endif %}
+        </div>
+        {% if s.output_preview %}<div class="se-preview">{{ s.output_preview }}</div>{% endif %}
+      </div>
+    {% empty %}
+      <div class="se-empty">No sessions yet. Make a <code>POST /v1/responses</code> request and they'll appear here.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+(function(){
+  var app = document.getElementById('se-app'); if(!app) return;
+  var feed = app.dataset.feed, live = document.getElementById('se-live');
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function dots(ds){ return (ds||[]).map(function(d){return '<span class="dot '+esc(d.status)+'" title="'+esc(d.role)+': '+esc(d.status)+'"></span>';}).join(''); }
+  function render(sessions){
+    document.getElementById('se-total').textContent = sessions.length;
+    document.getElementById('se-list').innerHTML = sessions.length ? sessions.map(function(s){
+      var st = s.status||'unknown';
+      var deleg = (s.delegations&&s.delegations.length) ? '<span class="se-deleg se-meta">⛓ '+dots(s.delegations)+' '+s.delegations.length+' delegation'+(s.delegations.length===1?'':'s')+'</span>' : '';
+      return '<div class="se-card" data-status="'+esc(st)+'"><div class="se-row">'
+        + '<span class="badge-status st-'+esc(st)+'">'+esc(st)+'</span>'
+        + '<a class="se-id" href="/sessions/'+encodeURIComponent(s.id)+'/">'+esc(s.id)+'</a>'
+        + '<span class="se-meta">'+esc(s.model||'—')+'</span>'
+        + (s.execution_ms?'<span class="se-meta">'+s.execution_ms+' ms</span>':'')
+        + deleg + '</div>'
+        + (s.output_preview?'<div class="se-preview">'+esc(s.output_preview)+'</div>':'') + '</div>';
+    }).join('') : '<div class="se-empty">No sessions yet.</div>';
+  }
+  // --- status filtering (click a status chip) ---
+  var currentFilter = "";
+  function applyFilter(){
+    document.querySelectorAll('#se-list .se-card').forEach(function(c){
+      c.style.display = (!currentFilter || c.getAttribute('data-status') === currentFilter) ? '' : 'none';
+    });
+  }
+  function selectFilter(chip){
+    currentFilter = chip.getAttribute('data-filter') || "";
+    document.querySelectorAll('.se-filter').forEach(function(c){
+      var on = (c === chip);
+      c.classList.toggle('active', on);
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    applyFilter();
+  }
+  document.querySelectorAll('.se-filter').forEach(function(chip){
+    chip.addEventListener('click', function(){ selectFilter(chip); });
+    chip.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); selectFilter(chip); }
+    });
+  });
+  var errEl = document.getElementById('se-error');
+  var liveDot = document.getElementById('se-live-dot');
+  var listEl = document.getElementById('se-list');
+  function setLive(state){ if(liveDot) liveDot.className = 'se-live-dot' + (state ? ' '+state : ''); }
+  function poll(){
+    if(!live.checked){ setLive(''); return; }
+    setLive('refreshing'); listEl.setAttribute('aria-busy','true');
+    fetch(feed, {headers:{'Accept':'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(d){
+        if(errEl){ errEl.style.display='none'; } setLive('');
+        render(d.sessions||[]); applyFilter();
+        listEl.setAttribute('aria-busy','false');
+      })
+      .catch(function(e){
+        setLive('stalled'); listEl.setAttribute('aria-busy','false');
+        if(errEl){
+          errEl.textContent = '⚠ Live refresh failed (' + (e && e.message || 'network error') + ') — showing last data, retrying…';
+          errEl.style.display = '';
+        }
+      });
+  }
+  if(live){ live.addEventListener('change', function(){ if(live.checked){ poll(); } else { setLive(''); if(errEl) errEl.style.display='none'; } }); }
+  applyFilter();
+  setInterval(poll, 3000);
+})();
+</script>
+{% endblock %}
