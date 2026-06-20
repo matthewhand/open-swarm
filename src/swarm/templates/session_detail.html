@@ -25,6 +25,14 @@
   .tl .result { color:#a7f3d0; font-size:.85rem; } .tl .error { color:#fca5a5; font-size:.85rem; }
   .msg { border-left:3px solid #2b3140; padding:.2rem .7rem; margin:.4rem 0; }
   .msg .role { color:#94a3b8; font-size:.78rem; text-transform:uppercase; }
+  #agent-graph { overflow-x:auto; }
+  @media (max-width:640px){
+    .sd-wrap { margin:1rem auto; }
+    .sd-section { padding:.8rem .85rem; }
+    .sd-meta { font-size:.8rem; }
+    pre.sd-out { font-size:.82rem; }
+    .tl li { padding-left:1.4rem; }
+  }
 </style>
 
 <div class="sd-wrap">
@@ -89,7 +97,16 @@
   var color = { completed:'#22c55e', failed:'#ef4444', in_progress:'#3b82f6', queued:'#64748b' };
   var W = Math.max(560, 220 + dels.length*150), H = 300, cx = 130, cy = H/2;
   var svg = document.createElementNS(SVGNS,'svg');
-  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  // Responsive: scale to the container width (viewBox keeps the aspect ratio),
+  // but never stretch past the natural width on desktop. On a phone the whole
+  // graph shrinks to fit instead of forcing a horizontal scroll.
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.setAttribute('width','100%');
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  svg.style.maxWidth = W+'px'; svg.style.height = 'auto'; svg.style.display = 'block';
+  svg.setAttribute('role','img');
+  svg.setAttribute('aria-label', dels.length+' sub-agent delegation'+(dels.length===1?'':'s')
+    +' routed from the claude -p orchestrator; node colour indicates status');
   function el(n, attrs, text){ var e=document.createElementNS(SVGNS,n); for(var k in attrs) e.setAttribute(k, attrs[k]); if(text!=null){e.textContent=text;} return e; }
   // spoke layout: nodes in a vertical column to the right of the brain
   var n = dels.length, gap = Math.min(90, (H-60)/Math.max(1,n-1) || 0), startY = cy - gap*(n-1)/2;
