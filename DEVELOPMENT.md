@@ -196,6 +196,15 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Mocking:** Use `unittest.mock` for external services.
 *   **Fixtures:** Use `pytest` fixtures for setup.
 *   **Running:** `uv run pytest <path>`.
+*   **Config (`pytest.ini`):** coverage is auto-enabled (`--cov=src/swarm`,
+    non-failing), so a bare `pytest` already reports coverage — no extra flags
+    needed. A few heavy/legacy blueprint suites (`test_codey*`, `test_chatbot`)
+    are excluded by default via `--ignore-glob`; run them explicitly by path.
+*   **Keyless runs:** set `SWARM_TEST_MODE=1` for deterministic, network-free
+    blueprint output (no provider keys required).
+*   **OpenAI SDK types:** tool-call type imports guard for both `openai<1.99`
+    (concrete `ChatCompletionMessageToolCall`) and `>=1.99` (Union +
+    `ChatCompletionMessageFunctionToolCall`) — keep new imports version-tolerant.
 
 ---
 
