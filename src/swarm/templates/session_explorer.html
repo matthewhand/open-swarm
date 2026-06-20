@@ -24,6 +24,7 @@
   .se-empty { color:#94a3b8; text-align:center; padding:3rem 1rem; }
   .se-filter { cursor:pointer; user-select:none; }
   .se-filter.active { outline:2px solid #3b82f6; }
+  .se-filter:focus-visible { outline:2px solid #93c5fd; outline-offset:2px; }
   .se-error { display:none; background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
               border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem; }
   .se-live-dot { width:.5rem; height:.5rem; border-radius:50%; background:#22c55e; display:inline-block;
@@ -41,9 +42,9 @@
       <div class="se-meta">Stateful <code>/v1/responses</code> sessions &middot; claude-orchestrated delegation timelines</div>
     </div>
     <div class="se-chips">
-      <span class="se-chip se-filter active" data-filter=""><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
+      <span class="se-chip se-filter active" data-filter="" role="button" tabindex="0" aria-pressed="true"><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
       {% for status, n in status_counts.items %}
-        <span class="se-chip se-filter" data-filter="{{ status }}"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
+        <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
       {% endfor %}
       <label class="se-chip" style="cursor:pointer;"><span class="se-live-dot" id="se-live-dot"></span><input type="checkbox" id="se-live" checked> live</label>
     </div>
@@ -101,11 +102,19 @@
       c.style.display = (!currentFilter || c.getAttribute('data-status') === currentFilter) ? '' : 'none';
     });
   }
+  function selectFilter(chip){
+    currentFilter = chip.getAttribute('data-filter') || "";
+    document.querySelectorAll('.se-filter').forEach(function(c){
+      var on = (c === chip);
+      c.classList.toggle('active', on);
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    applyFilter();
+  }
   document.querySelectorAll('.se-filter').forEach(function(chip){
-    chip.addEventListener('click', function(){
-      currentFilter = chip.getAttribute('data-filter') || "";
-      document.querySelectorAll('.se-filter').forEach(function(c){ c.classList.toggle('active', c === chip); });
-      applyFilter();
+    chip.addEventListener('click', function(){ selectFilter(chip); });
+    chip.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); selectFilter(chip); }
     });
   });
   var errEl = document.getElementById('se-error');

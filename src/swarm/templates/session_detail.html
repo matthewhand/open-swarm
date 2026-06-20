@@ -91,8 +91,10 @@
 (function(){
   var holder = document.getElementById('deleg-data'); var mount = document.getElementById('agent-graph');
   if(!holder || !mount) return;
-  var dels = []; try { dels = JSON.parse(holder.textContent) || []; } catch(e){}
-  if(!dels.length) return;
+  var dels = [];
+  try { dels = JSON.parse(holder.textContent) || []; }
+  catch(e){ mount.innerHTML = '<div class="sd-meta">⚠ Could not render the graph — see the delegation timeline below.</div>'; return; }
+  if(!dels.length){ mount.innerHTML = '<div class="sd-meta">No delegations recorded for this session.</div>'; return; }
   var SVGNS = 'http://www.w3.org/2000/svg';
   var color = { completed:'#22c55e', failed:'#ef4444', in_progress:'#3b82f6', queued:'#64748b' };
   var W = Math.max(560, 220 + dels.length*150), H = 300, cx = 130, cy = H/2;
