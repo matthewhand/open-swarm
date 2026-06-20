@@ -269,6 +269,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_TEST_MODE` | Deterministic, network-free blueprint output (testing). | off |
 | `DJANGO_LOG_LEVEL` / `LOGLEVEL` | Log verbosity. | `INFO` |
 | `STATEFUL_CHAT_ID_PATH` | `\|\|`-separated JMESPath expressions used to extract the chat/session id from an incoming request payload (first non-empty match wins). | `metadata.channelInfo.channelId`, `metadata.userInfo.userId`, … |
+| `SWARM_TRUNCATION_MODE` | Context truncation strategy when trimming message history to fit the token budget: `pairs` (sophisticated — keeps assistant/tool call pairs intact) or `simple` (most-recent only). Unknown values fall back to `simple`. | `pairs` |
 
 ### Provider credentials & integrations
 
