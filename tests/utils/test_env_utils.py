@@ -7,6 +7,7 @@ from django.core.exceptions import ImproperlyConfigured
 from swarm.utils.env_utils import (
     get_csv_env,
     get_django_allowed_hosts,
+    get_django_csrf_trusted_origins,
     get_django_secret_key,
     get_swarm_config_path,
     get_swarm_log_level,
@@ -90,3 +91,21 @@ def test_get_csv_env():
         assert get_csv_env("MY_CSV_VAR", "x,y") == ["x", "y"]
     with patch.dict(os.environ, {}, clear=True):
         assert get_csv_env("MY_CSV_VAR") == []
+
+
+def test_get_csv_env_strips_whitespace_and_drops_empties():
+    # A CSV env list should not yield padded or empty entries (a stray trailing
+    # comma or " a , b " must not produce "" or " b ").
+    with patch.dict(os.environ, {"MY_CSV_VAR": " a , b ,,c, "}):
+        assert get_csv_env("MY_CSV_VAR") == ["a", "b", "c"]
+
+
+def test_get_django_csrf_trusted_origins():
+    with patch.dict(os.environ, {"DJANGO_CSRF_TRUSTED_ORIGINS": "https://a.com, https://b.com ,"}):
+        assert get_django_csrf_trusted_origins() == ["https://a.com", "https://b.com"]
+    # Default applies when unset.
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_django_csrf_trusted_origins() == [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ]

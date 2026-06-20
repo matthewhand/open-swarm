@@ -243,10 +243,10 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | none (dev random) |
+| `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | dev only: fixed insecure fallback |
 | `DJANGO_DEBUG` | Debug mode (verbose errors, DEBUG logging, relaxed auth). Keep **off** in prod. | `false` |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts. **Required in production.** | dev: localhost |
-| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes. | none |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** | dev: `localhost,127.0.0.1` |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). | `http://localhost:8000,http://127.0.0.1:8000` |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. | none |
 | `ENABLE_API_AUTH` | Require auth on `/v1/*`. Auto-on when `API_AUTH_TOKEN` is set. | prod: on |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
