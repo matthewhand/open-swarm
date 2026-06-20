@@ -24,6 +24,13 @@
   .se-empty { color:#94a3b8; text-align:center; padding:3rem 1rem; }
   .se-filter { cursor:pointer; user-select:none; }
   .se-filter.active { outline:2px solid #3b82f6; }
+  .se-error { display:none; background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
+              border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem; }
+  .se-live-dot { width:.5rem; height:.5rem; border-radius:50%; background:#22c55e; display:inline-block;
+                 margin-right:.35rem; vertical-align:middle; transition:background .2s; }
+  .se-live-dot.refreshing { background:#3b82f6; animation:se-pulse 1s ease-in-out infinite; }
+  .se-live-dot.stalled { background:#ef4444; animation:none; }
+  @keyframes se-pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
   @media (max-width:640px){ .se-head{ flex-direction:column; align-items:flex-start; } }
 </style>
 
@@ -38,11 +45,13 @@
       {% for status, n in status_counts.items %}
         <span class="se-chip se-filter" data-filter="{{ status }}"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
       {% endfor %}
-      <label class="se-chip" style="cursor:pointer;"><input type="checkbox" id="se-live" checked> live</label>
+      <label class="se-chip" style="cursor:pointer;"><span class="se-live-dot" id="se-live-dot"></span><input type="checkbox" id="se-live" checked> live</label>
     </div>
   </div>
 
-  <div id="se-list">
+  <div class="se-error" id="se-error" role="alert" aria-live="assertive"></div>
+
+  <div id="se-list" aria-live="polite" aria-busy="false">
     {% for s in sessions %}
       <div class="se-card" data-status="{{ s.status|default:'unknown' }}">
         <div class="se-row">
@@ -99,11 +108,29 @@
       applyFilter();
     });
   });
+  var errEl = document.getElementById('se-error');
+  var liveDot = document.getElementById('se-live-dot');
+  var listEl = document.getElementById('se-list');
+  function setLive(state){ if(liveDot) liveDot.className = 'se-live-dot' + (state ? ' '+state : ''); }
   function poll(){
-    if(!live.checked) return;
-    fetch(feed, {headers:{'Accept':'application/json'}}).then(function(r){return r.json();})
-      .then(function(d){ render(d.sessions||[]); applyFilter(); }).catch(function(){});
+    if(!live.checked){ setLive(''); return; }
+    setLive('refreshing'); listEl.setAttribute('aria-busy','true');
+    fetch(feed, {headers:{'Accept':'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(d){
+        if(errEl){ errEl.style.display='none'; } setLive('');
+        render(d.sessions||[]); applyFilter();
+        listEl.setAttribute('aria-busy','false');
+      })
+      .catch(function(e){
+        setLive('stalled'); listEl.setAttribute('aria-busy','false');
+        if(errEl){
+          errEl.textContent = '⚠ Live refresh failed (' + (e && e.message || 'network error') + ') — showing last data, retrying…';
+          errEl.style.display = '';
+        }
+      });
   }
+  if(live){ live.addEventListener('change', function(){ if(live.checked){ poll(); } else { setLive(''); if(errEl) errEl.style.display='none'; } }); }
   applyFilter();
   setInterval(poll, 3000);
 })();
