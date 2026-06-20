@@ -135,6 +135,18 @@ directory search for a project-local `swarm_config.json`.)
 - All sensitive config values (API keys, tokens) are redacted in logs.
 - Never log full secrets.
 
+`swarm.utils.redact.redact_sensitive_data` walks dicts/lists recursively and
+masks any value whose **key** matches a sensitive name (e.g. `api_key`,
+`password`, `token`, `secret`). Details:
+
+- **Case-insensitive** key matching (`API_KEY`, `Password` are caught).
+- **Type-agnostic** — a sensitive value is masked even if it isn't a string
+  (ints, bools, or a nested dict/list stored under a secret key are masked
+  wholesale, never passed through).
+- By default the value is replaced with `[REDACTED]`. Pass `reveal_chars=N` to
+  keep the first/last `N` characters for debugging (`abc…hij`); values too short
+  to reveal safely are fully masked.
+
 ---
 
 ## 7. Troubleshooting

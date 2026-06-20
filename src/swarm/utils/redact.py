@@ -43,7 +43,9 @@ def redact_sensitive_data(
 
     def smart_mask(val: str) -> str:
         if not isinstance(val, str):
-            return val
+            # A sensitive key's value must never leak just because it isn't a
+            # string (ints, bools, dicts/lists stored under a secret key, …).
+            return mask
         if mask != "[REDACTED]":
             return mask
         if reveal_chars == 0:
