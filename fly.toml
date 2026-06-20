@@ -28,6 +28,11 @@ interval = "30s"       # Check every 30s
 timeout = "15s"        # Double default timeout to 15 seconds
 method = "GET"
 path = "/health"       # Your healthcheck endpoint
+# Send a real Host header so Django's ALLOWED_HOSTS accepts the check.
+# (Fly's checker otherwise uses the machine's private IP, which rotates and
+#  would force a fragile per-IP allow-list entry.)
+[http_service.checks.headers]
+Host = "open-swarm.fly.dev"
 
 [deploy]
 wait_timeout = "20m"    # Increase from default 5m
