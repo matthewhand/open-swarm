@@ -350,10 +350,5 @@
       ]
     }
   },
-  "blueprints": {
-    "university": {
-      "path": "/app/blueprints/university",
-      "api": true
-    }
-  }
+  "blueprints": {}
 }
