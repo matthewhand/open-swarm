@@ -155,6 +155,25 @@ input[type="password"], input[type="email"], input[type="number"] {
   border-radius: 0 0 var(--os-radius) var(--os-radius); padding: 1rem 1.15rem;
 }
 
+/* ---- blueprint runner cards (My Blueprints): match the library card -------
+ * Icon badge + clamped description + hover lift, aligned with .blueprint-card. */
+.blueprint-runner-card { transition: transform .12s ease, border-color .12s ease; }
+.blueprint-runner-card:hover { transform: translateY(-2px); border-color: var(--os-accent); }
+.blueprint-runner-card .bp-desc {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: .88rem; color: var(--os-muted); margin: 0 0 .6rem;
+}
+.bp-icon-badge {
+  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--os-panel-2); border: 1px solid var(--os-border); color: var(--os-muted);
+}
+.bp-tag {
+  display: inline-block; font-size: .72rem; padding: .15rem .5rem; border-radius: 6px;
+  background: var(--os-panel-2); border: 1px solid var(--os-border); color: var(--os-muted);
+  margin: 0 .25rem .25rem 0;
+}
+
 /* ---- stat cards: muted dark panels with a colored accent ---------------- *
  * Replaces loud full-saturation Bootstrap fills (bg-primary/success/info/
  * warning text-white) so the dashboard stat tiles fit the dark palette while
