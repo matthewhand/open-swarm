@@ -203,11 +203,8 @@ class TestServeSwarmConfigView:
 class TestCustomLoginView:
     """Tests for the custom login view."""
 
-    @patch("swarm.views.web_views.render")
-    def test_login_get_renders_form(self, mock_render, client):
-        """Test GET request renders login form."""
-        mock_render.return_value = HttpResponse(status=200)
-
+    def test_login_get_renders_form(self, client):
+        """GET renders the real login form template (not a mocked render)."""
         from swarm.views.web_views import custom_login
 
         factory = RequestFactory()
@@ -216,6 +213,9 @@ class TestCustomLoginView:
         response = custom_login(request)
 
         assert response.status_code == 200
+        content = response.content.decode()
+        assert "Open Swarm" in content      # brand on the real login page
+        assert "Sign in" in content         # the submit control
 
     @patch("swarm.views.web_views.authenticate")
     @patch("swarm.views.web_views.login")
@@ -237,11 +237,8 @@ class TestCustomLoginView:
         assert response.status_code == 302
 
     @patch("swarm.views.web_views.authenticate")
-    @patch("swarm.views.web_views.render")
-    def test_login_post_failure(self, mock_render, mock_auth, client):
-        """Test failed login returns error."""
-        mock_render.return_value = HttpResponse(status=200)
-        
+    def test_login_post_failure(self, mock_auth, client):
+        """Failed auth re-renders the real login form (200), not a mocked render."""
         from swarm.views.web_views import custom_login
 
         # Mock failed authentication
@@ -252,8 +249,9 @@ class TestCustomLoginView:
 
         response = custom_login(request)
 
-        # Should render login form with error
+        # Should re-render the login form
         assert response.status_code == 200
+        assert "Sign in" in response.content.decode()
 
 
 # =============================================================================
@@ -266,11 +264,8 @@ class TestTeamLauncherView:
     @patch("swarm.views.web_views._webui_enabled", return_value=True)
     @patch("swarm.views.web_views.get_api_auth_token", return_value="test-token")
     @patch("swarm.views.web_views._profiles_ctx", return_value={})
-    @patch("swarm.views.web_views.render")
-    def test_team_launcher_enabled(self, mock_render, mock_profiles, mock_token, mock_enabled, client):
-        """Test team launcher when webui is enabled."""
-        mock_render.return_value = HttpResponse(status=200)
-        
+    def test_team_launcher_enabled(self, mock_profiles, mock_token, mock_enabled, client):
+        """When enabled, renders the real Team Launcher template."""
         from swarm.views.web_views import team_launcher
 
         factory = RequestFactory()
@@ -279,6 +274,9 @@ class TestTeamLauncherView:
         response = team_launcher(request)
 
         assert response.status_code == 200
+        content = response.content.decode()
+        assert "Team Launcher" in content
+        assert "Output" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_launcher_disabled(self, mock_enabled, client):
@@ -303,11 +301,8 @@ class TestTeamAdminView:
 
     @patch("swarm.views.web_views._webui_enabled", return_value=True)
     @patch("swarm.views.web_views._profiles_ctx", return_value={})
-    @patch("swarm.views.web_views.render")
-    def test_team_admin_enabled(self, mock_render, mock_profiles, mock_enabled, client):
-        """Test team admin when webui is enabled."""
-        mock_render.return_value = HttpResponse(status=200)
-        
+    def test_team_admin_enabled(self, mock_profiles, mock_enabled, client):
+        """When enabled, renders the real Team Admin template."""
         from swarm.views.web_views import team_admin
 
         factory = RequestFactory()
@@ -316,6 +311,7 @@ class TestTeamAdminView:
         response = team_admin(request)
 
         assert response.status_code == 200
+        assert "Create Team" in response.content.decode()
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_admin_disabled(self, mock_enabled, client):
@@ -337,11 +333,8 @@ class TestTeamAdminView:
 class TestProfilesPageView:
     """Tests for the profiles page view."""
 
-    @patch("swarm.views.web_views.render")
-    def test_profiles_page_renders(self, mock_render, client):
-        """Test profiles page renders successfully."""
-        mock_render.return_value = HttpResponse(status=200)
-        
+    def test_profiles_page_renders(self, client):
+        """Renders the real profiles template (LLM Profiles page)."""
         from swarm.views.web_views import profiles_page
 
         factory = RequestFactory()
@@ -350,6 +343,7 @@ class TestProfilesPageView:
         response = profiles_page(request)
 
         assert response.status_code == 200
+        assert "LLM Profiles" in response.content.decode()
 
 
 # =============================================================================
