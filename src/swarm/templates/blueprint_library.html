@@ -30,7 +30,7 @@
     <!-- Stats Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card border-0 bg-primary text-white">
+            <div class="card os-stat os-stat-blue">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -45,7 +45,7 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 bg-success text-white">
+            <div class="card os-stat os-stat-green">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -60,7 +60,7 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 bg-info text-white">
+            <div class="card os-stat os-stat-cyan">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -75,7 +75,7 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 bg-warning text-white">
+            <div class="card os-stat os-stat-amber">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -250,13 +250,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Update button state
                     const card = this.closest('.blueprint-card');
                     if (action === 'add') {
-                        this.classList.remove('btn-success', 'btn-add-blueprint');
+                        this.classList.remove('btn-outline-success', 'btn-add-blueprint');
                         this.classList.add('btn-outline-danger', 'btn-remove-blueprint');
                         this.innerHTML = '<i class="fas fa-minus me-1"></i>Remove';
                         card.classList.add('installed');
                     } else {
                         this.classList.remove('btn-outline-danger', 'btn-remove-blueprint');
-                        this.classList.add('btn-success', 'btn-add-blueprint');
+                        this.classList.add('btn-outline-success', 'btn-add-blueprint');
                         this.innerHTML = '<i class="fas fa-plus me-1"></i>Add to Library';
                         card.classList.remove('installed');
                     }
@@ -354,16 +354,22 @@ function showNotification(message, type) {
 
 .blueprint-card.installed {
     border-color: #198754;
-    background-color: #f8fff9;
+    /* subtle dark green tint — NOT a near-white fill, which would be
+       white-on-white against the dark theme */
+    background-color: rgba(25, 135, 84, .10);
 }
 
 .difficulty-badge {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: .22rem .5rem;
 }
 
-.difficulty-beginner { background-color: #28a745; }
-.difficulty-intermediate { background-color: #ffc107; color: #000; }
-.difficulty-advanced { background-color: #dc3545; }
+/* muted, tinted difficulty pills (aligned with the dark .st-* status palette)
+   instead of loud saturated Bootstrap solids that dominate every card */
+.difficulty-beginner { background-color: #14532d; color: #86efac; }
+.difficulty-intermediate { background-color: #3f3413; color: #fde68a; }
+.difficulty-advanced { background-color: #4c1d1d; color: #fca5a5; }
 
 .tag-badge {
     font-size: 0.7rem;

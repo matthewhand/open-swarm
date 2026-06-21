@@ -314,18 +314,18 @@
 }
 
 .settings-group {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
 .group-header {
-  background: #f8f9fa;
+  background: var(--os-panel-2);
   padding: 1.5rem;
   cursor: pointer;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--os-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -333,8 +333,10 @@
 }
 
 .group-header:hover {
-  background: #e9ecef;
+  background: var(--os-well);
 }
+
+.group-title h3 { color: var(--os-text-strong); }
 
 .group-title {
   display: flex;
@@ -359,10 +361,10 @@
 
 .group-description {
   padding: 1rem 1.5rem;
-  background: rgba(102, 126, 234, 0.05);
-  color: #495057;
+  background: rgba(129, 140, 248, 0.06);
+  color: var(--os-muted);
   font-size: 0.95rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--os-border);
 }
 
 .group-content {
@@ -398,8 +400,8 @@
 
 .setting-row > div {
   padding: 1rem;
-  border-bottom: 1px solid #dee2e6;
-  border-right: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--os-border);
+  border-right: 1px solid var(--os-border);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -415,7 +417,7 @@
 
 .setting-name {
   font-weight: 600;
-  color: #333;
+  color: var(--os-text-strong);
   margin-bottom: 0.25rem;
 }
 
@@ -452,7 +454,9 @@
 }
 
 .list-item {
-  background: #e9ecef;
+  background: var(--os-panel-2);
+  color: var(--os-text);
+  border: 1px solid var(--os-border);
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   font-size: 0.8rem;
@@ -479,7 +483,9 @@
 }
 
 .env-var {
-  background: #f8f9fa;
+  background: var(--os-well);
+  color: var(--os-text);
+  border: 1px solid var(--os-border);
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   font-size: 0.85rem;
@@ -508,8 +514,9 @@
 .type-error { background: #ffebee; color: #d32f2f; }
 
 .category-badge {
-  background: #f8f9fa;
-  color: #495057;
+  background: var(--os-panel-2);
+  color: var(--os-muted);
+  border: 1px solid var(--os-border);
   padding: 0.2rem 0.5rem;
   border-radius: 8px;
   font-size: 0.75rem;
@@ -538,8 +545,8 @@
   }
   
   .setting-row > div:first-child {
-    border-top: 2px solid #dee2e6;
-    background: #f8f9fa;
+    border-top: 2px solid var(--os-border);
+    background: var(--os-panel-2);
   }
 }
 
@@ -565,9 +572,9 @@
 
 {{ settings_groups|json_script:"swarm-settings-data" }}
 <script>
-// json_script auto-escapes </script>, <, >, & — safe even though sensitive
-// values are already masked server-side. Also fixes the previously-invalid JS
-// (a raw Python dict rendered True/None as bare identifiers).
+// json_script auto-escapes the closing script tag plus <, >, & — safe even
+// though sensitive values are already masked server-side. Also fixes the
+// previously-invalid JS (a raw Python dict rendered True/None as bare identifiers).
 const settingsData = JSON.parse(document.getElementById("swarm-settings-data").textContent);
 
 function toggleGroup(groupId) {

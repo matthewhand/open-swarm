@@ -1,74 +1,100 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-  <h2 class="mb-3">Teams Admin</h2>
-  {% if message %}
-  <div class="alert alert-success">{{ message }}</div>
-  {% endif %}
-  {% if error %}
-  <div class="alert alert-danger">{{ error }}</div>
-  {% endif %}
-
-  <div class="row g-3 mb-4">
-    <form method="post" class="col-12 col-md-8">
-      {% csrf_token %}
-      <div class="mb-3">
-        <label class="form-label" for="team_name">Team Name</label>
-        <input class="form-control" id="team_name" name="team_name" placeholder="e.g., my-team" required />
-        <div class="form-text">Used as the model id. Non-alphanumeric characters become dashes.</div>
-      </div>
-      <div class="mb-3">
-        <label class="form-label" for="llm_profile">LLM Profile</label>
-        <input class="form-control" id="llm_profile" name="llm_profile" list="profiles_list" placeholder="e.g., ollama_local" />
-        <datalist id="profiles_list">
-          {% for p in profiles %}
-          <option value="{{ p }}"></option>
-          {% endfor %}
-        </datalist>
-        <div class="form-text">Optional. Defaults to 'default' if omitted.</div>
-      </div>
-      <div class="mb-3">
-        <label class="form-label" for="description">Description</label>
-        <textarea class="form-control" id="description" name="description" rows="2" placeholder="Short description for this team"></textarea>
-      </div>
-      <button class="btn btn-primary" type="submit">Add Team</button>
-      <a href="/teams/launch" class="btn btn-outline-secondary ms-2">Go to Launcher</a>
-      <a href="/profiles/" class="btn btn-outline-secondary ms-2">View Profiles</a>
-      <button type="button" class="btn btn-outline-success ms-2" data-bs-toggle="modal" data-bs-target="#importTeamsModal">Import</button>
-    </form>
+<style>
+  .ta-wrap { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+  .ta-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
+  .ta-grid { display:grid; grid-template-columns: minmax(320px, 430px) 1fr; gap:1rem; align-items:start; }
+  @media (max-width: 820px) { .ta-grid { grid-template-columns: 1fr; } }
+  .ta-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+</style>
+<div class="ta-wrap">
+  <div class="ta-head">
+    <div>
+      <h2 style="margin:0;">👥 Teams Admin</h2>
+      <div class="os-meta">Register teams as OpenAI-compatible models &middot; callable at <code>/v1/chat/completions</code></div>
+    </div>
+    <span class="os-chip"><strong>{{ teams|length }}</strong>&nbsp;team{{ teams|length|pluralize }}</span>
   </div>
 
-  <h5>Registered Teams</h5>
-  <table class="table table-sm">
-    <thead>
-      <tr><th>Model (Team)</th><th>LLM Profile</th><th>Description</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for t in teams %}
-      <tr>
-        <td><code>{{ t.id }}</code></td>
-        <td>{{ t.llm_profile|default:'default' }}</td>
-        <td>{{ t.description }}</td>
-        <td class="text-end">
-          <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal" data-team-id="{{ t.id }}">Delete</button>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="4" class="text-muted">No teams yet. Add one above.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if message %}<div class="alert alert-success">{{ message }}</div>{% endif %}
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
-  <div class="alert alert-info mt-3">
-    Once added, teams appear in <code>/v1/models</code> and can be used as <code>model</code>
-    with OpenAI-compatible clients against <code>/v1/chat/completions</code>.
-  </div>
+  <div class="ta-grid">
+    <!-- Create Team -->
+    <div class="card">
+      <div class="card-header">Create Team</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label" for="team_name">Team Name</label>
+            <input class="form-control" id="team_name" name="team_name" placeholder="e.g., my-team" required />
+            <div class="form-text">Used as the model id. Non-alphanumeric characters become dashes.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="llm_profile">LLM Profile</label>
+            <input class="form-control" id="llm_profile" name="llm_profile" list="profiles_list" placeholder="e.g., ollama_local" />
+            <datalist id="profiles_list">
+              {% for p in profiles %}<option value="{{ p }}"></option>{% endfor %}
+            </datalist>
+            <div class="form-text">Optional. Defaults to 'default' if omitted.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="description">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="2" placeholder="Short description for this team"></textarea>
+          </div>
+          <div class="ta-actions">
+            <button class="btn btn-primary" type="submit">Add Team</button>
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importTeamsModal">Import</button>
+          </div>
+        </form>
+        <div class="form-text mt-3">Once added, a team appears in <code>/v1/models</code> and can be used as the <code>model</code> with any OpenAI-compatible client.</div>
+        <div class="ta-actions mt-2">
+          <a href="/teams/launch" class="btn btn-sm btn-outline-secondary">Go to Launcher</a>
+          <a href="/profiles/" class="btn btn-sm btn-outline-secondary">View Profiles</a>
+        </div>
+      </div>
+    </div>
 
-  <div class="mt-3">
-    <a class="btn btn-outline-primary me-2" href="/teams/export?format=json">Export JSON</a>
-    <a class="btn btn-outline-primary me-2" href="/teams/export?format=csv">Export CSV</a>
-    <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#resetTeamsModal">Delete All Teams</button>
+    <!-- Registered Teams -->
+    <div class="card">
+      <div class="card-header">Registered Teams</div>
+      <div class="card-body">
+        {% if teams %}
+        <table class="table table-sm align-middle" style="margin:0;">
+          <thead>
+            <tr><th>Model (Team)</th><th>LLM Profile</th><th>Description</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for t in teams %}
+            <tr>
+              <td><code>{{ t.id }}</code></td>
+              <td>{{ t.llm_profile|default:'default' }}</td>
+              <td>{{ t.description }}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal" data-team-id="{{ t.id }}">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="os-empty">
+          <div class="os-empty-icon">👥</div>
+          <div>No teams yet.</div>
+          <div class="os-meta">Create one on the left — it'll appear here and be exposed at <code>/v1/models</code>.</div>
+        </div>
+        {% endif %}
+      </div>
+      {% if teams %}
+      <div class="card-footer ta-actions">
+        <a class="btn btn-sm btn-outline-primary" href="/teams/export?format=json">Export JSON</a>
+        <a class="btn btn-sm btn-outline-primary" href="/teams/export?format=csv">Export CSV</a>
+        <button class="btn btn-sm btn-outline-warning ms-auto" data-bs-toggle="modal" data-bs-target="#resetTeamsModal">Delete All</button>
+      </div>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Delete Confirmation Modal -->

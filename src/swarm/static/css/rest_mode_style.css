@@ -1,0 +1,203 @@
+/*
+ * Open Swarm — global theme for the server-rendered (Django + Bootstrap) pages.
+ *
+ * base.html has always linked this file, but it never existed (404), so every
+ * legacy page rendered as raw white Bootstrap under a dark navbar. This brings
+ * those pages up to the dark design language already used by the best pages
+ * (Session Explorer / Detail), without touching their markup — it restyles the
+ * Bootstrap components they already use, and exposes reusable `.os-*` helpers.
+ *
+ * Scope: only the Django templates that extend base.html. The React SPA
+ * (webui/frontend, Tailwind) is served separately and is unaffected.
+ */
+
+:root {
+  --os-bg:        #0f1219;  /* page background        */
+  --os-panel:     #1b1f29;  /* cards / panels         */
+  --os-panel-2:   #161a22;  /* card headers / wells   */
+  --os-well:      #0f1219;  /* inputs / code surfaces */
+  --os-border:    #2b3140;  /* borders / dividers     */
+  --os-text:      #cbd5e1;  /* body text              */
+  --os-text-strong:#e2e8f0; /* headings / input text  */
+  --os-muted:     #94a3b8;  /* secondary / meta       */
+  --os-accent:    #3b82f6;  /* primary accent         */
+  --os-accent-hi: #2563eb;  /* accent hover           */
+  --os-link:      #93c5fd;  /* links                  */
+  --os-radius:    12px;
+  --os-radius-sm: 8px;
+}
+
+/* ---- page shell --------------------------------------------------------- */
+body {
+  background: var(--os-bg);
+  color: var(--os-text);
+}
+main { min-height: calc(100vh - 56px); }
+a { color: var(--os-link); }
+a:hover { color: #bfdbfe; }
+h1, h2, h3, h4, h5, h6 { color: var(--os-text-strong); }
+hr { border-color: var(--os-border); opacity: 1; }
+code:not([class*="language-"]) { color: #f0abfc; }
+.text-muted, .form-text, small.text-muted { color: var(--os-muted) !important; }
+/* generic code/output wells (page-specific classes like pre.sd-out still win) */
+pre { background: var(--os-well); color: var(--os-text-strong); border: 1px solid var(--os-border);
+      border-radius: var(--os-radius-sm); padding: .8rem; }
+/* Bootstrap bg utilities use !important; remap the light ones to dark surfaces */
+.bg-light { background-color: var(--os-panel) !important; color: var(--os-text) !important; }
+.bg-white { background-color: var(--os-panel) !important; color: var(--os-text) !important; }
+.border { border-color: var(--os-border) !important; }
+
+/* ---- cards (Bootstrap .card + reusable .os-card) ------------------------- */
+.card, .os-card {
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
+  border-radius: var(--os-radius);
+  color: var(--os-text);
+}
+.card-header {
+  background: var(--os-panel-2);
+  border-bottom: 1px solid var(--os-border);
+  color: var(--os-text-strong);
+  font-weight: 600;
+}
+.card-footer { background: var(--os-panel-2); border-top: 1px solid var(--os-border); }
+
+/* ---- form controls ------------------------------------------------------ */
+.form-control, .form-select, textarea, input[type="text"],
+input[type="password"], input[type="email"], input[type="number"] {
+  background: var(--os-well);
+  border: 1px solid var(--os-border);
+  color: var(--os-text-strong);
+  border-radius: var(--os-radius-sm);
+}
+.form-control:focus, .form-select:focus, textarea:focus {
+  background: var(--os-well);
+  color: var(--os-text-strong);
+  border-color: var(--os-accent);
+  box-shadow: 0 0 0 .2rem rgba(59, 130, 246, .25);
+}
+.form-control::placeholder, textarea::placeholder { color: #64748b; }
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right .75rem center;
+  background-size: 16px 12px;
+}
+.form-label, label { color: var(--os-text); font-weight: 500; }
+.form-select option { background: var(--os-panel); color: var(--os-text-strong); }
+
+/* ---- buttons ------------------------------------------------------------ */
+.btn-primary { background: var(--os-accent); border-color: var(--os-accent); }
+.btn-primary:hover, .btn-primary:focus { background: var(--os-accent-hi); border-color: var(--os-accent-hi); }
+.btn-outline-secondary { color: var(--os-muted); border-color: var(--os-border); }
+.btn-outline-secondary:hover { background: var(--os-border); color: var(--os-text-strong); }
+.btn-outline-primary { color: var(--os-link); border-color: var(--os-accent); }
+.btn-outline-primary:hover { background: var(--os-accent); color: #fff; }
+
+/* ---- tables ------------------------------------------------------------- */
+.table { color: var(--os-text); border-color: var(--os-border); }
+.table > :not(caption) > * > * { background: transparent; color: var(--os-text); border-color: var(--os-border); }
+.table thead th { color: var(--os-muted); border-bottom: 2px solid var(--os-border); font-weight: 600; }
+.table-hover > tbody > tr:hover > * { background: rgba(59, 130, 246, .07); }
+
+/* ---- alerts / modals ---------------------------------------------------- */
+.alert-info { background: rgba(59, 130, 246, .10); border: 1px solid var(--os-border); color: var(--os-text); }
+.alert-warning { background: rgba(234, 179, 8, .10); border: 1px solid #5b4d1e; color: #fde68a; }
+.alert-danger { background: rgba(239, 68, 68, .10); border: 1px solid #5b2330; color: #fca5a5; }
+.modal-content { background: var(--os-panel); border: 1px solid var(--os-border); color: var(--os-text); }
+.modal-header, .modal-footer { border-color: var(--os-border); }
+.btn-close { filter: invert(1) grayscale(1) brightness(1.4); }
+
+/* ---- reusable helpers (lifted from the Session Explorer design) --------- */
+.os-wrap { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+.os-meta { color: var(--os-muted); font-size: .85rem; }
+.os-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem;
+           padding: .25rem .65rem; border-radius: 999px; background: var(--os-panel-2);
+           color: var(--os-text); border: 1px solid var(--os-border); }
+.os-empty { color: var(--os-muted); text-align: center; padding: 3rem 1rem; }
+.os-empty .os-empty-icon { font-size: 2.25rem; opacity: .35; margin-bottom: .5rem; }
+
+/* pulsing "live" dot for streaming status chips */
+.live-dot { width: .55rem; height: .55rem; border-radius: 50%; background: #4ade80;
+            box-shadow: 0 0 0 0 rgba(74, 222, 128, .6); animation: os-pulse 1.4s infinite; }
+@keyframes os-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(74, 222, 128, .55); }
+  70%  { box-shadow: 0 0 0 .4rem rgba(74, 222, 128, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+.os-section-title { color: var(--os-muted); font-size: .8rem; text-transform: uppercase;
+                    letter-spacing: .05em; margin: 1.25rem 0 .5rem; }
+
+/* status pills (shared with .badge-status / .st-* used on the session pages) */
+.badge-status { font-size: .72rem; padding: .22rem .55rem; border-radius: 6px;
+                text-transform: uppercase; letter-spacing: .03em; }
+.st-completed { background: #14532d; color: #86efac; }
+.st-in_progress, .st-queued, .st-running { background: #1e3a5f; color: #93c5fd; }
+.st-failed, .st-error { background: #4c1d1d; color: #fca5a5; }
+.st-cancelled, .st-unknown, .st-idle { background: #3b3b3b; color: #d1d5db; }
+
+/* the shared "Select a Blueprint" toolbar in base.html sits on white by default */
+.bp-selector-bar, .container-fluid > .dropdown.my-2 { background: transparent; }
+
+/* ---- nav tabs (de-clutter: split stacked sections into tabs) ------------ */
+.nav-tabs { border-bottom: 1px solid var(--os-border); gap: .15rem; }
+.nav-tabs .nav-link {
+  color: var(--os-muted); background: transparent; border: 1px solid transparent;
+  border-bottom: none; border-radius: var(--os-radius-sm) var(--os-radius-sm) 0 0;
+}
+.nav-tabs .nav-link:hover { color: var(--os-text); border-color: var(--os-border) var(--os-border) transparent; }
+.nav-tabs .nav-link.active {
+  color: var(--os-text-strong); background: var(--os-panel);
+  border-color: var(--os-border) var(--os-border) var(--os-panel);
+}
+.tab-content {
+  background: var(--os-panel); border: 1px solid var(--os-border); border-top: none;
+  border-radius: 0 0 var(--os-radius) var(--os-radius); padding: 1rem 1.15rem;
+}
+
+/* ---- stat cards: muted dark panels with a colored accent ---------------- *
+ * Replaces loud full-saturation Bootstrap fills (bg-primary/success/info/
+ * warning text-white) so the dashboard stat tiles fit the dark palette while
+ * keeping per-stat colour coding (colour moves to the number, icon, and a thin
+ * left border instead of flooding the whole card). */
+.os-stat { background: var(--os-panel); border: 1px solid var(--os-border); border-left-width: 3px; }
+.os-stat .card-title { color: var(--os-muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.os-stat h3 { font-weight: 700; }
+.os-stat .fa-2x { opacity: .9 !important; }
+.os-stat-blue  { border-left-color: #3b82f6; } .os-stat-blue  h3, .os-stat-blue  .fa-2x { color: #60a5fa; }
+.os-stat-green { border-left-color: #22c55e; } .os-stat-green h3, .os-stat-green .fa-2x { color: #4ade80; }
+.os-stat-cyan  { border-left-color: #06b6d4; } .os-stat-cyan  h3, .os-stat-cyan  .fa-2x { color: #22d3ee; }
+.os-stat-amber { border-left-color: #f59e0b; } .os-stat-amber h3, .os-stat-amber .fa-2x { color: #fbbf24; }
+
+/* ---- list groups -------------------------------------------------------- */
+.list-group-item {
+  background: var(--os-panel);
+  border-color: var(--os-border);
+  color: var(--os-text);
+}
+.list-group-item-action:hover, .list-group-item-action:focus {
+  background: var(--os-panel-2);
+  color: var(--os-text-strong);
+}
+
+/* ---- dropdown menus (overflow / "…" actions) --------------------------- */
+.dropdown-menu { background: var(--os-panel); border: 1px solid var(--os-border); }
+.dropdown-item { color: var(--os-text); }
+.dropdown-item:hover, .dropdown-item:focus { background: var(--os-panel-2); color: var(--os-text-strong); }
+.dropdown-divider { border-color: var(--os-border); }
+
+/* ---- blueprint cards: compact, clamped description ---------------------- */
+.blueprint-card .bp-desc {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: .88rem; color: var(--os-muted); margin: 0 0 .6rem;
+}
+.blueprint-card .bp-avatar { width: 44px; height: 44px; flex: 0 0 44px; }
+.min-w-0 { min-width: 0; }
+
+/* ---- accordion (de-clutter: collapse long forms / sections) ------------- */
+.accordion-item { background: var(--os-panel); border-color: var(--os-border); }
+.accordion-button { background: var(--os-panel-2); color: var(--os-text-strong); }
+.accordion-button:not(.collapsed) { background: var(--os-panel-2); color: var(--os-text-strong); box-shadow: none; }
+.accordion-button:focus { box-shadow: 0 0 0 .2rem rgba(59, 130, 246, .25); border-color: var(--os-accent); }
+.accordion-button::after { filter: invert(.7); }
+.accordion-body { background: var(--os-panel); color: var(--os-text); }

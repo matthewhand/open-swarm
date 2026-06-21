@@ -1,106 +1,63 @@
 {% csrf_token %}
 <div class="card blueprint-card h-100 {% if blueprint.installed %}installed{% endif %}">
-    <!-- Avatar Section -->
-    <div class="text-center pt-3">
-        {% if blueprint.avatar_path %}
-            <img src="{{ blueprint.avatar_path }}" alt="{{ blueprint.name }} Avatar" 
-                 class="rounded-circle mb-2" style="width: 80px; height: 80px; object-fit: cover;">
-        {% else %}
-            <div class="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-2" 
-                 style="width: 80px; height: 80px;">
-                <i class="fas fa-robot fa-2x text-muted"></i>
-            </div>
-        {% endif %}
-        {% if not blueprint.avatar_path and blueprint.available %}
-            <button class="btn btn-sm btn-outline-primary mb-2" onclick="generateAvatar('{{ blueprint.id }}')">
-                <i class="fas fa-image me-1"></i>Generate Avatar
-            </button>
-        {% endif %}
-    </div>
-    
-    <div class="card-header d-flex justify-content-between align-items-start">
-        <div>
-            <h5 class="card-title mb-1">{{ blueprint.name }}</h5>
-            <small class="text-muted">by {{ blueprint.author }}</small>
-        </div>
-        <div class="text-end">
-            <span class="badge difficulty-badge difficulty-{{ blueprint.difficulty }}">
-                {{ blueprint.difficulty|title }}
-            </span>
-        </div>
-    </div>
-    
     <div class="card-body d-flex flex-column">
-        <p class="card-text flex-grow-1">{{ blueprint.description }}</p>
-        
-        <!-- Category -->
-        <div class="mb-3">
-            <span class="badge bg-secondary">
-                {{ blueprint.category_info.icon }} {{ blueprint.category_info.name }}
-            </span>
+        <!-- Identity: avatar + name + difficulty -->
+        <div class="d-flex align-items-start gap-2 mb-2">
+            {% if blueprint.avatar_path %}
+            <img src="{{ blueprint.avatar_path }}" alt="" class="rounded-circle bp-avatar" style="object-fit:cover;">
+            {% else %}
+            <div class="rounded-circle bp-avatar bg-light d-flex align-items-center justify-content-center">
+                <i class="fas fa-robot text-muted"></i>
+            </div>
+            {% endif %}
+            <div class="flex-grow-1 min-w-0">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h6 class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</h6>
+                    <span class="badge difficulty-badge difficulty-{{ blueprint.difficulty }} ms-2">{{ blueprint.difficulty|title }}</span>
+                </div>
+                <small class="text-muted">{{ blueprint.category_info.icon }} {{ blueprint.category_info.name }} &middot; v{{ blueprint.version }}</small>
+            </div>
         </div>
-        
-        <!-- Tags -->
-        {% if blueprint.tags %}
-        <div class="mb-3">
-            {% for tag in blueprint.tags %}
-            <span class="badge bg-light text-dark tag-badge">{{ tag }}</span>
-            {% endfor %}
-        </div>
-        {% endif %}
-        
-        <!-- Version + MCP Status -->
-        <div class="mb-3 d-flex justify-content-between align-items-center">
-            <small class="text-muted">
-                <i class="fas fa-tag me-1"></i>v{{ blueprint.version }}
-            </small>
+
+        <p class="card-text bp-desc flex-grow-1">{{ blueprint.description }}</p>
+
+        <!-- compact meta: MCP status + a couple of tags -->
+        <div class="d-flex align-items-center gap-2 mb-2" style="min-height:1.4rem;">
             <span id="mcp-status-{{ blueprint.id }}" class="badge bg-secondary" title="Checking MCP requirements...">
-                <i class="fas fa-spinner fa-spin me-1"></i>MCP: Checking
+                <i class="fas fa-spinner fa-spin me-1"></i>MCP
             </span>
+            {% if blueprint.tags %}
+            <small class="text-muted text-truncate">
+                {% for tag in blueprint.tags|slice:":2" %}#{{ tag }} {% endfor %}{% if blueprint.tags|length > 2 %}+{{ blueprint.tags|length|add:"-2" }}{% endif %}
+            </small>
+            {% endif %}
         </div>
-        
-        <!-- Action Button -->
-        <div class="mt-auto">
+
+        <!-- one primary action + an overflow menu for the rest -->
+        <div class="mt-auto d-flex gap-2">
             {% if blueprint.installed %}
-            <button class="btn btn-outline-danger btn-sm w-100 btn-remove-blueprint" 
-                    data-blueprint-id="{{ blueprint.id }}">
-                <i class="fas fa-minus me-1"></i>Remove from Library
+            <button class="btn btn-outline-danger btn-sm flex-grow-1 btn-remove-blueprint" data-blueprint-id="{{ blueprint.id }}">
+                <i class="fas fa-minus me-1"></i>Remove
             </button>
             {% else %}
-            <button class="btn btn-success btn-sm w-100 btn-add-blueprint" 
-                    data-blueprint-id="{{ blueprint.id }}">
+            <button class="btn btn-outline-success btn-sm flex-grow-1 btn-add-blueprint" data-blueprint-id="{{ blueprint.id }}">
                 <i class="fas fa-plus me-1"></i>Add to Library
             </button>
             {% endif %}
-        </div>
-    </div>
-    
-    <div class="card-footer">
-        <div class="d-flex justify-content-between align-items-center">
-            <small class="text-muted">
-                <i class="fas fa-cube me-1"></i>{{ blueprint.id }}
-            </small>
-            <div class="btn-group btn-group-sm">
-                <a href="/settings/" class="btn btn-outline-warning btn-sm" title="Configure MCP">
-                    <i class="fas fa-plug"></i>
-                </a>
-                <button class="btn btn-outline-primary btn-sm" 
-                        onclick="previewBlueprint('{{ blueprint.id }}')"
-                        title="Preview">
-                    <i class="fas fa-eye"></i>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
+                    <i class="fas fa-ellipsis-h"></i>
                 </button>
-                <button class="btn btn-outline-secondary btn-sm" 
-                        onclick="launchBlueprint('{{ blueprint.id }}')"
-                        title="Launch">
-                    <i class="fas fa-play"></i>
-                </button>
-                {% if not blueprint.avatar_path and blueprint.available %}
-                <button class="btn btn-outline-info btn-sm" 
-                        onclick="generateAvatar('{{ blueprint.id }}')"
-                        title="Generate Avatar">
-                    <i class="fas fa-image"></i>
-                </button>
-                {% endif %}
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button class="dropdown-item" type="button" onclick="previewBlueprint('{{ blueprint.id }}')"><i class="fas fa-eye me-2"></i>Preview</button></li>
+                    <li><button class="dropdown-item" type="button" onclick="launchBlueprint('{{ blueprint.id }}')"><i class="fas fa-play me-2"></i>Launch</button></li>
+                    <li><a class="dropdown-item" href="/settings/"><i class="fas fa-plug me-2"></i>Configure MCP</a></li>
+                    {% if not blueprint.avatar_path and blueprint.available %}
+                    <li><button class="dropdown-item" type="button" onclick="generateAvatar('{{ blueprint.id }}')"><i class="fas fa-image me-2"></i>Generate Avatar</button></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><span class="dropdown-item-text small text-muted"><i class="fas fa-cube me-2"></i>{{ blueprint.id }}</span></li>
+                </ul>
             </div>
         </div>
     </div>
