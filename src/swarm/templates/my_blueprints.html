@@ -26,15 +26,16 @@
         </div>
     </div>
 
-    <!-- Stats -->
+    <!-- Stats: 3 meaningful tiles (counts computed in the view; the old 4th
+         "Ready to Run" duplicated Total, and Total used a broken |add: chain). -->
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card os-stat os-stat-blue">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Installed</h6>
-                            <h3 class="mb-0">{{ installed_blueprints|length }}</h3>
+                            <h3 class="mb-0">{{ installed_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-download fa-2x opacity-75"></i>
@@ -43,13 +44,13 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card os-stat os-stat-green">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Custom Created</h6>
-                            <h3 class="mb-0">{{ custom_blueprints|length }}</h3>
+                            <h3 class="mb-0">{{ custom_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-magic fa-2x opacity-75"></i>
@@ -58,31 +59,16 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card os-stat os-stat-cyan">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Total</h6>
-                            <h3 class="mb-0">{{ installed_blueprints|length|add:custom_blueprints|length }}</h3>
+                            <h3 class="mb-0">{{ total_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-cubes fa-2x opacity-75"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card os-stat os-stat-amber">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title">Ready to Run</h6>
-                            <h3 class="mb-0">{{ installed_blueprints|length|add:custom_blueprints|length }}</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-play fa-2x opacity-75"></i>
                         </div>
                     </div>
                 </div>
@@ -194,11 +180,13 @@
                             </div>
                         </div>
                         
+                        {% if blueprint.created_display %}
                         <div class="card-footer">
                             <small class="text-muted">
-                                <i class="fas fa-calendar me-1"></i>Created: {{ blueprint.created_at }}
+                                <i class="fas fa-calendar me-1"></i>Created {{ blueprint.created_display }}
                             </small>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}

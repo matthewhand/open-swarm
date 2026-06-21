@@ -3,6 +3,7 @@ Blueprint Library Views for Open Swarm Core.
 Handles blueprint browsing, library management, and custom blueprint creation.
 """
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -386,7 +387,7 @@ def blueprint_creator(request):
                 "code": blueprint_code,
                 "avatar_path": avatar_path,
                 "avatar_style": avatar_style if avatar_path else None,
-                "created_at": str(Path().cwd()),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "author": "User Generated"
             }
 
@@ -545,9 +546,30 @@ def my_blueprints(request):
                 "type": "installed"
             })
 
+        # Normalize created_at for display: older records stored a filesystem
+        # path (a leak); new ones store an ISO timestamp. Show a friendly date
+        # for valid timestamps and nothing for anything else (never a raw path).
+        for bp in custom:
+            raw = bp.get("created_at")
+            display = None
+            if isinstance(raw, str):
+                try:
+                    display = datetime.fromisoformat(raw).strftime("%b %d, %Y")
+                except ValueError:
+                    display = None
+            bp["created_display"] = display
+
+        # Compute stat counts in the view: the template can't reliably add two
+        # |length values (the old `|length|add:custom|length` chain produced 0),
+        # which is why "Total" rendered 0 even with custom blueprints present.
+        installed_count = len(installed_data)
+        custom_count = len(custom)
         context = {
             "installed_blueprints": installed_data,
             "custom_blueprints": custom,
+            "installed_count": installed_count,
+            "custom_count": custom_count,
+            "total_count": installed_count + custom_count,
             "categories": BLUEPRINT_CATEGORIES,
             "dark_mode": request.session.get('dark_mode', True),
         }
