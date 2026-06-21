@@ -106,12 +106,21 @@ class ChatbotBlueprint(BlueprintBase):
 
 
 if __name__ == "__main__":
+    import argparse
     import asyncio
     import json
 
+    parser = argparse.ArgumentParser(description="Run the chatbot blueprint once.")
+    parser.add_argument(
+        "--instruction",
+        default="hello",
+        help="The user message to send to the agent.",
+    )
+    cli_args = parser.parse_args()
+
     async def _demo():
         bp = ChatbotBlueprint(blueprint_id="chatbot")
-        async for chunk in bp.run([{"role": "user", "content": "hello"}]):
+        async for chunk in bp.run([{"role": "user", "content": cli_args.instruction}]):
             print(json.dumps(chunk, indent=2))
 
     asyncio.run(_demo())

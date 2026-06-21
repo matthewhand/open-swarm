@@ -1,39 +1,59 @@
 {
   "llm": {
+    "_comment": "All profiles route through the local LiteLLM/LM Studio gateway (${LITELLM_BASE_URL}, keyless). The intelligence/speed/cost tags make a profile a candidate for inference_profile scoring (core/inference_profile.py); untagged profiles are selectable only by explicit name. hybrid_team maps roles -> traits: orchestration={intelligence:0.95}, agent={intelligence:0.7,cost:0.4}, auxiliary={speed:0.9,cost:0.9}, so those three role profiles win their respective roles. 'default' is tagged balanced so generic blueprints land on it.",
     "default": {
       "provider": "openai",
-      "model": "gpt-4o",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "max_tokens": "32000"
+      "model": "qwen3.5",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
+      "intelligence": 0.6,
+      "speed": 0.6,
+      "cost": 0.6
     },
     "reason": {
       "provider": "openai",
-      "model": "o3-mini",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "max_tokens": "200000",
+      "model": "minimax-m3",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
       "reasoning_effort": "high"
     },
     "classify": {
       "provider": "openai",
-      "model": "llama3.2:latest",
-      "base_url": "http://localhost:11434/",
-      "api_key": "",
-      "cost": 0.1,
-      "speed": 0.1,
-      "intelligence": 0.1,
+      "model": "llama-3.2",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
       "temperature": 0.0
     },
     "summary": {
       "provider": "openai",
-      "model": "gpt-4o-mini",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "cost": 0.1,
-      "speed": 0.1,
-      "intelligence": 0.1,
+      "model": "qwen3.5",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
       "temperature": 0.0
+    },
+    "orchestration": {
+      "provider": "openai",
+      "model": "orchestration",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
+      "intelligence": 1.0
+    },
+    "agent": {
+      "provider": "openai",
+      "model": "agent",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
+      "intelligence": 0.7,
+      "cost": 0.4
+    },
+    "auxiliary": {
+      "provider": "openai",
+      "model": "auxiliary",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
+      "max_tokens": 2048,
+      "speed": 0.9,
+      "cost": 0.9
     },
     "litellm": {
       "provider": "openai",
@@ -47,38 +67,6 @@
       "base_url": "https://api.groq.com/openai/v1",
       "api_key": "${GROQ_API_KEY}",
       "passthrough": true
-    },
-    "gpt-4o": {
-      "provider": "openai",
-      "model": "gpt-4o",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "cost": 0.5,
-      "speed": 0.5,
-      "intelligence": 0.5,
-      "temperature": 0.1,
-      "passthrough": true
-    },
-    "gpt-4o-mini": {
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "cost": 0.3,
-      "speed": 0.8,
-      "intelligence": 0.3,
-      "temperature": 0.1,
-      "passthrough": true
-    },
-    "gpt-3.5-turbo-instruct": {
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-instruct",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}",
-      "cost": 0.1,
-      "speed": 0.8,
-      "intelligence": 0.2,
-      "temperature": 0.1
     }
   },
   "mcpServers": {
