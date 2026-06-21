@@ -123,7 +123,9 @@ class TestBlueprintLibraryView:
         response = blueprint_library(request)
 
         assert response.status_code == 200
-        # Check that the response contains blueprint data
+        content = response.content.decode()
+        assert "Blueprint Library" in content          # page actually rendered
+        assert "Codey" in content                       # a discovered blueprint's name is shown
 
     @patch("swarm.views.blueprint_library_views.discover_blueprints")
     @patch("swarm.views.blueprint_library_views.get_user_blueprint_library")
@@ -145,6 +147,8 @@ class TestBlueprintLibraryView:
         response = blueprint_library(request)
 
         assert response.status_code == 200
+        # Renders the real library page even with nothing discovered.
+        assert "Blueprint Library" in response.content.decode()
 
     @patch("swarm.views.blueprint_library_views.discover_blueprints")
     @patch("swarm.views.blueprint_library_views.get_user_blueprint_library")
@@ -816,6 +820,7 @@ class TestMyBlueprints:
         response = my_blueprints(request)
 
         assert response.status_code == 200
+        assert "My Blueprints" in response.content.decode()
 
     @patch("swarm.views.blueprint_library_views.get_user_blueprint_library")
     def test_my_blueprints_empty(
@@ -834,6 +839,7 @@ class TestMyBlueprints:
         response = my_blueprints(request)
 
         assert response.status_code == 200
+        assert "My Blueprints" in response.content.decode()
 
     @patch("swarm.views.blueprint_library_views.get_user_blueprint_library")
     def test_my_blueprints_error(
