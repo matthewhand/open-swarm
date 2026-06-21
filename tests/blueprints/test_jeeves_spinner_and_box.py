@@ -1,13 +1,10 @@
-"""Spinner and operation-box UX tests for the Jeeves blueprint.
+"""Spinner tests for the Jeeves blueprint's JeevesSpinner.
 
-Ported from archive/local-main-2025-04.
+(The shared display_operation_box rendering contract is covered once in
+test_operation_box_shared.py, not duplicated here.)
 """
-import io
-import sys
-
 import pytest
 
-from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.blueprints.jeeves.blueprint_jeeves import JeevesSpinner
 
 
@@ -31,39 +28,3 @@ def test_jeeves_spinner_long_wait():
     spinner._start_time -= 15  # Simulate long wait
     spinner._spin()
     assert spinner.current_spinner_state() == "Generating... Taking longer than expected"
-
-
-def test_display_operation_box_basic(monkeypatch):
-    buf = io.StringIO()
-    monkeypatch.setattr(sys, "stdout", buf)
-    display_operation_box(
-        title="Test Title",
-        content="Test Content",
-        result_count=5,
-        params={'query': 'foo'},
-        progress_line=10,
-        total_lines=100,
-        spinner_state="Generating...",
-        emoji="🔍"
-    )
-    out = buf.getvalue()
-    assert "Test Content" in out
-    assert "Progress: 10/100" in out
-    assert "Results: 5" in out
-    assert "Query: foo" in out
-    assert "Generating..." in out
-    assert "🔍" in out
-
-
-def test_display_operation_box_long_wait(monkeypatch):
-    buf = io.StringIO()
-    monkeypatch.setattr(sys, "stdout", buf)
-    display_operation_box(
-        title="Test Title",
-        content="Test Content",
-        spinner_state="Generating... Taking longer than expected",
-        emoji="⏳"
-    )
-    out = buf.getvalue()
-    assert "Taking longer than expected" in out
-    assert "⏳" in out
