@@ -1,70 +1,107 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-  <h2 class="mb-3">🤖 Agent Creator</h2>
-  <p class="text-muted">Create custom AI agent personas with Python code validation</p>
+<style>
+  .ac-wrap { max-width: 1200px; margin: 1.5rem auto; padding: 0 1rem; }
+  .ac-head { margin-bottom: 1rem; }
+  .ac-grid { display:grid; grid-template-columns: minmax(340px, 1fr) 1.3fr; gap:1rem; align-items:start; }
+  @media (max-width: 900px) { .ac-grid { grid-template-columns: 1fr; } }
+  .ac-code-card { position: sticky; top: 1rem; }
+  .ac-code-card .card-body { min-height: calc(100vh - 240px); display:flex; flex-direction:column; padding:0; }
+  #codeContainer { flex:1; display:flex; flex-direction:column; }
+  #codeContainer > pre { flex:1; margin:0; overflow:auto; border:none; border-radius:0 0 12px 12px; }
+  .ac-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#94a3b8; padding:2rem; }
+  .ac-empty .fa-code { font-size:2.5rem; opacity:.3; margin-bottom:.75rem; }
+  .ac-skeleton { width:100%; max-width:300px; margin-top:1.5rem; }
+  .ac-skeleton div { height:8px; background:#64748b; border-radius:4px; margin:8px 0; opacity:.16; }
+  .ac-skeleton div:nth-child(2){ width:70%; } .ac-skeleton div:nth-child(4){ width:55%; }
+  .ac-skeleton div:nth-child(5){ width:80%; }
+  #validationResults { padding:1rem; border-top:1px solid #2b3140; }
+</style>
+<div class="ac-wrap">
+  <div class="ac-head">
+    <h2 style="margin:0;">🤖 Agent Creator</h2>
+    <div class="os-meta">Create custom AI agent personas with Python code validation</div>
+  </div>
 
-  <div class="row">
+  <div class="ac-grid">
     <!-- Agent Form -->
-    <div class="col-md-6">
+    <div>
       <div class="card">
-        <div class="card-header">
-          <h5>Agent Configuration</h5>
-        </div>
+        <div class="card-header">Agent Configuration</div>
         <div class="card-body">
           <form id="agentForm">
             {% csrf_token %}
-            <div class="mb-3">
-              <label for="agentName" class="form-label">Agent Name *</label>
-              <input type="text" class="form-control" id="agentName" name="name" required>
+            <div class="accordion mb-3" id="agentAccordion">
+              <!-- Identity -->
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#acc-identity">Identity</button>
+                </h2>
+                <div id="acc-identity" class="accordion-collapse collapse show">
+                  <div class="accordion-body">
+                    <div class="mb-3">
+                      <label for="agentName" class="form-label">Agent Name *</label>
+                      <input type="text" class="form-control" id="agentName" name="name" required>
+                    </div>
+                    <div class="mb-0">
+                      <label for="agentDescription" class="form-label">Description *</label>
+                      <textarea class="form-control" id="agentDescription" name="description" rows="3" required></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Persona (optional traits — collapsed to reduce clutter) -->
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#acc-persona">Persona <span class="os-meta ms-2">optional</span></button>
+                </h2>
+                <div id="acc-persona" class="accordion-collapse collapse">
+                  <div class="accordion-body">
+                    <div class="mb-3">
+                      <label for="personality" class="form-label">Personality</label>
+                      <select class="form-select" id="personality" name="personality">
+                        {% for option in form_data.personality_options %}<option value="{{ option }}">{{ option|title }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-3">
+                      <label for="expertise" class="form-label">Areas of Expertise</label>
+                      <select class="form-select" id="expertise" name="expertise" multiple>
+                        {% for option in form_data.expertise_options %}<option value="{{ option }}">{{ option|title }}</option>{% endfor %}
+                      </select>
+                      <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+                    </div>
+                    <div class="mb-0">
+                      <label for="communicationStyle" class="form-label">Communication Style</label>
+                      <select class="form-select" id="communicationStyle" name="communication_style">
+                        {% for option in form_data.communication_options %}<option value="{{ option }}">{{ option|title }}</option>{% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Behavior -->
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#acc-behavior">Behavior</button>
+                </h2>
+                <div id="acc-behavior" class="accordion-collapse collapse show">
+                  <div class="accordion-body">
+                    <div class="mb-3">
+                      <label for="instructions" class="form-label">Special Instructions *</label>
+                      <textarea class="form-control" id="instructions" name="instructions" rows="4"
+                                placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
+                    </div>
+                    <div class="mb-0">
+                      <label for="tags" class="form-label">Tags</label>
+                      <input type="text" class="form-control" id="tags" name="tags"
+                             placeholder="custom, helpful, coding (comma-separated)">
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <div class="mb-3">
-              <label for="agentDescription" class="form-label">Description *</label>
-              <textarea class="form-control" id="agentDescription" name="description" rows="3" required></textarea>
-            </div>
-            
-            <div class="mb-3">
-              <label for="personality" class="form-label">Personality</label>
-              <select class="form-select" id="personality" name="personality">
-                {% for option in form_data.personality_options %}
-                <option value="{{ option }}">{{ option|title }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            <div class="mb-3">
-              <label for="expertise" class="form-label">Areas of Expertise</label>
-              <select class="form-select" id="expertise" name="expertise" multiple>
-                {% for option in form_data.expertise_options %}
-                <option value="{{ option }}">{{ option|title }}</option>
-                {% endfor %}
-              </select>
-              <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
-            </div>
-            
-            <div class="mb-3">
-              <label for="communicationStyle" class="form-label">Communication Style</label>
-              <select class="form-select" id="communicationStyle" name="communication_style">
-                {% for option in form_data.communication_options %}
-                <option value="{{ option }}">{{ option|title }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            <div class="mb-3">
-              <label for="instructions" class="form-label">Special Instructions *</label>
-              <textarea class="form-control" id="instructions" name="instructions" rows="4" 
-                        placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
-            </div>
-            
-            <div class="mb-3">
-              <label for="tags" class="form-label">Tags</label>
-              <input type="text" class="form-control" id="tags" name="tags" 
-                     placeholder="custom, helpful, coding (comma-separated)">
-            </div>
-            
+
             <div class="d-grid gap-2">
               <button type="button" class="btn btn-primary" onclick="generateAgentCode()">
                 🔧 Generate Agent Code
@@ -79,31 +116,32 @@
     </div>
 
     <!-- Code Preview -->
-    <div class="col-md-6">
-      <div class="card">
+    <div>
+      <div class="card ac-code-card">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h5>Generated Code</h5>
-          <div>
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateCode()" id="validateBtn" disabled>
+          <span>Generated Code</span>
+          <div class="ta-actions">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateCode()" id="validateBtn" title="Generate code first" disabled>
               ✅ Validate
             </button>
-            <button type="button" class="btn btn-sm btn-success" onclick="saveAgent()" id="saveBtn" disabled>
+            <button type="button" class="btn btn-sm btn-success" onclick="saveAgent()" id="saveBtn" title="Generate &amp; validate first" disabled>
               💾 Save Agent
             </button>
           </div>
         </div>
         <div class="card-body">
           <div id="codeContainer">
-            <div class="text-muted text-center p-4">
-              <i class="fas fa-code fa-3x mb-3"></i>
-              <p>Fill out the form and click "Generate Agent Code" to see the Python blueprint code.</p>
+            <div class="ac-empty">
+              <i class="fas fa-code"></i>
+              <p style="margin:0;">No code generated yet</p>
+              <div class="os-meta">Fill out the form and click <strong>Generate Agent Code</strong> — the Python blueprint will appear here.</div>
+              <div class="ac-skeleton"><div></div><div></div><div></div><div></div><div></div></div>
             </div>
           </div>
-          
+
           <!-- Validation Results -->
           <div id="validationResults" style="display: none;">
-            <hr>
-            <h6>Validation Results</h6>
+            <h6 style="margin:0 0 .5rem;">Validation Results</h6>
             <div id="validationContent"></div>
           </div>
         </div>
@@ -182,6 +220,7 @@ function generateAgentCode() {
 function displayCode(code) {
     const container = document.getElementById('codeContainer');
     container.innerHTML = `<pre><code class="language-python">${escapeHtml(code)}</code></pre>`;
+    if (window.Prism) Prism.highlightElement(container.querySelector('code'));
 }
 
 function displayValidation(validation) {
@@ -302,9 +341,11 @@ function saveAgent() {
 function clearForm() {
     document.getElementById('agentForm').reset();
     document.getElementById('codeContainer').innerHTML = `
-        <div class="text-muted text-center p-4">
-            <i class="fas fa-code fa-3x mb-3"></i>
-            <p>Fill out the form and click "Generate Agent Code" to see the Python blueprint code.</p>
+        <div class="ac-empty">
+            <i class="fas fa-code"></i>
+            <p style="margin:0;">No code generated yet</p>
+            <div class="os-meta">Fill out the form and click <strong>Generate Agent Code</strong> — the Python blueprint will appear here.</div>
+            <div class="ac-skeleton"><div></div><div></div><div></div><div></div><div></div></div>
         </div>
     `;
     document.getElementById('validationResults').style.display = 'none';

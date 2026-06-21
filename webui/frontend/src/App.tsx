@@ -15,8 +15,10 @@ import { AuthProvider, useAuth } from './lib/AuthContext'
 const THEME_STORAGE_KEY = 'swarm_theme'
 
 function App() {
+  // Default to dark so the SPA matches the dark server-rendered (Django) pages;
+  // only stay light if the user has explicitly chosen it.
   const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
+    () => localStorage.getItem(THEME_STORAGE_KEY) !== 'light'
   )
 
   useEffect(() => {

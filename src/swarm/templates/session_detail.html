@@ -1,30 +1,30 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .sd-wrap { max-width:980px; margin:1.5rem auto; padding:0 1rem; color:#cbd5e1; }
-  .sd-wrap a { color:#93c5fd; }
-  .sd-id { font-family:ui-monospace,monospace; color:#93c5fd; }
-  .sd-meta { color:#94a3b8; font-size:.85rem; }
-  .sd-section { background:#1b1f29; border:1px solid #2b3140; border-radius:12px; padding:1rem 1.15rem; margin:1rem 0; }
-  .sd-section h4 { margin:.1rem 0 .8rem; font-size:.95rem; color:#e2e8f0; }
-  pre.sd-out { white-space:pre-wrap; word-break:break-word; background:#0f1219; border:1px solid #2b3140;
-               border-radius:8px; padding:.8rem; color:#e2e8f0; font-size:.88rem; }
-  .badge-status { font-size:.72rem; padding:.22rem .55rem; border-radius:6px; text-transform:uppercase; }
-  .st-completed{background:#14532d;color:#86efac;} .st-failed{background:#4c1d1d;color:#fca5a5;}
-  .st-in_progress,.st-queued{background:#1e3a5f;color:#93c5fd;} .st-cancelled,.st-unknown{background:#3b3b3b;color:#d1d5db;}
+  /* colors reference the shared --os-* tokens (rest_mode_style.css); the
+     .badge-status/.st-* status pills live globally there and are NOT
+     re-declared here (deduped). Semantic node/result colors stay literal. */
+  .sd-wrap { max-width:980px; margin:1.5rem auto; padding:0 1rem; color:var(--os-text); }
+  .sd-wrap a { color:var(--os-link); }
+  .sd-id { font-family:ui-monospace,monospace; color:var(--os-link); }
+  .sd-meta { color:var(--os-muted); font-size:.85rem; }
+  .sd-section { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:1rem 1.15rem; margin:1rem 0; }
+  .sd-section h4 { margin:.1rem 0 .8rem; font-size:.95rem; color:var(--os-text-strong); }
+  pre.sd-out { white-space:pre-wrap; word-break:break-word; background:var(--os-well); border:1px solid var(--os-border);
+               border-radius:8px; padding:.8rem; color:var(--os-text-strong); font-size:.88rem; }
   /* delegation timeline */
   .tl { list-style:none; margin:0; padding:0; position:relative; }
-  .tl:before { content:''; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:#2b3140; }
+  .tl:before { content:''; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:var(--os-border); }
   .tl li { position:relative; padding:.1rem 0 .9rem 1.6rem; }
   .tl .node { position:absolute; left:0; top:.25rem; width:16px; height:16px; border-radius:50%;
-              border:3px solid #0f1219; }
+              border:3px solid var(--os-well); }
   .node.completed{background:#22c55e;} .node.failed{background:#ef4444;}
-  .node.in_progress{background:#3b82f6;} .node.queued{background:#64748b;}
-  .tl .role { font-weight:600; color:#e2e8f0; } .tl .model { color:#94a3b8; font-size:.8rem; }
-  .tl .task { color:#cbd5e1; font-size:.88rem; margin:.15rem 0; }
+  .node.in_progress{background:var(--os-accent);} .node.queued{background:#64748b;}
+  .tl .role { font-weight:600; color:var(--os-text-strong); } .tl .model { color:var(--os-muted); font-size:.8rem; }
+  .tl .task { color:var(--os-text); font-size:.88rem; margin:.15rem 0; }
   .tl .result { color:#a7f3d0; font-size:.85rem; } .tl .error { color:#fca5a5; font-size:.85rem; }
-  .msg { border-left:3px solid #2b3140; padding:.2rem .7rem; margin:.4rem 0; }
-  .msg .role { color:#94a3b8; font-size:.78rem; text-transform:uppercase; }
+  .msg { border-left:3px solid var(--os-border); padding:.2rem .7rem; margin:.4rem 0; }
+  .msg .role { color:var(--os-muted); font-size:.78rem; text-transform:uppercase; }
   #agent-graph { overflow-x:auto; }
   @media (max-width:640px){
     .sd-wrap { margin:1rem auto; }
@@ -45,46 +45,54 @@
     {% if session.usage %}&nbsp;&middot;&nbsp; {{ session.usage.total_tokens }} tokens{% endif %}
   </div>
 
-  {% if delegations %}
-  <div class="sd-section">
-    <h4>🕸 Inter-agent communication graph</h4>
-    {{ delegations|json_script:"deleg-data" }}
-    <div id="agent-graph" style="overflow-x:auto;"></div>
-    <div class="sd-meta" style="margin-top:.4rem;">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
-  </div>
+  <ul class="nav nav-tabs" role="tablist">
+    {% if delegations %}
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sd-graph" type="button">🕸 Graph</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
+    {% endif %}
+    <li class="nav-item"><button class="nav-link {% if not delegations %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sd-output" type="button">Output</button></li>
+    {% if messages %}
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-transcript" type="button">Transcript <span class="sd-meta">{{ messages|length }}</span></button></li>
+    {% endif %}
+  </ul>
 
-  <div class="sd-section">
-    <h4>⛓ Delegation timeline ({{ delegations|length }})</h4>
-    <ul class="tl">
-      {% for d in delegations %}
-        <li>
-          <span class="node {{ d.status }}"></span>
-          <span class="role">{{ d.role }}</span>
-          {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
-          <span class="badge-status st-{{ d.status }}" style="margin-left:.4rem;">{{ d.status }}</span>
-          {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
-          {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
-          {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}
-        </li>
+  <div class="tab-content">
+    {% if delegations %}
+    <div class="tab-pane fade show active" id="sd-graph" role="tabpanel">
+      {{ delegations|json_script:"deleg-data" }}
+      <div id="agent-graph" style="overflow-x:auto;"></div>
+      <div class="sd-meta" style="margin-top:.4rem;">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
+    </div>
+    <div class="tab-pane fade" id="sd-timeline" role="tabpanel">
+      <ul class="tl">
+        {% for d in delegations %}
+          <li>
+            <span class="node {{ d.status }}"></span>
+            <span class="role">{{ d.role }}</span>
+            {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
+            <span class="badge-status st-{{ d.status }}" style="margin-left:.4rem;">{{ d.status }}</span>
+            {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
+            {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
+            {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="tab-pane fade {% if not delegations %}show active{% endif %}" id="sd-output" role="tabpanel">
+      <pre class="sd-out">{{ session.output_text|default:'(no output yet)' }}</pre>
+      {% if session.error %}<div class="error">Error: {{ session.error.message }}</div>{% endif %}
+    </div>
+
+    {% if messages %}
+    <div class="tab-pane fade" id="sd-transcript" role="tabpanel">
+      {% for m in messages %}
+        <div class="msg"><div class="role">{{ m.role }}</div><div>{{ m.content }}</div></div>
       {% endfor %}
-    </ul>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
-
-  <div class="sd-section">
-    <h4>Output</h4>
-    <pre class="sd-out">{{ session.output_text|default:'(no output yet)' }}</pre>
-    {% if session.error %}<div class="error">Error: {{ session.error.message }}</div>{% endif %}
-  </div>
-
-  {% if messages %}
-  <div class="sd-section">
-    <h4>Transcript</h4>
-    {% for m in messages %}
-      <div class="msg"><div class="role">{{ m.role }}</div><div>{{ m.content }}</div></div>
-    {% endfor %}
-  </div>
-  {% endif %}
 </div>
 
 <script>

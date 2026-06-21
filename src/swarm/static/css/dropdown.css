@@ -1,25 +1,54 @@
 /* Blueprint selector dropdown styling.
    Scoped to .blueprint-select so it does not restyle Bootstrap navbar
    dropdowns (li.nav-item.dropdown), which previously rendered as empty
-   white boxes with invisible white-on-white labels. */
+   white boxes with invisible white-on-white labels.
+
+   This is the global "Select a Blueprint" quick-launch control that base.html
+   renders above every page's content. It used to be a full-width WHITE band
+   (background:#fff; width:100%) that clashed with the dark theme on every page.
+   Now it's a compact, unobtrusive dark control aligned with the design tokens. */
 .blueprint-select.dropdown {
-    width: 100%;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 0.25rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: inline-block;
+    width: auto;
+    margin: 0.75rem 0 0 0.75rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* the trigger button picks up the dark .btn-outline-secondary look */
+.blueprint-select .dropdown-toggle {
+    background: var(--os-panel, #1b1f29);
+    color: var(--os-muted, #94a3b8);
+    border: 1px solid var(--os-border, #2b3140);
+    border-radius: var(--os-radius-sm, 8px);
+    font-size: 0.875rem;
+    padding: 0.35rem 0.85rem;
+}
+.blueprint-select .dropdown-toggle:hover,
+.blueprint-select .dropdown-toggle:focus {
+    background: var(--os-panel-2, #161a22);
+    color: var(--os-text-strong, #e2e8f0);
+    border-color: var(--os-border, #2b3140);
+}
+
+.blueprint-select .dropdown-menu {
+    background: var(--os-panel, #1b1f29);
+    border: 1px solid var(--os-border, #2b3140);
 }
 
 .blueprint-select .dropdown-item {
     padding: 0.5rem 1rem;
     cursor: pointer;
+    color: var(--os-text, #cbd5e1);
 }
 
 .blueprint-select .dropdown-item:hover {
-    background: #f0f0f0;
+    background: var(--os-panel-2, #161a22);
+    color: var(--os-text-strong, #e2e8f0);
 }
 
 .blueprint-select .dropdown-description {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--os-muted, #94a3b8);
 }
