@@ -101,8 +101,11 @@ input[type="password"], input[type="email"], input[type="number"] {
 .form-select option { background: var(--os-panel); color: var(--os-text-strong); }
 
 /* ---- buttons ------------------------------------------------------------ */
-.btn-primary { background: var(--os-accent); border-color: var(--os-accent); }
-.btn-primary:hover, .btn-primary:focus { background: var(--os-accent-hi); border-color: var(--os-accent-hi); }
+/* btn-primary bg darkened from --os-accent (#3b82f6) to --os-accent-hi (#2563eb):
+   white text on #3b82f6 is only 3.68:1 (fails WCAG AA); on #2563eb it's 5.17:1.
+   The lighter --os-accent stays for links/borders/focus-ring (not white-on-accent). */
+.btn-primary { background: var(--os-accent-hi); border-color: var(--os-accent-hi); color: #fff; }
+.btn-primary:hover, .btn-primary:focus { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .btn-outline-secondary { color: var(--os-muted); border-color: var(--os-border); }
 .btn-outline-secondary:hover { background: var(--os-border); color: var(--os-text-strong); }
 .btn-outline-primary { color: var(--os-link); border-color: var(--os-accent); }
