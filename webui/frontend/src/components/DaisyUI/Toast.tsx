@@ -155,8 +155,9 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
       <button
         className="btn btn-sm btn-ghost btn-circle ml-2"
         onClick={() => removeToast(toast.id)}
+        aria-label="Dismiss notification"
       >
-        <X className="h-4 w-4" />
+        <X className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   );
