@@ -118,14 +118,26 @@
     <div class="tab-content" id="categoryTabContent">
         <!-- All Blueprints Tab -->
         <div class="tab-pane fade show active" id="all" role="tabpanel">
-            <div class="row">
+            <!-- Live name search over the local blueprints -->
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                <div class="position-relative" style="flex:1 1 320px; max-width:440px;">
+                    <i class="fas fa-search position-absolute text-muted" style="left:.85rem; top:50%; transform:translateY(-50%);"></i>
+                    <input type="text" id="bpSearch" class="form-control ps-5" placeholder="Search blueprints by name…" autocomplete="off" oninput="filterBlueprints()">
+                </div>
+                <span class="os-meta" id="bpSearchCount"></span>
+            </div>
+            <div class="row" id="allBlueprintsGrid">
                 {% for category_id, blueprints in blueprints_by_category.items %}
                     {% for blueprint in blueprints %}
-                    <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="col-lg-4 col-md-6 mb-4 bp-grid-item" data-bp-name="{{ blueprint.name|lower }}">
                         {% include "blueprint_card.html" with blueprint=blueprint %}
                     </div>
                     {% endfor %}
                 {% endfor %}
+            </div>
+            <div id="bpSearchEmpty" class="os-empty" style="display:none;">
+                <div class="os-empty-icon"><i class="fas fa-magnifying-glass"></i></div>
+                No blueprints match your search.
             </div>
         </div>
 
@@ -187,6 +199,28 @@
 </div>
 
 <script>
+// Live client-side filter over the "All Blueprints" grid (by name).
+function filterBlueprints() {
+    const input = document.getElementById('bpSearch');
+    if (!input) return;
+    const q = input.value.trim().toLowerCase();
+    const items = document.querySelectorAll('#allBlueprintsGrid .bp-grid-item');
+    let shown = 0;
+    items.forEach(el => {
+        const match = !q || (el.dataset.bpName || '').includes(q);
+        el.style.display = match ? '' : 'none';
+        if (match) shown++;
+    });
+    const countEl = document.getElementById('bpSearchCount');
+    if (countEl) countEl.textContent = q
+        ? shown + ' match' + (shown === 1 ? '' : 'es')
+        : items.length + ' blueprints';
+    const emptyEl = document.getElementById('bpSearchEmpty');
+    if (emptyEl) emptyEl.style.display = (q && shown === 0) ? '' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', filterBlueprints);
+
 document.addEventListener('DOMContentLoaded', function() {
     // Fetch MCP compliance for all blueprints and update badges
     fetch('/blueprint-library/requirements/')
