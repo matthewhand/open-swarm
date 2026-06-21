@@ -29,6 +29,14 @@ interface ChatMessage {
   streaming: boolean
 }
 
+/** Starter prompts shown on the empty chat to give users a way in. */
+const SUGGESTED_PROMPTS = [
+  'Summarize this repository’s architecture',
+  'Write unit tests for a Python function',
+  'Plan a multi-step refactor and list the risks',
+  'Explain how MCP servers extend an agent',
+]
+
 const ChatPage = () => {
   // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
   const [searchParams] = useSearchParams()
@@ -281,12 +289,26 @@ const ChatPage = () => {
                 </p>
                 <p className="text-sm text-base-content/70">
                   {status === 'open'
-                    ? 'Send a message below to start the conversation.'
+                    ? 'Send a message below, or try one of these:'
                     : status === 'connecting'
                       ? 'Hang tight — this usually takes a moment.'
                       : 'No messages yet — reconnect to start chatting.'}
                 </p>
               </div>
+              {status === 'open' && (
+                <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-xl">
+                  {SUGGESTED_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => setInput(prompt)}
+                      className="btn btn-sm btn-outline rounded-full normal-case font-normal"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             messages.map((message) => (
