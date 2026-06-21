@@ -3,6 +3,16 @@
 {% block title %}My Blueprints - Open Swarm{% endblock %}
 
 {% block content %}
+<style>
+  /* #8: hide the redundant global "Select a Blueprint" quick-launch toolbar on
+     this page — the header's Browse Library / Create New cover the same intent. */
+  .blueprint-select { display: none !important; }
+  /* #2: dashed "create new" ghost card so a near-empty grid isn't a lonely sliver. */
+  .bp-ghost-card { border: 1.5px dashed var(--os-border); background: transparent;
+    display: flex; align-items: center; justify-content: center; color: var(--os-muted);
+    text-decoration: none; transition: border-color .12s ease, color .12s ease; }
+  .bp-ghost-card:hover { border-color: var(--os-accent); color: var(--os-accent); transform: none; }
+</style>
 <div class="container-fluid mt-4">
     <!-- Header -->
     <div class="row mb-4">
@@ -189,6 +199,15 @@
                     </div>
                 </div>
                 {% endfor %}
+                <!-- Add-another ghost card so the row fills out and invites creation -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <a href="{% url 'blueprint_creator' %}" class="card blueprint-runner-card bp-ghost-card h-100 text-center p-4">
+                        <span>
+                            <i class="fas fa-plus fa-2x d-block mb-2"></i>
+                            Create a new blueprint
+                        </span>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
