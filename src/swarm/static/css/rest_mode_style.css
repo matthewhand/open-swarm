@@ -155,6 +155,20 @@ input[type="password"], input[type="email"], input[type="number"] {
   border-radius: 0 0 var(--os-radius) var(--os-radius); padding: 1rem 1.15rem;
 }
 
+/* ---- stat cards: muted dark panels with a colored accent ---------------- *
+ * Replaces loud full-saturation Bootstrap fills (bg-primary/success/info/
+ * warning text-white) so the dashboard stat tiles fit the dark palette while
+ * keeping per-stat colour coding (colour moves to the number, icon, and a thin
+ * left border instead of flooding the whole card). */
+.os-stat { background: var(--os-panel); border: 1px solid var(--os-border); border-left-width: 3px; }
+.os-stat .card-title { color: var(--os-muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.os-stat h3 { font-weight: 700; }
+.os-stat .fa-2x { opacity: .9 !important; }
+.os-stat-blue  { border-left-color: #3b82f6; } .os-stat-blue  h3, .os-stat-blue  .fa-2x { color: #60a5fa; }
+.os-stat-green { border-left-color: #22c55e; } .os-stat-green h3, .os-stat-green .fa-2x { color: #4ade80; }
+.os-stat-cyan  { border-left-color: #06b6d4; } .os-stat-cyan  h3, .os-stat-cyan  .fa-2x { color: #22d3ee; }
+.os-stat-amber { border-left-color: #f59e0b; } .os-stat-amber h3, .os-stat-amber .fa-2x { color: #fbbf24; }
+
 /* ---- list groups -------------------------------------------------------- */
 .list-group-item {
   background: var(--os-panel);
