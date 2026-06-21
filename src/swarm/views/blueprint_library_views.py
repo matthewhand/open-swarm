@@ -225,6 +225,10 @@ def blueprint_library(request):
         context = {
             "blueprints_by_category": blueprints_by_category,
             "categories": BLUEPRINT_CATEGORIES,
+            # total_available is the blueprint count; the template used to show
+            # blueprints_by_category|length here, which is the CATEGORY count.
+            "total_available": len(blueprint_data),
+            "category_count": len(blueprints_by_category),
             "installed_count": len(installed_blueprints),
             "custom_count": len(custom_blueprints),
             "dark_mode": request.session.get('dark_mode', True),
