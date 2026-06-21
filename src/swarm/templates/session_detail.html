@@ -1,30 +1,30 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .sd-wrap { max-width:980px; margin:1.5rem auto; padding:0 1rem; color:#cbd5e1; }
-  .sd-wrap a { color:#93c5fd; }
-  .sd-id { font-family:ui-monospace,monospace; color:#93c5fd; }
-  .sd-meta { color:#94a3b8; font-size:.85rem; }
-  .sd-section { background:#1b1f29; border:1px solid #2b3140; border-radius:12px; padding:1rem 1.15rem; margin:1rem 0; }
-  .sd-section h4 { margin:.1rem 0 .8rem; font-size:.95rem; color:#e2e8f0; }
-  pre.sd-out { white-space:pre-wrap; word-break:break-word; background:#0f1219; border:1px solid #2b3140;
-               border-radius:8px; padding:.8rem; color:#e2e8f0; font-size:.88rem; }
-  .badge-status { font-size:.72rem; padding:.22rem .55rem; border-radius:6px; text-transform:uppercase; }
-  .st-completed{background:#14532d;color:#86efac;} .st-failed{background:#4c1d1d;color:#fca5a5;}
-  .st-in_progress,.st-queued{background:#1e3a5f;color:#93c5fd;} .st-cancelled,.st-unknown{background:#3b3b3b;color:#d1d5db;}
+  /* colors reference the shared --os-* tokens (rest_mode_style.css); the
+     .badge-status/.st-* status pills live globally there and are NOT
+     re-declared here (deduped). Semantic node/result colors stay literal. */
+  .sd-wrap { max-width:980px; margin:1.5rem auto; padding:0 1rem; color:var(--os-text); }
+  .sd-wrap a { color:var(--os-link); }
+  .sd-id { font-family:ui-monospace,monospace; color:var(--os-link); }
+  .sd-meta { color:var(--os-muted); font-size:.85rem; }
+  .sd-section { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:1rem 1.15rem; margin:1rem 0; }
+  .sd-section h4 { margin:.1rem 0 .8rem; font-size:.95rem; color:var(--os-text-strong); }
+  pre.sd-out { white-space:pre-wrap; word-break:break-word; background:var(--os-well); border:1px solid var(--os-border);
+               border-radius:8px; padding:.8rem; color:var(--os-text-strong); font-size:.88rem; }
   /* delegation timeline */
   .tl { list-style:none; margin:0; padding:0; position:relative; }
-  .tl:before { content:''; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:#2b3140; }
+  .tl:before { content:''; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:var(--os-border); }
   .tl li { position:relative; padding:.1rem 0 .9rem 1.6rem; }
   .tl .node { position:absolute; left:0; top:.25rem; width:16px; height:16px; border-radius:50%;
-              border:3px solid #0f1219; }
+              border:3px solid var(--os-well); }
   .node.completed{background:#22c55e;} .node.failed{background:#ef4444;}
-  .node.in_progress{background:#3b82f6;} .node.queued{background:#64748b;}
-  .tl .role { font-weight:600; color:#e2e8f0; } .tl .model { color:#94a3b8; font-size:.8rem; }
-  .tl .task { color:#cbd5e1; font-size:.88rem; margin:.15rem 0; }
+  .node.in_progress{background:var(--os-accent);} .node.queued{background:#64748b;}
+  .tl .role { font-weight:600; color:var(--os-text-strong); } .tl .model { color:var(--os-muted); font-size:.8rem; }
+  .tl .task { color:var(--os-text); font-size:.88rem; margin:.15rem 0; }
   .tl .result { color:#a7f3d0; font-size:.85rem; } .tl .error { color:#fca5a5; font-size:.85rem; }
-  .msg { border-left:3px solid #2b3140; padding:.2rem .7rem; margin:.4rem 0; }
-  .msg .role { color:#94a3b8; font-size:.78rem; text-transform:uppercase; }
+  .msg { border-left:3px solid var(--os-border); padding:.2rem .7rem; margin:.4rem 0; }
+  .msg .role { color:var(--os-muted); font-size:.78rem; text-transform:uppercase; }
   #agent-graph { overflow-x:auto; }
   @media (max-width:640px){
     .sd-wrap { margin:1rem auto; }
