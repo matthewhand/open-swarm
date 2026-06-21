@@ -505,13 +505,15 @@
   text-transform: uppercase;
 }
 
-.type-string { background: #e3f2fd; color: #1976d2; }
-.type-boolean { background: #f3e5f5; color: #7b1fa2; }
-.type-integer { background: #e8f5e8; color: #388e3c; }
-.type-list { background: #fff3e0; color: #f57c00; }
-.type-object { background: #fce4ec; color: #c2185b; }
-.type-path { background: #f1f8e9; color: #689f38; }
-.type-error { background: #ffebee; color: #d32f2f; }
+/* dark-tinted type tags (were light pastel chips that failed WCAG AA on the dark
+   table — colored text on a light bg; now light colored text on a dark tint, all >=8:1) */
+.type-string { background: #0f2942; color: #93c5fd; }
+.type-boolean { background: #2a1a3a; color: #d8b4fe; }
+.type-integer { background: #0f2a1a; color: #86efac; }
+.type-list { background: #2e2410; color: #fcd34d; }
+.type-object { background: #3a1426; color: #f9a8d4; }
+.type-path { background: #0f2a20; color: #a7f3d0; }
+.type-error { background: #3a1620; color: #fca5a5; }
 
 .category-badge {
   background: var(--os-panel-2);
