@@ -73,60 +73,62 @@ def mock_swarm_config(tmp_path):
 class TestIndexView:
     """Tests for the index page view."""
 
+    # _ensure_frontend_built is forced to None in each test so we exercise the
+    # real Django-template fallback (index.html) instead of the SPA build, and
+    # assert on the ACTUAL rendered HTML rather than a mocked-away render().
+
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
-    @patch("swarm.views.web_views.render")
-    def test_index_success(self, mock_render, mock_discover, mock_frontend, client, mock_blueprints_metadata):
-        """Test index page renders with discovered blueprints (template fallback path).
-
-        _ensure_frontend_built is forced to None so the test exercises the
-        Django-template fallback regardless of whether webui/frontend/dist
-        exists on disk.
-        """
+    def test_index_success(self, mock_discover, mock_frontend, client, mock_blueprints_metadata):
+        """Index renders the real fallback template using discovered blueprints."""
         mock_discover.return_value = mock_blueprints_metadata
-        mock_render.return_value = HttpResponse(status=200)
 
         response = client.get("/")
 
-        # Verify discover_blueprints was called
         mock_discover.assert_called_once()
-        # Verify render was called with correct context
-        assert mock_render.called
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Conversations" in content            # real template header
+        assert "New Conversation" in content          # CTA appears when blueprints exist
 
+    @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
-    @patch("swarm.views.web_views.render")
-    def test_index_with_blueprints(self, mock_render, mock_discover, client, mock_blueprints_metadata):
-        """Test index page context contains blueprints."""
+    def test_index_with_blueprints(self, mock_discover, mock_frontend, client, mock_blueprints_metadata):
+        """With blueprints present, the New Conversation CTA is rendered."""
         mock_discover.return_value = mock_blueprints_metadata
-        mock_render.return_value = HttpResponse(status=200)
 
         response = client.get("/")
 
-        # Response should be successful
         assert response.status_code == 200
+        content = response.content.decode()
+        assert "Conversations" in content
+        assert "New Conversation" in content
 
+    @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
-    @patch("swarm.views.web_views.render")
-    def test_index_empty_blueprints(self, mock_render, mock_discover, client):
-        """Test index page handles empty blueprint list."""
+    def test_index_empty_blueprints(self, mock_discover, mock_frontend, client):
+        """With no blueprints, the page warns instead of showing the CTA."""
         mock_discover.return_value = {}
-        mock_render.return_value = HttpResponse(status=200)
 
         response = client.get("/")
 
         assert response.status_code == 200
+        content = response.content.decode()
+        assert "Conversations" in content
+        assert "No blueprints available" in content
 
+    @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
-    @patch("swarm.views.web_views.render")
-    def test_index_discovery_error(self, mock_render, mock_discover, client):
-        """Test index page handles discovery errors gracefully."""
+    def test_index_discovery_error(self, mock_discover, mock_frontend, client):
+        """A discovery error is swallowed; the page still renders with no blueprints."""
         mock_discover.side_effect = Exception("Discovery failed")
-        mock_render.return_value = HttpResponse(status=200)
 
         response = client.get("/")
 
-        # Should still render, but with empty blueprints
         assert response.status_code == 200
+        content = response.content.decode()
+        assert "Conversations" in content
+        assert "No blueprints available" in content
 
 
 # =============================================================================
