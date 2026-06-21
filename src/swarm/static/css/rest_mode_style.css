@@ -155,6 +155,17 @@ input[type="password"], input[type="email"], input[type="number"] {
   border-radius: 0 0 var(--os-radius) var(--os-radius); padding: 1rem 1.15rem;
 }
 
+/* ---- list groups -------------------------------------------------------- */
+.list-group-item {
+  background: var(--os-panel);
+  border-color: var(--os-border);
+  color: var(--os-text);
+}
+.list-group-item-action:hover, .list-group-item-action:focus {
+  background: var(--os-panel-2);
+  color: var(--os-text-strong);
+}
+
 /* ---- dropdown menus (overflow / "…" actions) --------------------------- */
 .dropdown-menu { background: var(--os-panel); border: 1px solid var(--os-border); }
 .dropdown-item { color: var(--os-text); }
