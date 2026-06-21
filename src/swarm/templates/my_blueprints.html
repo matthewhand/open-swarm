@@ -87,35 +87,34 @@
                 {% for blueprint in installed_blueprints %}
                 <div class="col-lg-4 col-md-6 mb-4">
                     <div class="card blueprint-runner-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-start">
-                            <div>
-                                <h5 class="card-title mb-1">{{ blueprint.name }}</h5>
-                                <small class="text-muted">{{ blueprint.category_info.name }}</small>
-                            </div>
-                            <span class="badge bg-success">Installed</span>
-                        </div>
-                        
                         <div class="card-body d-flex flex-column">
-                            <p class="card-text flex-grow-1">{{ blueprint.description }}</p>
-                            
-                            <!-- Quick Actions -->
-                            <div class="mt-auto">
-                                <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-run-blueprint" 
-                                            data-blueprint-id="{{ blueprint.id }}"
-                                            data-blueprint-name="{{ blueprint.name }}">
-                                        <i class="fas fa-play me-1"></i>Run Blueprint
+                            <!-- Identity: icon + name + category + status -->
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <div class="bp-icon-badge"><i class="fas fa-robot"></i></div>
+                                <div class="flex-grow-1 min-w-0">
+                                    <h6 class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</h6>
+                                    <small class="text-muted">{{ blueprint.category_info.name }}</small>
+                                </div>
+                                <span class="badge badge-status st-completed">Installed</span>
+                            </div>
+
+                            <p class="card-text bp-desc flex-grow-1">{{ blueprint.description }}</p>
+
+                            <!-- One primary action + an overflow menu for the rest -->
+                            <div class="mt-auto d-flex gap-2">
+                                <button class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
+                                        data-blueprint-id="{{ blueprint.id }}"
+                                        data-blueprint-name="{{ blueprint.name }}">
+                                    <i class="fas fa-play me-1"></i>Run
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
+                                        <i class="fas fa-ellipsis-h"></i>
                                     </button>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary" 
-                                                onclick="previewBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-eye"></i> Preview
-                                        </button>
-                                        <button class="btn btn-outline-danger" 
-                                                onclick="removeBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-trash"></i> Remove
-                                        </button>
-                                    </div>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" type="button" onclick="previewBlueprint('{{ blueprint.id }}')"><i class="fas fa-eye me-2"></i>Preview</button></li>
+                                        <li><button class="dropdown-item text-danger" type="button" onclick="if (confirm('Remove {{ blueprint.name|escapejs }} from your library?')) removeBlueprint('{{ blueprint.id }}')"><i class="fas fa-trash me-2"></i>Remove</button></li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
@@ -138,48 +137,48 @@
                 {% for blueprint in custom_blueprints %}
                 <div class="col-lg-4 col-md-6 mb-4">
                     <div class="card blueprint-runner-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-start">
-                            <div>
-                                <h5 class="card-title mb-1">{{ blueprint.name }}</h5>
-                                <small class="text-muted">{{ blueprint.category }}</small>
-                            </div>
-                            <span class="badge bg-info">Custom</span>
-                        </div>
-                        
                         <div class="card-body d-flex flex-column">
-                            <p class="card-text flex-grow-1">{{ blueprint.description }}</p>
-                            
+                            <!-- Identity: icon + name + category + status -->
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <div class="bp-icon-badge"><i class="fas fa-wand-magic-sparkles"></i></div>
+                                <div class="flex-grow-1 min-w-0">
+                                    <h6 class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</h6>
+                                    <small class="text-muted">{{ blueprint.category }}</small>
+                                </div>
+                                <span class="badge badge-status st-in_progress">Custom</span>
+                            </div>
+
+                            <p class="card-text bp-desc flex-grow-1">{{ blueprint.description }}</p>
+
                             {% if blueprint.tags %}
-                            <div class="mb-3">
+                            <div class="mb-2">
                                 {% for tag in blueprint.tags %}
-                                <span class="badge bg-light text-dark me-1">{{ tag }}</span>
+                                <span class="bp-tag">#{{ tag }}</span>
                                 {% endfor %}
                             </div>
                             {% endif %}
-                            
-                            <!-- Quick Actions -->
-                            <div class="mt-auto">
-                                <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-run-blueprint" 
-                                            data-blueprint-id="{{ blueprint.id }}"
-                                            data-blueprint-name="{{ blueprint.name }}"
-                                            data-blueprint-code="{{ blueprint.code|escape }}">
-                                        <i class="fas fa-play me-1"></i>Run Blueprint
+
+                            <!-- One primary action + an overflow menu for the rest -->
+                            <div class="mt-auto d-flex gap-2">
+                                <button class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
+                                        data-blueprint-id="{{ blueprint.id }}"
+                                        data-blueprint-name="{{ blueprint.name }}"
+                                        data-blueprint-code="{{ blueprint.code|escape }}">
+                                    <i class="fas fa-play me-1"></i>Run
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
+                                        <i class="fas fa-ellipsis-h"></i>
                                     </button>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary" 
-                                                onclick="editBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-edit"></i> Edit
-                                        </button>
-                                        <button class="btn btn-outline-danger" 
-                                                onclick="deleteBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </div>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" type="button" onclick="editBlueprint('{{ blueprint.id }}')"><i class="fas fa-edit me-2"></i>Edit</button></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><button class="dropdown-item text-danger" type="button" onclick="if (confirm('Delete {{ blueprint.name|escapejs }}? This cannot be undone.')) deleteBlueprint('{{ blueprint.id }}')"><i class="fas fa-trash me-2"></i>Delete</button></li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
-                        
+
                         {% if blueprint.created_display %}
                         <div class="card-footer">
                             <small class="text-muted">
