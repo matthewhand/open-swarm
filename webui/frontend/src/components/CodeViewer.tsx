@@ -1,6 +1,7 @@
-import CodeMirror from '@uiw/react-codemirror'
+// EditorView is re-exported by @uiw/react-codemirror; import it from there so we
+// don't depend on the undeclared @codemirror/view package directly (build break).
+import CodeMirror, { EditorView } from '@uiw/react-codemirror'
 import { python } from '@codemirror/lang-python'
-import { EditorView } from '@codemirror/view'
 
 // Give CodeMirror's editable region (.cm-content, role=textbox) an accessible
 // name so screen readers announce it (axe: aria-input-field-name).
