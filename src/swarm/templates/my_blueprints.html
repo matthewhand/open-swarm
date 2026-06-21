@@ -36,6 +36,7 @@
         </div>
     </div>
 
+    <h2 class="visually-hidden">Library overview</h2>
     <!-- Stats: 3 meaningful tiles (counts computed in the view; the old 4th
          "Ready to Run" duplicated Total, and Total used a broken |add: chain). -->
     <div class="row mb-4">
@@ -102,7 +103,7 @@
                             <div class="d-flex align-items-start gap-2 mb-2">
                                 <div class="bp-icon-badge"><i class="fas fa-robot"></i></div>
                                 <div class="flex-grow-1 min-w-0">
-                                    <h6 class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</h6>
+                                    <div class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</div>
                                     <small class="text-muted">{{ blueprint.category_info.name }}</small>
                                 </div>
                                 <span class="badge badge-status st-completed">Installed</span>
@@ -152,7 +153,7 @@
                             <div class="d-flex align-items-start gap-2 mb-2">
                                 <div class="bp-icon-badge"><i class="fas fa-wand-magic-sparkles"></i></div>
                                 <div class="flex-grow-1 min-w-0">
-                                    <h6 class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</h6>
+                                    <div class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</div>
                                     <small class="text-muted">{{ blueprint.category }}</small>
                                 </div>
                                 <span class="badge badge-status st-in_progress">Custom</span>
