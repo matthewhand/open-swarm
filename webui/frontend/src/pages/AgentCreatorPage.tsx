@@ -399,11 +399,17 @@ const AgentCreatorPageContent = () => {
             {customBlueprints.map((blueprint) => (
               <Card key={blueprint.id} bordered className="hover:shadow-lg transition-shadow">
                 <div className="card-body">
-                  <div className="flex justify-between items-start gap-2 mb-1">
-                    <h3 className="card-title font-mono text-lg">{blueprint.id}</h3>
-                    <Badge type="info" size="sm">
-                      {blueprint.category}
-                    </Badge>
+                  <div className="flex items-start gap-3 mb-2">
+                    <div className="flex-none h-10 w-10 rounded-full bg-base-200 border border-base-300 flex items-center justify-center text-base-content/60">
+                      <Wand2 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="card-title font-mono text-base truncate" title={blueprint.id}>
+                        {blueprint.id}
+                      </h3>
+                      <span className="text-xs text-base-content/60">{blueprint.category}</span>
+                    </div>
+                    <Badge type="info" size="sm">Custom</Badge>
                   </div>
                   <p className="text-sm text-base-content/70 mb-2">
                     {blueprint.description || 'No description provided.'}
