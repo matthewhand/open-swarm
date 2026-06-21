@@ -33,6 +33,19 @@ body {
   color: var(--os-text);
 }
 main { min-height: calc(100vh - 56px); }
+
+/* ---- keyboard focus: a visible ring on every interactive element ---------
+ * Only fires for keyboard focus (:focus-visible), so mouse clicks don't get a
+ * ring but Tab navigation is clearly tracked — was missing entirely. */
+a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, summary:focus-visible,
+[tabindex]:focus-visible, .dropdown-item:focus-visible, .nav-link:focus-visible,
+.page-link:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--os-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 a { color: var(--os-link); }
 a:hover { color: #bfdbfe; }
 h1, h2, h3, h4, h5, h6 { color: var(--os-text-strong); }

@@ -121,8 +121,8 @@
             <!-- Live name search over the local blueprints -->
             <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
                 <div class="position-relative" style="flex:1 1 320px; max-width:440px;">
-                    <i class="fas fa-search position-absolute text-muted" style="left:.85rem; top:50%; transform:translateY(-50%);"></i>
-                    <input type="text" id="bpSearch" class="form-control ps-5" placeholder="Search blueprints by name…" autocomplete="off" oninput="filterBlueprints()">
+                    <i class="fas fa-search position-absolute text-muted" aria-hidden="true" style="left:.85rem; top:50%; transform:translateY(-50%);"></i>
+                    <input type="text" id="bpSearch" class="form-control ps-5" placeholder="Search blueprints by name…" aria-label="Search blueprints by name" autocomplete="off" oninput="filterBlueprints()">
                 </div>
                 <span class="os-meta" id="bpSearchCount"></span>
             </div>
@@ -160,7 +160,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <input type="text" id="ghSearch" class="form-control" placeholder="Search by name..." style="min-width: 240px; display: inline-block;">
-                    <button class="btn btn-outline-primary ms-2" onclick="loadGithubMarketplace()"><i class="fas fa-search"></i></button>
+                    <button class="btn btn-outline-primary ms-2" onclick="loadGithubMarketplace()" aria-label="Search GitHub marketplace"><i class="fas fa-search" aria-hidden="true"></i></button>
                 </div>
                 <div>
                     <select id="ghType" class="form-select form-select-sm me-2" style="width: 190px; display: inline-block;">
@@ -191,7 +191,7 @@
         <div class="toast-header">
             <i class="fas fa-info-circle me-2"></i>
             <strong class="me-auto">Notification</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="toast"></button>
         </div>
         <div class="toast-body" id="toastMessage">
         </div>

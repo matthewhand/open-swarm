@@ -365,7 +365,7 @@ function showMessage(message, type) {
     const alertClass = `alert-${type}`;
     container.innerHTML = `<div class="alert ${alertClass} alert-dismissible fade show" role="alert">
         ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="alert"></button>
     </div>`;
 }
 

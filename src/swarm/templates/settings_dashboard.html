@@ -122,8 +122,8 @@
                     <div class="path-value">
                       <code>{{ setting.value|default:"Not Set" }}</code>
                       {% if setting.value and setting.value != 'Not Set' %}
-                        <button class="btn btn-sm btn-outline-secondary" onclick="checkPath('{{ setting.value }}')">
-                          <i class="fas fa-folder-open"></i>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="checkPath('{{ setting.value }}')" aria-label="Check path exists">
+                          <i class="fas fa-folder-open" aria-hidden="true"></i>
                         </button>
                       {% endif %}
                     </div>
@@ -146,8 +146,8 @@
               <div class="col-env">
                 {% if setting.env_var %}
                   <code class="env-var">{{ setting.env_var }}</code>
-                  <button class="btn btn-sm btn-outline-secondary" onclick="copyEnvVar('{{ setting.env_var }}')">
-                    <i class="fas fa-copy"></i>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="copyEnvVar('{{ setting.env_var }}')" aria-label="Copy environment variable name">
+                    <i class="fas fa-copy" aria-hidden="true"></i>
                   </button>
                 {% else %}
                   <span class="no-env">Config file</span>
@@ -176,7 +176,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Object Viewer</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <pre id="objectContent"><code class="language-json"></code></pre>
@@ -197,7 +197,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Environment Variables</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div id="envContent">Loading...</div>
@@ -652,8 +652,8 @@ async function viewEnvironment() {
           <div class="env-item">
             <div class="env-key">${key}</div>
             <div class="env-value"><code>${value}</code></div>
-            <button class="btn btn-sm btn-outline-secondary" onclick="copyEnvVar('${key}')">
-              <i class="fas fa-copy"></i>
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyEnvVar('${key}')" aria-label="Copy environment variable name">
+              <i class="fas fa-copy" aria-hidden="true"></i>
             </button>
           </div>
         `;
@@ -689,7 +689,7 @@ function showToast(message, type = 'info') {
   toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
   toast.innerHTML = `
     ${message}
-    <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+    <button type="button" class="btn-close" aria-label="Close" onclick="this.parentElement.remove()"></button>
   `;
   
   document.body.appendChild(toast);
