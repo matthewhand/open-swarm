@@ -142,7 +142,7 @@ def validate_config(config: dict[str, Any]):
         raise ValueError(
             "Config 'llm' section missing/malformed. "
             + _hint("Use: swarm-cli config add --section llm --name default --json "
-                    "'{\"provider\":\"openai\",\"model\":\"gpt-4o\",\"api_key\":\"${OPENAI_API_KEY}\"}'")
+                    "'{\"provider\":\"openai\",\"model\":\"qwen3.5\",\"base_url\":\"${LITELLM_BASE_URL}\",\"api_key\":\"${LITELLM_API_KEY}\"}'")
         )
     for name, prof in config.get("llm", {}).items():
         if not isinstance(prof, dict):
@@ -167,10 +167,10 @@ def create_default_config(config_path: Path):
         "llm": {
             "default": {
                 "provider": "openai",
-                "model": "gpt-4o",
-                "api_key": "${OPENAI_API_KEY}",
-                "base_url": None,
-                "description": "Default OpenAI profile. Requires OPENAI_API_KEY env var."
+                "model": "qwen3.5",
+                "api_key": "${LITELLM_API_KEY}",
+                "base_url": "${LITELLM_BASE_URL}",
+                "description": "Default profile via the OpenAI-compatible gateway. Set LITELLM_BASE_URL/LITELLM_API_KEY/LITELLM_MODEL in .env."
             },
             "ollama_example": {
                 "provider": "ollama",
@@ -191,8 +191,8 @@ def create_default_config(config_path: Path):
         logger.debug("Default configuration file created successfully.")
         # Emit a friendly post-create hint to guide the user
         logger.warning(
-            _hint("Set your API key: export OPENAI_API_KEY=sk-... "
-                  "or save to secrets file: echo 'OPENAI_API_KEY=sk-...' >> ~/.config/swarm/.env")
+            _hint("Set your gateway env: export LITELLM_BASE_URL=... LITELLM_API_KEY=... "
+                  "or save to secrets file: echo 'LITELLM_API_KEY=...' >> ~/.config/swarm/.env")
         )
     except Exception as e:
         logger.error(f"Failed to create default config file at {config_path}: {e}", exc_info=True)

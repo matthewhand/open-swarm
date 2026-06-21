@@ -34,8 +34,8 @@ async def test_cli_persona_reports_failure_without_raising():
 
 
 def test_cli_persona_tool_name_is_safe_identifier():
-    ask = cli_persona(_echo("gpt-4o cli"))
-    assert ask.__name__ == "ask_gpt_4o_cli"
+    ask = cli_persona(_echo("qwen3.5 cli"))
+    assert ask.__name__ == "ask_qwen3_5_cli"
 
 
 async def test_consensus_fn_returns_judged_answer():

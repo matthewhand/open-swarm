@@ -234,9 +234,9 @@ def build_starter_config(installed: list[str] | None = None) -> dict[str, Any]:
         "llm": {
             "default": {
                 "provider": "openai",
-                "model": "gpt-4o",
-                "base_url": "https://api.openai.com/v1",
-                "api_key": "${OPENAI_API_KEY}",
+                "model": "qwen3.5",
+                "base_url": "${LITELLM_BASE_URL}",
+                "api_key": "${LITELLM_API_KEY}",
             }
         },
         "cli_agents": agents,

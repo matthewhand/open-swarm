@@ -134,7 +134,7 @@ class StewieBlueprint(BlueprintBase):
             logger.critical(f"LLM profile '{profile_name}' (or 'default') not found in config. llm_config keys: {list(llm_config.keys())}")
             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
         # Use OpenAI client config from env (already set by framework)
-        model_name = profile_data.get("model", os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo")
+        model_name = profile_data.get("model", os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5")
         base_url = os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
         api_key = os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         client_cache_key = f"{base_url}:{api_key}"
@@ -237,7 +237,7 @@ class StewieBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5"
         try:
             for chunk in Runner.run(agent, instruction):
                 yield chunk

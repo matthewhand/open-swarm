@@ -45,7 +45,7 @@ def mock_registry():
         "ops-team": {
             "id": "ops-team",
             "description": "Operations crew",
-            "llm_profile": "gpt-4o",
+            "llm_profile": "qwen3.5",
         },
     }
 

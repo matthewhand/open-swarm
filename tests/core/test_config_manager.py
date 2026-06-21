@@ -435,8 +435,8 @@ class TestLLMProfileCRUD:
         responses = iter([
             "test_profile",  # LLM name
             "openai",        # provider
-            "gpt-4o",        # model
-            "https://api.openai.com",  # base_url
+            "qwen3.5",       # model
+            "http://localhost:1234/v1",  # base_url
             "TEST_API_KEY",  # api_key env var
             "0.5",           # temperature
             "done"           # finish
@@ -454,7 +454,7 @@ class TestLLMProfileCRUD:
         config = load_config(config_file)
         assert "test_profile" in config["llm"]
         assert config["llm"]["test_profile"]["provider"] == "openai"
-        assert config["llm"]["test_profile"]["model"] == "gpt-4o"
+        assert config["llm"]["test_profile"]["model"] == "qwen3.5"
         assert config["llm"]["test_profile"]["api_key"] == "${TEST_API_KEY}"
         assert config["llm"]["test_profile"]["temperature"] == 0.5
 
@@ -515,8 +515,8 @@ class TestLLMProfileCRUD:
         responses = iter([
             "test_profile",  # LLM name
             "openai",        # provider
-            "gpt-4o",        # model
-            "https://api.openai.com",  # base_url
+            "qwen3.5",       # model
+            "http://localhost:1234/v1",  # base_url
             "TEST_API_KEY",  # api_key env var
             "invalid",       # invalid temperature
             "done"           # finish

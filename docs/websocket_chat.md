@@ -34,8 +34,9 @@ Notes:
 - Connections require an **authenticated Django session** (the consumer
   closes anonymous connections) and an `Origin` header matching
   `ALLOWED_HOSTS`.
-- The consumer streams completions from `OPENAI_API_KEY` / `OPENAI_MODEL`
-  (optionally `LITELLM_BASE_URL`/`OPENAI_BASE_URL`).
+- The consumer streams completions using the configured gateway
+  (`LITELLM_BASE_URL`) with `LITELLM_API_KEY` / `OPENAI_MODEL`
+  (`OPENAI_API_KEY`/`OPENAI_BASE_URL` are honoured as a fallback).
 - Frames are HTMx-style HTML partials (`websocket_partials/*.html`); the SPA
   parses the same frames.
 - No channel layer is required (the consumer never uses group sends), so

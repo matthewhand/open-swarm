@@ -2,6 +2,7 @@
 Settings Manager for Open Swarm
 Handles collection and management of all configuration settings
 """
+import os
 from typing import Any
 
 from django.conf import settings
@@ -299,11 +300,27 @@ class SettingsManager:
 
             # Environment variables for common LLM providers
             env_llm_settings = {
+                'LITELLM_API_KEY': {
+                    'value': '***SET***' if os.environ.get('LITELLM_API_KEY') else 'Not Set',
+                    'env_var': 'LITELLM_API_KEY',
+                    'type': 'string',
+                    'description': 'LiteLLM/OpenAI-compatible gateway API key',
+                    'category': 'api_key',
+                    'sensitive': True
+                },
+                'LITELLM_BASE_URL': {
+                    'value': '***SET***' if os.environ.get('LITELLM_BASE_URL') else 'Not Set',
+                    'env_var': 'LITELLM_BASE_URL',
+                    'type': 'string',
+                    'description': 'LiteLLM/OpenAI-compatible gateway base URL',
+                    'category': 'endpoint',
+                    'sensitive': True
+                },
                 'OPENAI_API_KEY': {
                     'value': '***SET***' if get_openai_api_key() else 'Not Set',
                     'env_var': 'OPENAI_API_KEY',
                     'type': 'string',
-                    'description': 'OpenAI API key',
+                    'description': 'OpenAI-compatible API key (fallback)',
                     'category': 'api_key',
                     'sensitive': True
                 },

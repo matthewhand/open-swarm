@@ -184,8 +184,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=error_html)
 
     async def respond_with_default_model(self, contents_div_id):
-        """Legacy reply path: server-configured model via the OpenAI client."""
-        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        """Legacy reply path: server-configured model via the OpenAI-compatible client."""
+        client = AsyncOpenAI(
+            api_key=os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL"),
+        )
 
         # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
         import logging

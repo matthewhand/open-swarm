@@ -73,7 +73,7 @@ If you want to expose blueprints over an OpenAI-compatible REST API:
 1) Prepare environment
 ```bash
 cp .env.example .env
-# Ensure OPENAI_API_KEY (and optional SWARM_API_KEY) are set in .env
+# Ensure LITELLM_API_KEY (and optional SWARM_API_KEY) are set in .env
 ```
 
 2) Start the API
@@ -109,11 +109,11 @@ Notes:
 
 Before using LLM-powered agents, you must provide credentials.
 
-### a. Add an OpenAI API Key (simplest case)
+### a. Add a gateway API key (simplest case)
 ```bash
 swarm-cli llm add --provider openai --api-key sk-... 
 ```
-- This saves your API key to `~/.config/swarm/.env` as `OPENAI_API_KEY`.
+- This saves your API key to `~/.config/swarm/.env` as `LITELLM_API_KEY`.
 
 ### b. Use a Custom Endpoint or Model
 ```bash
@@ -172,8 +172,8 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 - Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
 - Edit it directly (it's plain JSON), then add an `llm` profile like:
   ```jsonc
-  {"llm": {"openai_default": {"provider": "openai", "model": "gpt-4o",
-    "base_url": "https://api.openai.com/v1", "api_key": "${OPENAI_API_KEY}"}}}
+  {"llm": {"openai_default": {"provider": "openai", "model": "qwen3.5",
+    "base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}}}
   ```
 - For the agentic CLIs, generate the `cli_agents` block from what's installed:
   `swarm-cli cli-agents --init --write`.

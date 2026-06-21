@@ -4,15 +4,15 @@
 
         "default": {
             "provider": "openai",
-            "model": "gpt-4o",
-            "base_url": "https://api.openai.com/v1",
-            "api_key": "${OPENAI_API_KEY}"
+            "model": "qwen3.5",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}"
         },
         "reason": {
             "provider": "openai",
-            "model": "o3-mini",
-            "base_url": "https://api.openai.com/v1",
-            "api_key": "${OPENAI_API_KEY}",
+            "model": "qwen3.5",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
             "reasoning_effort": "high"
         },
         "classify": {
@@ -46,21 +46,21 @@
             "base_url": "https://api.groq.com/openai/v1",
             "api_key": "${GROQ_API_KEY}"
         },
-        "gpt-4o": {
+        "qwen3.5": {
             "provider": "openai",
-            "model": "gpt-4o",
-            "base_url": "https://api.openai.com/v1",
-            "api_key": "${OPENAI_API_KEY}",
+            "model": "qwen3.5",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
             "cost": 0.5,
             "speed": 0.5,
             "intelligence": 0.5,
             "temperature": 0.1
         },
-        "gpt-3.5-turbo-instruct": {
+        "qwen3.5-instruct": {
             "provider": "openai",
-            "model": "gpt-3.5-turbo-instruct",
-            "base_url": "https://api.openai.com/v1",
-            "api_key": "${OPENAI_API_KEY}",
+            "model": "qwen3.5-instruct",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
             "cost": 0.1,
             "speed": 0.8,
             "intelligence": 0.2,

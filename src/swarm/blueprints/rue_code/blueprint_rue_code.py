@@ -247,8 +247,7 @@ def llm_cost_tool(model: str, prompt_tokens: int, completion_tokens: int = 0, co
 llm_cost_tool_fn = function_tool(llm_cost_tool, strict_mode=False)  # config:dict param needs relaxed schema
 
 # --- RueCodeBlueprint Definition ---
-# === OpenAI GPT-4.1 Prompt Engineering Guide ===
-# See: https://github.com/openai/openai-cookbook/blob/main/examples/gpt4-1_prompting_guide.ipynb
+# === Prompt Engineering Guide ===
 #
 # Agentic System Prompt Example (recommended for code generation/repair agents):
 SYS_PROMPT_AGENTIC = """
@@ -362,7 +361,7 @@ class RueCodeBlueprint(BlueprintBase):
         self.spinner.start()
         prompt_tokens = len(rendered_prompt) // 4
         completion_tokens = 64
-        model = self._config.get('llm', {}).get('default', {}).get('model', 'gpt-3.5-turbo')
+        model = self._config.get('llm', {}).get('default', {}).get('model', 'qwen3.5')
         cost_str = llm_cost_tool(model, prompt_tokens, completion_tokens, self._config)
         code_results = ["def foo(): ...", "def bar(): ..."]
         semantic_results = ["This function sorts a list.", "This function calculates a sum."]

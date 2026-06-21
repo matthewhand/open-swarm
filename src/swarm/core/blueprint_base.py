@@ -249,21 +249,21 @@ class BlueprintBase(ABC):
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
                         with open(legacy_config) as f:
                             self._config = json.load(f)
-                    # 5. Fallback: OPENAI_API_KEY envvar
-                    elif os.environ.get("OPENAI_API_KEY"):
-                        print("[SWARM_CONFIG_DEBUG] No config file found, using OPENAI_API_KEY from env.")
+                    # 5. Fallback: gateway env (LITELLM_API_KEY, else OPENAI_API_KEY)
+                    elif os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+                        print("[SWARM_CONFIG_DEBUG] No config file found, using LITELLM_API_KEY/OPENAI_API_KEY from env.")
                         self._config = {
-                            "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.environ["OPENAI_API_KEY"]}},
+                            "llm": {"default": {"provider": "openai", "model": os.environ.get("LITELLM_MODEL") or "qwen3.5", "base_url": os.environ.get("LITELLM_BASE_URL"), "api_key": os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")}},
                             "settings": {"default_llm_profile": "default", "default_markdown_output": True},
                             "blueprints": {},
                             "llm_profile": "default",
                             "mcpServers": {}
                         }
-                        logger.info("No config file found, using default config with OPENAI_API_KEY for CLI mode.")
+                        logger.info("No config file found, using env-based default config for CLI mode.")
                     else:
-                        print("[SWARM_CONFIG_DEBUG] No config file found and OPENAI_API_KEY is not set. Using empty config.")
+                        print("[SWARM_CONFIG_DEBUG] No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config.")
                         self._config = {}
-                        logger.warning("No config file found and OPENAI_API_KEY is not set. Using empty config. CLI blueprints may fail if LLM config is required.")
+                        logger.warning("No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config. CLI blueprints may fail if LLM config is required.")
                 if self._config is not None:
                     self._config = _substitute_env_vars(self._config)
             # Ensure self._config is always a dict
@@ -393,21 +393,21 @@ class BlueprintBase(ABC):
                             print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
                             with open(legacy_config) as f:
                                 self._config = json.load(f)
-                        # 5. Fallback: OPENAI_API_KEY envvar
-                        elif os.environ.get("OPENAI_API_KEY"):
-                            print("[SWARM_CONFIG_DEBUG] No config file found, using OPENAI_API_KEY from env.")
+                        # 5. Fallback: gateway env (LITELLM_API_KEY, else OPENAI_API_KEY)
+                        elif os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+                            print("[SWARM_CONFIG_DEBUG] No config file found, using LITELLM_API_KEY/OPENAI_API_KEY from env.")
                             self._config = {
-                                "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.environ["OPENAI_API_KEY"]}},
+                                "llm": {"default": {"provider": "openai", "model": os.environ.get("LITELLM_MODEL") or "qwen3.5", "base_url": os.environ.get("LITELLM_BASE_URL"), "api_key": os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")}},
                                 "settings": {"default_llm_profile": "default", "default_markdown_output": True},
                                 "blueprints": {},
                                 "llm_profile": "default",
                                 "mcpServers": {}
                             }
-                            logger.info("No config file found, using default config with OPENAI_API_KEY for CLI mode.")
+                            logger.info("No config file found, using env-based default config for CLI mode.")
                         else:
-                            print("[SWARM_CONFIG_DEBUG] No config file found and OPENAI_API_KEY is not set. Using empty config.")
+                            print("[SWARM_CONFIG_DEBUG] No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config.")
                             self._config = {}
-                            logger.warning("No config file found and OPENAI_API_KEY is not set. Using empty config. CLI blueprints may fail if LLM config is required.")
+                            logger.warning("No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config. CLI blueprints may fail if LLM config is required.")
                         if self._config is not None:
                             self._config = _substitute_env_vars(self._config)
             # Ensure self._config is always a dict

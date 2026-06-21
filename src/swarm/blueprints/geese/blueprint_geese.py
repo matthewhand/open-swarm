@@ -127,10 +127,11 @@ class GeeseBlueprint(BlueprintBase):
         agent_assignments = kwargs.pop("agent_mcp_assignments", {})
         super().__init__(blueprint_id, config=config, **kwargs)
         from agents import Agent
-        # --- Setup OpenAI LLM Model ---
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
-        openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
-        llm_model_name = kwargs.get("llm_model", "o4-mini")
+        # --- Setup LLM model via the OpenAI-compatible gateway ---
+        api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+        openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url) if api_key else None
+        llm_model_name = kwargs.get("llm_model") or os.environ.get("LITELLM_MODEL") or "qwen3.5"
         llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
         # --- Create Agent instances and corresponding Tools ---
         self.planner_agent = Agent(

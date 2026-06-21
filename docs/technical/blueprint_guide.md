@@ -23,7 +23,7 @@ Located in `src/swarm/extensions/blueprint/blueprint_base.py`.
 
 ### 2. Configuration Loading (`swarm_config.json`)
 
--   **`.env` File:** For secrets (`OPENAI_API_KEY`, `BRAVE_API_KEY`, etc.).
+-   **`.env` File:** For secrets (`LITELLM_API_KEY`, `BRAVE_API_KEY`, etc.).
 -   **`swarm_config.json` (or `--config-path`):** Contains `"llm"`, `"blueprints"`, and `"mcpServers"` sections.
 -   **CLI Arguments:** `--profile`, `--config`, `--markdown`/`--no-markdown` provide overrides.
 

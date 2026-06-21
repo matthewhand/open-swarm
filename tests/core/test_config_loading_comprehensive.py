@@ -62,7 +62,7 @@ class TestConfigurationLoadingComprehensive:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({
                 "llm": {
-                    "default": {"model": "gpt-3.5-turbo", "temperature": 0.7},
+                    "default": {"model": "qwen3.5", "temperature": 0.7},
                     "test": {"model": "gpt-4", "temperature": 0.5}
                 },
                 "profiles": {
@@ -87,7 +87,7 @@ class TestConfigurationLoadingComprehensive:
             assert "default" in llm_section
             # The profile "test" should set temperature to 0.3, overriding the 0.7 in llm.default
             # But the model should remain from llm.default
-            assert llm_section["default"]["model"] == "gpt-3.5-turbo"
+            assert llm_section["default"]["model"] == "qwen3.5"
             # Depending on how the merging works, this might be 0.3 or 0.7
             # Let's just check that it's a valid float
             assert isinstance(llm_section["default"]["temperature"], (int, float))
@@ -117,7 +117,7 @@ class TestConfigurationLoadingComprehensive:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({
                 "llm": {
-                    "default": {"model": "gpt-3.5-turbo", "temperature": 0.7}
+                    "default": {"model": "qwen3.5", "temperature": 0.7}
                 },
                 "blueprints": {
                     "TestBlueprint": {

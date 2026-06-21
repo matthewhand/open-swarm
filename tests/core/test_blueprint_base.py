@@ -26,7 +26,7 @@ class TestBlueprintBase(TestCase):
             'llm': {
                 'default': {
                     'provider': 'openai',
-                    'model': 'gpt-3.5-turbo',
+                    'model': 'qwen3.5',
                     'api_key': 'test-key'
                 }
             },
@@ -124,7 +124,7 @@ class TestBlueprintBase(TestCase):
 
     def test_llm_profile_property_missing_provider(self):
         """Test llm_profile property raises error for missing provider"""
-        config = {'llm': {'default': {'model': 'gpt-3.5-turbo'}}}
+        config = {'llm': {'default': {'model': 'qwen3.5'}}}
         blueprint = ConcreteBlueprint(self.blueprint_id, config=config)
         with pytest.raises(ValueError, match="'provider' missing in LLM profile"):
             _ = blueprint.llm_profile

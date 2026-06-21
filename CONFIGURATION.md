@@ -30,7 +30,7 @@ with no environment variable. Set `SWARM_CONFIG_PATH` only when you want to poin
 at a non-standard path explicitly. (`swarm-cli` additionally does an upward
 directory search for a project-local `swarm_config.json`.)
 
-- **If missing:** Swarm generates a default config using `OPENAI_API_KEY` and the official OpenAI endpoint (with a warning).
+- **If missing:** Swarm generates a default config using `LITELLM_API_KEY` and the configured gateway (with a warning).
 
 > Paths and all environment variables (`SWARM_CONFIG_PATH`, `SWARM_RESPONSES_DIR`,
 > server/auth/feature flags, provider keys) are consolidated in one place:
@@ -43,16 +43,16 @@ directory search for a project-local `swarm_config.json`.)
 ```json
 {
   "llm": {
-    "gpt-4o": {
+    "qwen3.5": {
       "provider": "openai",
-      "model": "gpt-4o",
-      "api_key": "${OPENAI_API_KEY}",
-      "base_url": "https://api.openai.com/v1",
+      "model": "qwen3.5",
+      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${LITELLM_BASE_URL}",
       "pricing": { "prompt": 0.000005, "completion": 0.000015, "unit": "per_token" }
     },
-    "o3-mini": {
+    "minimax-m3": {
       "provider": "openrouter",
-      "model": "openrouter/o3-mini",
+      "model": "minimax-m3",
       "api_key": "${OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1",
       "pricing": { "prompt": 0.000001, "completion": 0.000002, "unit": "per_token" }
@@ -70,11 +70,11 @@ directory search for a project-local `swarm_config.json`.)
     }
   },
   "settings": {
-    "default_llm_profile": "gpt-4o"
+    "default_llm_profile": "qwen3.5"
   },
   "blueprints": {
-    "rue_code": { "default_model": "o3-mini" },
-    "geese": { "default_model": "gpt-4o" }
+    "rue_code": { "default_model": "minimax-m3" },
+    "geese": { "default_model": "qwen3.5" }
   },
   "mcpServers": {
     "main": {
@@ -95,7 +95,7 @@ directory search for a project-local `swarm_config.json`.)
 
 ## 3. Key Features
 
-- **Model Profiles by Name:** Each key under `llm` matches a model (e.g., `gpt-4o`, `o3-mini`).
+- **Model Profiles by Name:** Each key under `llm` matches a model (e.g., `qwen3.5`, `minimax-m3`).
 - **Cost Tracking:** `pricing` section per model, used for cost estimation/reporting.
 - **Environment Variables:** Use `${ENVVAR}` for any value.
 - **Per-Blueprint Model Overrides:** `blueprints` section allows each blueprint to specify a `default_model`.
@@ -104,7 +104,7 @@ directory search for a project-local `swarm_config.json`.)
 - **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 - **Fallbacks:**
   - If a requested model is not configured, the system falls back to the default and prints a warning.
-  - If config is missing, a default config is generated (uses OpenAI endpoint).
+  - If config is missing, a default config is generated (uses the configured gateway).
 
 ---
 
@@ -210,7 +210,7 @@ override per component via the `config` block (forwarded verbatim):
 "memory": {
   "backend": "mem0",
   "config": {
-    "llm":      {"provider": "openai", "config": {"model": "gpt-4o-mini", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}},
+    "llm":      {"provider": "openai", "config": {"model": "qwen3.5", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}},
     "embedder": {"provider": "openai", "config": {"model": "text-embedding-3-small", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}}
   }
 }
@@ -285,9 +285,11 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 
 ### Provider credentials & integrations
 
-Model/provider keys and service endpoints — `OPENAI_API_KEY`, `OPENAI_BASE_URL`,
-`ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`,
-`LITELLM_*`, `OLLAMA_BASE_URL`, plus MCP/tool keys (`BRAVE_API_KEY`,
+Model/provider keys and service endpoints — `LITELLM_API_KEY` /
+`LITELLM_BASE_URL` (the default OpenAI-compatible gateway), `OPENAI_API_KEY` /
+`OPENAI_BASE_URL` (fallback), `ANTHROPIC_API_KEY`,
+`GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`,
+`OLLAMA_BASE_URL`, plus MCP/tool keys (`BRAVE_API_KEY`,
 `GITHUB_TOKEN`, `QDRANT_*`, …) — are listed with inline guidance in
 [`.env.example`](./.env.example). Reference them in `swarm_config.json` via
 `${VAR}`.

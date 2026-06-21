@@ -258,7 +258,7 @@ def _try_llm_spec(seed: TeamSpec, model: str | None) -> TeamSpec | None:
             ).strip(),
         }
         resp = client.chat.completions.create(
-            model=model or os.environ.get("SWARM_WIZARD_MODEL", "gpt-4o-mini"),
+            model=model or os.environ.get("SWARM_WIZARD_MODEL") or os.environ.get("LITELLM_MODEL") or "qwen3.5",
             messages=[prompt, {"role": "user", "content": "Generate team spec JSON now."}],
             temperature=0.2,
         )

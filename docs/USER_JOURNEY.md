@@ -27,7 +27,7 @@ cd open-swarm
 uv sync --all-extras          # or: pip install -e .[dev]
 
 # Configure an LLM key for real agent runs (not needed for the tour below)
-export OPENAI_API_KEY="sk-..."
+export LITELLM_API_KEY="sk-..."
 ```
 
 This guide uses the project virtualenv directly (`.venv/bin/...`); if you use
@@ -131,7 +131,7 @@ $ SWARM_TEST_MODE=1 .venv/bin/python -m swarm.blueprints.jeeves.jeeves_cli --mes
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
-With a real key configured (`OPENAI_API_KEY` plus `swarm_config.json` LLM
+With a real key configured (`LITELLM_API_KEY` plus `swarm_config.json` LLM
 profiles), drop `SWARM_TEST_MODE` and the same commands run real agents.
 
 ## 3. Tour the web UI
@@ -296,7 +296,7 @@ error string — shown here to illustrate the envelope honestly:
 }
 ```
 
-Configure a working LLM profile (`OPENAI_API_KEY` or a local Ollama profile in
+Configure a working LLM profile (`LITELLM_API_KEY` or a local Ollama profile in
 `swarm_config.json`) and the same request returns real agent output.
 Streaming (`"stream": true`) is supported.
 

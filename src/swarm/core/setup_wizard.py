@@ -35,9 +35,9 @@ def run_setup_wizard(config_path: str, blueprints_metadata: dict[str, dict[str, 
 
         provider = {}
         provider["provider"] = input("Enter the provider identifier (e.g., 'openai', 'ollama'): ").strip()
-        provider["model"] = input("Enter the model name (e.g., 'gpt-4'): ").strip()
-        provider["base_url"] = input("Enter the base URL for the API (e.g., 'https://api.openai.com/v1'): ").strip()
-        provider["api_key"] = input("Enter the environment variable for the API key (e.g., 'OPENAI_API_KEY') [Leave empty if not required]: ").strip()
+        provider["model"] = input("Enter the model name (e.g., 'qwen3.5'): ").strip()
+        provider["base_url"] = input("Enter the base URL for the API (e.g., '${LITELLM_BASE_URL}'): ").strip()
+        provider["api_key"] = input("Enter the environment variable for the API key (e.g., 'LITELLM_API_KEY') [Leave empty if not required]: ").strip()
         temperature_input = input("Enter the temperature for the model (e.g., 0.7): ").strip()
         try:
             provider["temperature"] = float(temperature_input)

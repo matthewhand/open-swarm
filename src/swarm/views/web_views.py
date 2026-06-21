@@ -3,6 +3,7 @@ Web UI views for Open Swarm Core.
 Handles rendering index, blueprint pages, login, and serving config.
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -185,10 +186,10 @@ def custom_login(request):
 DEFAULT_CONFIG = {
     "llm": {
         "default": {
-            "provider": "openai",
-            "model": "gpt-4o", # More modern default
-            "base_url": "https://api.openai.com/v1", # Standard OpenAI endpoint
-            "api_key": "", # API key should usually come from env vars
+            "provider": "openai",  # OpenAI-compatible protocol (used to reach the local gateway)
+            "model": os.environ.get("LITELLM_MODEL") or "qwen3.5",
+            "base_url": os.environ.get("LITELLM_BASE_URL"),  # gateway endpoint from .env
+            "api_key": "",  # supplied via LITELLM_API_KEY / env vars
             "temperature": 0.7
         }
     },

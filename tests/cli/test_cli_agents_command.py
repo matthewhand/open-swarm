@@ -32,7 +32,7 @@ def _write_config(tmp_path, cli_agents):
     cfg.write_text(
         json.dumps(
             {
-                "llm": {"default": {"provider": "openai", "model": "gpt-4o", "api_key": "x"}},
+                "llm": {"default": {"provider": "openai", "model": "qwen3.5", "api_key": "x"}},
                 "cli_agents": cli_agents,
             }
         )

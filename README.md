@@ -38,7 +38,7 @@ cd open-swarm
 uv sync --all-extras          # or: pip install -e .[dev]
 
 # Configure an LLM key
-export OPENAI_API_KEY="sk-..."
+export LITELLM_API_KEY="sk-..."
 
 # List bundled blueprints
 uv run swarm-cli list
@@ -55,7 +55,7 @@ uv run swarm-cli install codey
 ## Quickstart (API server)
 
 ```bash
-cp .env.example .env          # set OPENAI_API_KEY, API_AUTH_TOKEN, DJANGO_SECRET_KEY
+cp .env.example .env          # set LITELLM_API_KEY, API_AUTH_TOKEN, DJANGO_SECRET_KEY
 docker compose up -d
 
 curl -sf http://localhost:8000/v1/models | jq .
@@ -142,9 +142,9 @@ Diagrams + sequence flows for every pattern: [docs/ORCHESTRATION_PATTERNS.md](do
   "llm": {
     "default": {
       "provider": "openai",
-      "model": "gpt-4o",
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "${OPENAI_API_KEY}"
+      "model": "qwen3.5",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}"
     },
     "local": {
       "provider": "ollama",
@@ -200,7 +200,7 @@ Set in `.env` (copy `.env.example`). Security-critical ones first:
 
 | Variable | Description | Default |
 |---|---|---|
-| `OPENAI_API_KEY` | LLM API key (or key for your OpenAI-compatible endpoint) | required for real runs |
+| `LITELLM_API_KEY` | LLM API key for the OpenAI-compatible gateway (`LITELLM_BASE_URL`). `OPENAI_API_KEY` is honoured as a fallback. | required for real runs |
 | `API_AUTH_TOKEN` | Bearer token for the REST API. **If unset, API auth is disabled** — required for any non-local deployment | unset ⚠️ |
 | `DJANGO_SECRET_KEY` | Django secret. **Required when `DJANGO_DEBUG` is not true** (server refuses to start without it) | dev-only fallback in debug |
 | `DJANGO_DEBUG` | Django debug mode — never `true` in production | `false` |

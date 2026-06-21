@@ -4,7 +4,7 @@ from swarm.serializers import ChatCompletionRequestSerializer
 
 def test_validate_messages_happy_path():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"}
@@ -16,7 +16,7 @@ def test_validate_messages_happy_path():
 
 def test_validate_messages_empty_list():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": []
     }
     serializer = ChatCompletionRequestSerializer(data=data)
@@ -30,7 +30,7 @@ def test_validate_messages_empty_list():
 
 def test_validate_messages_not_a_list():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": "not a list"
     }
     serializer = ChatCompletionRequestSerializer(data=data)
@@ -39,7 +39,7 @@ def test_validate_messages_not_a_list():
 
 def test_validate_messages_item_not_a_dict():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": ["not a dict"]
     }
     serializer = ChatCompletionRequestSerializer(data=data)
@@ -52,7 +52,7 @@ def test_validate_messages_item_not_a_dict():
 
 def test_validate_messages_invalid_content_type():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": [
             {"role": "user", "content": 123}
         ]
@@ -65,7 +65,7 @@ def test_validate_messages_invalid_content_type():
 
 def test_validate_messages_multiple_errors():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": [
             "not a dict",
             {"role": "user", "content": 123},
@@ -84,7 +84,7 @@ def test_validate_messages_multiple_errors():
 
 def test_validate_messages_null_content_is_allowed():
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "qwen3.5",
         "messages": [
             {"role": "assistant", "content": None}
         ]

@@ -150,8 +150,7 @@ def execute_shell_command_tool(command: str) -> str:
     return execute_shell_command(command)
 
 # --- Define the Blueprint ---
-# === OpenAI GPT-4.1 Prompt Engineering Guide ===
-# See: https://github.com/openai/openai-cookbook/blob/main/examples/gpt4-1_prompting_guide.ipynb
+# === Prompt Engineering Guide ===
 #
 # Agentic System Prompt Example (recommended for structured output/suggestion agents):
 SYS_PROMPT_AGENTIC = """
@@ -230,7 +229,7 @@ class SuggestionBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo"
+        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5"
         try:
             result = await Runner.run(agent, instruction)
             yield {
@@ -261,13 +260,13 @@ class SuggestionBlueprint(BlueprintBase):
             import os
 
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-            api_key = os.environ.get("OPENAI_API_KEY")
+            api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
             if not api_key:
-                raise ValueError("No OPENAI_API_KEY found and config not loaded")
-            logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
+                raise ValueError("No LITELLM_API_KEY/OPENAI_API_KEY found and config not loaded")
+            logger.warning(f"Config not available, using env-based fallback model for {profile_name}")
             from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=api_key)
-            model_instance = OpenAIChatCompletionsModel(model="gpt-4o-mini", openai_client=client)
+            client = AsyncOpenAI(api_key=api_key, base_url=os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"))
+            model_instance = OpenAIChatCompletionsModel(model=os.environ.get("LITELLM_MODEL") or "qwen3.5", openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
         if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")

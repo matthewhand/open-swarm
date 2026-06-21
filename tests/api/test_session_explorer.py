@@ -47,7 +47,7 @@ def test_session_explorer_list_view(client, store):
 @pytest.mark.django_db
 def test_session_detail_view_shows_delegations(client, store):
     _save("resp_d", progress=[
-        {"role": "agent", "status": "completed", "result": "coded", "model_used": "gpt-4o"},
+        {"role": "agent", "status": "completed", "result": "coded", "model_used": "qwen3.5"},
         {"role": "auxiliary", "status": "failed", "error": "boom"},
     ])
     resp = client.get(reverse("session-detail", kwargs={"response_id": "resp_d"}))

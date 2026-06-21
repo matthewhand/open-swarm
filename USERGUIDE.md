@@ -200,10 +200,10 @@ overrides both.
     "llm": {
         "default": {
             "provider": "openai",
-            "model": "gpt-4o",
-            "base_url": "https://api.openai.com/v1",
-            "api_key": "${OPENAI_API_KEY}",
-            "description": "Default OpenAI profile. Requires OPENAI_API_KEY env var."
+            "model": "qwen3.5",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
+            "description": "Default profile (OpenAI-compatible gateway). Requires LITELLM_API_KEY env var."
         },
         "ollama_example": {
             "provider": "ollama",
@@ -226,7 +226,7 @@ overrides both.
 }
 ```
 
-**Important:** placeholders like `${OPENAI_API_KEY}` are substituted from the
+**Important:** placeholders like `${LITELLM_API_KEY}` are substituted from the
 environment at load time. You **must** set the corresponding environment
 variables — `export` them or put them in a `.env` file in your working
 directory.
@@ -263,7 +263,7 @@ See [CONFIGURATION.md](./CONFIGURATION.md) for the full configuration guide
     *   Verify your `swarm_config.json` exists (working directory or
         `~/.config/swarm/`) and is valid JSON.
     *   Ensure environment variables referenced in the config (like
-        `OPENAI_API_KEY`) are set in your current shell session.
+        `LITELLM_API_KEY`) are set in your current shell session.
 *   **Permissions:** ensure you have read/write permission for the XDG
     directories (`~/.config/swarm`, `~/.local/share/swarm`,
     `~/.cache/swarm`).
