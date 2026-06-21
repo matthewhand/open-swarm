@@ -63,14 +63,18 @@ function App() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <label className="btn btn-ghost btn-sm btn-circle swap swap-rotate" aria-label="Toggle dark mode">
+                    <label
+                      className="btn btn-ghost btn-sm btn-circle swap swap-rotate"
+                      aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+                    >
                       <input
                         type="checkbox"
                         checked={darkMode}
                         onChange={() => setDarkMode(!darkMode)}
+                        aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
                       />
-                      <Sun className="swap-on h-5 w-5" />
-                      <Moon className="swap-off h-5 w-5" />
+                      <Sun className="swap-on h-5 w-5" aria-hidden="true" />
+                      <Moon className="swap-off h-5 w-5" aria-hidden="true" />
                     </label>
                     <Link to="/settings" className="btn btn-ghost btn-sm" aria-label="Settings">
                       <Settings className="h-5 w-5" />
