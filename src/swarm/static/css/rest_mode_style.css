@@ -107,6 +107,10 @@ input[type="password"], input[type="email"], input[type="number"] {
 .btn-outline-secondary:hover { background: var(--os-border); color: var(--os-text-strong); }
 .btn-outline-primary { color: var(--os-link); border-color: var(--os-accent); }
 .btn-outline-primary:hover { background: var(--os-accent); color: #fff; }
+/* Bootstrap's outline-success green (#198754) is only 3.6:1 on the dark panel
+   (fails WCAG AA). Use the app's brighter green for the text/border. */
+.btn-outline-success { color: #4ade80; border-color: #2ea66f; }
+.btn-outline-success:hover, .btn-outline-success:focus { background: #2ea66f; border-color: #2ea66f; color: #0f1219; }
 
 /* ---- tables ------------------------------------------------------------- */
 .table { color: var(--os-text); border-color: var(--os-border); }
