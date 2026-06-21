@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Bot,
   CheckCircle2,
+  Plus,
   Save,
   ShieldCheck,
   Sparkles,
@@ -431,6 +432,17 @@ const AgentCreatorPageContent = () => {
                 </div>
               </Card>
             ))}
+            {/* Ghost card: fills out the grid and invites creating another agent */}
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="card border-2 border-dashed border-base-300 bg-transparent text-base-content/60 hover:border-primary hover:text-primary transition-colors flex items-center justify-center min-h-[180px]"
+            >
+              <div className="text-center">
+                <Plus className="h-8 w-8 mx-auto mb-2" />
+                <span className="font-medium">Create a new agent</span>
+              </div>
+            </button>
           </div>
         )}
       </div>
