@@ -8,6 +8,10 @@ BIN ?= $(HOME)/.local/share/swarm/bin
 .PHONY: help dev test list-installed list-available build build-shim build-all-shims build-all-executables launch uninstall build-pyinstaller build-all-pyinstaller
 
 COMPOSE ?= docker compose
+# Host-coupled CLI mapping (gitignored). Auto-included by `make dev` when present
+# so the agentic CLIs (claude/opencode/qwen/grok) are mapped into the dev container;
+# a no-op on hosts without it. dev.yml stays LAST so its !override ports win.
+DEV_OVERRIDE := $(wildcard docker-compose.override.yml)
 
 help:
 	@echo "Open-Swarm Makefile"
@@ -37,7 +41,7 @@ help:
 # Bind-mounts the source via docker-compose.dev.yml; publishes host :8002 so it
 # coexists with the native :8001 service. Ctrl-C to stop.
 dev:
-	$(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up --build
+	$(COMPOSE) -f docker-compose.yml $(if $(DEV_OVERRIDE),-f $(DEV_OVERRIDE)) -f docker-compose.dev.yml up --build
 
 test:
 	$(PY) python scripts/run_tests.py -q
