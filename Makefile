@@ -5,12 +5,15 @@ PY ?= uv run
 CLI ?= swarm-cli
 BIN ?= $(HOME)/.local/share/swarm/bin
 
-.PHONY: help test list-installed list-available build build-shim build-all-shims build-all-executables launch uninstall build-pyinstaller build-all-pyinstaller
+.PHONY: help dev test list-installed list-available build build-shim build-all-shims build-all-executables launch uninstall build-pyinstaller build-all-pyinstaller
+
+COMPOSE ?= docker compose
 
 help:
 	@echo "Open-Swarm Makefile"
 	@echo ""
 	@echo "Common targets:"
+	@echo "  make dev                                # Containerized API with live code-reload (host :8002)"
 	@echo "  make test                               # Run the full test suite"
 	@echo "  make list-installed                     # List installed blueprint executables"
 	@echo "  make list-available                     # List available blueprints (bundled/user)"
@@ -29,6 +32,12 @@ help:
 	@echo "  🔄 LEGACY:"
 	@echo "    make build NAME=codey                   # Build (uses shim if SWARM_TEST_MODE=1, else PyInstaller)"
 	@echo "    make build-all-pyinstaller              # Bulk build via build_all_blueprints.py"
+
+# Containerized dev server with live code-reload (Django runserver autoreload).
+# Bind-mounts the source via docker-compose.dev.yml; publishes host :8002 so it
+# coexists with the native :8001 service. Ctrl-C to stop.
+dev:
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 test:
 	$(PY) python scripts/run_tests.py -q
