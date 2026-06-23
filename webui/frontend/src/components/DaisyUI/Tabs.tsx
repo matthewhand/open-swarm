@@ -52,6 +52,10 @@ export const Tabs = ({
       newIndex = index + 1 >= tabs.length ? 0 : index + 1;
     } else if (e.key === 'ArrowLeft') {
       newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
+    } else if (e.key === 'Home') {
+      newIndex = 0;
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1;
     }
 
     if (newIndex !== index) {
