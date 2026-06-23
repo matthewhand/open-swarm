@@ -23,7 +23,10 @@
 
 services:
   swarm:
-    ports:
+    # !override replaces the base `ports` list rather than appending to it —
+    # without it Compose merges sequences and the base 8000:8000 would still
+    # bind (and collide with whatever holds :8000 on the host).
+    ports: !override
       - "8002:8000"
     volumes:
       # Live source — runserver autoreloads on change. Named volumes keep the
@@ -31,6 +34,14 @@ services:
       - ".:/app"
       - "/app/src/open_swarm.egg-info"
     environment:
-      # Surface tracebacks while iterating.
+      # Local dev: enables Django DEBUG (also drops the production
+      # DJANGO_SECRET_KEY requirement) and surfaces tracebacks.
+      DJANGO_DEBUG: "true"
       DJANGO_LOG_LEVEL: "DEBUG"
       SWARM_LOG_LEVEL: "DEBUG"
+      # CRITICAL for live-reload: the image does `pip install .`, so `import
+      # swarm` resolves to the frozen copy in site-packages, NOT the bind-mounted
+      # source (the package lives at src/swarm/). Prepending the mounted source
+      # to PYTHONPATH makes edits the code that actually runs, so runserver's
+      # autoreloader picks them up.
+      PYTHONPATH: "/app/src"
