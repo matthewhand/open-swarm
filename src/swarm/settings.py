@@ -167,19 +167,31 @@ TEMPLATES = [
 WSGI_APPLICATION = 'swarm.wsgi.application'
 ASGI_APPLICATION = 'swarm.asgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.environ.get('DJANGO_DB_NAME', '/tmp/db.sqlite3'),
-        'TEST': {
-            'NAME': os.environ.get('DJANGO_TEST_DB_NAME', '/tmp/test_db.sqlite3'),
-            'OPTIONS': {
-                'timeout': 20,
-                'init_command': "PRAGMA journal_mode=WAL;",
-            },
-        },
+# Database — use Postgres (or any Django-supported backend) when DATABASE_URL is
+# set, e.g. DATABASE_URL=postgres://user:pass@host:5432/dbname. Otherwise fall
+# back to the zero-config SQLite default used for local/dev/tests.
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL, conn_max_age=600, conn_health_checks=True
+        ),
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.environ.get('DJANGO_DB_NAME', '/tmp/db.sqlite3'),
+            'TEST': {
+                'NAME': os.environ.get('DJANGO_TEST_DB_NAME', '/tmp/test_db.sqlite3'),
+                'OPTIONS': {
+                    'timeout': 20,
+                    'init_command': "PRAGMA journal_mode=WAL;",
+                },
+            },
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
