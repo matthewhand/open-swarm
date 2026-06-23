@@ -44,6 +44,9 @@ services:
     # stay readable/writable and files the app writes don't end up root-owned.
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     ports:
+      # Portable default. On a host where 8000 is taken (e.g. another service),
+      # remap with an override rather than editing this published default.
+      # For live-reload dev, use: make dev  (docker-compose.dev.yml, host :8002).
       - "8000:8000"
     environment:
       # Keep HOME identical to the host so configs that reference absolute paths

@@ -1,0 +1,47 @@
+# Open Swarm — DEV override: live code-reload in the container.
+#
+# WHAT THIS DOES
+#   Bind-mounts the repo over /app so Django's runserver autoreloader (already
+#   the image's default CMD — no --noreload) restarts on every edit. No rebuild
+#   needed for Python changes; just save and the in-container server reloads.
+#
+# PORT
+#   Publishes on host :8002 to avoid the busy ports on the open-swarm-oracle
+#   host (8000=netbox, 8001=native open-swarm, 8765=mcp-gateway bridge). Hit the
+#   dev server directly at http://localhost:8002. This does NOT touch the native
+#   :8001 service that mcp-gateway proxies — dev and prod run side by side.
+#
+# USAGE
+#   make dev
+#   # or explicitly (note: -f list skips the auto-merged production override):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# NOTE
+#   This is REST-API-only iteration. CLI blueprints need the host-coupled
+#   docker-compose.override.yml mappings, which the explicit -f list above
+#   intentionally does not load.
+
+services:
+  swarm:
+    # !override replaces the base `ports` list rather than appending to it —
+    # without it Compose merges sequences and the base 8000:8000 would still
+    # bind (and collide with whatever holds :8000 on the host).
+    ports: !override
+      - "8002:8000"
+    volumes:
+      # Live source — runserver autoreloads on change. Named volumes keep the
+      # image's build artifacts from being shadowed by the host checkout.
+      - ".:/app"
+      - "/app/src/open_swarm.egg-info"
+    environment:
+      # Local dev: enables Django DEBUG (also drops the production
+      # DJANGO_SECRET_KEY requirement) and surfaces tracebacks.
+      DJANGO_DEBUG: "true"
+      DJANGO_LOG_LEVEL: "DEBUG"
+      SWARM_LOG_LEVEL: "DEBUG"
+      # CRITICAL for live-reload: the image does `pip install .`, so `import
+      # swarm` resolves to the frozen copy in site-packages, NOT the bind-mounted
+      # source (the package lives at src/swarm/). Prepending the mounted source
+      # to PYTHONPATH makes edits the code that actually runs, so runserver's
+      # autoreloader picks them up.
+      PYTHONPATH: "/app/src"
