@@ -139,7 +139,7 @@ def test_dark_mode_toggle(page, live_server_url):
     theme_before = themed.get_attribute("data-theme")
     bg_before = _computed(page, themed, "backgroundColor")
 
-    page.get_by_label("Toggle dark mode").click()
+    page.get_by_label("Toggle dark mode").first.click()
     page.wait_for_timeout(250)  # let React re-render + CSS vars resolve
 
     theme_after = themed.get_attribute("data-theme")
