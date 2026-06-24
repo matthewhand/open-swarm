@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { resolve, rank, splitCandidate } from '../inferenceProfile'
+import { resolve, rank, splitCandidate, buildTraitsConfig, candidatesFromEdits } from '../inferenceProfile'
 import { buildCandidates } from '../../components/InferenceProfilePanel'
+
+import { cliForModel } from '../inferenceProfile'
 
 const CANDIDATES = {
   smart: { intelligence: 0.95, speed: 0.4, cost: 0.3 },
@@ -52,8 +54,6 @@ describe('buildCandidates', () => {
   })
 })
 
-import { buildTraitsConfig, candidatesFromEdits } from '../inferenceProfile'
-
 describe('buildTraitsConfig', () => {
   it('emits cli traits + per-model models block', () => {
     const cfg = buildTraitsConfig(
@@ -87,8 +87,6 @@ describe('buildCandidates prefix matching (bug hunt)', () => {
     expect(out['c@claude-opus-4-8']).toBeUndefined()
   })
 })
-
-import { cliForModel } from '../inferenceProfile'
 
 describe('cliForModel', () => {
   it('picks the longest CLI matching at a hyphen boundary', () => {
