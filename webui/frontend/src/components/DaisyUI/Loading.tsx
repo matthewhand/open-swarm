@@ -370,10 +370,11 @@ export const LoadingButton = ({
       disabled={loading || props.disabled}
       aria-disabled={loading || props.disabled}
       aria-busy={loading}
+      aria-live="polite"
     >
       {loading ? (
         <>
-          <LoadingSpinner size="sm" className="mr-2" />
+          <LoadingSpinner size="sm" className="mr-2" aria-hidden="true" />
           <span className="sr-only">Loading</span>
           {children}
         </>
