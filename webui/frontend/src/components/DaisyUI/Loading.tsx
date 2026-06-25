@@ -38,6 +38,7 @@ export const LoadingSpinner = ({
     <span 
       className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
+      aria-live="polite"
       aria-label={ariaLabel}
     />
   );
@@ -73,6 +74,7 @@ export const LoadingDots = ({
     <span 
       className={`loading loading-dots ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
+      aria-live="polite"
       aria-label={ariaLabel}
     />
   );
@@ -108,6 +110,7 @@ export const LoadingRing = ({
     <span 
       className={`loading loading-ring ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
+      aria-live="polite"
       aria-label={ariaLabel}
     />
   );
@@ -143,6 +146,7 @@ export const LoadingBall = ({
     <span 
       className={`loading loading-ball ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
+      aria-live="polite"
       aria-label={ariaLabel}
     />
   );
@@ -178,6 +182,7 @@ export const LoadingBars = ({
     <span 
       className={`loading loading-bars ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
+      aria-live="polite"
       aria-label={ariaLabel}
     />
   );
@@ -213,6 +218,7 @@ export const LoadingInfinity = ({
     <span 
       className={`loading loading-infinity ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
+      aria-live="polite"
       aria-label={ariaLabel}
     />
   );
@@ -238,6 +244,9 @@ export const Skeleton = ({
     <div
       className={`skeleton ${rounded ? 'rounded' : ''} ${className}`}
       style={{ width, height }}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading..."
     />
   );
 };
@@ -350,7 +359,7 @@ export const LoadingOverlay = ({
         <div className="flex justify-center mb-4">
           <LoadingSpinner size="lg" color="primary" />
         </div>
-        <p className="text-lg font-medium" role="status">{message}</p>
+        <p className="text-lg font-medium" role="status" aria-live="polite">{message}</p>
       </div>
     </div>
   );
