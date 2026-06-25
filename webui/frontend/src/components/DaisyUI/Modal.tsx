@@ -80,37 +80,31 @@ export const Modal = ({
     xl: 'max-w-xl',
   };
 
-  const dialogContent = (
-    <dialog
-      ref={dialogRef}
-      className={`modal ${isOpen ? 'modal-open' : ''}`}
-      onClick={handleBackdropClick}
-      aria-labelledby={title ? titleId : undefined}
-      aria-modal="true"
-    >
-      <div 
-        className={`modal-box ${sizeClasses[size]} ${className}`}
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+  return (
+    <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
+      <dialog
+        ref={dialogRef}
+        className={`modal ${isOpen ? 'modal-open' : ''}`}
+        onClick={handleBackdropClick}
+        aria-labelledby={title ? titleId : undefined}
+        aria-modal="true"
       >
-        {title && (
-          <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
-        )}
-        <div className="modal-content">
-          {children}
+        <div
+          className={`modal-box ${sizeClasses[size]} ${className}`}
+          onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
+        >
+          {title && (
+            <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
+          )}
+          <div className="modal-content">
+            {children}
+          </div>
         </div>
-      </div>
-      <form method="dialog" className="modal-backdrop">
-        <button type="button" onClick={onClose}>close</button>
-      </form>
-    </dialog>
-  );
-
-  return isOpen ? (
-    <FocusTrap focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
-      {dialogContent}
+        <form method="dialog" className="modal-backdrop">
+          <button type="button" onClick={onClose}>close</button>
+        </form>
+      </dialog>
     </FocusTrap>
-  ) : (
-    dialogContent
   );
 };
 
