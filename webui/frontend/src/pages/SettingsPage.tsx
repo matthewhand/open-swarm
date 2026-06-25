@@ -254,16 +254,18 @@ function ServerSettingsCard() {
 
       <div className="mt-3">
         {isPending && (
-          <div className="flex items-center gap-2 text-sm text-base-content/70">
+          <div className="flex items-center gap-2 text-sm text-base-content/70" aria-live="polite" aria-busy="true">
             <LoadingSpinner size="sm" /> Loading server settings…
           </div>
         )}
         {isError && (
-          <QueryErrorAlert
-            what="server settings"
-            error={error}
-            onRetry={() => refetch()}
-          />
+          <div aria-live="assertive" role="alert">
+            <QueryErrorAlert
+              what="server settings"
+              error={error}
+              onRetry={() => refetch()}
+            />
+          </div>
         )}
         {!isPending && !isError && groups.length === 0 && (
           <p className="text-sm text-base-content/60">
@@ -305,16 +307,18 @@ function EnvironmentVariablesCard() {
 
       <div className="mt-3">
         {isPending && (
-          <div className="flex items-center gap-2 text-sm text-base-content/70">
+          <div className="flex items-center gap-2 text-sm text-base-content/70" aria-live="polite" aria-busy="true">
             <LoadingSpinner size="sm" /> Loading environment variables…
           </div>
         )}
         {isError && (
-          <QueryErrorAlert
-            what="environment variables"
-            error={error}
-            onRetry={() => refetch()}
-          />
+          <div aria-live="assertive" role="alert">
+            <QueryErrorAlert
+              what="environment variables"
+              error={error}
+              onRetry={() => refetch()}
+            />
+          </div>
         )}
         {!isPending && !isError && variables.length === 0 && (
           <p className="text-sm text-base-content/60">
