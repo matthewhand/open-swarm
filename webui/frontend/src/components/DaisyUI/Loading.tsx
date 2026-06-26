@@ -373,8 +373,8 @@ export const LoadingButton = ({
     >
       {loading ? (
         <>
-          <LoadingSpinner size="sm" className="mr-2" />
-          <span className="sr-only">Loading</span>
+          <LoadingSpinner size="sm" className="mr-2" aria-hidden="true" aria-label={undefined} />
+          <span className="sr-only" role="status">Loading</span>
           {children}
         </>
       ) : (
