@@ -39,6 +39,8 @@ export const LoadingSpinner = ({
       className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -74,6 +76,8 @@ export const LoadingDots = ({
       className={`loading loading-dots ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -109,6 +113,8 @@ export const LoadingRing = ({
       className={`loading loading-ring ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -144,6 +150,8 @@ export const LoadingBall = ({
       className={`loading loading-ball ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -179,6 +187,8 @@ export const LoadingBars = ({
       className={`loading loading-bars ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -214,6 +224,8 @@ export const LoadingInfinity = ({
       className={`loading loading-infinity ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };

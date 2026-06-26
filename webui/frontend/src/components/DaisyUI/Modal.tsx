@@ -23,6 +23,7 @@ export const Modal = ({
   className = '',
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
 
   // Sync open state with native dialog methods
@@ -32,11 +33,18 @@ export const Modal = ({
 
     if (isOpen) {
       if (!dialog.open) {
+        // Save the currently focused element
+        triggerRef.current = document.activeElement as HTMLElement;
         dialog.showModal();
       }
     } else {
       if (dialog.open) {
         dialog.close();
+        // Restore focus to the element that opened the modal
+        if (triggerRef.current) {
+          triggerRef.current.focus();
+          triggerRef.current = null;
+        }
       }
     }
   }, [isOpen]);
