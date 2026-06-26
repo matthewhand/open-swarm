@@ -53,8 +53,16 @@ def test_session_detail_view_shows_delegations(client, store):
     resp = client.get(reverse("session-detail", kwargs={"response_id": "resp_d"}))
     assert resp.status_code == 200
     body = resp.content.decode()
-    assert "Delegation timeline" in body and "agent" in body and "auxiliary" in body
-    assert "coded" in body and "boom" in body
+
+    import re
+
+    # Check that the data injected via json_script properly included our roles and outputs
+    # (Django's json_script escapes <, >, and &).
+    json_str_match = re.search(r'<script id="deleg-data" type="application/json">(.*?)</script>', body)
+    assert json_str_match is not None
+    json_data = json.loads(json_str_match.group(1))
+    assert any(d.get("role") == "agent" and d.get("result") == "coded" for d in json_data)
+    assert any(d.get("role") == "auxiliary" and d.get("error") == "boom" for d in json_data)
 
 
 @pytest.mark.django_db

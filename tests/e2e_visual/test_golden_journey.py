@@ -17,6 +17,7 @@ Run locally with::
 
 from __future__ import annotations
 
+import re
 import pytest
 
 pytestmark = pytest.mark.e2e_visual
@@ -139,7 +140,9 @@ def test_dark_mode_toggle(page, live_server_url):
     theme_before = themed.get_attribute("data-theme")
     bg_before = _computed(page, themed, "backgroundColor")
 
-    page.get_by_label("Toggle dark mode").click()
+    # App.tsx uses "Switch to light theme" or "Switch to dark theme" for the aria-label
+    # on the theme toggle
+    page.get_by_role("checkbox", name=re.compile("Switch to (dark|light) theme")).click()
     page.wait_for_timeout(250)  # let React re-render + CSS vars resolve
 
     theme_after = themed.get_attribute("data-theme")

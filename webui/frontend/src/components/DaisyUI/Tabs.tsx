@@ -48,19 +48,34 @@ export const Tabs = ({
 
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     let newIndex = index;
+
     if (e.key === 'ArrowRight') {
       newIndex = index + 1 >= tabs.length ? 0 : index + 1;
     } else if (e.key === 'ArrowLeft') {
       newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
+    } else if (e.key === 'Home') {
+      newIndex = 0;
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1;
     }
 
     if (newIndex !== index) {
       e.preventDefault();
       let count = 0;
+
+      // Find the next enabled tab based on the direction or key pressed
+      const direction = (e.key === 'ArrowRight' || e.key === 'Home') ? 1 : -1;
+
       while (tabs[newIndex].disabled && count < tabs.length) {
-        newIndex = e.key === 'ArrowRight'
-          ? (newIndex + 1 >= tabs.length ? 0 : newIndex + 1)
-          : (newIndex - 1 < 0 ? tabs.length - 1 : newIndex - 1);
+        newIndex = newIndex + direction;
+
+        // Wrap around logic
+        if (newIndex >= tabs.length) {
+          newIndex = 0;
+        } else if (newIndex < 0) {
+          newIndex = tabs.length - 1;
+        }
+
         count++;
       }
 
