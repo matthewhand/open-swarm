@@ -100,13 +100,13 @@ export const Modal = ({
         </div>
       </div>
       <form method="dialog" className="modal-backdrop">
-        <button type="button" onClick={onClose}>close</button>
+        <button type="button" onClick={onClose} aria-label="Close modal">close</button>
       </form>
     </dialog>
   );
 
   return isOpen ? (
-    <FocusTrap focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
+    <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
       {dialogContent}
     </FocusTrap>
   ) : (
