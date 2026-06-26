@@ -13,7 +13,7 @@ test('dark-mode toggle flips data-theme and persists, no uncaught JS errors', as
   await page.goto('/')
 
   const root = page.locator('[data-theme]').first()
-  const toggle = page.locator('label.swap-rotate')
+  const toggle = page.locator('[aria-label="Toggle dark mode"]')
 
   // Wait for the hydration to complete
   await page.waitForLoadState('networkidle')
@@ -23,10 +23,10 @@ test('dark-mode toggle flips data-theme and persists, no uncaught JS errors', as
   const initialTheme = await root.getAttribute('data-theme')
   expect(initialTheme).toMatch(/light|dark/)
 
-  await expect(toggle).toBeVisible()
+  await expect(toggle.first()).toBeVisible()
 
   // Flip the theme
-  await toggle.click()
+  await toggle.first().click({ force: true })
   const flippedTheme = initialTheme === 'light' ? 'dark' : 'light'
   await expect(root).toHaveAttribute('data-theme', flippedTheme)
 

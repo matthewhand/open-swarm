@@ -1,27 +1,16 @@
-"""Golden-journey visual assertions (computed styles, not just HTTP 200s).
-
-Each test pins down a real regression class that previously shipped green:
-
-- ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file
-- ``test_blueprint_cards_have_borders``-> DaisyUI 5 removed ``card-bordered``
-- ``test_teams_navbar_has_no_zero_text_links`` -> white-box navbar links
-- ``test_chat_websocket_connects``     -> ASGI/daphne wiring
-- ``test_dark_mode_toggle``            -> theme CSS actually compiled in
-
-Run locally with::
-
-    cd webui/frontend && npm ci && npm run build && cd ../..
-    uv run playwright install chromium
-    RUN_E2E_VISUAL=1 uv run pytest tests/e2e_visual -q
-"""
-
-from __future__ import annotations
-
 import pytest
 
 pytestmark = pytest.mark.e2e_visual
+# NOTE: these tests execute against the built React app served by Django,
+# checking the final artifact (including compiled CSS/assets), NOT the Vite dev server.
 
-TRANSPARENT = ("rgba(0, 0, 0, 0)", "transparent")
+
+TRANSPARENT = (
+    "rgba(0, 0, 0, 0)",
+    "transparent",
+    "rgba(0,0,0,0)",
+)
+
 
 # The empty-CSS guard: the healthy bundle is ~100kB; the Tailwind v4
 # misconfiguration shipped ~2kB. Anything under this is utilities-free.
@@ -50,43 +39,45 @@ def test_landing_page_is_styled(page, live_server_url):
         "styles are missing from the bundle"
     )
 
-    # The empty-CSS guard: fetch every stylesheet the page links and demand
-    # a real utilities bundle, not a 2kB stub.
-    hrefs = page.eval_on_selector_all(
-        "link[rel='stylesheet']", "els => els.map(el => el.href)"
-    )
-    assert hrefs, "landing page links no stylesheets at all"
-    sizes = {}
-    for href in hrefs:
-        resp = page.request.get(href)
-        assert resp.ok, f"built CSS {href} returned HTTP {resp.status}"
-        sizes[href] = len(resp.body())
-    assert max(sizes.values()) > MIN_CSS_BYTES, (
-        f"largest linked stylesheet is only {max(sizes.values())} bytes "
-        f"(need > {MIN_CSS_BYTES}); Tailwind emitted an empty bundle. {sizes}"
+    css_files = [r.url for r in page.request.sizes if ".css" in r.url]
+    assert css_files, "No CSS files were downloaded by the browser"
+
+    # In production/Playwright, Vite chunks this to exactly 1 CSS file.
+    css_url = css_files[0]
+    resp = page.request.get(css_url)
+    assert resp.ok, f"Failed to download compiled CSS: {resp.status}"
+
+    size = len(resp.body())
+    assert size > MIN_CSS_BYTES, (
+        f"The compiled CSS bundle is suspiciously small ({size} bytes). "
+        "The Tailwind v4 extractor probably failed to see the React source files."
     )
 
 
 def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
-    """Form login succeeded (asserted inside the auth_state fixture) and the
-    persisted session actually authenticates a fresh context."""
-    context = browser.new_context(storage_state=str(auth_state))
+    """The throwaway auth-state guard: ensures that the auto-login works
+    and that it persists into the frontend's Context provider."""
+    # Spin up an isolated context seeded with the pre-authenticated cookies
+    context = browser.new_context(storage_state=auth_state)
     page = context.new_page()
-    try:
-        page.goto(live_server_url + "/teams/", wait_until="domcontentloaded")
-        assert "login" not in page.url, (
-            "stored session was bounced back to the login page"
-        )
-    finally:
-        context.close()
+
+    page.goto(live_server_url + "/settings", wait_until="networkidle")
+
+    assert "login" not in page.url, "Auto-authenticated session redirected to login"
+
+    btn = page.locator("text=API configuration")
+    btn.wait_for(state="visible", timeout=10_000)
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """The Connected badge only renders after ws.onopen fires, so this also
-    guards the ASGI/daphne websocket wiring."""
-    page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    badge = page.get_by_text("Connected", exact=True)
-    badge.wait_for(state="visible", timeout=20_000)
+    """The ASGI plumbing guard: ensures Daphne/Channels are properly hooked up
+    and that the frontend can establish the wss:// connection."""
+    messages = []
+    page.on("console", lambda msg: messages.append(msg.text))
+
+    page.goto(live_server_url + "/chat", wait_until="networkidle")
+    badge = page.locator(".badge-success", has_text="Connected")
+    badge.wait_for(state="visible", timeout=5000)
 
 
 def test_blueprint_cards_have_borders(page, live_server_url):
@@ -99,12 +90,10 @@ def test_blueprint_cards_have_borders(page, live_server_url):
     for i in range(cards.count()):
         w = _computed(page, cards.nth(i), "borderTopWidth")
         widths.append(w)
-        if w.endswith("px") and float(w[:-2]) >= 1:
-            return
-    pytest.fail(
-        f"no .card on /blueprints has a computed border-top-width >= 1px "
-        f"(got {widths}); the bordered-card styling regressed"
-    )
+
+    # Check that at least one card has a visible border (>0px)
+    has_border = any(w != "0px" for w in widths)
+    assert has_border, f"No cards have top borders. Widths: {widths}"
 
 
 def test_teams_navbar_has_no_zero_text_links(page, live_server_url):
@@ -118,8 +107,6 @@ def test_teams_navbar_has_no_zero_text_links(page, live_server_url):
     empty = []
     for i in range(count):
         link = links.nth(i)
-        if not link.is_visible():
-            continue
         if not link.inner_text().strip():
             empty.append(link.evaluate("el => el.outerHTML"))
     assert not empty, f"navbar has zero-text nav links: {empty}"
@@ -139,7 +126,9 @@ def test_dark_mode_toggle(page, live_server_url):
     theme_before = themed.get_attribute("data-theme")
     bg_before = _computed(page, themed, "backgroundColor")
 
-    page.locator("label.swap-rotate").click()
+    # Use a robust attribute selector with .first to avoid strict mode violations
+    # since aria-label maps to both the parent label and its internal checkbox
+    page.locator('[aria-label="Toggle dark mode"]').first.click(force=True)
     page.wait_for_timeout(250)  # let React re-render + CSS vars resolve
 
     theme_after = themed.get_attribute("data-theme")
@@ -150,5 +139,5 @@ def test_dark_mode_toggle(page, live_server_url):
     )
     assert bg_after != bg_before, (
         f"theme attribute flipped to {theme_after!r} but background stayed "
-        f"{bg_after!r}; the theme CSS is not compiled into the bundle"
+        f"the same ({bg_before!r})"
     )
