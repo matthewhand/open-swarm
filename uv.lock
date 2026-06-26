@@ -1798,6 +1798,7 @@ name = "open-swarm"
 version = "0.5.4"
 source = { editable = "." }
 dependencies = [
+    { name = "asgiref" },
     { name = "beautifulsoup4" },
     { name = "celery" },
     { name = "channels" },
@@ -1880,6 +1881,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "anyio", marker = "extra == 'test'", specifier = ">=4.0.0" },
+    { name = "asgiref", specifier = ">=3.8.1" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "celery", specifier = ">=5.3.0" },
     { name = "channels", specifier = ">=4.0" },
