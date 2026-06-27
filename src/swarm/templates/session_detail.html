@@ -48,7 +48,7 @@
   <ul class="nav nav-tabs" role="tablist">
     {% if delegations %}
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sd-graph" type="button">🕸 Graph</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Delegation timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
     {% endif %}
     <li class="nav-item"><button class="nav-link {% if not delegations %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sd-output" type="button">Output</button></li>
     {% if messages %}
