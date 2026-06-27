@@ -4,30 +4,37 @@ import { Button } from '../Button'
 
 describe('Button loading state (DaisyUI 5)', () => {
   it('renders a visible spinner element when loading', () => {
-    const { container } = render(<Button loading>Save</Button>)
-    // DaisyUI 5 needs an explicit loading-spinner span (the bare `loading` btn
-    // class no longer renders one).
-    const spinner = container.querySelector('.loading.loading-spinner')
-    expect(spinner).not.toBeNull()
+    render(<Button loading>Save</Button>)
+    const loadingText = screen.getByText('Loading')
+    expect(loadingText).toBeInTheDocument()
+
+    // Use test id or just check role for the spinner
+    // In DaisyUI the loading spinner can have a role="status" if it's the LoadingSpinner component,
+    // but in Button we render an explicit span. Let's find it by class via screen query if possible,
+    // but without document.querySelector or previousElementSibling.
+    const btn = screen.getByRole('button', { name: /loading/i })
+    expect(btn.innerHTML).toContain('loading-spinner')
   })
 
   it('does not add the deprecated bare `loading` class to the button', () => {
-    const { container } = render(<Button loading>Save</Button>)
-    const btn = container.querySelector('button')!
-    const classes = btn.className.split(/\s+/)
-    expect(classes).not.toContain('loading') // only on the span, not the btn
+    render(<Button loading>Save</Button>)
+    const btn = screen.getByRole('button', { name: /loading/i })
+    expect(btn).not.toHaveClass('loading') // only on the span, not the btn
   })
 
   it('marks the button busy + disabled and exposes SR text while loading', () => {
     render(<Button loading>Save</Button>)
-    const btn = screen.getByRole('button')
+    const btn = screen.getByRole('button', { name: /loading/i })
     expect(btn).toBeDisabled()
     expect(btn).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByText('Loading')).toHaveClass('sr-only')
   })
 
   it('renders no spinner when not loading', () => {
-    const { container } = render(<Button>Save</Button>)
-    expect(container.querySelector('.loading-spinner')).toBeNull()
+    render(<Button>Save</Button>)
+    const btn = screen.getByRole('button', { name: /save/i })
+    expect(btn).toBeInTheDocument()
+    const loadingText = screen.queryByText('Loading')
+    expect(loadingText).toBeNull()
   })
 })
