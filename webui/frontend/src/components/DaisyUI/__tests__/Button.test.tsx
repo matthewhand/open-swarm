@@ -4,16 +4,23 @@ import { Button } from '../Button'
 
 describe('Button loading state (DaisyUI 5)', () => {
   it('renders a visible spinner element when loading', () => {
-    const { container } = render(<Button loading>Save</Button>)
-    // DaisyUI 5 needs an explicit loading-spinner span (the bare `loading` btn
-    // class no longer renders one).
-    const spinner = container.querySelector('.loading.loading-spinner')
-    expect(spinner).not.toBeNull()
+    // Note: the component does render the sr-only loading text when loading
+    render(<Button loading>Save</Button>)
+    const loadingText = screen.getByText('Loading')
+    expect(loadingText).toBeInTheDocument()
+    // Test for visual spinner class if we have an element with aria-hidden
+    // Testing library query for elements matching selector would be:
+    const button = screen.getByRole('button')
+    // Get the children span element using DOM query inside the test only because we are testing Daisy UI 5 requirement to render a span explicitly
+    // Since testing-library/no-node-access rule is enabled we disable it just for this specific assertion about the hidden span structure
+    // eslint-disable-next-line testing-library/no-node-access
+    const spinner = button.querySelector('span[aria-hidden="true"].loading.loading-spinner')
+    expect(spinner).toBeInTheDocument()
   })
 
   it('does not add the deprecated bare `loading` class to the button', () => {
-    const { container } = render(<Button loading>Save</Button>)
-    const btn = container.querySelector('button')!
+    render(<Button loading>Save</Button>)
+    const btn = screen.getByRole('button')
     const classes = btn.className.split(/\s+/)
     expect(classes).not.toContain('loading') // only on the span, not the btn
   })
@@ -27,7 +34,7 @@ describe('Button loading state (DaisyUI 5)', () => {
   })
 
   it('renders no spinner when not loading', () => {
-    const { container } = render(<Button>Save</Button>)
-    expect(container.querySelector('.loading-spinner')).toBeNull()
+    render(<Button>Save</Button>)
+    expect(screen.queryByText('Loading')).toBeNull()
   })
 })
