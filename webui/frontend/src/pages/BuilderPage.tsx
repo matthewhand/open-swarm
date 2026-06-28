@@ -162,20 +162,25 @@ export default function BuilderPage() {
 
   return (
     <div>
-      <h1 className="mb-1 flex items-center gap-2 text-3xl font-bold">
-        <Wrench className="h-7 w-7" /> Blueprint Builder
-      </h1>
-      <p className="mb-6 text-sm text-base-content/70">
-        Configure and edit any blueprint — its agents, model setup, and files.
-      </p>
+      <div aria-live="polite" aria-busy={isPending}>
+        <h1 className="mb-1 flex items-center gap-2 text-3xl font-bold">
+          <Wrench className="h-7 w-7" /> Blueprint Builder
+        </h1>
+        <p className="mb-6 text-sm text-base-content/70">
+          Configure and edit any blueprint — its agents, model setup, and files.
+        </p>
 
-      {isPending && <LoadingSpinner />}
-      {isError && <Alert type="error">Failed to load blueprints.</Alert>}
+        {isPending && <LoadingSpinner />}
+        {isError && <Alert type="error">Failed to load blueprints.</Alert>}
 
-      {!isPending && !isError && (
-        <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-          {/* Sidebar list on desktop; a compact dropdown on mobile so the config
-              and editor aren't buried below a 21-item list. */}
+        {!isPending && !isError && blueprints.length === 0 && (
+          <Alert type="info">No blueprints available on this server.</Alert>
+        )}
+
+        {!isPending && !isError && blueprints.length > 0 && (
+          <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+            {/* Sidebar list on desktop; a compact dropdown on mobile so the config
+                and editor aren't buried below a 21-item list. */}
           <Card bordered className="hidden lg:block">
             <h2 className="card-title text-base">Blueprints ({blueprints.length})</h2>
             <ul className="menu menu-sm px-0">
@@ -279,7 +284,8 @@ export default function BuilderPage() {
             </Card>
           </div>
         </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

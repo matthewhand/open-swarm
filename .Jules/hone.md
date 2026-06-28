@@ -1,3 +1,8 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-06-28 | [Architectural Audit] | Insight: Modal focus traps disrupt CSS exit animations when unmounted abruptly. | Protocol: Maintain the `FocusTrap` wrapper unconditionally and control trap activation via the `active` prop synced with the dialog's `isOpen` state.
+
+## 2024-06-28 | [Architectural Audit] | Insight: Async operations in complex forms (like `BuilderPage`) often lack explicit empty states, leading to confusing or broken layouts when no data is returned. | Protocol: Enforce explicit handling for empty states in all data-fetching components, and wrap loading regions with `aria-live="polite"` or `aria-busy` to notify screen readers.
+
+## 2024-06-28 | [Architectural Audit] | Insight: Widespread use of `any` types in generic utilities (like pagination hooks) undermines strict TypeScript integrity and risks runtime type errors. | Protocol: Utilize generic type constraints `<T>` for all array-based state and data-fetching hooks to guarantee strong typing across the component tree.
