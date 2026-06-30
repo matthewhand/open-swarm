@@ -24,6 +24,34 @@ describe('Modal Accessibility', () => {
     const title = screen.getByText('My Title');
     expect(dialog).toHaveAttribute('aria-labelledby', title.id);
   });
+
+  it('should restore focus to trigger element when closed', () => {
+    // Render a button to serve as the active element before opening
+    const { unmount, rerender } = render(<button id="trigger">Open</button>);
+    const trigger = screen.getByRole('button', { name: 'Open' });
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+
+    // Open the modal
+    rerender(
+      <>
+        <button id="trigger">Open</button>
+        <Modal isOpen={true} onClose={() => {}}>Content</Modal>
+      </>
+    );
+
+    // Close the modal
+    rerender(
+      <>
+        <button id="trigger">Open</button>
+        <Modal isOpen={false} onClose={() => {}}>Content</Modal>
+      </>
+    );
+
+    // Verify focus was restored to the trigger button
+    expect(document.activeElement).toBe(trigger);
+    unmount();
+  });
 });
 
 describe('Form Control Accessibility', () => {
