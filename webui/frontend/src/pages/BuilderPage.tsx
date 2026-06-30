@@ -169,10 +169,24 @@ export default function BuilderPage() {
         Configure and edit any blueprint — its agents, model setup, and files.
       </p>
 
-      {isPending && <LoadingSpinner />}
-      {isError && <Alert type="error">Failed to load blueprints.</Alert>}
+      {isPending && (
+        <div aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+        </div>
+      )}
+      {isError && (
+        <div role="alert" aria-live="assertive">
+          <Alert type="error">Failed to load blueprints.</Alert>
+        </div>
+      )}
 
-      {!isPending && !isError && (
+      {!isPending && !isError && blueprints.length === 0 && (
+        <div role="status">
+          <Alert type="info">No blueprints available.</Alert>
+        </div>
+      )}
+
+      {!isPending && !isError && blueprints.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
           {/* Sidebar list on desktop; a compact dropdown on mobile so the config
               and editor aren't buried below a 21-item list. */}

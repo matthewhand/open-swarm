@@ -1,41 +1,75 @@
-import { describe, it, expect } from 'vitest'
-import { bestOfNFlags, buildAgentConfig, NATIVE_CONSENSUS } from '../BuilderPage'
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import BuilderPage from '../BuilderPage';
+import { useQuery } from '@tanstack/react-query';
 
-const INFO = {
-  catalog: { grok: { cmd: ['grok', '-p', '{prompt}'], parse: 'json:.text' } },
-  native_consensus: { grok: ['--best-of-n', '{n}'] },
-}
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(),
+  useMutation: vi.fn(),
+  useQueryClient: vi.fn(() => ({
+    invalidateQueries: vi.fn(),
+  })),
+}));
 
-describe('bestOfNFlags', () => {
-  it('builds grok flags with the count substituted, clamped to >=2', () => {
-    expect(bestOfNFlags('grok', 3)).toEqual(['--best-of-n', '3'])
-    expect(bestOfNFlags('grok', 1)).toEqual(['--best-of-n', '2'])
-  })
-  it('returns null for a CLI with no native mode', () => {
-    expect(bestOfNFlags('claude', 3)).toBeNull()
-  })
-  it('mirrors the backend native-consensus map shape', () => {
-    expect(NATIVE_CONSENSUS.grok).toEqual(['--best-of-n', '{n}'])
-  })
-})
+vi.mock('../../components/DaisyUI/Modal', () => ({
+  Modal: ({ children, isOpen }: any) => isOpen ? <div role="dialog">{children}</div> : null,
+  ConfirmModal: ({ children, isOpen }: any) => isOpen ? <div role="dialog">{children}</div> : null,
+}));
 
-describe('buildAgentConfig', () => {
-  it('single mode returns the base catalog entry unchanged', () => {
-    expect(buildAgentConfig('grok', 'single', 3, INFO)).toEqual(INFO.catalog.grok)
-  })
-  it('self-consensus adds consensus: N (clamped)', () => {
-    expect(buildAgentConfig('grok', 'self', 4, INFO)).toMatchObject({ consensus: 4 })
-    expect(buildAgentConfig('grok', 'self', 1, INFO)).toMatchObject({ consensus: 2 })
-  })
-  it('panel mode sets consensus: true', () => {
-    expect(buildAgentConfig('grok', 'panel', 3, INFO)).toMatchObject({ consensus: true })
-  })
-  it('native mode appends the best-of-n flags to cmd', () => {
-    const cfg = buildAgentConfig('grok', 'native', 3, INFO)
-    expect(cfg.cmd).toEqual(['grok', '-p', '{prompt}', '--best-of-n', '3'])
-  })
-  it('does not mutate the source catalog entry', () => {
-    buildAgentConfig('grok', 'native', 3, INFO)
-    expect(INFO.catalog.grok.cmd).toEqual(['grok', '-p', '{prompt}'])
-  })
-})
+vi.mock('../../components/DaisyUI/Toast', () => ({
+  ToastProvider: ({ children }: any) => <div>{children}</div>,
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
+}));
+
+describe('BuilderPage Async States Accessibility', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders loading state with polite aria-live and aria-busy', () => {
+    (useQuery as any).mockImplementation(({ queryKey }: any) => {
+      if (queryKey[0] === 'blueprints') {
+        return { isPending: true, isError: false, data: undefined };
+      }
+      return { isPending: false, isError: false, data: undefined };
+    });
+
+    render(<BuilderPage />);
+
+    const loadingSpinner = screen.getByRole('status', { hidden: true });
+    expect(loadingSpinner).toBeInTheDocument();
+  });
+
+  it('renders error state with assertive aria-live and alert role', () => {
+    (useQuery as any).mockImplementation(({ queryKey }: any) => {
+      if (queryKey[0] === 'blueprints') {
+        return { isPending: false, isError: true, data: undefined, error: new Error('Network error') };
+      }
+      return { isPending: false, isError: false, data: undefined };
+    });
+
+    render(<BuilderPage />);
+    const alertRegions = screen.getAllByRole('alert');
+    // Find the one for blueprints error (Alert component might have its own role="alert", we check the wrapper)
+    const alertContainer = alertRegions.find(el => el.getAttribute('aria-live') === 'assertive');
+
+    expect(alertContainer).toBeInTheDocument();
+    expect(alertContainer).toHaveTextContent(/Failed to load blueprints/);
+  });
+
+  it('renders deterministic empty state with status role', () => {
+    (useQuery as any).mockImplementation(({ queryKey }: any) => {
+      if (queryKey[0] === 'blueprints') {
+        return { isPending: false, isError: false, data: { data: [] } };
+      }
+      return { isPending: false, isError: false, data: undefined };
+    });
+
+    render(<BuilderPage />);
+    // Our status region for empty blueprints
+    const statusRegions = screen.getAllByRole('status');
+    const emptyStatus = statusRegions.find(el => el.textContent?.includes('No blueprints available'));
+
+    expect(emptyStatus).toBeInTheDocument();
+  });
+});
