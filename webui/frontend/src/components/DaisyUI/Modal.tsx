@@ -24,6 +24,7 @@ export const Modal = ({
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const previouslyFocusedElement = useRef<HTMLElement | null>(null);
 
   // Sync open state with native dialog methods
   useEffect(() => {
@@ -32,11 +33,15 @@ export const Modal = ({
 
     if (isOpen) {
       if (!dialog.open) {
+        previouslyFocusedElement.current = document.activeElement as HTMLElement | null;
         dialog.showModal();
       }
     } else {
       if (dialog.open) {
         dialog.close();
+        if (previouslyFocusedElement.current) {
+          previouslyFocusedElement.current.focus();
+        }
       }
     }
   }, [isOpen]);

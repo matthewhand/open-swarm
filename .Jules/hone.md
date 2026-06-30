@@ -1,3 +1,3 @@
-## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
-## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
-## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2025-07-01 | [Architectural Audit] | Insight: Components like DaisyUI's wrapper for `<dialog>` fail to maintain focus state leading to critical A11y regression. | Protocol: Always capture `document.activeElement` before invoking `.showModal()` and restore via `.focus()` upon dialog closure. Ensure WAI-ARIA keys (`Home`/`End`) map accurately in component arrays.
+
+## 2025-07-01 | [Architectural Audit] | Insight: Unhandled state transitions in async/network components (e.g. useInfiniteScroll lacking explicit empty/error bindings) create UI instability. | Protocol: Use deterministic variables (`isEmpty`, `error`) explicitly instead of relying on derived logic or `any` typing. Strict generics (`<T>`) are mandatory.
