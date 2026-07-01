@@ -127,32 +127,32 @@ class GeeseBlueprint(BlueprintBase):
         agent_assignments = kwargs.pop("agent_mcp_assignments", {})
         super().__init__(blueprint_id, config=config, **kwargs)
         from agents import Agent
-        # --- Setup LLM model via the OpenAI-compatible gateway ---
-        api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
-        base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-        openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url) if api_key else None
-        llm_model_name = kwargs.get("llm_model") or os.environ.get("LITELLM_MODEL") or "qwen3.5"
-        llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
+        # Use framework's model instance (config or simple env fallback)
+        # kwargs llm_model is passed for backwards compat but profile is preferred
+        model_instance = self._get_model_instance(
+            kwargs.get("llm_model") or self.llm_profile_name or "default"
+        )
+        # Note: we attach the same model instance to multiple agents for simplicity here.
         # --- Create Agent instances and corresponding Tools ---
         self.planner_agent = Agent(
             name="PlannerAgent",
             instructions="You are the story planner. Break down the story into sections and assign tasks.",
             tools=[],
-            model=llm_model
+            model=model_instance
         )
         self.planner_tool = self.planner_agent.as_tool("Planner", "Plan and outline stories.")
         self.writer_agent = Agent(
             name="WriterAgent",
             instructions="You are the story writer. Write detailed sections of the story based on the plan.",
             tools=[],
-            model=llm_model
+            model=model_instance
         )
         self.writer_tool = self.writer_agent.as_tool("Writer", "Write story sections.")
         self.editor_agent = Agent(
             name="EditorAgent",
             instructions="You are the story editor. Edit and improve the story for clarity and engagement.",
             tools=[],
-            model=llm_model
+            model=model_instance
         )
         self.editor_tool = self.editor_agent.as_tool("Editor", "Edit and improve stories.")
         # --- Coordinator Agent ---
@@ -160,7 +160,7 @@ class GeeseBlueprint(BlueprintBase):
             name="GooseCoordinator",
             instructions="You are the Geese Coordinator. Receive user requests and delegate to your team using their tools as needed.",
             tools=[self.planner_tool, self.writer_tool, self.editor_tool],
-            model=llm_model
+            model=model_instance
         )
         self.logger = logging.getLogger(__name__)
         self._model_instance_cache = {}

@@ -230,21 +230,16 @@ def _try_llm_spec(seed: TeamSpec, model: str | None) -> TeamSpec | None:
     Attempt to call an LLM to refine the team spec, constrained to the JSON schema above.
     If any error occurs or environment is not configured, return None to fall back gracefully.
     """
-    # Only run if OPENAI/LiteLLM is configured
-    has_key = bool(os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"))
-    if not has_key:
+    # Only run if key is configured (bootstrap or env)
+    from swarm.utils.env_utils import get_openai_api_key, get_openai_base_url
+    if not get_openai_api_key():
         return None
 
-    # Prefer OpenAI client if available in the environment; otherwise, skip
     try:
         from openai import OpenAI  # type: ignore
-    except Exception:
-        return None
-
-    try:
         client = OpenAI(
-            base_url=os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"),
-            api_key=os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"),
+            base_url=get_openai_base_url(),
+            api_key=get_openai_api_key(),
         )
         prompt = {
             "role": "system",
@@ -258,7 +253,7 @@ def _try_llm_spec(seed: TeamSpec, model: str | None) -> TeamSpec | None:
             ).strip(),
         }
         resp = client.chat.completions.create(
-            model=model or os.environ.get("SWARM_WIZARD_MODEL") or os.environ.get("LITELLM_MODEL") or "qwen3.5",
+            model=model or os.environ.get("SWARM_WIZARD_MODEL") or "gpt-5.5",
             messages=[prompt, {"role": "user", "content": "Generate team spec JSON now."}],
             temperature=0.2,
         )

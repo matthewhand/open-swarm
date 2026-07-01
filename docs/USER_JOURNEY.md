@@ -27,7 +27,8 @@ cd open-swarm
 uv sync --all-extras          # or: pip install -e .[dev]
 
 # Configure an LLM key for real agent runs (not needed for the tour below)
-export LITELLM_API_KEY="sk-..."
+export OPENAI_API_KEY="sk-..."   # or LITELLM_API_KEY
+export OPENAI_BASE_URL="http://your-gateway:8000/v1"  # optional for simple default case
 ```
 
 This guide uses the project virtualenv directly (`.venv/bin/...`); if you use

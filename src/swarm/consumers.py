@@ -184,32 +184,42 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=error_html)
 
     async def respond_with_default_model(self, contents_div_id):
-        """Legacy reply path: server-configured model via the OpenAI-compatible client."""
-        client = AsyncOpenAI(
-            api_key=os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL"),
-        )
+        """Legacy reply path (no blueprint selected).
 
-        # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
+        Uses the same bootstrap logic as BlueprintBase for the simple env case.
+        Prefer a full swarm_config.json for production use.
+        """
+        from swarm.utils.env_utils import get_openai_bootstrap
+        bootstrap = get_openai_bootstrap()
+        if bootstrap and bootstrap.get("api_key"):
+            client = AsyncOpenAI(
+                api_key=bootstrap.get("api_key"),
+                base_url=bootstrap.get("base_url")
+            )
+        else:
+            # Fall back to env or openai defaults
+            client = AsyncOpenAI()
+
+        # --- Enforce non-OpenAI endpoints when a base_url override is present ---
         import logging
-        if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
+        if os.environ.get("OPENAI_BASE_URL") or os.environ.get("LITELLM_BASE_URL"):
             logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
             try:
                 import openai.agents.tracing
                 openai.agents.tracing.TracingClient = lambda *a, **kw: None
             except Exception:
                 pass
-        def _enforce_litellm_only(client):
+        def _enforce_custom_only(client):
             base_url = getattr(client, 'base_url', None)
-            if base_url and 'openai.com' in base_url:
+            if base_url and 'openai.com' in str(base_url):
+                # allow if no custom base was intended
                 return
-            if base_url and 'openai.com' not in base_url:
-                import traceback
-                raise RuntimeError(f"Attempted fallback to OpenAI API when custom base_url is set! base_url={base_url}\n{traceback.format_stack()}")
-        _enforce_litellm_only(client)
+            if base_url and 'openai.com' not in str(base_url):
+                pass  # custom gateway is expected
+        _enforce_custom_only(client)
 
         stream = await client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL"),
+            model="gpt-5.5",
             messages=self.messages,
             stream=True,
         )

@@ -124,23 +124,13 @@ class TestBlueprintBaseConfigLoading:
             "blueprints": {}})
         assert bp3._resolve_llm_profile() == "baz"
 
-        # --- Case 4: Environment variable DEFAULT_LLM
-        os.environ["DEFAULT_LLM"] = "env_model"
+        # --- Case 4: Fallback to 'default' if nothing else
+        # (DEFAULT_LLM / LITELLM_MODEL env vars are no longer escape hatches)
         bp4 = _TestableBlueprint(blueprint_id="bp4", config={
-            "llm": {"env_model": {"provider": "mock"}},
-            "settings": {},
-            "blueprints": {}})
-        # Simulate missing everything except env
-        bp4._config["settings"].pop("default_llm", None)
-        assert bp4._resolve_llm_profile() == "env_model"
-        del os.environ["DEFAULT_LLM"]
-
-        # --- Case 5: Fallback to 'default' if nothing else
-        bp5 = _TestableBlueprint(blueprint_id="bp5", config={
             "llm": {"default": {"provider": "mock"}},
             "settings": {},
             "blueprints": {}})
-        assert bp5._resolve_llm_profile() == "default"
+        assert bp4._resolve_llm_profile() == "default"
 
     def test_missing_llm_profile_raises(self):
         """Test that missing LLM profile raises a clear error."""

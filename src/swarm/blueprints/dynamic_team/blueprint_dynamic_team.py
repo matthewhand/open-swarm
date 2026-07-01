@@ -32,9 +32,8 @@ class DynamicTeamBlueprint(BlueprintBase):
 
         base_url = profile.get("base_url")
         api_key = profile.get("api_key") or "ollama"  # Ollama usually doesn't require a key
-        # No hardcoded model fallback: the profile's model is authoritative, with
-        # env overrides as the only escape hatch (consistent with BlueprintBase).
-        model_name = profile.get("model") or os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM")
+        # Profile's model is authoritative (config or simple env-synthesized default).
+        model_name = profile.get("model") or "gpt-5.5"
 
         if not base_url or not model_name:
             missing = "base_url" if not base_url else "model"

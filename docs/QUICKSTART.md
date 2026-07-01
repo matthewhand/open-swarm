@@ -73,7 +73,12 @@ If you want to expose blueprints over an OpenAI-compatible REST API:
 1) Prepare environment
 ```bash
 cp .env.example .env
-# Ensure LITELLM_API_KEY (and optional SWARM_API_KEY) are set in .env
+# For the simplest case (no swarm_config.json needed), set:
+#   OPENAI_API_KEY=...
+#   OPENAI_BASE_URL=...   (your gateway or https://api.openai.com/v1)
+#
+# For full control (different models/endpoints per profile), create swarm_config.json
+# from swarm_config.json.example and set ${OPENAI_API_KEY} etc inside it.
 ```
 
 2) Start the API
@@ -113,7 +118,8 @@ Before using LLM-powered agents, you must provide credentials.
 ```bash
 swarm-cli llm add --provider openai --api-key sk-... 
 ```
-- This saves your API key to `~/.config/swarm/.env` as `LITELLM_API_KEY`.
+- This saves your API key to `~/.config/swarm/.env` as `OPENAI_API_KEY` (or `LITELLM_API_KEY`).
+  For simple bootstrap you can also just export them in your shell.
 
 ### b. Use a Custom Endpoint or Model
 ```bash

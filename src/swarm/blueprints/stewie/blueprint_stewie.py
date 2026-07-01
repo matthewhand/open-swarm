@@ -133,10 +133,10 @@ class StewieBlueprint(BlueprintBase):
         if not profile_data:
             logger.critical(f"LLM profile '{profile_name}' (or 'default') not found in config. llm_config keys: {list(llm_config.keys())}")
             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
-        # Use OpenAI client config from env (already set by framework)
-        model_name = profile_data.get("model", os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5")
-        base_url = os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-        api_key = os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+        # Client params come from the profile (config-driven, env substitution happens upstream)
+        model_name = profile_data.get("model") or "gpt-5.5"
+        base_url = profile_data.get("base_url")
+        api_key = profile_data.get("api_key")
         client_cache_key = f"{base_url}:{api_key}"
         if client_cache_key not in self._openai_client_cache:
             try:
@@ -218,9 +218,19 @@ class StewieBlueprint(BlueprintBase):
         ``super().run(...)`` generator, which broke ``async for`` consumers
         (the API layer) with "'async for' requires an object with __aiter__".
         """
-        # Patch: Always provide a minimal valid config for tests if missing
+        # Patch: Always provide a minimal valid config for tests if missing.
+        # Use portable profile names ('default', 'reason', etc.), not deployment-specific ones.
         if not self._config:
-            self._config = {'llm': {'default': {'model': 'orchestration', 'base_url': 'http://10.0.0.30:8000/v1', 'provider': 'openai'}}, 'llm_profile': 'default'}
+            self._config = {
+                'llm': {
+                    'default': {
+                        'model': "gpt-5.5",
+                        'provider': 'openai',
+                        'base_url': os.getenv("OPENAI_BASE_URL") or "http://localhost:8000/v1"
+                    }
+                },
+                'llm_profile': 'default'
+            }
         messages = messages or []
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get("SWARM_TEST_MODE"):
@@ -237,7 +247,6 @@ class StewieBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5"
         try:
             result = await Runner.run(agent, instruction)
             yield {"messages": [{"role": "assistant", "content": result.final_output}]}

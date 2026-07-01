@@ -183,19 +183,25 @@ def custom_login(request):
     return render(request, "account/login.html")
 
 # Default config structure to return if the actual file is missing/invalid
-DEFAULT_CONFIG = {
-    "llm": {
-        "default": {
-            "provider": "openai",  # OpenAI-compatible protocol (used to reach the local gateway)
-            "model": os.environ.get("LITELLM_MODEL") or "qwen3.5",
-            "base_url": os.environ.get("LITELLM_BASE_URL"),  # gateway endpoint from .env
-            "api_key": "",  # supplied via LITELLM_API_KEY / env vars
-            "temperature": 0.7
-        }
-    },
-    "mcpServers": {},
-    "blueprints": {}
-}
+# Uses bootstrap helper for consistency
+try:
+    from swarm.utils.env_utils import get_openai_bootstrap
+    _boot = get_openai_bootstrap() or {}
+    DEFAULT_CONFIG = {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": _boot.get("model", "gpt-5.5"),
+                "base_url": _boot.get("base_url") or os.environ.get("OPENAI_BASE_URL") or os.environ.get("LITELLM_BASE_URL"),
+                "api_key": _boot.get("api_key") or os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY") or "",
+                "temperature": 0.7
+            }
+        },
+        "mcpServers": {},
+        "blueprints": {}
+    }
+except Exception:
+    DEFAULT_CONFIG = {"llm": {"default": {"provider": "openai", "model": "gpt-5.5"}}, "mcpServers": {}, "blueprints": {}}
 
 @csrf_exempt # Usually not needed for GET, but doesn't hurt
 def serve_swarm_config(_request):

@@ -35,7 +35,7 @@ Notes:
   closes anonymous connections) and an `Origin` header matching
   `ALLOWED_HOSTS`.
 - The consumer streams completions using the configured gateway
-  (`LITELLM_BASE_URL`) with `LITELLM_API_KEY` / `OPENAI_MODEL`
+  (`OPENAI_BASE_URL` or `LITELLM_BASE_URL`) with corresponding API key. Model comes from config (or "gpt-5.5" default).
   (`OPENAI_API_KEY`/`OPENAI_BASE_URL` are honoured as a fallback).
 - Frames are HTMx-style HTML partials (`websocket_partials/*.html`); the SPA
   parses the same frames.

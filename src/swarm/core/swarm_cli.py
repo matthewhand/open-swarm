@@ -302,7 +302,7 @@ def cli_agents(
                 typer.echo(f"Backed up existing config to {backup}")
             dest.write_text(blob)
             typer.echo(f"Wrote starter config for {len(installed)} CLI(s) [{', '.join(installed) or 'none'}] to {dest}")
-            typer.echo("Next: set LITELLM_BASE_URL/LITELLM_API_KEY, then `swarm-cli cli-agents` to verify.")
+            typer.echo("Next: set OPENAI_API_KEY + OPENAI_BASE_URL (or provide swarm_config.json), then `swarm-cli cli-agents` to verify.")
         else:
             if not installed:
                 typer.echo("# No catalog CLIs (claude/gemini/codex/opencode) found on this host.")

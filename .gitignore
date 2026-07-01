@@ -179,6 +179,9 @@ uvx
 .env.*
 staticfiles/*
 
+# User's local config (start from swarm_config.json.example and customize)
+swarm_config.json
+
 swarm-django.db
 swarm-django.db-*
 

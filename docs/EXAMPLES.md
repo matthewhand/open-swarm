@@ -154,10 +154,11 @@ client", not literally OpenAI. Point it anywhere:
 ```jsonc
 {
   "llm": {
-    "default":       {"provider": "openai", "model": "qwen3.5",       "base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"},
-    "orchestration": {"provider": "openai", "model": "orchestration", "base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"},
-    "groq":          {"provider": "openai", "model": "llama-3.3-70b-versatile", "base_url": "https://api.groq.com/openai/v1", "api_key": "${GROQ_API_KEY}"},
-    "ollama":  {"provider": "openai", "model": "qwen3.5:4b", "base_url": "http://localhost:11434/v1", "api_key": "ollama"}
+    "default":  {"provider": "openai", "model": "gpt-5.5", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "intelligence": 0.6, "speed": 0.6, "cost": 0.6},
+    "reason":   {"provider": "openai", "model": "gpt-5.5", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "intelligence": 0.95, "reasoning_effort": "high"},
+    "classify": {"provider": "openai", "model": "gpt-5.4-mini", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "temperature": 0.0},
+    "groq":     {"provider": "openai", "model": "llama-3.3-70b-versatile", "base_url": "https://api.groq.com/openai/v1", "api_key": "${GROQ_API_KEY}"},
+    "ollama":   {"provider": "openai", "model": "qwen3.5:4b", "base_url": "http://localhost:11434/v1", "api_key": "ollama"}
   }
 }
 ```
@@ -165,6 +166,9 @@ client", not literally OpenAI. Point it anywhere:
   works — the backend ignores it (use a placeholder like `lm-studio`).
 - The `default` profile powers the LLM/REST blueprints (chatbot, hybrid, …) and
   the REST half of `hybrid_team`.
+- Use trait tags (`intelligence`/`speed`/`cost`) on profiles so `hybrid_team` (and other
+  inference_profile-aware code) can route sub-steps: high-intelligence roles pick 'reason',
+  cheap/fast steps pick a well-tagged fast profile, etc. See CONFIGURATION.md and core/inference_profile.py.
 
 ### C. Mixing REST + CLI (this is the point)
 A config with **both** an `llm.default` and `cli_agents` lets you run:

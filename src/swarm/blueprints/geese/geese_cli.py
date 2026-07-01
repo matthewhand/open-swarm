@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--message', dest='prompt', nargs='?', default=None, help='Prompt for the agent (optional, aliased as --message for compatibility)')
     parser.add_argument('--config', type=str, help='Path to config file', default=None)
     parser.add_argument('--agent-mcp', action='append', help='Agent to MCP assignment, e.g. --agent-mcp agent1:mcpA,mcpB')
-    parser.add_argument('--model', type=str, help='Model name (overrides DEFAULT_LLM envvar)', default=None)
+    parser.add_argument('--model', type=str, help='Model name (for geese internal use)', default=None)
     args = parser.parse_args()
 
     agent_mcp_assignments = None
@@ -81,11 +81,6 @@ def main():
                         print(chunk, end="")
         asyncio.run(run_and_print())
         return
-
-    # Set DEFAULT_LLM envvar if --model is given
-    import os
-    if args.model:
-        os.environ['DEFAULT_LLM'] = args.model
 
     async def run_and_print():
         spinner_idx = 0

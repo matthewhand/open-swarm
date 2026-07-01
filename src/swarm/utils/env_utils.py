@@ -222,20 +222,7 @@ def get_testuser_password() -> str:
     return _generated_testuser_password
 
 
-def get_openai_api_key() -> str | None:
-    """Get OpenAI API key."""
-    return os.getenv('OPENAI_API_KEY')
-
-
-def get_openai_model() -> str | None:
-    """Get OpenAI model."""
-    return os.getenv('OPENAI_MODEL')
-
-
-def get_openai_base_url() -> str | None:
-    """Get OpenAI base URL."""
-    return os.getenv('OPENAI_BASE_URL')
-
+# OpenAI/LiteLLM getters consolidated below with get_openai_* that support both prefixes.
 
 def get_anthropic_api_key() -> str | None:
     """Get Anthropic API key."""
@@ -247,24 +234,79 @@ def get_ollama_base_url() -> str | None:
     return os.getenv('OLLAMA_BASE_URL')
 
 
-def get_litellm_api_key() -> str | None:
-    """Get LiteLLM API key."""
-    return os.getenv('LITELLM_API_KEY')
+# --- Simple bootstrap support (env-only, no full swarm_config.json) ---
+
+def get_openai_bootstrap() -> dict | None:
+    """Return a minimal llm.default profile dict if OPENAI/LITELLM key+base are set.
+
+    This powers the "just works" case. Returns None if not enough env is present.
+    """
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LITELLM_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("LITELLM_BASE_URL")
+    if not api_key:
+        return None
+    return {
+        "provider": "openai",
+        "model": "gpt-5.5",
+        "base_url": base_url,
+        "api_key": api_key,
+        "intelligence": 0.6,
+        "speed": 0.6,
+        "cost": 0.6,
+    }
 
 
-def get_litellm_model() -> str | None:
-    """Get LiteLLM model."""
-    return os.getenv('LITELLM_MODEL')
+def get_openai_api_key() -> str | None:
+    """Convenience: return an OpenAI-compatible API key from env."""
+    return os.getenv("OPENAI_API_KEY") or os.getenv("LITELLM_API_KEY")
 
 
-def get_litellm_base_url() -> str | None:
-    """Get LiteLLM base URL."""
-    return os.getenv('LITELLM_BASE_URL')
+def get_openai_base_url() -> str | None:
+    """Convenience: return base URL from env."""
+    return os.getenv("OPENAI_BASE_URL") or os.getenv("LITELLM_BASE_URL")
 
 
-def get_default_llm() -> str | None:
-    """Get default LLM."""
-    return os.getenv('DEFAULT_LLM')
+def ensure_default_openai_client() -> bool:
+    """Ensure a default OpenAI client is set for the agents library.
+
+    Prefers a loaded swarm config's 'default' profile; falls back to env bootstrap.
+    Returns True if a client was set.
+    """
+    try:
+        from openai import AsyncOpenAI
+        from agents import set_default_openai_client
+
+        # Try to read from already-loaded config if available (e.g. in Django AppConfig)
+        try:
+            from django.conf import settings as dj_settings
+            if hasattr(dj_settings, 'SWARM_CONFIG') and isinstance(dj_settings.SWARM_CONFIG, dict):
+                prof = dj_settings.SWARM_CONFIG.get("llm", {}).get("default", {})
+                if prof.get("base_url") and prof.get("api_key"):
+                    set_default_openai_client(AsyncOpenAI(
+                        base_url=prof["base_url"], api_key=prof["api_key"]
+                    ))
+                    return True
+        except Exception:
+            pass
+
+        # Bootstrap from env
+        bootstrap = get_openai_bootstrap()
+        if bootstrap and bootstrap.get("base_url") and bootstrap.get("api_key"):
+            set_default_openai_client(
+                AsyncOpenAI(base_url=bootstrap["base_url"], api_key=bootstrap["api_key"])
+            )
+            return True
+
+        # Direct env fallback
+        key = get_openai_api_key()
+        url = get_openai_base_url()
+        if key:
+            set_default_openai_client(AsyncOpenAI(base_url=url, api_key=key))
+            return True
+    except Exception:
+        pass
+    return False
+
 
 
 def get_github_token() -> str | None:

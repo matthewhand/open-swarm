@@ -200,9 +200,8 @@ class DjangoChatBlueprint(Blueprint):
             base_url = profile.get("base_url")
             api_key = profile.get("api_key") or "ollama"  # local backends ignore the key
             # No hardcoded model fallback: the profile's model is authoritative,
-            # with LITELLM_MODEL/DEFAULT_LLM as the only escape hatch.
-            import os
-            model_name = profile.get("model") or os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM")
+            # Model strictly from profile (config-driven).
+            model_name = profile.get("model") or "gpt-5.5"
         except Exception as e:  # config not initialized / no profile
             logger.warning("DjangoChat: LLM profile unavailable (%s)", e)
             base_url = None

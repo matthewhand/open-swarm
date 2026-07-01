@@ -28,7 +28,8 @@ pip install open-swarm
 # installed (claude/gemini/codex/opencode), gotchas baked in:
 swarm-cli cli-agents --init --write
 
-export LITELLM_API_KEY=sk-...         # for the llm block
+export OPENAI_API_KEY=sk-...         # (or LITELLM_API_KEY) for the llm block
+export OPENAI_BASE_URL=...           # optional base for simple bootstrap
 swarm-cli cli-agents                  # confirm what's installed
 swarm-cli cli-agents --smoke          # confirm they answer non-interactively
 ```

@@ -3,7 +3,7 @@
 Covers the new behaviour added in feat/smart-llm-routing: a blueprint declares a
 desired ``inference_profile`` (a suggestion), and the framework scores it against
 the *tagged* profiles in the config ``llm`` section via inference_profile.resolve.
-Explicit profile names and env overrides still take priority.
+Explicit profile names in config take priority over inference suggestions.
 """
 from unittest.mock import patch
 
@@ -59,10 +59,12 @@ def test_explicit_profile_name_beats_suggestion():
     assert bp._resolve_llm_profile() == "default"
 
 
-def test_env_default_llm_beats_suggestion():
+def test_env_vars_do_not_override_inference():
+    """DEFAULT_LLM / LITELLM_MODEL no longer act as escape hatches."""
     bp = _bp(metadata={"inference_profile": {"intelligence": 1.0}})
-    with patch.dict("os.environ", {"DEFAULT_LLM": "fast"}):
-        assert bp._resolve_llm_profile() == "fast"
+    with patch.dict("os.environ", {"DEFAULT_LLM": "fast", "LITELLM_MODEL": "something"}):
+        # Should still pick based on inference (smart has highest intelligence), not env
+        assert bp._resolve_llm_profile() == "smart"
 
 
 def test_no_axis_suggestion_falls_through_to_default():

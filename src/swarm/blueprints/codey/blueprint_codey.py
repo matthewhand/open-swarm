@@ -98,7 +98,7 @@ def _cli_main():
         description="Codey: Swarm-powered, Codex-compatible coding agent. Accepts Codex CLI arguments.",
         add_help=False)
     parser.add_argument("prompt", nargs="?", help="Prompt or task description (quoted)")
-    parser.add_argument("-m", "--model", help="Model name (hf-qwen2.5-coder-32b, etc.)", default=os.getenv("LITELLM_MODEL"))
+    parser.add_argument("-m", "--model", help="Model name (overrides profile, e.g. gpt-5.5)", default=None)
     parser.add_argument("-q", "--quiet", action="store_true", help="Non-interactive mode (only final output)")
     parser.add_argument("-o", "--output", help="Output file", default=None)
     parser.add_argument("--project-doc", help="Markdown file to include as context", default=None)

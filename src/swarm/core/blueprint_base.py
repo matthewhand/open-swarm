@@ -57,7 +57,7 @@ import logging
 
 from rich.console import Console
 
-if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
+if os.environ.get("OPENAI_BASE_URL") or os.environ.get("LITELLM_BASE_URL"):
     # Silence openai.agents tracing/telemetry errors
     logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
     try:
@@ -117,23 +117,9 @@ class Spinner:
 # ... do work ...
 # spinner.stop('Done!')
 
-def configure_openai_client_from_env():
-    """
-    Framework-level function: Always instantiate and set the default OpenAI client.
-    Prints out the config being used for debug.
-    """
-    import os
-    base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-    api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    _debug_print(f"[DEBUG] Using OpenAI client config: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
-    if base_url and api_key:
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
-        set_default_openai_client(client)
-        _framework_print(f"[FRAMEWORK] Set default OpenAI client: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
-    else:
-        _framework_print("[FRAMEWORK] WARNING: base_url or api_key missing, OpenAI client not set!")
-
-configure_openai_client_from_env()
+# Client setup is now driven by loaded config (or minimal env-based default below).
+# The old unconditional configure_openai_client_from_env() has been removed to
+# eliminate the envvar escape hatch. See _load_configuration and _get_model_instance.
 
 class BlueprintBase(ABC):
     """
@@ -249,21 +235,25 @@ class BlueprintBase(ABC):
                         print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
                         with open(legacy_config) as f:
                             self._config = json.load(f)
-                    # 5. Fallback: gateway env (LITELLM_API_KEY, else OPENAI_API_KEY)
-                    elif os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"):
-                        print("[SWARM_CONFIG_DEBUG] No config file found, using LITELLM_API_KEY/OPENAI_API_KEY from env.")
-                        self._config = {
-                            "llm": {"default": {"provider": "openai", "model": os.environ.get("LITELLM_MODEL") or "qwen3.5", "base_url": os.environ.get("LITELLM_BASE_URL"), "api_key": os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")}},
-                            "settings": {"default_llm_profile": "default", "default_markdown_output": True},
-                            "blueprints": {},
-                            "llm_profile": "default",
-                            "mcpServers": {}
-                        }
-                        logger.info("No config file found, using env-based default config for CLI mode.")
-                    else:
-                        print("[SWARM_CONFIG_DEBUG] No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config.")
-                        self._config = {}
-                        logger.warning("No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config. CLI blueprints may fail if LLM config is required.")
+
+                    # 5. Minimal env-based default (no escape hatch)
+                    # If user provides OPENAI/LITELLM key + base, synthesize a default profile.
+                    # This is the only supported "just works" path without a config file.
+                    if not self._config:
+                        from swarm.utils.env_utils import get_openai_bootstrap
+                        if bootstrap := get_openai_bootstrap():
+                            print("[SWARM_CONFIG_DEBUG] No config file; synthesizing minimal default from env.")
+                            self._config = {
+                                "llm": {"default": bootstrap},
+                                "settings": {"default_llm_profile": "default", "default_markdown_output": True},
+                                "blueprints": {},
+                                "mcpServers": {}
+                            }
+                            logger.info("Synthesized minimal llm.default from env for simple use case.")
+                        else:
+                            print("[SWARM_CONFIG_DEBUG] No config file and no sufficient API key+base in env.")
+                            self._config = {}
+                            logger.warning("No swarm_config.json and no OPENAI_API_KEY + base env. LLM features will fail.")
                 if self._config is not None:
                     self._config = _substitute_env_vars(self._config)
             # Ensure self._config is always a dict
@@ -393,21 +383,23 @@ class BlueprintBase(ABC):
                             print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
                             with open(legacy_config) as f:
                                 self._config = json.load(f)
-                        # 5. Fallback: gateway env (LITELLM_API_KEY, else OPENAI_API_KEY)
-                        elif os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"):
-                            print("[SWARM_CONFIG_DEBUG] No config file found, using LITELLM_API_KEY/OPENAI_API_KEY from env.")
-                            self._config = {
-                                "llm": {"default": {"provider": "openai", "model": os.environ.get("LITELLM_MODEL") or "qwen3.5", "base_url": os.environ.get("LITELLM_BASE_URL"), "api_key": os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")}},
-                                "settings": {"default_llm_profile": "default", "default_markdown_output": True},
-                                "blueprints": {},
-                                "llm_profile": "default",
-                                "mcpServers": {}
-                            }
-                            logger.info("No config file found, using env-based default config for CLI mode.")
-                        else:
-                            print("[SWARM_CONFIG_DEBUG] No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config.")
-                            self._config = {}
-                            logger.warning("No config file found and no LITELLM_API_KEY/OPENAI_API_KEY set. Using empty config. CLI blueprints may fail if LLM config is required.")
+
+                        # 5. Minimal env-based default
+                        if not self._config:
+                            from swarm.utils.env_utils import get_openai_bootstrap
+                            if bootstrap := get_openai_bootstrap():
+                                print("[SWARM_CONFIG_DEBUG] No config file; synthesizing minimal default from env.")
+                                self._config = {
+                                    "llm": {"default": bootstrap},
+                                    "settings": {"default_llm_profile": "default", "default_markdown_output": True},
+                                    "blueprints": {},
+                                    "mcpServers": {}
+                                }
+                                logger.info("Synthesized minimal llm.default from env for simple use case.")
+                            else:
+                                print("[SWARM_CONFIG_DEBUG] No config file and no sufficient key+base.")
+                                self._config = {}
+                                logger.warning("No swarm_config.json and no OPENAI_API_KEY + base env.")
                         if self._config is not None:
                             self._config = _substitute_env_vars(self._config)
             # Ensure self._config is always a dict
@@ -535,12 +527,10 @@ class BlueprintBase(ABC):
         4. If settings.default_llm in self._config, use it.
         5. If global swarm_config has blueprints.<BlueprintName>.llm_profile, use it.
         6. If settings.default_llm in global config, use it.
-        7. If env var DEFAULT_LLM is set, use it.
-        7b. inference_profile scoring: if the blueprint declares a desired
+        7. inference_profile scoring: if the blueprint declares a desired
             inference_profile (metadata or make_agent param), pick the closest
             tagged profile via inference_profile.resolve(). This is the primary
-            path for blueprints that only declare *intent*; explicit names and
-            env overrides above still win.
+            path for blueprints that only declare *intent*.
         8. Otherwise, use 'default'.
         """
         # Use cached value if already resolved
@@ -593,12 +583,9 @@ class BlueprintBase(ABC):
             # 6. settings.default_llm in global config
             if not profile and global_config and 'settings' in global_config and global_config['settings'].get('default_llm'):
                 profile = global_config['settings']['default_llm']
-        # 7. Env var DEFAULT_LLM
-        if not profile:
-            import os
-            profile = os.environ.get('DEFAULT_LLM')
-        # 7b. inference_profile scoring (suggestion) — primary path for blueprints
-        #     that declare only intent; runs below explicit names/env overrides.
+        # No more DEFAULT_LLM / LITELLM_MODEL env escape hatches here.
+        # Profile resolution is driven by config (or the minimal synthetic default).
+        # 7b. inference_profile scoring (suggestion)
         if not profile:
             profile = self._select_profile_by_inference()
         # 8. Otherwise, use 'default'
@@ -700,7 +687,9 @@ class BlueprintBase(ABC):
         return ansi_box(title, desc, color=color_codes.get(color, '96'), emoji=emoji)
 
     def _get_model_instance(self, profile_name: str):
-        """Retrieves or creates an LLM Model instance, respecting LITELLM_MODEL/DEFAULT_LLM if set."""
+        """Retrieves or creates an LLM Model instance from the resolved profile in config.
+        Model name and endpoint come from the profile (env substitution already applied).
+        """
         if not hasattr(self, '_model_instance_cache'):
             self._model_instance_cache = {}
         if not hasattr(self, '_openai_client_cache'):
@@ -714,9 +703,11 @@ class BlueprintBase(ABC):
         # --- PATCH: API mode selection ---
         # Default to 'completions' mode unless 'responses' is explicitly specified in swarm_config.json for this blueprint
         api_mode = profile_data.get("api_mode") or self.config.get("api_mode") or "completions"
-        # Allow env override for debugging if needed
+        # Allow env override for debugging if needed (rare)
         api_mode = os.getenv("SWARM_LLM_API_MODE", api_mode)
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model")
+        # Model name comes strictly from the resolved profile.
+        # No more LITELLM_MODEL / DEFAULT_LLM escape hatches that bypass config.
+        model_name = profile_data.get("model")
         provider = profile_data.get("provider", "openai")
         client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
         filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
@@ -878,9 +869,7 @@ class BlueprintBase(ABC):
         ``inference_profile`` (optional) is a *suggestion* of the kind of inference
         wanted (e.g. ``{"intelligence": 1.0}`` or ``{"speed": 0.9, "cost": 0.9}``).
         It is scored against the tagged profiles in swarm_config.json's ``llm``
-        section and only takes effect when no explicit profile name or env override
-        (LITELLM_MODEL/DEFAULT_LLM) is set. Equivalent to declaring
-        ``metadata['inference_profile']`` on the blueprint.
+        section. Equivalent to declaring ``metadata['inference_profile']`` on the blueprint.
         """
         from agents import Agent  # Ensure Agent is always in scope
         if inference_profile is not None:

@@ -187,12 +187,10 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
     def create_starting_agent(self, mcp_servers=None):
         """Creates Zeus coordinator agent with Pantheon gods as tools."""
         from agents import Agent
-        from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-        from openai import AsyncOpenAI
-        model_name = (self.config.get('llm_profile', 'default') if hasattr(self, 'config') and self.config else 'default')
-        api_key = os.environ.get('OPENAI_API_KEY', 'sk-test')
-        openai_client = AsyncOpenAI(api_key=api_key)
-        model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client)
+        # Use framework profile resolution (supports config + simple env key+base case)
+        model_instance = self._get_model_instance(
+            self.config.get('llm_profile', 'default') if hasattr(self, 'config') and self.config else 'default'
+        )
 
         pantheon_names = [
             ("Odin", "Delegate architecture, design, and research tasks."),

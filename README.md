@@ -37,8 +37,9 @@ git clone https://github.com/matthewhand/open-swarm.git
 cd open-swarm
 uv sync --all-extras          # or: pip install -e .[dev]
 
-# Configure an LLM key
-export LITELLM_API_KEY="sk-..."
+# Configure an LLM (simple case: just set these two; for full profiles use swarm_config.json)
+export OPENAI_API_KEY="sk-..."
+export OPENAI_BASE_URL="http://your-gateway-or-openai/v1"  # optional for OpenAI direct
 
 # List bundled blueprints
 uv run swarm-cli list
@@ -55,7 +56,7 @@ uv run swarm-cli install codey
 ## Quickstart (API server)
 
 ```bash
-cp .env.example .env          # set LITELLM_API_KEY, API_AUTH_TOKEN, DJANGO_SECRET_KEY
+cp .env.example .env          # set OPENAI_API_KEY (and BASE_URL for gateway), API_AUTH_TOKEN, DJANGO_SECRET_KEY
 docker compose up -d
 
 curl -sf http://localhost:8000/v1/models | jq .
@@ -137,32 +138,47 @@ Diagrams + sequence flows for every pattern: [docs/ORCHESTRATION_PATTERNS.md](do
 
 ### Example `swarm_config.json`
 
+Start with the shipped example:
+
+```bash
+cp swarm_config.json.example swarm_config.json
+# or for XDG: cp swarm_config.json.example ~/.config/swarm/swarm_config.json
+```
+
+A minimal example (using current OpenAI models as of 2026):
+
 ```json
 {
   "llm": {
     "default": {
       "provider": "openai",
-      "model": "qwen3.5",
+      "model": "gpt-5.5",
       "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}"
+      "api_key": "${LITELLM_API_KEY}",
+      "intelligence": 0.6,
+      "speed": 0.6,
+      "cost": 0.6
     },
-    "local": {
-      "provider": "ollama",
-      "model": "llama3",
-      "base_url": "http://localhost:11434"
-    }
-  },
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATH}"],
-      "env": { "ALLOWED_PATH": "${ALLOWED_PATH}" }
+    "reason": {
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
+      "intelligence": 0.95,
+      "reasoning_effort": "high"
+    },
+    "classify": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}",
+      "temperature": 0.0
     }
   }
 }
 ```
 
-Select a profile per run with `DEFAULT_LLM=local swarm-cli launch codey ...`. Any OpenAI-compatible endpoint works (Ollama, LiteLLM, vLLM, …). See [CONFIGURATION.md](./CONFIGURATION.md) for the full guide.
+Select the active profile via the `llm_profile` key in your `swarm_config.json` (or per-blueprint overrides). For the simplest setup, just provide `OPENAI_API_KEY` + `OPENAI_BASE_URL` and a minimal "default" profile is synthesized. See the full `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGURATION.md).
 
 ---
 
@@ -205,7 +221,8 @@ Set in `.env` (copy `.env.example`). Security-critical ones first:
 | `DJANGO_SECRET_KEY` | Django secret. **Required when `DJANGO_DEBUG` is not true** (server refuses to start without it) | dev-only fallback in debug |
 | `DJANGO_DEBUG` | Django debug mode — never `true` in production | `false` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts | `localhost,127.0.0.1` |
-| `DEFAULT_LLM` | Name of the LLM profile to use from config | `default` |
+| `OPENAI_BASE_URL` / `LITELLM_BASE_URL` | Base URL for simple default profile (when no full config) | - |
+| `OPENAI_API_KEY` / `LITELLM_API_KEY` | API key for simple default profile | - |
 | `SWARM_CONFIG_PATH` | Path to `swarm_config.json` | XDG config dir |
 | `BLUEPRINT_DIRECTORY` | Where blueprints are discovered | `src/swarm/blueprints` |
 | `SWARM_BLUEPRINTS` | Comma-separated allow-list of blueprints to expose | all |

@@ -171,7 +171,7 @@ class SuggestionBlueprint(BlueprintBase):
         "author": "Open Swarm Team (Refactored)",
         "tags": ["structured output", "json", "suggestions", "output_type"],
         "required_mcp_servers": [],
-        "env_vars": [], # OPENAI_API_KEY is implicitly needed by the model
+        "env_vars": [], # LLM access configured via swarm_config.json (or OPENAI_* env for simple default case)
     }
 
     # Caches
@@ -254,16 +254,11 @@ class SuggestionBlueprint(BlueprintBase):
         try:
             profile_data = self.get_llm_profile(profile_name)
         except RuntimeError:
-            import os
-            api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("No LITELLM_API_KEY/OPENAI_API_KEY found and config not loaded")
-            logger.warning(f"Config not available, using env-based fallback model for {profile_name}")
+            # Config not loaded - fall back to standard OpenAI client (which itself
+            # honors OPENAI_API_KEY / OPENAI_BASE_URL env if set) or previous global client.
+            logger.warning(f"Config not available, using fallback model for {profile_name}")
             from openai import AsyncOpenAI
-            client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-            )
+            client = AsyncOpenAI()  # relies on env or framework-set client
             fallback_model = "gpt-5.5"
             model_instance = OpenAIChatCompletionsModel(model=fallback_model, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance

@@ -410,7 +410,7 @@ class JeevesBlueprint(BlueprintBase):
 
         mcp_servers = kwargs.get("mcp_servers", [])
         agent = self.create_starting_agent(mcp_servers=mcp_servers)
-        model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5"
+        model_name = "gpt-5.5"  # or pull from a profile; avoiding direct env override
 
         spinner = JeevesSpinner()
         spinner.start()

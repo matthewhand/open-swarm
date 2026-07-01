@@ -7,7 +7,7 @@ from swarm.core.spinner import SwarmSpinner
 from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint
 
 # Early test-mode: simulate spinner output and exit for RueCode CLI tests
-if os.environ.get("SWARM_TEST_MODE") or os.environ.get("DEFAULT_LLM") == "test":
+if os.environ.get("SWARM_TEST_MODE") or os.environ.get("RUECODE_TEST_MODE") == "test":
     for idx, state in enumerate(SwarmSpinner.FRAMES, start=1):
         print(f"[SPINNER] {state}")
         display_operation_box(

@@ -49,10 +49,10 @@ class ChatbotBlueprint(BlueprintBase):
         # Suggested inference: a balanced all-rounder. The framework scores this
         # against the tagged profiles in swarm_config.json's `llm` section and
         # picks the closest match (see core/inference_profile.py). A hint only —
-        # explicit llm_profile / DEFAULT_LLM / LITELLM_MODEL still take priority.
+        # explicit llm_profile takes priority.
         "inference_profile": {"intelligence": 0.6, "speed": 0.6, "cost": 0.6},
         "required_mcp_servers": [],
-        "env_vars": [],  # OPENAI_API_KEY implicitly needed by the model
+        "env_vars": [],  # LLM access configured via swarm_config.json (or OPENAI_* env for simple default case)
     }
 
     def __init__(self, blueprint_id: str = "chatbot", config=None, config_path=None, **kwargs):

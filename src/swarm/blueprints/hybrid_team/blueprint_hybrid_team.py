@@ -20,11 +20,11 @@ a JSON plan + role delegations,
     {"plan": "...", "delegations": [{"role": "agent", "task": "..."}, ...]}
 
 which :meth:`run` parses (:meth:`_parse_delegations`) and routes back through the
-per-step model machinery — each delegation runs on its role's model
-(``orchestration`` / ``agent`` / ``auxiliary``; see :attr:`ROLE_PROFILES` and
-:meth:`_agent_for_role`). Without claude it falls back to the orchestration-role
-LLM plan with no delegations, so the per-step routing from the prior change still
-applies and behaviour is unchanged under ``SWARM_TEST_MODE``.
+per-step model machinery — each delegation runs on a model chosen for its role
+via ROLE_PROFILES + inference_profile scoring (see :attr:`ROLE_PROFILES` and
+:meth:`_agent_for_role`). The 'orchestration' role prefers your highest-intelligence
+tagged profile (e.g. 'reason'). Without claude it falls back to the orchestration-role
+LLM plan with no delegations.
 
 Deterministic in tests two ways, independently:
 
@@ -80,17 +80,19 @@ class HybridTeamBlueprint(BlueprintBase):
         # role (see ROLE_PROFILES). hybrid_team mixes a smart coordinator with
         # cheaper execution steps, so the default leans capable-but-not-maximal:
         # good reasoning, some weight on speed. Per-step roles below override it.
-        # A hint only — explicit llm_profile / DEFAULT_LLM / LITELLM_MODEL win.
+        # A hint only — explicit llm_profile wins. Profiles in swarm_config control endpoints/models.
+        # (hybrid_team further overrides per sub-step via ROLE_PROFILES above.)
         "inference_profile": {"intelligence": 0.7, "speed": 0.5},
         "required_mcp_servers": [],
         "env_vars": [],
     }
 
-    # Per-step inference intents. Each maps a sub-task *role* to an
-    # inference_profile (see core/inference_profile.py) that BlueprintBase scores
-    # against the tagged profiles in swarm_config.json's `llm` section. This is
-    # what lets a single run() mix models by step: planning gets the smartest
-    # model; cheap/simple steps get a fast, inexpensive one.
+    # Per-step inference intents. Each maps a sub-task *role* to a desired
+    # inference_profile (trait vector). BlueprintBase scores it against *tagged*
+    # profiles in swarm_config.json's `llm` section (using core/inference_profile).
+    # This lets one run() use different models per step without hard-coding names:
+    # planning/coordination asks for high intelligence (usually picks 'reason'),
+    # execution asks for speed+cost, etc.
     ROLE_PROFILES: ClassVar[dict[str, dict[str, float]]] = {
         # planning, coordination, multi-agent work -> the smartest available
         "orchestration": {"intelligence": 0.95},

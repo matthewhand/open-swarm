@@ -168,10 +168,7 @@ with an error telling you to `swarm-cli install-executable <name>` first.
     Hook blueprints must also be installed executables; missing ones are
     skipped with a warning.
 
-These are the only `launch` options. To select a different LLM profile, set
-`DEFAULT_LLM` in the environment (see below); blueprint-specific flags can be
-passed when running the blueprint executable (or its module entry point)
-directly, e.g. `python -m swarm.blueprints.jeeves.jeeves_cli --help`.
+These are the only `launch` options. To select a different LLM profile, set `llm_profile` in your `swarm_config.json` (or per-blueprint in the `blueprints` section). For the absolute simplest case (no config file), just export `OPENAI_API_KEY` + `OPENAI_BASE_URL` (the app will synthesize a minimal "default" profile). Blueprint-specific flags can be passed when running the blueprint executable directly.
 
 ### Removing Blueprints (manual)
 
@@ -233,16 +230,18 @@ directory.
 
 ### Selecting an LLM profile
 
-Choose which profile a run uses via the `DEFAULT_LLM` environment variable
-(defaults to `default`):
+The active profile is resolved from your `swarm_config.json` (see `_resolve_llm_profile` logic and the `llm_profile` key). 
+
+For the simplest possible setup with no `swarm_config.json` at all, just set:
 
 ```bash
-export DEFAULT_LLM=ollama_example
-swarm-cli launch codey --message "Test Llama3 performance"
+export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL=https://api.openai.com/v1   # or your gateway
 ```
 
-See [CONFIGURATION.md](./CONFIGURATION.md) for the full configuration guide
-(server environment variables, API auth, etc.).
+A minimal `default` profile using `gpt-5.5` will be synthesized automatically.
+
+See the example in `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGURATION.md) for advanced multi-profile setups (different models/endpoints per "role").
 
 ---
 

@@ -121,11 +121,20 @@ class SwarmConfig(AppConfig):
                 xdg = config_loader._xdg_config_path()
                 path = xdg if xdg.is_file() else None
             if not path:
+                # Support simple "just works" with env only
+                from swarm.utils.env_utils import get_openai_bootstrap, ensure_default_openai_client
+                if bootstrap := get_openai_bootstrap():
+                    logger.info("No swarm_config; synthesizing default from env key+base.")
+                    cfg = {"llm": {"default": bootstrap}}
+                    ensure_default_openai_client()
+                    return cfg
                 logger.info("No XDG/SWARM_CONFIG_PATH swarm_config.json; deferring to cwd fallback.")
                 return {}
             raw = json.loads(Path(path).read_text())
             cfg = config_loader._substitute_env_vars(raw)
             logger.info("Swarm config loaded from %s", path)
+            from swarm.utils.env_utils import ensure_default_openai_client
+            ensure_default_openai_client()  # will use profile if present in cfg
             return cfg if isinstance(cfg, dict) else {}
         except Exception as e:
             logger.warning("Failed to load swarm config (%s); using empty config.", e)
