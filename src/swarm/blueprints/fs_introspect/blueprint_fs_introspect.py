@@ -87,7 +87,9 @@ class FsIntrospectBlueprint(BlueprintBase):
         token = text
         if " " in text:
             cand = [t for t in text.split() if ("/" in t or t.startswith("~") or "." in t)]
-            token = cand[-1] if cand else text
+            if not cand:
+                return ("", "")
+            token = cand[-1]
         return ("auto", token.strip())
 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:

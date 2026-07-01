@@ -137,7 +137,6 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
         self.config_path = config_path
-        self._config = config if config is not None else None
         self._llm_profile_name = None
         self._llm_profile_data = None
         self._markdown_output = None
@@ -220,59 +219,42 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         """Main execution entry point for the WhiskeyTangoFoxtrot blueprint."""
         logger.info("WhiskeyTangoFoxtrotBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
-        # --- Test Mode: yield a canned answer immediately, never spawn the
-        # multi-tier agent loop (which hangs without a live LLM). ---
+
+        # --- Check MCP server availability ---
+        mcp_servers: list[MCPServer] = kwargs.get("mcp_servers", [])
+        started_names = {s.name for s in mcp_servers}
+        required = self.metadata.get("required_mcp_servers", [])
+        missing_servers = [s for s in required if s not in started_names]
+        if missing_servers:
+            msg = (
+                f"WhiskeyTangoFoxtrot requires MCP server(s) that are not running: "
+                f"{', '.join(missing_servers)}. Start them first, or skip this blueprint."
+            )
+            logger.warning(msg)
+            yield {"messages": [{"role": "assistant", "content": msg}]}
+            return
+
+        # --- Test Mode: yield a canned answer immediately ---
         if os.environ.get("SWARM_TEST_MODE"):
             yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] WhiskeyTangoFoxtrot tracking free services. You said: '{instruction}'"}]}
             return
-        from agents import Runner
+
         ux = BlueprintUXImproved(style="serious")
-        spinner_idx = 0
-        start_time = time.time()
-        spinner_yield_interval = 1.0  # seconds
-        last_spinner_time = start_time
-        yielded_spinner = False
-        result_chunks = []
         try:
-            runner_gen = Runner.run(self.create_starting_agent([]), instruction)
-            while True:
-                now = time.time()
-                try:
-                    chunk = next(runner_gen)
-                    result_chunks.append(chunk)
-                    # If chunk is a final result, wrap and yield
-                    if chunk and isinstance(chunk, dict) and "messages" in chunk:
-                        content = chunk["messages"][0]["content"] if chunk["messages"] else ""
-                        summary = ux.summary("Operation", len(result_chunks), {"instruction": instruction[:40]})
-                        box = ux.ansi_emoji_box(
-                            title="WhiskeyTangoFoxtrot Result",
-                            content=content,
-                            summary=summary,
-                            params={"instruction": instruction[:40]},
-                            result_count=len(result_chunks),
-                            op_type="run",
-                            status="success"
-                        )
-                        yield {"messages": [{"role": "assistant", "content": box}]}
-                    else:
-                        yield chunk
-                    yielded_spinner = False
-                except StopIteration:
-                    break
-                except Exception:
-                    if now - last_spinner_time >= spinner_yield_interval:
-                        taking_long = (now - start_time > 10)
-                        spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
-                        yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
-                        spinner_idx += 1
-                        last_spinner_time = now
-                        yielded_spinner = True
-            if not result_chunks and not yielded_spinner:
-                yield {"messages": [{"role": "assistant", "content": ux.spinner(0)}]}
+            result = await Runner.run(self.create_starting_agent(mcp_servers), instruction)
+            content = result.final_output
+            box = ux.ansi_emoji_box(
+                title="WhiskeyTangoFoxtrot Result",
+                content=content,
+                params={"instruction": instruction[:40]},
+                result_count=1,
+                op_type="run",
+                status="success"
+            )
+            yield {"messages": [{"role": "assistant", "content": box}]}
         except Exception as e:
             logger.error(f"Error during WhiskeyTangoFoxtrot run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
-        return
 
 
     def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:

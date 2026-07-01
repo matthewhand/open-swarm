@@ -30,6 +30,7 @@ try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
+    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
@@ -180,7 +181,6 @@ class SuggestionBlueprint(BlueprintBase):
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
         self.config_path = config_path
-        self._config = config if config is not None else None
         self._llm_profile_name = None
         self._llm_profile_data = None
         self._markdown_output = None
@@ -229,14 +229,13 @@ class SuggestionBlueprint(BlueprintBase):
         import os
 
         from agents import Runner
-        os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5"
         try:
             result = await Runner.run(agent, instruction)
             yield {
                 "messages": [
                     {
                         "role": "assistant",
-                        "content": str(result)
+                        "content": result.final_output
                     }
                 ]
             }
@@ -252,37 +251,42 @@ class SuggestionBlueprint(BlueprintBase):
             return self._model_instance_cache[profile_name]
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
 
-        # Fallback to simple OpenAI model if config not available
         try:
             profile_data = self.get_llm_profile(profile_name)
         except RuntimeError:
-            # Config not loaded, use environment fallback
             import os
-
-            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
             api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("No LITELLM_API_KEY/OPENAI_API_KEY found and config not loaded")
             logger.warning(f"Config not available, using env-based fallback model for {profile_name}")
             from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=api_key, base_url=os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"))
-            model_instance = OpenAIChatCompletionsModel(model=os.environ.get("LITELLM_MODEL") or "qwen3.5", openai_client=client)
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+            )
+            fallback_model = "gpt-5.5"
+            model_instance = OpenAIChatCompletionsModel(model=fallback_model, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
+        if not profile_data:
+            raise ValueError(f"Missing LLM profile '{profile_name}'.")
         provider = profile_data.get("provider", "openai").lower()
         model_name = profile_data.get("model")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
-        # Remove redundant client instantiation; rely on framework-level default client
-        # All blueprints now use the default client set at framework init
+        if not model_name:
+            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
+        if provider != "openai":
+            raise ValueError(f"Unsupported provider: {provider}")
+        from openai import AsyncOpenAI
+        client_kwargs = {"api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url")}
+        filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
+        client = AsyncOpenAI(**filtered_kwargs)
         logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
         try:
-            # Ensure the model selected supports structured output (most recent OpenAI do)
-            model_instance = OpenAIChatCompletionsModel(model=model_name)
+            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to init LLM: {e}") from e
 
 if __name__ == "__main__":
     import asyncio
