@@ -14,7 +14,6 @@ class GAWDBlueprint(BlueprintBase):
     """
     A blueprint for divine code inspiration. Demonstrates unified UX: spinner, ANSI/emoji output, and progress updates.
     """
-    coordinator = None  # Dummy attribute for test compliance
     progress = ProgressRenderer()
     diff_formatter = DiffFormatter()
     status_formatter = StatusFormatter()
@@ -152,70 +151,25 @@ class GAWDBlueprint(BlueprintBase):
         await aio.sleep(0.1)
         # Actually run the agent and get the LLM response
         import asyncio
-        import shutil
         import time
-        term_width = shutil.get_terminal_size().columns - 4
 
-        # Print input history in grey
-        if hasattr(self, 'input_history'):
-            for entry in self.input_history[-3:]:  # Show last 3 entries
-                print(f"\033[38;5;240m> {entry}\033[0m")
+        user_input = instruction
 
-        # Get input and check for multi-line paste
-        print(f"\033[38;5;240m╭{'─' * term_width}╮\033[0m")
-        user_input = input("\033[38;5;240m│ \033[0m\033[1;37m\u2588 \033[0m")
-        print(f"\033[38;5;240m╰{'─' * term_width}╯\033[0m")
-
-        # Check for multi-line input
-        line_count = user_input.count('\n') + 1
-        user_input = user_input.strip()
-        if line_count > 1:
-            # Display summary line
-            print(f"\033[38;5;240m[Pasted Content - {line_count} lines]\033[0m")
-
-        # Store input in history
-        if not hasattr(self, 'input_history'):
-            self.input_history = []
-        self.input_history.append(user_input)
-
-        # Print auto-accept status line
-        auto_accept = kwargs.get('auto_accept', False)
-        status_color = "\033[38;5;183m" if auto_accept else "\033[38;5;240m"
-        print(f"{status_color}⏵⏵ auto-accept edits {'on' if auto_accept else 'off'} (shift+tab to cycle)\033[0m")
-
-        agent: Any = self.coordinator  # type: ignore
+        agent = self.make_agent(
+            name="DivineInspiration",
+            instructions="You are a divine code inspiration agent.",
+            tools=[],
+        )
         llm_response = ""
         try:
             from agents import Runner
-            start_time = time.time()
-            tokens_received = 0
 
-            def status_update_callback(content_type: str, content: str):
-                nonlocal tokens_received
-                if content_type == "user_output":
-                    tokens_received += len(content.split())
-
-            # Start status line
-            print("\033[38;5;183mResponding\033[0m\033[38;5;240m (0s waited, 0 tokens)\033[0m", end="\r")
-
-            response = await Runner.run(
-                agent,
-                user_input
-            )
-
-            # Update status while waiting
-            while not (hasattr(response, 'complete') and response.complete):  # type: ignore
-                elapsed = int(time.time() - start_time)
-                print(f"\033[38;5;183mResponding\033[0m\033[38;5;240m ({elapsed}s waited, {tokens_received} tokens)\033[0m", end="\r")
-                await asyncio.sleep(1)
-
-            # Clear status line
-            print("\033[K", end="\r")
-
-            llm_response = getattr(response, 'final_output', str(response))
-            [llm_response.strip() or "(No response from LLM)"]
-        except Exception:
-            pass
+            response = await Runner.run(agent, user_input)
+            llm_response = getattr(response, 'final_output', str(response)) or "(No response from LLM)"
+        except Exception as e:
+            import sys
+            print(f"[GAWD] LLM error: {e}", file=sys.stderr)
+            llm_response = f"(LLM error: {e})"
 
         search_mode = kwargs.get('search_mode', 'semantic')
         if search_mode in ("semantic", "code"):

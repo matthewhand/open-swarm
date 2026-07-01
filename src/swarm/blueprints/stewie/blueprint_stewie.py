@@ -220,7 +220,7 @@ class StewieBlueprint(BlueprintBase):
         """
         # Patch: Always provide a minimal valid config for tests if missing
         if not self._config:
-            self._config = {'llm': {'default': {'model': 'gpt-mock', 'provider': 'openai'}}, 'llm_profile': 'default'}
+            self._config = {'llm': {'default': {'model': 'orchestration', 'base_url': 'http://10.0.0.30:8000/v1', 'provider': 'openai'}}, 'llm_profile': 'default'}
         messages = messages or []
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get("SWARM_TEST_MODE"):
@@ -239,8 +239,8 @@ class StewieBlueprint(BlueprintBase):
         from agents import Runner
         os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "qwen3.5"
         try:
-            for chunk in Runner.run(agent, instruction):
-                yield chunk
+            result = await Runner.run(agent, instruction)
+            yield {"messages": [{"role": "assistant", "content": result.final_output}]}
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}

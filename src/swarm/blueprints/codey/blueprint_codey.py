@@ -21,6 +21,7 @@ from swarm.core.output_utils import (
     get_spinner_state,
     pretty_print_response,
     print_operation_box,
+    print_search_progress_box,
 )
 
 
@@ -353,13 +354,10 @@ class CodeyBlueprint(BlueprintBase):
         return
 
     async def run(self, messages: list[dict], **kwargs):
-        # AGGRESSIVE TEST-MODE GUARD: Only emit test-compliant output, block all legacy output
+        import asyncio
         import os
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get('SWARM_TEST_MODE'):
-            from swarm.core.output_utils import (
-                print_search_progress_box,
-            )
             spinner_lines = [
                 "Generating.",
                 "Generating..",
@@ -407,7 +405,6 @@ class CodeyBlueprint(BlueprintBase):
                         emoji='🤖',
                         border='╔'
                     )
-                    import asyncio
                     await asyncio.sleep(0.01)
                 print_search_progress_box(
                     op_type="Code Search Results",
@@ -466,7 +463,6 @@ class CodeyBlueprint(BlueprintBase):
                         emoji='🤖',
                         border='╔'
                     )
-                    import asyncio
                     await asyncio.sleep(0.01)
                 print_search_progress_box(
                     op_type="Semantic Search Results",
@@ -592,22 +588,14 @@ class CodeyBlueprint(BlueprintBase):
                         "message": {"role": "assistant", "content": message}
                     }
                     return
-        results = [instruction]
-        print_search_progress_box(
-            op_type="Codey Creative",
-            results=results,
-            params=None,
-            result_type="creative",
-            summary=f"Creative generation complete for: '{instruction}'",
-            progress_line=None,
-            spinner_state=None,
-            operation_type="Codey Creative",
-            search_mode=None,
-            total_lines=None,
-            emoji='🤖',
-            border='╔'
+        agent = self.make_agent(
+            name="Codey",
+            instructions="You are a helpful coding assistant.",
+            tools=[],
         )
-        yield {"messages": [{"role": "assistant", "content": results[0]}]}
+        from agents import Runner
+        result = await Runner.run(agent, instruction)
+        yield {"messages": [{"role": "assistant", "content": result.final_output}]}
         return
 
     async def search(self, query, directory="."):
@@ -624,7 +612,6 @@ class CodeyBlueprint(BlueprintBase):
         # Unified spinner/progress/result output
         for i, spinner_state in enumerate(spinner_states + ["Generating... Taking longer than expected"], 1):
             progress_line = f"Spinner {i}/{len(spinner_states) + 1}"
-            from swarm.core.output_utils import print_search_progress_box
             print_search_progress_box(
                 op_type="Codey Search Spinner",
                 results=[
@@ -648,7 +635,6 @@ class CodeyBlueprint(BlueprintBase):
             )
             await asyncio.sleep(0.01)
         # Final result box
-        from swarm.core.output_utils import print_search_progress_box
         print_search_progress_box(
             op_type="Codey Search Results",
             results=[
