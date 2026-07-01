@@ -185,15 +185,19 @@ def custom_login(request):
 # Default config structure to return if the actual file is missing/invalid
 # Uses bootstrap helper for consistency
 try:
-    from swarm.utils.env_utils import get_openai_bootstrap
+    from swarm.utils.env_utils import (
+        get_openai_api_key,
+        get_openai_base_url,
+        get_openai_bootstrap,
+    )
     _boot = get_openai_bootstrap() or {}
     DEFAULT_CONFIG = {
         "llm": {
             "default": {
                 "provider": "openai",
                 "model": _boot.get("model", "gpt-5.5"),
-                "base_url": _boot.get("base_url") or os.environ.get("OPENAI_BASE_URL") or os.environ.get("LITELLM_BASE_URL"),
-                "api_key": _boot.get("api_key") or os.environ.get("OPENAI_API_KEY") or os.environ.get("LITELLM_API_KEY") or "",
+                "base_url": _boot.get("base_url") or get_openai_base_url(),
+                "api_key": _boot.get("api_key") or get_openai_api_key() or "",
                 "temperature": 0.7
             }
         },

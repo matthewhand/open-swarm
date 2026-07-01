@@ -85,3 +85,47 @@ def test_make_agent_param_overrides_metadata_suggestion():
     if hasattr(bp, "_resolved_llm_profile"):
         del bp._resolved_llm_profile
     assert bp._resolve_llm_profile() == "fast"
+
+
+def test_pure_env_bootstrap_plus_inference_scoring(monkeypatch, tmp_path):
+    """Dedicated test for pure-env bootstrap + inference scoring.
+
+    - No swarm_config.json (chdir + cleared search envs)
+    - OPENAI_* env only (exercises get_openai_bootstrap synthesis of llm.default)
+    - The synthesized default carries capability scores so inference_profile
+      resolution can select it (the only tagged candidate).
+    - Covers early AppConfig/CLI call sites indirectly via bootstrap path.
+    """
+    # Isolate filesystem/config search completely
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("SWARM_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    # Prevent AppConfig path from supplying a config (would bypass synth)
+    monkeypatch.setattr(
+        "django.apps.apps.get_app_config",
+        lambda name: (_ for _ in ()).throw(RuntimeError("no swarm appconfig in pure-env test")),
+        raising=False,
+    )
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-pure-env-bootstrap")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://test-pure-env:9876/v1")
+
+    # Passing no explicit config (i.e. default None) triggers the full load path + synth
+    bp = _BP("pure_env_bp")
+    llm_sec = bp._config.get("llm", {})
+    assert "default" in llm_sec, "pure-env must synthesize llm.default"
+    prof = llm_sec["default"]
+    assert prof.get("api_key") == "sk-pure-env-bootstrap"
+    assert prof.get("base_url") == "http://test-pure-env:9876/v1"
+    assert prof.get("intelligence") == 0.6 and prof.get("speed") == 0.6
+    assert "provider" in prof
+
+    # Inference scoring path must function against the bootstrapped profile
+    bp_inf = _BP("pure_env_bp_inf")
+    bp_inf._test_metadata = {"inference_profile": {"intelligence": 0.55, "speed": 0.4}}
+    # Only one tagged candidate ("default") -> it wins when axes requested
+    resolved = bp_inf._resolve_llm_profile()
+    assert resolved == "default"
+
+    sel = bp_inf._select_profile_by_inference()
+    assert sel == "default"

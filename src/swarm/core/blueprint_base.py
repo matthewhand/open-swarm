@@ -50,6 +50,7 @@ if os.environ.get("SWARM_ENABLE_AGENT_TRACING", "").lower() not in ("1", "true",
 
 # Keep the function import
 from swarm.core.config_loader import _substitute_env_vars
+from swarm.utils.env_utils import get_openai_base_url
 
 logger = logging.getLogger(__name__)
 # --- PATCH: Suppress OpenAI tracing/telemetry errors if using LiteLLM/custom endpoint ---
@@ -57,7 +58,7 @@ import logging
 
 from rich.console import Console
 
-if os.environ.get("OPENAI_BASE_URL") or os.environ.get("LITELLM_BASE_URL"):
+if get_openai_base_url():
     # Silence openai.agents tracing/telemetry errors
     logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
     try:

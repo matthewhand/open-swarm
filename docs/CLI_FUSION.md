@@ -28,8 +28,8 @@ pip install open-swarm
 # installed (claude/gemini/codex/opencode), gotchas baked in:
 swarm-cli cli-agents --init --write
 
-export OPENAI_API_KEY=sk-...         # (or LITELLM_API_KEY) for the llm block
-export OPENAI_BASE_URL=...           # optional base for simple bootstrap
+export OPENAI_API_KEY=sk-...         # preferred (LITELLM_API_KEY alias ok)
+export OPENAI_BASE_URL=...           # optional; synthesizes default gpt-5.5 profile if no swarm_config.json llm profiles
 swarm-cli cli-agents                  # confirm what's installed
 swarm-cli cli-agents --smoke          # confirm they answer non-interactively
 ```

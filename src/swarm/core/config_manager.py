@@ -140,9 +140,9 @@ def add_llm(config_path: str) -> None:
 
         llm = {}
         llm["provider"] = prompt_user("Enter the provider type (e.g., 'openai', 'ollama')").strip()
-        llm["model"] = prompt_user("Enter the model name (e.g., 'qwen3.5')").strip()
-        llm["base_url"] = prompt_user("Enter the base URL for the API").strip()
-        llm_api_key_input = prompt_user("Enter the environment variable for the API key (e.g., 'LITELLM_API_KEY') or leave empty if not required").strip()
+        llm["model"] = prompt_user("Enter the model name (e.g., 'gpt-5.5')").strip()
+        llm["base_url"] = prompt_user("Enter the base URL for the API (e.g. ${OPENAI_BASE_URL})").strip()
+        llm_api_key_input = prompt_user("Enter the environment variable for the API key (e.g., 'OPENAI_API_KEY' preferred; LITELLM_* alias ok) or leave empty if not required").strip()
         if llm_api_key_input:
             llm["api_key"] = f"${{{llm_api_key_input}}}"
         else:

@@ -202,7 +202,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         # --- Enforce non-OpenAI endpoints when a base_url override is present ---
         import logging
-        if os.environ.get("OPENAI_BASE_URL") or os.environ.get("LITELLM_BASE_URL"):
+        from swarm.utils.env_utils import get_openai_base_url
+        if get_openai_base_url():
             logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
             try:
                 import openai.agents.tracing

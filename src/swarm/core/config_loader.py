@@ -141,8 +141,7 @@ def validate_config(config: dict[str, Any]):
     if "llm" not in config or not isinstance(config["llm"], dict):
         raise ValueError(
             "Config 'llm' section missing/malformed. "
-            + _hint("Use: swarm-cli config add --section llm --name default --json "
-                    "'{\"provider\":\"openai\",\"model\":\"qwen3.5\",\"base_url\":\"${LITELLM_BASE_URL}\",\"api_key\":\"${LITELLM_API_KEY}\"}'")
+            + _hint("Use profiles under 'llm' (primary). Example: --json '{\"provider\":\"openai\",\"model\":\"gpt-5.5\",\"base_url\":\"${OPENAI_BASE_URL}\",\"api_key\":\"${OPENAI_API_KEY}\"}' (LITELLM_* aliases ok)")
         )
     for name, prof in config.get("llm", {}).items():
         if not isinstance(prof, dict):
@@ -167,10 +166,10 @@ def create_default_config(config_path: Path):
         "llm": {
             "default": {
                 "provider": "openai",
-                "model": "qwen3.5",
+                "model": "gpt-5.5",
                 "api_key": "${OPENAI_API_KEY}",
                 "base_url": "${OPENAI_BASE_URL}",
-                "description": "Default profile. Provide OPENAI_API_KEY + OPENAI_BASE_URL (or via swarm_config.json for advanced mappings)."
+                "description": "Default profile. Provide OPENAI_API_KEY + OPENAI_BASE_URL (or via swarm_config.json 'llm' profiles for advanced/complex mappings)."
             },
             "ollama_example": {
                 "provider": "ollama",

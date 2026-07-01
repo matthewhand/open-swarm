@@ -8,6 +8,8 @@ Everything Open Swarm can do, as copy-paste recipes. Two parts:
 Base URL in examples: `http://localhost:8000/v1` (swap for your host). Add
 `-H "Authorization: Bearer $TOKEN"` if you enabled auth.
 
+**LLM backends:** use `swarm_config.json` `llm` profiles (primary, for complex cases) or simple `OPENAI_API_KEY` + `OPENAI_BASE_URL`. Examples below use blueprints that resolve over configured profiles (gpt-5.5 family preferred in docs).
+
 > The bundled blueprints are **examples of a composition system** — you assemble
 > your own personas, teams, and consensus rules via config or the web Builder.
 > Architecture + diagrams: [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md).
@@ -156,9 +158,9 @@ client", not literally OpenAI. Point it anywhere:
   "llm": {
     "default":  {"provider": "openai", "model": "gpt-5.5", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "intelligence": 0.6, "speed": 0.6, "cost": 0.6},
     "reason":   {"provider": "openai", "model": "gpt-5.5", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "intelligence": 0.95, "reasoning_effort": "high"},
-    "classify": {"provider": "openai", "model": "gpt-5.4-mini", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "temperature": 0.0},
+    "classify": {"provider": "openai", "model": "gpt-5.5-mini", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}", "temperature": 0.0},
     "groq":     {"provider": "openai", "model": "llama-3.3-70b-versatile", "base_url": "https://api.groq.com/openai/v1", "api_key": "${GROQ_API_KEY}"},
-    "ollama":   {"provider": "openai", "model": "qwen3.5:4b", "base_url": "http://localhost:11434/v1", "api_key": "ollama"}
+    "ollama":   {"provider": "openai", "model": "gpt-5.5:4b", "base_url": "http://localhost:11434/v1", "api_key": "ollama"}
   }
 }
 ```

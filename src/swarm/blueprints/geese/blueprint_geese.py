@@ -56,9 +56,6 @@ if src_path not in sys.path:
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
 
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
@@ -163,8 +160,6 @@ class GeeseBlueprint(BlueprintBase):
             model=model_instance
         )
         self.logger = logging.getLogger(__name__)
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
         # Add UX for test compatibility
         self.ux = BlueprintUXImproved(style="default")
         # Store agent MCP assignments for test compatibility

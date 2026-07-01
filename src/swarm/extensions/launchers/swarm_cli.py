@@ -41,7 +41,8 @@ def _emit_startup_hints():
     except Exception:
         has_cfg = False
 
-    has_key = bool(os.environ.get("OPENAI_API_KEY")) or bool(os.environ.get("LITELLM_API_KEY"))
+    from swarm.utils.env_utils import get_openai_api_key
+    has_key = bool(get_openai_api_key())
 
     if not has_cfg and not has_key:
         print(

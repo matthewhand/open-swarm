@@ -27,8 +27,9 @@ cd open-swarm
 uv sync --all-extras          # or: pip install -e .[dev]
 
 # Configure an LLM key for real agent runs (not needed for the tour below)
-export OPENAI_API_KEY="sk-..."   # or LITELLM_API_KEY
-export OPENAI_BASE_URL="http://your-gateway:8000/v1"  # optional for simple default case
+export OPENAI_API_KEY="sk-..."   # preferred (OPENAI_BASE_URL optional; LITELLM_* aliases ok)
+export OPENAI_BASE_URL="http://your-gateway:8000/v1"  # synthesizes gpt-5.5 default profile if no full llm profiles in config
+# Profiles in swarm_config.json are primary (incl. complex mappings). DEFAULT_LLM/LITELLM_MODEL deprecated as selectors.
 ```
 
 This guide uses the project virtualenv directly (`.venv/bin/...`); if you use
@@ -132,7 +133,7 @@ $ SWARM_TEST_MODE=1 .venv/bin/python -m swarm.blueprints.jeeves.jeeves_cli --mes
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
-With a real key configured (`LITELLM_API_KEY` plus `swarm_config.json` LLM
+With a real key configured (`OPENAI_API_KEY` plus `swarm_config.json` LLM
 profiles), drop `SWARM_TEST_MODE` and the same commands run real agents.
 
 ## 3. Tour the web UI
@@ -297,8 +298,7 @@ error string — shown here to illustrate the envelope honestly:
 }
 ```
 
-Configure a working LLM profile (`LITELLM_API_KEY` or a local Ollama profile in
-`swarm_config.json`) and the same request returns real agent output.
+Configure a working LLM profile (via `OPENAI_API_KEY` + `swarm_config.json` `llm` profiles, or local Ollama) and the same request returns real agent output.
 Streaming (`"stream": true`) is supported.
 
 ## 5. Regenerating this guide

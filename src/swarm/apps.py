@@ -68,6 +68,39 @@ class SwarmConfig(AppConfig):
         # behavior is unchanged, we only *add* XDG.
         self.config = self._load_swarm_config()
 
+        # Support pure-env bootstrap in server/AppConfig path: synthesize minimal
+        # llm.default (like BlueprintBase cwd fallback does) so that "default"
+        # profile is visible early. Then ensure the agents default client.
+        if not self.config:
+            try:
+                from swarm.utils.env_utils import get_openai_bootstrap
+                if bootstrap := get_openai_bootstrap():
+                    self.config = {
+                        "llm": {"default": bootstrap},
+                        "settings": {"default_llm_profile": "default", "default_markdown_output": True},
+                        "blueprints": {},
+                        "mcpServers": {}
+                    }
+                    logger.info("AppConfig synthesized minimal llm.default from env for pure-env bootstrap.")
+            except Exception as e:
+                logger.debug("AppConfig env bootstrap synth skipped: %s", e)
+
+        # Make the (possibly synthesized) config visible to ensure_default_openai_client
+        # and other early code that reads from django.conf.settings.SWARM_CONFIG.
+        try:
+            from django.conf import settings as dj_settings
+            dj_settings.SWARM_CONFIG = self.config
+        except Exception:
+            pass
+
+        # Call early (after load/synth) so agents library default client is ready
+        # before any blueprint or consumer activity.
+        try:
+            from swarm.utils.env_utils import ensure_default_openai_client
+            ensure_default_openai_client()
+        except Exception as e:
+            logger.debug("ensure_default_openai_client early call skipped: %s", e)
+
         # Resume async /v1/responses tasks left in-flight by a restart — server
         # processes only (not migrate/test), guarded against the runserver
         # reloader's parent process to avoid double-resume.

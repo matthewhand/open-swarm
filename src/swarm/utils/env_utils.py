@@ -137,6 +137,7 @@ def get_api_auth_token() -> str | None:
 
 
 _api_auth_disabled_warning_emitted = False
+_bootstrap_no_base_url_warned = False
 
 
 def get_enforced_api_auth_token() -> str | None:
@@ -237,14 +238,27 @@ def get_ollama_base_url() -> str | None:
 # --- Simple bootstrap support (env-only, no full swarm_config.json) ---
 
 def get_openai_bootstrap() -> dict | None:
-    """Return a minimal llm.default profile dict if OPENAI/LITELLM key+base are set.
+    """Return a minimal llm.default profile dict if OPENAI/LITELLM key (base_url recommended) are set.
 
-    This powers the "just works" case. Returns None if not enough env is present.
+    This powers the "just works" case for pure-env usage. Returns None only if no api_key.
+    Warns (once) if a key is present without a base_url — the resulting profile will have
+    base_url=None and client setup will typically skip setting a default (to avoid
+    unintentionally targeting api.openai.com).
     """
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LITELLM_API_KEY")
     base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("LITELLM_BASE_URL")
     if not api_key:
         return None
+    if not base_url:
+        global _bootstrap_no_base_url_warned
+        if not _bootstrap_no_base_url_warned:
+            _bootstrap_no_base_url_warned = True
+            _logger.warning(
+                "OPENAI_API_KEY (or LITELLM_API_KEY) present but no OPENAI_BASE_URL "
+                "(or LITELLM_BASE_URL). Bootstrap will produce a profile without base_url. "
+                "LLM client setup will not auto-target api.openai.com. Set a base_url "
+                "for gateways (or explicitly https://api.openai.com/v1 for real OpenAI)."
+            )
     return {
         "provider": "openai",
         "model": "gpt-5.5",
@@ -269,14 +283,21 @@ def get_openai_base_url() -> str | None:
 def ensure_default_openai_client() -> bool:
     """Ensure a default OpenAI client is set for the agents library.
 
-    Prefers a loaded swarm config's 'default' profile; falls back to env bootstrap.
-    Returns True if a client was set.
+    Prefers a loaded swarm config's 'default' profile (after AppConfig load/synthesis);
+    falls back to env bootstrap. Returns True if a client was set.
+
+    Validation & messages:
+    - Warns (once) via get_openai_bootstrap when key present but no base_url.
+    - Explicit warnings (instead of silent) when key is present without base_url
+      during config or direct paths (prevents accidental api.openai.com usage).
+    - Clearer messages for misconfiguration.
     """
     try:
         from openai import AsyncOpenAI
         from agents import set_default_openai_client
 
         # Try to read from already-loaded config if available (e.g. in Django AppConfig)
+        # Must be set early after loading/synthesis for this path to be used.
         try:
             from django.conf import settings as dj_settings
             if hasattr(dj_settings, 'SWARM_CONFIG') and isinstance(dj_settings.SWARM_CONFIG, dict):
@@ -285,26 +306,49 @@ def ensure_default_openai_client() -> bool:
                     set_default_openai_client(AsyncOpenAI(
                         base_url=prof["base_url"], api_key=prof["api_key"]
                     ))
+                    _logger.debug("Default OpenAI client set from SWARM_CONFIG llm.default")
                     return True
+                if prof.get("api_key") and not prof.get("base_url"):
+                    _logger.warning(
+                        "SWARM_CONFIG llm.default has api_key but no base_url. "
+                        "Not setting default client from config profile."
+                    )
         except Exception:
             pass
 
-        # Bootstrap from env
+        # Bootstrap from env (calls get_openai_bootstrap which warns on key+no-base)
         bootstrap = get_openai_bootstrap()
         if bootstrap and bootstrap.get("base_url") and bootstrap.get("api_key"):
             set_default_openai_client(
                 AsyncOpenAI(base_url=bootstrap["base_url"], api_key=bootstrap["api_key"])
             )
+            _logger.debug("Default OpenAI client set from env bootstrap")
             return True
+        if bootstrap and bootstrap.get("api_key") and not bootstrap.get("base_url"):
+            _logger.warning(
+                "Env bootstrap (OPENAI/LITELLM key) present without base_url; "
+                "skipping set_default_openai_client to avoid defaulting to api.openai.com. "
+                "Provide OPENAI_BASE_URL (or LITELLM_BASE_URL) for the simple bootstrap path."
+            )
 
-        # Direct env fallback
+        # Direct env fallback (hardened: require url too; warn on key-only)
         key = get_openai_api_key()
         url = get_openai_base_url()
-        if key:
+        if key and url:
             set_default_openai_client(AsyncOpenAI(base_url=url, api_key=key))
+            _logger.debug("Default OpenAI client set from direct env")
             return True
-    except Exception:
-        pass
+        if key and not url:
+            _logger.warning(
+                "LLM API key present in environment (OPENAI_API_KEY or LITELLM_API_KEY) "
+                "but no corresponding base_url. Not setting default OpenAI client. "
+                "This is required for non-OpenAI gateways; for the real OpenAI API set "
+                "OPENAI_BASE_URL=https://api.openai.com/v1 explicitly."
+            )
+    except ImportError as ie:
+        _logger.debug("Skipping default OpenAI client (agents/openai not importable): %s", ie)
+    except Exception as e:
+        _logger.warning("Failed to ensure_default_openai_client: %s", e)
     return False
 
 

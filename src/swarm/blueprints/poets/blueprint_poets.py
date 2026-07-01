@@ -25,9 +25,6 @@ if src_path not in sys.path:
 try:
     from agents import Agent, Runner, Tool, function_tool
     from agents.mcp import MCPServer
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
 
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
@@ -301,9 +298,6 @@ class PoetsBlueprint(BlueprintBase):
         ]
     }
 
-    # Caches
-    _openai_client_cache: dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: dict[str, Model] = {}
     _db_initialized = False
 
     def _init_db_and_load_data(self) -> None:
@@ -369,43 +363,6 @@ class PoetsBlueprint(BlueprintBase):
         full_instr = f"{base_instr}\n{COLLABORATIVE_KNOWLEDGE}\n{SHARED_PROTOCOL}"
         return {"instructions": full_instr, "model_profile": "default"}
 
-    # --- Model Instantiation Helper --- (Standard helper)
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        print(f"[DEBUG] Using LLM profile: {profile_name}")
-        # ... (Implementation is the same as previous refactors) ...
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
-        if not profile_data:
-            raise ValueError(f"Missing LLM profile '{profile_name}'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name:
-            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai":
-            raise ValueError(f"Unsupported provider: {provider}")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if client_cache_key not in self._openai_client_cache:
-             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-             filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-             log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
-             logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try:
-                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e:
-                 raise ValueError(f"Failed to init client: {e}") from e
-        client = self._openai_client_cache[client_cache_key]
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
-        try:
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e:
-            raise ValueError(f"Failed to init LLM: {e}") from e
-
     def render_prompt(self, template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
@@ -461,23 +418,18 @@ class PoetsBlueprint(BlueprintBase):
         """Creates the Poets agent team."""
         self._init_db_and_load_data()
         logger.debug("Creating Poets agent team...")
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
 
         # Helper to filter MCP servers
         def get_agent_mcps(names: list[str]) -> list[MCPServer]:
             return [s for s in mcp_servers if s.name in names]
 
         agents: dict[str, Agent] = {}
-        agent_configs = {} # To store fetched configs
 
-        # Fetch configs and create agents first
+        # Fetch configs and create agents first (using make_agent for model delegation)
         # Exclude 'Gritty Buk' from selection to match test expectations
         agent_names = [name for name in AGENT_BASE_INSTRUCTIONS if name != "Gritty Buk"]
         for name in agent_names:
             config = self.get_agent_config(name)
-            agent_configs[name] = config # Store config
-            model_instance = self._get_model_instance(config["model_profile"])
 
             # Determine MCP servers based on original definitions
             agent_mcp_names = []
@@ -498,10 +450,9 @@ class PoetsBlueprint(BlueprintBase):
             elif name == "Haiku Bash":
                 agent_mcp_names = ["mcp-doc-forge", "mcp-npx-fetch", "brave-search", "server-wp-mcp", "rag-docs"]
 
-            agents[name] = Agent(
+            agents[name] = self.make_agent(
                 name=name,
                 instructions=config["instructions"], # Instructions already combined in get_agent_config fallback or DB
-                model=model_instance,
                 tools=[], # Agent-as-tool added later
                 mcp_servers=get_agent_mcps(agent_mcp_names)
             )

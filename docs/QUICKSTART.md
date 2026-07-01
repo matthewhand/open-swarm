@@ -73,12 +73,12 @@ If you want to expose blueprints over an OpenAI-compatible REST API:
 1) Prepare environment
 ```bash
 cp .env.example .env
-# For the simplest case (no swarm_config.json needed), set:
+# For the simplest case (no swarm_config.json needed):
 #   OPENAI_API_KEY=...
 #   OPENAI_BASE_URL=...   (your gateway or https://api.openai.com/v1)
 #
-# For full control (different models/endpoints per profile), create swarm_config.json
-# from swarm_config.json.example and set ${OPENAI_API_KEY} etc inside it.
+# For full control (profiles + complex mappings), copy swarm_config.json.example
+# and populate the "llm" section using ${OPENAI_API_KEY} etc. (LITELLM_* ok for compat).
 ```
 
 2) Start the API
@@ -112,24 +112,23 @@ Notes:
 
 ## 3. Configure Your LLM Provider
 
-Before using LLM-powered agents, you must provide credentials.
+**Primary mechanism: named profiles in `swarm_config.json` (the `llm` block).** Complex mappings, multiple providers, inference traits, etc. go there.
 
-### a. Add a gateway API key (simplest case)
+### Simple case (no config file needed)
 ```bash
-swarm-cli llm add --provider openai --api-key sk-... 
+export OPENAI_API_KEY="sk-..."
+export OPENAI_BASE_URL="http://your-gateway-or-openai/v1"  # optional
 ```
-- This saves your API key to `~/.config/swarm/.env` as `OPENAI_API_KEY` (or `LITELLM_API_KEY`).
-  For simple bootstrap you can also just export them in your shell.
+A `default` profile using the `gpt-5.5` family is synthesized automatically.
+`LITELLM_*` env vars are aliases for compatibility.
 
-### b. Use a Custom Endpoint or Model
+### Full control
+Copy the example and edit:
 ```bash
-swarm-cli llm add --provider openai --api-key sk-... --base-url https://api.your-endpoint.com/v1 --model gpt-4
+cp swarm_config.json.example ~/.config/swarm/swarm_config.json
+# then edit "llm" profiles (use OPENAI_* or other ${VAR}s); select with "settings.default_llm_profile" or per-blueprint "llm_profile"
 ```
-- Supports local models and other providers (see `swarm-cli llm add --help`).
-
-### c. Check or Edit LLM Config
-- View config: `swarm-cli llm list`
-- Edit config manually: `nano ~/.config/swarm/.env`
+See [CONFIGURATION.md](../CONFIGURATION.md) for schema and [swarm_config.json.example](../swarm_config.json.example).
 
 ---
 
@@ -175,15 +174,14 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 ## 6. Advanced: Configure swarm_config.json
 
 - The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
-- Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
-- Edit it directly (it's plain JSON), then add an `llm` profile like:
-  ```jsonc
-  {"llm": {"openai_default": {"provider": "openai", "model": "qwen3.5",
-    "base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}}}
+- Secrets referenced as `${ENV_VAR}` (prefer `${OPENAI_API_KEY}` + `${OPENAI_BASE_URL}`).
+- Edit directly; define named `llm` profiles (primary for setup, including complex mappings). Use `gpt-5.5` family in examples. Select active via `settings.default_llm_profile` or `llm_profile`.
+- E.g. minimal:
+  ```json
+  {"llm": {"default": {"provider": "openai", "model": "gpt-5.5", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}" }}}
   ```
-- For the agentic CLIs, generate the `cli_agents` block from what's installed:
-  `swarm-cli cli-agents --init --write`.
-- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [CONFIGURATION.md](../CONFIGURATION.md) for the full schema.
+- For the agentic CLIs, generate the `cli_agents` block: `swarm-cli cli-agents --init --write`.
+- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [CONFIGURATION.md](../CONFIGURATION.md) (migration note there).
 
 ---
 

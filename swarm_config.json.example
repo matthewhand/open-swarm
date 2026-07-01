@@ -1,11 +1,11 @@
 {
-  "_comment": "Portable profile names using current OpenAI models (as of 2026). Copy this file to swarm_config.json (or ~/.config/swarm/swarm_config.json) and edit. Use ${ENV} placeholders for secrets. 'model' values can be real OpenAI model IDs (gpt-5.5 etc.) or LiteLLM aliases you define on the gateway.",
+  "_comment": "Portable profile names using current OpenAI models (as of 2026). Copy this file to swarm_config.json (or ~/.config/swarm/swarm_config.json) and edit. Use ${ENV} placeholders for secrets. 'model' values can be real OpenAI model IDs (gpt-5.5 family preferred) or aliases. OPENAI_* env vars are preferred for simple case; LITELLM_* aliases supported for compat. Profiles (under llm) are primary for setup including complex mappings. DEFAULT_LLM/LITELLM_MODEL no longer used as selectors.",
   "llm": {
     "default": {
       "provider": "openai",
       "model": "gpt-5.5",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "intelligence": 0.6,
       "speed": 0.6,
       "cost": 0.6
@@ -13,16 +13,16 @@
     "reason": {
       "provider": "openai",
       "model": "gpt-5.5",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "intelligence": 0.95,
       "reasoning_effort": "high"
     },
     "classify": {
       "provider": "openai",
       "model": "gpt-5.4-mini",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "temperature": 0.0,
       "speed": 0.8,
       "cost": 0.8
@@ -30,17 +30,11 @@
     "summary": {
       "provider": "openai",
       "model": "gpt-5.5",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "temperature": 0.0
     },
-    "litellm": {
-      "provider": "openai",
-      "model": "${LITELLM_MODEL}",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}"
-    },
-    "deepseek-r1-distill-llama-70b": {
+    "groq-example": {
       "provider": "openai",
       "model": "deepseek-r1-distill-llama-70b",
       "base_url": "https://api.groq.com/openai/v1",

@@ -3,8 +3,6 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from openai import AsyncOpenAI
-
 from swarm.core.blueprint_base import BlueprintBase
 
 logger = logging.getLogger(__name__)
@@ -28,22 +26,17 @@ class DynamicTeamBlueprint(BlueprintBase):
 
     async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         profile_name = self.llm_profile_name
-        profile = self.get_llm_profile(profile_name)
+        # Delegate to BlueprintBase to get model (and underlying client) -- no local AsyncOpenAI + caches
+        model_inst = self._get_model_instance(profile_name)
+        client = getattr(model_inst, "_client", None)
+        model_name = getattr(model_inst, "model", None)
 
-        base_url = profile.get("base_url")
-        api_key = profile.get("api_key") or "ollama"  # Ollama usually doesn't require a key
-        # Profile's model is authoritative (config or simple env-synthesized default).
-        model_name = profile.get("model") or "gpt-5.5"
-
-        if not base_url or not model_name:
-            missing = "base_url" if not base_url else "model"
-            logger.error("DynamicTeamBlueprint missing %s in llm profile '%s'", missing, profile_name)
-            content = (f"Configuration error: {missing} missing for LLM profile '{profile_name}'.\n"
-                       "Please configure the profile (e.g. an 'ollama' profile) in swarm_config.json.")
+        if client is None or not model_name:
+            logger.error("DynamicTeamBlueprint failed to obtain client/model for profile '%s'", profile_name)
+            content = f"Configuration error: unable to resolve LLM client for profile '{profile_name}'."
             yield {"messages": [{"role": "assistant", "content": content}]}
             return
 
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         stream = bool(kwargs.get("stream"))
         try:
             if stream:

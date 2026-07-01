@@ -34,9 +34,7 @@ Notes:
 - Connections require an **authenticated Django session** (the consumer
   closes anonymous connections) and an `Origin` header matching
   `ALLOWED_HOSTS`.
-- The consumer streams completions using the configured gateway
-  (`OPENAI_BASE_URL` or `LITELLM_BASE_URL`) with corresponding API key. Model comes from config (or "gpt-5.5" default).
-  (`OPENAI_API_KEY`/`OPENAI_BASE_URL` are honoured as a fallback).
+- The consumer streams completions using the configured gateway via LLM profiles (primary in `swarm_config.json`) or simple `OPENAI_API_KEY` + `OPENAI_BASE_URL` (LITELLM_* compat aliases). Model comes from resolved profile (or synthesized "gpt-5.5" default).
 - Frames are HTMx-style HTML partials (`websocket_partials/*.html`); the SPA
   parses the same frames.
 - No channel layer is required (the consumer never uses group sends), so

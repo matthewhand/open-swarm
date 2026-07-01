@@ -76,7 +76,7 @@ How to proceed:
 ### Config and secrets location
 - Config JSON: `~/.config/swarm/swarm_config.json`
 - Secrets file: `~/.config/swarm/.env`
-- Reference secrets in JSON using `${ENV_VAR}` (e.g., `"api_key": "${LITELLM_API_KEY}"`).
+- Reference secrets in JSON using `${ENV_VAR}` (prefer `"api_key": "${OPENAI_API_KEY}"`; LITELLM_* ok for compat). LLM profiles under `llm` in swarm_config.json are primary.
 
 ---
 

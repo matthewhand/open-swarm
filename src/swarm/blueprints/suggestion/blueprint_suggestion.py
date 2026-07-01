@@ -29,8 +29,6 @@ if src_path not in sys.path:
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
@@ -174,9 +172,6 @@ class SuggestionBlueprint(BlueprintBase):
         "env_vars": [], # LLM access configured via swarm_config.json (or OPENAI_* env for simple default case)
     }
 
-    # Caches
-    _model_instance_cache: dict[str, Model] = {}
-
     def __init__(self, blueprint_id: str = "suggestion", config=None, config_path=None, **kwargs):
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
@@ -190,26 +185,17 @@ class SuggestionBlueprint(BlueprintBase):
     def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         """Create the SuggestionAgent."""
         logger.debug("Creating SuggestionAgent...")
-        self._model_instance_cache = {}
-        try:
-            default_profile_name = self.config.get("llm_profile", "default")
-        except RuntimeError:
-            # Fallback if config not loaded
-            default_profile_name = "default"
-        logger.debug(f"Using LLM profile '{default_profile_name}' for SuggestionAgent.")
-        model_instance = self._get_model_instance(default_profile_name)
         suggestion_agent_instructions = (
             "You are the SuggestionAgent. Analyze the user's input and generate exactly three relevant, "
             "concise follow-up questions or conversation starters as a JSON object with a single key 'suggestions' "
             "containing a list of strings. You can use fileops tools (read_file, write_file, list_files, execute_shell_command) for any file or shell tasks."
         )
-        suggestion_agent = Agent(
+        suggestion_agent = self.make_agent(
             name="SuggestionAgent",
             instructions=suggestion_agent_instructions,
             tools=[read_file_tool, write_file_tool, list_files_tool, execute_shell_command_tool],
-            model=model_instance,
+            mcp_servers=mcp_servers,
             output_type=SuggestionsOutput,
-            mcp_servers=mcp_servers
         )
         logger.debug("SuggestionAgent created with output_type enforcement.")
         return suggestion_agent
@@ -242,46 +228,6 @@ class SuggestionBlueprint(BlueprintBase):
         except Exception as e:
             logger.error(f"Error during non-interactive run: {e}", exc_info=True)
             yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
-
-    # --- Model Instantiation Helper --- (Standard helper)
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-
-        try:
-            profile_data = self.get_llm_profile(profile_name)
-        except RuntimeError:
-            # Config not loaded - fall back to standard OpenAI client (which itself
-            # honors OPENAI_API_KEY / OPENAI_BASE_URL env if set) or previous global client.
-            logger.warning(f"Config not available, using fallback model for {profile_name}")
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI()  # relies on env or framework-set client
-            fallback_model = "gpt-5.5"
-            model_instance = OpenAIChatCompletionsModel(model=fallback_model, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        if not profile_data:
-            raise ValueError(f"Missing LLM profile '{profile_name}'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name:
-            raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai":
-            raise ValueError(f"Unsupported provider: {provider}")
-        from openai import AsyncOpenAI
-        client_kwargs = {"api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url")}
-        filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-        client = AsyncOpenAI(**filtered_kwargs)
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
-        try:
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e:
-            raise ValueError(f"Failed to init LLM: {e}") from e
 
 if __name__ == "__main__":
     import asyncio

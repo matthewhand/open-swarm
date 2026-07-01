@@ -60,9 +60,6 @@ class JeevesSpinner:
 try:
     from agents import Agent, Tool, function_tool
     from agents.mcp import MCPServer
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
 
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
@@ -188,71 +185,22 @@ class JeevesBlueprint(BlueprintBase):
             "tool_requirements": {"web_search": "mandatory", "browser": "optional"},
         }
 
-    _openai_client_cache: dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: dict[str, Model] = {}
-
-    def _get_model_instance(self, profile_name: str) -> Model:
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
-        if not profile_data:
-             logger.critical(f"Cannot create Model instance: LLM profile '{profile_name}' (or 'default') not found.")
-             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name:
-             logger.critical(f"LLM profile '{profile_name}' missing 'model' key.")
-             raise ValueError(f"Missing 'model' key in LLM profile '{profile_name}'.")
-        if provider != "openai":
-            logger.error(f"Unsupported LLM provider '{provider}' in profile '{profile_name}'.")
-            raise ValueError(f"Unsupported LLM provider: {provider}")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if client_cache_key not in self._openai_client_cache:
-             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-             filtered_client_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-             log_client_kwargs = {k:v for k,v in filtered_client_kwargs.items() if k != 'api_key'}
-             logger.debug(f"Creating new AsyncOpenAI client for profile '{profile_name}' with config: {log_client_kwargs}")
-             try:
-                 self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_client_kwargs)
-             except Exception as e:
-                 logger.error(f"Failed to create AsyncOpenAI client for profile '{profile_name}': {e}", exc_info=True)
-                 raise ValueError(f"Failed to initialize OpenAI client for profile '{profile_name}': {e}") from e
-        openai_client_instance = self._openai_client_cache[client_cache_key]
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for profile '{profile_name}'.")
-        try:
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client_instance)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e:
-             logger.error(f"Failed to instantiate OpenAIChatCompletionsModel for profile '{profile_name}': {e}", exc_info=True)
-             raise ValueError(f"Failed to initialize LLM provider for profile '{profile_name}': {e}") from e
-
     def create_starting_agent(self, mcp_servers: list[MCPServer]) -> Agent:
         logger.debug("Creating Jeeves agent team...")
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
-        default_profile_name = self.config.get("llm_profile", "default")
-        logger.debug(f"Using LLM profile '{default_profile_name}' for Jeeves agents.")
-        model_instance = self._get_model_instance(default_profile_name)
-        mycroft_agent = Agent(
+        mycroft_agent = self.make_agent(
             name="Mycroft",
-            model=model_instance,
             instructions=mycroft_instructions,
             tools=[],
             mcp_servers=[s for s in mcp_servers if s.name == "duckduckgo-search"]
         )
-        gutenberg_agent = Agent(
+        gutenberg_agent = self.make_agent(
             name="Gutenberg",
-            model=model_instance,
             instructions=gutenberg_instructions,
             tools=[],
             mcp_servers=[s for s in mcp_servers if s.name == "home-assistant"]
         )
-        jeeves_agent = Agent(
+        jeeves_agent = self.make_agent(
             name="Jeeves",
-            model=model_instance,
             instructions=jeeves_instructions,
             tools=[
                 mycroft_agent.as_tool(

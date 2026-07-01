@@ -10,6 +10,14 @@ from swarm.core import paths
 
 paths.ensure_swarm_directories_exist()
 
+# Ensure default OpenAI client early for any CLI path that uses agents/LLM
+# (pure-env bootstrap supported; warnings emitted on key-without-base misconfigs).
+try:
+    from swarm.utils.env_utils import ensure_default_openai_client
+    ensure_default_openai_client()
+except Exception:
+    pass
+
 # Workaround for Click/Typer signature mismatch in Parameter.make_metavar
 try:
     import click

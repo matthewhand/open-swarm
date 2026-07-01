@@ -30,7 +30,7 @@ with no environment variable. Set `SWARM_CONFIG_PATH` only when you want to poin
 at a non-standard path explicitly. (`swarm-cli` additionally does an upward
 directory search for a project-local `swarm_config.json`.)
 
-- **If missing:** Swarm generates a default config using `LITELLM_API_KEY` and the configured gateway (with a warning).
+- **If missing:** A minimal `default` profile is synthesized from `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`); full profiles live in `swarm_config.json`. `LITELLM_*` aliases work for compatibility.
 
 > Paths and all environment variables (`SWARM_CONFIG_PATH`, `SWARM_RESPONSES_DIR`,
 > server/auth/feature flags, provider keys) are consolidated in one place:
@@ -38,43 +38,61 @@ directory search for a project-local `swarm_config.json`.)
 
 ---
 
+## Migration Note (from legacy env selectors)
+
+**LLM setup is now driven by named profiles in `swarm_config.json`** (the `llm` block), including complex multi-provider mappings, trait tags for inference profiles, etc.
+
+- **Simple case:** just `export OPENAI_API_KEY=...` (and `OPENAI_BASE_URL=...` for gateways). No `swarm_config.json` needed — a `default` profile using the `gpt-5.5` family is synthesized.
+- `LITELLM_*` env vars continue to work as aliases for compatibility.
+- **Removed as selectors/overrides:** `DEFAULT_LLM` and `LITELLM_MODEL` env vars. Use `llm_profile: "foo"` (or `settings.default_llm_profile`) and profile definitions instead.
+- Per-blueprint: prefer `"llm_profile": "name"` in the `blueprints` section.
+
+Old code using env model selectors will now use the configured profiles (or synthesized default). See "How Loading Works" below.
+
 ## 2. Example Config Structure
 
 ```json
 {
   "llm": {
-    "qwen3.5": {
+    "default": {
       "provider": "openai",
-      "model": "qwen3.5",
-      "api_key": "${LITELLM_API_KEY}",
-      "base_url": "${LITELLM_BASE_URL}",
-      "pricing": { "prompt": 0.000005, "completion": 0.000015, "unit": "per_token" }
+      "model": "gpt-5.5",
+      "api_key": "${OPENAI_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "intelligence": 0.6,
+      "speed": 0.6,
+      "cost": 0.6
     },
-    "minimax-m3": {
+    "reason": {
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "api_key": "${OPENAI_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "intelligence": 0.95,
+      "reasoning_effort": "high"
+    },
+    "classify": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "api_key": "${OPENAI_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "temperature": 0.0,
+      "speed": 0.8,
+      "cost": 0.8
+    },
+    "openrouter-example": {
       "provider": "openrouter",
       "model": "minimax-m3",
       "api_key": "${OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
-      "pricing": { "prompt": 0.000001, "completion": 0.000002, "unit": "per_token" }
-    },
-    "envvars_only": {
-      "provider": "${LLM_PROVIDER}",
-      "model": "${LLM_MODEL}",
-      "api_key": "${LLM_API_KEY}",
-      "base_url": "${LLM_BASE_URL}",
-      "pricing": {
-        "prompt": "${LLM_PROMPT_COST}",
-        "completion": "${LLM_COMPLETION_COST}",
-        "unit": "${LLM_COST_UNIT}"
-      }
+      "base_url": "https://openrouter.ai/api/v1"
     }
   },
   "settings": {
-    "default_llm_profile": "qwen3.5"
+    "default_llm_profile": "default"
   },
   "blueprints": {
-    "rue_code": { "default_model": "minimax-m3" },
-    "geese": { "default_model": "qwen3.5" }
+    "rue_code": { "llm_profile": "reason" },
+    "geese": { "llm_profile": "default" }
   },
   "mcpServers": {
     "main": {
@@ -95,10 +113,10 @@ directory search for a project-local `swarm_config.json`.)
 
 ## 3. Key Features
 
-- **Model Profiles by Name:** Each key under `llm` matches a model (e.g., `qwen3.5`, `minimax-m3`).
+- **Model Profiles by Name:** Each key under `llm` is a named profile (e.g. `default`, `reason`, `classify`). Profiles support any OpenAI-compatible model (prefer `gpt-5.5` family for examples).
 - **Cost Tracking:** `pricing` section per model, used for cost estimation/reporting.
 - **Environment Variables:** Use `${ENVVAR}` for any value.
-- **Per-Blueprint Model Overrides:** `blueprints` section allows each blueprint to specify a `default_model`.
+- **Per-Blueprint Overrides:** `blueprints` section allows each blueprint to specify `"llm_profile": "..."` (preferred) or legacy `"default_model"`.
 - **Agent/Task Overrides:** Blueprints themselves can choose models per agent/task.
 - **MCP Servers:** The `mcpServers` section defines available MCP servers, their endpoints, and credentials.
 - **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
@@ -110,13 +128,18 @@ directory search for a project-local `swarm_config.json`.)
 
 ## 4. How Loading Works
 
+**Config profiles (under the top-level `llm` key) are the primary and recommended way to set up LLMs**, including complex mappings (different providers, models, base URLs, reasoning params, traits for inference_profile routing, per-profile pricing, etc.).
+
 1. **Locate and load** `swarm_config.json` (prefer XDG, fallback to cwd/project).
 2. **Substitute environment variables** for any `${...}` values.
-3. **Select the active LLM profile** from `settings.default_llm_profile`, unless overridden by a blueprint or CLI argument.
+3. **Select the active LLM profile** by name (e.g. via `llm_profile` key, `settings.default_llm_profile`, per-blueprint `llm_profile`, or explicit override). Falls back to the `default` profile.
 4. **Blueprints:**
-    - Use their own `default_model` if set in config.
-    - May specify a model per agent/task within their own logic.
-5. **If a requested model/profile is missing,** fall back to the default and print a warning.
+    - Use explicit `llm_profile` (preferred; also in `settings.default_llm_profile`) or legacy `default_model` if set in the `blueprints` section of config.
+    - May specify per-agent/task via their logic or inference_profile intent.
+5. **Simple env-only case (no/full swarm_config.json):** if `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) are present, a minimal `default` profile using `gpt-5.5` is synthesized automatically. `LITELLM_API_KEY` / `LITELLM_BASE_URL` are accepted as compatibility aliases.
+6. **If a requested profile is missing,** fall back to the default (with warning).
+
+**Deprecated/legacy:** `DEFAULT_LLM` and `LITELLM_MODEL` env vars no longer act as model selectors or overrides — profile names in config are authoritative.
 
 ---
 
@@ -210,8 +233,8 @@ override per component via the `config` block (forwarded verbatim):
 "memory": {
   "backend": "mem0",
   "config": {
-    "llm":      {"provider": "openai", "config": {"model": "qwen3.5", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}},
-    "embedder": {"provider": "openai", "config": {"model": "text-embedding-3-small", "openai_base_url": "${LITELLM_BASE_URL}", "api_key": "${LITELLM_API_KEY}"}}
+    "llm":      {"provider": "openai", "config": {"model": "gpt-5.5", "openai_base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}"}},
+    "embedder": {"provider": "openai", "config": {"model": "text-embedding-3-small", "openai_base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}"}}
   }
 }
 ```
@@ -285,14 +308,13 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 
 ### Provider credentials & integrations
 
-Model/provider keys and service endpoints — `LITELLM_API_KEY` /
-`LITELLM_BASE_URL` (the default OpenAI-compatible gateway), `OPENAI_API_KEY` /
-`OPENAI_BASE_URL` (fallback), `ANTHROPIC_API_KEY`,
-`GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`,
-`OLLAMA_BASE_URL`, plus MCP/tool keys (`BRAVE_API_KEY`,
-`GITHUB_TOKEN`, `QDRANT_*`, …) — are listed with inline guidance in
-[`.env.example`](./.env.example). Reference them in `swarm_config.json` via
-`${VAR}`.
+Model/provider keys and service endpoints use OpenAI-compatible names preferentially:
+
+- Simple case: `OPENAI_API_KEY` + `OPENAI_BASE_URL` (synthesizes a `default` profile using `gpt-5.5`).
+- `LITELLM_API_KEY` / `LITELLM_BASE_URL` are accepted as compatibility aliases.
+- Others: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_BASE_URL`, etc.
+
+Reference via `${VAR}` in `swarm_config.json`. Full list in [`.env.example`](./.env.example). `DEFAULT_LLM` and `LITELLM_MODEL` envs are deprecated for selection/override.
 
 > **Note for CLI agents:** wrapped CLIs (`claude`, `gemini`, `grok`, …) carry
 > **their own** authentication — Open Swarm never reads or stores it. These

@@ -15,9 +15,6 @@ from pathlib import Path
 
 try:
     from agents import Agent
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
 
     from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
@@ -58,43 +55,6 @@ brian_instructions = (
 
 # --- Define the Blueprint ---
 class StewieBlueprint(BlueprintBase):
-    def __init__(self, blueprint_id: str = "stewie", config=None, config_path=None, **kwargs):
-        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
-        self.blueprint_id = blueprint_id
-        self.config_path = config_path
-        self._config = config if config is not None else {}
-        self._llm_profile_name = None
-        self._llm_profile_data = None
-        self._markdown_output = None
-        # Add other attributes as needed for Stewie
-        # ...
-
-    def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
-        import os
-        # Try to force config_path to the correct file if not set
-        if config_path is None:
-            # Try CWD first (containerized runs may mount config here)
-            cwd_path = os.path.abspath(os.path.join(os.getcwd(), 'swarm_config.json'))
-            if os.path.exists(cwd_path):
-                config_path = cwd_path
-            else:
-                # Fallback to project root relative to blueprint
-                default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../swarm_config.json'))
-                if os.path.exists(default_path):
-                    config_path = default_path
-                else:
-                    # Final fallback: try /mnt/models/open-swarm-mcp/swarm_config.json (where the file is present)
-                    mnt_path = '/mnt/models/open-swarm-mcp/swarm_config.json'
-                    if os.path.exists(mnt_path):
-                        config_path = mnt_path
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        # Force config reload using BlueprintBase fallback logic
-        # Patch: assign config to _config and always use self._config
-        self._config = self._load_configuration()
-        import pprint
-        print(f"[STEWIE DEBUG] Loaded config from: {config_path}")
-        pprint.pprint(self._config)
-
     """Manages WordPress content with a Stewie agent team using the `server-wp-mcp` server."""
     metadata: ClassVar[dict[str, Any]] = {
         "name": "StewieBlueprint", # Standardized name
@@ -107,59 +67,33 @@ class StewieBlueprint(BlueprintBase):
         "env_vars": ["WP_SITES_PATH"] # Informational: MCP server needs this
     }
 
-    # Caches
-    _openai_client_cache: dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: dict[str, Model] = {}
-
-    # --- Model Instantiation Helper --- (Standard helper)
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        # Use canonical config/profile loader from BlueprintBase
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        # Try both config styles: llm[profile_name] and llm['profiles'][profile_name]
-        profile_data = None
-        llm_config = self._config.get("llm", {})
-        logger.debug(f"[STEWIE DEBUG] llm config keys: {list(llm_config.keys())}")
-        if "profiles" in llm_config:
-            profile_data = llm_config["profiles"].get(profile_name)
-        if not profile_data:
-            profile_data = llm_config.get(profile_name)
-        if not profile_data:
-            # Try fallback to default
-            profile_data = llm_config.get("default")
-        if not profile_data:
-            logger.critical(f"LLM profile '{profile_name}' (or 'default') not found in config. llm_config keys: {list(llm_config.keys())}")
-            raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")
-        # Client params come from the profile (config-driven, env substitution happens upstream)
-        model_name = profile_data.get("model") or "gpt-5.5"
-        base_url = profile_data.get("base_url")
-        api_key = profile_data.get("api_key")
-        client_cache_key = f"{base_url}:{api_key}"
-        if client_cache_key not in self._openai_client_cache:
+    def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
+        import os
+        # Try to force config_path to the correct file if not set (for certain deployment envs)
+        if config_path is None:
+            cwd_path = os.path.abspath(os.path.join(os.getcwd(), 'swarm_config.json'))
+            if os.path.exists(cwd_path):
+                config_path = cwd_path
+            else:
+                default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../swarm_config.json'))
+                if os.path.exists(default_path):
+                    config_path = default_path
+                else:
+                    mnt_path = '/mnt/models/open-swarm-mcp/swarm_config.json'
+                    if os.path.exists(mnt_path):
+                        config_path = mnt_path
+        super().__init__(blueprint_id, config_path=config_path, **kwargs)
+        # Note: _load_configuration (called by super) populates self._config; debug prints kept for compatibility
+        import pprint
+        if os.environ.get("SWARM_DEBUG") == "1" or os.environ.get("DEBUG") == "1":
+            print(f"[STEWIE DEBUG] Loaded config for stewie from: {config_path}")
             try:
-                self._openai_client_cache[client_cache_key] = AsyncOpenAI(base_url=base_url, api_key=api_key)
-            except Exception as e:
-                raise ValueError(f"Failed to init OpenAI client: {e}") from e
-        client = self._openai_client_cache[client_cache_key]
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
-        try:
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e:
-            raise ValueError(f"Failed to init LLM provider: {e}") from e
+                pprint.pprint(self._config)
+            except Exception:
+                pass
 
     def create_starting_agent(self, mcp_servers: list) -> object:
         logger.debug("Creating Stewie agent team...")
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
-
-        default_profile_name = self._config.get("llm_profile", "default")
-        logger.debug(f"Using LLM profile '{default_profile_name}' for Stewie agent.")
-        model_instance = self._get_model_instance(default_profile_name)
 
         # Patch: tolerate MagicMock or dict for test MCP servers
         wp_mcp_server = None
@@ -172,17 +106,15 @@ class StewieBlueprint(BlueprintBase):
         if not wp_mcp_server:
             logger.warning("Required MCP server 'server-wp-mcp' not found or failed to start.")
 
-        # Define helper agents as tools
-        brian_agent = Agent(
+        # Use make_agent (delegates to BlueprintBase) for consistent model; all share profile
+        brian_agent = self.make_agent(
             name="BrianGrifton",
-            model=model_instance,
             instructions=brian_instructions,
             tools=[],
             mcp_servers=[wp_mcp_server] if wp_mcp_server else []
         )
-        peter_agent = Agent(
+        peter_agent = self.make_agent(
             name="PeterGrifton",
-            model=model_instance,
             instructions=peter_instructions,
             tools=[],
             mcp_servers=[]
@@ -192,9 +124,8 @@ class StewieBlueprint(BlueprintBase):
         # For test predictability use PeterGrifton as the main agent unless a
         # user explicitly opts‑in to the original "Stewie" persona via env‑var.
         stewie_main_name = "Stewie" if os.getenv("STEWIE_MAIN_NAME", "peter").lower().startswith("stew") else "PeterGrifton"
-        stewie_agent = Agent(
+        stewie_agent = self.make_agent(
             name=stewie_main_name,
-            model=model_instance,
             instructions=(
                 "You are Stewie, the mastermind. Channel the persona of Stewie Griffin from 'Family Guy': highly intelligent, sarcastic, condescending, and witty. "
                 "You subtly mock incompetence and inefficiency, and always maintain a tone of dry superiority. "
@@ -218,19 +149,6 @@ class StewieBlueprint(BlueprintBase):
         ``super().run(...)`` generator, which broke ``async for`` consumers
         (the API layer) with "'async for' requires an object with __aiter__".
         """
-        # Patch: Always provide a minimal valid config for tests if missing.
-        # Use portable profile names ('default', 'reason', etc.), not deployment-specific ones.
-        if not self._config:
-            self._config = {
-                'llm': {
-                    'default': {
-                        'model': "gpt-5.5",
-                        'provider': 'openai',
-                        'base_url': os.getenv("OPENAI_BASE_URL") or "http://localhost:8000/v1"
-                    }
-                },
-                'llm_profile': 'default'
-            }
         messages = messages or []
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get("SWARM_TEST_MODE"):

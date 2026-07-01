@@ -628,7 +628,8 @@ def execute(args: argparse.Namespace) -> None:
     use_llm_flag = bool(args.use_llm)
     if not args.non_interactive and not use_llm_flag:
         # Offer refinement if keys are present
-        if os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+        from swarm.utils.env_utils import get_openai_api_key
+        if get_openai_api_key():
             use_llm_flag = _prompt_yes_no("Refine team spec with LLM?", default=False)
     if use_llm_flag:
         refined = _try_llm_spec(spec, args.model)

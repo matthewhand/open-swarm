@@ -23,9 +23,6 @@ if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
     from agents import Agent, Runner, Tool, function_tool
-    from agents.models.interface import Model
-    from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-    from openai import AsyncOpenAI
 
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
@@ -129,10 +126,6 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         "tool_requirements": {"browser": "mandatory", "web_search": "optional"},
     }
 
-    # Caches
-    _openai_client_cache: dict[str, AsyncOpenAI] = {}
-    _model_instance_cache: dict[str, Model] = {}
-
     def __init__(self, blueprint_id: str = "whiskeytangofoxtrot", config=None, config_path=None, **kwargs):
         super().__init__(blueprint_id=blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
@@ -178,37 +171,6 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         except Exception as e:
              logger.error(f"Unexpected error during DB initialization: {e}", exc_info=True)
              # raise RuntimeError(f"Failed to initialize database: {e}") from e
-
-
-    # --- Model Instantiation Helper --- (Standard helper)
-    def _get_model_instance(self, profile_name: str) -> Model:
-        """Retrieves or creates an LLM Model instance."""
-        # ... (Implementation is the same as previous refactors) ...
-        if profile_name in self._model_instance_cache:
-            logger.debug(f"Using cached Model instance for profile '{profile_name}'.")
-            return self._model_instance_cache[profile_name]
-        logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
-        profile_data = self.get_llm_profile(profile_name)
-        if not profile_data: raise ValueError(f"Missing LLM profile '{profile_name}'.")
-        provider = profile_data.get("provider", "openai").lower()
-        model_name = profile_data.get("model")
-        if not model_name: raise ValueError(f"Missing 'model' in profile '{profile_name}'.")
-        if provider != "openai": raise ValueError(f"Unsupported provider: {provider}")
-        client_cache_key = f"{provider}_{profile_data.get('base_url')}"
-        if client_cache_key not in self._openai_client_cache:
-             client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
-             filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
-             log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
-             logger.debug(f"Creating new AsyncOpenAI client for '{profile_name}': {log_kwargs}")
-             try: self._openai_client_cache[client_cache_key] = AsyncOpenAI(**filtered_kwargs)
-             except Exception as e: raise ValueError(f"Failed to init client: {e}") from e
-        client = self._openai_client_cache[client_cache_key]
-        logger.debug(f"Instantiating OpenAIChatCompletionsModel(model='{model_name}') for '{profile_name}'.")
-        try:
-            model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=client)
-            self._model_instance_cache[profile_name] = model_instance
-            return model_instance
-        except Exception as e: raise ValueError(f"Failed to init LLM: {e}") from e
 
 
     def render_prompt(self, template_name: str, context: dict) -> str:
@@ -265,12 +227,6 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         self.initialize_db() # Ensure DB is ready
 
         logger.debug("Creating WhiskeyTangoFoxtrot agent team...")
-        self._model_instance_cache = {}
-        self._openai_client_cache = {}
-
-        default_profile_name = self.config.get("llm_profile", "default")
-        logger.debug(f"Using LLM profile '{default_profile_name}' for WTF agents.")
-        model_instance = self._get_model_instance(default_profile_name)
 
         # Helper to filter started MCP servers
         def get_agent_mcps(names: list[str]) -> list[MCPServer]:
@@ -281,24 +237,24 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
                 logger.warning(f"Agent needing {names} is missing started MCP(s): {', '.join(missing)}")
             return [s for s in mcp_servers if s.name in required_found]
 
-        # Instantiate all agents first
+        # Instantiate all agents first (via make_agent for consolidated model logic)
         agents: dict[str, Agent] = {}
 
-        agents["Larry"] = Agent(name="Larry", model=model_instance, instructions=larry_instructions, tools=[], mcp_servers=get_agent_mcps(["filesystem"]))
-        agents["Kriegs"] = Agent(name="Kriegs", model=model_instance, instructions=kriegs_instructions, tools=[], mcp_servers=get_agent_mcps(["sqlite"]))
-        agents["Vanna"] = Agent(name="Vanna", model=model_instance, instructions=vanna_instructions, tools=[], mcp_servers=get_agent_mcps(["brave-search", "mcp-npx-fetch"]))
-        agents["Marcher"] = Agent(name="Marcher", model=model_instance, instructions=marcher_instructions, tools=[], mcp_servers=get_agent_mcps(["mcp-doc-forge"]))
+        agents["Larry"] = self.make_agent(name="Larry", instructions=larry_instructions, tools=[], mcp_servers=get_agent_mcps(["filesystem"]))
+        agents["Kriegs"] = self.make_agent(name="Kriegs", instructions=kriegs_instructions, tools=[], mcp_servers=get_agent_mcps(["sqlite"]))
+        agents["Vanna"] = self.make_agent(name="Vanna", instructions=vanna_instructions, tools=[], mcp_servers=get_agent_mcps(["brave-search", "mcp-npx-fetch"]))
+        agents["Marcher"] = self.make_agent(name="Marcher", instructions=marcher_instructions, tools=[], mcp_servers=get_agent_mcps(["mcp-doc-forge"]))
 
-        agents["Tyril"] = Agent(
-            name="Tyril", model=model_instance, instructions=tyril_instructions,
+        agents["Tyril"] = self.make_agent(
+            name="Tyril", instructions=tyril_instructions,
             tools=[ # Tools for delegating to minions
                 agents["Larry"].as_tool(tool_name="Larry", tool_description="Delegate filesystem tasks (temp files)."),
                 agents["Kriegs"].as_tool(tool_name="Kriegs", tool_description="Delegate SQLite database operations (CRUD).")
             ],
             mcp_servers=get_agent_mcps(["sqlite"]) # Tyril might read DB directly
         )
-        agents["Tray"] = Agent(
-            name="Tray", model=model_instance, instructions=tray_instructions,
+        agents["Tray"] = self.make_agent(
+            name="Tray", instructions=tray_instructions,
             tools=[ # Tools for delegating to minions
                  agents["Vanna"].as_tool(tool_name="Vanna", tool_description="Delegate web search/fetch tasks."),
                  agents["Marcher"].as_tool(tool_name="Marcher", tool_description="Delegate processing/structuring of fetched web data.")
@@ -306,8 +262,8 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
             mcp_servers=[] # Tray coordinates web minions
         )
 
-        agents["Valory"] = Agent(
-            name="Valory", model=model_instance, instructions=valory_instructions,
+        agents["Valory"] = self.make_agent(
+            name="Valory", instructions=valory_instructions,
             tools=[ # Tools for delegating to middle managers
                 agents["Tyril"].as_tool(tool_name="Tyril", tool_description="Delegate database and filesystem management tasks."),
                 agents["Tray"].as_tool(tool_name="Tray", tool_description="Delegate web data fetching and processing tasks.")

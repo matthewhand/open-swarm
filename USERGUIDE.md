@@ -168,7 +168,7 @@ with an error telling you to `swarm-cli install-executable <name>` first.
     Hook blueprints must also be installed executables; missing ones are
     skipped with a warning.
 
-These are the only `launch` options. To select a different LLM profile, set `llm_profile` in your `swarm_config.json` (or per-blueprint in the `blueprints` section). For the absolute simplest case (no config file), just export `OPENAI_API_KEY` + `OPENAI_BASE_URL` (the app will synthesize a minimal "default" profile). Blueprint-specific flags can be passed when running the blueprint executable directly.
+These are the only `launch` options. To select a different LLM profile, set `llm_profile` (preferred) or use `settings.default_llm_profile` in your `swarm_config.json` (or per-blueprint in the `blueprints` section). Config profiles are primary for LLM setup (incl. complex mappings). For the absolute simplest case (no config file), just export `OPENAI_API_KEY` + `OPENAI_BASE_URL` (synthesizes minimal "default" using gpt-5.5). `LITELLM_*` aliases ok. `DEFAULT_LLM`/`LITELLM_MODEL` no longer select/override. Blueprint-specific flags can be passed when running the blueprint executable directly.
 
 ### Removing Blueprints (manual)
 
@@ -197,10 +197,10 @@ overrides both.
     "llm": {
         "default": {
             "provider": "openai",
-            "model": "qwen3.5",
-            "base_url": "${LITELLM_BASE_URL}",
-            "api_key": "${LITELLM_API_KEY}",
-            "description": "Default profile (OpenAI-compatible gateway). Requires LITELLM_API_KEY env var."
+            "model": "gpt-5.5",
+            "base_url": "${OPENAI_BASE_URL}",
+            "api_key": "${OPENAI_API_KEY}",
+            "description": "Default profile (OpenAI-compatible). Simple OPENAI_* envs or full swarm_config.json profiles."
         },
         "ollama_example": {
             "provider": "ollama",
@@ -218,30 +218,28 @@ overrides both.
         }
     },
     "settings": {
-        "default_markdown_output": true
+        "default_markdown_output": true,
+        "default_llm_profile": "default"
     }
 }
 ```
 
-**Important:** placeholders like `${LITELLM_API_KEY}` are substituted from the
-environment at load time. You **must** set the corresponding environment
-variables — `export` them or put them in a `.env` file in your working
-directory.
+**Important:** placeholders like `${OPENAI_API_KEY}` (preferred) or `${LITELLM_API_KEY}` (compat) are substituted from the environment at load time. You **must** set the corresponding environment variables — `export` them or put them in a `.env` file. See CONFIGURATION.md for migration from legacy env selectors.
 
 ### Selecting an LLM profile
 
-The active profile is resolved from your `swarm_config.json` (see `_resolve_llm_profile` logic and the `llm_profile` key). 
+**Config `llm` profiles are primary.** The active profile is resolved from `swarm_config.json` (see `_resolve_llm_profile` logic, `llm_profile` key, `settings.default_llm_profile`, per-blueprint `llm_profile` in the `blueprints` section, or inference_profile intent). 
 
-For the simplest possible setup with no `swarm_config.json` at all, just set:
+For the simplest possible setup with no (or minimal) `swarm_config.json`, just set:
 
 ```bash
 export OPENAI_API_KEY=sk-...
 export OPENAI_BASE_URL=https://api.openai.com/v1   # or your gateway
 ```
 
-A minimal `default` profile using `gpt-5.5` will be synthesized automatically.
+A minimal `default` profile using the `gpt-5.5` family is synthesized automatically. `LITELLM_*` are compat aliases. `DEFAULT_LLM` and `LITELLM_MODEL` envs are deprecated (no longer selectors/overrides).
 
-See the example in `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGURATION.md) for advanced multi-profile setups (different models/endpoints per "role").
+See `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGURATION.md) (incl. migration note) for advanced setups and complex mappings.
 
 ---
 
@@ -261,8 +259,7 @@ See the example in `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGUR
 *   **Configuration Errors:**
     *   Verify your `swarm_config.json` exists (working directory or
         `~/.config/swarm/`) and is valid JSON.
-    *   Ensure environment variables referenced in the config (like
-        `LITELLM_API_KEY`) are set in your current shell session.
+    *   Ensure environment variables referenced in the config (prefer `OPENAI_API_KEY` + `OPENAI_BASE_URL`) are set in your current shell session.
 *   **Permissions:** ensure you have read/write permission for the XDG
     directories (`~/.config/swarm`, `~/.local/share/swarm`,
     `~/.cache/swarm`).

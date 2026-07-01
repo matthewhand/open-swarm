@@ -116,7 +116,7 @@ paste code by hand, validate it, and save it to the server's library.
 *API-token storage (sent as a bearer header; "no token stored" on this open
 dev server), a read-only view of server configuration from `/settings/api/`
 grouped into categories, and swarm-related environment variables from
-`/settings/environment/` with secrets masked (`LITELLM_API_KEY` shows
+`/settings/environment/` with secrets masked (`OPENAI_API_KEY` (or LITELLM alias) shows
 `***SET***`).*
 
 **What you can do:** store a token for authenticated deployments and inspect —

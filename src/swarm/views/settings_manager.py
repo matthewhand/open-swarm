@@ -299,9 +299,26 @@ class SettingsManager:
                 }
 
             # Environment variables for common LLM providers
+            # Lead with OPENAI_* names for display (OPENAI preferred for simple bootstrap path).
             env_llm_settings = {
+                'OPENAI_API_KEY': {
+                    'value': '***SET***' if get_openai_api_key() else 'Not Set',
+                    'env_var': 'OPENAI_API_KEY',
+                    'type': 'string',
+                    'description': 'OpenAI-compatible API key (OPENAI preferred for bootstrap)',
+                    'category': 'api_key',
+                    'sensitive': True
+                },
+                'OPENAI_BASE_URL': {
+                    'value': '***SET***' if get_openai_base_url() else 'Not Set',
+                    'env_var': 'OPENAI_BASE_URL',
+                    'type': 'string',
+                    'description': 'OpenAI-compatible base URL (required for most gateways + pure-env bootstrap)',
+                    'category': 'endpoint',
+                    'sensitive': True
+                },
                 'LITELLM_API_KEY': {
-                    'value': '***SET***' if os.environ.get('LITELLM_API_KEY') else 'Not Set',
+                    'value': '***SET***' if os.getenv('LITELLM_API_KEY') else 'Not Set',
                     'env_var': 'LITELLM_API_KEY',
                     'type': 'string',
                     'description': 'LiteLLM/OpenAI-compatible gateway API key',
@@ -309,19 +326,11 @@ class SettingsManager:
                     'sensitive': True
                 },
                 'LITELLM_BASE_URL': {
-                    'value': '***SET***' if os.environ.get('LITELLM_BASE_URL') else 'Not Set',
+                    'value': '***SET***' if os.getenv('LITELLM_BASE_URL') else 'Not Set',
                     'env_var': 'LITELLM_BASE_URL',
                     'type': 'string',
                     'description': 'LiteLLM/OpenAI-compatible gateway base URL',
                     'category': 'endpoint',
-                    'sensitive': True
-                },
-                'OPENAI_API_KEY': {
-                    'value': '***SET***' if get_openai_api_key() else 'Not Set',
-                    'env_var': 'OPENAI_API_KEY',
-                    'type': 'string',
-                    'description': 'OpenAI-compatible API key (fallback)',
-                    'category': 'api_key',
                     'sensitive': True
                 },
                 'ANTHROPIC_API_KEY': {

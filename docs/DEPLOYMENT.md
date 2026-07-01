@@ -33,6 +33,10 @@ git checkout main && git pull --ff-only
 cp .env.example .env   # set DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, API_AUTH_TOKEN
                        # (production refuses to start without all three)
 
+# For LLM: simple OPENAI_API_KEY + OPENAI_BASE_URL is enough (synthesizes default gpt-5.5 profile).
+# Full profiles (primary, for complex mappings) go in swarm_config.json "llm" section.
+# (LITELLM_* aliases for compat; DEFAULT_LLM/LITELLM_MODEL deprecated as selectors.)
+
 # which CLIs are installed AND authenticated on this host?
 swarm-cli cli-agents --check-auth
 

@@ -37,9 +37,10 @@ git clone https://github.com/matthewhand/open-swarm.git
 cd open-swarm
 uv sync --all-extras          # or: pip install -e .[dev]
 
-# Configure an LLM (simple case: just set these two; for full profiles use swarm_config.json)
+# Configure an LLM (simple case: OPENAI_API_KEY + OPENAI_BASE_URL; for full/complex profiles use swarm_config.json `llm` block)
 export OPENAI_API_KEY="sk-..."
 export OPENAI_BASE_URL="http://your-gateway-or-openai/v1"  # optional for OpenAI direct
+# (LITELLM_* aliases accepted for compatibility; DEFAULT_LLM/LITELLM_MODEL no longer select models)
 
 # List bundled blueprints
 uv run swarm-cli list
@@ -81,7 +82,7 @@ The `model` field selects which blueprint handles the request. Streaming is supp
 One OpenAI-compatible endpoint. Point any client at it; the `model` field selects
 a **blueprint** (a team/strategy), which runs the request over your **CLI agents**
 (`gemini`/`claude`/`grok`/`opencode` — each self-authenticated) and/or **REST/LLM
-profiles** (any OpenAI-compatible backend — local LiteLLM, Ollama, Groq, OpenAI).
+profiles** (primary for LLM setup; any OpenAI-compatible backend — local LiteLLM, Ollama, Groq, OpenAI; or simple `OPENAI_API_KEY` + `OPENAI_BASE_URL`).
 
 ```mermaid
 flowchart LR
@@ -153,8 +154,8 @@ A minimal example (using current OpenAI models as of 2026):
     "default": {
       "provider": "openai",
       "model": "gpt-5.5",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "intelligence": 0.6,
       "speed": 0.6,
       "cost": 0.6
@@ -162,23 +163,23 @@ A minimal example (using current OpenAI models as of 2026):
     "reason": {
       "provider": "openai",
       "model": "gpt-5.5",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "intelligence": 0.95,
       "reasoning_effort": "high"
     },
     "classify": {
       "provider": "openai",
       "model": "gpt-5.4-mini",
-      "base_url": "${LITELLM_BASE_URL}",
-      "api_key": "${LITELLM_API_KEY}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}",
       "temperature": 0.0
     }
   }
 }
 ```
 
-Select the active profile via the `llm_profile` key in your `swarm_config.json` (or per-blueprint overrides). For the simplest setup, just provide `OPENAI_API_KEY` + `OPENAI_BASE_URL` and a minimal "default" profile is synthesized. See the full `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGURATION.md).
+**Config profiles under `llm` are primary** (use `llm_profile` / `settings.default_llm_profile` or per-blueprint to select; supports complex mappings). For the simplest setup, just provide `OPENAI_API_KEY` + `OPENAI_BASE_URL` and a minimal "default" profile (gpt-5.5) is synthesized. `LITELLM_*` aliases ok for compat. See full `swarm_config.json.example` and [CONFIGURATION.md](./CONFIGURATION.md). (Legacy `DEFAULT_LLM`/`LITELLM_MODEL` env selectors are deprecated/ignored for selection.)
 
 ---
 
@@ -216,13 +217,12 @@ Set in `.env` (copy `.env.example`). Security-critical ones first:
 
 | Variable | Description | Default |
 |---|---|---|
-| `LITELLM_API_KEY` | LLM API key for the OpenAI-compatible gateway (`LITELLM_BASE_URL`). `OPENAI_API_KEY` is honoured as a fallback. | required for real runs |
 | `API_AUTH_TOKEN` | Bearer token for the REST API. **If unset, API auth is disabled** — required for any non-local deployment | unset ⚠️ |
 | `DJANGO_SECRET_KEY` | Django secret. **Required when `DJANGO_DEBUG` is not true** (server refuses to start without it) | dev-only fallback in debug |
 | `DJANGO_DEBUG` | Django debug mode — never `true` in production | `false` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts | `localhost,127.0.0.1` |
-| `OPENAI_BASE_URL` / `LITELLM_BASE_URL` | Base URL for simple default profile (when no full config) | - |
-| `OPENAI_API_KEY` / `LITELLM_API_KEY` | API key for simple default profile | - |
+| `OPENAI_API_KEY` / `LITELLM_API_KEY` (compat) | API key. `OPENAI_*` preferred. For simple default profile (no full config) or in `llm` profiles. | required for real runs |
+| `OPENAI_BASE_URL` / `LITELLM_BASE_URL` (compat) | Base URL. `OPENAI_*` preferred. | - |
 | `SWARM_CONFIG_PATH` | Path to `swarm_config.json` | XDG config dir |
 | `BLUEPRINT_DIRECTORY` | Where blueprints are discovered | `src/swarm/blueprints` |
 | `SWARM_BLUEPRINTS` | Comma-separated allow-list of blueprints to expose | all |
