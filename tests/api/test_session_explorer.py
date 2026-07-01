@@ -53,7 +53,7 @@ def test_session_detail_view_shows_delegations(client, store):
     resp = client.get(reverse("session-detail", kwargs={"response_id": "resp_d"}))
     assert resp.status_code == 200
     body = resp.content.decode()
-    assert "Delegation timeline" in body and "agent" in body and "auxiliary" in body
+    assert "Timeline" in body and "agent" in body and "auxiliary" in body
     assert "coded" in body and "boom" in body
 
 
