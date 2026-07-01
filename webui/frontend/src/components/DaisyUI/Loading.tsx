@@ -219,126 +219,88 @@ export const LoadingInfinity = ({
 };
 
 /**
- * Skeleton Loading component
+ * Skeleton loaders component
  */
 export interface SkeletonProps {
-  width?: string | number;
-  height?: string | number;
   className?: string;
+  w?: string;
+  h?: string;
   rounded?: boolean;
+  circle?: boolean;
 }
 
 export const Skeleton = ({
-  width = '100%',
-  height = '20px',
   className = '',
+  w,
+  h,
   rounded = true,
+  circle = false,
 }: SkeletonProps) => {
-  return (
-    <div
-      className={`skeleton ${rounded ? 'rounded' : ''} ${className}`}
-      style={{ width, height }}
-    />
-  );
+  const style = {
+    ...(w ? { width: w } : {}),
+    ...(h ? { height: h } : {}),
+  };
+
+  const classes = [
+    'skeleton',
+    circle ? 'rounded-full' : rounded ? 'rounded' : 'rounded-none',
+    className
+  ].filter(Boolean).join(' ');
+
+  return <div className={classes} style={style} aria-hidden="true" />;
 };
 
-/**
- * Skeleton Text component
- */
-export const SkeletonText = ({
-  lines = 3,
-  width = '100%',
-  className = '',
-}: {
-  lines?: number;
-  width?: string | number;
-  className?: string;
-}) => {
-  return (
-    <div className={`space-y-2 ${className}`}>
-      {Array.from({ length: lines }).map((_, index) => (
-        <Skeleton key={index} width={width} height="16px" />
-      ))}
+export const SkeletonText = ({ lines = 3, className = '' }) => (
+  <div className={`space-y-2 ${className}`}>
+    {Array.from({ length: lines }).map((_, i) => (
+      <Skeleton key={i} h="1rem" w={i === lines - 1 ? '70%' : '100%'} />
+    ))}
+  </div>
+);
+
+export const SkeletonCard = ({ className = '' }) => (
+  <div className={`flex flex-col gap-4 p-4 border border-base-300 rounded-box ${className}`}>
+    <div className="flex gap-4 items-center">
+      <Skeleton w="3rem" h="3rem" circle />
+      <SkeletonText lines={2} className="flex-1" />
     </div>
-  );
-};
+    <Skeleton h="8rem" />
+    <SkeletonText lines={2} />
+  </div>
+);
 
-/**
- * Skeleton Card component
- */
-export const SkeletonCard = ({
-  className = '',
-}: {
-  className?: string;
-}) => {
-  return (
-    <div className={`card bg-base-200 ${className}`}>
-      <div className="card-body">
-        <Skeleton width="60%" height="24px" className="mb-4" />
-        <SkeletonText lines={3} className="mb-4" />
-        <div className="flex gap-2">
-          <Skeleton width="80px" height="32px" />
-          <Skeleton width="80px" height="32px" />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/**
- * Skeleton Table component
- */
-export const SkeletonTable = ({
-  rows = 5,
-  columns = 4,
-  className = '',
-}: {
-  rows?: number;
-  columns?: number;
-  className?: string;
-}) => {
-  return (
-    <div className={`overflow-x-auto ${className}`}>
-      <table className="table w-full">
-        <thead>
-          <tr>
-            {Array.from({ length: columns }).map((_, index) => (
-              <th key={index} className="bg-base-300">
-                <Skeleton width="80px" height="20px" />
-              </th>
+export const SkeletonTable = ({ rows = 5, cols = 4, className = '' }) => (
+  <div className={`overflow-x-auto ${className}`}>
+    <table className="table w-full">
+      <thead>
+        <tr>
+          {Array.from({ length: cols }).map((_, i) => (
+            <th key={i}><Skeleton h="1rem" w="80%" /></th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, rowIndex) => (
+          <tr key={rowIndex}>
+            {Array.from({ length: cols }).map((_, colIndex) => (
+              <td key={colIndex}>
+                <Skeleton h="1rem" w={colIndex === 0 ? '60%' : '90%'} />
+              </td>
             ))}
           </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: rows }).map((_, rowIndex) => (
-            <tr key={rowIndex}>
-              {Array.from({ length: columns }).map((_, colIndex) => (
-                <td key={colIndex}>
-                  <Skeleton width="100%" height="16px" />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 /**
- * Loading Overlay component
+ * Full page or container loading overlay
  */
 export const LoadingOverlay = ({
-  isLoading = true,
   message = 'Loading...',
-  className = '',
-}: {
-  isLoading?: boolean;
-  message?: string;
-  className?: string;
+  className = ''
 }) => {
-  if (!isLoading) return null;
-
   return (
     <div
       className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${className}`}

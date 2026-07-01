@@ -293,8 +293,8 @@ export const usePagination = (
 /**
  * Infinite scroll pagination hook
  */
-export const useInfiniteScroll = (
-  initialItems: any[] = [],
+export const useInfiniteScroll = <T,>(
+  initialItems: T[] = [],
   itemsPerPage: number = 10
 ) => {
   const [items, setItems] = useState(initialItems);
@@ -302,7 +302,10 @@ export const useInfiniteScroll = (
   const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(1);
 
-  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<any[]>) => {
+  const [error, setError] = useState<Error | null>(null);
+  const isEmpty = items.length === 0 && !hasMore;
+
+  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<T[]>) => {
     if (isLoading || !hasMore) return;
 
     setIsLoading(true);
@@ -317,6 +320,7 @@ export const useInfiniteScroll = (
       }
     } catch (error) {
       console.error('Error loading more items:', error);
+      setError(error instanceof Error ? error : new Error(String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -326,12 +330,15 @@ export const useInfiniteScroll = (
     setItems(initialItems);
     setHasMore(true);
     setPage(1);
+    setError(null);
   };
 
   return {
     items,
     hasMore,
     isLoading,
+    error,
+    isEmpty,
     loadMore,
     reset,
     setItems,
