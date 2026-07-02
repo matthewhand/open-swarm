@@ -17,11 +17,13 @@ const LEVELS: (Level | 'off')[] = ['off', 'optional', 'mandatory']
  *  providers, with non-auth servers preferred and surfaced first. */
 export function ToolCapabilitiesPanel({ info }: { info: ConfigOptions | undefined }) {
   const capabilities = info?.tools.capabilities ?? []
-  const catalog: McpServerInfo[] = info?.tools.mcp_catalog ?? []
   // non-auth servers first so they're the obvious default.
   const sortedCatalog = useMemo(
-    () => [...catalog].sort((a, b) => Number(a.needs_auth) - Number(b.needs_auth) || a.name.localeCompare(b.name)),
-    [catalog],
+    () => {
+      const catalog: McpServerInfo[] = info?.tools.mcp_catalog ?? []
+      return [...catalog].sort((a, b) => Number(a.needs_auth) - Number(b.needs_auth) || a.name.localeCompare(b.name))
+    },
+    [info?.tools.mcp_catalog],
   )
 
   const [reqs, setReqs] = useState<Record<string, Level>>({})

@@ -1,0 +1,27 @@
+
+> open-swarm-webui@1.0.0 lint
+> eslint src --ext .ts,.tsx
+
+
+/app/webui/frontend/src/components/DaisyUI/__tests__/Button.test.tsx
+  10:21  error  Avoid using container methods. Prefer using the methods from Testing Library, such as "getByRole()"  testing-library/no-container
+  10:31  error  Avoid direct Node access. Prefer using the methods from Testing Library                              testing-library/no-node-access
+  10:31  error  Avoid direct Node access. Prefer using the methods from Testing Library                              testing-library/no-node-access
+  16:17  error  Avoid using container methods. Prefer using the methods from Testing Library, such as "getByRole()"  testing-library/no-container
+  16:27  error  Avoid direct Node access. Prefer using the methods from Testing Library                              testing-library/no-node-access
+  16:27  error  Avoid direct Node access. Prefer using the methods from Testing Library                              testing-library/no-node-access
+  31:12  error  Avoid using container methods. Prefer using the methods from Testing Library, such as "getByRole()"  testing-library/no-container
+  31:22  error  Avoid direct Node access. Prefer using the methods from Testing Library                              testing-library/no-node-access
+
+/app/webui/frontend/src/components/ToolCapabilitiesPanel.tsx
+  20:9  warning  The 'catalog' logical expression could make the dependencies of useMemo Hook (at line 24) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'catalog' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+/app/webui/frontend/src/lib/__tests__/inferenceProfile.test.ts
+  55:1  error  Import in body of module; reorder to top  import/first
+  91:1  error  Import in body of module; reorder to top  import/first
+
+/app/webui/frontend/src/lib/__tests__/toolCapabilities.test.ts
+  54:66  warning  Unexpected template string expression  no-template-curly-in-string
+
+✖ 12 problems (10 errors, 2 warnings)
+  2 errors and 0 warnings potentially fixable with the `--fix` option.
