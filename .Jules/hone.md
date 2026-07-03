@@ -1,3 +1,7 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-07-03 | [Architectural Audit] | Insight: Incomplete keyboard navigation in DaisyUI Tabs | Protocol: Implement explicit `Home` and `End` key handling for component-level keyboard operability.
+## 2024-07-03 | [Architectural Audit] | Insight: Missing focus restoration in DaisyUI Modal | Protocol: Store `document.activeElement` before dialog `showModal()` and call `.focus()` upon dialog closure to meet WAI-ARIA standards.
+## 2024-07-03 | [Architectural Audit] | Insight: Async state blindness in AgentCreatorPage | Protocol: Apply `role="alert"`, `role="status"`, and `aria-live` to dynamic query components (e.g. `customQuery`) instead of bare unannounced container elements.
+## 2024-07-03 | [Architectural Audit] | Insight: Direct DOM access in UI unit tests | Protocol: Enforce React Testing Library principles, replacing `container.querySelector` with accessible `screen.getByRole` or DOM-independent assertions.
