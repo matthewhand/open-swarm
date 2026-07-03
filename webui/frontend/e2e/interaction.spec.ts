@@ -14,23 +14,23 @@ test('dark-mode toggle flips data-theme and persists, no uncaught JS errors', as
   const root = page.locator('[data-theme]').first()
   const toggle = page.getByLabel('Toggle dark mode')
 
-  // Default theme (no stored preference) is light.
-  await expect(root).toHaveAttribute('data-theme', 'light')
+  // Default theme (no stored preference) is dark.
+  await expect(root).toHaveAttribute('data-theme', 'dark')
   await expect(toggle).toBeVisible()
 
-  // Flip to dark and assert the UI state + persistence both changed.
-  await toggle.click()
-  await expect(root).toHaveAttribute('data-theme', 'dark')
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('swarm_theme')))
-    .toBe('dark')
-
-  // Flip back to light — the control is genuinely two-way, not a one-shot.
+  // Flip to light and assert the UI state + persistence both changed.
   await toggle.click()
   await expect(root).toHaveAttribute('data-theme', 'light')
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_theme')))
     .toBe('light')
+
+  // Flip back to dark — the control is genuinely two-way, not a one-shot.
+  await toggle.click()
+  await expect(root).toHaveAttribute('data-theme', 'dark')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_theme')))
+    .toBe('dark')
 
   expect(
     jsErrors,
