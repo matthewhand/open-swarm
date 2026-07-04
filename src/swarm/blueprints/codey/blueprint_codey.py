@@ -219,6 +219,9 @@ def _cli_main():
     # Set model if specified
     audit_logger = AuditLogger(enabled=getattr(args, "audit", False))
     blueprint = CodeyBlueprint(blueprint_id="cli", audit_logger=audit_logger)
+    # Ensure coordinator attr for CLI shim compatibility (create if missing)
+    if not hasattr(blueprint, 'coordinator') or blueprint.coordinator is None:
+        blueprint.coordinator = blueprint.create_starting_agent([])
     blueprint.coordinator.model = args.model
 
     def get_codey_agent_name():
@@ -308,9 +311,6 @@ def main():
     from swarm.blueprints.codey.codey_cli import main as cli_main
 
     cli_main()
-
-
-# Resolve all merge conflicts by keeping the main branch's logic for agent creation, UX, and error handling, as it is the most up-to-date and tested version. Integrate any unique improvements from the feature branch only if they do not conflict with stability or UX.
 
 
 class CodeyBlueprint(BlueprintBase):

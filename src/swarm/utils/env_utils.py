@@ -115,8 +115,10 @@ def get_stateful_chat_id_path() -> str:
 
 # API Tokens and Keys
 def get_api_auth_token() -> str | None:
-    """Get API auth token."""
-    return os.getenv('API_AUTH_TOKEN')
+    """Get API auth token. If SWARM_ALLOW_NO_AUTH, return None to disable built-in auth."""
+    if os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 'yes'):
+        return None
+    return os.getenv('API_AUTH_TOKEN') or os.getenv('SWARM_API_KEY')
 
 
 def get_openai_api_key() -> str | None:

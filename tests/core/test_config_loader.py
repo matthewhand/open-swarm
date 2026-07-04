@@ -348,51 +348,57 @@ def test_django_secret_key_debug_fallback(monkeypatch):
     key = get_django_secret_key()
     assert "insecure-fallback" in key
 
-    def test_load_full_configuration_complex_merging(self):
-        """Test complex configuration merging with all layers."""
-        config_data = {
-            "defaults": {
-                "global_setting": "global",
-                "profile_setting": "default_profile",
-                "blueprint_setting": "default_blueprint"
-            },
-            "profiles": {
-                "test_profile": {
-                    "profile_setting": "profile_override",
-                    "profile_only": "profile_value"
-                }
-            },
-            "blueprints": {
-                "TestBlueprint": {
-                    "blueprint_setting": "blueprint_override",
-                    "blueprint_only": "blueprint_value"
-                }
+
+def test_load_full_configuration_complex_merging():
+    """Test complex configuration merging with all layers (top level)."""
+    from swarm.core.config_loader import load_full_configuration
+    import tempfile
+    import json
+    from pathlib import Path
+    import os
+    config_data = {
+        "defaults": {
+            "global_setting": "global",
+            "profile_setting": "default_profile",
+            "blueprint_setting": "default_blueprint"
+        },
+        "profiles": {
+            "test_profile": {
+                "profile_setting": "profile_override",
+                "profile_only": "profile_value"
+            }
+        },
+        "blueprints": {
+            "TestBlueprint": {
+                "blueprint_setting": "blueprint_override",
+                "blueprint_only": "blueprint_value"
             }
         }
+    }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(config_data, f)
-            config_path = Path(f.name)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(config_data, f)
+        config_path = Path(f.name)
 
-        try:
-            cli_overrides = {
-                "cli_setting": "cli_value",
-                "profile_setting": "cli_profile_override"
-            }
+    try:
+        cli_overrides = {
+            "cli_setting": "cli_value",
+            "profile_setting": "cli_profile_override"
+        }
 
-            result = load_full_configuration(
-                blueprint_class_name="TestBlueprint",
-                profile_override="test_profile",
-                cli_config_overrides=cli_overrides,
-                default_config_path_for_tests=config_path
-            )
+        result = load_full_configuration(
+            blueprint_class_name="TestBlueprint",
+            profile_override="test_profile",
+            cli_config_overrides=cli_overrides,
+            default_config_path_for_tests=config_path
+        )
 
-            # Verify merging priority (CLI > Profile > Blueprint > Defaults)
-            assert result["global_setting"] == "global"  # From defaults
-            assert result["profile_setting"] == "cli_profile_override"  # CLI override
-            assert result["blueprint_setting"] == "blueprint_override"  # Blueprint override
-            assert result["profile_only"] == "profile_value"  # From profile
-            assert result["blueprint_only"] == "blueprint_value"  # From blueprint
-            assert result["cli_setting"] == "cli_value"  # From CLI
-        finally:
-            os.unlink(config_path)
+        # Verify merging priority (CLI > Profile > Blueprint > Defaults)
+        assert result["global_setting"] == "global"
+        assert result["profile_setting"] == "cli_profile_override"
+        assert result["blueprint_setting"] == "blueprint_override"
+        assert result["profile_only"] == "profile_value"
+        assert result["blueprint_only"] == "blueprint_value"
+        assert result["cli_setting"] == "cli_value"
+    finally:
+        os.unlink(config_path)
