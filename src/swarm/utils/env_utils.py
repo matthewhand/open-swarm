@@ -6,7 +6,13 @@ reducing direct os.getenv() calls and providing consistent defaults and type han
 """
 
 import os
+import secrets
+import logging as _logging
 from pathlib import Path
+
+_logger = _logging.getLogger(__name__)
+_api_auth_disabled_warning_emitted: bool = False
+_generated_testuser_password: str | None = None
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # Points to src/
 
@@ -17,7 +23,7 @@ def get_django_secret_key() -> str:
     key = os.getenv('DJANGO_SECRET_KEY')
     if key:
         return key
-    debug = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
+    debug = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
     if debug:
         return 'django-insecure-fallback-key-for-dev'
     from django.core.exceptions import ImproperlyConfigured
@@ -36,8 +42,8 @@ def get_django_allowed_hosts() -> list[str]:
     """Get allowed hosts for Django. Required in non-debug (prod) mode."""
     hosts = os.getenv('DJANGO_ALLOWED_HOSTS')
     if hosts:
-        return hosts.split(',')
-    debug = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
+        return [h.strip() for h in hosts.split(',') if h.strip()]
+    debug = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
     if debug:
         return ['localhost', '127.0.0.1']
     from django.core.exceptions import ImproperlyConfigured
@@ -59,7 +65,8 @@ def get_django_log_level() -> str:
 
 def get_django_csrf_trusted_origins() -> list[str]:
     """Get CSRF trusted origins."""
-    return os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
+    val = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000')
+    return [v.strip() for v in val.split(',') if v.strip()]
 
 
 # Swarm Core Settings
@@ -338,11 +345,59 @@ def get_loglevel() -> str | None:
 
 # Utility Functions
 def get_csv_env(name: str, default: str = '') -> list[str]:
-    """Get a CSV environment variable as a list."""
+    """Get a CSV environment variable as a list, stripping whitespace and empty entries."""
     val = os.getenv(name, default)
-    return val.split(',') if val else []
+    return [v.strip() for v in val.split(',') if v.strip()] if val else []
 
 
 def is_truthy(value: str) -> bool:
     """Check if a string value is truthy."""
     return value.lower() in ('true', '1', 't', 'yes', 'y')
+
+
+def get_enforced_api_auth_token() -> str | None:
+    """Get the API auth token, enforcing the production requirement."""
+    global _api_auth_disabled_warning_emitted
+    token = get_api_auth_token()
+    if token:
+        return token
+    allow_no_auth = os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 't', 'yes', 'y')
+    if is_django_debug() or allow_no_auth:
+        if not _api_auth_disabled_warning_emitted:
+            _api_auth_disabled_warning_emitted = True
+            reason = "DJANGO_DEBUG=true" if is_django_debug() else "SWARM_ALLOW_NO_AUTH is set"
+            _logger.warning(
+                "API authentication is DISABLED because API_AUTH_TOKEN is not set (%s).",
+                reason,
+            )
+        return None
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "API_AUTH_TOKEN is required when DJANGO_DEBUG is not enabled. "
+        "Set API_AUTH_TOKEN, or set SWARM_ALLOW_NO_AUTH=true if an external layer gates access."
+    )
+
+
+def is_testuser_autologin_allowed() -> bool:
+    """Check whether dev-only 'testuser' auto-login is enabled AND permitted."""
+    enabled = os.getenv('ALLOW_TESTUSER_AUTOLOGIN', 'false').lower() in ('true', '1', 't', 'yes', 'y')
+    if not enabled:
+        return False
+    if not is_django_debug():
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "ALLOW_TESTUSER_AUTOLOGIN is enabled but DJANGO_DEBUG is not. "
+            "This would create an authentication bypass in production."
+        )
+    return True
+
+
+def get_testuser_password() -> str:
+    """Get the password for the dev-only 'testuser' account."""
+    pw = os.getenv('TESTUSER_PASSWORD')
+    if pw:
+        return pw
+    global _generated_testuser_password
+    if _generated_testuser_password is None:
+        _generated_testuser_password = secrets.token_urlsafe(32)
+    return _generated_testuser_password

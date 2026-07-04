@@ -45,12 +45,7 @@ class BlueprintLoadError(Exception):
 # It might be useful if blueprint names from directories need canonicalization.
 # def _get_blueprint_name_from_dir(dir_name: str) -> str:
 #     """Converts directory name (e.g., 'blueprint_my_agent') to blueprint name (e.g., 'my_agent')."""
-#     prefix = "blueprint_"
-#     if dir_name.startswith(prefix):
-#         return dir_name[len(prefix):]
-#     return dir_name
-
-def discover_blueprints(blueprint_dir: str) -> dict[str, DiscoveredBlueprintInfo]:
+def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dict[str, DiscoveredBlueprintInfo]:
     """
     Discovers blueprints by looking for Python files within subdirectories
     of the given blueprint directory. Extracts metadata including name, version,
@@ -273,3 +268,64 @@ if __name__ == '__main__':
     # shutil.rmtree("src/swarm/blueprints/example_bp")
     # Path("src/swarm/core/blueprint_base.py").unlink()
     # Potentially rmdir for src/swarm/core and src/swarm/blueprints if they were created solely for this
+
+def merge_community_blueprints(
+    base: dict[str, DiscoveredBlueprintInfo],
+    extra_dirs: "list[str] | None" = None,
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Merge external/community blueprint roots into an already-discovered dict."""
+    merged = dict(base)
+    for index, directory in enumerate(extra_dirs or []):
+        if not directory or not Path(directory).is_dir():
+            continue
+        namespace = f"swarm_community_{index}"
+        try:
+            found = discover_blueprints(directory)
+        except Exception:
+            logger.exception("Failed discovering community blueprints in %s", directory)
+            continue
+        for name, info in found.items():
+            if name in merged:
+                logger.warning(
+                    "Community blueprint %r in %s collides with a bundled blueprint; ignoring it.",
+                    name, directory,
+                )
+                continue
+            merged[name] = info
+    return merged
+
+
+BLUEPRINT_ALIASES: dict[str, str] = {
+    "swarm_ensemble": "cli_fusion",
+    "swarm_map": "cli_map",
+    "swarm_recurse": "cli_recurse",
+    "swarm_pipeline": "cli_pipeline",
+    "swarm_roundtable": "cli_roundtable",
+    "swarm_planner": "cli_planner",
+    "swarm_orchestrator": "cli_orchestrator",
+}
+
+
+def apply_blueprint_aliases(
+    blueprints: dict[str, DiscoveredBlueprintInfo],
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Register canonical ``swarm_*`` aliases for discovered ``cli_*`` patterns."""
+    for alias, target in BLUEPRINT_ALIASES.items():
+        if alias in blueprints or target not in blueprints:
+            continue
+        info = dict(blueprints[target])
+        meta = dict(info.get("metadata") or {})
+        meta["name"] = alias
+        info["metadata"] = meta
+        blueprints[alias] = info
+    return blueprints
+
+
+def discover_all_blueprints(
+    blueprint_dir: str,
+    extra_dirs: "list[str] | None" = None,
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Discover bundled + community blueprints and apply aliases."""
+    base = discover_blueprints(blueprint_dir)
+    merged = merge_community_blueprints(base, extra_dirs)
+    return apply_blueprint_aliases(merged)

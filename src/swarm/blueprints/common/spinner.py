@@ -1,3 +1,12 @@
+import warnings as _warnings
+_warnings.warn(
+    "swarm.blueprints.common.spinner is deprecated; use swarm.core.spinner instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+# Re-export from canonical location — these are the authoritative classes
+from swarm.core.spinner import SwarmSpinner, Spinner  # noqa: F401
+
 import threading
 import time
 
@@ -6,7 +15,7 @@ from rich.style import Style
 from rich.text import Text
 
 
-class SwarmSpinner:
+class _LegacyBlueprintSpinner:
     """Spinner for CLI blueprints, producing standard frames."""
     FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
     SLOW_FRAME = "Generating... Taking longer than expected"

@@ -2,21 +2,41 @@ from .base import BaseMemory
 from .mem0_memory import Mem0Memory
 from .langmem_memory import LangmemMemory
 from .papr_memory import PaprMemory
+from typing import Any, runtime_checkable, Protocol
 
-def get_memory_backend(backend_name: str = None, config: dict = None) -> BaseMemory:
-    """Factory method to instantiate the correct memory backend."""
-    if not backend_name:
+
+@runtime_checkable
+class MemoryBackend(Protocol):
+    """Structural protocol for memory backends — any class with add/search qualifies."""
+    def add(self, messages: Any, user_id: str = "default", metadata: dict | None = None) -> None: ...
+    def search(self, query: str, user_id: str = "default", limit: int | None = None) -> list[str]: ...
+
+import logging as _mem_logger
+_mem_log = _mem_logger.getLogger(__name__)
+
+
+def get_memory_backend(config: dict | str | None = None, options: dict | None = None) -> BaseMemory | None:
+    """Factory: instantiate a memory backend from a config dict or backend name string."""
+    if not config:
         return None
-    config = config or {}
+    if isinstance(config, str):
+        backend_name = config
+    else:
+        backend_name = config.get('backend', '')
+    if not backend_name or backend_name.lower() in ('none', ''):
+        return None
     name = backend_name.lower().strip()
-    
-    if name == 'mem0':
-        return Mem0Memory(config)
-    elif name == 'langmem':
-        return LangmemMemory(config)
-    elif name == 'papr':
-        return PaprMemory(config)
-    elif name in ('none', ''):
+    try:
+        if name == 'mem0':
+            return Mem0Memory(config if isinstance(config, dict) else {})
+        elif name == 'langmem':
+            return LangmemMemory(config if isinstance(config, dict) else {})
+        elif name == 'papr':
+            return PaprMemory(config if isinstance(config, dict) else {})
+    except ImportError as e:
+        _mem_log.warning("Memory backend '%s' is not available (missing dependency): %s", name, e)
         return None
-    
+    except Exception as e:
+        _mem_log.warning("Failed to instantiate memory backend '%s': %s", name, e)
+        return None
     return None

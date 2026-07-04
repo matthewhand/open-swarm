@@ -1,5 +1,11 @@
 # Thin delegate / reexport to central implementation in core (unification complete).
 # All logic lives in swarm.core.config_loader to avoid duplication.
+import warnings as _warnings
+_warnings.warn(
+    "swarm.extensions.config.config_loader is deprecated; use swarm.core.config_loader instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 from swarm.core.config_loader import (  # noqa: F401,F403
     DEFAULT_CONFIG_FILENAME,
     _hint,

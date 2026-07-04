@@ -32,10 +32,8 @@ DEBUG = is_django_debug()
 ALLOWED_HOSTS = get_django_allowed_hosts()
 
 # --- Custom Swarm Settings ---
-# Load the API auth token. Enforced: in production (DEBUG=False) a missing
-# API_AUTH_TOKEN/SWARM_API_KEY raises ImproperlyConfigured so the server
-# REFUSES to boot with API authentication silently disabled. In development
-# (DJANGO_DEBUG=true) a missing token logs a warning and auth stays off.
+# Load the API auth token. In production (DEBUG=False) a missing token raises
+# ImproperlyConfigured so the server refuses to start with auth silently disabled.
 _raw_api_token = get_enforced_api_auth_token()
 
 # *** Only enable API auth if the token is actually set ***
