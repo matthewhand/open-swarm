@@ -43,12 +43,22 @@ services:
     # Run as your host user so any folders you later bind-mount (CLI auth, config)
     # stay readable/writable and files the app writes don't end up root-owned.
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    # Inject provider keys / app config from .env (e.g. DATABASE_URL, *_API_KEY).
+    # required:false keeps this portable — a no-op when no .env is present.
+    # Explicit `environment:` below still wins over anything in .env.
+    env_file:
+      - path: .env
+        required: false
     ports:
       # Portable default. On a host where 8000 is taken (e.g. another service),
       # remap with an override rather than editing this published default.
       # For live-reload dev, use: make dev  (docker-compose.dev.yml, host :8002).
       - "8000:8000"
     environment:
+      # Pin the in-container listen port. `environment` wins over `env_file`, so
+      # this shields the container from a host-oriented PORT in .env (e.g. the
+      # gateway's 8765) — the published `ports:` mapping alone sets the host port.
+      PORT: "8000"
       # Keep HOME identical to the host so configs that reference absolute paths
       # resolve, and the bare CLI commands find their state once you map them in.
       HOME: "${HOME}"
