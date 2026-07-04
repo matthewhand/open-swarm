@@ -139,12 +139,7 @@ def test_dark_mode_toggle(page, live_server_url):
     theme_before = themed.get_attribute("data-theme")
     bg_before = _computed(page, themed, "backgroundColor")
 
-    # The aria-label is dynamic based on current state
-    if theme_before == "dark":
-        page.get_by_label("Switch to light theme").first.click()
-    else:
-        page.get_by_label("Switch to dark theme").first.click()
-
+    page.get_by_label("Toggle dark mode").click()
     page.wait_for_timeout(250)  # let React re-render + CSS vars resolve
 
     theme_after = themed.get_attribute("data-theme")

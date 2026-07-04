@@ -293,16 +293,16 @@ export const usePagination = (
 /**
  * Infinite scroll pagination hook
  */
-export const useInfiniteScroll = <T,>(
-  initialItems: T[] = [],
+export const useInfiniteScroll = (
+  initialItems: any[] = [],
   itemsPerPage: number = 10
 ) => {
-  const [items, setItems] = useState<T[]>(initialItems);
+  const [items, setItems] = useState(initialItems);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(1);
 
-  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<T[]>) => {
+  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<any[]>) => {
     if (isLoading || !hasMore) return;
 
     setIsLoading(true);

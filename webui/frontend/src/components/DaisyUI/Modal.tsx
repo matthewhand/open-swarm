@@ -105,10 +105,12 @@ export const Modal = ({
     </dialog>
   );
 
-  return (
-    <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
+  return isOpen ? (
+    <FocusTrap focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
       {dialogContent}
     </FocusTrap>
+  ) : (
+    dialogContent
   );
 };
 
