@@ -298,8 +298,9 @@ def _cli_main():
 
 
 if __name__ == "__main__":
-    # Call CLI main
-    sys.exit(_cli_main())
+    # Call CLI main (moved to end of file to ensure CodeyBlueprint class is defined first)
+    # sys.exit(_cli_main())
+    pass  # real call is at bottom after class defs
 
 
 # --- Main entry point for CLI ---
@@ -1208,3 +1209,7 @@ if __name__ == "__main__":
 
 # Removed duplicate class definitions (CodeySpinner and SwarmSpinner)
 # These are already defined earlier in the file and imported from swarm.blueprints.common.spinner
+
+if __name__ == "__main__":
+    # CLI entry for shims: must be after all class defs
+    sys.exit(_cli_main())
