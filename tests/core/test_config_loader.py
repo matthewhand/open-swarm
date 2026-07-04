@@ -328,6 +328,26 @@ class TestLoadFullConfiguration:
                 config_path_override="/nonexistent/config.json"
             )
 
+
+def test_django_secret_key_prod_requires_env(monkeypatch):
+    """Test prod (non-debug) requires DJANGO_SECRET_KEY (drives real shipped function)."""
+    from swarm.utils.env_utils import get_django_secret_key
+    monkeypatch.setenv("DJANGO_DEBUG", "false")
+    monkeypatch.delenv("DJANGO_SECRET_KEY", raising=False)
+    import pytest
+    with pytest.raises(Exception) as exc:  # ImproperlyConfigured
+        get_django_secret_key()
+    assert "DJANGO_SECRET_KEY" in str(exc.value)
+
+
+def test_django_secret_key_debug_fallback(monkeypatch):
+    """Test debug allows fallback."""
+    from swarm.utils.env_utils import get_django_secret_key
+    monkeypatch.setenv("DJANGO_DEBUG", "true")
+    monkeypatch.delenv("DJANGO_SECRET_KEY", raising=False)
+    key = get_django_secret_key()
+    assert "insecure-fallback" in key
+
     def test_load_full_configuration_complex_merging(self):
         """Test complex configuration merging with all layers."""
         config_data = {
