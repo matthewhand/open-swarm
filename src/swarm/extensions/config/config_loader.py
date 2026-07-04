@@ -1,43 +1,28 @@
-"""DEPRECATED shim: this module moved to ``swarm.core.config_loader``.
-
-``swarm.core.config_loader`` is the single source of truth for configuration
-loading/discovery. This module only re-exports it for backwards compatibility
-and will be removed in a future release (see ROADMAP.md for the sunset plan).
-"""
-
-import warnings
-
-from swarm.core.config_loader import (  # noqa: F401
+# Thin delegate / reexport to central implementation in core (unification complete).
+# All logic lives in swarm.core.config_loader to avoid duplication.
+from swarm.core.config_loader import (  # noqa: F401,F403
     DEFAULT_CONFIG_FILENAME,
     _hint,
-    _substitute_env_vars,
-    _substitute_env_vars_recursive,
     _xdg_config_path,
-    create_default_config,
     find_config_file,
-    get_profile_from_config,
     load_config,
-    load_environment,
-    load_full_configuration,
     save_config,
     validate_config,
+    get_profile_from_config,
+    create_default_config,
+    load_full_configuration,
+    get_resolved_llm_profile,
+    list_available_llm_profiles,
+    _apply_litellm_overrides,
+    _substitute_env_vars,
 )
 
-warnings.warn(
-    "swarm.extensions.config.config_loader is deprecated; "
-    "import from swarm.core.config_loader instead (see ROADMAP.md sunset notes).",
-    DeprecationWarning,
-    stacklevel=2,
-)
+# For legacy direct use of resolve_placeholders etc. (some code still imports from here)
+try:
+    from swarm.core.config_manager import resolve_placeholders  # type: ignore
+except Exception:
+    resolve_placeholders = None  # type: ignore
 
-__all__ = [
-    "DEFAULT_CONFIG_FILENAME",
-    "create_default_config",
-    "find_config_file",
-    "get_profile_from_config",
-    "load_config",
-    "load_environment",
-    "load_full_configuration",
-    "save_config",
-    "validate_config",
-]
+import logging
+logger = logging.getLogger(__name__)
+logger.debug("extensions.config.config_loader now delegates to core (unified).")

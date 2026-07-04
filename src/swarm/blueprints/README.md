@@ -27,14 +27,20 @@ These blueprints have been updated to use the `BlueprintBase` class, `openai-age
 
 ## WIP / Needs Refactoring
 
-These blueprints still use older patterns or have known issues (e.g., UVX/NeMo dependencies) and need refactoring to the `BlueprintBase` standard.
+These blueprints still use older patterns or have known issues and are being incrementally improved (many now use BlueprintBase).
 
-| Blueprint Name          | CLI      | Description                                                  | Status          |
-|-------------------------|----------|--------------------------------------------------------------|-----------------|
-| chucks_angels           | chuck    | Manages transcripts, compute, Flowise (UVX/NeMo WIP)         | Needs Refactor  |
-| django_chat             | djchat   | Django-integrated chatbot example                            | Needs Review    |
-| flock                   | flock    | (Details TBC)                                                | Needs Refactor  |
-| messenger               | msg      | (Details TBC)                                                | Needs Refactor  |
+**Duplication reduction:** Common PatchedFunctionTool / DummyTool / file+shell tools now live in `src/swarm/blueprints/common/tool_utils.py` (imported by updated blueprints).
+
+See individual READMEs and `blueprint_audit_status.json` for details.
+
+| Blueprint Name          | CLI      | Description                                                  | Status                  |
+|-------------------------|----------|--------------------------------------------------------------|-------------------------|
+| chucks_angels           | chuck    | Chuck Norris style coordination (minimal)                    | Minimal / Experimental  |
+| django_chat             | djchat   | Django-integrated (early load fix applied)                   | Partial                 |
+| flock                   | flock    | Group orchestration (stub)                                   | Stub                    |
+| messenger               | msg      | UI template only (stub in discovery)                         | Stub                    |
+| digitalbutlers          | butlers  | Assistant stub                                               | Stub                    |
+| codey/rue/jeeves/poets etc. | various | Tool dupe reduction + metadata (see common/tool_utils)      | Partial (improving)     |
 
 ## Configuration (`swarm_config.json`)
 

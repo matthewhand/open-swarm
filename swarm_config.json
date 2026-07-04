@@ -41,6 +41,18 @@
       "base_url": "${LITELLM_BASE_URL}",
       "api_key": "${LITELLM_API_KEY}"
     },
+    "litellm-fast": {
+      "provider": "openai",
+      "model": "gemma4-fast",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}"
+    },
+    "litellm-reason": {
+      "provider": "openai",
+      "model": "minimax-m3",
+      "base_url": "${LITELLM_BASE_URL}",
+      "api_key": "${LITELLM_API_KEY}"
+    },
     "deepseek-r1-distill-llama-70b": {
       "provider": "openai",
       "model": "deepseek-r1-distill-llama-70b",
