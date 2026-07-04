@@ -3,7 +3,8 @@ set -euo pipefail
 SCRATCH="/tmp/grok-goal-388943eafa57/implementer"
 mkdir -p "$SCRATCH"
 PORT=8025
-echo "=== building local ==="
+echo "=== building local (for container prod image) ==="
+# For fast iteration prefer local python server + envs for CLI/API; docker for full containerized prod
 PORT=$PORT docker compose build --quiet 2>&1 | tail -1 || docker build -t local-open-swarm . --quiet | tail -1
 echo "=== starting on $PORT ==="
 docker compose down 2>/dev/null || true
@@ -18,9 +19,9 @@ print("models:",len(d.get("data",[])))
 echo "=== smoke ==="
 PORT=$PORT MODEL=suggestion bash scripts/smoke_api.sh | tee "$SCRATCH/smoke.log" | tail -5
 echo "=== cli ==="
-swarm-cli list --available | tee "$SCRATCH/cli-list.txt" | head -5
-SWARM_TEST_MODE=1 swarm-cli install-executable codey | tee "$SCRATCH/cli-install.txt" | tail -2
-swarm-cli launch codey --message "evidence test" | tee "$SCRATCH/cli-launch.txt" | head -10
+PYTHONPATH=src SWARM_TEST_MODE=1 python3 -m swarm.core.swarm_cli list --available | tee "$SCRATCH/cli-list.txt" | head -8
+PYTHONPATH=src SWARM_TEST_MODE=1 python3 -m swarm.core.swarm_cli install-executable codey | tee "$SCRATCH/cli-install.txt" | tail -4
+PYTHONPATH=src SWARM_TEST_MODE=1 python3 -m swarm.core.swarm_cli launch codey --message "evidence test" | tee "$SCRATCH/cli-launch.txt" | head -15
 echo "=== secret error ==="
 python3 -c '
 import os,sys
