@@ -25,6 +25,7 @@ from swarm.core.output_utils import (
     get_spinner_state,
     pretty_print_response,
     print_operation_box,
+    print_search_progress_box,  # bare for any direct references or legacy call paths
     print_search_progress_box as _print_search_progress_box,
 )
 
@@ -137,6 +138,12 @@ def _cli_main():
         action="store_true",
         help="Enable session audit trail logging (jsonl)",
     )
+    parser.add_argument(
+        "--message",
+        type=str,
+        default=None,
+        help="Message or prompt to send to the agent (alternative to positional prompt; supported by swarm-cli launch)",
+    )
 
     def print_codey_help():
         parser.print_help()
@@ -147,12 +154,13 @@ def _cli_main():
         print_codey_help()
         sys.exit(0)
 
-    if not args.prompt:
+    prompt = args.prompt or getattr(args, "message", None)
+    if not prompt:
         print_codey_help()
         sys.exit(1)
 
     # Prepare messages and context
-    messages = [{"role": "user", "content": args.prompt}]
+    messages = [{"role": "user", "content": prompt}]
     if args.project_doc:
         try:
             with open(args.project_doc) as f:
@@ -482,6 +490,7 @@ class CodeyBlueprint(BlueprintBase):
 
     async def run(self, messages: list[dict], **kwargs):
         from swarm.core.output_utils import _print_search_progress_box  # ensure bound
+        import asyncio  # hoist for all paths (sleeps after conditional blocks)
         # AGGRESSIVE TEST-MODE GUARD: Only emit test-compliant output, block all legacy output
         import os
 
@@ -757,6 +766,7 @@ class CodeyBlueprint(BlueprintBase):
         import asyncio
         import os
         from glob import glob
+        # asyncio already imported; await uses ok since hoisted at top of fn for all paths
 
         # op_start = time.monotonic()
         py_files = [

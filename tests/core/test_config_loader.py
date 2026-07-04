@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 
 from src.swarm.core.config_loader import (
     _substitute_env_vars,
@@ -334,8 +335,7 @@ def test_django_secret_key_prod_requires_env(monkeypatch):
     from swarm.utils.env_utils import get_django_secret_key
     monkeypatch.setenv("DJANGO_DEBUG", "false")
     monkeypatch.delenv("DJANGO_SECRET_KEY", raising=False)
-    import pytest
-    with pytest.raises(Exception) as exc:  # ImproperlyConfigured
+    with pytest.raises(ImproperlyConfigured) as exc:
         get_django_secret_key()
     assert "DJANGO_SECRET_KEY" in str(exc.value)
 
