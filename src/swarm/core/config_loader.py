@@ -382,11 +382,12 @@ def get_resolved_llm_profile(
         avail = list(llm_section.keys())
         raise ValueError(f"LLM profile '{name}' not found in config. Available: {avail}. Hint: add it or use --profile default")
 
+    # Check provider before applying overrides (overrides don't supply provider)
+    if "provider" not in profile:
+        raise ValueError(f"'provider' missing in LLM profile '{name}'. Add a 'provider' key (e.g. 'openai').")
+
     # Apply overrides
     resolved = _apply_litellm_overrides(profile)
-
-    if "provider" not in resolved:
-        resolved["provider"] = "openai"
 
     return resolved
 
@@ -419,55 +420,6 @@ def _hint(msg: str) -> str:
     return f"[hint] {msg}"
 
 
-def _xdg_config_path() -> Path:
-    import os
-    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "swarm" / DEFAULT_CONFIG_FILENAME
-
-
-def find_config_file(
-    specific_path: str | None = None,
-    start_dir: Path | None = None,
-    default_dir: Path | None = None,
-) -> Path | None:
-    """
-    Locate swarm_config.json using precedence:
-      1) XDG (~/.config/swarm/swarm_config.json)
-      2) User-specified path
-      3) Upwards search from start_dir
-      4) default_dir/swarm_config.json
-      5) CWD/swarm_config.json
-    Logs actionable hints on common mistakes.
-    """
-    # 1. XDG
-    xdg = _xdg_config_path()
-    if xdg.is_file():
-        return xdg.resolve()
-
-    if specific_path:
-        p = Path(specific_path)
-        if p.is_file():
-            return p.resolve()
-        logger.warning(f"Specified config not found: {specific_path} | " + _hint("swarm-cli config init --path ..."))
-
-    if start_dir:
-        current = Path(start_dir).resolve()
-        while current != current.parent:
-            cp = current / DEFAULT_CONFIG_FILENAME
-            if cp.is_file():
-                return cp.resolve()
-            current = current.parent
-
-    if default_dir:
-        cp = Path(default_dir).resolve() / DEFAULT_CONFIG_FILENAME
-        if cp.is_file():
-            return cp.resolve()
-
-    cwd = Path.cwd() / DEFAULT_CONFIG_FILENAME
-    if cwd.is_file():
-        return cwd.resolve()
-
-    logger.debug(f"Config '{DEFAULT_CONFIG_FILENAME}' not found.")
-    return None
 
 
 def load_config(config_path: Path) -> dict[str, Any]:

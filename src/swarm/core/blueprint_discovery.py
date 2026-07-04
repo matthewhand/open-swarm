@@ -27,8 +27,9 @@ class BlueprintMetadata(TypedDict, total=False):
     # Optional extended fields commonly used by blueprints
     required_mcp_servers: list[str] | None
     env_vars: list[str] | None
-    deprecated: bool | None  # for incomplete / legacy bps (filter/warn in discovery/CLI)
-    status: str | None  # e.g. "working", "incomplete"
+    tool_requirements: dict[str, str] | None  # capability -> "mandatory"|"optional"
+    deprecated: bool | None
+    status: str | None
     # Add other common metadata fields here if needed for typing
 
 class DiscoveredBlueprintInfo(TypedDict):
@@ -117,16 +118,11 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
 
         logger.debug(f"Found blueprint file: {py_file_name} in {subdir}")
 
-        # Construct module import path. Example: swarm.blueprints.codey.codey
-        # This assumes 'swarm.blueprints' is a package containing subdirectories for each blueprint.
-        # The base_dir is typically .../swarm/blueprints/
-        # So, subdir.name would be 'codey', py_file_path.stem would be 'codey'
-        module_import_path = f"{base_dir.parent.name}.{base_dir.name}.{subdir.name}.{py_file_path.stem}"
-        # A more robust way if base_dir is not always '.../swarm/blueprints':
-        # Find the 'swarm' package root relative to py_file_path and build from there.
-        # For now, assuming a fixed structure like 'swarm.blueprints.blueprint_name.module_name'
-        # If blueprint_dir is 'src/swarm/blueprints', then base_dir.parent.name is 'swarm', base_dir.name is 'blueprints'.
-        # Example: src/swarm/blueprints/codey/codey.py -> swarm.blueprints.codey.codey
+        # Construct module import path, using namespace if provided (for community blueprints)
+        if namespace:
+            module_import_path = f"{namespace}.{subdir.name}.{py_file_path.stem}"
+        else:
+            module_import_path = f"{base_dir.parent.name}.{base_dir.name}.{subdir.name}.{py_file_path.stem}"
 
         try:
             # Ensure the parent of 'swarm' (e.g., 'src') is in sys.path if not already.
@@ -193,6 +189,7 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
                             'abbreviation': full_meta.get('abbreviation'),
                             'required_mcp_servers': full_meta.get('required_mcp_servers'),
                             'env_vars': full_meta.get('env_vars'),
+                            'tool_requirements': full_meta.get('tool_requirements'),
                             'deprecated': full_meta.get('deprecated'),
                             'status': full_meta.get('status'),
                         }

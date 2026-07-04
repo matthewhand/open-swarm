@@ -17,6 +17,7 @@ import subprocess
 import time
 from typing import Any
 
+from swarm.core import blueprint_discovery as _bp_discovery
 from swarm.core.blueprint_discovery import (
     apply_blueprint_aliases,
     discover_blueprints,
@@ -53,9 +54,14 @@ class BlueprintMCPProvider:
 
     def refresh(self) -> None:
         """Re-discover blueprints and rebuild the internal index."""
-        discovered = apply_blueprint_aliases(
-            merge_community_blueprints(
-                discover_blueprints(self._blueprint_dir), BLUEPRINT_EXTRA_DIRS
+        import swarm.mcp.provider as _self_mod
+        _discover = _self_mod.discover_blueprints
+        _merge = _self_mod.merge_community_blueprints
+        _alias = _self_mod.apply_blueprint_aliases
+        _extra = getattr(_self_mod, "BLUEPRINT_EXTRA_DIRS", [])
+        discovered = _alias(
+            _merge(
+                _discover(self._blueprint_dir), _extra
             )
         )
         index: dict[str, dict[str, Any]] = {}

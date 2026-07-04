@@ -434,5 +434,150 @@ def skills_command(
     typer.echo(f"\n{len(catalog)} skill(s). Apply one: `model=cli_agent`, param `skill=<name>`.")
 
 
+import json as _json
+import shutil as _shutil
+from pathlib import Path as _Path
+
+
+@app.command(name="config")
+def config_cmd(
+    action: str = typer.Argument(..., help="list | add | remove"),
+    section: str = typer.Option(None, "--section", help="llm or mcpServers"),
+    name: str = typer.Option(None, "--name", help="profile or server name"),
+    json_str: str = typer.Option(None, "--json", help="JSON string for add"),
+    config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
+):
+    """Manage LLM profiles and MCP servers."""
+    from swarm.core.config_loader import find_config_file, load_config
+    from swarm.core import paths as _paths
+    if config:
+        cfg_path = _Path(config)
+    else:
+        found = find_config_file()
+        cfg_path = found if found else (_paths.get_user_config_dir_for_swarm() / "swarm_config.json")
+    try:
+        cfg = _json.loads(cfg_path.read_text()) if cfg_path.is_file() else {"llm": {}, "mcpServers": {}}
+    except Exception:
+        cfg = {"llm": {}, "mcpServers": {}}
+
+    if action == "list":
+        if section in ("llm", None):
+            typer.echo("LLM profiles:")
+            for k, v in cfg.get("llm", {}).items():
+                typer.echo(f"  {k}: {v.get('model', '?')}")
+        if section in ("mcpServers", None):
+            typer.echo("MCP Servers:")
+            for k in cfg.get("mcpServers", {}):
+                typer.echo(f"  {k}")
+    elif action == "add":
+        if not section or not name or not json_str:
+            typer.echo("--section, --name, and --json are required for add", err=True)
+            raise typer.Exit(code=1)
+        try:
+            val = _json.loads(json_str)
+        except _json.JSONDecodeError as e:
+            typer.echo(f"Invalid JSON: {e}", err=True)
+            raise typer.Exit(code=1)
+        cfg.setdefault(section, {})[name] = val
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text(_json.dumps(cfg, indent=2))
+        typer.echo(f"Added '{name}' to {section} in {cfg_path}")
+    elif action == "remove":
+        if not section or not name:
+            typer.echo("--section and --name are required for remove", err=True)
+            raise typer.Exit(code=1)
+        removed = cfg.get(section, {}).pop(name, None)
+        if removed is None:
+            typer.echo(f"'{name}' not found in {section}")
+        else:
+            cfg_path.write_text(_json.dumps(cfg, indent=2))
+            typer.echo(f"Removed '{name}' from {section}")
+    else:
+        typer.echo(f"Unknown action '{action}'. Use: list, add, remove", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command(name="wizard")
+def wizard_cmd(
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Skip prompts, use provided options"),
+    team_name: str = typer.Option(None, "-n", "--name", help="Team/blueprint name"),
+    roles: list[str] = typer.Option([], "-r", "--role", help="Role:description pairs (repeatable)"),
+    no_shortcut: bool = typer.Option(False, "--no-shortcut", help="Don't create a CLI shortcut"),
+    output_dir: str = typer.Option(None, "--output-dir", help="Where to write the blueprint"),
+):
+    """Scaffold a new team blueprint (non-interactive mode supported)."""
+    import re
+    if not team_name:
+        typer.echo("--name is required", err=True)
+        raise typer.Exit(code=1)
+    slug = re.sub(r"[^a-z0-9_]", "", team_name.lower().replace(" ", "_"))
+    out = _Path(output_dir) / slug if output_dir else _Path.cwd() / slug
+    out.mkdir(parents=True, exist_ok=True)
+    agents_code = ""
+    for role_spec in roles:
+        parts = role_spec.split(":", 1)
+        rname, rdesc = (parts[0], parts[1]) if len(parts) == 2 else (parts[0], parts[0])
+        agents_code += f"        Agent(name='{rname}', instructions='{rdesc}'),\n"
+    bp_file = out / f"blueprint_{slug}.py"
+    bp_file.write_text(f'''"""Auto-generated blueprint: {team_name}"""
+from agents import Agent
+from swarm.core.blueprint_base import BlueprintBase
+
+class {slug.title().replace("_","")}Blueprint(BlueprintBase):
+    metadata = {{"name": "{slug}", "description": "Team blueprint: {team_name}"}}
+    async def run(self, messages, **kwargs):
+        yield {{"messages": [{{"role": "assistant", "content": "Team {team_name} ready."}}]}}
+''')
+    typer.echo(f"Team blueprint created: {bp_file}")
+
+
+@app.command(name="add")
+def add_cmd(
+    source: str = typer.Argument(..., help="Path to blueprint directory to add"),
+    name: str = typer.Option(None, "--name", help="Override blueprint name"),
+):
+    """Add a blueprint to the user blueprint library."""
+    from swarm.core import paths as _paths
+    src = _Path(source).resolve()
+    if not src.is_dir():
+        typer.echo(f"Source directory not found: {src}", err=True)
+        raise typer.Exit(code=1)
+    bp_name = name or src.name
+    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / bp_name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        _shutil.rmtree(dest)
+    _shutil.copytree(src, dest)
+    typer.echo(f"Added blueprint '{bp_name}' to {dest}")
+
+
+@app.command(name="delete")
+def delete_cmd(
+    blueprint_name: str = typer.Argument(..., help="Blueprint name to delete from user library"),
+):
+    """Delete a blueprint from the user blueprint library."""
+    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / blueprint_name
+    if not dest.exists():
+        typer.echo(f"Blueprint '{blueprint_name}' not found in user library", err=True)
+        raise typer.Exit(code=1)
+    _shutil.rmtree(dest)
+    typer.echo(f"Deleted blueprint '{blueprint_name}' from {dest}")
+
+
+@app.command(name="uninstall")
+def uninstall_cmd(
+    blueprint_name: str = typer.Argument(..., help="Blueprint executable to uninstall"),
+):
+    """Uninstall a compiled blueprint executable from the user bin directory."""
+    from swarm.core import paths as _paths
+    bin_dir = _paths.get_user_bin_dir()
+    exe = bin_dir / blueprint_name
+    if not exe.exists():
+        typer.echo(f"Executable '{blueprint_name}' not found in {bin_dir}", err=True)
+        raise typer.Exit(code=1)
+    exe.unlink()
+    typer.echo(f"Uninstalled '{blueprint_name}' from {bin_dir}")
+
+
 if __name__ == "__main__":
     app()

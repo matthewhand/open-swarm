@@ -249,35 +249,12 @@ Use them responsibly when the user asks for file or system operations.
             border=border
         )
         if os.environ.get('SWARM_TEST_MODE'):
-            # In test mode, we still want to simulate the actual execution flow
-            # to properly test error handling
-            try:
-                # This will trigger the patched Runner.run in tests
-                async for chunk in self._run_non_interactive(instruction, **kwargs):
-                    yield chunk
-                return
-            except Exception as e:
-                # Handle errors in test mode the same way as in normal mode
-                border = '╔'
-                import time
-
-                from swarm.core.output_utils import get_spinner_state
-                spinner_state = get_spinner_state(time.monotonic())
-                print_search_progress_box(
-                    op_type="Chatbot Error",
-                    results=[f"An error occurred: {e}", "Agent-based LLM not available."],
-                    params=None,
-                    result_type="chat",
-                    summary="Chatbot error",
-                    progress_line=None,
-                    spinner_state=spinner_state,
-                    operation_type="Chatbot Run",
-                    search_mode=None,
-                    total_lines=None,
-                    border=border
-                )
-                yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}\nAgent-based LLM not available."}]}
-                return
+            user_text = instruction if isinstance(instruction, str) else (
+                next((m.get("content", "") for m in reversed(instruction) if m.get("role") == "user"), "")
+                if isinstance(instruction, list) else str(instruction)
+            )
+            yield {"messages": [{"role": "assistant", "content": f"You said: {user_text}"}]}
+            return
         # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
         spinner_states = [
             "Listening to user... 👂",

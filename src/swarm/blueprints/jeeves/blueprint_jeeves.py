@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pytz
-from agents import Runner
+from agents import Runner, function_tool
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.output_utils import get_spinner_state
@@ -120,11 +120,6 @@ gutenberg_instructions = (
 )
 
 # --- FileOps Tool Logic Definitions ---
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
-
 def read_file(path: str) -> str:
     try:
         with open(path) as f:
@@ -154,10 +149,10 @@ def execute_shell_command(command: str) -> str:
     except Exception as e:
         return f"ERROR: {e}"
 
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+read_file_tool = function_tool(read_file)
+write_file_tool = function_tool(write_file)
+list_files_tool = function_tool(list_files)
+execute_shell_command_tool = function_tool(execute_shell_command)
 
 # --- Unified Operation/Result Box for UX ---
 class JeevesBlueprint(BlueprintBase):
@@ -274,22 +269,7 @@ class JeevesBlueprint(BlueprintBase):
         instruction = messages[-1]["content"] if messages else ""
         # --- Test Mode Spinner Output ---
         if os.environ.get('SWARM_TEST_MODE'):
-            # Handle search_mode in test mode
-            search_mode = kwargs.get("search_mode")
-            if search_mode == 'code':
-                await self.search(instruction, ".")
-                return
-            elif search_mode == 'semantic':
-                await self.semantic_search(instruction, ".")
-                return
-            
-            # Print spinner states
-            for msg in JeevesSpinner.SPINNER_STATES:
-                print(msg)
-            # Print long wait message
-            print(JeevesSpinner.LONG_WAIT_MSG)
-            # Indicate completion for CLI tests
-            print("Jeeves Output")
+            yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'"}]}
             return
         # (Continue with existing logic for agent/LLM run)
         # ... existing logic ...
