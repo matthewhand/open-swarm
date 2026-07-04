@@ -36,6 +36,19 @@ app = typer.Typer(help="Swarm CLI tool", add_completion=False)
 
 
 def find_entry_point(blueprint_dir: Path) -> str | None:
+    """Find entry point with deterministic priority for CLI compatibility.
+    Prefers {name}_cli.py, then {name}.py, then blueprint_{name}.py.
+    """
+    name = blueprint_dir.name
+    candidates = [
+        f"{name}_cli.py",
+        f"{name}.py",
+        f"blueprint_{name}.py",
+    ]
+    for cand in candidates:
+        p = blueprint_dir / cand
+        if p.is_file() and not p.name.startswith("_"):
+            return p.name
     for item in blueprint_dir.glob("*.py"):
         if item.is_file() and not item.name.startswith("_"):
             return item.name

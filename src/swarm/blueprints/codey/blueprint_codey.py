@@ -25,6 +25,7 @@ from swarm.core.output_utils import (
     get_spinner_state,
     pretty_print_response,
     print_operation_box,
+    print_search_progress_box as _print_search_progress_box,
 )
 
 
@@ -440,6 +441,7 @@ class CodeyBlueprint(BlueprintBase):
         return linus_corvalds
 
     async def _original_run(self, messages: list[dict], **_kwargs):
+        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
         self.audit_logger.log_event(
             "completion", {"event": "start", "messages": messages}
         )
@@ -479,15 +481,13 @@ class CodeyBlueprint(BlueprintBase):
         return
 
     async def run(self, messages: list[dict], **kwargs):
+        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
         # AGGRESSIVE TEST-MODE GUARD: Only emit test-compliant output, block all legacy output
         import os
 
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get("SWARM_TEST_MODE"):
-            from swarm.core.output_utils import (
-                print_search_progress_box,
-            )
-
+            from swarm.core.output_utils import _print_search_progress_box  # force bound in guard
             spinner_lines = [
                 "Generating.",
                 "Generating..",
@@ -498,7 +498,7 @@ class CodeyBlueprint(BlueprintBase):
             search_mode = kwargs.get("search_mode", "semantic")
             if search_mode == "code":
                 # Code Search legacy/test output
-                print_search_progress_box(
+                _print_search_progress_box(
                     op_type="Code Search",
                     results=[
                         "Code Search",
@@ -523,7 +523,7 @@ class CodeyBlueprint(BlueprintBase):
                     spinner_lines + ["Generating... Taking longer than expected"], 1
                 ):
                     progress_line = f"Lines {i * 14}"
-                    print_search_progress_box(
+                    _print_search_progress_box(
                         op_type="Code Search",
                         results=[
                             f"Spinner State: {spinner_state}",
@@ -543,7 +543,7 @@ class CodeyBlueprint(BlueprintBase):
                     import asyncio
 
                     await asyncio.sleep(0.01)
-                print_search_progress_box(
+                _print_search_progress_box(
                     op_type="Code Search Results",
                     results=[
                         "Found 10 matches.",
@@ -565,7 +565,7 @@ class CodeyBlueprint(BlueprintBase):
                 return
             else:
                 # Semantic Search legacy/test output
-                print_search_progress_box(
+                _print_search_progress_box(
                     op_type="Semantic Search",
                     results=[
                         "Semantic Search",
@@ -590,7 +590,7 @@ class CodeyBlueprint(BlueprintBase):
                     spinner_lines + ["Generating... Taking longer than expected"], 1
                 ):
                     progress_line = f"Lines {i * 14}"
-                    print_search_progress_box(
+                    _print_search_progress_box(
                         op_type="Semantic Search",
                         results=[
                             f"Spinner State: {spinner_state}",
@@ -610,7 +610,7 @@ class CodeyBlueprint(BlueprintBase):
                     import asyncio
 
                     await asyncio.sleep(0.01)
-                print_search_progress_box(
+                _print_search_progress_box(
                     op_type="Semantic Search Results",
                     results=[
                         "Found 10 matches.",
@@ -646,7 +646,7 @@ class CodeyBlueprint(BlueprintBase):
                     "Generating...",
                     "Running...",
                 ]
-            print_search_progress_box(
+            _print_search_progress_box(
                 op_type=op_type,
                 results=pre_results
                 + [f"Searching for '{instruction}' in {250} Python files..."],
@@ -664,7 +664,7 @@ class CodeyBlueprint(BlueprintBase):
             await asyncio.sleep(0.05)
             for i in range(1, 6):
                 match_count = i * 7
-                print_search_progress_box(
+                _print_search_progress_box(
                     op_type=op_type,
                     results=[
                         f"Matches so far: {match_count}",
@@ -687,7 +687,7 @@ class CodeyBlueprint(BlueprintBase):
             # Emit a box for semantic search spinner test: must contain 'Semantic Search', 'Generating.', 'Found', 'Processed', and optionally 'Assistant:'
             if os.environ.get("SWARM_TEST_MODE"):
                 if search_mode == "code":
-                    print_search_progress_box(
+                    _print_search_progress_box(
                         op_type="Code Search",
                         results=[
                             "Code Search",
@@ -718,7 +718,7 @@ class CodeyBlueprint(BlueprintBase):
                     }
                     return
                 elif search_mode == "semantic":
-                    print_search_progress_box(
+                    _print_search_progress_box(
                         op_type="Semantic Search",
                         results=[
                             "Semantic Search",
@@ -771,9 +771,7 @@ class CodeyBlueprint(BlueprintBase):
             spinner_states + ["Generating... Taking longer than expected"], 1
         ):
             progress_line = f"Spinner {i}/{len(spinner_states) + 1}"
-            from swarm.core.output_utils import print_search_progress_box
-
-            print_search_progress_box(
+            _print_search_progress_box(
                 op_type="Codey Search Spinner",
                 results=[
                     f"Codey agent response for: '{query}'",
@@ -796,9 +794,7 @@ class CodeyBlueprint(BlueprintBase):
             )
             await asyncio.sleep(0.01)
         # Final result box
-        from swarm.core.output_utils import print_search_progress_box
-
-        print_search_progress_box(
+        _print_search_progress_box(
             op_type="Codey Search Results",
             results=[
                 f"Searched for: '{query}'",
@@ -822,6 +818,7 @@ class CodeyBlueprint(BlueprintBase):
         return matches
 
     async def _run_non_interactive(self, instruction: str, **_kwargs):
+        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
         logger = logging.getLogger(__name__)
         import time
 
