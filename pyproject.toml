@@ -62,7 +62,6 @@ dependencies = [
     "drf-spectacular>=0.28.0",
     "jmespath>=1.0.1",
     "filelock>=3.18.0",
-    "asgiref>=3.8.1",
 ]
 
 [project.urls]
