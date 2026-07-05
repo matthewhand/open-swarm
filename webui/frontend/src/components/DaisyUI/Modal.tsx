@@ -60,24 +60,6 @@ export const Modal = ({
     return () => dialog.removeEventListener('cancel', handleCancel);
   }, [onClose]);
 
-  // Handle backdrop clicks (clicking outside the modal-box)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const rect = dialog.getBoundingClientRect();
-    const isInDialog = (
-      rect.top <= e.clientY &&
-      e.clientY <= rect.top + rect.height &&
-      rect.left <= e.clientX &&
-      e.clientX <= rect.left + rect.width
-    );
-
-    if (!isInDialog) {
-      onClose();
-    }
-  };
-
   const sizeClasses = {
     sm: 'max-w-sm',
     md: 'max-w-md',
@@ -89,13 +71,12 @@ export const Modal = ({
     <dialog
       ref={dialogRef}
       className={`modal ${isOpen ? 'modal-open' : ''}`}
-      onClick={handleBackdropClick}
       aria-labelledby={title ? titleId : undefined}
       aria-modal="true"
+      onClose={onClose}
     >
       <div 
         className={`modal-box ${sizeClasses[size]} ${className}`}
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
       >
         {title && (
           <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
@@ -104,9 +85,14 @@ export const Modal = ({
           {children}
         </div>
       </div>
-      <form method="dialog" className="modal-backdrop">
-        <button type="button" onClick={onClose}>close</button>
-      </form>
+      {/* DaisyUI modal-backdrop covers the whole screen outside the modal-box.
+          Using a button instead of an un-focusable <form> ensures keyboard operability
+          and correct semantics for closing the dialog by clicking outside. */}
+      <div className="modal-backdrop">
+        <button type="button" onClick={onClose} aria-label="Close dialog">
+          <span className="sr-only">Close dialog</span>
+        </button>
+      </div>
     </dialog>
   );
 
