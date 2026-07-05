@@ -1,3 +1,3 @@
-## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
-## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
-## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-05-18 | [Architectural Audit] | Insight: Codebase relies on 'any' type in catch blocks, bypassing TypeScript's static type checking, leading to brittle error handling. | Protocol: Refactor catch blocks to use 'unknown' or 'Error' types and enforce type-checking by performing instanceof checks or similar verifications.
+## 2026-07-05 | [Architectural Audit] | Insight: Codebase uses native 'confirm()' dialog for destructive actions. | Protocol: Refactor native 'confirm()' to use an accessible 'ConfirmModal' component.
+## 2026-07-05 | [Architectural Audit] | Insight: Tests are tightly coupled to DOM structure using 'querySelector'. | Protocol: Refactor tests to use semantic querying like 'getByTestId' or 'getByRole'.
