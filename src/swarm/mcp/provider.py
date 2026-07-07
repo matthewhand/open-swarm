@@ -17,7 +17,6 @@ import subprocess
 import time
 from typing import Any
 
-from swarm.core import blueprint_discovery as _bp_discovery
 from swarm.core.blueprint_discovery import (
     apply_blueprint_aliases,
     discover_blueprints,

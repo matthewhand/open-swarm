@@ -2,7 +2,10 @@ from .base import BaseMemory
 from .mem0_memory import Mem0Memory
 from .langmem_memory import LangmemMemory
 from .papr_memory import PaprMemory
+import logging as _mem_logger
 from typing import Any, runtime_checkable, Protocol
+
+_mem_log = _mem_logger.getLogger(__name__)
 
 
 @runtime_checkable
@@ -10,9 +13,6 @@ class MemoryBackend(Protocol):
     """Structural protocol for memory backends — any class with add/search qualifies."""
     def add(self, messages: Any, user_id: str = "default", metadata: dict | None = None) -> None: ...
     def search(self, query: str, user_id: str = "default", limit: int | None = None) -> list[str]: ...
-
-import logging as _mem_logger
-_mem_log = _mem_logger.getLogger(__name__)
 
 
 def get_memory_backend(config: dict | str | None = None, options: dict | None = None) -> BaseMemory | None:

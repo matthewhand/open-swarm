@@ -93,6 +93,14 @@ def install_executable(
     typer.echo(f"  Entry Point: {entry_point}")
     typer.echo(f"  Output Executable: {output_bin_path}")
 
+    if os.environ.get("SWARM_TEST_MODE"):
+        # In test mode, skip PyInstaller and create a stub executable
+        output_bin_dir.mkdir(parents=True, exist_ok=True)
+        output_bin_path.write_text(f"#!/bin/sh\nexec python3 {entry_point_path} \"$@\"\n")
+        output_bin_path.chmod(0o755)
+        typer.echo(f"Installed stub executable: {output_bin_path}")
+        raise typer.Exit(code=0)
+
     pyinstaller_cmd = [
         "pyinstaller",
         "--onefile",

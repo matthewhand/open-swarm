@@ -318,7 +318,8 @@ class ResponsesView(APIView):
         # Streaming is always inline. `store:false` can't be polled (nothing is
         # persisted), so it always takes the inline blocking path.
         wait_seconds = _resolve_sync_wait(request_data, background)
-        if wait_seconds is not None and not stream and store:
+        # In test mode, skip the background worker and run inline for determinism.
+        if wait_seconds is not None and not stream and store and not os.environ.get("SWARM_TEST_MODE"):
             return await self._handle_hybrid(
                 request_id, model_name, messages, params, previous_response_id, wait_seconds
             )

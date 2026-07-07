@@ -415,13 +415,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG_FILENAME = "swarm_config.json"
 
 
-def _hint(msg: str) -> str:
-    """Format a concise, actionable hint for CLI surfaces."""
-    return f"[hint] {msg}"
-
-
-
-
 def load_config(config_path: Path) -> dict[str, Any]:
     logger.debug(f"Loading config from {config_path}")
     try:

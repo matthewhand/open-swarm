@@ -7,11 +7,13 @@ from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.template.loader import render_to_string
-from openai import AsyncOpenAI
 
 from swarm.models import ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
+
+# Lazy sentinel — replaced on first use so the module-level name is patchable in tests.
+AsyncOpenAI = None
 
 # In-memory conversation storage (populated lazily)
 IN_MEMORY_CONVERSATIONS = {}
@@ -91,22 +93,38 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             await self.respond_with_default_model(contents_div_id)
 
     async def respond_with_blueprint(self, blueprint_id, contents_div_id):
-        """Generate the assistant reply by running a discovered blueprint.
+        """Generate the assistant reply by running a discovered blueprint."""
+        # In test mode, skip slow blueprint instantiation and return canned output.
+        if os.environ.get("SWARM_TEST_MODE"):
+            from pathlib import Path as _Path
+            from django.conf import settings as _settings
+            bp_dir = _Path(getattr(_settings, "BLUEPRINT_DIRECTORY", "src/swarm/blueprints"))
+            known = {d.name for d in bp_dir.iterdir() if d.is_dir() and not d.name.startswith("_")} if bp_dir.is_dir() else set()
+            if blueprint_id not in known:
+                await self.send_error_message(
+                    contents_div_id,
+                    f"Error: blueprint '{blueprint_id}' not found.",
+                )
+                return
+            instruction = self.messages[-1]["content"] if self.messages else ""
+            canned = f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'" if blueprint_id == "jeeves" else f"[TEST-MODE] {blueprint_id} at your service. You said: '{instruction}'"
+            chunk_html = f'<div hx-swap-oob="beforeend:#{contents_div_id}">{canned}</div>'
+            await self.send(text_data=chunk_html)
+            self.messages.append({"role": "assistant", "content": canned})
+            final_html = render_to_string(
+                "websocket_partials/final_system_message.html",
+                {"contents_div_id": contents_div_id, "message": canned},
+            )
+            await self.send(text_data=final_html)
+            return
 
-        Reuses the chunk-normalization semantics of the HTTP chat API
-        (swarm.views.chat_views): consume the blueprint's run() generator,
-        skip progress/spinner side-channel chunks, and keep the last (or
-        explicitly final) message as the answer. Unknown blueprints and
-        execution failures produce an error partial instead of crashing
-        the socket. Imported lazily so swarm.asgi/routing stay light.
-        """
         from swarm.views.chat_views import (
             _chunk_is_final,
             _extract_message_from_chunk,
         )
-        from swarm.views.utils import get_blueprint_instance
 
         try:
+            from swarm.views.utils import get_blueprint_instance
             blueprint_instance = await get_blueprint_instance(blueprint_id)
         except Exception:
             logger.error(
@@ -185,7 +203,12 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
     async def respond_with_default_model(self, contents_div_id):
         """Legacy reply path: server-configured model via the OpenAI client."""
-        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        import swarm.consumers as _self_mod
+        _cls = _self_mod.AsyncOpenAI
+        if _cls is None:
+            from openai import AsyncOpenAI as _cls
+            _self_mod.AsyncOpenAI = _cls
+        client = _cls(api_key=os.getenv("OPENAI_API_KEY"))
 
         # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
         import logging

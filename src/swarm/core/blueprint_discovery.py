@@ -106,7 +106,7 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
                     class _MessengerStub(BlueprintBase):
                         metadata = stub_meta
                         def run(self, *a, **k): return; yield  # type: ignore
-                    _MessengerStub.__module__ = module_import_path  # fake for check
+                    _MessengerStub.__module__ = f"swarm.blueprints.messenger.blueprint_messenger"
                     blueprints[blueprint_key_name] = DiscoveredBlueprintInfo(
                         class_type=_MessengerStub,
                         metadata=stub_meta
