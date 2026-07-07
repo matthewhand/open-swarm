@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -34,6 +34,8 @@ const TeamsPage = () => {
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formLlm, setFormLlm] = useState('');
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   const loadTeams = async () => {
     setLoading(true);
@@ -79,23 +81,31 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+  const handleDelete = (id: string | number) => {
+    setTeamToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!teamToDelete) return;
+    setDeleteModalOpen(false);
     setActionLoading(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
-      fd.append('team_id', String(id));
-      // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
-      await fetch('/teams/', { method: 'POST', body: fd });
-      setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      fd.append('team_id', String(teamToDelete));
+      const res = await fetch('/teams/', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Delete returned non-ok');
+      setSuccessMsg(`Team ${teamToDelete} deleted successfully.`);
       await loadTeams();
-    } catch (e) {
-      setError('Delete failed (local UI may be stale; try refresh or server admin).');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      setError(`Failed to delete team via form POST: ${errorMessage}. Registry change may require page reload or manual removal in backend.`);
     } finally {
+      setTeamToDelete(null);
       setActionLoading(false);
-      setTimeout(() => setSuccessMsg(null), 3000);
+      setTimeout(() => setSuccessMsg(null), 5000);
     }
   };
 
@@ -216,7 +226,7 @@ const TeamsPage = () => {
                       <Edit className="h-3 w-3" />
                     </Button>
                     <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-3 w-3" aria-label="Delete Team" />
                     </Button>
                   </div>
                 </div>
@@ -335,7 +345,20 @@ const TeamsPage = () => {
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
 
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setTeamToDelete(null); }}
+        onConfirm={confirmDelete}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete team "{teamToDelete}"? This action calls the backend and cannot be undone.</p>
+      </ConfirmModal>
+
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+
     </div>
   );
 };

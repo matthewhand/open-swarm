@@ -1,3 +1,6 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-06-15 | [Architectural Audit] | Insight: Native confirm() used for destructive actions | Protocol: Avoid native `confirm()`. Use accessible DaisyUI `ConfirmModal` for state-managed, keyboard-navigable confirmation flows.
+## 2024-06-15 | [Architectural Audit] | Insight: Loading spinners without roles | Protocol: Always add `role="status"` to loading indicator elements (e.g. `.loading-spinner`) to explicitly announce state to screen readers.
+## 2024-06-15 | [Architectural Audit] | Insight: Broad `any` usage in try/catch | Protocol: Catch clauses should strictly use `catch (e: unknown)` and `if (e instanceof Error)` to guarantee robust, predictable error handling without overriding TypeScript safety.

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { Home, Settings, Bot, Book, Users, PlusCircle } from 'lucide-react'
-import { Button, Card, Alert, Badge, LoadingSpinner } from './components/DaisyUI'
+import { Button, Card, Alert, Badge } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
 
@@ -76,8 +76,8 @@ function Dashboard() {
   const [teamsCount, setTeamsCount] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [errorStats, setErrorStats] = useState<string | null>(null);
-  const [apiHealth, setApiHealth] = useState<{models?: string; blueprints?: string; teams?: string}>({});
-  const navigate = useNavigate();
+
+
 
   useEffect(() => {
     let cancelled = false;
@@ -105,9 +105,12 @@ function Dashboard() {
           setTeamsCount(tCount);
           health.models = mRes.ok ? 'ok' : 'fail';
           health.blueprints = bpRes.ok ? 'ok' : 'fail';
-          setApiHealth(health);
+
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          console.error(e.message);
+        }
         if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
       } finally {
         if (!cancelled) setLoadingStats(false);
