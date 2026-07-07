@@ -255,8 +255,16 @@ export default function BuilderPage() {
                   <code className="text-xs font-normal text-base-content/70">{source.data.selected}</code>
                 )}
               </h2>
-              {source.isPending && <LoadingSpinner size="sm" />}
-              {source.isError && <Alert type="warning">Source unavailable for this blueprint.</Alert>}
+              {source.isPending && (
+                <div aria-live="polite" aria-busy="true" className="py-4 flex justify-center">
+                  <LoadingSpinner size="md" />
+                </div>
+              )}
+              {source.isError && (
+                <div aria-live="assertive" role="alert">
+                  <Alert type="warning">Source unavailable for this blueprint.</Alert>
+                </div>
+              )}
               {source.data && (
                 // Show the file browser only when there's more than one file;
                 // otherwise the editor takes the full width (no lonely 1-item list).

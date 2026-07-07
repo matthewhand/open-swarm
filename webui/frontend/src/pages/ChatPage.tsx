@@ -171,17 +171,18 @@ const ChatPage = () => {
         {/* Blueprint selector (from /v1/blueprints/) */}
         <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
           {blueprintsQuery.isPending ? (
-            <div className="flex items-center gap-2 py-2">
+            <div className="flex items-center gap-2 py-2" aria-live="polite" aria-busy="true">
               <LoadingSpinner size="sm" />
               <span className="text-sm">Loading blueprints…</span>
             </div>
           ) : blueprintsQuery.isError ? (
-            <Alert
-              type="warning"
-              icon={<AlertCircle className="h-5 w-5" />}
-              className="max-w-md py-2"
-            >
-              <span className="text-sm">
+            <div aria-live="assertive" role="alert">
+              <Alert
+                type="warning"
+                icon={<AlertCircle className="h-5 w-5" />}
+                className="max-w-md py-2"
+              >
+                <span className="text-sm">
                 Could not load blueprints
                 {isAuthError(blueprintsQuery.error) ? (
                   <>
@@ -196,8 +197,9 @@ const ChatPage = () => {
                   ` (${blueprintsQuery.error.message})`
                 )}
                 .
-              </span>
-            </Alert>
+                </span>
+              </Alert>
+            </div>
           ) : (
             <label className="form-control w-full max-w-xs">
               <div className="mb-1 flex items-center gap-1.5">

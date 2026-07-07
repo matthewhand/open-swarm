@@ -80,7 +80,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
     setActionLoading(true);
     setError(null);
     try {
@@ -167,8 +167,8 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {error && <Alert type="error" className="mb-4">{error}</Alert>}
-      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      {error && <div aria-live="assertive" role="alert"><Alert type="error" className="mb-4">{error}</Alert></div>}
+      {successMsg && <div aria-live="polite" role="status"><Alert type="success" className="mb-4">{successMsg}</Alert></div>}
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">
@@ -199,7 +199,7 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      {loading && <div className="flex justify-center py-8" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (

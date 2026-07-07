@@ -67,7 +67,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     >
       {/* DaisyUI 5: the bare `loading` btn class no longer renders a spinner —
           an explicit loading-spinner span is required for visible feedback. */}
-      {loading && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
+      {loading && <span data-testid="button-loading-spinner" className="loading loading-spinner loading-sm" aria-hidden="true" />}
       {loading && <span className="sr-only">Loading</span>}
       {children}
     </button>

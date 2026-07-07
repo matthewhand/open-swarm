@@ -82,8 +82,8 @@ export default function BlueprintsPage() {
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
 
-      {error && <Alert type="warning">{error}</Alert>}
-      {launchResult && <Alert type="success" className="mb-4">{launchResult}</Alert>}
+      {error && <div aria-live="assertive" role="alert"><Alert type="warning">{error}</Alert></div>}
+      {launchResult && <div aria-live="polite" role="status"><Alert type="success" className="mb-4">{launchResult}</Alert></div>}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
@@ -99,7 +99,7 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((blueprint) => (
