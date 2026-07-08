@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, useRef, ReactNode } from 'react';
 
 /**
  * Tab interface
@@ -34,6 +34,8 @@ export const Tabs = ({
   size = 'md',
   className = '',
 }: TabsProps) => {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
   const variantClasses = {
     boxed: 'tabs-boxed',
     lifted: 'tabs-lifted',
@@ -76,7 +78,7 @@ export const Tabs = ({
 
       if (!tabs[newIndex].disabled) {
         onChange(tabs[newIndex].key);
-        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
+        const tabElement = tabRefs.current[newIndex];
         if (tabElement) {
           tabElement.focus();
         }
@@ -94,6 +96,7 @@ export const Tabs = ({
         const isSelected = activeTab === tab.key;
         return (
           <button
+            ref={(el) => { tabRefs.current[index] = el; }}
             id={`tab-${tab.key}`}
             key={tab.key}
             role="tab"

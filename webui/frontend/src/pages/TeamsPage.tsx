@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,6 +29,7 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -79,10 +80,17 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+  const requestDelete = (id: string | number) => {
+    setTeamToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (teamToDelete === null) return;
+
     setActionLoading(true);
     setError(null);
+    const id = teamToDelete;
+
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
@@ -95,6 +103,7 @@ const TeamsPage = () => {
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
       setActionLoading(false);
+      setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -215,7 +224,7 @@ const TeamsPage = () => {
                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
+                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => requestDelete(team.id)} disabled={actionLoading}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -335,7 +344,18 @@ const TeamsPage = () => {
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
 
-      {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Confirm Deletion"
+        confirmText={actionLoading ? 'Deleting...' : 'Delete'}
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete team "{teamToDelete}"? (This calls the backend).</p>
+      </ConfirmModal>
+
+      {actionLoading && teamToDelete === null && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
     </div>
   );
 };

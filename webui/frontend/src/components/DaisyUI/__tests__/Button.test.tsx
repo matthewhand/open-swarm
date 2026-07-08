@@ -4,15 +4,19 @@ import { Button } from '../Button'
 
 describe('Button loading state (DaisyUI 5)', () => {
   it('renders a visible spinner element when loading', () => {
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const { container } = render(<Button loading>Save</Button>)
     // DaisyUI 5 needs an explicit loading-spinner span (the bare `loading` btn
     // class no longer renders one).
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const spinner = container.querySelector('.loading.loading-spinner')
     expect(spinner).not.toBeNull()
   })
 
   it('does not add the deprecated bare `loading` class to the button', () => {
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const { container } = render(<Button loading>Save</Button>)
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const btn = container.querySelector('button')!
     const classes = btn.className.split(/\s+/)
     expect(classes).not.toContain('loading') // only on the span, not the btn
@@ -27,7 +31,9 @@ describe('Button loading state (DaisyUI 5)', () => {
   })
 
   it('renders no spinner when not loading', () => {
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const { container } = render(<Button>Save</Button>)
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelector('.loading-spinner')).toBeNull()
   })
 })
