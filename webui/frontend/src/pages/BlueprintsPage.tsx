@@ -29,15 +29,18 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
-            id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
-            installed: !!b.installed,
-            featured: !!b.featured,
-          })));
+          setBlueprints(list.map((b: unknown) => {
+            const bp = b as Record<string, unknown>;
+            return {
+              id: String(bp.id || bp.name || Math.random()),
+              name: typeof bp.name === 'string' ? bp.name : (typeof bp.id === 'string' ? bp.id : 'unknown'),
+              description: typeof bp.description === 'string' ? bp.description : (typeof bp.desc === 'string' ? bp.desc : 'Blueprint for AI tasks'),
+              category: typeof bp.category === 'string' ? bp.category : (typeof bp.tag === 'string' ? bp.tag : 'General'),
+              version: typeof bp.version === 'string' ? bp.version : '0.1',
+              installed: !!bp.installed,
+              featured: !!bp.featured,
+            };
+          }));
         } else {
           throw new Error('API not available');
         }
@@ -82,8 +85,16 @@ export default function BlueprintsPage() {
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
 
-      {error && <Alert type="warning">{error}</Alert>}
-      {launchResult && <Alert type="success" className="mb-4">{launchResult}</Alert>}
+      {error && (
+        <div role="alert" aria-live="assertive">
+          <Alert type="warning">{error}</Alert>
+        </div>
+      )}
+      {launchResult && (
+        <div role="status" aria-live="polite">
+          <Alert type="success" className="mb-4">{launchResult}</Alert>
+        </div>
+      )}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
@@ -99,7 +110,9 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((blueprint) => (
@@ -131,6 +144,12 @@ export default function BlueprintsPage() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && (
+        <div role="status" aria-live="polite" className="text-center py-12 text-base-content/60">
+          No blueprints found.
         </div>
       )}
 

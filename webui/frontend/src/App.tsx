@@ -84,7 +84,7 @@ function Dashboard() {
     const fetchStats = async () => {
       setLoadingStats(true);
       setErrorStats(null);
-      const health: any = {};
+      const health: {models?: string; blueprints?: string; teams?: string} = {};
       try {
         const [bpRes, mRes, tRes] = await Promise.all([
           fetch('/v1/blueprints'),
@@ -107,7 +107,7 @@ function Dashboard() {
           health.blueprints = bpRes.ok ? 'ok' : 'fail';
           setApiHealth(health);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
       } finally {
         if (!cancelled) setLoadingStats(false);
@@ -125,15 +125,21 @@ function Dashboard() {
         <span className="text-sm">Your AI agent orchestration platform is ready. Real data loaded from backend where possible.</span>
       </Alert>
 
+      {errorStats && (
+        <div role="alert" aria-live="assertive">
+          <Alert type="warning">{errorStats}</Alert>
+        </div>
+      )}
+
       {/* Stats Cards - semi-real from APIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card compact bordered>
           <div className="stat">
             <div className="stat-title">Active Teams</div>
             {loadingStats ? (
-              <div className="stat-value text-primary">...</div>
+              <div className="stat-value text-primary" aria-live="polite" aria-busy="true">...</div>
             ) : (
-              <div className="stat-value text-primary">{teamsCount ?? 4}</div>
+              <div className="stat-value text-primary" role="status" aria-live="polite">{teamsCount ?? 4}</div>
             )}
             <div className="stat-desc">{errorStats ? 'Partial' : 'From /teams/export (live dynamic registry)'}</div>
           </div>
@@ -143,9 +149,9 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Blueprints</div>
             {loadingStats ? (
-              <div className="stat-value text-secondary">...</div>
+              <div className="stat-value text-secondary" aria-live="polite" aria-busy="true">...</div>
             ) : (
-              <div className="stat-value text-secondary">{blueprintCount ?? '?'}</div>
+              <div className="stat-value text-secondary" role="status" aria-live="polite">{blueprintCount ?? '?'}</div>
             )}
             <div className="stat-desc">{errorStats ? 'Error loading' : 'From /v1/blueprints (live)'}</div>
           </div>
@@ -155,9 +161,9 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Models / Agents</div>
             {loadingStats ? (
-              <div className="stat-value text-accent">...</div>
+              <div className="stat-value text-accent" aria-live="polite" aria-busy="true">...</div>
             ) : (
-              <div className="stat-value text-accent">{modelCount ?? 24}</div>
+              <div className="stat-value text-accent" role="status" aria-live="polite">{modelCount ?? 24}</div>
             )}
             <div className="stat-desc">{errorStats ? 'Error' : 'From /v1/models (live)'}</div>
           </div>
