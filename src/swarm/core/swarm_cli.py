@@ -559,6 +559,100 @@ import shutil as _shutil
 from pathlib import Path as _Path
 
 
+@app.command(name="moa-init")
+def moa_init(
+    config: str = typer.Option(
+        None,
+        "--config",
+        help="Path to swarm_config.json (default: XDG user config or find_config_file).",
+    ),
+    write: bool = typer.Option(
+        False,
+        "--write",
+        help="Write merged MoA block to the config file (otherwise dry-run print).",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace existing moa block entirely (default merges missing keys only).",
+    ),
+    backend: str = typer.Option(
+        None,
+        "--backend",
+        help="Override moa.backend (fake|grok|acpx). Default template uses grok.",
+    ),
+    participants: str = typer.Option(
+        None,
+        "--participants",
+        "-p",
+        help="Comma-separated seat names for moa.participants.",
+    ),
+    show_openwebui: bool = typer.Option(
+        False,
+        "--show-openwebui",
+        help="Print Open WebUI / OpenAI client connection JSON and exit.",
+    ),
+):
+    """Install default Mixture of Agents (moa) config block (Grok live; no Codex)."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from swarm.core import paths as _paths
+    from swarm.core.config_loader import find_config_file
+    from swarm.core.moa.config import (
+        DEFAULT_MOA_BLOCK,
+        OPENWEBUI_MOA_CONNECTION,
+        merge_moa_config,
+        write_moa_config,
+    )
+
+    if show_openwebui:
+        typer.echo(_json.dumps(OPENWEBUI_MOA_CONNECTION, indent=2))
+        raise typer.Exit(code=0)
+
+    if config:
+        cfg_path = _Path(config)
+    else:
+        found = find_config_file()
+        cfg_path = found if found else (
+            _paths.get_user_config_dir_for_swarm() / "swarm_config.json"
+        )
+
+    seats = None
+    if participants:
+        seats = [s.strip() for s in participants.split(",") if s.strip()]
+
+    existing = {}
+    if cfg_path.is_file():
+        try:
+            existing = _json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    merged = merge_moa_config(
+        existing if isinstance(existing, dict) else {},
+        overwrite=overwrite,
+        backend=backend,
+        participants=seats,
+    )
+
+    if not write:
+        typer.echo(f"# Dry-run — would write moa block to {cfg_path}")
+        typer.echo(_json.dumps({"moa": merged.get("moa", DEFAULT_MOA_BLOCK)}, indent=2))
+        typer.echo("\nRe-run with --write to persist. See docs/OPENWEBUI_MOA.md")
+        raise typer.Exit(code=0)
+
+    path = write_moa_config(
+        cfg_path,
+        overwrite=overwrite,
+        backend=backend,
+        participants=seats,
+    )
+    typer.echo(f"Wrote MoA config to {path}")
+    typer.echo(f"  backend={merged['moa'].get('backend')} participants={merged['moa'].get('participants')}")
+    typer.echo("Models: moa | hybrid_moa | mixture_of_agents (legacy: cli_fusion, cli_ensemble)")
+
+
 @app.command(name="config")
 def config_cmd(
     action: str = typer.Argument(..., help="list | add | remove"),
