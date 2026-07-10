@@ -120,8 +120,56 @@ result = await run_hybrid_scripted(
 # result.steps[1] == implementer write decision.md
 ```
 
-Coordinator agents from `build_persona_agents` also expose a `consult_moa_panel`
-function tool for live Runner sessions.
+### openai-agents orchestrator mode (recommended)
+
+The orchestrator is an openai-agents **coordinator**. It:
+
+1. Calls **MoA** for read-only multi-seat consensus (`consult_moa`, never `act`)
+2. Tasks **purpose-specific R/W agents**: `implementer`, `tester`, `docs`, `researcher`
+
+```python
+from swarm.core.moa.agents_orchestrator import (
+    SpecialistTask,
+    run_moa_agents_orchestrator,
+)
+
+result = await run_moa_agents_orchestrator(
+    "./workspace",
+    "Should we enable edge rate limiting?",
+    specialist_tasks=[
+        SpecialistTask("implementer", "Apply decision", "decision.md"),
+        SpecialistTask("tester", "Write verification notes", "test_notes.md"),
+        SpecialistTask("docs", "Write ADR", "docs/ADR.md"),
+    ],
+    moa_backend="fake",  # or "grok"
+)
+# Panel never writes; specialists do.
+```
+
+API model ids:
+
+| Model | Behavior |
+|-------|----------|
+| `moa` | Consensus only (read-only panel + determination) |
+| `hybrid_moa` | MoA then single implementer write |
+| `moa_orchestrator` | MoA then multi-specialist R/W tasks (`params.tasks`) |
+
+```json
+{
+  "model": "moa_orchestrator",
+  "messages": [{"role": "user", "content": "Ship feature X?"}],
+  "params": {
+    "backend": "grok",
+    "participants": ["analyst", "critic"],
+    "workdir": "/tmp/orch",
+    "tasks": "implementer:apply|tester:verify|docs:adr"
+  }
+}
+```
+
+**Enforcement:** MoA path always `act=False` + read-only permissions. Specialist
+agents alone get `write_file` / shell-class tools. Coordinator instructions
+require consult-before-write for high-stakes work.
 
 ## Naming
 
