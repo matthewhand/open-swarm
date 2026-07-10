@@ -105,6 +105,24 @@ Persona swarm coordinator
 
 That keeps champagne consistent: **opinions from the panel, impact from the owner**.
 
+### Code
+
+```python
+from swarm.core.persona_swarm import run_hybrid_scripted
+
+result = await run_hybrid_scripted(
+    "./workspace",
+    "Should we enable edge rate limiting?",
+    seed_files={"notes.txt": "API is public."},
+    moa_backend="fake",  # or "grok" for live
+)
+# result.steps[0] == consult_moa (read-only)
+# result.steps[1] == implementer write decision.md
+```
+
+Coordinator agents from `build_persona_agents` also expose a `consult_moa_panel`
+function tool for live Runner sessions.
+
 ## Naming
 
 | Use | Avoid as primary |

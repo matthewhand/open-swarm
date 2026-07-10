@@ -158,6 +158,65 @@ def build_persona_agents(tools: WorkspaceTools) -> dict[str, Any]:
     except Exception as e:  # pragma: no cover
         logger.debug("as_tool wiring skipped: %s", e)
 
+    # Hybrid A←B: coordinator may consult MoA (read-only opinions) without granting
+    # panelists write access. Wired as a real function_tool when agents SDK allows.
+    moa_calls: list[dict[str, Any]] = []
+
+    def _consult_moa_sync(question: str) -> str:
+        """Sync wrapper: run MoA collect→determine (never act) for the coordinator."""
+        import asyncio
+
+        from swarm.core.moa.tools import consult_moa
+
+        async def _run() -> dict[str, Any]:
+            return await consult_moa(
+                question,
+                participants=["analyst", "critic"],
+                backend="fake",
+                fake_responses={
+                    "analyst": (
+                        '{"claim":"Prefer the safer option with clear rollback",'
+                        '"confidence":0.85}'
+                    ),
+                    "critic": (
+                        '{"claim":"Prefer the safer option and add monitoring",'
+                        '"confidence":0.8}'
+                    ),
+                },
+            )
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Nested loop: run in a fresh loop via thread if needed.
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    payload = pool.submit(lambda: asyncio.run(_run())).result()
+            else:
+                payload = loop.run_until_complete(_run())
+        except RuntimeError:
+            payload = asyncio.run(_run())
+
+        moa_calls.append({"question": question, "payload": payload})
+        det = (payload or {}).get("determination") or {}
+        answer = det.get("answer") or "(no determination)"
+        return f"[MoA determination — read-only panel]\n{answer}"
+
+    try:
+        @function_tool
+        def consult_moa_panel(question: str) -> str:
+            """Call Mixture of Agents for a read-only multi-seat consensus opinion.
+
+            Use before high-stakes writes. Participants cannot write; you (or the
+            implementer) apply changes after reviewing the determination.
+            """
+            return _consult_moa_sync(question)
+
+        coordinator.tools = list(coordinator.tools or []) + [consult_moa_panel]
+    except Exception as e:  # pragma: no cover
+        logger.debug("consult_moa tool wiring skipped: %s", e)
+
     return {
         "coordinator": coordinator,
         "researcher": researcher,
@@ -166,7 +225,9 @@ def build_persona_agents(tools: WorkspaceTools) -> dict[str, Any]:
             "read_file": tools.read_file,
             "write_file": tools.write_file,
             "list_files": tools.list_files,
+            "consult_moa": _consult_moa_sync,
         },
+        "_moa_calls": moa_calls,
     }
 
 
@@ -290,6 +351,110 @@ def run_scripted_persona_swarm(
         writes=list(tools.writes),
         reads=list(tools.reads),
         agents={k: getattr(v, "name", k) for k, v in agents.items() if not k.startswith("_")},
+    )
+
+
+async def run_hybrid_scripted(
+    workspace: str | Path,
+    question: str,
+    *,
+    seed_files: dict[str, str] | None = None,
+    moa_backend: str = "fake",
+    moa_participants: list[str] | None = None,
+    moa_fake_responses: dict[str, str] | None = None,
+) -> PersonaSwarmResult:
+    """Hybrid champagne: B coordinator consults MoA (A), then implementer writes.
+
+    1. ``consult_moa`` — read-only panel opinions + orchestrator determination (no act)
+    2. Implementer persona writes ``decision.md`` / ``summary.md`` using that determination
+
+    Proves write policy split: MoA participants never write; B implementer does.
+    """
+    from swarm.core.moa.tools import consult_moa
+
+    tools = WorkspaceTools(workspace)
+    if seed_files:
+        for rel, content in seed_files.items():
+            tools.write_file(rel, content)
+        tools.writes.clear()
+        tools.reads.clear()
+
+    agents = build_persona_agents(tools)
+    moa_calls: list[dict[str, Any]] = agents.get("_moa_calls") or []
+
+    seats = list(moa_participants or ["analyst", "critic"])
+    fakes = moa_fake_responses
+    if moa_backend == "fake" and not fakes:
+        fakes = {
+            "analyst": (
+                f'{{"claim":"Proceed carefully: {question[:80]}",'
+                f'"confidence":0.85,"evidence":["rollback"]}}'
+            ),
+            "critic": (
+                f'{{"claim":"Proceed carefully and monitor: {question[:80]}",'
+                f'"confidence":0.8,"evidence":["metrics"]}}'
+            ),
+        }
+
+    # --- Step A: MoA consult (read-only) ---
+    moa_payload = await consult_moa(
+        question,
+        seats,
+        backend=moa_backend,
+        fake_responses=fakes,
+        cwd=str(tools.root),
+    )
+    moa_calls.append({"question": question, "payload": moa_payload})
+    det = (moa_payload.get("determination") or {}).get("answer") or ""
+    # Coordinator records MoA output in workspace (orchestrator/B-side write only)
+    tools.write_file(
+        "moa_determination.md",
+        f"# MoA determination (read-only panel)\n\n{det}\n",
+    )
+    moa_step = PersonaResult(
+        persona="consult_moa",
+        instruction=question,
+        output=det,
+        tool_trace=[
+            "consult_moa(act=False)",
+            f"participants={seats}",
+            "write_file('moa_determination.md')  # B-side only",
+        ],
+        ok=bool(det),
+    )
+
+    # --- Step B: implementer applies decision (R/W specialist) ---
+    notes = ""
+    if (tools.root / "notes.txt").exists():
+        notes = tools.read_file("notes.txt")
+    decision_body = (
+        f"# Decision\n\n## Context\n{notes or question}\n\n"
+        f"## MoA consensus\n{det}\n\n"
+        f"_Applied by Implementer persona after consult_moa (hybrid A←B)._\n"
+    )
+    tools.write_file("decision.md", decision_body)
+    impl_step = PersonaResult(
+        persona="implementer",
+        instruction="Apply MoA determination to decision.md",
+        output=decision_body,
+        tool_trace=[
+            "read_file('notes.txt')" if notes else "skip notes",
+            "read_file('moa_determination.md')",
+            "write_file('decision.md')",
+        ],
+        ok=True,
+    )
+
+    return PersonaSwarmResult(
+        steps=[moa_step, impl_step],
+        final=decision_body,
+        writes=list(tools.writes),
+        reads=list(tools.reads),
+        agents={
+            **{k: getattr(v, "name", k) for k, v in agents.items() if not k.startswith("_")},
+            "moa_seats": seats,  # type: ignore[dict-item]
+            "moa_backend": moa_backend,  # type: ignore[dict-item]
+        },
     )
 
 

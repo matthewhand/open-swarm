@@ -261,6 +261,7 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - TDD: `tests/core/test_moa*.py`, `tests/cli/test_moa_command.py`, `tests/api/test_moa_api.py`, `tests/api/test_moa_http_e2e.py`, `tests/core/test_persona_swarm_runner.py`, `tests/integration/test_swarm_workflows_proof.py`.
 - Fixed Django 4 SPA `re_path` import; chat non-streaming generator `aclose`; discovery skip of same-class alias re-exports.
 - **Grok first-class MoA participant** (`GrokParticipantBackend` in `backends.py`); multi-seat labels; CLI defaults no longer Codex-centric (`analyst,critic` / fake); docs state Codex not required.
+- **Hybrid A←B:** `run_hybrid_scripted` + coordinator `consult_moa_panel` tool (read-only MoA then implementer write).
 - Comprehensive unit tests for low-coverage modules: `audit.py`, `progress.py`, `output_formatters.py`, and `ansi_box.py`
 - Test coverage for `ChucksAngelsBlueprint` class
 - Test coverage for `DiffFormatter` and `StatusFormatter` classes
