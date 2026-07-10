@@ -6,15 +6,13 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 BASE_DIR = Path(__file__).resolve().parent.parent # Points to src/
 
 from swarm.utils.env_utils import *
+from swarm.utils.dotenv_load import load_swarm_dotenv
 
-# --- Load .env file ---
-dotenv_path = BASE_DIR.parent / '.env'
-load_dotenv(dotenv_path=dotenv_path)
+# --- Load .env: XDG ~/.config/swarm/.env (primary) + project .env (fallback) ---
+load_swarm_dotenv(project_root=BASE_DIR.parent)
 # ---
 
 # Secure-by-default: DJANGO_DEBUG defaults to False, and production

@@ -4,15 +4,18 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-
 def main():
     # Define the base directory
     base_dir = Path(__file__).resolve().parent
 
-    # Load environment variables from .env file
-    load_dotenv(dotenv_path=base_dir / '.env')
+    # XDG ~/.config/swarm/.env (primary) + checkout .env (fallback)
+    try:
+        # src/manage.py → project root is parent of src/
+        from swarm.utils.dotenv_load import load_swarm_dotenv
+        load_swarm_dotenv(project_root=base_dir.parent)
+    except Exception:
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=base_dir.parent / '.env')
 
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'swarm.settings')

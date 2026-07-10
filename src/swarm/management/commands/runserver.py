@@ -4,21 +4,13 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import CommandError
 from django.core.management.commands.runserver import Command as RunserverCommand
-from dotenv import load_dotenv
 
+from swarm.utils.dotenv_load import load_swarm_dotenv
 from swarm.utils.env_utils import get_api_auth_token, is_django_debug
 
-# Load .env from project root relative to this file's location
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
-# Check if .env exists before trying to load
-dotenv_path = BASE_DIR / '.env'
-if dotenv_path.is_file():
-    load_dotenv(dotenv_path=dotenv_path)
-else:
-    # Optionally log if .env is missing, but don't require it
-    # logger = logging.getLogger(__name__) # Get logger if needed here
-    # logger.debug(".env file not found in project root, relying solely on environment variables.")
-    pass
+# Project root: …/management/commands → parents[4] == repo root when under src/swarm/
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+load_swarm_dotenv(project_root=_PROJECT_ROOT)
 
 
 logger = logging.getLogger(__name__) # Get logger for command messages

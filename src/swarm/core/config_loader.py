@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 
 from .paths import (  # Import XDG path functions
     get_project_root_dir,
@@ -199,19 +198,22 @@ def create_default_config(config_path: Path):
         raise
 
 def load_environment():
-    """Loads environment variables from a `.env` file located at the project root."""
-    project_root = get_project_root_dir() # Use XDG utility to find project root
-    dotenv_path = project_root / ".env"
-    logger.debug(f"Checking for .env file at: {dotenv_path}")
+    """Load XDG ``~/.config/swarm/.env`` (primary) then project-root ``.env``."""
+    from swarm.utils.dotenv_load import load_swarm_dotenv
+
+    project_root = get_project_root_dir()
     try:
-        if dotenv_path.is_file():
-            loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
-            if loaded:
-                logger.debug(f".env file Loaded/Overridden at: {dotenv_path}")
+        loaded = load_swarm_dotenv(project_root=project_root)
+        if loaded:
+            logger.debug("dotenv loaded from: %s", ", ".join(loaded))
         else:
-            logger.debug(f"No .env file found at {dotenv_path}.")
+            logger.debug("No dotenv files found (XDG or project root).")
     except Exception as e:
-        logger.error(f"Error loading .env file '{dotenv_path}': {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(
+            "Error loading dotenv files: %s",
+            e,
+            exc_info=logger.level <= logging.DEBUG,
+        )
 
 def load_full_configuration(
     blueprint_class_name: str,

@@ -9,8 +9,11 @@ APP_AUTHOR = "OpenSwarm" # Using OpenSwarm as author for platformdirs
 
 def get_user_data_dir_for_swarm() -> Path:
     """
-    Returns the user-specific data directory for swarm.
-    Example: ~/.local/share/OpenSwarm/swarm/ (or similar based on APP_AUTHOR)
+    User data directory for swarm.
+
+    On Linux XDG this is typically ``~/.local/share/swarm/`` (platformdirs
+    ignores ``appauthor`` on Unix). Override with ``SWARM_USER_DATA_DIR``.
+    The open-swarm-oracle unit also pins ``SWARM_RESPONSES_DIR`` under this tree.
     """
     # Allow override for testing/sandboxes
     override = os.environ.get("SWARM_USER_DATA_DIR")
@@ -19,42 +22,37 @@ def get_user_data_dir_for_swarm() -> Path:
     return Path(platformdirs.user_data_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
 def get_user_blueprints_dir() -> Path:
-    """
-    Returns the directory where user-installed blueprint sources are stored.
-    Example: ~/.local/share/OpenSwarm/swarm/blueprints/
-    """
+    """User-installed blueprint sources: ``~/.local/share/swarm/blueprints/``."""
     return get_user_data_dir_for_swarm() / "blueprints"
 
 def get_user_bin_dir() -> Path:
     """
-    Returns the user-specific directory for Swarm's managed executables/launchers.
-    This will be a 'bin' subdirectory within the application's user data directory.
-    Example: ~/.local/share/OpenSwarm/swarm/bin/ on Linux
-             %APPDATA%\\OpenSwarm\\swarm\\bin on Windows
-    Users may need to add this location to their PATH if they wish to run these
-    executables directly from any terminal location.
+    Managed launcher scripts: ``~/.local/share/swarm/bin/`` on Linux.
+
+    Users may need to add this location to PATH to run launchers directly.
     """
     return get_user_data_dir_for_swarm() / "bin"
 
 def get_user_cache_dir_for_swarm() -> Path:
-    """
-    Returns the user-specific cache directory for swarm.
-    Example: ~/.cache/OpenSwarm/swarm/ on Linux.
-    """
+    """User cache directory: ``~/.cache/swarm/`` on Linux."""
     return Path(platformdirs.user_cache_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
 def get_user_config_dir_for_swarm() -> Path:
     """
-    Returns the user-specific config directory for swarm.
-    Example: ~/.config/OpenSwarm/swarm/ on Linux.
+    User config directory: ``~/.config/swarm/`` on Linux.
+
+    Live operator files: ``swarm_config.json``, ``.env``, ``teams.json``,
+    ``blueprint_library.json``. The oracle unit pins
+    ``SWARM_CONFIG_PATH=$HOME/.config/swarm/swarm_config.json``.
     """
     return Path(platformdirs.user_config_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
 def get_swarm_config_file(config_filename: str = "config.yaml") -> Path:
     """
-    Returns the full path to the swarm configuration file.
-    Defaults to config.yaml within the user config directory.
-    Uses basename only to prevent path traversal.
+    Path under the user config dir (basename only — no path traversal).
+
+    Prefer ``swarm_config.json`` via ``SWARM_CONFIG_PATH`` / AppConfig loaders;
+    this helper's default name is historical (``config.yaml``).
     """
     config_dir = get_user_config_dir_for_swarm()
     safe_filename = Path(config_filename).name  # Strip any path components
