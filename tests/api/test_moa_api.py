@@ -17,10 +17,13 @@ def test_discover_moa_and_aliases():
     root = Path(__file__).resolve().parents[2] / "src" / "swarm" / "blueprints"
     found = discover_blueprints(str(root))
     assert "moa" in found
-    # Aliases registered for chat model ids
+    # Canonical + legacy model ids all resolve to MoABlueprint (or subclass)
+    from swarm.blueprints.moa.blueprint_moa import MoABlueprint
+
+    assert issubclass(found["moa"]["class_type"], MoABlueprint)
     for alias in ("mixture_of_agents", "cli_fusion", "cli_ensemble"):
         assert alias in found, f"missing alias {alias}"
-        assert found[alias]["class_type"] is found["moa"]["class_type"]
+        assert issubclass(found[alias]["class_type"], MoABlueprint), alias
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,5 @@
-# Legacy: cli_ensemble
+# Legacy: cli_ensemble → MoA
 
-**Deprecated name.** Use **Mixture of Agents (`moa`)** instead.
+**Deprecated name.** Use **Mixture of Agents (`moa`)**.
 
-See `docs/MOA.md` and `src/swarm/blueprints/moa/`.
+See `docs/MOA.md`.

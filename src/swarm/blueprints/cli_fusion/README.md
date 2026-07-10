@@ -1,13 +1,8 @@
-# Legacy: cli_fusion
+# Legacy: cli_fusion → MoA
 
-**Deprecated name.** Use **Mixture of Agents (`moa`)** instead.
+**Deprecated name.** Use **Mixture of Agents (`moa`)**.
 
-The historical multi-writer “fusion” panel is retired. The same product goal
-(multi-CLI opinions) is implemented as **read-only MoA participants** with
-orchestrator-owned determination and writes.
+`cli_fusion` is a back-compat model id for **read-only** MoA consensus
+participants. Multi-writer fusion panels are not restored.
 
-See:
-
-- `src/swarm/core/moa/`
-- `src/swarm/blueprints/moa/`
-- `docs/MOA.md`
+See `docs/MOA.md` and `docs/SWARM_WORKFLOWS.md`.
