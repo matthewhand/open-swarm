@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **`swarm-cli moa-init`**: merge default `moa` config (Grok live / fake CI presets); `--show-openwebui` connection JSON
 - **`hybrid_moa` blueprint**: MoA consult then implementer `decision.md` write
+- **`moa_orchestrator`**: openai-agents orchestrator mode — MoA read-only consensus then purpose R/W specialists (`implementer`/`tester`/`docs`/`researcher`) via `run_moa_agents_orchestrator`
 - Docs: `docs/OPENWEBUI_MOA.md`, `docs/examples/moa.swarm_config.json`, multi-seat demo `scripts/demo_moa_grok_multiseat.py`
 
 ## [0.5.4] — 2026-06-19

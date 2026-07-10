@@ -130,9 +130,30 @@ swarm-cli moa-init --show-openwebui
 Example file: `docs/examples/moa.swarm_config.json`.  
 Open WebUI setup: `docs/OPENWEBUI_MOA.md`.
 
-## Hybrid blueprint
+## Hybrid + openai-agents orchestrator
 
-Model id **`hybrid_moa`**: consult MoA (read-only) then implementer writes `decision.md`.
+| Model id | Behavior |
+|----------|----------|
+| `moa` | Panel opinions + determination only |
+| `hybrid_moa` | MoA then one implementer write |
+| **`moa_orchestrator`** | MoA then **multiple purpose agents** (implementer / tester / docs / researcher) |
+
+```python
+from swarm.core.moa.agents_orchestrator import SpecialistTask, run_moa_agents_orchestrator
+
+await run_moa_agents_orchestrator(
+    "./ws",
+    "Ship rate limiting?",
+    specialist_tasks=[
+        SpecialistTask("implementer", "Apply", "decision.md"),
+        SpecialistTask("tester", "Verify", "test_notes.md"),
+    ],
+    moa_backend="grok",  # or fake
+)
+```
+
+**Enforcement:** participants never get `act` or approve-all; only tasked
+specialists write. See `docs/SWARM_WORKFLOWS.md`.
 
 ```bash
 python scripts/demo_moa_grok_multiseat.py   # live multi-seat grok or fake fallback

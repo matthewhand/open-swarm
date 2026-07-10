@@ -40,6 +40,10 @@ optional multi-vendor; **Codex is not required**.
 
 from __future__ import annotations
 
+from swarm.core.moa.agents_orchestrator import (
+    SpecialistTask,
+    run_moa_agents_orchestrator,
+)
 from swarm.core.moa.backends import (
     AcpxParticipantBackend,
     FakeParticipantBackend,
@@ -70,7 +74,9 @@ __all__ = [
     "MoAResult",
     "ParticipantOpinion",
     "PermissionMode",
+    "SpecialistTask",
     "WriteDeniedError",
     "assert_participant_permission",
     "participant_acpx_flags",
+    "run_moa_agents_orchestrator",
 ]
