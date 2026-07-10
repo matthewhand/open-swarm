@@ -2,6 +2,17 @@
 
 This directory contains example blueprints for the Open Swarm framework, showcasing agent coordination, external data handling, database operations, and more via parody-themed agent teams. Each blueprint achieves a practical outcome while demonstrating specific framework capabilities. Blueprints are generally ordered by complexity.
 
+## Two workflow families
+
+See **[docs/SWARM_WORKFLOWS.md](../../../docs/SWARM_WORKFLOWS.md)** for the full taxonomy.
+
+| Model | What it is | Write policy | Entry points |
+|-------|------------|--------------|--------------|
+| **A. Orchestrated consensus (MoA)** | Subagents opine; orchestrator decides | Subagents **read-only**; orchestrator acts | `moa/`, `swarm-cli moa`, `swarm.core.moa` |
+| **B. Persona / agent-as-tool swarm** | Coordinator switches specialists via `openai-agents` | Specialists **read/write** tools | Most blueprints below (codey, rue_code, geese, zeus, …) |
+
+Most table entries below are **model B**. **Model A** is the `moa` blueprint (and legacy `cli_fusion` / `cli_ensemble` aliases that now mean read-only MoA only).
+
 ## Refactored Blueprints (Using `BlueprintBase`)
 
 These blueprints have been updated to use the `BlueprintBase` class, `openai-agents` library conventions (like `Agent`, `@function_tool`, agent-as-tool delegation), and standardized configuration loading.

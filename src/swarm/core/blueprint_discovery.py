@@ -143,11 +143,19 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
                 logger.debug(f"Successfully loaded module: {module_import_path}")
 
                 found_bp_class_details = None
+                seen_class_ids: set[int] = set()
                 for member_name, member_obj in inspect.getmembers(module):
                     if inspect.isclass(member_obj) and \
                        issubclass(member_obj, BlueprintBase) and \
                        member_obj is not BlueprintBase and \
                        member_obj.__module__ == module_import_path: # Ensure class is defined in this module
+
+                        # Skip re-exports / legacy aliases of the same class object
+                        # (e.g. CliFusionBlueprint = MoABlueprint).
+                        cid = id(member_obj)
+                        if cid in seen_class_ids:
+                            continue
+                        seen_class_ids.add(cid)
 
                         if found_bp_class_details:
                             logger.warning(f"Multiple BlueprintBase subclasses found in {py_file_name}. "
@@ -200,7 +208,23 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
                         )
                         # Storing by blueprint_key_name (directory name)
                         blueprints[blueprint_key_name] = found_bp_class_details
-                        # break # Found the class, no need to check other members of this module for BP classes
+                        # Also register metadata aliases (e.g. moa → mixture_of_agents, cli_fusion)
+                        aliases = full_meta.get("aliases") or []
+                        if isinstance(aliases, (list, tuple, set, frozenset)):
+                            for alias in aliases:
+                                key = str(alias).strip()
+                                if not key or key in blueprints:
+                                    continue
+                                blueprints[key] = found_bp_class_details
+                                logger.debug(
+                                    "Registered blueprint alias %r → %r",
+                                    key,
+                                    blueprint_key_name,
+                                )
+                        # Canonical metadata name (if distinct from directory)
+                        meta_name = str(full_meta.get("name") or "").strip()
+                        if meta_name and meta_name not in blueprints:
+                            blueprints[meta_name] = found_bp_class_details
 
                 if not found_bp_class_details:
                     logger.warning(f"No BlueprintBase subclass found directly defined in module: {module_import_path}")

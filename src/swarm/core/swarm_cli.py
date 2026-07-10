@@ -225,6 +225,118 @@ def launch(
                 )
 
 
+@app.command(name="moa")
+def moa(
+    question: str = typer.Argument(..., help="Question for the Mixture of Agents panel."),
+    participants: str = typer.Option(
+        "analyst,critic",
+        "--participants",
+        "-p",
+        help=(
+            "Comma-separated read-only seat names. With --backend grok each seat "
+            "is a separate grok -p one-shot. Codex is not required."
+        ),
+    ),
+    backend: str = typer.Option(
+        "fake",
+        "--backend",
+        "-b",
+        help=(
+            "Participant backend: fake (demo/CI, default), grok (live consensus via "
+            "local grok CLI), or acpx (optional multi-vendor; Codex not required)."
+        ),
+    ),
+    fake_responses: str = typer.Option(
+        None,
+        "--fake-responses",
+        help="For --backend fake: JSON object or name=text||name=text pairs.",
+    ),
+    cwd: str = typer.Option(None, "--cwd", help="Working directory for participants."),
+    permission: str = typer.Option(
+        "approve-reads",
+        "--permission",
+        help="Participant permission: approve-reads or deny-all (never approve-all).",
+    ),
+    timeout: float = typer.Option(300.0, "--timeout", help="Per-participant timeout seconds."),
+    act: bool = typer.Option(
+        False,
+        "--act",
+        help="After determination, let the orchestrator perform a write (never participants).",
+    ),
+    action: str = typer.Option(None, "--action", help="Description of orchestrator act."),
+    act_write: str = typer.Option(
+        None,
+        "--act-write",
+        help="If --act, path to write the determination markdown (orchestrator only).",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    trace: str = typer.Option(
+        None,
+        "--trace",
+        help="Write full MoA telemetry JSON (opinions, scores, determination) to this path.",
+    ),
+):
+    """Mixture of Agents: read-only CLI opinions → orchestrator determination.
+
+    Participants never write. Use --act for orchestrator-owned impact after consensus.
+    Primary product name is MoA (not fusion/ensemble).
+    """
+    import asyncio
+
+    from swarm.core.moa.cli import format_moa_text, parse_fake_responses, run_moa_cli
+    from swarm.core.moa.policy import WriteDeniedError
+
+    names = [n.strip() for n in participants.split(",") if n.strip()]
+    if not names:
+        typer.echo("Error: provide at least one --participants name.", err=True)
+        raise typer.Exit(code=2)
+
+    try:
+        fakes = parse_fake_responses(fake_responses) if fake_responses else None
+        if backend == "fake" and not fakes:
+            # Sensible demo defaults so `swarm-cli moa "…"` works out of the box.
+            default_texts = [
+                "Prefer a simple, well-tested approach with clear rollback.",
+                "Prefer explicit validation and structured logging at the boundary.",
+                "Prefer least privilege and deny-by-default for side effects.",
+            ]
+            fakes = {
+                name: default_texts[i % len(default_texts)]
+                for i, name in enumerate(names)
+            }
+        payload = asyncio.run(
+            run_moa_cli(
+                question,
+                names,
+                backend=backend,
+                fake_responses=fakes,
+                cwd=cwd,
+                permission=permission,
+                timeout=timeout,
+                act=act,
+                action=action,
+                act_write_path=act_write,
+                trace_path=trace,
+            )
+        )
+    except WriteDeniedError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=5) from e
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    except Exception as e:
+        typer.echo(f"MoA failed: {e}", err=True)
+        raise typer.Exit(code=1) from e
+
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        typer.echo(format_moa_text(payload))
+
+
 @app.command(name="list")
 def list_blueprints(
     installed: bool = typer.Option(False, "--installed", "-i", help="List only installed blueprint executables."),
