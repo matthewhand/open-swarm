@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **`swarm-cli moa-init`**: merge default `moa` config (Grok live / fake CI presets); `--show-openwebui` connection JSON
+- **`hybrid_moa` blueprint**: MoA consult then implementer `decision.md` write
+- Docs: `docs/OPENWEBUI_MOA.md`, `docs/examples/moa.swarm_config.json`, multi-seat demo `scripts/demo_moa_grok_multiseat.py`
+
 ## [0.5.4] — 2026-06-19
 
 ### Fixed — `django_chat` actually resolves its LLM profile
@@ -262,6 +267,7 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Fixed Django 4 SPA `re_path` import; chat non-streaming generator `aclose`; discovery skip of same-class alias re-exports.
 - **Grok first-class MoA participant** (`GrokParticipantBackend` in `backends.py`); multi-seat labels; CLI defaults no longer Codex-centric (`analyst,critic` / fake); docs state Codex not required.
 - **Hybrid A←B:** `run_hybrid_scripted` + coordinator `consult_moa_panel` tool (read-only MoA then implementer write).
+- **`swarm-cli moa-init`**, `docs/examples/moa.swarm_config.json`, Open WebUI preset (`docs/OPENWEBUI_MOA.md`), blueprint **`hybrid_moa`**, multi-seat demo script.
 - Comprehensive unit tests for low-coverage modules: `audit.py`, `progress.py`, `output_formatters.py`, and `ansi_box.py`
 - Test coverage for `ChucksAngelsBlueprint` class
 - Test coverage for `DiffFormatter` and `StatusFormatter` classes

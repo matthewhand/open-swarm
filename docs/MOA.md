@@ -119,9 +119,29 @@ Participants may emit free text **or** structured JSON:
 {"claim": "use redis with TTL", "confidence": 0.9, "evidence": ["shared cache"]}
 ```
 
+## Config init
+
+```bash
+swarm-cli moa-init              # dry-run print default moa block
+swarm-cli moa-init --write      # merge into XDG / discovered swarm_config.json
+swarm-cli moa-init --show-openwebui
+```
+
+Example file: `docs/examples/moa.swarm_config.json`.  
+Open WebUI setup: `docs/OPENWEBUI_MOA.md`.
+
+## Hybrid blueprint
+
+Model id **`hybrid_moa`**: consult MoA (read-only) then implementer writes `decision.md`.
+
+```bash
+python scripts/demo_moa_grok_multiseat.py   # live multi-seat grok or fake fallback
+```
+
 ## Tests
 
 ```bash
 pytest tests/core/test_moa*.py tests/cli/test_moa_command.py \
-  tests/api/test_moa*.py tests/integration/test_swarm_workflows_proof.py -q --no-cov
+  tests/api/test_moa*.py tests/integration/test_swarm_workflows_proof.py \
+  tests/integration/test_hybrid_moa_persona.py tests/core/test_moa_config.py -q --no-cov
 ```
