@@ -105,9 +105,10 @@ function Dashboard() {
           setTeamsCount(tCount);
           health.models = mRes.ok ? 'ok' : 'fail';
           health.blueprints = bpRes.ok ? 'ok' : 'fail';
+          // Use apiHealth or remove it later if no longer needed.
           setApiHealth(health);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
       } finally {
         if (!cancelled) setLoadingStats(false);

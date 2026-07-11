@@ -99,7 +99,9 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((blueprint) => (
@@ -131,6 +133,11 @@ export default function BlueprintsPage() {
               </div>
             </Card>
           ))}
+          {filtered.length === 0 && (
+            <div className="col-span-full text-center py-12" role="status" aria-live="polite">
+              <p className="text-gray-500">No blueprints found.</p>
+            </div>
+          )}
         </div>
       )}
 

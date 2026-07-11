@@ -80,7 +80,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
     setActionLoading(true);
     setError(null);
     try {
@@ -199,7 +199,11 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      {loading && (
+        <div className="flex justify-center py-8" aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+        </div>
+      )}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (
@@ -255,7 +259,7 @@ const TeamsPage = () => {
 
       {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12">
+        <Card bordered className="text-center py-12" role="status" aria-live="polite">
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-gray-400" />
           </div>

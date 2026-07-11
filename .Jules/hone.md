@@ -1,3 +1,6 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-07-11 | [Architectural Audit] | Insight: Modal backdrop not focusable via keyboard | Protocol: Change DaisyUI unfocusable `<form method="dialog">` backdrop to a `<button>` with `aria-label="close"`.
+## 2024-07-11 | [Architectural Audit] | Insight: Unsafe variables injection in string literal | Protocol: Add ESLint `no-template-curly-in-string` rule or `eslint-disable-next-line` when intentionally testing exact `${...}` strings to prevent runtime injection flaws.
+## 2024-07-11 | [Architectural Audit] | Insight: Use of raw browser `confirm` API | Protocol: Standardize on `window.confirm` to adhere to strict ESLint `no-restricted-globals` rules and ensure predictable environments.
