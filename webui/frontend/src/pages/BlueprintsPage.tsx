@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play } from 'lucide-react';
 
 interface Blueprint {
   id: string;
@@ -10,6 +10,25 @@ interface Blueprint {
   version?: string;
   installed?: boolean;
   featured?: boolean;
+}
+
+interface BlueprintApiData {
+  id?: string;
+  name?: string;
+  description?: string;
+  desc?: string;
+  category?: string;
+  tag?: string;
+  version?: string;
+  installed?: boolean;
+  featured?: boolean;
+  [key: string]: unknown;
+}
+
+interface BlueprintApiResponse {
+  data?: BlueprintApiData[];
+  blueprints?: BlueprintApiData[];
+  [key: string]: unknown;
 }
 
 export default function BlueprintsPage() {
@@ -27,9 +46,9 @@ export default function BlueprintsPage() {
       try {
         const res = await fetch('/v1/blueprints');
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as BlueprintApiResponse | BlueprintApiData[];
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
+          setBlueprints(list.map((b: BlueprintApiData) => ({
             id: String(b.id || b.name || Math.random()),
             name: b.name || b.id || 'unknown',
             description: b.description || b.desc || 'Blueprint for AI tasks',
@@ -41,7 +60,7 @@ export default function BlueprintsPage() {
         } else {
           throw new Error('API not available');
         }
-      } catch (e) {
+      } catch (e: unknown) {
         setError('Using demo data (backend /v1/blueprints not reachable in this env)');
         setBlueprints([
           {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},

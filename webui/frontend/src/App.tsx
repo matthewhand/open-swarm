@@ -1,72 +1,36 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, PlusCircle } from 'lucide-react'
-import { Button, Card, Alert, Badge, LoadingSpinner } from './components/DaisyUI'
-import TeamsPage from './pages/TeamsPage'
+import { Button, Card, Badge, Alert } from './components/DaisyUI'
+import { Home, Users, Book, Settings, PlusCircle, Moon, Sun, MessageSquare } from 'lucide-react'
+
+// Import existing real pages directly
+import ChatPage from './pages/ChatPage'
 import BlueprintsPage from './pages/BlueprintsPage'
+import BuilderPage from './pages/BuilderPage'
+import TeamsPage from './pages/TeamsPage'
 
-function App() {
-  const [darkMode, setDarkMode] = useState(false)
-
+// Simple mock for settings
+function SettingsPage() {
   return (
-    <Router>
-      <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`} data-theme={darkMode ? 'dark' : 'light'}>
-        {/* Navbar */}
-        <nav className="bg-base-200 shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center">
-                <Link to="/" className="flex items-center space-x-2">
-                  <Bot className="h-8 w-8 text-primary" />
-                  <span className="text-xl font-bold">Open Swarm MCP</span>
-                </Link>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="btn btn-ghost btn-sm"
-                >
-                  {darkMode ? 'Light Mode' : 'Dark Mode'}
-                </button>
-                <Link to="/settings" className="btn btn-ghost btn-sm">
-                  <Settings className="h-5 w-5" />
-                </Link>
-              </div>
-            </div>
+    <div className="max-w-2xl">
+      <h1 className="text-3xl font-bold mb-6">Settings</h1>
+      <Card title="Application Settings" bordered>
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-semibold mb-2">Auth</h3>
+            <p className="text-sm">When ENABLE_API_AUTH, use <code>Authorization: Bearer &lt;token&gt;</code> or <code>X-API-Key</code> header.</p>
           </div>
-        </nav>
-
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/teams" element={<TeamsPage />} />
-            <Route path="/blueprints" element={<BlueprintsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
+          <div>
+            <h3 className="font-semibold mb-2">Streaming</h3>
+            <p className="text-sm">Backend supports <code>stream: true</code> on <code>/v1/chat/completions</code>. UI can use EventSource / fetch + reader.</p>
+          </div>
+          <div>
+            <h3 className="font-semibold mb-2">Teams / Dynamic Registry</h3>
+            <p className="text-sm">Teams created via /teams/ POST appear live in /v1/models and /v1/blueprints (merged in utils.py).</p>
+          </div>
         </div>
-
-        {/* Bottom Navigation (Mobile) */}
-        <div className="btm-nav lg:hidden">
-          <Link to="/" className="active">
-            <Home className="h-5 w-5" />
-            <span className="btm-nav-label">Home</span>
-          </Link>
-          <Link to="/teams">
-            <Users className="h-5 w-5" />
-            <span className="btm-nav-label">Teams</span>
-          </Link>
-          <Link to="/blueprints">
-            <Book className="h-5 w-5" />
-            <span className="btm-nav-label">Blueprints</span>
-          </Link>
-          <Link to="/settings">
-            <Settings className="h-5 w-5" />
-            <span className="btm-nav-label">Settings</span>
-          </Link>
-        </div>
-      </div>
-    </Router>
+      </Card>
+    </div>
   )
 }
 
@@ -76,7 +40,7 @@ function Dashboard() {
   const [teamsCount, setTeamsCount] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [errorStats, setErrorStats] = useState<string | null>(null);
-  const [apiHealth, setApiHealth] = useState<{models?: string; blueprints?: string; teams?: string}>({});
+  const [apiHealth, setApiHealth] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -84,7 +48,7 @@ function Dashboard() {
     const fetchStats = async () => {
       setLoadingStats(true);
       setErrorStats(null);
-      const health: any = {};
+      const health: Record<string, string> = {};
       try {
         const [bpRes, mRes, tRes] = await Promise.all([
           fetch('/v1/blueprints'),
@@ -107,7 +71,7 @@ function Dashboard() {
           health.blueprints = bpRes.ok ? 'ok' : 'fail';
           setApiHealth(health);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
       } finally {
         if (!cancelled) setLoadingStats(false);
@@ -175,69 +139,22 @@ function Dashboard() {
       {/* Quick Actions */}
       <Card title="Quick Actions" bordered>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button variant="primary" size="md" className="w-full">
+          <Button variant="primary" size="md" className="w-full" onClick={() => navigate('/teams')}>
             <PlusCircle className="h-5 w-5 mr-2" />
             New Team
           </Button>
-          <Button variant="secondary" size="md" className="w-full">
+          <Button variant="secondary" size="md" className="w-full" onClick={() => navigate('/blueprints')}>
             <Book className="h-5 w-5 mr-2" />
             Browse Blueprints
           </Button>
-          <Button variant="accent" size="md" className="w-full">
+          <Button variant="accent" size="md" className="w-full" onClick={() => navigate('/teams')}>
             <Users className="h-5 w-5 mr-2" />
             Team Manager
           </Button>
-          <Button variant="info" size="md" className="w-full">
+          <Button variant="info" size="md" className="w-full" onClick={() => navigate('/settings')}>
             <Settings className="h-5 w-5 mr-2" />
             Configure
           </Button>
-        </div>
-      </Card>
-
-      {/* Recent Activity */}
-      <Card title="Recent Activity" bordered>
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th>Status</th>
-                <th>Last Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Badge type="success">Active</Badge>
-                    <span>Code Review Team</span>
-                  </div>
-                </td>
-                <td><Badge type="success">Active</Badge></td>
-                <td className="text-sm text-gray-500">2 minutes ago</td>
-              </tr>
-              <tr>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Badge type="warning">Idle</Badge>
-                    <span>Documentation Squad</span>
-                  </div>
-                </td>
-                <td><Badge type="warning">Idle</Badge></td>
-                <td className="text-sm text-gray-500">15 minutes ago</td>
-              </tr>
-              <tr>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Badge type="error">Error</Badge>
-                    <span>Data Processing</span>
-                  </div>
-                </td>
-                <td><Badge type="error">Error</Badge></td>
-                <td className="text-sm text-gray-500">1 hour ago</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </Card>
 
@@ -246,26 +163,18 @@ function Dashboard() {
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-success rounded-full"></div>
-              <span>API Gateway</span>
+              <div className={`w-3 h-3 ${apiHealth.models === 'ok' ? 'bg-success' : 'bg-warning'} rounded-full`}></div>
+              <span>API Gateway (/v1)</span>
             </div>
-            <Badge type="success">Online</Badge>
+            <Badge type={apiHealth.models === 'ok' ? 'success' : 'warning'}>{apiHealth.models === 'ok' ? 'Online' : 'Checking'}</Badge>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-success rounded-full"></div>
-              <span>Database</span>
+              <div className={`w-3 h-3 ${apiHealth.teams === 'ok' ? 'bg-success' : 'bg-warning'} rounded-full`}></div>
+              <span>Team Registry</span>
             </div>
-            <Badge type="success">Online</Badge>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-warning rounded-full"></div>
-              <span>Cache</span>
-            </div>
-            <Badge type="warning">Degraded</Badge>
+            <Badge type={apiHealth.teams === 'ok' ? 'success' : 'warning'}>{apiHealth.teams === 'ok' ? 'Online' : 'Checking'}</Badge>
           </div>
         </div>
       </Card>
@@ -273,31 +182,136 @@ function Dashboard() {
   )
 }
 
-// Duplicate local page definitions removed - using imported real pages from ./pages/
-// (BlueprintsPage, TeamsPage now contain real API integration + reduced mocks)
+function App() {
+  const [darkMode, setDarkMode] = useState(false);
 
-function SettingsPage() {
+  // Apply dark mode class to html element
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  }, [darkMode]);
+
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-3xl font-bold mb-6">Settings</h1>
-      <Card title="Application Settings" bordered>
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-2">Auth</h3>
-            <p className="text-sm">When ENABLE_API_AUTH, use <code>Authorization: Bearer &lt;token&gt;</code> or <code>X-API-Key</code> header.</p>
+    <Router>
+      <div className="min-h-screen bg-base-100 text-base-content transition-colors duration-200">
+        {/* Navigation Bar */}
+        <div className="navbar bg-base-200 border-b border-base-300 sticky top-0 z-50">
+          <div className="navbar-start">
+            <Link to="/" className="btn btn-ghost text-xl">
+              <div className="w-8 h-8 rounded bg-primary text-primary-content flex items-center justify-center font-bold mr-2">
+                OS
+              </div>
+              <span className="hidden sm:inline">Open Swarm</span>
+            </Link>
           </div>
-          <div>
-            <h3 className="font-semibold mb-2">Streaming</h3>
-            <p className="text-sm">Backend supports <code>stream: true</code> on <code>/v1/chat/completions</code>. UI can use EventSource / fetch + reader.</p>
+
+          <div className="navbar-center hidden lg:flex">
+            <ul className="menu menu-horizontal px-1 gap-1">
+              <li>
+                <Link to="/" className="rounded-lg">
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Link>
+              </li>
+              <li>
+                <Link to="/chat" className="rounded-lg">
+                  <MessageSquare className="h-4 w-4" />
+                  Chat
+                </Link>
+              </li>
+              <li>
+                <Link to="/builder" className="rounded-lg">
+                  <Book className="h-4 w-4" />
+                  Builder
+                </Link>
+              </li>
+              <li>
+                <Link to="/teams" className="rounded-lg">
+                  <Users className="h-4 w-4" />
+                  Teams
+                </Link>
+              </li>
+              <li>
+                <Link to="/blueprints" className="rounded-lg">
+                  <Book className="h-4 w-4" />
+                  Blueprints
+                </Link>
+              </li>
+            </ul>
           </div>
-          <div>
-            <h3 className="font-semibold mb-2">Teams / Dynamic Registry</h3>
-            <p className="text-sm">Teams created via /teams/ POST appear live in /v1/models and /v1/blueprints (merged in utils.py).</p>
+
+          <div className="navbar-end gap-2">
+            <button
+              className="btn btn-ghost btn-circle"
+              onClick={() => setDarkMode(!darkMode)}
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+
+            <Link to="/settings" className="btn btn-ghost btn-circle hidden sm:flex">
+              <Settings className="h-5 w-5" />
+            </Link>
+
+            <div className="dropdown dropdown-end">
+              <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar placeholder">
+                <div className="bg-neutral text-neutral-content rounded-full w-10">
+                  <span>U</span>
+                </div>
+              </div>
+              <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+                <li><Link to="/settings">Profile & Settings</Link></li>
+                <div className="divider my-1"></div>
+                <li><a href="/logout">Logout</a></li>
+              </ul>
+            </div>
           </div>
         </div>
-      </Card>
-    </div>
-  );
+
+        {/* Main Content Area */}
+        <main className="max-w-7xl mx-auto pb-20 lg:pb-8 pt-8">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/builder" element={<BuilderPage />} />
+            <Route path="/teams" element={<TeamsPage />} />
+            <Route path="/blueprints" element={<BlueprintsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </main>
+
+        {/* Bottom Navigation (Mobile) */}
+        <div className="btm-nav lg:hidden z-50">
+          <Link to="/" className="active">
+            <Home className="h-5 w-5" />
+            <span className="btm-nav-label">Home</span>
+          </Link>
+          <Link to="/chat">
+            <MessageSquare className="h-5 w-5" />
+            <span className="btm-nav-label">Chat</span>
+          </Link>
+          <Link to="/builder">
+            <Book className="h-5 w-5" />
+            <span className="btm-nav-label">Builder</span>
+          </Link>
+          <div className="dropdown dropdown-top dropdown-end w-full h-full">
+            <div tabIndex={0} role="button" className="flex flex-col items-center justify-center w-full h-full hover:bg-base-200">
+              <Users className="h-5 w-5" />
+              <span className="btm-nav-label">More</span>
+            </div>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52 mb-2">
+              <li><Link to="/teams"><Users className="h-4 w-4" /> Teams</Link></li>
+              <li><Link to="/blueprints"><Book className="h-4 w-4" /> Blueprints</Link></li>
+              <li><Link to="/settings"><Settings className="h-4 w-4" /> Settings</Link></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </Router>
+  )
 }
 
 export default App
