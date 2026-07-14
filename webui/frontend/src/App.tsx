@@ -1,43 +1,57 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, PlusCircle } from 'lucide-react'
-import { Button, Card, Alert, Badge, LoadingSpinner } from './components/DaisyUI'
-import TeamsPage from './pages/TeamsPage'
-import BlueprintsPage from './pages/BlueprintsPage'
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { Bot, Users, Settings, Book, Menu, Home, PlusCircle } from 'lucide-react';
+
+// Common UI Components
+import { Button, Card, Badge, Alert } from './components/DaisyUI';
+
+// Pages
+import TeamsPage from './pages/TeamsPage';
+import BlueprintsPage from './pages/BlueprintsPage';
 
 function App() {
-  const [darkMode, setDarkMode] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
     <Router>
-      <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`} data-theme={darkMode ? 'dark' : 'light'}>
-        {/* Navbar */}
-        <nav className="bg-base-200 shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center">
-                <Link to="/" className="flex items-center space-x-2">
-                  <Bot className="h-8 w-8 text-primary" />
-                  <span className="text-xl font-bold">Open Swarm MCP</span>
-                </Link>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="btn btn-ghost btn-sm"
-                >
-                  {darkMode ? 'Light Mode' : 'Dark Mode'}
-                </button>
-                <Link to="/settings" className="btn btn-ghost btn-sm">
-                  <Settings className="h-5 w-5" />
-                </Link>
-              </div>
-            </div>
+      <div className="min-h-screen bg-base-100 flex flex-col">
+        {/* Navigation Bar */}
+        <div className="navbar bg-base-100 border-b border-base-200 sticky top-0 z-50 px-4">
+          <div className="flex-1">
+            <Link to="/" className="flex items-center gap-2">
+              <Bot className="h-8 w-8 text-primary" />
+              <span className="text-xl font-bold hidden sm:inline">Open Swarm MCP</span>
+            </Link>
           </div>
-        </nav>
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex flex-none gap-2">
+            <Link to="/" className="btn btn-ghost btn-sm">Dashboard</Link>
+            <Link to="/teams" className="btn btn-ghost btn-sm">Teams</Link>
+            <Link to="/blueprints" className="btn btn-ghost btn-sm">Blueprints</Link>
+            <Link to="/settings" className="btn btn-ghost btn-sm">Settings</Link>
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <div className="lg:hidden flex-none">
+            <button className="btn btn-square btn-ghost" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+              <Menu className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation Menu */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden bg-base-100 border-b border-base-200 p-4 flex flex-col gap-2">
+            <Link to="/" className="btn btn-ghost btn-sm justify-start" onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
+            <Link to="/teams" className="btn btn-ghost btn-sm justify-start" onClick={() => setIsMobileMenuOpen(false)}>Teams</Link>
+            <Link to="/blueprints" className="btn btn-ghost btn-sm justify-start" onClick={() => setIsMobileMenuOpen(false)}>Blueprints</Link>
+            <Link to="/settings" className="btn btn-ghost btn-sm justify-start" onClick={() => setIsMobileMenuOpen(false)}>Settings</Link>
+          </div>
+        )}
+
+        {/* Main Content Area */}
+        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/teams" element={<TeamsPage />} />
@@ -76,15 +90,12 @@ function Dashboard() {
   const [teamsCount, setTeamsCount] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [errorStats, setErrorStats] = useState<string | null>(null);
-  const [apiHealth, setApiHealth] = useState<{models?: string; blueprints?: string; teams?: string}>({});
-  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
     const fetchStats = async () => {
       setLoadingStats(true);
       setErrorStats(null);
-      const health: any = {};
       try {
         const [bpRes, mRes, tRes] = await Promise.all([
           fetch('/v1/blueprints'),
@@ -97,17 +108,13 @@ function Dashboard() {
         if (tRes.ok) {
           const tJson = await tRes.json();
           tCount = tJson && typeof tJson === 'object' ? Object.keys(tJson).length : 0;
-          health.teams = 'ok';
         }
         if (!cancelled) {
           setBlueprintCount(Array.isArray(bpJson?.data) ? bpJson.data.length : 0);
           setModelCount(Array.isArray(mJson?.data) ? mJson.data.length : 0);
           setTeamsCount(tCount);
-          health.models = mRes.ok ? 'ok' : 'fail';
-          health.blueprints = bpRes.ok ? 'ok' : 'fail';
-          setApiHealth(health);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
       } finally {
         if (!cancelled) setLoadingStats(false);
@@ -131,11 +138,11 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Active Teams</div>
             {loadingStats ? (
-              <div className="stat-value text-primary">...</div>
+              <div className="stat-value text-primary" aria-live="polite" aria-busy="true">...</div>
             ) : (
               <div className="stat-value text-primary">{teamsCount ?? 4}</div>
             )}
-            <div className="stat-desc">{errorStats ? 'Partial' : 'From /teams/export (live dynamic registry)'}</div>
+            <div className="stat-desc">{errorStats ? <span role="alert" className="text-error">Partial</span> : 'From /teams/export (live dynamic registry)'}</div>
           </div>
         </Card>
 
@@ -143,11 +150,11 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Blueprints</div>
             {loadingStats ? (
-              <div className="stat-value text-secondary">...</div>
+              <div className="stat-value text-secondary" aria-live="polite" aria-busy="true">...</div>
             ) : (
               <div className="stat-value text-secondary">{blueprintCount ?? '?'}</div>
             )}
-            <div className="stat-desc">{errorStats ? 'Error loading' : 'From /v1/blueprints (live)'}</div>
+            <div className="stat-desc">{errorStats ? <span role="alert" className="text-error">Error loading</span> : 'From /v1/blueprints (live)'}</div>
           </div>
         </Card>
 
@@ -155,11 +162,11 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Models / Agents</div>
             {loadingStats ? (
-              <div className="stat-value text-accent">...</div>
+              <div className="stat-value text-accent" aria-live="polite" aria-busy="true">...</div>
             ) : (
               <div className="stat-value text-accent">{modelCount ?? 24}</div>
             )}
-            <div className="stat-desc">{errorStats ? 'Error' : 'From /v1/models (live)'}</div>
+            <div className="stat-desc">{errorStats ? <span role="alert" className="text-error">Error</span> : 'From /v1/models (live)'}</div>
           </div>
         </Card>
 
@@ -272,9 +279,6 @@ function Dashboard() {
     </div>
   )
 }
-
-// Duplicate local page definitions removed - using imported real pages from ./pages/
-// (BlueprintsPage, TeamsPage now contain real API integration + reduced mocks)
 
 function SettingsPage() {
   return (

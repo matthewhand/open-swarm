@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, ReactNode, useRef, useEffect } from 'react';
 
 /**
  * Tab interface
@@ -34,6 +34,13 @@ export const Tabs = ({
   size = 'md',
   className = '',
 }: TabsProps) => {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Initialize refs array to match tabs length
+  useEffect(() => {
+    tabRefs.current = tabRefs.current.slice(0, tabs.length);
+  }, [tabs]);
+
   const variantClasses = {
     boxed: 'tabs-boxed',
     lifted: 'tabs-lifted',
@@ -76,7 +83,8 @@ export const Tabs = ({
 
       if (!tabs[newIndex].disabled) {
         onChange(tabs[newIndex].key);
-        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
+        // Use standard React ref logic instead of document.getElementById
+        const tabElement = tabRefs.current[newIndex];
         if (tabElement) {
           tabElement.focus();
         }
@@ -94,6 +102,7 @@ export const Tabs = ({
         const isSelected = activeTab === tab.key;
         return (
           <button
+            ref={(el) => { tabRefs.current[index] = el; }}
             id={`tab-${tab.key}`}
             key={tab.key}
             role="tab"

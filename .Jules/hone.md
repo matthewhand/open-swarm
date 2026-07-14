@@ -1,3 +1,9 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+
+## 2024-05-18 | [Architectural Audit] | Insight: Native HTML5 `<dialog>` elements in DaisyUI were using unfocusable `<form method="dialog">` backdrops, breaking strict focus trapping and keyboard operability. | Protocol: Always implement modals with a focusable `<button type="button" className="modal-backdrop">` to guarantee A11y focus trapping and precise state synchronization.
+
+## 2024-05-18 | [Architectural Audit] | Insight: Complex navigation controls like `Tabs` were breaking component isolation by using `document.getElementById` for keyboard focus management. | Protocol: Complex components requiring manual keyboard navigation (Home, End, Arrows) must use React `useRef` arrays to manage focus strictly within the component lifecycle.
+
+## 2024-05-18 | [Architectural Audit] | Insight: Network-dependent components lacked strict loading and error states, and relied on untyped `any` fetch responses, causing state inconsistency and screen-reader silence. | Protocol: All async components must implement deterministic states (loading, error, success). Loading components must use `aria-live="polite"` and `aria-busy="true"`. Error states must use `role="alert"`. API responses must use strict type-guards instead of `any`.

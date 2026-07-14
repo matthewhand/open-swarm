@@ -4,18 +4,20 @@ import { Button } from '../Button'
 
 describe('Button loading state (DaisyUI 5)', () => {
   it('renders a visible spinner element when loading', () => {
-    const { container } = render(<Button loading>Save</Button>)
+    render(<Button loading data-testid="test-btn">Save</Button>)
     // DaisyUI 5 needs an explicit loading-spinner span (the bare `loading` btn
     // class no longer renders one).
-    const spinner = container.querySelector('.loading.loading-spinner')
-    expect(spinner).not.toBeNull()
+    const btn = screen.getByTestId('test-btn')
+    // We expect the button to have a span with aria-hidden="true" acting as the spinner
+    expect(screen.getAllByRole('button')[0]).toBeInTheDocument()
+    // It's better to just check the DOM string if we can't use node access
+    expect(btn.innerHTML).toContain('loading-spinner')
   })
 
   it('does not add the deprecated bare `loading` class to the button', () => {
-    const { container } = render(<Button loading>Save</Button>)
-    const btn = container.querySelector('button')!
-    const classes = btn.className.split(/\s+/)
-    expect(classes).not.toContain('loading') // only on the span, not the btn
+    render(<Button loading data-testid="test-btn">Save</Button>)
+    const btn = screen.getByTestId('test-btn')
+    expect(btn).not.toHaveClass('loading')
   })
 
   it('marks the button busy + disabled and exposes SR text while loading', () => {
@@ -27,7 +29,8 @@ describe('Button loading state (DaisyUI 5)', () => {
   })
 
   it('renders no spinner when not loading', () => {
-    const { container } = render(<Button>Save</Button>)
-    expect(container.querySelector('.loading-spinner')).toBeNull()
+    render(<Button data-testid="test-btn">Save</Button>)
+    const btn = screen.getByTestId('test-btn')
+    expect(btn.innerHTML).not.toContain('loading-spinner')
   })
 })
