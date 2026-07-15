@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Home, Settings, Bot, Book, Users, PlusCircle } from 'lucide-react'
-import { Button, Card, Alert, Badge, LoadingSpinner } from './components/DaisyUI'
+import { Button, Card, Alert, Badge } from './components/DaisyUI';
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
 
@@ -76,15 +76,12 @@ function Dashboard() {
   const [teamsCount, setTeamsCount] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [errorStats, setErrorStats] = useState<string | null>(null);
-  const [apiHealth, setApiHealth] = useState<{models?: string; blueprints?: string; teams?: string}>({});
-  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
     const fetchStats = async () => {
       setLoadingStats(true);
       setErrorStats(null);
-      const health: any = {};
       try {
         const [bpRes, mRes, tRes] = await Promise.all([
           fetch('/v1/blueprints'),
@@ -97,18 +94,14 @@ function Dashboard() {
         if (tRes.ok) {
           const tJson = await tRes.json();
           tCount = tJson && typeof tJson === 'object' ? Object.keys(tJson).length : 0;
-          health.teams = 'ok';
         }
         if (!cancelled) {
           setBlueprintCount(Array.isArray(bpJson?.data) ? bpJson.data.length : 0);
           setModelCount(Array.isArray(mJson?.data) ? mJson.data.length : 0);
           setTeamsCount(tCount);
-          health.models = mRes.ok ? 'ok' : 'fail';
-          health.blueprints = bpRes.ok ? 'ok' : 'fail';
-          setApiHealth(health);
         }
-      } catch (e: any) {
-        if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
+      } catch (e: unknown) {
+        if (!cancelled) setErrorStats(`Partial live data (some fetches failed; check vite proxy + backend): ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         if (!cancelled) setLoadingStats(false);
       }

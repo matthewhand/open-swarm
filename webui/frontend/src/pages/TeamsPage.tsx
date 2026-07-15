@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { useState, useEffect } from 'react';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -34,6 +34,8 @@ const TeamsPage = () => {
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formLlm, setFormLlm] = useState('');
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
 
   const loadTeams = async () => {
     setLoading(true);
@@ -45,21 +47,24 @@ const TeamsPage = () => {
       if (res.ok) {
         const data = await res.json();
         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
-          name: t.id || 'unknown-team',
-          description: t.description || 'Dynamic team (no description)',
-          status: 'active' as const,
-          members: 1,
-          created: 'via registry',
-          llm_profile: t.llm_profile || 'default',
-        }));
+        const list: Team[] = Object.values(data || {}).map((t: unknown) => {
+          const teamObj = (t || {}) as Record<string, unknown>;
+          return {
+            id: String(teamObj.id || Object.keys(data).find(k => data[k]===t) || Math.random()),
+            name: String(teamObj.id || 'unknown-team'),
+            description: String(teamObj.description || 'Dynamic team (no description)'),
+            status: 'active' as const,
+            members: 1,
+            created: 'via registry',
+            llm_profile: String(teamObj.llm_profile || 'default'),
+          };
+        });
         setTeams(list);
       } else {
         throw new Error('Export API failed');
       }
-    } catch (e) {
-      setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
+    } catch (e: unknown) {
+      setError(`Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry): ${e instanceof Error ? e.message : String(e)}`);
       // Fallback demo only on error
       setTeams([
         { id: 'code-review', name: 'Code Review Team', description: 'Automated code review and quality assurance (demo)', status: 'active', members: 4, created: '2024-01-15', llm_profile: 'default' },
@@ -79,22 +84,29 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+  const triggerDelete = (id: string | number) => {
+    setTeamToDelete(id);
+    setShowConfirmDelete(true);
+  };
+
+  const handleDelete = async () => {
+    if (!teamToDelete) return;
+    setShowConfirmDelete(false);
     setActionLoading(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
-      fd.append('team_id', String(id));
+      fd.append('team_id', String(teamToDelete));
       // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
       await fetch('/teams/', { method: 'POST', body: fd });
-      setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      setSuccessMsg(`Deleted ${teamToDelete}. Registry updated.`);
       await loadTeams();
-    } catch (e) {
-      setError('Delete failed (local UI may be stale; try refresh or server admin).');
+    } catch (e: unknown) {
+      setError(`Delete failed (local UI may be stale; try refresh or server admin): ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setActionLoading(false);
+      setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -128,8 +140,8 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      setError(`Create failed via form POST: ${e instanceof Error ? e.message : String(e)}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -215,7 +227,7 @@ const TeamsPage = () => {
                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
+                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => triggerDelete(team.id)} disabled={actionLoading}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -334,6 +346,20 @@ const TeamsPage = () => {
         </div>
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={showConfirmDelete}
+        onClose={() => {
+          setShowConfirmDelete(false);
+          setTeamToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Confirm Deletion"
+        confirmText="Delete Team"
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete the team "{teamToDelete}"? This action calls the backend and cannot be undone.</p>
+      </ConfirmModal>
 
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
     </div>
