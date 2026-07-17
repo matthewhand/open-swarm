@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,6 +29,8 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | number | null>(null);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -43,23 +45,26 @@ const TeamsPage = () => {
       // These are also surfaced live via /v1/models and /v1/blueprints (merged in views/utils.py)
       const res = await fetch('/teams/export?format=json');
       if (res.ok) {
-        const data = await res.json();
+        const data: Record<string, unknown> = await res.json();
         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
-          name: t.id || 'unknown-team',
-          description: t.description || 'Dynamic team (no description)',
-          status: 'active' as const,
-          members: 1,
-          created: 'via registry',
-          llm_profile: t.llm_profile || 'default',
-        }));
+        const list: Team[] = Object.values(data || {}).map((t: unknown) => {
+          const team = t as Record<string, unknown>;
+          return {
+            id: String(team.id || Object.keys(data).find(k => data[k]===t) || Math.random()),
+            name: String(team.id || 'unknown-team'),
+            description: String(team.description || 'Dynamic team (no description)'),
+            status: 'active' as const,
+            members: 1,
+            created: 'via registry',
+            llm_profile: String(team.llm_profile || 'default'),
+          }
+        });
         setTeams(list);
       } else {
         throw new Error('Export API failed');
       }
-    } catch (e) {
-      setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
+    } catch (e: unknown) {
+      setError(`Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry). ${e instanceof Error ? e.message : String(e)}`);
       // Fallback demo only on error
       setTeams([
         { id: 'code-review', name: 'Code Review Team', description: 'Automated code review and quality assurance (demo)', status: 'active', members: 4, created: '2024-01-15', llm_profile: 'default' },
@@ -80,8 +85,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
-    setActionLoading(true);
+    setDeletingId(id);
     setError(null);
     try {
       const fd = new FormData();
@@ -91,10 +95,11 @@ const TeamsPage = () => {
       await fetch('/teams/', { method: 'POST', body: fd });
       setSuccessMsg(`Deleted ${id}. Registry updated.`);
       await loadTeams();
-    } catch (e) {
-      setError('Delete failed (local UI may be stale; try refresh or server admin).');
+    } catch (e: unknown) {
+      setError(`Delete failed (local UI may be stale; try refresh or server admin). ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setActionLoading(false);
+      setDeletingId(null);
+      setConfirmDeleteId(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -128,8 +133,8 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      setError(`Create failed via form POST: ${e instanceof Error ? e.message : String(e)}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -167,8 +172,10 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {error && <Alert type="error" className="mb-4">{error}</Alert>}
-      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      <div aria-live="polite">
+        {error && <Alert type="error" className="mb-4" role="alert">{error}</Alert>}
+        {successMsg && <Alert type="success" className="mb-4" role="status">{successMsg}</Alert>}
+      </div>
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">
@@ -199,7 +206,7 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      {loading && <div className="flex justify-center py-8" aria-live="polite" aria-busy="true" role="status"><LoadingSpinner /></div>}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (
@@ -215,7 +222,15 @@ const TeamsPage = () => {
                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="btn-xs"
+                      onClick={() => setConfirmDeleteId(team.id)}
+                      disabled={deletingId === team.id || actionLoading}
+                      loading={deletingId === team.id}
+                      aria-label={`Delete ${team.name}`}
+                    >
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -255,7 +270,7 @@ const TeamsPage = () => {
 
       {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12">
+        <Card bordered className="text-center py-12" aria-live="polite" role="status">
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-gray-400" />
           </div>
@@ -335,7 +350,22 @@ const TeamsPage = () => {
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
 
-      {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+      <ConfirmModal
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={() => {
+            if (confirmDeleteId !== null) {
+                handleDelete(confirmDeleteId);
+            }
+        }}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete team &quot;{confirmDeleteId}&quot;? (calls backend)</p>
+      </ConfirmModal>
+
+      {actionLoading && <div className="fixed bottom-4 right-4" aria-live="polite" aria-busy="true" role="status"><LoadingSpinner /></div>}
     </div>
   );
 };
