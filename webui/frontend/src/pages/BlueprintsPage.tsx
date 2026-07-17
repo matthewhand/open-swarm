@@ -29,20 +29,24 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
-            id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
-            installed: !!b.installed,
-            featured: !!b.featured,
-          })));
+          setBlueprints(list.map((item: unknown) => {
+            const b = (item as Record<string, unknown>) || {};
+            return {
+              id: String(b.id || b.name || Math.random()),
+              name: String(b.name || b.id || 'unknown'),
+              description: String(b.description || b.desc || 'Blueprint for AI tasks'),
+              category: String(b.category || b.tag || 'General'),
+              version: String(b.version || '0.1'),
+              installed: !!b.installed,
+              featured: !!b.featured,
+            };
+          }));
         } else {
           throw new Error('API not available');
         }
       } catch (e) {
-        setError('Using demo data (backend /v1/blueprints not reachable in this env)');
+        const message = e instanceof Error ? e.message : 'backend /v1/blueprints not reachable in this env';
+        setError(`Using demo data (${message})`);
         setBlueprints([
           {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},
           {id:'chatbot', name:'Chatbot', description:'General conversation agent', category:'General', version:'1.0'},

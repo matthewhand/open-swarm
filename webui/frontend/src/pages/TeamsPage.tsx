@@ -128,8 +128,9 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Create failed via form POST: ${msg}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -199,7 +200,11 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      {loading && (
+        <div className="flex justify-center py-8" aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+        </div>
+      )}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (
@@ -255,7 +260,7 @@ const TeamsPage = () => {
 
       {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12">
+        <Card bordered className="text-center py-12" role="status">
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-gray-400" />
           </div>
