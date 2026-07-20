@@ -22,7 +22,7 @@ function App() {
                 </Link>
               </div>
               <div className="flex items-center space-x-4">
-                <button
+                <button aria-label="Toggle dark mode"
                   onClick={() => setDarkMode(!darkMode)}
                   className="btn btn-ghost btn-sm"
                 >
