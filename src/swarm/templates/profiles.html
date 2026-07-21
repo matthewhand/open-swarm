@@ -22,9 +22,13 @@
           <td>{{ p.provider }}</td>
           <td>{{ p.model }}</td>
           <td class="max-w-xs truncate">
+            {% if p.base_url and p.base_url != 'None' and p.base_url != 'null' %}
             <a href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer" class="link link-primary truncate">
               {{ p.base_url }}
             </a>
+            {% else %}
+            <span class="text-muted">Not set</span>
+            {% endif %}
           </td>
         </tr>
         {% empty %}

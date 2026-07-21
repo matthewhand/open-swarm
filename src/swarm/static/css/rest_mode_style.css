@@ -228,10 +228,13 @@ input[type="password"], input[type="email"], input[type="number"] {
 
 /* ---- blueprint cards: compact, clamped description ---------------------- */
 .blueprint-card .bp-desc {
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-  overflow: hidden; font-size: .88rem; color: var(--os-muted); margin: 0 0 .6rem;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: .85rem; color: var(--os-muted); margin: 0 0 .5rem;
+  line-height: 1.35;
 }
-.blueprint-card .bp-avatar { width: 44px; height: 44px; flex: 0 0 44px; }
+.blueprint-card .card-body { padding: 0.85rem 0.95rem; }
+.blueprint-card .bp-avatar { width: 36px; height: 36px; flex: 0 0 36px; }
+.blueprint-card .card-title { font-size: 0.95rem; }
 .min-w-0 { min-width: 0; }
 
 /* ---- accordion (de-clutter: collapse long forms / sections) ------------- */
@@ -241,3 +244,88 @@ input[type="password"], input[type="email"], input[type="number"] {
 .accordion-button:focus { box-shadow: 0 0 0 .2rem rgba(59, 130, 246, .25); border-color: var(--os-accent); }
 .accordion-button::after { filter: invert(.7); }
 .accordion-body { background: var(--os-panel); color: var(--os-text); }
+
+/* ---- UX fleet P0: compact shell + mobile primary tabs -------------------- */
+.os-header .os-navbar {
+  min-height: 48px;
+  border-bottom: 1px solid var(--os-border);
+}
+.os-navbar .navbar-brand {
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+.os-navbar .nav-link {
+  font-size: 0.92rem;
+  padding: 0.4rem 0.65rem !important;
+}
+.os-navbar .nav-link.active {
+  color: #fff !important;
+  font-weight: 600;
+  border-bottom: 2px solid var(--os-accent);
+}
+.os-main {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* Room for fixed bottom nav on small screens (+ safe-area / thumb clearance) */
+@media (max-width: 991.98px) {
+  body.os-app {
+    /* Keep primary CTAs (Generate, Launch, Save) above the 3.5rem bottom bar */
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .os-main {
+    padding-bottom: 1.5rem;
+  }
+  .ac-wrap,
+  .se-wrap,
+  .agent-creator-pro {
+    padding-bottom: 1rem;
+  }
+}
+.os-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1030;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: stretch;
+  height: 3.5rem;
+  background: var(--os-panel);
+  border-top: 1px solid var(--os-border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+}
+.os-bottom-nav__item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--os-muted);
+  font-size: 0.7rem;
+  min-width: 0;
+  padding: 0.25rem;
+}
+.os-bottom-nav__item.is-active {
+  color: var(--os-link);
+  font-weight: 600;
+}
+.os-bottom-nav__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+/* Sessions list: slightly tighter cards on mobile */
+@media (max-width: 767.98px) {
+  .os-main .card {
+    margin-bottom: 0.65rem;
+  }
+  .os-main .table {
+    font-size: 0.85rem;
+  }
+}
