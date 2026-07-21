@@ -21,6 +21,18 @@ class TestSettingsRedaction:
             "profiles": {
                 "prod": {"api_key": "sk-profile-secret", "base_url": "https://api.openai.com/v1"},
             },
+            # Env-style keys (not exact "api_key"/"token") — must still redact.
+            "mcpServers": {
+                "demo": {
+                    "command": "npx",
+                    "args": ["-y", "demo-mcp"],
+                    "env": {
+                        "OPENAI_API_KEY": "sk-mcp-openai-must-not-leak",
+                        "GITHUB_TOKEN": "ghp_mcp_github_must_not_leak",
+                        "MONDAY_API_KEY": "mon_mcp_monday_must_not_leak",
+                    },
+                },
+            },
         }
 
     def _client_with_leaky_settings(self):
@@ -33,6 +45,16 @@ class TestSettingsRedaction:
         mgr = sm_mod.SettingsManager()
         return client, sm_mod, mgr
 
+    def _assert_no_leaks(self, body: str) -> None:
+        for secret in (
+            "sk-super-secret-key-should-not-leak",
+            "sk-profile-secret",
+            "sk-mcp-openai-must-not-leak",
+            "ghp_mcp_github_must_not_leak",
+            "mon_mcp_monday_must_not_leak",
+        ):
+            assert secret not in body, f"secret leaked in settings payload: {secret}"
+
     def test_settings_api_hides_profile_secrets(self, monkeypatch):
         client, sm_mod, mgr = self._client_with_leaky_settings()
         with patch("swarm.views.settings_manager.load_config", return_value=self._leaky_config()):
@@ -40,8 +62,7 @@ class TestSettingsRedaction:
                 resp = client.get("/settings/api/")
         assert resp.status_code == 200
         body = resp.content.decode()
-        assert "sk-super-secret-key-should-not-leak" not in body
-        assert "sk-profile-secret" not in body
+        self._assert_no_leaks(body)
         assert "***HIDDEN***" in body or "REDACTED" in body or "***SET***" in body
 
     def test_settings_dashboard_json_script_hides_secrets(self):
@@ -52,9 +73,29 @@ class TestSettingsRedaction:
                 resp = client.get("/settings/")
         assert resp.status_code == 200
         body = resp.content.decode()
-        assert "sk-super-secret-key-should-not-leak" not in body
-        assert "sk-profile-secret" not in body
+        self._assert_no_leaks(body)
         assert "swarm-settings-data" in body
+
+    def test_settings_api_hides_mcp_env_style_keys(self):
+        """Regression: OPENAI_API_KEY / GITHUB_TOKEN under MCP env must not appear raw."""
+        client, sm_mod, mgr = self._client_with_leaky_settings()
+        with patch("swarm.views.settings_manager.load_config", return_value=self._leaky_config()):
+            with patch.object(sm_mod, "settings_manager", mgr):
+                resp = client.get("/settings/api/")
+        assert resp.status_code == 200
+        data = resp.json()
+        # API wraps groups under settings: {success, settings: {mcp_servers: ...}}
+        groups = data.get("settings") or data
+        mcp = (groups.get("mcp_servers") or {}).get("settings") or {}
+        assert any(k.startswith("MCP_") for k in mcp), list(mcp.keys())
+        body = resp.content.decode()
+        self._assert_no_leaks(body)
+        # Nested env values must be masked, not raw.
+        demo = next(iter(mcp.values()))
+        env = (demo.get("value") or {}).get("env") or {}
+        for k, v in env.items():
+            if any(s in k.lower() for s in ("key", "token", "secret")):
+                assert v in ("***HIDDEN***", "[REDACTED]") or "HIDDEN" in str(v) or "REDACTED" in str(v)
 
 
 @pytest.mark.django_db

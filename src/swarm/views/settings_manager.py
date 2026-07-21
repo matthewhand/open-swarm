@@ -420,13 +420,22 @@ class SettingsManager:
             mcp_settings = {}
 
             for server_name, server_config in mcp_config.items():
+                # MCP configs almost always carry env tokens/keys — mark sensitive so
+                # dashboard/API redaction never treats them as plain metadata.
+                sensitive = True
+                if isinstance(server_config, dict):
+                    env = server_config.get("env") or {}
+                    headers = server_config.get("headers") or {}
+                    if not env and not headers:
+                        # No credential surfaces — still recurse-redact nested dicts.
+                        sensitive = False
                 mcp_settings[f'MCP_{server_name.upper()}'] = {
                     'value': server_config,
                     'env_var': None,
                     'type': 'object',
                     'description': f'MCP server configuration for {server_name}',
                     'category': 'server',
-                    'sensitive': False
+                    'sensitive': sensitive,
                 }
 
             if not mcp_settings:
