@@ -2,9 +2,10 @@
 
 Master registry of every screenshot in the repository. All current captures
 live in [`docs/screenshots/`](./screenshots/) and were taken from a live local
-dev server (fresh database) by
+dev server by
 [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py) —
-headless Chromium, 1280x800 viewport, full-page PNGs.
+headless Chromium, 1280×800 viewport (desktop) or 390×844 dpr2 (mobile),
+full-page PNGs.
 
 > **Documentation map:** [USERGUIDE.md](../USERGUIDE.md) is the `swarm-cli`
 > reference, [USER_JOURNEY.md](./USER_JOURNEY.md) is the end-to-end story,
@@ -15,45 +16,49 @@ headless Chromium, 1280x800 viewport, full-page PNGs.
 
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
-| `landing.png` | `/` (React SPA dashboard) | Styled SPA landing: live blueprint/model counts, quick actions, backend health | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `spa-chat.png` | `/chat` (React SPA) | Websocket chat, authenticated session showing "Connected", empty conversation | GUIDED_TOUR.md | 2026-06-12 | current |
-| `spa-teams.png` | `/teams` (React SPA) | Team management wired to `/v1/teams/`, fresh-db "No teams yet" empty state | GUIDED_TOUR.md | 2026-06-12 | current |
-| `spa-blueprints.png` | `/blueprints` (React SPA) | Blueprint library from `/v1/blueprints/` with per-card MCP requirements | GUIDED_TOUR.md | 2026-06-12 | current |
-| `spa-agent-creator.png` | `/agent-creator` (React SPA) | Persona form + blueprint-code panel; empty custom-blueprints list | GUIDED_TOUR.md | 2026-06-12 | current |
-| `spa-settings.png` | `/settings` (React SPA) | API-token form, read-only server settings by category, masked env vars | GUIDED_TOUR.md | 2026-06-12 | current |
-| `login.png` | `/accounts/login/` (Django) | Minimal unstyled login form with dev test-credentials hint | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `teams.png` | `/teams/` (Django) | Teams Admin registration form; empty Registered Teams table (fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher with bundled `django_chat` pre-selected; empty output panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `blueprint-library.png` | `/blueprint-library/` (Django) | Bundled blueprint catalog with requirement badges; 5/0/0/5 summary tiles | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library, empty state (all counters 0) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `agent-creator.png` | `/agent-creator/` (Django) | Agent persona form + empty Generated Code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
-| `settings.png` | `/settings/` (Django) | Settings dashboard with config-progress meter and category sections | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-06-12 | current |
+| `landing.png` | `/` (React SPA dashboard) | Lightweight dashboard: live teams/blueprints/models counts, Django Quick Actions, API reachable | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-07-21 | current |
+| `spa-chat.png` | `/chat` (React SPA) | Websocket chat shell with blueprint selector (login required for consumer) | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture: Django Team Launcher (not a separate SPA product) | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture: Django Blueprint Library | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture: Django Settings Dashboard | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect capture: Django Agent Creator | GUIDED_TOUR.md | 2026-07-21 | current |
+| `login.png` | `/accounts/login/` (Django) | Sign-in form | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `teams.png` | `/teams/` (Django) | Teams Admin registration form + table | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher with blueprint select + task box | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `blueprint-library.png` | `/blueprint-library/` (Django) | Catalog with search, pagination (Show more), MCP badges | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library (often empty on fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `agent-creator.png` | `/agent-creator/` (Django) | Progressive-disclosure persona form + code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `settings.png` | `/settings/` (Django) | Settings dashboard with progress meter | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
+| `sessions.png` | `/sessions/` (Django) | Session Explorer, limit=50 banner, status chips | GUIDED_TOUR.md | 2026-07-21 | current |
+| `profiles.png` | `/profiles/` (Django) | LLM profiles table (Teams nav active) | GUIDED_TOUR.md | 2026-07-21 | current |
 
 The "Used in" column is verified by grepping the docs for
-`screenshots/<file>`; README.md and USERGUIDE.md embed no screenshots.
+`screenshots/<file>`. USERGUIDE.md embeds no PNG files (CLI reference only)
+but points readers at this tour.
 
 ## Mobile captures (`docs/screenshots/mobile/`)
 
-Same 13 pages captured with `--mobile`: iPhone-14-class emulation
-(390x844 viewport, device-scale-factor 2, touch enabled), full-page PNGs.
-The SPA shows the DaisyUI `dock` bottom navigation below the `lg`
-breakpoint; Django pages collapse into the Bootstrap burger menu.
+Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
+Django pages use the five-item bottom primary bar; SPA dashboard uses five
+tabs linking to Django destinations.
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` (React SPA dashboard) | Stat cards and quick actions stack; bottom dock with active-tab indicator | 2026-06-12 | current |
-| `mobile/spa-chat.png` | `/chat` (React SPA) | Header stacks (title above blueprint selector); composer clears the fixed dock | 2026-06-12 | current |
-| `mobile/spa-teams.png` | `/teams` (React SPA) | Single-column empty state; dock highlights Teams | 2026-06-12 | current |
-| `mobile/spa-blueprints.png` | `/blueprints` (React SPA) | Single-column cards; long blueprint names wrap instead of overflowing | 2026-06-12 | current |
-| `mobile/spa-agent-creator.png` | `/agent-creator` (React SPA) | Form fields full-width, single column | 2026-06-12 | current |
-| `mobile/spa-settings.png` | `/settings` (React SPA) | Settings categories and env-var table fit the narrow viewport | 2026-06-12 | current |
-| `mobile/login.png` | `/accounts/login/` (Django) | Login card fills the width with comfortable margins | 2026-06-12 | current |
-| `mobile/teams.png` | `/teams/` (Django) | Bootstrap navbar collapsed to burger; form and buttons wrap | 2026-06-12 | current |
-| `mobile/teams-launch.png` | `/teams/launch/` (Django) | Launcher form full-width; output panel below | 2026-06-12 | current |
-| `mobile/blueprint-library.png` | `/blueprint-library/` (Django) | Summary tiles and blueprint cards stack single-column | 2026-06-12 | current |
-| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Stat tiles stack; empty-state actions wrap | 2026-06-12 | current |
-| `mobile/agent-creator.png` | `/agent-creator/` (Django) | Persona form single-column; Validate/Save buttons wrap in the panel header | 2026-06-12 | current |
-| `mobile/settings.png` | `/settings/` (Django) | Dashboard header tiles wrap; category accordions full-width | 2026-06-12 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; bottom tabs → Django hrefs | 2026-07-21 | current |
+| `mobile/spa-chat.png` | `/chat` | Chat composer + dock clearance | 2026-07-21 | current |
+| `mobile/spa-teams.png` | `/teams` → launch | Redirect to Django launcher + bottom nav | 2026-07-21 | current |
+| `mobile/spa-blueprints.png` | `/blueprints` → library | Redirect to library; single-column cards | 2026-07-21 | current |
+| `mobile/spa-settings.png` | `/settings` → settings/ | Redirect to Django settings | 2026-07-21 | current |
+| `mobile/spa-agent-creator.png` | `/agent-creator` → creator/ | Redirect to Django agent creator | 2026-07-21 | current |
+| `mobile/login.png` | `/accounts/login/` | Full-width login card | 2026-07-21 | current |
+| `mobile/teams.png` | `/teams/` | Bottom primary tabs; form wraps | 2026-07-21 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width | 2026-07-21 | current |
+| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack | 2026-07-21 | current |
+| `mobile/my-blueprints.png` | `/my-blueprints/` | Empty-state CTAs | 2026-07-21 | current |
+| `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; bottom tabs | 2026-07-21 | current |
+| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap | 2026-07-21 | current |
+| `mobile/sessions.png` | `/sessions/` | Session list + limit banner | 2026-07-21 | current |
+| `mobile/profiles.png` | `/profiles/` | Profiles table; Teams tab active | 2026-07-21 | current |
 
 Regenerate with:
 
@@ -65,50 +70,35 @@ Regenerate with:
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `demo/cli-and-api.gif` | Animated terminal demo (~18s loop): `swarm-cli list`, the `zeus` blueprint answering as a local CLI command, then the same blueprint answering via `curl` against the OpenAI-compatible API (`/v1/models`, streaming `/v1/chat/completions`) — all under `SWARM_TEST_MODE=1`, no API key | README.md | 2026-06-12 | current |
-
-All terminal output shown in the GIF is a genuine capture (raw transcripts in
-`docs/demo/captures/raw_*.txt`); only the command typing is animated, and a
-single `…` line marks elided capture lines. Regenerate with:
-
-```bash
-uv pip install pillow   # render-time dependency only
-uv run python scripts/render_demo_gif.py
-```
-
-To refresh the underlying captures first, run the commands listed in the
-docstring of [`scripts/render_demo_gif.py`](../scripts/render_demo_gif.py) and
-update `docs/demo/captures/scene*.txt` accordingly.
+| `demo/cli-and-api.gif` | Animated terminal demo (~18s loop): `swarm-cli list`, blueprint CLI, curl API | README.md | 2026-06-12 | current |
 
 ## Other images in the repo
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing page from an earlier iteration of the project | unused (no doc references) | 2025-01-05 | legacy |
-
-(`assets/images/openswarm-project-image.jpg` is the project logo embedded in
-README.md, not a screenshot.)
+| `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused | 2025-01-05 | legacy |
+| `docs/screenshots/webui/*` | Themed WebUI component captures | various | mixed | current |
+| `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
 
 ## Regenerating
 
 ```bash
 .venv/bin/pip install playwright
 .venv/bin/playwright install chromium
-.venv/bin/python scripts/capture_user_journey.py            # desktop (1280x800)
-.venv/bin/python scripts/capture_user_journey.py --mobile   # mobile (390x844, dpr 2)
+.venv/bin/python scripts/capture_user_journey.py            # desktop
+.venv/bin/python scripts/capture_user_journey.py --mobile   # mobile
+# optional manifest:
+CAPTURE_MANIFEST=/tmp/capture-manifest.json .venv/bin/python scripts/capture_user_journey.py
 ```
 
-The script is idempotent: it starts its own dev server on port 8321
-(`DJANGO_DEBUG=true ENABLE_WEBUI=true`), runs migrations, creates a throwaway
-superuser and logs in (so authenticated pages like the SPA chat render
-realistically), captures every page in its `PAGES` list, overwrites the PNGs
-here, skips (never fakes) any page that returns 4xx/5xx, then kills the server
-and prints a captured/skipped summary. The SPA pages require a built
-`webui/frontend/dist/`.
+The script starts its own dev server on port 8321
+(`DJANGO_DEBUG=true ENABLE_WEBUI=true`), migrates, logs in a throwaway
+superuser, captures every page in `PAGES`, overwrites PNGs, skips (never
+fakes) 4xx/5xx, then stops the server. SPA routes need `webui/frontend/dist/`.
 
-After regenerating, update the captions in
+After regenerating, update captions in
 [USER_JOURNEY.md](./USER_JOURNEY.md) and [GUIDED_TOUR.md](./GUIDED_TOUR.md) if
-the pages changed, and update this registry's "Captured" dates.
+pages changed, and refresh this registry's "Captured" dates.
 
 ## Convention
 
