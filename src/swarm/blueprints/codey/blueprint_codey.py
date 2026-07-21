@@ -571,6 +571,16 @@ class CodeyBlueprint(BlueprintBase):
                     emoji="🤖",
                     border="╔",
                 )
+                # API / chat path needs a final assistant message (spinner boxes alone are not enough).
+                yield {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": f"[TEST-MODE] Code Search complete for: '{instruction}' (10 matches).",
+                        }
+                    ],
+                    "final": True,
+                }
                 return
             else:
                 # Semantic Search legacy/test output
@@ -638,6 +648,15 @@ class CodeyBlueprint(BlueprintBase):
                     emoji="🤖",
                     border="╔",
                 )
+                yield {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": f"[TEST-MODE] Semantic Search complete for: '{instruction}' (10 matches).",
+                        }
+                    ],
+                    "final": True,
+                }
                 return
         search_mode = kwargs.get("search_mode", "semantic")
         if search_mode in ("semantic", "code"):

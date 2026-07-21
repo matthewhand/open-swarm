@@ -86,16 +86,14 @@ def list_files(directory: str = ".") -> str:
 
 
 def execute_shell_command(command: str, timeout: int | None = None) -> str:
-    """
-    Execute shell command (uses shell=True for legacy compat with many blueprints).
-    Timeout from param or SWARM_COMMAND_TIMEOUT env (default 60s).
-    Returns formatted stdout/stderr/exit. Security: callers should sanitize where possible.
-    """
+    """Execute a shell command safely using shlex.split (no shell injection)."""
+    import shlex
     timeout = timeout or int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
     try:
+        args = shlex.split(command)
         result = subprocess.run(
-            command,
-            shell=True,
+            args,
+            shell=False,
             check=False,
             capture_output=True,
             text=True,
@@ -107,6 +105,8 @@ def execute_shell_command(command: str, timeout: int | None = None) -> str:
         if result.stderr:
             output += f"STDERR:\n{result.stderr}\n"
         return output.strip()
+    except ValueError as e:
+        return f"Error: invalid command syntax: {e}"
     except subprocess.TimeoutExpired:
         return f"Error: Command timed out after {timeout} seconds."
     except Exception as e:
