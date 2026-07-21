@@ -5,7 +5,7 @@ import { Button, Card, Alert, Badge } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
 
-function App() {
+const App = () => {
   const [darkMode, setDarkMode] = useState(false)
 
   return (
@@ -25,6 +25,7 @@ function App() {
                 <button
                   onClick={() => setDarkMode(!darkMode)}
                   className="btn btn-ghost btn-sm"
+                  aria-label="Toggle dark mode"
                 >
                   {darkMode ? 'Light Mode' : 'Dark Mode'}
                 </button>
@@ -276,9 +277,6 @@ function Dashboard() {
   )
 }
 
-// Duplicate local page definitions removed - using imported real pages from ./pages/
-// (BlueprintsPage, TeamsPage now contain real API integration + reduced mocks)
-
 function SettingsPage() {
   return (
     <div className="max-w-2xl">
@@ -303,4 +301,4 @@ function SettingsPage() {
   );
 }
 
-export default App
+export default App;

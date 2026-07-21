@@ -49,12 +49,8 @@ describe('TeamsPage', () => {
     const teamTitle = await screen.findByText('test-team');
     expect(teamTitle).toBeInTheDocument();
 
-    // Instead of querying svg, we will look up the text 'Edit (demo)' which is close to the delete button,
-    // actually wait, let's just add aria-label="Delete Team" in the TeamsPage.tsx component properly on the button instead of SVG.
-    // Or we just find the 3rd button. There are 2 header buttons, then 2 buttons per team.
-
-    // eslint-disable-next-line testing-library/no-node-access
-    const deleteButton = screen.getAllByRole('button').find(b => b.querySelector('.lucide-trash2'));
+    // Use proper semantic query by label
+    const deleteButton = screen.getByRole('button', { name: 'Delete Team' });
 
     if (deleteButton) {
       fireEvent.click(deleteButton);
