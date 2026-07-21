@@ -42,6 +42,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from swarm.auth import request_principal
 from swarm.core import responses_store
 
 from .chat_views import _chunk_is_final, _extract_message_from_chunk
@@ -248,6 +249,8 @@ class ResponsesView(APIView):
     async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
         request_id = str(uuid.uuid4())
         logger.info(f"[ReqID: {request_id}] Processing /v1/responses POST request.")
+        # Stamp owner for store records (IDOR protection on GET/cancel/delete).
+        self._owner_principal = request_principal(request)
 
         # --- Request body parsing ---
         try:
@@ -287,6 +290,7 @@ class ResponsesView(APIView):
             prior = await sync_to_async(responses_store.load)(str(previous_response_id))
             if prior is None:
                 raise NotFound(f"Previous response '{previous_response_id}' not found.")
+            _assert_owner_access(request, prior)
             messages = list(prior.get("messages") or []) + messages
 
         # --- Model access validation (same helper as ChatCompletionsView) ---
@@ -348,8 +352,10 @@ class ResponsesView(APIView):
             request_id, model_name, "", previous_response_id, None, None, status="queued"
         )
         # The _task spec lets a server restart resume this (see resume_pending_responses).
+        owner = getattr(self, "_owner_principal", None)
         await sync_to_async(responses_store.save)({
             "id": response_id, "object": "response", "response": payload, "messages": None,
+            "owner": owner,
             "_task": _task_spec(request_id, model_name, list(messages), params, previous_response_id),
         })
         # Daemon thread with its own event loop — decoupled from the request
@@ -409,7 +415,9 @@ class ResponsesView(APIView):
 
         payload = _build_response_payload(request_id, model_name, answer, previous_response_id, messages, backend_meta)
         if store:
-            await sync_to_async(_persist)(payload, messages, answer)
+            await sync_to_async(_persist)(
+                payload, messages, answer, owner=getattr(self, "_owner_principal", None)
+            )
         return Response(payload, status=status.HTTP_200_OK)
 
     async def _handle_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> StreamingHttpResponse:
@@ -442,7 +450,9 @@ class ResponsesView(APIView):
                 final_text = "".join(full_text_parts)
                 payload = _build_response_payload(request_id, model_name, final_text, previous_response_id, messages, backend_meta)
                 if store:
-                    await sync_to_async(_persist)(payload, messages, final_text)
+                    await sync_to_async(_persist)(
+                        payload, messages, final_text, owner=getattr(self, "_owner_principal", None)
+                    )
                 completed = {"type": "response.completed", "response": payload}
                 yield f"data: {json.dumps(completed)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -501,16 +511,34 @@ def _build_response_payload(
     }
 
 
-def _persist(payload: dict[str, Any], messages: list[dict[str, Any]], answer: str) -> None:
+def _persist(
+    payload: dict[str, Any],
+    messages: list[dict[str, Any]],
+    answer: str,
+    *,
+    owner: str | None = None,
+) -> None:
     """Save a response record so it can be retrieved and chained from later."""
+    # Preserve existing owner on update if present.
+    existing = responses_store.load(payload["id"]) or {}
     record = {
         "id": payload["id"],
         "object": "response",
         "response": payload,
         # Full transcript incl. the assistant reply, so previous_response_id replays it.
         "messages": list(messages) + [{"role": "assistant", "content": answer}],
+        "owner": owner if owner is not None else existing.get("owner"),
     }
     responses_store.save(record)
+
+
+def _assert_owner_access(request: Request, record: dict[str, Any] | None) -> None:
+    """Refuse cross-principal access when API auth is on and owner is stamped."""
+    if not bool(getattr(settings, "ENABLE_API_AUTH", False)):
+        return
+    principal = request_principal(request)
+    if not responses_store.owner_allows(record, principal):
+        raise PermissionDenied("You do not have access to this response.")
 
 
 # --- Cancellation registry -------------------------------------------------- #
@@ -665,7 +693,14 @@ def _run_background_response_body(
         with progress_lock:
             if progress:
                 payload["progress"] = list(progress)
-        record = {"id": response_id, "object": "response", "response": payload, "messages": transcript}
+        existing = responses_store.load(response_id) or {}
+        record = {
+            "id": response_id,
+            "object": "response",
+            "response": payload,
+            "messages": transcript,
+            "owner": existing.get("owner") or spec.get("owner"),
+        }
         if keep_task:
             record["_task"] = spec
         responses_store.save(record)
@@ -792,13 +827,18 @@ class ResponsesDetailView(APIView):
     async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
         return await _async_auth_dispatch(self, request, *args, **kwargs)
 
-    async def get(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+    async def get(self, request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
         record = await sync_to_async(responses_store.load)(response_id)
         if record is None:
             raise NotFound(f"Response '{response_id}' not found.")
+        _assert_owner_access(request, record)
         return Response(record.get("response") or record, status=status.HTTP_200_OK)
 
-    async def delete(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+    async def delete(self, request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+        record = await sync_to_async(responses_store.load)(response_id)
+        if record is None:
+            raise NotFound(f"Response '{response_id}' not found.")
+        _assert_owner_access(request, record)
         deleted = await sync_to_async(responses_store.delete)(response_id)
         if not deleted:
             raise NotFound(f"Response '{response_id}' not found.")
@@ -817,10 +857,11 @@ class ResponsesCancelView(APIView):
         description="Cooperatively cancel an in-flight async task. No request body. Idempotent on finished tasks.",
         request=None,
     )
-    async def post(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+    async def post(self, request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
         record = await sync_to_async(responses_store.load)(response_id)
         if record is None:
             raise NotFound(f"Response '{response_id}' not found.")
+        _assert_owner_access(request, record)
         payload = record.get("response") or {}
         current = payload.get("status")
         # No-op on already-finished tasks (idempotent) — return the current state.
@@ -831,6 +872,12 @@ class ResponsesCancelView(APIView):
         _request_cancel(response_id)
         payload["status"] = "cancelled"
         await sync_to_async(responses_store.save)(
-            {"id": response_id, "object": "response", "response": payload, "messages": record.get("messages")}
+            {
+                "id": response_id,
+                "object": "response",
+                "response": payload,
+                "messages": record.get("messages"),
+                "owner": record.get("owner"),
+            }
         )
         return Response(payload, status=status.HTTP_200_OK)

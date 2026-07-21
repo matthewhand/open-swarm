@@ -261,10 +261,13 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** | dev: `localhost,127.0.0.1` |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). | `http://localhost:8000,http://127.0.0.1:8000` |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. | none |
-| `ENABLE_API_AUTH` | Require auth on `/v1/*`. Auto-on when `API_AUTH_TOKEN` is set. | prod: on |
+| `ENABLE_API_AUTH` | Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Auto-on when `API_AUTH_TOKEN` is set. | prod: on |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
 | `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
 | `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |
+| `SWARM_UVICORN_WORKERS` | uvicorn worker count. Prefer **1** — async cancel/inflight are process-local. | `1` |
+| `SWARM_ENFORCE_SINGLE_WORKER` | When true (default), refuse `SWARM_UVICORN_WORKERS` &gt; 1 at app startup. | `true` |
+| `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` | When true, scan user blueprint dirs (exec_module). Default off so creator saves are write-only. | `false` |
 
 ### Feature flags
 

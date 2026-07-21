@@ -75,6 +75,9 @@ services:
       DJANGO_DB_NAME: "${HOME}/.local/share/swarm/db.sqlite3"
       SQLITE_DB_PATH: "${HOME}/.local/share/swarm/db.sqlite3"
       SWARM_RESPONSES_DIR: "${HOME}/.local/share/swarm/responses"
+      # Async /v1/responses cancel + inflight limits are process-local until a
+      # shared queue exists. Keep a single uvicorn worker (see Dockerfile CMD).
+      SWARM_UVICORN_WORKERS: "${SWARM_UVICORN_WORKERS:-1}"
     volumes:
       # Your swarm config (llm profiles + any cli_agents) — read-only.
       - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"

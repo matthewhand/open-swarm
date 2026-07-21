@@ -82,9 +82,30 @@ class SwarmConfig(AppConfig):
         # Resume async /v1/responses tasks left in-flight by a restart — server
         # processes only (not migrate/test), guarded against the runserver
         # reloader's parent process to avoid double-resume.
+        self._check_uvicorn_workers()
         self._maybe_resume_async_tasks()
 
         logger.info("Swarm app initialization checks completed.")
+
+    @staticmethod
+    def _check_uvicorn_workers() -> None:
+        """Refuse/warn multi-worker async when serving (process-local cancel)."""
+        import sys
+
+        argv = " ".join(sys.argv)
+        if not any(s in argv for s in ("uvicorn", "swarm-api", "gunicorn", "daphne")):
+            # Still validate env when set so unit tests can exercise the helper.
+            if not os.environ.get("SWARM_UVICORN_WORKERS"):
+                return
+        try:
+            from swarm.core.concurrency import resolved_uvicorn_workers
+
+            resolved_uvicorn_workers()
+        except ValueError as e:
+            logger.error("Multi-worker async contract: %s", e)
+            raise
+        except Exception as e:
+            logger.debug("uvicorn workers check skipped: %s", e)
 
     @staticmethod
     def _maybe_resume_async_tasks() -> None:

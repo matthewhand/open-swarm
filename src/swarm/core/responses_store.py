@@ -41,7 +41,11 @@ def _path_for(response_id: str, base_dir: Path | None) -> Path | None:
 
 
 def save(record: dict[str, Any], *, base_dir: Path | None = None) -> None:
-    """Persist a record (must have a valid ``id``). Atomic write; best-effort."""
+    """Persist a record (must have a valid ``id``). Atomic write; best-effort.
+
+    Optional top-level ``owner`` string stamps the creating principal for IDOR
+    checks when API auth is enabled (see responses detail/cancel views).
+    """
     rid = record.get("id", "")
     path = _path_for(rid, base_dir)
     if path is None:
@@ -69,6 +73,24 @@ def load(response_id: str, *, base_dir: Path | None = None) -> dict[str, Any] | 
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def owner_allows(record: dict[str, Any] | None, principal: str | None) -> bool:
+    """Whether ``principal`` may access ``record`` under ownership rules.
+
+    - No record → False (caller should 404 separately if desired)
+    - No owner on record → True (legacy records; auth still required at the view)
+    - principal None → False when owner is set
+    - else principal must equal record['owner']
+    """
+    if record is None:
+        return False
+    owner = record.get("owner")
+    if not owner:
+        return True
+    if not principal:
+        return False
+    return str(owner) == str(principal)
 
 
 def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> list[dict[str, Any]]:

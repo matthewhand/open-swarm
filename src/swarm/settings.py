@@ -54,18 +54,29 @@ def _blueprint_extra_dirs() -> list[str]:
     Order: the user data 'blueprints' dir (where community packs are installed),
     then any paths in ``SWARM_BLUEPRINT_PATHS`` (os.pathsep-separated). The bundled
     dir always wins on name collisions (see ``discover_all_blueprints``).
+
+    User blueprint discovery (``exec_module`` of files under the user data dir)
+    is **off by default**. Set ``SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY=true`` to
+    include that dir — creator saves never execute code on the write path.
     """
     dirs: list[str] = []
-    try:
-        from swarm.core.paths import get_user_blueprints_dir
-        dirs.append(str(get_user_blueprints_dir()))
-    except Exception:
-        pass
+    allow_user = os.getenv("SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY", "").lower() in (
+        "true", "1", "yes", "y", "t",
+    )
+    if allow_user:
+        try:
+            from swarm.core.paths import get_user_blueprints_dir
+            dirs.append(str(get_user_blueprints_dir()))
+        except Exception:
+            pass
     extra = os.getenv("SWARM_BLUEPRINT_PATHS", "")
     dirs.extend(p for p in extra.split(os.pathsep) if p.strip())
     return dirs
 
 
+# User blueprint dirs (creator output) are only auto-discovered when operators
+# opt in — default ship path must not exec_module untrusted generated code.
+# See SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY in env / CONFIGURATION.md.
 BLUEPRINT_EXTRA_DIRS = _blueprint_extra_dirs()
 
 # Web UI Configuration
