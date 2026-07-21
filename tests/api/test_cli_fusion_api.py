@@ -1,6 +1,6 @@
 """End-to-end API tests for the CLI fusion blueprints over /v1/chat/completions.
 
-The per-blueprint smoke matrix proves cli_agent/cli_fusion are *reachable*, but
+The per-blueprint smoke matrix proves cli_agent/moa are *reachable*, but
 only with an empty config (so they answer "no CLI agents configured"). These
 tests inject fake echo-based adapters via the swarm AppConfig and assert a real
 panel -> synthesize flow — and that per-request `params` (cli/panel) drive
@@ -65,15 +65,15 @@ def _content(response):
 @pytest.mark.django_db
 def test_cli_fusion_panel_synthesizes_over_api(client, fake_cli_config):
     # No judge configured -> synthesize falls back to the longest panel answer.
-    resp = _post(client, "cli_fusion", "hello", params={"panel": ["a", "b"]})
+    resp = _post(client, "moa", "hello", params={"panel": ["a", "b"]})
     assert resp.status_code == 200, resp.content[:300]
     assert resp.json().get("object") == "chat.completion"
     assert _content(resp) in ("A:hello", "B:hello")
 
 
 @pytest.mark.django_db
-def test_cli_fusion_uses_default_preset_without_params(client, fake_cli_config):
-    resp = _post(client, "cli_fusion", "world")
+def test_moa_uses_default_preset_without_params(client, fake_cli_config):
+    resp = _post(client, "moa", "world")
     assert resp.status_code == 200, resp.content[:300]
     assert _content(resp) in ("A:world", "B:world")
 
@@ -82,7 +82,7 @@ def test_cli_fusion_uses_default_preset_without_params(client, fake_cli_config):
 def test_system_fingerprint_names_resolved_backends(client, fake_cli_config):
     # The response's system_fingerprint reports which CLI(s) actually answered,
     # not just the blueprint id — so an OpenAI client can attribute the answer.
-    resp = _post(client, "cli_fusion", "hello", params={"panel": ["a", "b"], "judge": "a"})
+    resp = _post(client, "moa", "hello", params={"panel": ["a", "b"], "judge": "a"})
     assert resp.status_code == 200, resp.content[:300]
     fp = resp.json().get("system_fingerprint") or ""
     assert fp.startswith("cli_fusion:")

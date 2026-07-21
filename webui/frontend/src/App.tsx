@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Badge, Alert } from './components/DaisyUI'
 import { Home, Users, Book, Settings, PlusCircle, Moon, Sun, MessageSquare } from 'lucide-react'
@@ -8,31 +8,7 @@ import ChatPage from './pages/ChatPage'
 import BlueprintsPage from './pages/BlueprintsPage'
 import BuilderPage from './pages/BuilderPage'
 import TeamsPage from './pages/TeamsPage'
-
-// Simple mock for settings
-function SettingsPage() {
-  return (
-    <div className="max-w-2xl">
-      <h1 className="text-3xl font-bold mb-6">Settings</h1>
-      <Card title="Application Settings" bordered>
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-2">Auth</h3>
-            <p className="text-sm">When ENABLE_API_AUTH, use <code>Authorization: Bearer &lt;token&gt;</code> or <code>X-API-Key</code> header.</p>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">Streaming</h3>
-            <p className="text-sm">Backend supports <code>stream: true</code> on <code>/v1/chat/completions</code>. UI can use EventSource / fetch + reader.</p>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">Teams / Dynamic Registry</h3>
-            <p className="text-sm">Teams created via /teams/ POST appear live in /v1/models and /v1/blueprints (merged in utils.py).</p>
-          </div>
-        </div>
-      </Card>
-    </div>
-  )
-}
+import SettingsPage from './pages/SettingsPage'
 
 function Dashboard() {
   const [blueprintCount, setBlueprintCount] = useState<number | null>(null);
@@ -158,6 +134,53 @@ function Dashboard() {
         </div>
       </Card>
 
+      {/* Recent Activity */}
+      <Card title="Recent Activity" bordered>
+        <div className="overflow-x-auto">
+          <table className="table table-zebra">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Status</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <Badge type="success">Active</Badge>
+                    <span>Code Review Team</span>
+                  </div>
+                </td>
+                <td><Badge type="success">Active</Badge></td>
+                <td className="text-sm text-gray-500">2 minutes ago</td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <Badge type="warning">Idle</Badge>
+                    <span>Documentation Squad</span>
+                  </div>
+                </td>
+                <td><Badge type="warning">Idle</Badge></td>
+                <td className="text-sm text-gray-500">15 minutes ago</td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <Badge type="error">Error</Badge>
+                    <span>Data Processing</span>
+                  </div>
+                </td>
+                <td><Badge type="error">Error</Badge></td>
+                <td className="text-sm text-gray-500">1 hour ago</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
       {/* System Status */}
       <Card title="System Status" bordered>
         <div className="space-y-3">
@@ -175,6 +198,22 @@ function Dashboard() {
               <span>Team Registry</span>
             </div>
             <Badge type={apiHealth.teams === 'ok' ? 'success' : 'warning'}>{apiHealth.teams === 'ok' ? 'Online' : 'Checking'}</Badge>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-success rounded-full"></div>
+              <span>Database</span>
+            </div>
+            <Badge type="success">Online</Badge>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-warning rounded-full"></div>
+              <span>Cache</span>
+            </div>
+            <Badge type="warning">Degraded</Badge>
           </div>
         </div>
       </Card>
@@ -246,6 +285,7 @@ function App() {
           <div className="navbar-end gap-2">
             <button
               className="btn btn-ghost btn-circle"
+              aria-label="Toggle dark mode"
               onClick={() => setDarkMode(!darkMode)}
               title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >

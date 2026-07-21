@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Badge, Alert, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
+import { Button, Card, Badge, Alert, LoadingSpinner, ConfirmModal } from '../components/DaisyUI';
+import { Modal } from '../components/DaisyUI/Modal';
 import { Users, Search, Plus, Trash2, Edit, Play } from 'lucide-react';
 
 interface Team {
