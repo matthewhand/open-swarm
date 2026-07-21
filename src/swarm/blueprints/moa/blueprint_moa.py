@@ -10,7 +10,8 @@ import logging
 from typing import Any, ClassVar
 
 from swarm.core.blueprint_base import BlueprintBase
-from swarm.core.moa import MoAOrchestrator, PermissionMode
+from swarm.core.moa.orchestrator import MoAOrchestrator
+from swarm.core.moa.types import PermissionMode
 from swarm.core.moa.backends import FakeParticipantBackend
 from swarm.core.moa.cli import build_backend
 
