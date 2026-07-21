@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path, re_path
 from django.http import HttpResponse, FileResponse
+from django.views.generic import RedirectView
 from django.views.static import serve
 from pathlib import Path
 
@@ -176,7 +177,35 @@ if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
             exc,
         )
 
-# SPA Fallback for React Router - must be last
+# Canonical product UI is Django (trailing-slash). Bare SPA-style paths that used
+# to dual-mount the React shell now redirect so users never hit two different UIs
+# for the same concept (e.g. /teams vs /teams/).
+urlpatterns += [
+    path(
+        "teams",
+        RedirectView.as_view(url="/teams/launch/", permanent=False, query_string=True),
+        name="spa_teams_to_django",
+    ),
+    path(
+        "blueprints",
+        RedirectView.as_view(url="/blueprint-library/", permanent=False, query_string=True),
+        name="spa_blueprints_to_django",
+    ),
+    path(
+        "settings",
+        RedirectView.as_view(url="/settings/", permanent=False, query_string=True),
+        name="spa_settings_to_django",
+    ),
+    # Bare /agent-creator (no slash) used to hit an empty SPA shell; canonical
+    # creator is Django at /agent-creator/.
+    path(
+        "agent-creator",
+        RedirectView.as_view(url="/agent-creator/", permanent=False, query_string=True),
+        name="spa_agent_creator_to_django",
+    ),
+]
+
+# SPA Fallback for React Router - must be last (home `/` and experimental routes).
 def _get_frontend_path():
     """Get the path to the built frontend assets."""
     frontend_path = Path("webui/frontend/dist")
@@ -203,5 +232,5 @@ if frontend_path and frontend_path.exists():
         return HttpResponse("Not Found", status=404)
     
     urlpatterns += [
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/).*$', spa_fallback),
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/).*$', spa_fallback),
     ]
