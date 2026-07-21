@@ -2,14 +2,48 @@
 
 Single-instance only — not a multi-worker distributed semaphore. Used to
 reject overload with a client-safe 429 instead of unbounded thread growth.
+
+Until a shared queue exists, async ``/v1/responses`` cancel + inflight are
+**per process**. Prefer a single uvicorn worker (``SWARM_UVICORN_WORKERS=1``).
 """
 from __future__ import annotations
 
+import logging
+import os
 import threading
 from contextlib import contextmanager
 
+logger = logging.getLogger(__name__)
+
 _lock = threading.Lock()
 _inflight = 0
+
+
+def resolved_uvicorn_workers() -> int:
+    """Resolve uvicorn worker count; warn or refuse multi-worker async.
+
+    Default 1. When ``SWARM_ENFORCE_SINGLE_WORKER`` is true (default), values
+    greater than 1 raise ``ValueError`` so operators cannot silently break
+    cancel/inflight. Set the env to false to allow multi-worker with a warning.
+    """
+    raw = os.getenv("SWARM_UVICORN_WORKERS", "1") or "1"
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 1
+    n = max(1, n)
+    enforce = os.getenv("SWARM_ENFORCE_SINGLE_WORKER", "true").lower() in (
+        "true", "1", "yes", "y", "t",
+    )
+    if n > 1:
+        msg = (
+            f"SWARM_UVICORN_WORKERS={n} > 1: /v1/responses cancel and inflight "
+            "limits are process-local until a shared queue exists. Prefer workers=1."
+        )
+        if enforce:
+            raise ValueError(msg + " Set SWARM_ENFORCE_SINGLE_WORKER=false to override.")
+        logger.warning(msg)
+    return n
 
 
 def max_inflight() -> int:

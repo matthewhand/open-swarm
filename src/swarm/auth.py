@@ -146,3 +146,26 @@ def api_permission_classes():
         return [HasValidTokenOrSession]
     return [AllowAny]
 
+
+def request_principal(request) -> str | None:
+    """Stable principal id for the request (ownership stamps).
+
+    - Session user → ``user:<username>``
+    - Static API token (request.auth) → ``token:<sha256-prefix>`` of the
+      presenting credential (single configured token ⇒ one principal; multi-key
+      is a future extension)
+    - Unauthenticated → ``None``
+    """
+    import hashlib
+
+    user = getattr(request, "user", None)
+    if user is not None and getattr(user, "is_authenticated", False):
+        return f"user:{user.get_username()}"
+
+    auth = getattr(request, "auth", None)
+    if auth is not None:
+        # request.auth is the raw token string from StaticTokenAuthentication
+        digest = hashlib.sha256(str(auth).encode("utf-8")).hexdigest()[:24]
+        return f"token:{digest}"
+    return None
+

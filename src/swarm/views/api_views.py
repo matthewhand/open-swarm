@@ -52,7 +52,9 @@ class ModelsListView(APIView):
     """
     API view to list available models (blueprints) compatible with OpenAI's /v1/models format.
     """
-    permission_classes = [AllowAny]
+    # Respect ENABLE_API_AUTH (was hard-coded AllowAny — open discovery when locked down).
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         try:
@@ -95,7 +97,8 @@ class BlueprintsListView(APIView):
     """
     API view to list available blueprints with richer metadata than /v1/models.
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         try:
