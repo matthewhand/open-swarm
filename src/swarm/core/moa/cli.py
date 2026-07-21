@@ -14,7 +14,8 @@ import json
 import logging
 from typing import Any
 
-from swarm.core.moa import MoAOrchestrator, PermissionMode
+from swarm.core.moa.orchestrator import MoAOrchestrator
+from swarm.core.moa.types import PermissionMode
 from swarm.core.moa.backends import (
     AcpxParticipantBackend,
     FakeParticipantBackend,

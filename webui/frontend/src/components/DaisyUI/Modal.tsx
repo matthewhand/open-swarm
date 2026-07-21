@@ -104,9 +104,9 @@ export const Modal = ({
           {children}
         </div>
       </div>
-      <button className="modal-backdrop" onClick={onClose}>
-        <span className="sr-only">Close</span>
-      </button>
+      <form method="dialog" className="modal-backdrop">
+        <button type="button" onClick={onClose}>close</button>
+      </form>
     </dialog>
   );
 

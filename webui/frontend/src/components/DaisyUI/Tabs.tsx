@@ -1,4 +1,4 @@
-import { useState, ReactNode, useRef } from 'react';
+import { useState, ReactNode } from 'react';
 
 /**
  * Tab interface
@@ -46,8 +46,6 @@ export const Tabs = ({
     lg: 'tabs-lg',
   };
 
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     let newIndex = index;
     let step = 0;
@@ -78,7 +76,7 @@ export const Tabs = ({
 
       if (!tabs[newIndex].disabled) {
         onChange(tabs[newIndex].key);
-        const tabElement = tabRefs.current[newIndex];
+        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
         if (tabElement) {
           tabElement.focus();
         }
@@ -97,9 +95,6 @@ export const Tabs = ({
         return (
           <button
             id={`tab-${tab.key}`}
-            ref={(el) => {
-              tabRefs.current[index] = el;
-            }}
             key={tab.key}
             role="tab"
             aria-selected={isSelected}
