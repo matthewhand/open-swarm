@@ -68,6 +68,17 @@ class SwarmConfig(AppConfig):
         # behavior is unchanged, we only *add* XDG.
         self.config = self._load_swarm_config()
 
+        # Refuse SWARM_TEST_MODE in non-debug production (silent canned answers).
+        try:
+            from swarm.utils.env_utils import assert_test_mode_allowed
+            assert_test_mode_allowed()
+        except Exception as e:
+            # Re-raise ImproperlyConfigured; log unexpected errors.
+            from django.core.exceptions import ImproperlyConfigured
+            if isinstance(e, ImproperlyConfigured):
+                raise
+            logger.warning("Test-mode guard check failed: %s", e)
+
         # Resume async /v1/responses tasks left in-flight by a restart — server
         # processes only (not migrate/test), guarded against the runserver
         # reloader's parent process to avoid double-resume.

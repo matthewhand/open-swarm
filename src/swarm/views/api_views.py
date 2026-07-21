@@ -9,6 +9,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from swarm.auth import api_permission_classes
+
 # Shared request body for creating/updating a custom blueprint (documents the
 # OpenAPI requestBody so MCP/codegen clients know what fields to send).
 _custom_blueprint_request = inline_serializer(
@@ -153,7 +155,9 @@ class CustomBlueprintsView(APIView):
     GET  /v1/blueprints/custom/           -> list (with optional filters)
     POST /v1/blueprints/custom/           -> create
     """
-    permission_classes = [AllowAny]
+    # Mutating surface: require token/session when API auth is enabled.
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         lib = get_user_blueprint_library()
@@ -232,7 +236,8 @@ class CustomBlueprintDetailView(APIView):
     PUT    /v1/blueprints/custom/<id>/
     DELETE /v1/blueprints/custom/<id>/
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def _load(self, bp_id: str):
         lib = get_user_blueprint_library()
@@ -258,6 +263,12 @@ class CustomBlueprintDetailView(APIView):
         lib["custom"] = items
         if not save_user_blueprint_library(lib):
             return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Keep in-memory fallback registry in sync (GET falls back when disk empty).
+        try:
+            _custom_blueprints_registry.clear()
+            _custom_blueprints_registry.extend(items)
+        except Exception:
+            pass
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(summary="Update a custom blueprint", request=_custom_blueprint_request)
@@ -281,6 +292,11 @@ class CustomBlueprintDetailView(APIView):
                     item[key] = body[key]
             if not save_user_blueprint_library(lib):
                 return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            try:
+                _custom_blueprints_registry.clear()
+                _custom_blueprints_registry.extend(items)
+            except Exception:
+                pass
             return Response(item, status=status.HTTP_200_OK)
         except Exception:
             logger.exception("Error updating custom blueprint")
@@ -368,7 +384,8 @@ class BlueprintSourceView(APIView):
     GET /v1/blueprints/<id>/source[?file=<name>] -> {files, primary, selected, content}.
     Confined to the blueprint's own directory under BLUEPRINT_DIRECTORY (no traversal).
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     _ALLOWED_SUFFIXES = (".py", ".md", ".json", ".txt", ".toml", ".yaml", ".yml", ".cfg")
 
@@ -415,7 +432,8 @@ class CliAgentsView(APIView):
 
     GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]}}.
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, _request, *_args, **_kwargs):
         from swarm.core import cli_catalog
@@ -445,7 +463,8 @@ class ConfigOptionsView(APIView):
         },
       }
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, _request, *_args, **_kwargs):
         from swarm.core import cli_catalog, inference_profile, skills, tool_capabilities
@@ -499,7 +518,8 @@ class BlueprintToolsView(APIView):
         missing_mandatory: [...], skipped_optional: [...], ok: bool,
       }
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, _request, blueprint_id: str, *_args, **_kwargs):
         from swarm.core import tool_capabilities

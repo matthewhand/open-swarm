@@ -226,7 +226,15 @@ class TestResponsesAsync:
         return None
 
     @pytest.mark.asyncio
-    async def test_background_queues_then_completes(self, async_client):
+    async def test_background_queues_then_completes(self, async_client, monkeypatch):
+        # Hybrid/background queue is skipped under SWARM_TEST_MODE (inline path).
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        import swarm.views.responses_views as rv
+
+        async def _fast(bp, messages, cancel_check=None, on_progress=None):
+            return "You said: ping", None
+
+        monkeypatch.setattr(rv, "_consume_blueprint", _fast)
         resp = await self._create(async_client, {"model": "chatbot", "input": "ping", "background": True})
         assert resp.status_code == status.HTTP_202_ACCEPTED
         body = json.loads(resp.content)
@@ -273,6 +281,7 @@ class TestResponsesAsync:
     @pytest.mark.asyncio
     async def test_slow_task_escalates_to_handle_then_completes(self, async_client, monkeypatch):
         # Worker slower than the wait window -> 202 handle; then it finishes and polls completed.
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
         import swarm.views.responses_views as rv
 
         async def _slow(bp, messages, cancel_check=None, on_progress=None):

@@ -4,10 +4,11 @@
 
 Swarm supports both interactive and manual configuration. The recommended way to set up and manage your config is via the `swarm-cli`, which provides commands to initialize, edit, and validate your configuration interactively. However, you can also hand-edit the config JSON if you prefer full control or need to automate deployment.
 
-- **Interactive:**
-  - Run `swarm-cli configure` to launch guided setup for LLMs, MCP servers, blueprints, and more.
-  - Use `swarm-cli list-config` to view your current configuration.
-  - Use `swarm-cli set <section> <key> <value>` to update specific values.
+- **CLI (`swarm-cli config`):**
+  - `swarm-cli config list [--section llm|mcpServers]` — view profiles / MCP servers.
+  - `swarm-cli config add --section llm|mcpServers --name <name> --json '<...>'` — add a profile or MCP server entry.
+  - `swarm-cli config remove --section … --name …` — remove an entry.
+  - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
 - **Manual:**
   - Edit `~/.config/swarm/swarm_config.json` directly (or wherever your config is located).
 
@@ -25,7 +26,7 @@ Config is resolved in this order:
 3. `./swarm_config.json` in the current working directory.
 
 So dropping a config at `~/.config/swarm/swarm_config.json` is enough — both
-`swarm-cli` and the API server (`swarm-api` / `manage.py runserver`) pick it up
+`swarm-cli` and the API server (`swarm-api` / uvicorn ASGI) pick it up
 with no environment variable. Set `SWARM_CONFIG_PATH` only when you want to point
 at a non-standard path explicitly. (`swarm-cli` additionally does an upward
 directory search for a project-local `swarm_config.json`.)
@@ -122,11 +123,11 @@ directory search for a project-local `swarm_config.json`.)
 
 ## 5. CLI vs Manual Configuration
 
-- The `swarm-cli` is the recommended tool for all config tasks:
-  - `swarm-cli configure` (guided interactive setup)
-  - `swarm-cli list-config` (view config)
-  - `swarm-cli set ...` (update values)
-- Manual editing is fully supported for power users and automation.
+- The `swarm-cli` is the recommended tool for config tasks:
+  - `swarm-cli config list` / `config add` / `config remove` (LLM profiles and MCP servers)
+  - `swarm-cli moa-init` (merge default Mixture-of-Agents config block)
+  - `swarm-cli cli-agents --init [--write]` (wire CLI fusion/MoA over installed CLIs)
+- Manual editing of `swarm_config.json` is fully supported for power users and automation.
 
 ---
 

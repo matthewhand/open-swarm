@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from django.conf import settings
@@ -12,7 +13,7 @@ from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication, SessionAuthentication
 
 # Import BasePermission for creating custom permissions
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import AllowAny, BasePermission
 
 logger = logging.getLogger('swarm.auth')
 User = get_user_model()
@@ -66,10 +67,8 @@ class StaticTokenAuthentication(BaseAuthentication):
             logger.debug("[Auth][StaticToken] No token found in relevant headers.")
             return None # Indicate authentication method did not find credentials
 
-        # Compare the provided token with the expected token.
-        # NOTE: For production, consider using a constant-time comparison function
-        #       to mitigate timing attacks if the token is highly sensitive.
-        if provided_token == expected_token:
+        # Constant-time compare to mitigate timing attacks on the API token.
+        if hmac.compare_digest(str(provided_token), str(expected_token)):
             logger.info("[Auth][StaticToken] Static token authentication successful.")
             # Return AnonymousUser and the token itself as request.auth.
             # This signals successful authentication via token without linking to
@@ -135,4 +134,15 @@ class HasValidTokenOrSession(BasePermission):
         # If neither condition is met, deny permission.
         logger.debug("[Perm][TokenOrSession] Access denied: No valid token (request.auth=None) and no authenticated session user.")
         return False
+
+
+def api_permission_classes():
+    """Permission classes that respect ``ENABLE_API_AUTH``.
+
+    Mutating / management API views should use this (or omit ``permission_classes``
+    so DRF defaults apply) instead of hard-coding ``AllowAny``.
+    """
+    if getattr(settings, "ENABLE_API_AUTH", False):
+        return [HasValidTokenOrSession]
+    return [AllowAny]
 

@@ -34,8 +34,13 @@ def get_django_secret_key() -> str:
 
 
 def is_django_debug() -> bool:
-    """Check if Django debug is enabled."""
-    return os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
+    """Check if Django debug is enabled.
+
+    Secure-by-default: when ``DJANGO_DEBUG`` is unset, returns False (production).
+    Local dev and tests must set ``DJANGO_DEBUG=true`` explicitly (settings.py
+    auto-sets it under pytest).
+    """
+    return os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
 
 
 def get_django_allowed_hosts() -> list[str]:
@@ -390,6 +395,55 @@ def is_testuser_autologin_allowed() -> bool:
             "This would create an authentication bypass in production."
         )
     return True
+
+
+def is_swarm_test_mode() -> bool:
+    """True when SWARM_TEST_MODE is set to a truthy value."""
+    return os.getenv('SWARM_TEST_MODE', '').lower() in ('true', '1', 't', 'yes', 'y')
+
+
+def assert_test_mode_allowed() -> None:
+    """Refuse SWARM_TEST_MODE outside debug/pytest so prod cannot return canned answers.
+
+    Allowed when:
+    - SWARM_TEST_MODE is unset/false
+    - DJANGO_DEBUG is true
+    - running under pytest (tests force SWARM_TEST_MODE)
+    """
+    if not is_swarm_test_mode():
+        return
+    import sys
+    if is_django_debug():
+        return
+    if 'pytest' in sys.modules or 'PYTEST_VERSION' in os.environ:
+        return
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "SWARM_TEST_MODE is set but DJANGO_DEBUG is not enabled. "
+        "This would return canned/fake agent answers in production. "
+        "Unset SWARM_TEST_MODE, or set DJANGO_DEBUG=true for local testing."
+    )
+
+
+def client_safe_error_message(
+    exc: Exception | None = None,
+    *,
+    public: str = "Internal server error during generation.",
+) -> str:
+    """Return an error string safe to send to API clients.
+
+    In DEBUG, append a short exception type/message for operators. In production,
+    never echo raw exception strings (paths, CLI stderr, stack fragments).
+    """
+    if exc is None or not is_django_debug():
+        return public
+    detail = str(exc).strip()
+    if not detail:
+        return f"{public} ({type(exc).__name__})"
+    # Cap length so clients never get multi-KB dumps even in debug.
+    if len(detail) > 500:
+        detail = detail[:500] + "…"
+    return f"{public} ({type(exc).__name__}: {detail})"
 
 
 def get_testuser_password() -> str:

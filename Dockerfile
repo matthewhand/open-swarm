@@ -41,14 +41,15 @@ CMD if [ -n "$SWAPFILE_PATH" ]; then \
       mkswap "$SWAPFILE_PATH" && \
       swapon "$SWAPFILE_PATH"; \
     fi && \
-    : "${SQLITE_DB_PATH:=/app/db.sqlite3}" && \
-    mkdir -p "$(dirname "$SQLITE_DB_PATH")" && \
+    : "${DJANGO_DB_NAME:=${SQLITE_DB_PATH:-/app/db.sqlite3}}" && \
+    export DJANGO_DB_NAME SQLITE_DB_PATH="${DJANGO_DB_NAME}" && \
+    mkdir -p "$(dirname "$DJANGO_DB_NAME")" && \
     if [ "$FACTORY_RESET_DATABASE" = "True" ]; then \
       echo "FACTORY_RESET_DATABASE is True; deleting database file if it exists" && \
-      rm -f "$SQLITE_DB_PATH"; \
+      rm -f "$DJANGO_DB_NAME"; \
     fi && \
-    if [ -f "$SQLITE_DB_PATH" ]; then \
-      TABLE_COUNT=$(sqlite3 "$SQLITE_DB_PATH" "SELECT count(*) FROM sqlite_master WHERE type='table';") && \
+    if [ -f "$DJANGO_DB_NAME" ]; then \
+      TABLE_COUNT=$(sqlite3 "$DJANGO_DB_NAME" "SELECT count(*) FROM sqlite_master WHERE type='table';") && \
       if [ "$TABLE_COUNT" -gt 0 ]; then \
         echo "Database exists with tables; applying migrations with --fake-initial if needed" && \
         python manage.py migrate --fake-initial; \
@@ -60,10 +61,6 @@ CMD if [ -n "$SWAPFILE_PATH" ]; then \
       echo "No database found; creating and applying migrations" && \
       python manage.py migrate; \
     fi && \
-    echo "--- Starting Django Server (Default CMD) ---" && \
-    if [ "${DJANGO_DEBUG:-true}" = "false" ] || [ "${DJANGO_DEBUG:-true}" = "False" ]; then \
-      python manage.py runserver --noreload 0.0.0.0:$PORT ; \
-    else \
-      python manage.py runserver 0.0.0.0:$PORT ; \
-    fi
+    echo "--- Starting Open Swarm ASGI (uvicorn) ---" && \
+    exec uvicorn swarm.asgi:application --host 0.0.0.0 --port "$PORT" --workers "${SWARM_UVICORN_WORKERS:-1}"
 
