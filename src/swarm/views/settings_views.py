@@ -125,18 +125,21 @@ def settings_api(_request):
 @require_http_methods(["GET"])
 def environment_variables(_request):
     """Get all environment variables related to Open Swarm (authenticated)."""
+    from swarm.utils.redact import is_sensitive_key
+
     try:
         # Collect all environment variables that might be relevant
         relevant_prefixes = [
             'DJANGO_', 'SWARM_', 'API_', 'ENABLE_', 'OPENAI_',
-            'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG'
+            'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG', 'DATABASE_',
+            'AWS_', 'MONGODB_', 'MONGO_',
         ]
 
         env_vars = {}
         for key, value in os.environ.items():
             if any(key.startswith(prefix) for prefix in relevant_prefixes):
-                # Hide sensitive values
-                if any(sensitive in key.lower() for sensitive in ['key', 'token', 'secret', 'password']):
+                # Use shared redaction heuristics (access_key, database_url, …)
+                if is_sensitive_key(key):
                     env_vars[key] = '***SET***' if value else 'Not Set'
                 else:
                     env_vars[key] = value

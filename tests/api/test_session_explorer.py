@@ -9,8 +9,9 @@ from django.urls import reverse
 from swarm.core import responses_store
 
 
-def _save(rid, *, status="completed", model="hybrid_team", output="hello", progress=None, created=1):
-    responses_store.save({
+def _save(rid, *, status="completed", model="hybrid_team", output="hello", progress=None, created=1, owner="user:explorer"):
+    """Persist a session; default owner matches auth_client principal (user:explorer)."""
+    record = {
         "id": rid, "object": "response",
         "response": {
             "id": rid, "model": model, "status": status, "created_at": created,
@@ -18,7 +19,10 @@ def _save(rid, *, status="completed", model="hybrid_team", output="hello", progr
             "progress": progress or [],
         },
         "messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": output}],
-    })
+    }
+    if owner is not None:
+        record["owner"] = owner
+    responses_store.save(record)
 
 
 @pytest.fixture

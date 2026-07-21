@@ -14,10 +14,19 @@ DEFAULT_SENSITIVE_KEYS = [
     "apikey",
     "token",
     "access_token",
+    "access_key",
+    "access_key_id",
     "client_secret",
     "authorization",
     "private_key",
     "credentials",
+    # Connection strings / DB URLs (exact match; avoid bare "url" so base_url stays public)
+    "database_url",
+    "redis_url",
+    "mongodb_uri",
+    "mongo_url",
+    "connection_string",
+    "dsn",
 ]
 _DEFAULT_SENSITIVE_KEYS_LOWER = {k.lower() for k in DEFAULT_SENSITIVE_KEYS}
 
@@ -28,6 +37,11 @@ SENSITIVE_PATTERNS = [
     r'ssh-rsa\s+[a-zA-Z0-9+/]+={0,2}',  # SSH keys
 ]
 _COMPILED_SENSITIVE_PATTERNS = [re.compile(p) for p in SENSITIVE_PATTERNS]
+
+# scheme://user:password@host — mask only the password segment (not bare https URLs).
+_URI_CREDENTIALS_PATTERN = re.compile(
+    r"([a-zA-Z][a-zA-Z0-9+.-]*://[^:/?#\s]+):([^@/\s]+)@"
+)
 
 
 def _normalize_key(key: str) -> str:
@@ -60,6 +74,13 @@ def is_sensitive_key(key: str, sensitive_keys: set[str] | None = None) -> bool:
             if parts[i : i + n] == sk_parts:
                 return True
     return False
+
+
+def redact_uri_credentials(text: str, mask: str = "[REDACTED]") -> str:
+    """Mask password segment in URIs like ``scheme://user:password@host``."""
+    if not isinstance(text, str) or "://" not in text or "@" not in text:
+        return text
+    return _URI_CREDENTIALS_PATTERN.sub(lambda m: f"{m.group(1)}:{mask}@", text)
 
 
 def redact_sensitive_data(
@@ -106,6 +127,7 @@ def redact_sensitive_data(
         redacted = text
         for pattern in _COMPILED_SENSITIVE_PATTERNS:
             redacted = pattern.sub(mask, redacted)
+        redacted = redact_uri_credentials(redacted, mask=mask)
         return redacted
 
     if isinstance(data, dict):

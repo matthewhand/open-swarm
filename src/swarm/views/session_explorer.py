@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
+from swarm.auth import request_principal
 from swarm.core import responses_store
 
 # Default page size for first paint + live poll. Hard ceiling prevents multi-MB
@@ -27,10 +28,18 @@ def _parse_limit(request, default: int = _DEFAULT_LIMIT) -> int:
         return default
 
 
-def _session_inventory() -> tuple[list[dict], dict[str, int]]:
-    """Full inventory (newest first) + status counts. ``limit=None`` so totals
-    are not silently capped at the store helper's default of 200."""
-    all_sessions = responses_store.list_summaries(limit=None)
+def _session_inventory(request) -> tuple[list[dict], dict[str, int]]:
+    """Principal-scoped inventory (newest first) + status counts.
+
+    ``limit=None`` so totals are not silently capped at the store helper's
+    default of 200. Sessions without an owner, or owned by another principal,
+    are excluded via :func:`responses_store.owner_allows` (fail-closed).
+    """
+    principal = request_principal(request)
+    all_sessions = [
+        s for s in responses_store.list_summaries(limit=None)
+        if responses_store.owner_allows(s, principal)
+    ]
     counts: dict[str, int] = {}
     for s in all_sessions:
         key = s.get("status") or "unknown"
@@ -41,7 +50,7 @@ def _session_inventory() -> tuple[list[dict], dict[str, int]]:
 @login_required
 def session_explorer(request):
     """Session list page (authenticated — transcripts may contain secrets)."""
-    all_sessions, counts = _session_inventory()
+    all_sessions, counts = _session_inventory(request)
     limit = _parse_limit(request)
     sessions = all_sessions[:limit]
     total = len(all_sessions)
@@ -61,6 +70,9 @@ def session_detail(request, response_id: str):
     record = responses_store.load(response_id)
     if record is None:
         raise Http404(f"Session '{response_id}' not found")
+    principal = request_principal(request)
+    if not responses_store.owner_allows(record, principal):
+        raise Http404(f"Session '{response_id}' not found")
     resp = record.get("response") or {}
     return render(request, "session_detail.html", {
         "session": resp,
@@ -76,7 +88,7 @@ def session_list_api(request):
     Honours the same ``?limit=`` contract as the HTML explorer so the default-
     checked 3s poll cannot blow past the first-paint cap and desync the banner.
     """
-    all_sessions, counts = _session_inventory()
+    all_sessions, counts = _session_inventory(request)
     limit = _parse_limit(request)
     sessions = all_sessions[:limit]
     total = len(all_sessions)

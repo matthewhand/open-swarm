@@ -5,7 +5,6 @@ import time
 from asgiref.sync import async_to_sync
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -309,7 +308,8 @@ class CustomBlueprintDetailView(APIView):
 
 
 class MarketplaceGitHubBlueprintsView(APIView):
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         if not ENABLE_GITHUB_MARKETPLACE:
@@ -341,7 +341,8 @@ class MarketplaceGitHubBlueprintsView(APIView):
 
 
 class MarketplaceGitHubMCPConfigsView(APIView):
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         if not ENABLE_GITHUB_MARKETPLACE:

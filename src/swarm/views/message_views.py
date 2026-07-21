@@ -2,19 +2,20 @@
 Views related to Chat Messages.
 """
 from drf_spectacular.utils import extend_schema
-from rest_framework.permissions import AllowAny
 from rest_framework.viewsets import ModelViewSet
 
+from swarm.auth import api_permission_classes
 from swarm.models import ChatMessage
 from swarm.serializers import ChatMessageSerializer
 
 
 class ChatMessageViewSet(ModelViewSet):
     """API viewset for managing chat messages."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
-    queryset = ChatMessage.objects.all().order_by('-timestamp') # Order by timestamp descending
+    queryset = ChatMessage.objects.all().order_by('-timestamp')  # Order by timestamp descending
     serializer_class = ChatMessageSerializer
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     @extend_schema(summary="List all chat messages")
     def list(self, request, *args, **kwargs):

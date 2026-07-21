@@ -78,16 +78,20 @@ def load(response_id: str, *, base_dir: Path | None = None) -> dict[str, Any] | 
 def owner_allows(record: dict[str, Any] | None, principal: str | None) -> bool:
     """Whether ``principal`` may access ``record`` under ownership rules.
 
+    Fail-closed: unowned (legacy) records are not readable by any principal.
+    Views skip this check entirely when ``ENABLE_API_AUTH`` is off, so open
+    deployments still allow access without an owner stamp.
+
     - No record → False (caller should 404 separately if desired)
-    - No owner on record → True (legacy records; auth still required at the view)
-    - principal None → False when owner is set
+    - No owner on record → False (legacy / missing stamp; deny when auth on)
+    - principal None → False
     - else principal must equal record['owner']
     """
     if record is None:
         return False
     owner = record.get("owner")
     if not owner:
-        return True
+        return False
     if not principal:
         return False
     return str(owner) == str(principal)
@@ -97,8 +101,9 @@ def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> 
     """Lightweight summaries of stored sessions, newest first.
 
     Each summary: ``{id, model, status, created_at, execution_ms, output_preview,
-    delegations}`` where ``delegations`` is the per-role progress array (possibly
-    empty). Used by the Session Explorer web UI; reads each record once.
+    delegations, owner}`` where ``delegations`` is the per-role progress array
+    (possibly empty) and ``owner`` is the creating principal (or None for legacy).
+    Used by the Session Explorer web UI; reads each record once.
     """
     base = base_dir or _store_dir()
     if not base.is_dir():
@@ -120,6 +125,7 @@ def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> 
             "execution_ms": resp.get("execution_ms"),
             "output_preview": (text[:160] + "…") if len(text) > 160 else text,
             "delegations": resp.get("progress") or [],
+            "owner": record.get("owner"),
         })
     summaries.sort(key=lambda s: s.get("created_at") or 0, reverse=True)
     return summaries[:limit] if limit else summaries
