@@ -1,4 +1,4 @@
-import { useState, ReactNode, useRef, useEffect } from 'react';
+import { useState, ReactNode } from 'react';
 
 /**
  * Tab interface
@@ -20,7 +20,6 @@ export interface TabsProps {
   variant?: 'boxed' | 'lifted' | 'bordered';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
-  ariaLabel?: string;
 }
 
 /**
@@ -34,7 +33,6 @@ export const Tabs = ({
   variant = 'boxed',
   size = 'md',
   className = '',
-  ariaLabel = 'Tabs',
 }: TabsProps) => {
   const variantClasses = {
     boxed: 'tabs-boxed',
@@ -47,12 +45,6 @@ export const Tabs = ({
     md: 'tabs-md',
     lg: 'tabs-lg',
   };
-
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  useEffect(() => {
-    tabRefs.current = tabRefs.current.slice(0, tabs.length);
-  }, [tabs]);
 
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     let newIndex = index;
@@ -84,7 +76,7 @@ export const Tabs = ({
 
       if (!tabs[newIndex].disabled) {
         onChange(tabs[newIndex].key);
-        const tabElement = tabRefs.current[newIndex];
+        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
         if (tabElement) {
           tabElement.focus();
         }
@@ -96,7 +88,6 @@ export const Tabs = ({
     <div
       className={`tabs ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       role="tablist"
-      aria-label={ariaLabel}
       aria-orientation="horizontal"
     >
       {tabs.map((tab, index) => {
@@ -105,9 +96,6 @@ export const Tabs = ({
           <button
             id={`tab-${tab.key}`}
             key={tab.key}
-            ref={(el) => {
-              tabRefs.current[index] = el;
-            }}
             role="tab"
             aria-selected={isSelected}
             aria-controls={`panel-${tab.key}`}

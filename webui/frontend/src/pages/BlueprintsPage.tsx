@@ -12,18 +12,6 @@ interface Blueprint {
   featured?: boolean;
 }
 
-interface ApiBlueprintData {
-  id?: string;
-  name?: string;
-  description?: string;
-  desc?: string;
-  category?: string;
-  tag?: string;
-  version?: string;
-  installed?: boolean;
-  featured?: boolean;
-}
-
 export default function BlueprintsPage() {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,7 +29,7 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: ApiBlueprintData) => ({
+          setBlueprints(list.map((b: any) => ({
             id: String(b.id || b.name || Math.random()),
             name: b.name || b.id || 'unknown',
             description: b.description || b.desc || 'Blueprint for AI tasks',
@@ -53,9 +41,8 @@ export default function BlueprintsPage() {
         } else {
           throw new Error('API not available');
         }
-      } catch (e: unknown) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        setError(`Using demo data (backend /v1/blueprints not reachable): ${errMsg}`);
+      } catch (e) {
+        setError('Using demo data (backend /v1/blueprints not reachable in this env)');
         setBlueprints([
           {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},
           {id:'chatbot', name:'Chatbot', description:'General conversation agent', category:'General', version:'1.0'},
@@ -95,16 +82,8 @@ export default function BlueprintsPage() {
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive">
-          <Alert type="warning">{error}</Alert>
-        </div>
-      )}
-      {launchResult && (
-        <div role="status" aria-live="polite">
-          <Alert type="success" className="mb-4">{launchResult}</Alert>
-        </div>
-      )}
+      {error && <Alert type="warning">{error}</Alert>}
+      {launchResult && <Alert type="success" className="mb-4">{launchResult}</Alert>}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
@@ -120,17 +99,7 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true">
-          <LoadingSpinner />
-        </div>
-      ) : filtered.length === 0 ? (
-        <Card bordered className="text-center py-12" role="status">
-          <div className="mb-4">
-            <Book className="h-16 w-16 mx-auto text-gray-400" />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
-          <p className="text-gray-500 mb-4">No blueprints match your search criteria.</p>
-        </Card>
+        <div className="flex justify-center py-12"><LoadingSpinner /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((blueprint) => (

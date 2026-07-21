@@ -12,12 +12,6 @@ interface Team {
   llm_profile?: string;
 }
 
-interface ApiTeamData {
-  id?: string;
-  description?: string;
-  llm_profile?: string;
-}
-
 // Live teams come from backend dynamic registry via /teams/export (populated into /v1/models + blueprints too)
 // Create/delete use the available /teams/ endpoint (csrf_exempt form POST in web_views.team_admin -> register_dynamic_team which saves to teams.json)
 
@@ -49,9 +43,9 @@ const TeamsPage = () => {
       // These are also surfaced live via /v1/models and /v1/blueprints (merged in views/utils.py)
       const res = await fetch('/teams/export?format=json');
       if (res.ok) {
-        const data = await res.json() as Record<string, ApiTeamData>;
+        const data = await res.json();
         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: ApiTeamData) => ({
+        const list: Team[] = Object.values(data || {}).map((t: any) => ({
           id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
           name: t.id || 'unknown-team',
           description: t.description || 'Dynamic team (no description)',
@@ -64,9 +58,8 @@ const TeamsPage = () => {
       } else {
         throw new Error('Export API failed');
       }
-    } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      setError(`Failed to load live teams from /teams/export. Using fallback demo: ${errMsg}`);
+    } catch (e) {
+      setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
       // Fallback demo only on error
       setTeams([
         { id: 'code-review', name: 'Code Review Team', description: 'Automated code review and quality assurance (demo)', status: 'active', members: 4, created: '2024-01-15', llm_profile: 'default' },
@@ -87,7 +80,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
+    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
     setActionLoading(true);
     setError(null);
     try {
@@ -135,9 +128,8 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      setError(`Create failed via form POST: ${errMsg}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: any) {
+      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -175,16 +167,8 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive">
-          <Alert type="error" className="mb-4">{error}</Alert>
-        </div>
-      )}
-      {successMsg && (
-        <div role="status" aria-live="polite">
-          <Alert type="success" className="mb-4">{successMsg}</Alert>
-        </div>
-      )}
+      {error && <Alert type="error" className="mb-4">{error}</Alert>}
+      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">
@@ -215,11 +199,7 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && (
-        <div className="flex justify-center py-8" aria-live="polite" aria-busy="true">
-          <LoadingSpinner />
-        </div>
-      )}
+      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (
@@ -275,7 +255,7 @@ const TeamsPage = () => {
 
       {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12" role="status">
+        <Card bordered className="text-center py-12">
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-gray-400" />
           </div>
