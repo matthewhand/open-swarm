@@ -317,3 +317,131 @@ class TestResponseOwnershipHTTP:
         rows = {r["id"]: r for r in responses_store.list_summaries()}
         assert rows["resp_sum_owned"]["owner"] == "user:alice"
         assert rows["resp_sum_legacy"].get("owner") is None
+
+# --- Session Explorer principal filter + residual AllowAny surfaces --------- #
+
+
+@pytest.mark.django_db
+class TestSessionExplorerOwnership:
+    """Session Explorer only shows sessions owned by the logged-in principal."""
+
+    def _save(self, rid: str, owner: str | None, *, output: str = "hello", created: int = 1):
+        rec = {
+            "id": rid,
+            "object": "response",
+            "response": {
+                "id": rid,
+                "object": "response",
+                "status": "completed",
+                "model": "hybrid_team",
+                "created_at": created,
+                "output_text": output,
+                "execution_ms": 1,
+                "progress": [],
+            },
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        if owner is not None:
+            rec["owner"] = owner
+        responses_store.save(rec)
+
+    def test_list_only_returns_own_sessions(self, store, client, django_user_model):
+        from django.urls import reverse
+
+        django_user_model.objects.create_user(username="se_alice", password="x")
+        django_user_model.objects.create_user(username="se_bob", password="x")
+        self._save("resp_se_alice", "user:se_alice", output="alice-only", created=2)
+        self._save("resp_se_bob", "user:se_bob", output="bob-only", created=3)
+        self._save("resp_se_legacy", None, output="no-owner", created=4)
+
+        assert client.login(username="se_alice", password="x")
+        resp = client.get(reverse("session-explorer"))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert "resp_se_alice" in body and "alice-only" in body
+        assert "resp_se_bob" not in body
+        assert "resp_se_legacy" not in body
+        assert "bob-only" not in body
+        assert "no-owner" not in body
+
+        feed = client.get(reverse("session-list-api"))
+        assert feed.status_code == 200
+        data = json.loads(feed.content)
+        ids = [s["id"] for s in data["sessions"]]
+        assert ids == ["resp_se_alice"]
+        assert data["total"] == 1
+
+    def test_foreign_and_unowned_detail_404(self, store, client, django_user_model):
+        from django.urls import reverse
+
+        django_user_model.objects.create_user(username="se_viewer", password="x")
+        self._save("resp_se_foreign", "user:someone_else", output="secret")
+        self._save("resp_se_no_owner", None, output="legacy")
+
+        assert client.login(username="se_viewer", password="x")
+        foreign = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_foreign"}))
+        assert foreign.status_code == 404
+        unowned = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_no_owner"}))
+        assert unowned.status_code == 404
+
+        # Own session still loads.
+        self._save("resp_se_mine", "user:se_viewer", output="mine-ok")
+        mine = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_mine"}))
+        assert mine.status_code == 200
+        assert b"mine-ok" in mine.content
+
+
+@pytest.mark.django_db
+class TestResidualApiAuthSurfaces:
+    """Marketplace list views + ChatMessageViewSet respect ENABLE_API_AUTH."""
+
+    def test_marketplace_blueprints_requires_auth_when_enabled(self):
+        factory = APIRequestFactory()
+        request = factory.get("/marketplace/github/blueprints/")
+        from swarm.views.api_views import MarketplaceGitHubBlueprintsView
+
+        view = MarketplaceGitHubBlueprintsView.as_view()
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            response = view(request)
+        assert response.status_code in (401, 403)
+
+    def test_marketplace_mcp_requires_auth_when_enabled(self):
+        factory = APIRequestFactory()
+        request = factory.get("/marketplace/github/mcp-configs/")
+        from swarm.views.api_views import MarketplaceGitHubMCPConfigsView
+
+        view = MarketplaceGitHubMCPConfigsView.as_view()
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            response = view(request)
+        assert response.status_code in (401, 403)
+
+    def test_marketplace_open_when_api_auth_disabled(self):
+        factory = APIRequestFactory()
+        request = factory.get("/marketplace/github/blueprints/")
+        from swarm.views.api_views import MarketplaceGitHubBlueprintsView
+
+        view = MarketplaceGitHubBlueprintsView.as_view()
+        with override_settings(ENABLE_API_AUTH=False, SWARM_API_KEY=None, ENABLE_GITHUB_MARKETPLACE=False):
+            response = view(request)
+        assert response.status_code == 200
+
+    def test_chat_messages_require_auth_when_enabled(self):
+        factory = APIRequestFactory()
+        request = factory.get("/v1/chat-messages/")
+        from swarm.views.message_views import ChatMessageViewSet
+
+        view = ChatMessageViewSet.as_view({"get": "list"})
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            response = view(request)
+        assert response.status_code in (401, 403)
+
+    def test_chat_messages_open_when_api_auth_disabled(self):
+        factory = APIRequestFactory()
+        request = factory.get("/v1/chat-messages/")
+        from swarm.views.message_views import ChatMessageViewSet
+
+        view = ChatMessageViewSet.as_view({"get": "list"})
+        with override_settings(ENABLE_API_AUTH=False, SWARM_API_KEY=None):
+            response = view(request)
+        assert response.status_code == 200
+
