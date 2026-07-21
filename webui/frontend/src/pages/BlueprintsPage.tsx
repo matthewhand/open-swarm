@@ -27,21 +27,22 @@ export default function BlueprintsPage() {
       try {
         const res = await fetch('/v1/blueprints');
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as { data?: Record<string, unknown>[], blueprints?: Record<string, unknown>[] } | Record<string, unknown>[];
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
+          setBlueprints(list.map((b: Record<string, unknown>) => ({
             id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
+            name: String(b.name || b.id || 'unknown'),
+            description: String(b.description || b.desc || 'Blueprint for AI tasks'),
+            category: String(b.category || b.tag || 'General'),
+            version: String(b.version || '0.1'),
             installed: !!b.installed,
             featured: !!b.featured,
           })));
         } else {
           throw new Error('API not available');
         }
-      } catch (e) {
+      } catch (e: unknown) {
+        console.error(e);
         setError('Using demo data (backend /v1/blueprints not reachable in this env)');
         setBlueprints([
           {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},
@@ -73,7 +74,11 @@ export default function BlueprintsPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div
+      className="container mx-auto px-4 py-8"
+      aria-live="polite"
+      aria-busy={loading}
+    >
       <div className="mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-2 mb-2">
           <Book className="h-8 w-8" />
@@ -82,8 +87,8 @@ export default function BlueprintsPage() {
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
 
-      {error && <Alert type="warning">{error}</Alert>}
-      {launchResult && <Alert type="success" className="mb-4">{launchResult}</Alert>}
+      {error && <Alert type="warning" role="alert">{error}</Alert>}
+      {launchResult && <Alert type="success" className="mt-2" role="status">{launchResult}</Alert>}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">

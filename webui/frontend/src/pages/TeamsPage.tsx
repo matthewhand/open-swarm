@@ -43,9 +43,9 @@ const TeamsPage = () => {
       // These are also surfaced live via /v1/models and /v1/blueprints (merged in views/utils.py)
       const res = await fetch('/teams/export?format=json');
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as Record<string, { id?: string; description?: string; llm_profile?: string }>;
         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
+        const list: Team[] = Object.values(data || {}).map((t) => ({
           id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
           name: t.id || 'unknown-team',
           description: t.description || 'Dynamic team (no description)',
@@ -58,7 +58,8 @@ const TeamsPage = () => {
       } else {
         throw new Error('Export API failed');
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      console.error(e);
       setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
       // Fallback demo only on error
       setTeams([
@@ -80,7 +81,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
     setActionLoading(true);
     setError(null);
     try {
@@ -91,7 +92,8 @@ const TeamsPage = () => {
       await fetch('/teams/', { method: 'POST', body: fd });
       setSuccessMsg(`Deleted ${id}. Registry updated.`);
       await loadTeams();
-    } catch (e) {
+    } catch (e: unknown) {
+      console.error(e);
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
       setActionLoading(false);
@@ -128,8 +130,9 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      console.error(e);
+      setError(`Create failed via form POST: ${e instanceof Error ? e.message : String(e)}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -146,7 +149,11 @@ const TeamsPage = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div
+      className="container mx-auto px-4 py-8"
+      aria-live="polite"
+      aria-busy={loading || actionLoading}
+    >
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -167,8 +174,8 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {error && <Alert type="error" className="mb-4">{error}</Alert>}
-      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      {error && <Alert type="error" className="mb-4" role="alert">{error}</Alert>}
+      {successMsg && <Alert type="success" className="mb-4" role="status">{successMsg}</Alert>}
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">

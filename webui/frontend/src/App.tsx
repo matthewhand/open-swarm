@@ -84,7 +84,7 @@ function Dashboard() {
     const fetchStats = async () => {
       setLoadingStats(true);
       setErrorStats(null);
-      const health: any = {};
+      const health: { models?: string; blueprints?: string; teams?: string } = {};
       try {
         const [bpRes, mRes, tRes] = await Promise.all([
           fetch('/v1/blueprints'),
@@ -107,8 +107,11 @@ function Dashboard() {
           health.blueprints = bpRes.ok ? 'ok' : 'fail';
           setApiHealth(health);
         }
-      } catch (e: any) {
-        if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
+      } catch (e: unknown) {
+        if (!cancelled) {
+          console.error("Fetch error:", e instanceof Error ? e.message : String(e));
+          setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
+        }
       } finally {
         if (!cancelled) setLoadingStats(false);
       }
@@ -126,12 +129,16 @@ function Dashboard() {
       </Alert>
 
       {/* Stats Cards - semi-real from APIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+        aria-live="polite"
+        aria-busy={loadingStats}
+      >
         <Card compact bordered>
           <div className="stat">
             <div className="stat-title">Active Teams</div>
             {loadingStats ? (
-              <div className="stat-value text-primary">...</div>
+              <div className="stat-value text-primary" role="status" aria-label="Loading teams count">...</div>
             ) : (
               <div className="stat-value text-primary">{teamsCount ?? 4}</div>
             )}
@@ -143,7 +150,7 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Blueprints</div>
             {loadingStats ? (
-              <div className="stat-value text-secondary">...</div>
+              <div className="stat-value text-secondary" role="status" aria-label="Loading blueprints count">...</div>
             ) : (
               <div className="stat-value text-secondary">{blueprintCount ?? '?'}</div>
             )}
@@ -155,7 +162,7 @@ function Dashboard() {
           <div className="stat">
             <div className="stat-title">Models / Agents</div>
             {loadingStats ? (
-              <div className="stat-value text-accent">...</div>
+              <div className="stat-value text-accent" role="status" aria-label="Loading models count">...</div>
             ) : (
               <div className="stat-value text-accent">{modelCount ?? 24}</div>
             )}
