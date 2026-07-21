@@ -319,3 +319,154 @@ def load_full_configuration(
     logger.debug("Applied final env var substitution.")
 
     return final_config
+
+
+# --- Centralized LLM profile resolution (to eliminate per-blueprint hacks) ---
+
+def _apply_litellm_overrides(profile_data: dict) -> dict:
+    """
+    Apply LITELLM_* / OPENAI_BASE_URL env var overrides to a profile copy.
+    This centralizes the pattern previously duplicated in chatbot, codey, stewie, blueprint_base, etc.
+    - If LITELLM_BASE_URL (or OPENAI_BASE_URL) is set, override base_url (for local gateway use).
+    - If LITELLM_API_KEY (or OPENAI_API_KEY) is set, override api_key.
+    - If LITELLM_MODEL (or DEFAULT_LLM) is set, override model.
+    Preserves other profile fields (temperature, max_tokens, etc.).
+    Does NOT mutate input.
+    """
+    import os
+    if not isinstance(profile_data, dict):
+        profile_data = {}
+    resolved = dict(profile_data)
+    base = os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+    key = os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+    model = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM")
+    if base:
+        resolved["base_url"] = base
+    if key:
+        resolved["api_key"] = key
+    if model:
+        resolved["model"] = model
+    return resolved
+
+
+def get_resolved_llm_profile(
+    full_config: dict,
+    profile_name: str | None = None,
+    *,
+    allow_missing: bool = False,
+) -> dict | None:
+    """
+    Centralized resolver for an LLM profile from the (loaded+substituted) full_config.
+    Handles both 'llm': {name: {...}} and legacy 'llm': {'profiles': {name: ...}}.
+    Applies env LITELLM overrides automatically for consistent custom gateway usage.
+    Returns None (with warning) for 'none' or missing when allow_missing=True.
+    Raises clear actionable errors otherwise.
+    """
+    import logging
+    logger = logging.getLogger("swarm.config")
+
+    llm_section = (full_config or {}).get("llm", {}) or {}
+    name = profile_name or "default"
+
+    if name and str(name).lower() in ("none", ""):
+        logger.info("LLM profile 'none' requested; operating without LLM profile.")
+        return None
+
+    # Try direct key or profiles dict
+    profile = llm_section.get(name)
+    if not profile and "profiles" in llm_section:
+        profile = llm_section["profiles"].get(name)
+
+    if not profile:
+        if allow_missing:
+            logger.warning(f"LLM profile '{name}' not found (allow_missing). Available: {list(llm_section.keys())}")
+            return None
+        avail = list(llm_section.keys())
+        raise ValueError(f"LLM profile '{name}' not found in config. Available: {avail}. Hint: add it or use --profile default")
+
+    # Check provider before applying overrides (overrides don't supply provider)
+    if "provider" not in profile:
+        raise ValueError(f"'provider' missing in LLM profile '{name}'. Add a 'provider' key (e.g. 'openai').")
+
+    # Apply overrides
+    resolved = _apply_litellm_overrides(profile)
+
+    return resolved
+
+
+def list_available_llm_profiles(full_config: dict) -> list[str]:
+    """List available LLM profile names for help/error messages."""
+    llm_section = (full_config or {}).get("llm", {}) or {}
+    keys = list(llm_section.keys())
+    if "profiles" in llm_section and isinstance(llm_section["profiles"], dict):
+        keys.extend(list(llm_section["profiles"].keys()))
+    # dedup preserve order
+    seen = set()
+    return [k for k in keys if not (k in seen or seen.add(k))]
+
+
+# --- Additional unification helpers (find/load/save/validate etc.) for central config management ---
+# These consolidate logic previously duplicated in extensions/config/.
+
+import json
+import logging
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+DEFAULT_CONFIG_FILENAME = "swarm_config.json"
+
+
+def load_config(config_path: Path) -> dict[str, Any]:
+    logger.debug(f"Loading config from {config_path}")
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+        validate_config(config)
+        return _substitute_env_vars(config)
+    except FileNotFoundError:
+        logger.error(f"Config not found: {config_path} | " + _hint("swarm-cli config init"))
+        raise
+    except Exception as e:
+        logger.error(f"Load error {config_path}: {e}", exc_info=True)
+        raise
+
+
+def save_config(config: dict[str, Any], config_path: Path):
+    logger.info(f"Saving config to {config_path}")
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with config_path.open('w') as f:
+        json.dump(config, f, indent=4)
+
+
+def validate_config(config: dict[str, Any]):
+    if "llm" not in config or not isinstance(config.get("llm"), dict):
+        raise ValueError("Config 'llm' section missing/malformed. " + _hint("swarm-cli config add --section llm ..."))
+    logger.debug("Config structure OK.")
+
+
+def get_profile_from_config(config: dict[str, Any], profile_name: str) -> dict[str, Any]:
+    prof = config.get("llm", {}).get(profile_name)
+    if not prof:
+        raise ValueError(f"LLM profile '{profile_name}' not found. " + _hint("swarm-cli config list"))
+    return _substitute_env_vars(prof)
+
+
+def create_default_config(config_path: Path):
+    default = {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "api_key": "${OPENAI_API_KEY}",
+                "base_url": None,
+            }
+        },
+        "settings": {"default_markdown_output": True},
+    }
+    save_config(default, config_path)
+    logger.warning(_hint("Set OPENAI_API_KEY or run config add for profiles."))
+
+
+# Reexports for server config compat (from .server_config)
+from .server_config import load_server_config, save_server_config  # noqa: E402,F401

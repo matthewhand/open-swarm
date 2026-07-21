@@ -11,6 +11,20 @@ export default defineConfig({
     server: {
         port: 3000,
         proxy: {
+            // Proxy API routes used by the modern React webui (after porting/cleanup)
+            // Enables direct fetch('/v1/...') and fetch('/teams/...') etc. in dev
+            '/v1': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/teams': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/marketplace': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
             '/api': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,

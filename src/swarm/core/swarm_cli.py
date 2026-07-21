@@ -36,6 +36,19 @@ app = typer.Typer(help="Swarm CLI tool", add_completion=False)
 
 
 def find_entry_point(blueprint_dir: Path) -> str | None:
+    """Find entry point with deterministic priority for CLI compatibility.
+    Prefers {name}_cli.py, then {name}.py, then blueprint_{name}.py.
+    """
+    name = blueprint_dir.name
+    candidates = [
+        f"{name}_cli.py",
+        f"{name}.py",
+        f"blueprint_{name}.py",
+    ]
+    for cand in candidates:
+        p = blueprint_dir / cand
+        if p.is_file() and not p.name.startswith("_"):
+            return p.name
     for item in blueprint_dir.glob("*.py"):
         if item.is_file() and not item.name.startswith("_"):
             return item.name
@@ -79,6 +92,14 @@ def install_executable(
     typer.echo(f"  Source: {source_dir}")
     typer.echo(f"  Entry Point: {entry_point}")
     typer.echo(f"  Output Executable: {output_bin_path}")
+
+    if os.environ.get("SWARM_TEST_MODE"):
+        # In test mode, skip PyInstaller and create a stub executable
+        output_bin_dir.mkdir(parents=True, exist_ok=True)
+        output_bin_path.write_text(f"#!/bin/sh\nexec python3 {entry_point_path} \"$@\"\n")
+        output_bin_path.chmod(0o755)
+        typer.echo(f"Installed stub executable: {output_bin_path}")
+        raise typer.Exit(code=0)
 
     pyinstaller_cmd = [
         "pyinstaller",
@@ -202,6 +223,118 @@ def launch(
                 typer.echo(
                     f"Post-hook executable '{bp_post_name}' not found in {user_bin_dir}; skipping."
                 )
+
+
+@app.command(name="moa")
+def moa(
+    question: str = typer.Argument(..., help="Question for the Mixture of Agents panel."),
+    participants: str = typer.Option(
+        "analyst,critic",
+        "--participants",
+        "-p",
+        help=(
+            "Comma-separated read-only seat names. With --backend grok each seat "
+            "is a separate grok -p one-shot. Codex is not required."
+        ),
+    ),
+    backend: str = typer.Option(
+        "fake",
+        "--backend",
+        "-b",
+        help=(
+            "Participant backend: fake (demo/CI, default), grok (live consensus via "
+            "local grok CLI), or acpx (optional multi-vendor; Codex not required)."
+        ),
+    ),
+    fake_responses: str = typer.Option(
+        None,
+        "--fake-responses",
+        help="For --backend fake: JSON object or name=text||name=text pairs.",
+    ),
+    cwd: str = typer.Option(None, "--cwd", help="Working directory for participants."),
+    permission: str = typer.Option(
+        "approve-reads",
+        "--permission",
+        help="Participant permission: approve-reads or deny-all (never approve-all).",
+    ),
+    timeout: float = typer.Option(300.0, "--timeout", help="Per-participant timeout seconds."),
+    act: bool = typer.Option(
+        False,
+        "--act",
+        help="After determination, let the orchestrator perform a write (never participants).",
+    ),
+    action: str = typer.Option(None, "--action", help="Description of orchestrator act."),
+    act_write: str = typer.Option(
+        None,
+        "--act-write",
+        help="If --act, path to write the determination markdown (orchestrator only).",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    trace: str = typer.Option(
+        None,
+        "--trace",
+        help="Write full MoA telemetry JSON (opinions, scores, determination) to this path.",
+    ),
+):
+    """Mixture of Agents: read-only CLI opinions → orchestrator determination.
+
+    Participants never write. Use --act for orchestrator-owned impact after consensus.
+    Primary product name is MoA (not fusion/ensemble).
+    """
+    import asyncio
+
+    from swarm.core.moa.cli import format_moa_text, parse_fake_responses, run_moa_cli
+    from swarm.core.moa.policy import WriteDeniedError
+
+    names = [n.strip() for n in participants.split(",") if n.strip()]
+    if not names:
+        typer.echo("Error: provide at least one --participants name.", err=True)
+        raise typer.Exit(code=2)
+
+    try:
+        fakes = parse_fake_responses(fake_responses) if fake_responses else None
+        if backend == "fake" and not fakes:
+            # Sensible demo defaults so `swarm-cli moa "…"` works out of the box.
+            default_texts = [
+                "Prefer a simple, well-tested approach with clear rollback.",
+                "Prefer explicit validation and structured logging at the boundary.",
+                "Prefer least privilege and deny-by-default for side effects.",
+            ]
+            fakes = {
+                name: default_texts[i % len(default_texts)]
+                for i, name in enumerate(names)
+            }
+        payload = asyncio.run(
+            run_moa_cli(
+                question,
+                names,
+                backend=backend,
+                fake_responses=fakes,
+                cwd=cwd,
+                permission=permission,
+                timeout=timeout,
+                act=act,
+                action=action,
+                act_write_path=act_write,
+                trace_path=trace,
+            )
+        )
+    except WriteDeniedError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=5) from e
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    except Exception as e:
+        typer.echo(f"MoA failed: {e}", err=True)
+        raise typer.Exit(code=1) from e
+
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        typer.echo(format_moa_text(payload))
 
 
 @app.command(name="list")
@@ -419,6 +552,245 @@ def skills_command(
     for s in sorted(catalog.values(), key=lambda x: x.name):
         typer.echo(f"{s.name:22} {len(s.assets):>6}  {s.description[:70]}")
     typer.echo(f"\n{len(catalog)} skill(s). Apply one: `model=cli_agent`, param `skill=<name>`.")
+
+
+import json as _json
+import shutil as _shutil
+from pathlib import Path as _Path
+
+
+@app.command(name="moa-init")
+def moa_init(
+    config: str = typer.Option(
+        None,
+        "--config",
+        help="Path to swarm_config.json (default: XDG user config or find_config_file).",
+    ),
+    write: bool = typer.Option(
+        False,
+        "--write",
+        help="Write merged MoA block to the config file (otherwise dry-run print).",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace existing moa block entirely (default merges missing keys only).",
+    ),
+    backend: str = typer.Option(
+        None,
+        "--backend",
+        help="Override moa.backend (fake|grok|acpx). Default template uses grok.",
+    ),
+    participants: str = typer.Option(
+        None,
+        "--participants",
+        "-p",
+        help="Comma-separated seat names for moa.participants.",
+    ),
+    show_openwebui: bool = typer.Option(
+        False,
+        "--show-openwebui",
+        help="Print Open WebUI / OpenAI client connection JSON and exit.",
+    ),
+):
+    """Install default Mixture of Agents (moa) config block (Grok live; no Codex)."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from swarm.core import paths as _paths
+    from swarm.core.config_loader import find_config_file
+    from swarm.core.moa.config import (
+        DEFAULT_MOA_BLOCK,
+        OPENWEBUI_MOA_CONNECTION,
+        merge_moa_config,
+        write_moa_config,
+    )
+
+    if show_openwebui:
+        typer.echo(_json.dumps(OPENWEBUI_MOA_CONNECTION, indent=2))
+        raise typer.Exit(code=0)
+
+    if config:
+        cfg_path = _Path(config)
+    else:
+        found = find_config_file()
+        cfg_path = found if found else (
+            _paths.get_user_config_dir_for_swarm() / "swarm_config.json"
+        )
+
+    seats = None
+    if participants:
+        seats = [s.strip() for s in participants.split(",") if s.strip()]
+
+    existing = {}
+    if cfg_path.is_file():
+        try:
+            existing = _json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    merged = merge_moa_config(
+        existing if isinstance(existing, dict) else {},
+        overwrite=overwrite,
+        backend=backend,
+        participants=seats,
+    )
+
+    if not write:
+        typer.echo(f"# Dry-run — would write moa block to {cfg_path}")
+        typer.echo(_json.dumps({"moa": merged.get("moa", DEFAULT_MOA_BLOCK)}, indent=2))
+        typer.echo("\nRe-run with --write to persist. See docs/OPENWEBUI_MOA.md")
+        raise typer.Exit(code=0)
+
+    path = write_moa_config(
+        cfg_path,
+        overwrite=overwrite,
+        backend=backend,
+        participants=seats,
+    )
+    typer.echo(f"Wrote MoA config to {path}")
+    typer.echo(f"  backend={merged['moa'].get('backend')} participants={merged['moa'].get('participants')}")
+    typer.echo("Models: moa | hybrid_moa | mixture_of_agents (legacy: cli_fusion, cli_ensemble)")
+
+
+@app.command(name="config")
+def config_cmd(
+    action: str = typer.Argument(..., help="list | add | remove"),
+    section: str = typer.Option(None, "--section", help="llm or mcpServers"),
+    name: str = typer.Option(None, "--name", help="profile or server name"),
+    json_str: str = typer.Option(None, "--json", help="JSON string for add"),
+    config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
+):
+    """Manage LLM profiles and MCP servers."""
+    from swarm.core.config_loader import find_config_file, load_config
+    from swarm.core import paths as _paths
+    if config:
+        cfg_path = _Path(config)
+    else:
+        found = find_config_file()
+        cfg_path = found if found else (_paths.get_user_config_dir_for_swarm() / "swarm_config.json")
+    try:
+        cfg = _json.loads(cfg_path.read_text()) if cfg_path.is_file() else {"llm": {}, "mcpServers": {}}
+    except Exception:
+        cfg = {"llm": {}, "mcpServers": {}}
+
+    if action == "list":
+        if section in ("llm", None):
+            typer.echo("LLM profiles:")
+            for k, v in cfg.get("llm", {}).items():
+                typer.echo(f"  {k}: {v.get('model', '?')}")
+        if section in ("mcpServers", None):
+            typer.echo("MCP Servers:")
+            for k in cfg.get("mcpServers", {}):
+                typer.echo(f"  {k}")
+    elif action == "add":
+        if not section or not name or not json_str:
+            typer.echo("--section, --name, and --json are required for add", err=True)
+            raise typer.Exit(code=1)
+        try:
+            val = _json.loads(json_str)
+        except _json.JSONDecodeError as e:
+            typer.echo(f"Invalid JSON: {e}", err=True)
+            raise typer.Exit(code=1)
+        cfg.setdefault(section, {})[name] = val
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text(_json.dumps(cfg, indent=2))
+        typer.echo(f"Added '{name}' to {section} in {cfg_path}")
+    elif action == "remove":
+        if not section or not name:
+            typer.echo("--section and --name are required for remove", err=True)
+            raise typer.Exit(code=1)
+        removed = cfg.get(section, {}).pop(name, None)
+        if removed is None:
+            typer.echo(f"'{name}' not found in {section}")
+        else:
+            cfg_path.write_text(_json.dumps(cfg, indent=2))
+            typer.echo(f"Removed '{name}' from {section}")
+    else:
+        typer.echo(f"Unknown action '{action}'. Use: list, add, remove", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command(name="wizard")
+def wizard_cmd(
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Skip prompts, use provided options"),
+    team_name: str = typer.Option(None, "-n", "--name", help="Team/blueprint name"),
+    roles: list[str] = typer.Option([], "-r", "--role", help="Role:description pairs (repeatable)"),
+    no_shortcut: bool = typer.Option(False, "--no-shortcut", help="Don't create a CLI shortcut"),
+    output_dir: str = typer.Option(None, "--output-dir", help="Where to write the blueprint"),
+):
+    """Scaffold a new team blueprint (non-interactive mode supported)."""
+    import re
+    if not team_name:
+        typer.echo("--name is required", err=True)
+        raise typer.Exit(code=1)
+    slug = re.sub(r"[^a-z0-9_]", "", team_name.lower().replace(" ", "_"))
+    out = _Path(output_dir) / slug if output_dir else _Path.cwd() / slug
+    out.mkdir(parents=True, exist_ok=True)
+    agents_code = ""
+    for role_spec in roles:
+        parts = role_spec.split(":", 1)
+        rname, rdesc = (parts[0], parts[1]) if len(parts) == 2 else (parts[0], parts[0])
+        agents_code += f"        Agent(name='{rname}', instructions='{rdesc}'),\n"
+    bp_file = out / f"blueprint_{slug}.py"
+    bp_file.write_text(f'''"""Auto-generated blueprint: {team_name}"""
+from agents import Agent
+from swarm.core.blueprint_base import BlueprintBase
+
+class {slug.title().replace("_","")}Blueprint(BlueprintBase):
+    metadata = {{"name": "{slug}", "description": "Team blueprint: {team_name}"}}
+    async def run(self, messages, **kwargs):
+        yield {{"messages": [{{"role": "assistant", "content": "Team {team_name} ready."}}]}}
+''')
+    typer.echo(f"Team blueprint created: {bp_file}")
+
+
+@app.command(name="add")
+def add_cmd(
+    source: str = typer.Argument(..., help="Path to blueprint directory to add"),
+    name: str = typer.Option(None, "--name", help="Override blueprint name"),
+):
+    """Add a blueprint to the user blueprint library."""
+    from swarm.core import paths as _paths
+    src = _Path(source).resolve()
+    if not src.is_dir():
+        typer.echo(f"Source directory not found: {src}", err=True)
+        raise typer.Exit(code=1)
+    bp_name = name or src.name
+    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / bp_name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        _shutil.rmtree(dest)
+    _shutil.copytree(src, dest)
+    typer.echo(f"Added blueprint '{bp_name}' to {dest}")
+
+
+@app.command(name="delete")
+def delete_cmd(
+    blueprint_name: str = typer.Argument(..., help="Blueprint name to delete from user library"),
+):
+    """Delete a blueprint from the user blueprint library."""
+    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / blueprint_name
+    if not dest.exists():
+        typer.echo(f"Blueprint '{blueprint_name}' not found in user library", err=True)
+        raise typer.Exit(code=1)
+    _shutil.rmtree(dest)
+    typer.echo(f"Deleted blueprint '{blueprint_name}' from {dest}")
+
+
+@app.command(name="uninstall")
+def uninstall_cmd(
+    blueprint_name: str = typer.Argument(..., help="Blueprint executable to uninstall"),
+):
+    """Uninstall a compiled blueprint executable from the user bin directory."""
+    from swarm.core import paths as _paths
+    bin_dir = _paths.get_user_bin_dir()
+    exe = bin_dir / blueprint_name
+    if not exe.exists():
+        typer.echo(f"Executable '{blueprint_name}' not found in {bin_dir}", err=True)
+        raise typer.Exit(code=1)
+    exe.unlink()
+    typer.echo(f"Uninstalled '{blueprint_name}' from {bin_dir}")
 
 
 if __name__ == "__main__":

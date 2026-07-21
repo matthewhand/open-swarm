@@ -61,5 +61,9 @@ CMD if [ -n "$SWAPFILE_PATH" ]; then \
       python manage.py migrate; \
     fi && \
     echo "--- Starting Django Server (Default CMD) ---" && \
-    python manage.py runserver 0.0.0.0:$PORT
+    if [ "${DJANGO_DEBUG:-true}" = "false" ] || [ "${DJANGO_DEBUG:-true}" = "False" ]; then \
+      python manage.py runserver --noreload 0.0.0.0:$PORT ; \
+    else \
+      python manage.py runserver 0.0.0.0:$PORT ; \
+    fi
 

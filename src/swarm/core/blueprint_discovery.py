@@ -27,7 +27,9 @@ class BlueprintMetadata(TypedDict, total=False):
     # Optional extended fields commonly used by blueprints
     required_mcp_servers: list[str] | None
     env_vars: list[str] | None
-    tool_requirements: dict[str, str] | None
+    tool_requirements: dict[str, str] | None  # capability -> "mandatory"|"optional"
+    deprecated: bool | None
+    status: str | None
     # Add other common metadata fields here if needed for typing
 
 class DiscoveredBlueprintInfo(TypedDict):
@@ -44,27 +46,16 @@ class BlueprintLoadError(Exception):
 # It might be useful if blueprint names from directories need canonicalization.
 # def _get_blueprint_name_from_dir(dir_name: str) -> str:
 #     """Converts directory name (e.g., 'blueprint_my_agent') to blueprint name (e.g., 'my_agent')."""
-#     prefix = "blueprint_"
-#     if dir_name.startswith(prefix):
-#         return dir_name[len(prefix):]
-#     return dir_name
-
-def discover_blueprints(
-    blueprint_dir: str, namespace: str | None = None
-) -> dict[str, DiscoveredBlueprintInfo]:
+def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dict[str, DiscoveredBlueprintInfo]:
     """
     Discovers blueprints by looking for Python files within subdirectories
     of the given blueprint directory. Extracts metadata including name, version,
     description (with docstring fallback), and abbreviation.
+    Supports `deprecated: true` and `status` in bp.metadata for incomplete bps
+    (see audit_status.json; future: skip in list or warn in CLI/UI). CI hint: gate on no "incomplete" in prod lists.
 
     Args:
         blueprint_dir: The path to the directory containing blueprint subdirectories.
-        namespace: When set, modules are loaded under
-            ``<namespace>.<dir>.<file>`` instead of being derived from the
-            on-disk folder structure, and the directory tree is NOT added to
-            ``sys.path``. Use this for *external* (community) blueprint roots so
-            they cannot collide with or shadow the bundled ``swarm.blueprints``
-            package. Leave ``None`` for the bundled root (legacy behavior).
 
     Returns:
         A dictionary mapping blueprint directory names (as keys) to
@@ -99,41 +90,48 @@ def discover_blueprints(
             py_file_path = subdir / f"blueprint_{blueprint_key_name}.py"
             py_file_name = py_file_path.name
             if not py_file_path.is_file():
+                # Special handling for stubs like messenger (no py impl - mark properly)
+                if blueprint_key_name == "messenger":
+                    logger.info(f"Recognized stub blueprint dir without py: {blueprint_key_name}")
+                    stub_meta: BlueprintMetadata = {
+                        'name': 'messenger',
+                        'abbreviation': 'msg',
+                        'description': 'Messenger UI template/theme only (stub; no Python implementation)',
+                        'version': None,
+                        'author': None,
+                        'required_mcp_servers': [],
+                        'env_vars': [],
+                    }
+                    # Use minimal class stub for type
+                    class _MessengerStub(BlueprintBase):
+                        metadata = stub_meta
+                        def run(self, *a, **k): return; yield  # type: ignore
+                    _MessengerStub.__module__ = f"swarm.blueprints.messenger.blueprint_messenger"
+                    blueprints[blueprint_key_name] = DiscoveredBlueprintInfo(
+                        class_type=_MessengerStub,
+                        metadata=stub_meta
+                    )
+                    continue
                 logger.warning(f"Skipping directory '{subdir.name}': No suitable main Python file "
                                f"('{blueprint_key_name}.py' or 'blueprint_{blueprint_key_name}.py') found.")
                 continue
 
         logger.debug(f"Found blueprint file: {py_file_name} in {subdir}")
 
-        # Construct module import path. Example: swarm.blueprints.codey.codey
-        # This assumes 'swarm.blueprints' is a package containing subdirectories for each blueprint.
-        # The base_dir is typically .../swarm/blueprints/
-        # So, subdir.name would be 'codey', py_file_path.stem would be 'codey'
+        # Construct module import path, using namespace if provided (for community blueprints)
         if namespace:
-            # External/community root: synthetic, collision-proof module name.
             module_import_path = f"{namespace}.{subdir.name}.{py_file_path.stem}"
         else:
             module_import_path = f"{base_dir.parent.name}.{base_dir.name}.{subdir.name}.{py_file_path.stem}"
-        # A more robust way if base_dir is not always '.../swarm/blueprints':
-        # Find the 'swarm' package root relative to py_file_path and build from there.
-        # For now, assuming a fixed structure like 'swarm.blueprints.blueprint_name.module_name'
-        # If blueprint_dir is 'src/swarm/blueprints', then base_dir.parent.name is 'swarm', base_dir.name is 'blueprints'.
-        # Example: src/swarm/blueprints/codey/codey.py -> swarm.blueprints.codey.codey
 
         try:
             # Ensure the parent of 'swarm' (e.g., 'src') is in sys.path if not already.
             # This helps Python find the 'swarm' package.
             # If blueprint_dir is 'src/swarm/blueprints', then base_dir.parent.parent is 'src'.
-            # Only the bundled root is added to sys.path (so 'swarm.blueprints.*'
-            # resolves). External roots are loaded purely by file path under a
-            # synthetic namespace and must NOT inject their tree onto sys.path —
-            # a community dir named '.../swarm/blueprints' would otherwise shadow
-            # the installed package.
-            if not namespace:
-                project_src_dir = str(base_dir.parent.parent)
-                if project_src_dir not in sys.path:
-                    logger.debug(f"Adding '{project_src_dir}' to sys.path for module import.")
-                    sys.path.insert(0, project_src_dir)
+            project_src_dir = str(base_dir.parent.parent)
+            if project_src_dir not in sys.path:
+                logger.debug(f"Adding '{project_src_dir}' to sys.path for module import.")
+                sys.path.insert(0, project_src_dir)
 
             module_spec = importlib.util.spec_from_file_location(module_import_path, py_file_path)
 
@@ -145,11 +143,19 @@ def discover_blueprints(
                 logger.debug(f"Successfully loaded module: {module_import_path}")
 
                 found_bp_class_details = None
+                seen_class_ids: set[int] = set()
                 for member_name, member_obj in inspect.getmembers(module):
                     if inspect.isclass(member_obj) and \
                        issubclass(member_obj, BlueprintBase) and \
                        member_obj is not BlueprintBase and \
                        member_obj.__module__ == module_import_path: # Ensure class is defined in this module
+
+                        # Skip re-exports / legacy aliases of the same class object
+                        # (e.g. CliFusionBlueprint = MoABlueprint).
+                        cid = id(member_obj)
+                        if cid in seen_class_ids:
+                            continue
+                        seen_class_ids.add(cid)
 
                         if found_bp_class_details:
                             logger.warning(f"Multiple BlueprintBase subclasses found in {py_file_name}. "
@@ -191,8 +197,9 @@ def discover_blueprints(
                             'abbreviation': full_meta.get('abbreviation'),
                             'required_mcp_servers': full_meta.get('required_mcp_servers'),
                             'env_vars': full_meta.get('env_vars'),
-                            # Capability-based tool needs (swarm.core.tool_capabilities).
                             'tool_requirements': full_meta.get('tool_requirements'),
+                            'deprecated': full_meta.get('deprecated'),
+                            'status': full_meta.get('status'),
                         }
 
                         found_bp_class_details = DiscoveredBlueprintInfo(
@@ -201,7 +208,23 @@ def discover_blueprints(
                         )
                         # Storing by blueprint_key_name (directory name)
                         blueprints[blueprint_key_name] = found_bp_class_details
-                        # break # Found the class, no need to check other members of this module for BP classes
+                        # Also register metadata aliases (e.g. moa → mixture_of_agents, cli_fusion)
+                        aliases = full_meta.get("aliases") or []
+                        if isinstance(aliases, (list, tuple, set, frozenset)):
+                            for alias in aliases:
+                                key = str(alias).strip()
+                                if not key or key in blueprints:
+                                    continue
+                                blueprints[key] = found_bp_class_details
+                                logger.debug(
+                                    "Registered blueprint alias %r → %r",
+                                    key,
+                                    blueprint_key_name,
+                                )
+                        # Canonical metadata name (if distinct from directory)
+                        meta_name = str(full_meta.get("name") or "").strip()
+                        if meta_name and meta_name not in blueprints:
+                            blueprints[meta_name] = found_bp_class_details
 
                 if not found_bp_class_details:
                     logger.warning(f"No BlueprintBase subclass found directly defined in module: {module_import_path}")
@@ -216,91 +239,6 @@ def discover_blueprints(
 
     logger.info(f"Blueprint discovery complete. Found {len(blueprints)} blueprints: {list(blueprints.keys())}")
     return blueprints
-
-
-def merge_community_blueprints(
-    base: dict[str, DiscoveredBlueprintInfo],
-    extra_dirs: "list[str] | None" = None,
-) -> dict[str, DiscoveredBlueprintInfo]:
-    """Merge external/community blueprint roots into an already-discovered dict.
-
-    ``base`` (the bundled blueprints) is authoritative: a community blueprint
-    whose key collides with one already present is ignored (and logged), never
-    allowed to shadow it. Each external root is loaded under its own synthetic
-    namespace so module names cannot clash. Missing/!dir roots are skipped
-    silently — the common case is that the community dir doesn't exist yet.
-
-    Kept separate from :func:`discover_blueprints` so call sites can still patch
-    the bundled discovery in tests while this no-ops over empty community roots.
-    """
-    merged = dict(base)
-    for index, directory in enumerate(extra_dirs or []):
-        if not directory or not Path(directory).is_dir():
-            continue
-        namespace = f"swarm_community_{index}"
-        try:
-            found = discover_blueprints(directory, namespace=namespace)
-        except Exception:
-            logger.exception("Failed discovering community blueprints in %s", directory)
-            continue
-        for name, info in found.items():
-            if name in merged:
-                logger.warning(
-                    "Community blueprint %r in %s collides with a bundled blueprint; ignoring it.",
-                    name, directory,
-                )
-                continue
-            merged[name] = info
-    return merged
-
-
-# Canonical 'swarm_*' names for the multi-agent orchestration *patterns*. The
-# implementations live in the original 'cli_*' dirs (the prefix once meant "runs
-# over CLIs"); these patterns are really Swarm primitives, so 'swarm_*' is the
-# promoted public name while 'cli_*' stays as a back-compat alias. cli_agent
-# keeps its name — it literally runs one CLI. Maps canonical -> implementation key.
-BLUEPRINT_ALIASES: dict[str, str] = {
-    "swarm_ensemble": "cli_fusion",
-    "swarm_map": "cli_map",
-    "swarm_recurse": "cli_recurse",
-    "swarm_pipeline": "cli_pipeline",
-    "swarm_roundtable": "cli_roundtable",
-    "swarm_planner": "cli_planner",
-    "swarm_orchestrator": "cli_orchestrator",
-}
-
-
-def apply_blueprint_aliases(
-    blueprints: dict[str, DiscoveredBlueprintInfo],
-) -> dict[str, DiscoveredBlueprintInfo]:
-    """Register canonical ``swarm_*`` aliases for discovered ``cli_*`` patterns.
-
-    Each alias points at the SAME class as its target but advertises the canonical
-    name in its metadata. The ``model`` value the client sends is what drives the
-    ``system_fingerprint``, so ``swarm_recurse`` and ``cli_recurse`` both work and
-    self-describe correctly. Skips an alias whose target wasn't discovered, and
-    never overwrites a real blueprint of the same name.
-    """
-    for alias, target in BLUEPRINT_ALIASES.items():
-        if alias in blueprints or target not in blueprints:
-            continue
-        info = dict(blueprints[target])
-        meta = dict(info.get("metadata") or {})
-        meta["name"] = alias
-        info["metadata"] = meta
-        blueprints[alias] = info
-    return blueprints
-
-
-def discover_all_blueprints(
-    bundled_dir: str,
-    extra_dirs: "list[str] | None" = None,
-) -> dict[str, DiscoveredBlueprintInfo]:
-    """Convenience: discover the bundled root, merge community roots, add aliases."""
-    return apply_blueprint_aliases(
-        merge_community_blueprints(discover_blueprints(bundled_dir), extra_dirs)
-    )
-
 
 if __name__ == '__main__':
     # Example Usage (assuming you have a 'blueprints' directory structured correctly)
@@ -351,3 +289,64 @@ if __name__ == '__main__':
     # shutil.rmtree("src/swarm/blueprints/example_bp")
     # Path("src/swarm/core/blueprint_base.py").unlink()
     # Potentially rmdir for src/swarm/core and src/swarm/blueprints if they were created solely for this
+
+def merge_community_blueprints(
+    base: dict[str, DiscoveredBlueprintInfo],
+    extra_dirs: "list[str] | None" = None,
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Merge external/community blueprint roots into an already-discovered dict."""
+    merged = dict(base)
+    for index, directory in enumerate(extra_dirs or []):
+        if not directory or not Path(directory).is_dir():
+            continue
+        namespace = f"swarm_community_{index}"
+        try:
+            found = discover_blueprints(directory)
+        except Exception:
+            logger.exception("Failed discovering community blueprints in %s", directory)
+            continue
+        for name, info in found.items():
+            if name in merged:
+                logger.warning(
+                    "Community blueprint %r in %s collides with a bundled blueprint; ignoring it.",
+                    name, directory,
+                )
+                continue
+            merged[name] = info
+    return merged
+
+
+BLUEPRINT_ALIASES: dict[str, str] = {
+    "swarm_ensemble": "cli_fusion",
+    "swarm_map": "cli_map",
+    "swarm_recurse": "cli_recurse",
+    "swarm_pipeline": "cli_pipeline",
+    "swarm_roundtable": "cli_roundtable",
+    "swarm_planner": "cli_planner",
+    "swarm_orchestrator": "cli_orchestrator",
+}
+
+
+def apply_blueprint_aliases(
+    blueprints: dict[str, DiscoveredBlueprintInfo],
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Register canonical ``swarm_*`` aliases for discovered ``cli_*`` patterns."""
+    for alias, target in BLUEPRINT_ALIASES.items():
+        if alias in blueprints or target not in blueprints:
+            continue
+        info = dict(blueprints[target])
+        meta = dict(info.get("metadata") or {})
+        meta["name"] = alias
+        info["metadata"] = meta
+        blueprints[alias] = info
+    return blueprints
+
+
+def discover_all_blueprints(
+    blueprint_dir: str,
+    extra_dirs: "list[str] | None" = None,
+) -> dict[str, DiscoveredBlueprintInfo]:
+    """Discover bundled + community blueprints and apply aliases."""
+    base = discover_blueprints(blueprint_dir)
+    merged = merge_community_blueprints(base, extra_dirs)
+    return apply_blueprint_aliases(merged)

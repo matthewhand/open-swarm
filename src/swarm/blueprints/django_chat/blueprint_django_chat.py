@@ -11,7 +11,16 @@ import os
 import sys
 import threading
 import time
-from typing import Any
+from typing import Any, ClassVar
+
+# Ensure src path + django settings VERY EARLY (fixes django_chat settings load issues on import/discovery)
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+_src_path = os.path.join(_project_root, 'src')
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
+import django
+django.setup()
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -25,12 +34,6 @@ from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
-
-# Django imports after CLI rejection
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-import django
-
-django.setup()
 
 # --- Logging Setup ---
 def setup_logging():

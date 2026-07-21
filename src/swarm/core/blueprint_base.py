@@ -49,7 +49,12 @@ if os.environ.get("SWARM_ENABLE_AGENT_TRACING", "").lower() not in ("1", "true",
     set_tracing_disabled(True)
 
 # Keep the function import
-from swarm.core.config_loader import _substitute_env_vars
+from swarm.core.config_loader import (
+    _substitute_env_vars,
+    get_resolved_llm_profile,
+    _apply_litellm_overrides,
+    list_available_llm_profiles,
+)
 
 logger = logging.getLogger(__name__)
 # --- PATCH: Suppress OpenAI tracing/telemetry errors if using LiteLLM/custom endpoint ---
@@ -125,7 +130,8 @@ def configure_openai_client_from_env():
     import os
     base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
     api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    _debug_print(f"[DEBUG] Using OpenAI client config: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
+    if _should_debug():
+        _debug_print(f"[DEBUG] Using OpenAI client config: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
     if base_url and api_key:
         client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         set_default_openai_client(client)
@@ -189,7 +195,8 @@ class BlueprintBase(ABC):
                     if not hasattr(app_config_instance, 'config') or not app_config_instance.config:
                         raise ValueError("AppConfig for 'swarm' does not have a valid 'config' attribute.")
                     self._config = app_config_instance.config
-                    print("[SWARM_CONFIG_DEBUG] Loaded config from Django AppConfig.")
+                    if os.environ.get("SWARM_CONFIG_DEBUG"):
+                        print("[SWARM_CONFIG_DEBUG] Loaded config from Django AppConfig.")
                 except Exception as e:
                     if _should_debug():
                         logger.warning(f"Falling back to CLI/home config due to error: {e}")
@@ -197,7 +204,8 @@ class BlueprintBase(ABC):
                     if self.config_path is not None:
                         config_path = Path(self.config_path)
                         if config_path.exists():
-                            print(f"[SWARM_CONFIG_DEBUG] Loaded from self.config_path: {config_path}")
+                            if os.environ.get("SWARM_CONFIG_DEBUG"):
+                                print(f"[SWARM_CONFIG_DEBUG] Loaded from self.config_path: {config_path}")
                             with open(config_path) as f:
                                 self._config = json.load(f)
                         else:
@@ -208,9 +216,11 @@ class BlueprintBase(ABC):
                         swarm_config_path_env = os.environ.get("SWARM_CONFIG_PATH")
                         if swarm_config_path_env:
                             swarm_config_path = Path(swarm_config_path_env)
-                            print(f"[SWARM_CONFIG_DEBUG] Trying SWARM_CONFIG_PATH: {swarm_config_path}")
+                            if os.environ.get("SWARM_CONFIG_DEBUG"):
+                                print(f"[SWARM_CONFIG_DEBUG] Trying SWARM_CONFIG_PATH: {swarm_config_path}")
                             if swarm_config_path.exists():
-                                print(f"[SWARM_CONFIG_DEBUG] Loaded: {swarm_config_path}")
+                                if os.environ.get("SWARM_CONFIG_DEBUG"):
+                                    print(f"[SWARM_CONFIG_DEBUG] Loaded: {swarm_config_path}")
                                 with open(swarm_config_path) as f:
                                     self._config = json.load(f)
                             else:
@@ -221,37 +231,44 @@ class BlueprintBase(ABC):
                         # 2. Current working directory (guard against missing CWD)
                         try:
                             cwd_config = Path.cwd() / "swarm_config.json"
-                            print(f"[SWARM_CONFIG_DEBUG] Trying: {cwd_config}")
+                            if os.environ.get("SWARM_CONFIG_DEBUG"):
+                                print(f"[SWARM_CONFIG_DEBUG] Trying: {cwd_config}")
                         except Exception as e:
                             cwd_config = None
                             if _should_debug():
                                 logger.warning(f"Unable to determine CWD for config lookup: {e}")
                         if cwd_config and cwd_config.exists():
-                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
+                            if os.environ.get("SWARM_CONFIG_DEBUG"):
+                                print(f"[SWARM_CONFIG_DEBUG] Loaded: {cwd_config}")
                             with open(cwd_config) as f:
                                 self._config = json.load(f)
                     # 3. XDG_CONFIG_HOME or ~/.config/swarm/swarm_config.json
                     elif os.environ.get("XDG_CONFIG_HOME"):
                         xdg_config = Path(os.environ["XDG_CONFIG_HOME"]) / "swarm" / "swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Trying: {xdg_config}")
+                        if os.environ.get("SWARM_CONFIG_DEBUG"):
+                            print(f"[SWARM_CONFIG_DEBUG] Trying: {xdg_config}")
                         if xdg_config.exists():
-                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {xdg_config}")
+                            if os.environ.get("SWARM_CONFIG_DEBUG"):
+                                print(f"[SWARM_CONFIG_DEBUG] Loaded: {xdg_config}")
                             with open(xdg_config) as f:
                                 self._config = json.load(f)
                     elif (Path.home() / ".config/swarm/swarm_config.json").exists():
                         home_config = Path.home() / ".config/swarm/swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Loaded: {home_config}")
+                        if os.environ.get("SWARM_CONFIG_DEBUG"):
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {home_config}")
                         with open(home_config) as f:
                             self._config = json.load(f)
                     # 4. Legacy fallback: ~/.swarm/swarm_config.json
                     elif (Path.home() / ".swarm/swarm_config.json").exists():
                         legacy_config = Path.home() / ".swarm/swarm_config.json"
-                        print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
+                        if os.environ.get("SWARM_CONFIG_DEBUG"):
+                            print(f"[SWARM_CONFIG_DEBUG] Loaded: {legacy_config}")
                         with open(legacy_config) as f:
                             self._config = json.load(f)
                     # 5. Fallback: OPENAI_API_KEY envvar
                     elif os.environ.get("OPENAI_API_KEY"):
-                        print("[SWARM_CONFIG_DEBUG] No config file found, using OPENAI_API_KEY from env.")
+                        if os.environ.get("SWARM_CONFIG_DEBUG"):
+                            print("[SWARM_CONFIG_DEBUG] No config file found, using OPENAI_API_KEY from env.")
                         self._config = {
                             "llm": {"default": {"provider": "openai", "model": "gpt-3.5-turbo", "api_key": os.environ["OPENAI_API_KEY"]}},
                             "settings": {"default_llm_profile": "default", "default_markdown_output": True},
@@ -261,7 +278,8 @@ class BlueprintBase(ABC):
                         }
                         logger.info("No config file found, using default config with OPENAI_API_KEY for CLI mode.")
                     else:
-                        print("[SWARM_CONFIG_DEBUG] No config file found and OPENAI_API_KEY is not set. Using empty config.")
+                        if os.environ.get("SWARM_CONFIG_DEBUG"):
+                            print("[SWARM_CONFIG_DEBUG] No config file found and OPENAI_API_KEY is not set. Using empty config.")
                         self._config = {}
                         logger.warning("No config file found and OPENAI_API_KEY is not set. Using empty config. CLI blueprints may fail if LLM config is required.")
                 if self._config is not None:
@@ -618,17 +636,22 @@ class BlueprintBase(ABC):
     @property
     def llm_profile(self) -> dict[str, Any]:
         """
-        Returns the LLM profile dict for this blueprint.
-        Raises a clear error if provider is missing.
+        Returns the LLM profile dict for this blueprint (centralized resolution + litellm overrides).
+        Raises a clear actionable error if missing.
         """
-        llm_section = self._config.get("llm", {}) if self._config else {}
         profile_name = self._resolve_llm_profile()
-        profile = llm_section.get(profile_name)
-        if not profile:
-            raise ValueError(f"LLM profile '{profile_name}' not found in config: {llm_section}")
-        if "provider" not in profile:
-            raise ValueError(f"'provider' missing in LLM profile '{profile_name}': {profile}")
-        return profile
+        try:
+            resolved = get_resolved_llm_profile(self._config or {}, profile_name, allow_missing=False)
+            if resolved is None:
+                avail = list_available_llm_profiles(self._config or {})
+                raise ValueError(f"LLM profile '{profile_name}' resolved to none. Available: {avail}")
+            return resolved
+        except Exception as e:
+            avail = list_available_llm_profiles(self._config or {})
+            raise ValueError(
+                f"LLM profile '{profile_name}' error: {e}. "
+                f"Available: {avail}. Hint: use --profile default or ensure swarm_config.json has valid llm entry + api_key (or LITELLM_* envs)."
+            ) from e
 
     @property
     def llm_profile_name(self) -> str:
@@ -647,20 +670,16 @@ class BlueprintBase(ABC):
         return slash_registry
 
     def get_llm_profile(self, profile_name: str) -> dict:
-        """Returns the LLM profile dict for the given profile name from config, or empty dict if not found.
-        Supports both llm.profiles and direct llm keys for backward compatibility."""
-        llm_section = self.config.get("llm", {})
-        if "profiles" in llm_section:
-            return llm_section["profiles"].get(profile_name, {})
-        # support root-level profiles fallback
-        global_profiles = self.config.get("profiles", {})
-        if isinstance(global_profiles, dict) and profile_name in global_profiles:
-            profile_data = global_profiles.get(profile_name, {}).copy()
-            # rename 'llm' key to 'model' for backward compatibility
-            if "llm" in profile_data:
-                profile_data["model"] = profile_data.pop("llm")
-            return profile_data
-        return llm_section.get(profile_name, {})
+        """Returns the resolved LLM profile dict (with LITELLM_* overrides applied).
+        Uses centralized resolver in config_loader for consistency across the app.
+        """
+        try:
+            resolved = get_resolved_llm_profile(self.config, profile_name, allow_missing=True)
+            if resolved is None:
+                return {}
+            return resolved
+        except Exception:
+            return {}
 
     @property
     def should_output_markdown(self) -> bool:
