@@ -142,10 +142,16 @@ def list_files(directory: str = '.') -> str:
         return f"ERROR: {e}"
 
 def execute_shell_command(command: str) -> str:
-    import subprocess
+    import subprocess, shlex
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        # Use shell=False with shlex.split to prevent shell injection
+        args = shlex.split(command)
+        result = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=30)
         return result.stdout + result.stderr
+    except ValueError as e:
+        return f"ERROR: invalid command syntax: {e}"
+    except subprocess.TimeoutExpired:
+        return "ERROR: command timed out after 30s"
     except Exception as e:
         return f"ERROR: {e}"
 
