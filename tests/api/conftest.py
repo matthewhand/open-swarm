@@ -13,7 +13,6 @@ from django.test import AsyncClient
 # test event loop when the suite is run directly via pytest (scripts/run_tests.py
 # sets this too).
 os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
-os.environ.setdefault("SWARM_TEST_MODE", "1")
 
 
 @pytest.fixture(scope='function')  # Use function scope if tests modify the user/db

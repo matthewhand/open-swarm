@@ -187,11 +187,3 @@ omit = ["*/migrations/*", "*/tests/*", "src/swarm/settings.py", "src/swarm/wsgi.
 [tool.coverage.report]
 show_missing = true
 fail_under = 70
-
-[dependency-groups]
-dev = [
-    "pytest-asyncio>=0.25.1",
-    "pytest-cov>=6.0.0",
-    "pytest-django>=4.10.0",
-    "pytest-mock>=3.14.0",
-]

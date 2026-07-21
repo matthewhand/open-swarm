@@ -53,14 +53,9 @@ class BlueprintMCPProvider:
 
     def refresh(self) -> None:
         """Re-discover blueprints and rebuild the internal index."""
-        import swarm.mcp.provider as _self_mod
-        _discover = _self_mod.discover_blueprints
-        _merge = _self_mod.merge_community_blueprints
-        _alias = _self_mod.apply_blueprint_aliases
-        _extra = getattr(_self_mod, "BLUEPRINT_EXTRA_DIRS", [])
-        discovered = _alias(
-            _merge(
-                _discover(self._blueprint_dir), _extra
+        discovered = apply_blueprint_aliases(
+            merge_community_blueprints(
+                discover_blueprints(self._blueprint_dir), BLUEPRINT_EXTRA_DIRS
             )
         )
         index: dict[str, dict[str, Any]] = {}

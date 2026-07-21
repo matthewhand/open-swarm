@@ -72,15 +72,15 @@ if [ -n "${SWARM_API_KEY:-}" ]; then
 fi
 
 if command -v jq >/dev/null 2>&1; then
-  curl -s "${CHAT_URL}" \
+  curl -fsS "${CHAT_URL}" \
     -H "Content-Type: application/json" \
     "${auth_header[@]}" \
-    -d "${payload}" | jq . || echo "(chat step produced error as expected without key)"
+    -d "${payload}" | jq .
 else
-  curl -s "${CHAT_URL}" \
+  curl -fsS "${CHAT_URL}" \
     -H "Content-Type: application/json" \
     "${auth_header[@]}" \
-    -d "${payload}" || echo "(chat step produced error as expected without key)"
+    -d "${payload}"
 fi
 
 echo "[smoke] Completed."

@@ -1877,14 +1877,6 @@ test = [
     { name = "sseclient-py" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-django" },
-    { name = "pytest-mock" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "anyio", marker = "extra == 'test'", specifier = ">=4.0.0" },
@@ -1956,14 +1948,6 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.23.0" },
 ]
 provides-extras = ["memory", "dev", "test", "docs"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest-asyncio", specifier = ">=0.25.1" },
-    { name = "pytest-cov", specifier = ">=6.0.0" },
-    { name = "pytest-django", specifier = ">=4.10.0" },
-    { name = "pytest-mock", specifier = ">=3.14.0" },
-]
 
 [[package]]
 name = "openai"

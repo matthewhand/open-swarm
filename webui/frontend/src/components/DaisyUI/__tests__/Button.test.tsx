@@ -4,34 +4,30 @@ import { Button } from '../Button'
 
 describe('Button loading state (DaisyUI 5)', () => {
   it('renders a visible spinner element when loading', () => {
-    // eslint-disable-next-line testing-library/no-container
-    const { container } = render(<Button loading>Save</Button>)
+    render(<Button loading>Save</Button>)
     // DaisyUI 5 needs an explicit loading-spinner span (the bare `loading` btn
     // class no longer renders one).
-    // eslint-disable-next-line testing-library/no-node-access, testing-library/no-container
-    const spinner = container.querySelector('.loading.loading-spinner')
-    expect(spinner).not.toBeNull()
+    const spinner = screen.getByRole('status', { name: 'Loading' })
+    expect(spinner).toHaveClass('loading-spinner')
   })
 
   it('does not add the deprecated bare `loading` class to the button', () => {
     render(<Button loading>Save</Button>)
-    const btn = screen.getByRole('button')
+    const btn = screen.getByRole('button', { name: /Save/i })
     const classes = btn.className.split(/\s+/)
     expect(classes).not.toContain('loading') // only on the span, not the btn
   })
 
   it('marks the button busy + disabled and exposes SR text while loading', () => {
     render(<Button loading>Save</Button>)
-    const btn = screen.getByRole('button')
+    const btn = screen.getByRole('button', { name: /Save/i })
     expect(btn).toBeDisabled()
     expect(btn).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByText('Loading')).toHaveClass('sr-only')
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
   })
 
   it('renders no spinner when not loading', () => {
-    // eslint-disable-next-line testing-library/no-container
-    const { container } = render(<Button>Save</Button>)
-    // eslint-disable-next-line testing-library/no-node-access, testing-library/no-container
-    expect(container.querySelector('.loading-spinner')).toBeNull()
+    render(<Button>Save</Button>)
+    expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import { useState, ReactNode, useRef } from 'react';
+import { useState, ReactNode } from 'react';
 
 /**
  * Tab interface
@@ -46,31 +46,19 @@ export const Tabs = ({
     lg: 'tabs-lg',
   };
 
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     let newIndex = index;
-    let step = 0;
-
     if (e.key === 'ArrowRight') {
       newIndex = index + 1 >= tabs.length ? 0 : index + 1;
-      step = 1;
     } else if (e.key === 'ArrowLeft') {
       newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
-      step = -1;
-    } else if (e.key === 'Home') {
-      newIndex = 0;
-      step = 1;
-    } else if (e.key === 'End') {
-      newIndex = tabs.length - 1;
-      step = -1;
     }
 
-    if (step !== 0 && newIndex !== index) {
+    if (newIndex !== index) {
       e.preventDefault();
       let count = 0;
       while (tabs[newIndex].disabled && count < tabs.length) {
-        newIndex = step === 1
+        newIndex = e.key === 'ArrowRight'
           ? (newIndex + 1 >= tabs.length ? 0 : newIndex + 1)
           : (newIndex - 1 < 0 ? tabs.length - 1 : newIndex - 1);
         count++;
@@ -78,7 +66,7 @@ export const Tabs = ({
 
       if (!tabs[newIndex].disabled) {
         onChange(tabs[newIndex].key);
-        const tabElement = tabRefs.current[newIndex];
+        const tabElement = document.getElementById(`tab-${tabs[newIndex].key}`);
         if (tabElement) {
           tabElement.focus();
         }
@@ -96,7 +84,6 @@ export const Tabs = ({
         const isSelected = activeTab === tab.key;
         return (
           <button
-            ref={(el) => (tabRefs.current[index] = el)}
             id={`tab-${tab.key}`}
             key={tab.key}
             role="tab"

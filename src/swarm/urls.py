@@ -187,7 +187,7 @@ def _get_frontend_path():
 frontend_path = _get_frontend_path()
 if frontend_path and frontend_path.exists():
     from django.views.static import serve
-    # re_path imported from django.urls at module top (Django 4+)
+    from django.urls import re_path
 
     # Serve static assets
     urlpatterns += [

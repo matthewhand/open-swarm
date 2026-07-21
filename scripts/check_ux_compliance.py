@@ -2,20 +2,11 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
 
-# Dynamically discover ~21 blueprints (instead of hardcoded subset); support ~all
-BLUEPRINT_DIR = Path(__file__).parent.parent / "src" / "swarm" / "blueprints"
-SKIP_BPS = {"common", "__pycache__", "messenger", "dynamic_team", "flock", "digitalbutlers", "gaggle"}  # gaggle alias of geese; messenger stub
-BLUEPRINTS = sorted([
-    d.name for d in BLUEPRINT_DIR.iterdir()
-    if d.is_dir() and not d.name.startswith('.') and d.name not in SKIP_BPS
-    and ( (d / f"{d.name}.py").exists() or (d / f"blueprint_{d.name}.py").exists() or d.name in ("family_ties", "stewie") )
-])
-# Map/override for compat
-if 'geese' not in BLUEPRINTS:
-    BLUEPRINTS.append('geese')
-BLUEPRINTS = sorted(set(BLUEPRINTS))
+BLUEPRINTS = [
+    'stewie', 'zeus', 'poets',
+    'jeeves', 'suggestion', 'codey', 'gaggle', 'geese', 'hello_world'
+]
 
 SPINNER_PHRASES = [
     "Generating.", "Generating..", "Generating...", "Running...",
@@ -37,18 +28,8 @@ def check_blueprint(bp_name):
     os.environ["SWARM_TEST_MODE"] = "1"
     try:
         # Run blueprint as a subprocess to capture stdout
-        # Use blueprint_ prefix or key; increase timeout for geese etc compliance
-        mod_name = bp_name
-        py_stem = f"blueprint_{bp_name}"
-        # Special: geese may use blueprint_geese.py
-        cmd = [sys.executable, "-m", f"swarm.blueprints.{bp_name}.{py_stem}"]
-        timeout = 45 if bp_name in ("geese", "stewie", "mission_improbable", "omniplex", "whinge_surf") else 20
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            # fallback cmd variant for bps using non blueprint_ stem
-            alt_cmd = [sys.executable, "-m", f"swarm.blueprints.{bp_name}.{bp_name}"]
-            proc = subprocess.run(alt_cmd, capture_output=True, text=True, timeout=timeout)
+        cmd = [sys.executable, "-m", f"swarm.blueprints.{bp_name}.blueprint_{bp_name}"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
         output = proc.stdout + proc.stderr
         spinner, emoji, summary = check_output(output)
         status = []

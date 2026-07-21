@@ -17,11 +17,6 @@ here is verified against `swarm-cli --help`.
 
 ## Overview
 
-<!-- from-scratch: list.txt -->
-```text
-swarm-cli list
-```
-
 `swarm-cli` currently ships **four commands**:
 
 | Command | Purpose |

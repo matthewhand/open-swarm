@@ -5,38 +5,14 @@ import { fetchBlueprintTools } from '../lib/api'
 /** Shows a blueprint's capability tool needs resolved to MCP providers, when it
  *  declares `tool_requirements`. Renders nothing otherwise. */
 export function BlueprintToolsBadges({ blueprintId }: { blueprintId: string | undefined }) {
-  const { data, isPending, isError } = useQuery({
+  const { data } = useQuery({
     queryKey: ['bp-tools', blueprintId],
     queryFn: () => fetchBlueprintTools(blueprintId!),
     enabled: !!blueprintId,
   })
 
-  if (!blueprintId) return null
-
-  if (isPending) {
-    return (
-      <div className="mt-3 rounded-lg bg-base-200 p-3 flex items-center gap-2 text-sm text-base-content/70" aria-live="polite" aria-busy="true">
-        <span className="loading loading-spinner loading-sm" /> Loading tools...
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="mt-3 rounded-lg bg-error/10 p-3 text-sm text-error" aria-live="assertive" role="alert">
-        Failed to load resolved tools.
-      </div>
-    )
-  }
-
   const reqs = data?.requirements ?? {}
-  if (Object.keys(reqs).length === 0) {
-    return (
-      <div className="mt-3 rounded-lg bg-base-200 p-3 text-sm text-base-content/50" role="status">
-        No tool requirements specified.
-      </div>
-    )
-  }
+  if (Object.keys(reqs).length === 0) return null
 
   return (
     <div className="mt-3 rounded-lg bg-base-200 p-3" role="group" aria-label="Resolved tools">

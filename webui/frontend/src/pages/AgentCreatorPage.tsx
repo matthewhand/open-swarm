@@ -358,7 +358,11 @@ const AgentCreatorPageContent = () => {
         </h2>
 
         {customQuery.isPending && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-live="polite">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            aria-live="polite"
+            aria-busy="true"
+          >
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
@@ -366,7 +370,7 @@ const AgentCreatorPageContent = () => {
         )}
 
         {customQuery.isError && (
-          <div role="alert" aria-live="assertive">
+          <div aria-live="assertive" role="alert">
             <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
               <div className="flex flex-col gap-2">
                 <span className="font-medium">Failed to load custom blueprints</span>

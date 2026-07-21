@@ -4,12 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-- **`swarm-cli moa-init`**: merge default `moa` config (Grok live / fake CI presets); `--show-openwebui` connection JSON
-- **`hybrid_moa` blueprint**: MoA consult then implementer `decision.md` write
-- **`moa_orchestrator`**: openai-agents orchestrator mode — MoA read-only consensus then purpose R/W specialists (`implementer`/`tester`/`docs`/`researcher`) via `run_moa_agents_orchestrator`
-- Docs: `docs/OPENWEBUI_MOA.md`, `docs/examples/moa.swarm_config.json`, multi-seat demo `scripts/demo_moa_grok_multiseat.py`
-
 ## [0.5.4] — 2026-06-19
 
 ### Fixed — `django_chat` actually resolves its LLM profile
@@ -257,18 +251,6 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - **Docs** README attribution section (OpenAI Swarm derivative, built on openai-agents SDK) and explicit prerequisites (Python >= 3.10, Node >= 22 for optional frontend); React web UI marked experimental with the Django UI as the supported interface.
 
 ### Added
-- **Dual workflow taxonomy** (`docs/SWARM_WORKFLOWS.md`): **A** MoA consensus (read-only subagents + orchestrator) vs **B** openai-agents persona swarm (read/write specialists).
-- **Mixture of Agents (MoA)** (`swarm.core.moa`): read-only multi-CLI consensus participants; orchestrator-only determination and optional act/writes. Injectable fake backend for CI; production `AcpxParticipantBackend` defaults to `--approve-reads` + `exec` (never `--approve-all`). See `docs/MOA.md`.
-- Blueprint `moa` with legacy aliases `cli_fusion` / `cli_ensemble` / `mixture_of_agents` (discoverable model ids).
-- **`swarm-cli moa`** dogfood command: `--backend fake|acpx|grok`, orchestrator `--act` / `--act-write`; `GrokParticipantBackend` for local grok CLI as a read-only panelist.
-- **HTTP**: `/v1/chat/completions` model `moa` with `system_fingerprint` (`moa:p1+p2`); chat_views `backend_fingerprint`.
-- **Resilience**: participant failover chain, per-participant timeout budget, vote weights on determination.
-- **Model B**: `persona_swarm.run_persona_swarm_with_runner` (live Runner when available, scripted R/W fallback).
-- TDD: `tests/core/test_moa*.py`, `tests/cli/test_moa_command.py`, `tests/api/test_moa_api.py`, `tests/api/test_moa_http_e2e.py`, `tests/core/test_persona_swarm_runner.py`, `tests/integration/test_swarm_workflows_proof.py`.
-- Fixed Django 4 SPA `re_path` import; chat non-streaming generator `aclose`; discovery skip of same-class alias re-exports.
-- **Grok first-class MoA participant** (`GrokParticipantBackend` in `backends.py`); multi-seat labels; CLI defaults no longer Codex-centric (`analyst,critic` / fake); docs state Codex not required.
-- **Hybrid A←B:** `run_hybrid_scripted` + coordinator `consult_moa_panel` tool (read-only MoA then implementer write).
-- **`swarm-cli moa-init`**, `docs/examples/moa.swarm_config.json`, Open WebUI preset (`docs/OPENWEBUI_MOA.md`), blueprint **`hybrid_moa`**, multi-seat demo script.
 - Comprehensive unit tests for low-coverage modules: `audit.py`, `progress.py`, `output_formatters.py`, and `ansi_box.py`
 - Test coverage for `ChucksAngelsBlueprint` class
 - Test coverage for `DiffFormatter` and `StatusFormatter` classes

@@ -5,57 +5,68 @@ This module provides a single source of truth for environment variables used acr
 reducing direct os.getenv() calls and providing consistent defaults and type handling.
 """
 
+import logging
 import os
 import secrets
-import logging as _logging
 from pathlib import Path
 
-_logger = _logging.getLogger(__name__)
-_api_auth_disabled_warning_emitted: bool = False
-_generated_testuser_password: str | None = None
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # Points to src/
+
+_logger = logging.getLogger(__name__)
 
 
 # Django Settings
 def get_django_secret_key() -> str:
-    """Get Django secret key. Requires DJANGO_SECRET_KEY in non-debug (prod) mode."""
-    key = os.getenv('DJANGO_SECRET_KEY')
-    if key:
-        return key
-    debug = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
-    if debug:
+    """Get Django secret key.
+
+    In production (DJANGO_DEBUG is false/unset), the DJANGO_SECRET_KEY
+    environment variable is required and an ImproperlyConfigured error is
+    raised if it is missing. A clearly-insecure fallback is only used when
+    DJANGO_DEBUG is explicitly enabled (development).
+    """
+    secret_key = os.getenv('DJANGO_SECRET_KEY')
+    if secret_key:
+        return secret_key
+    if is_django_debug():
+        # Dev-only fallback; never used when DJANGO_DEBUG is false.
         return 'django-insecure-fallback-key-for-dev'
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
-        "DJANGO_SECRET_KEY environment variable is required when DJANGO_DEBUG is not enabled (production). "
-        "Set DJANGO_SECRET_KEY, or set DJANGO_DEBUG=true for local development."
+        "DJANGO_SECRET_KEY environment variable is required when "
+        "DJANGO_DEBUG is not enabled (production). Set DJANGO_SECRET_KEY, "
+        "or set DJANGO_DEBUG=true for local development."
     )
 
 
 def is_django_debug() -> bool:
-    """Check if Django debug is enabled."""
-    return os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
+    """Check if Django debug is enabled.
+
+    Defaults to False (secure-by-default); set DJANGO_DEBUG=true to enable.
+    """
+    return os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
 
 
 def get_django_allowed_hosts() -> list[str]:
-    """Get allowed hosts for Django. Required in non-debug (prod) mode."""
-    hosts = os.getenv('DJANGO_ALLOWED_HOSTS')
+    """Get allowed hosts for Django.
+
+    In production (DJANGO_DEBUG is false/unset), the DJANGO_ALLOWED_HOSTS
+    environment variable is required and an ImproperlyConfigured error is
+    raised if it is missing/empty. In development (DJANGO_DEBUG=true) a
+    localhost-only default is used.
+    """
+    raw_hosts = os.getenv('DJANGO_ALLOWED_HOSTS')
+    hosts = [h.strip() for h in raw_hosts.split(',') if h.strip()] if raw_hosts else []
     if hosts:
-        return [h.strip() for h in hosts.split(',') if h.strip()]
-    debug = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
-    if debug:
+        return hosts
+    if is_django_debug():
         return ['localhost', '127.0.0.1']
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
-        "DJANGO_ALLOWED_HOSTS environment variable is required when DJANGO_DEBUG is not enabled (production), "
-        "e.g. DJANGO_ALLOWED_HOSTS=example.com,www.example.com. Set DJANGO_DEBUG=true for local development."
+        "DJANGO_ALLOWED_HOSTS environment variable is required when "
+        "DJANGO_DEBUG is not enabled (production), e.g. "
+        "DJANGO_ALLOWED_HOSTS=example.com,www.example.com. "
+        "Set DJANGO_DEBUG=true for local development."
     )
-
-
-def get_django_site_id() -> int:
-    """Get Django site ID."""
-    return int(os.getenv('DJANGO_SITE_ID', '1'))
 
 
 def get_django_log_level() -> str:
@@ -64,9 +75,8 @@ def get_django_log_level() -> str:
 
 
 def get_django_csrf_trusted_origins() -> list[str]:
-    """Get CSRF trusted origins."""
-    val = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000')
-    return [v.strip() for v in val.split(',') if v.strip()]
+    """Get CSRF trusted origins (whitespace-trimmed, empties dropped)."""
+    return get_csv_env('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000')
 
 
 # Swarm Core Settings
@@ -122,10 +132,94 @@ def get_stateful_chat_id_path() -> str:
 
 # API Tokens and Keys
 def get_api_auth_token() -> str | None:
-    """Get API auth token. If SWARM_ALLOW_NO_AUTH, return None to disable built-in auth."""
-    if os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 'yes'):
-        return None
+    """Get API auth token (API_AUTH_TOKEN, falling back to SWARM_API_KEY)."""
     return os.getenv('API_AUTH_TOKEN') or os.getenv('SWARM_API_KEY')
+
+
+_api_auth_disabled_warning_emitted = False
+
+
+def get_enforced_api_auth_token() -> str | None:
+    """Get the API auth token, enforcing the production requirement.
+
+    In production (DJANGO_DEBUG is false/unset) an API auth token
+    (API_AUTH_TOKEN or SWARM_API_KEY) is required; ImproperlyConfigured is
+    raised if it is missing, so the server never silently starts with API
+    auth disabled. In development (DJANGO_DEBUG=true) a missing token keeps
+    the historical permissive default, but a clear warning is logged once.
+    """
+    token = get_api_auth_token()
+    if token:
+        return token
+    # Permissive (no-auth) is allowed without a token when EITHER debug is on OR
+    # the operator explicitly opts out via SWARM_ALLOW_NO_AUTH — e.g. when an
+    # external layer (a cloud OAuth proxy / API gateway) already gates access.
+    # Either way we log a clear one-time warning rather than silently disabling.
+    allow_no_auth = os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 't', 'yes', 'y')
+    if is_django_debug() or allow_no_auth:
+        global _api_auth_disabled_warning_emitted
+        if not _api_auth_disabled_warning_emitted:
+            _api_auth_disabled_warning_emitted = True
+            reason = "DJANGO_DEBUG=true" if is_django_debug() else "SWARM_ALLOW_NO_AUTH is set"
+            _logger.warning(
+                "API authentication is DISABLED because API_AUTH_TOKEN is not set "
+                "(%s). Anyone who can reach this server can call it — make sure an "
+                "external layer (OAuth proxy / firewall) gates access, or set "
+                "API_AUTH_TOKEN to require a bearer token.",
+                reason,
+            )
+        return None
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "API_AUTH_TOKEN (or SWARM_API_KEY) environment variable is required "
+        "when DJANGO_DEBUG is not enabled (production). Refusing to start with "
+        "API authentication disabled. Set API_AUTH_TOKEN, or set "
+        "SWARM_ALLOW_NO_AUTH=true if an external layer already gates access."
+    )
+
+
+# Dev-only testuser auto-login support
+_generated_testuser_password: str | None = None
+
+
+def is_testuser_autologin_allowed() -> bool:
+    """Check whether dev-only 'testuser' auto-login is enabled AND permitted.
+
+    Auto-login is only honoured when BOTH:
+    - ALLOW_TESTUSER_AUTOLOGIN=true (default: false), and
+    - DJANGO_DEBUG=true (debug/development mode).
+
+    If the flag is enabled while not in debug mode, ImproperlyConfigured is
+    raised so the dangerous misconfiguration is surfaced instead of silently
+    creating an authentication bypass in production.
+    """
+    enabled = os.getenv('ALLOW_TESTUSER_AUTOLOGIN', 'false').lower() in ('true', '1', 't', 'yes', 'y')
+    if not enabled:
+        return False
+    if not is_django_debug():
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "ALLOW_TESTUSER_AUTOLOGIN is enabled but DJANGO_DEBUG is not. "
+            "The 'testuser' auto-login is a development-only convenience and "
+            "must never be enabled in production. Unset ALLOW_TESTUSER_AUTOLOGIN "
+            "or set DJANGO_DEBUG=true for local development."
+        )
+    return True
+
+
+def get_testuser_password() -> str:
+    """Get the password for the dev-only 'testuser' account.
+
+    Pulled from the TESTUSER_PASSWORD environment variable when set;
+    otherwise a random per-process password is generated (never hardcoded).
+    """
+    pw = os.getenv('TESTUSER_PASSWORD')
+    if pw:
+        return pw
+    global _generated_testuser_password
+    if _generated_testuser_password is None:
+        _generated_testuser_password = secrets.token_urlsafe(32)
+    return _generated_testuser_password
 
 
 def get_openai_api_key() -> str | None:
@@ -189,16 +283,6 @@ def get_fly_api_token() -> str | None:
 
 
 # Feature Flags
-def is_enable_wagtail() -> bool:
-    """Check if Wagtail is enabled."""
-    return os.getenv('ENABLE_WAGTAIL', 'false').lower() in ('1', 'true', 'yes')
-
-
-def is_enable_saml_idp() -> bool:
-    """Check if SAML IdP is enabled."""
-    return os.getenv('ENABLE_SAML_IDP', 'false').lower() in ('1', 'true', 'yes')
-
-
 def is_enable_mcp_server() -> bool:
     """Check if MCP server is enabled."""
     return os.getenv('ENABLE_MCP_SERVER', 'false').lower() in ('1', 'true', 'yes')
@@ -265,32 +349,6 @@ def get_comfyui_api_endpoint() -> str:
     return f"{get_comfyui_host()}/api"
 
 
-# SAML Configuration
-def get_saml_idp_spconfig_json() -> str | None:
-    """Get SAML IdP SP config JSON."""
-    return os.getenv('SAML_IDP_SPCONFIG_JSON')
-
-
-def get_saml_idp_spconfig_file() -> str | None:
-    """Get SAML IdP SP config file."""
-    return os.getenv('SAML_IDP_SPCONFIG_FILE')
-
-
-def get_saml_idp_entity_id() -> str:
-    """Get SAML IdP entity ID."""
-    return os.getenv('SAML_IDP_ENTITY_ID', 'http://localhost:8000/idp/metadata/')
-
-
-def get_saml_idp_cert_file() -> str | None:
-    """Get SAML IdP cert file."""
-    return os.getenv('SAML_IDP_CERT_FILE')
-
-
-def get_saml_idp_private_key_file() -> str | None:
-    """Get SAML IdP private key file."""
-    return os.getenv('SAML_IDP_PRIVATE_KEY_FILE')
-
-
 # Blueprint Specific
 def get_stewie_main_name() -> str:
     """Get Stewie main name."""
@@ -345,7 +403,7 @@ def get_loglevel() -> str | None:
 
 # Utility Functions
 def get_csv_env(name: str, default: str = '') -> list[str]:
-    """Get a CSV environment variable as a list, stripping whitespace and empty entries."""
+    """Get a CSV environment variable as a list (whitespace-trimmed, empties dropped)."""
     val = os.getenv(name, default)
     return [v.strip() for v in val.split(',') if v.strip()] if val else []
 
@@ -353,51 +411,3 @@ def get_csv_env(name: str, default: str = '') -> list[str]:
 def is_truthy(value: str) -> bool:
     """Check if a string value is truthy."""
     return value.lower() in ('true', '1', 't', 'yes', 'y')
-
-
-def get_enforced_api_auth_token() -> str | None:
-    """Get the API auth token, enforcing the production requirement."""
-    global _api_auth_disabled_warning_emitted
-    token = get_api_auth_token()
-    if token:
-        return token
-    allow_no_auth = os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 't', 'yes', 'y')
-    if is_django_debug() or allow_no_auth:
-        if not _api_auth_disabled_warning_emitted:
-            _api_auth_disabled_warning_emitted = True
-            reason = "DJANGO_DEBUG=true" if is_django_debug() else "SWARM_ALLOW_NO_AUTH is set"
-            _logger.warning(
-                "API authentication is DISABLED because API_AUTH_TOKEN is not set (%s).",
-                reason,
-            )
-        return None
-    from django.core.exceptions import ImproperlyConfigured
-    raise ImproperlyConfigured(
-        "API_AUTH_TOKEN is required when DJANGO_DEBUG is not enabled. "
-        "Set API_AUTH_TOKEN, or set SWARM_ALLOW_NO_AUTH=true if an external layer gates access."
-    )
-
-
-def is_testuser_autologin_allowed() -> bool:
-    """Check whether dev-only 'testuser' auto-login is enabled AND permitted."""
-    enabled = os.getenv('ALLOW_TESTUSER_AUTOLOGIN', 'false').lower() in ('true', '1', 't', 'yes', 'y')
-    if not enabled:
-        return False
-    if not is_django_debug():
-        from django.core.exceptions import ImproperlyConfigured
-        raise ImproperlyConfigured(
-            "ALLOW_TESTUSER_AUTOLOGIN is enabled but DJANGO_DEBUG is not. "
-            "This would create an authentication bypass in production."
-        )
-    return True
-
-
-def get_testuser_password() -> str:
-    """Get the password for the dev-only 'testuser' account."""
-    pw = os.getenv('TESTUSER_PASSWORD')
-    if pw:
-        return pw
-    global _generated_testuser_password
-    if _generated_testuser_password is None:
-        _generated_testuser_password = secrets.token_urlsafe(32)
-    return _generated_testuser_password

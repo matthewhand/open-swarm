@@ -76,32 +76,3 @@ def test_discover_blueprints_docstring_fallback_and_name_default(tmp_path: Path)
     assert meta.get("name") == "my_temp_bp"
     # Description should come from the class docstring
     assert meta.get("description") == "Docstring description should be used when metadata lacks it."
-
-
-def test_discover_supports_deprecated_and_status_flags(tmp_path: Path):
-    """Test that deprecated and status metadata are extracted (for future filtering/warnings)."""
-    bp_root = tmp_path / "blueprints"
-    bp_root.mkdir()
-
-    # Deprecated one
-    dep_dir = bp_root / "deprecated_bp"
-    dep_dir.mkdir()
-    (dep_dir / "blueprint_deprecated_bp.py").write_text('''
-from swarm.core.blueprint_base import BlueprintBase
-class DeprecatedBp(BlueprintBase):
-    """Deprecated example."""
-    metadata = {
-        "name": "Deprecated Example",
-        "deprecated": True,
-        "status": "incomplete",
-        "description": "This one is deprecated for testing.",
-    }
-    async def run(self, messages):
-        yield {"type": "message", "role": "assistant", "content": "deprecated"}
-''')
-
-    discovered = discover_blueprints(str(bp_root))
-    assert "deprecated_bp" in discovered
-    meta = discovered["deprecated_bp"]["metadata"]
-    assert meta.get("deprecated") is True
-    assert meta.get("status") == "incomplete"

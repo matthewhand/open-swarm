@@ -135,20 +135,18 @@ def usage_counts(messages: list[dict[str, Any]] | None, answer: Any, model: str)
 
 
 def backend_fingerprint(model_name: str, meta: dict[str, Any] | None) -> str:
-    """Build ``system_fingerprint`` naming resolved backends (CLI panel / MoA).
+    """Build ``system_fingerprint`` naming the resolved CLI backends + judge.
 
-    A blueprint may yield a ``meta`` side-channel on its final chunk. Renders
-    e.g. ``moa:analyst+critic`` or ``cli_fusion:gemini+claude``. Accepts
-    ``backends`` or ``ok_participants``. Falls back to the model id.
+    A blueprint may yield a ``meta`` side-channel (see
+    ``cli_fusion_support.backend_meta``) on its final chunk. We render it as e.g.
+    ``cli_fusion:gemini+claude+grok|judge=claude`` so any OpenAI client can read
+    ``resp.system_fingerprint`` to see which CLI(s) actually answered. Falls back
+    to the blueprint id when a blueprint emits no backend meta.
     """
     if not isinstance(meta, dict):
         return model_name
     fp = model_name
-    backends = [
-        str(b)
-        for b in (meta.get("backends") or meta.get("ok_participants") or [])
-        if b
-    ]
+    backends = [str(b) for b in (meta.get("backends") or []) if b]
     if backends:
         fp += ":" + "+".join(backends)
     judge = meta.get("judge")
@@ -183,7 +181,6 @@ class ChatCompletionsView(APIView):
         final_message = None
         backend_meta = None
         start_time = time.time()
-        async_generator = None
         try:
             # The blueprint's run method should be an async generator. Blueprints
             # yield progress chunks (spinner frames like "Generating.") BEFORE the
@@ -218,13 +215,6 @@ class ChatCompletionsView(APIView):
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True)
             raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
-        finally:
-            # Avoid "Task was destroyed but it is pending" when we break early.
-            if async_generator is not None and hasattr(async_generator, "aclose"):
-                try:
-                    await async_generator.aclose()
-                except Exception:
-                    pass
 
     async def _handle_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """

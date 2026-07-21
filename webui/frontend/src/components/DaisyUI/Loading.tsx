@@ -39,8 +39,6 @@ export const LoadingSpinner = ({
       className={`loading loading-spinner ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
-      aria-live="polite"
-      aria-busy="true"
     />
   );
 };
@@ -347,8 +345,6 @@ export const LoadingOverlay = ({
       role="dialog"
       aria-modal="true"
       aria-label={message}
-      aria-live="polite"
-      aria-busy="true"
     >
       <div className="bg-base-100 p-6 rounded-lg shadow-xl text-center">
         <div className="flex justify-center mb-4">

@@ -13,14 +13,12 @@ from swarm.extensions.cli.utils.async_input import AsyncInputHandler
 
 # Early test-mode: simulate spinner output and exit for Codey CLI tests, only when executed as script and not requesting help
 if __name__ == "__main__" and os.environ.get("SWARM_TEST_MODE") and not any(arg in ("-h", "--help") for arg in sys.argv):
-    from swarm.core.output_utils import print_search_progress_box
     for idx, state in enumerate(SwarmSpinner.FRAMES, start=1):
         print(f"[SPINNER] {state}")
         print_search_progress_box("Code Search", f"Matches so far: {idx}", emoji="🔍")
     sys.exit(0)
 
 def main():
-    from swarm.core.output_utils import print_search_progress_box  # ensure in scope
     parser = argparse.ArgumentParser(description="Codey CLI - Approval Workflow Demo")
     parser.add_argument('--message', type=str, help='Message to send to the agent (alternative to positional prompt)')
     parser.add_argument('-a', '--approval', nargs='?', const=True, default=False, help='Require approval before executing actions; optionally specify policy (e.g., suggest)')

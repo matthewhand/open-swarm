@@ -24,24 +24,19 @@ export const Modal = ({
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const triggerElementRef = useRef<HTMLElement | null>(null);
 
-  // Sync open state with native dialog methods and manage focus
+  // Sync open state with native dialog methods
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
 
     if (isOpen) {
       if (!dialog.open) {
-        triggerElementRef.current = document.activeElement as HTMLElement | null;
         dialog.showModal();
       }
     } else {
       if (dialog.open) {
         dialog.close();
-        if (triggerElementRef.current) {
-          triggerElementRef.current.focus();
-        }
       }
     }
   }, [isOpen]);
@@ -110,10 +105,12 @@ export const Modal = ({
     </dialog>
   );
 
-  return (
-    <FocusTrap active={isOpen} focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
+  return isOpen ? (
+    <FocusTrap focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
       {dialogContent}
     </FocusTrap>
+  ) : (
+    dialogContent
   );
 };
 
