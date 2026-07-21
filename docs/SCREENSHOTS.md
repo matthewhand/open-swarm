@@ -18,10 +18,10 @@ full-page PNGs.
 | --- | --- | --- | --- | --- | --- |
 | `landing.png` | `/` (React SPA dashboard) | Lightweight dashboard: live teams/blueprints/models counts, Django Quick Actions, API reachable | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-07-21 | current |
 | `spa-chat.png` | `/chat` (React SPA) | Websocket chat shell with blueprint selector (login required for consumer) | GUIDED_TOUR.md | 2026-07-21 | current |
-| `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture: Django Team Launcher (not a separate SPA product) | GUIDED_TOUR.md | 2026-07-21 | current |
-| `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture: Django Blueprint Library | GUIDED_TOUR.md | 2026-07-21 | current |
-| `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture: Django Settings Dashboard | GUIDED_TOUR.md | 2026-07-21 | current |
-| `spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect capture: Django Agent Creator | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture + sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture + banner over Blueprint Library | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture + banner over Settings Dashboard | GUIDED_TOUR.md | 2026-07-21 | current |
+| `spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect capture + banner over Agent Creator | GUIDED_TOUR.md | 2026-07-21 | current |
 | `login.png` | `/accounts/login/` (Django) | Sign-in form | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
 | `teams.png` | `/teams/` (Django) | Teams Admin registration form + table | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
 | `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher with blueprint select + task box | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-07-21 | current |
@@ -54,7 +54,7 @@ tabs linking to Django destinations.
 | `mobile/teams.png` | `/teams/` | Bottom primary tabs; form wraps | 2026-07-21 | current |
 | `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width | 2026-07-21 | current |
 | `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack | 2026-07-21 | current |
-| `mobile/my-blueprints.png` | `/my-blueprints/` | Empty-state CTAs | 2026-07-21 | current |
+| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs | 2026-07-21 | current |
 | `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; bottom tabs | 2026-07-21 | current |
 | `mobile/settings.png` | `/settings/` | Dashboard tiles wrap | 2026-07-21 | current |
 | `mobile/sessions.png` | `/sessions/` | Session list + limit banner | 2026-07-21 | current |
@@ -79,6 +79,7 @@ Regenerate with:
 | `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused | 2025-01-05 | legacy |
 | `docs/screenshots/webui/*` | Themed WebUI component captures | various | mixed | current |
 | `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
+| `docs/screenshots/archive/*` | Superseded tour stills (e.g. old session-explorer-*, a11y-focus-ring) | none | archived | archived |
 
 ## Regenerating
 

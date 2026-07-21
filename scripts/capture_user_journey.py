@@ -188,7 +188,12 @@ def capture(page, slug: str, path: str, name: str,
     page.wait_for_timeout(750)
     final_url = page.url
     entry["final_url"] = final_url
-    entry["redirected"] = final_url.rstrip("/") != (BASE_URL + path).rstrip("/") and path not in (
+    # Compare path only (keep trailing-slash differences): /settings → /settings/
+    # is still a redirect for bare SPA entry documentation.
+    from urllib.parse import urlparse
+
+    final_path = urlparse(final_url).path or "/"
+    entry["redirected"] = final_path != path and path not in (
         "/accounts/login/",
         "/login/",
     )
@@ -202,6 +207,34 @@ def capture(page, slug: str, path: str, name: str,
         ][:16]
     except Exception as exc:
         entry["dom_error"] = str(exc)
+    # When this slug documents a bare SPA path that redirected, inject a
+    # capture-only banner so spa-*.png is not a pixel twin of the canonical page.
+    if entry.get("redirected") and slug.startswith("spa-"):
+        try:
+            from_path = path
+            to_path = final_url.replace(BASE_URL, "") or final_url
+            page.evaluate(
+                """([fromPath, toPath]) => {
+                  if (document.getElementById('os-capture-redirect-banner')) return;
+                  const b = document.createElement('div');
+                  b.id = 'os-capture-redirect-banner';
+                  b.setAttribute('role', 'status');
+                  b.style.cssText = [
+                    'position:sticky','top:0','z-index:2000','padding:0.55rem 1rem',
+                    'background:#1e3a5f','color:#e2e8f0','font:600 0.9rem/1.35 system-ui,sans-serif',
+                    'border-bottom:2px solid #3b82f6','box-shadow:0 4px 12px rgba(0,0,0,.35)'
+                  ].join(';');
+                  b.textContent = 'Redirected: ' + fromPath + ' → ' + toPath
+                    + '  ·  canonical Django operator UI (bare SPA path is not a separate product)';
+                  const main = document.querySelector('main.os-main, main, body');
+                  if (main && main.firstChild) main.insertBefore(b, main.firstChild);
+                  else document.body.insertBefore(b, document.body.firstChild);
+                }""",
+                [from_path, to_path],
+            )
+        except Exception:
+            pass
+
     # Full-page PNGs paint *fixed* bottom bars over content in Chromium stitch
     # (Django `.os-bottom-nav` and SPA `nav.fixed.bottom-0` / Daisy dock).
     # Park them as static at document end so mid-page metrics/CTAs stay readable.

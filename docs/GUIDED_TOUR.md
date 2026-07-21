@@ -49,7 +49,9 @@ replies, team launches) need an LLM profile configured (see
 
 ![SPA dashboard: live team/blueprint/model counts, Django quick actions, API reachable](./screenshots/landing.png)
 
-*Lightweight React dashboard. Counts load from the API when available.
+*Lightweight React dashboard. Counts load from the API when available
+(`/v1/blueprints` / `/v1/models` may show a higher figure than the
+Blueprint Library’s discoverable catalog count — different listings).
 Quick Actions deep-link into **Django** (`/teams/launch/`,
 `/blueprint-library/`, `/teams/`, `/settings/`). Banner text states that full
 library, sessions, creators, and settings live on Django trailing-slash
@@ -70,8 +72,9 @@ Launcher for scripted multi-agent runs.
 
 ### Bare SPA entry URLs (redirect to Django)
 
-These captures open the **no-trailing-slash** URL and follow the redirect so
-the PNG shows the **canonical Django** surface:
+These captures open the **no-trailing-slash** URL, follow the redirect, and
+(when regenerated via `capture_user_journey.py`) show a sticky **“Redirected:
+/path → /canonical/”** banner so they are not pixel-identical to part 3.
 
 | Capture | Entry URL | Lands on |
 | --- | --- | --- |
@@ -80,9 +83,10 @@ the PNG shows the **canonical Django** surface:
 | `spa-settings.png` | `/settings` | `/settings/` Settings Dashboard |
 | `spa-agent-creator.png` | `/agent-creator` | `/agent-creator/` Agent Creator |
 
-![Bare /teams redirects to Django Team Launcher](./screenshots/spa-teams.png)
+![Bare /teams redirects to Django Team Launcher with redirect banner](./screenshots/spa-teams.png)
 
-*After redirect: same Team Launcher UI as part 3 (not a separate SPA product).*
+*After redirect from `/teams`: Team Launcher with capture banner (not a
+separate SPA product).*
 
 ![Bare /blueprints redirects to Django Blueprint Library](./screenshots/spa-blueprints.png)
 
