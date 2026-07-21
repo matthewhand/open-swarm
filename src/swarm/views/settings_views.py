@@ -5,6 +5,7 @@ Web views for displaying and managing configuration settings
 import os
 import sys
 
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
@@ -23,8 +24,9 @@ if _this_mod is not None:
         sys.modules.setdefault(__name__[4:], _this_mod)
 
 
+@login_required
 def settings_dashboard(request):
-    """Render the comprehensive settings dashboard"""
+    """Render the comprehensive settings dashboard (authenticated)."""
     try:
         all_settings = settings_manager.collect_all_settings()
 
@@ -58,9 +60,10 @@ def settings_dashboard(request):
         return HttpResponse(f"Error loading settings: {str(e)}", status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def settings_api(_request):
-    """API endpoint to get all settings as JSON"""
+    """API endpoint to get all settings as JSON (authenticated)."""
     try:
         all_settings = settings_manager.collect_all_settings()
 
@@ -92,9 +95,10 @@ def settings_api(_request):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def environment_variables(_request):
-    """Get all environment variables related to Open Swarm"""
+    """Get all environment variables related to Open Swarm (authenticated)."""
     try:
         # Collect all environment variables that might be relevant
         relevant_prefixes = [

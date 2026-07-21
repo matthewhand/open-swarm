@@ -27,11 +27,13 @@
 # installed and authed. See docs/ORACLE_DEPLOY.md. Use the container when you
 # only need the REST surface, or you're willing to map the CLIs by hand.
 #
-# Quick start:
+# Quick start (production-ish):
 #   echo "DOCKER_UID=$(id -u)" >  .env
 #   echo "DOCKER_GID=$(id -g)" >> .env
-#   docker compose up --build        # API-only
-#   # …then add the override for CLIs.
+#   # REQUIRED for non-debug: API_AUTH_TOKEN, DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS
+#   # For local open API only: SWARM_ALLOW_NO_AUTH=true  (NOT the default)
+#   docker compose up --build
+#   # …then add docker-compose.override.yml for host CLIs if needed.
 
 services:
   swarm:
@@ -62,11 +64,15 @@ services:
       # Keep HOME identical to the host so configs that reference absolute paths
       # resolve, and the bare CLI commands find their state once you map them in.
       HOME: "${HOME}"
-      # The CLIs self-authenticate and local REST backends are commonly keyless,
-      # so the gateway itself needs no provider key. Front prod with OAuth/proxy.
-      SWARM_ALLOW_NO_AUTH: "true"
-      # Keep the DB and async task store on the writable mounted volume (the app
-      # runs as a non-root host UID and cannot write the image's /app).
+      # Production defaults: auth ON unless .env sets SWARM_ALLOW_NO_AUTH=true
+      # (explicit opt-out for local demos / reverse-proxy auth).
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-false}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      API_AUTH_TOKEN: "${API_AUTH_TOKEN:-}"
+      # Durable Django DB + async /v1/responses store on the mounted volume.
+      # DJANGO_DB_NAME is what settings.py reads; SQLITE_DB_PATH is accepted as alias.
+      DJANGO_DB_NAME: "${HOME}/.local/share/swarm/db.sqlite3"
       SQLITE_DB_PATH: "${HOME}/.local/share/swarm/db.sqlite3"
       SWARM_RESPONSES_DIR: "${HOME}/.local/share/swarm/responses"
     volumes:
@@ -74,4 +80,16 @@ services:
       - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"
       # Writable state: SQLite DB + async /v1/responses task store.
       - "${HOME}/.local/share/swarm:${HOME}/.local/share/swarm"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped

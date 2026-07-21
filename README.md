@@ -50,7 +50,7 @@ uv run swarm-cli launch codey --message "Explain this repo's structure"
 uv run swarm-cli install codey
 ```
 
-`swarm-cli` commands available today: `list`, `launch`, `install`, `install-executable`, `cli-agents` (alias `agents`) — autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated — and `skills`, which lists reusable capabilities (`SKILL.md` directories) you can apply to any CLI via the `cli_agent` `skill=` param.
+`swarm-cli` commands available today: `list`, `launch`, `install` / `install-executable`, `uninstall`, `add`, `delete`, `config` (list/add/remove LLM profiles and MCP servers), `cli-agents` (alias `agents`) — autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated — `skills` (reusable `SKILL.md` capabilities via the `cli_agent` `skill=` param), `wizard`, `moa`, and `moa-init`.
 
 ## Quickstart (API server)
 
