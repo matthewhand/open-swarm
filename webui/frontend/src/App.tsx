@@ -127,7 +127,7 @@ function Dashboard() {
 
       {/* Stats Cards - semi-real from APIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card compact bordered>
+        <div className="card bg-base-100 shadow-xl compact">
           <div className="stat">
             <div className="stat-title">Active Teams</div>
             {loadingStats ? (
@@ -137,9 +137,9 @@ function Dashboard() {
             )}
             <div className="stat-desc">{errorStats ? 'Partial' : 'From /teams/export (live dynamic registry)'}</div>
           </div>
-        </Card>
+        </div>
 
-        <Card compact bordered>
+        <div className="card bg-base-100 shadow-xl compact">
           <div className="stat">
             <div className="stat-title">Blueprints</div>
             {loadingStats ? (
@@ -149,9 +149,9 @@ function Dashboard() {
             )}
             <div className="stat-desc">{errorStats ? 'Error loading' : 'From /v1/blueprints (live)'}</div>
           </div>
-        </Card>
+        </div>
 
-        <Card compact bordered>
+        <div className="card bg-base-100 shadow-xl compact">
           <div className="stat">
             <div className="stat-title">Models / Agents</div>
             {loadingStats ? (
@@ -161,9 +161,9 @@ function Dashboard() {
             )}
             <div className="stat-desc">{errorStats ? 'Error' : 'From /v1/models (live)'}</div>
           </div>
-        </Card>
+        </div>
 
-        <Card compact bordered>
+        <div className="card bg-base-100 shadow-xl compact">
           <div className="stat">
             <div className="stat-title">Completion Rate</div>
             <div className="stat-value text-success">85%</div>
@@ -173,51 +173,56 @@ function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card title="Quick Actions" bordered>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button variant="primary" size="md" className="w-full">
-            <PlusCircle className="h-5 w-5 mr-2" />
-            New Team
-          </Button>
-          <Button variant="secondary" size="md" className="w-full">
-            <Book className="h-5 w-5 mr-2" />
-            Browse Blueprints
-          </Button>
-          <Button variant="accent" size="md" className="w-full">
-            <Users className="h-5 w-5 mr-2" />
-            Team Manager
-          </Button>
-          <Button variant="info" size="md" className="w-full">
-            <Settings className="h-5 w-5 mr-2" />
-            Configure
-          </Button>
+      <div className="card bg-base-100 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Quick Actions</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button className="btn btn-primary w-full">
+              <PlusCircle className="h-5 w-5 mr-2" />
+              New Team
+            </button>
+            <button className="btn btn-secondary w-full">
+              <Book className="h-5 w-5 mr-2" />
+              Browse Blueprints
+            </button>
+            <button className="btn btn-accent w-full">
+              <Users className="h-5 w-5 mr-2" />
+              Team Manager
+            </button>
+            <button className="btn btn-info w-full">
+              <Settings className="h-5 w-5 mr-2" />
+              Configure
+            </button>
+          </div>
         </div>
-      </Card>
+      </div>
 
       {/* Recent Activity */}
-      <Card title="Recent Activity" bordered>
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th>Status</th>
-                <th>Last Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Badge type="success">Active</Badge>
-                    <span>Code Review Team</span>
-                  </div>
-                </td>
-                <td><Badge type="success">Active</Badge></td>
-                <td className="text-sm text-gray-500">2 minutes ago</td>
-              </tr>
-              <tr>
-                <td>
+      <div className="card bg-base-100 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Recent Activity</h2>
+          <div className="overflow-x-auto">
+            <table className="table table-zebra">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Status</th>
+                  <th>Last Activity</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <span className="badge badge-success">Active</span>
+                      <span>Code Review Team</span>
+                    </div>
+                  </td>
+                  <td><span className="badge badge-success">Active</span></td>
+                  <td className="text-sm text-gray-500">2 minutes ago</td>
+                </tr>
+                <tr>
+                  <td>
                   <div className="flex items-center gap-2">
                     <Badge type="warning">Idle</Badge>
                     <span>Documentation Squad</span>
@@ -249,7 +254,7 @@ function Dashboard() {
               <div className="w-3 h-3 bg-success rounded-full"></div>
               <span>API Gateway</span>
             </div>
-            <Badge type="success">Online</Badge>
+            <span className="badge badge-success">Online</span>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
@@ -257,7 +262,7 @@ function Dashboard() {
               <div className="w-3 h-3 bg-success rounded-full"></div>
               <span>Database</span>
             </div>
-            <Badge type="success">Online</Badge>
+            <span className="badge badge-success">Online</span>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-base-200 rounded-lg">
@@ -265,10 +270,10 @@ function Dashboard() {
               <div className="w-3 h-3 bg-warning rounded-full"></div>
               <span>Cache</span>
             </div>
-            <Badge type="warning">Degraded</Badge>
+            <span className="badge badge-warning">Degraded</span>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   )
 }
