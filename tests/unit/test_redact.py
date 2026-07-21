@@ -65,3 +65,33 @@ def test_sensitive_key_with_structured_value_is_masked():
     # A dict/list under a sensitive key must be masked wholesale, not passed through.
     assert redact_sensitive_data({"secret": {"inner": "leak"}})["secret"] == "[REDACTED]"
     assert redact_sensitive_data({"token": ["leak1", "leak2"]})["token"] == "[REDACTED]"
+
+
+def test_env_style_keys_are_redacted_by_substring():
+    """OPENAI_API_KEY / GITHUB_TOKEN style names embed sensitive tokens — must redact."""
+    data = {
+        "env": {
+            "OPENAI_API_KEY": "sk-mcp-openai",
+            "GITHUB_TOKEN": "ghp_xxx",
+            "MONDAY_API_KEY": "mon_xxx",
+            "NORMAL_PATH": "/usr/bin/npx",
+        }
+    }
+    redacted = redact_sensitive_data(data, mask="***HIDDEN***")
+    assert redacted["env"]["OPENAI_API_KEY"] == "***HIDDEN***"
+    assert redacted["env"]["GITHUB_TOKEN"] == "***HIDDEN***"
+    assert redacted["env"]["MONDAY_API_KEY"] == "***HIDDEN***"
+    assert redacted["env"]["NORMAL_PATH"] == "/usr/bin/npx"
+
+
+def test_is_sensitive_key_helper():
+    from swarm.utils.redact import is_sensitive_key
+
+    assert is_sensitive_key("api_key")
+    assert is_sensitive_key("OPENAI_API_KEY")
+    assert is_sensitive_key("github-token")
+    assert is_sensitive_key("client_secret")
+    assert is_sensitive_key("not_secret")  # segment "secret"
+    assert not is_sensitive_key("model")
+    assert not is_sensitive_key("base_url")
+    assert not is_sensitive_key("mytokenized")  # no underscore boundary

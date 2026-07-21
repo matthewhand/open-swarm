@@ -7,7 +7,18 @@ import re
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SENSITIVE_KEYS = ["secret", "password", "api_key", "apikey", "token", "access_token", "client_secret"]
+DEFAULT_SENSITIVE_KEYS = [
+    "secret",
+    "password",
+    "api_key",
+    "apikey",
+    "token",
+    "access_token",
+    "client_secret",
+    "authorization",
+    "private_key",
+    "credentials",
+]
 _DEFAULT_SENSITIVE_KEYS_LOWER = {k.lower() for k in DEFAULT_SENSITIVE_KEYS}
 
 SENSITIVE_PATTERNS = [
@@ -17,6 +28,39 @@ SENSITIVE_PATTERNS = [
     r'ssh-rsa\s+[a-zA-Z0-9+/]+={0,2}',  # SSH keys
 ]
 _COMPILED_SENSITIVE_PATTERNS = [re.compile(p) for p in SENSITIVE_PATTERNS]
+
+
+def _normalize_key(key: str) -> str:
+    """Lowercase and unify separators so OPENAI-API-KEY matches api_key heuristics."""
+    return key.lower().replace("-", "_")
+
+
+def is_sensitive_key(key: str, sensitive_keys: set[str] | None = None) -> bool:
+    """
+    True if *key* is an exact sensitive name or embeds one as underscore segments.
+
+    Exact match alone misses env-style names (OPENAI_API_KEY, GITHUB_TOKEN).
+    Segment match treats ``api_key`` / ``token`` as contiguous underscore parts so
+    provider-prefixed env vars redact without matching accidental substrings
+    like ``mytokenized`` (no underscore boundary).
+    """
+    keys = sensitive_keys if sensitive_keys is not None else _DEFAULT_SENSITIVE_KEYS_LOWER
+    kl = _normalize_key(key)
+    if kl in keys:
+        return True
+    parts = [p for p in kl.split("_") if p]
+    if not parts:
+        return False
+    for sk in keys:
+        sk_parts = [p for p in sk.split("_") if p]
+        if not sk_parts:
+            continue
+        n = len(sk_parts)
+        for i in range(len(parts) - n + 1):
+            if parts[i : i + n] == sk_parts:
+                return True
+    return False
+
 
 def redact_sensitive_data(
     data: str | dict | list,
@@ -37,7 +81,7 @@ def redact_sensitive_data(
         if isinstance(sensitive_keys, set):
             keys_to_redact = sensitive_keys
         else:
-            keys_to_redact = {k.lower() for k in sensitive_keys}
+            keys_to_redact = {_normalize_key(k) for k in sensitive_keys}
     else:
         keys_to_redact = _DEFAULT_SENSITIVE_KEYS_LOWER
 
@@ -67,7 +111,7 @@ def redact_sensitive_data(
     if isinstance(data, dict):
         redacted_dict = {}
         for k, v in data.items():
-            if isinstance(k, str) and k.lower() in keys_to_redact:
+            if isinstance(k, str) and is_sensitive_key(k, keys_to_redact):
                 redacted_dict[k] = smart_mask(v)
             elif isinstance(v, dict | list):
                 redacted_dict[k] = redact_sensitive_data(v, keys_to_redact, reveal_chars, mask)
