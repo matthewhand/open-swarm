@@ -37,18 +37,28 @@ def _normalize_key(key: str) -> str:
 
 def is_sensitive_key(key: str, sensitive_keys: set[str] | None = None) -> bool:
     """
-    True if *key* is an exact sensitive name or embeds one (OPENAI_API_KEY, GITHUB_TOKEN).
+    True if *key* is an exact sensitive name or embeds one as underscore segments.
 
-    Exact match alone misses common env-style names; substring match closes that gap
-    without requiring every provider prefix to be enumerated.
+    Exact match alone misses env-style names (OPENAI_API_KEY, GITHUB_TOKEN).
+    Segment match treats ``api_key`` / ``token`` as contiguous underscore parts so
+    provider-prefixed env vars redact without matching accidental substrings
+    like ``mytokenized`` (no underscore boundary).
     """
     keys = sensitive_keys if sensitive_keys is not None else _DEFAULT_SENSITIVE_KEYS_LOWER
     kl = _normalize_key(key)
     if kl in keys:
         return True
+    parts = [p for p in kl.split("_") if p]
+    if not parts:
+        return False
     for sk in keys:
-        if sk and sk in kl:
-            return True
+        sk_parts = [p for p in sk.split("_") if p]
+        if not sk_parts:
+            continue
+        n = len(sk_parts)
+        for i in range(len(parts) - n + 1):
+            if parts[i : i + n] == sk_parts:
+                return True
     return False
 
 

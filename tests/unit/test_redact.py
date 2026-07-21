@@ -91,5 +91,7 @@ def test_is_sensitive_key_helper():
     assert is_sensitive_key("OPENAI_API_KEY")
     assert is_sensitive_key("github-token")
     assert is_sensitive_key("client_secret")
+    assert is_sensitive_key("not_secret")  # segment "secret"
     assert not is_sensitive_key("model")
     assert not is_sensitive_key("base_url")
+    assert not is_sensitive_key("mytokenized")  # no underscore boundary

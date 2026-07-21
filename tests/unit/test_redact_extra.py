@@ -36,8 +36,8 @@ def test_redact_sensitive_data_deeply_nested_lists_and_dicts():
         "meta": {"count": 2},
     }
     out = redact_sensitive_data(data)
-    # First user password masked
-    assert out["users"][0]["credentials"]["password"] == "[REDACTED]"
+    # "credentials" is a sensitive key → whole structured value masked
+    assert out["users"][0]["credentials"] == "[REDACTED]"
     # Nested list token masked
     assert out["users"][1][0]["token"] == "[REDACTED]"
     # Deep list inside dict masked for api_key, preserves non-sensitive
