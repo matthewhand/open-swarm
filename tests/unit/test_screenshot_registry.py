@@ -106,6 +106,14 @@ def test_capture_script_parks_django_and_spa_mobile_bottom_navs():
     assert "position = 'static'" in src or 'position = "static"' in src or "position='static'" in src
 
 
+def test_capture_script_injects_redirect_banner_for_spa_stems():
+    """spa-* captures must be distinct from canonical pages (redirect banner)."""
+    src = CAPTURE_SCRIPT.read_text()
+    assert "os-capture-redirect-banner" in src
+    assert "Redirected:" in src
+    assert "urlparse" in src
+
+
 def test_user_journey_launcher_caption_matches_hybrid_team_default():
     """teams-launch capture defaults to first option hybrid_team, not django_chat."""
     text = USER_JOURNEY.read_text()
