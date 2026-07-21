@@ -99,8 +99,11 @@ class TestResponseOwnership:
         rec = {"id": "resp_x", "owner": "user:alice"}
         assert responses_store.owner_allows(rec, "user:alice") is True
         assert responses_store.owner_allows(rec, "user:bob") is False
-        assert responses_store.owner_allows({"id": "resp_y"}, "user:bob") is True  # legacy
+        # Legacy unowned records fail closed (views skip check when auth off).
+        assert responses_store.owner_allows({"id": "resp_y"}, "user:bob") is False
+        assert responses_store.owner_allows({"id": "resp_y", "owner": None}, "user:bob") is False
         assert responses_store.owner_allows(rec, None) is False
+        assert responses_store.owner_allows(None, "user:alice") is False
 
     def test_get_refuses_foreign_principal(self, store):
         User = get_user_model()
@@ -171,3 +174,146 @@ class TestResponseOwnership:
             drf2.user, drf2.auth = pair
             p = request_principal(drf2)
             assert p is not None and p.startswith("token:")
+
+
+# --- Full HTTP (ASGI AsyncClient) ownership refusal when auth is on --------- #
+
+@pytest.mark.django_db(transaction=True)
+class TestResponseOwnershipHTTP:
+    """GET / cancel / delete must refuse foreign + legacy-unowned when auth on."""
+
+    def _save(self, rid: str, owner: str | None, *, status_str: str = "completed"):
+        rec = {
+            "id": rid,
+            "object": "response",
+            "response": {
+                "id": rid,
+                "object": "response",
+                "status": status_str,
+                "output_text": "hello",
+                "output": [],
+            },
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        if owner is not None:
+            rec["owner"] = owner
+        # Explicitly omit owner key when None to model true legacy records.
+        responses_store.save(rec)
+
+    @pytest.fixture
+    async def alice_client(self, db):
+        from asgiref.sync import sync_to_async
+        from django.contrib.auth import get_user_model
+        from django.test import AsyncClient
+
+        User = get_user_model()
+        user, _ = await sync_to_async(User.objects.get_or_create)(username="http_alice")
+        if not user.has_usable_password():
+            await sync_to_async(user.set_password)("x")
+            await sync_to_async(user.save)()
+        client = AsyncClient()
+        await sync_to_async(client.force_login)(user)
+        return client
+
+    @pytest.fixture
+    async def bob_client(self, db):
+        from asgiref.sync import sync_to_async
+        from django.contrib.auth import get_user_model
+        from django.test import AsyncClient
+
+        User = get_user_model()
+        user, _ = await sync_to_async(User.objects.get_or_create)(username="http_bob")
+        if not user.has_usable_password():
+            await sync_to_async(user.set_password)("x")
+            await sync_to_async(user.save)()
+        client = AsyncClient()
+        await sync_to_async(client.force_login)(user)
+        return client
+
+    @pytest.mark.asyncio
+    async def test_get_refuses_foreign_owner_http(self, store, alice_client, bob_client, settings):
+        settings.ENABLE_API_AUTH = True
+        settings.SWARM_API_KEY = TOKEN
+        self._save("resp_http_alice", "user:http_alice")
+
+        # Owner can read
+        ok = await alice_client.get("/v1/responses/resp_http_alice", SERVER_NAME="localhost")
+        assert ok.status_code == 200
+        assert json.loads(ok.content)["id"] == "resp_http_alice"
+
+        # Foreign principal denied
+        denied = await bob_client.get("/v1/responses/resp_http_alice", SERVER_NAME="localhost")
+        assert denied.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_get_refuses_legacy_unowned_when_auth_on(self, store, bob_client, settings):
+        settings.ENABLE_API_AUTH = True
+        settings.SWARM_API_KEY = TOKEN
+        self._save("resp_http_legacy", None)  # no owner field
+
+        denied = await bob_client.get("/v1/responses/resp_http_legacy", SERVER_NAME="localhost")
+        assert denied.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_legacy_unowned_open_when_auth_off(self, store, bob_client, settings):
+        settings.ENABLE_API_AUTH = False
+        self._save("resp_http_legacy_open", None)
+
+        ok = await bob_client.get("/v1/responses/resp_http_legacy_open", SERVER_NAME="localhost")
+        assert ok.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_cancel_refuses_foreign_and_legacy_http(self, store, alice_client, bob_client, settings):
+        settings.ENABLE_API_AUTH = True
+        settings.SWARM_API_KEY = TOKEN
+        self._save("resp_http_cancel_alice", "user:http_alice", status_str="in_progress")
+        self._save("resp_http_cancel_legacy", None, status_str="in_progress")
+
+        foreign = await bob_client.post(
+            "/v1/responses/resp_http_cancel_alice/cancel", SERVER_NAME="localhost"
+        )
+        assert foreign.status_code == 403
+
+        legacy = await bob_client.post(
+            "/v1/responses/resp_http_cancel_legacy/cancel", SERVER_NAME="localhost"
+        )
+        assert legacy.status_code == 403
+
+        # Owner can cancel
+        ok = await alice_client.post(
+            "/v1/responses/resp_http_cancel_alice/cancel", SERVER_NAME="localhost"
+        )
+        assert ok.status_code == 200
+        assert json.loads(ok.content)["status"] == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_delete_refuses_foreign_and_legacy_http(self, store, alice_client, bob_client, settings):
+        settings.ENABLE_API_AUTH = True
+        settings.SWARM_API_KEY = TOKEN
+        self._save("resp_http_del_alice", "user:http_alice")
+        self._save("resp_http_del_legacy", None)
+
+        foreign = await bob_client.delete(
+            "/v1/responses/resp_http_del_alice", SERVER_NAME="localhost"
+        )
+        assert foreign.status_code == 403
+        assert responses_store.load("resp_http_del_alice") is not None  # still there
+
+        legacy = await bob_client.delete(
+            "/v1/responses/resp_http_del_legacy", SERVER_NAME="localhost"
+        )
+        assert legacy.status_code == 403
+        assert responses_store.load("resp_http_del_legacy") is not None
+
+        ok = await alice_client.delete(
+            "/v1/responses/resp_http_del_alice", SERVER_NAME="localhost"
+        )
+        assert ok.status_code == 200
+        assert responses_store.load("resp_http_del_alice") is None
+
+    def test_list_summaries_includes_owner(self, store):
+        self._save("resp_sum_owned", "user:alice")
+        self._save("resp_sum_legacy", None)
+        rows = {r["id"]: r for r in responses_store.list_summaries()}
+        assert rows["resp_sum_owned"]["owner"] == "user:alice"
+        assert rows["resp_sum_legacy"].get("owner") is None
