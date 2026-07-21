@@ -30,6 +30,8 @@ class TestSettingsRedaction:
                         "OPENAI_API_KEY": "sk-mcp-openai-must-not-leak",
                         "GITHUB_TOKEN": "ghp_mcp_github_must_not_leak",
                         "MONDAY_API_KEY": "mon_mcp_monday_must_not_leak",
+                        "AWS_ACCESS_KEY_ID": "AKIA_mcp_aws_must_not_leak",
+                        "DATABASE_URL": "postgres://u:db_secret_must_not_leak@db/app",
                     },
                 },
             },
@@ -52,6 +54,8 @@ class TestSettingsRedaction:
             "sk-mcp-openai-must-not-leak",
             "ghp_mcp_github_must_not_leak",
             "mon_mcp_monday_must_not_leak",
+            "AKIA_mcp_aws_must_not_leak",
+            "db_secret_must_not_leak",
         ):
             assert secret not in body, f"secret leaked in settings payload: {secret}"
 
@@ -93,9 +97,17 @@ class TestSettingsRedaction:
         # Nested env values must be masked, not raw.
         demo = next(iter(mcp.values()))
         env = (demo.get("value") or {}).get("env") or {}
+        from swarm.utils.redact import is_sensitive_key
+
         for k, v in env.items():
-            if any(s in k.lower() for s in ("key", "token", "secret")):
+            if is_sensitive_key(k):
                 assert v in ("***HIDDEN***", "[REDACTED]") or "HIDDEN" in str(v) or "REDACTED" in str(v)
+        assert env.get("AWS_ACCESS_KEY_ID") in ("***HIDDEN***", "[REDACTED]") or (
+            env.get("AWS_ACCESS_KEY_ID") and "HIDDEN" in str(env.get("AWS_ACCESS_KEY_ID"))
+        )
+        assert env.get("DATABASE_URL") in ("***HIDDEN***", "[REDACTED]") or (
+            env.get("DATABASE_URL") and "HIDDEN" in str(env.get("DATABASE_URL"))
+        )
 
 
 @pytest.mark.django_db
