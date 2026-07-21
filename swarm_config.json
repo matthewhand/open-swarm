@@ -91,6 +91,12 @@
       "speed": 0.8,
       "intelligence": 0.2,
       "temperature": 0.1
+    },
+    "journey_prof": {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "${OPENAI_API_KEY}"
     }
   },
   "mcpServers": {
@@ -111,12 +117,15 @@
         "MIRO-OAUTH-KEY": "${MIRO-OAUTH-KEY}"
       }
     },
-
     "mondayDotCom": {
       "command": "npx",
-      "args": ["-y","mcp-graphql",
-        "--endpoint","https://api.monday.com/v2",
-        "--headers","'{\"Authorization\":\"Bearer ${MONDAY_API_KEY}\"}'"
+      "args": [
+        "-y",
+        "mcp-graphql",
+        "--endpoint",
+        "https://api.monday.com/v2",
+        "--headers",
+        "'{\"Authorization\":\"Bearer ${MONDAY_API_KEY}\"}'"
       ],
       "env": {
         "MONDAY_API_KEY": "${MONDAY_API_KEY}"
@@ -158,13 +167,16 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/jkawamoto/mcp-youtube-transcript", 
+        "git+https://github.com/jkawamoto/mcp-youtube-transcript",
         "mcp-youtube-transcript"
       ]
     },
     "wolframalpha": {
       "command": "npx",
-      "args": ["-y","github:Garoth/wolframalpha-llm-mcp"],
+      "args": [
+        "-y",
+        "github:Garoth/wolframalpha-llm-mcp"
+      ],
       "env": {
         "WOLFRAM_LLM_APP_ID": "${WOLFRAM_LLM_APP_ID}"
       },
@@ -203,7 +215,7 @@
     "mcp-server-reddit": {
       "command": "uvx",
       "args": [
-        "--from", 
+        "--from",
         "git+https://github.com/Hawstein/mcp-server-reddit",
         "mcp-server-reddit"
       ]
@@ -265,48 +277,58 @@
       }
     },
     "glama": {
-        "command": "uvx",
-        "args": ["mcp-openapi-proxy"],
-        "env": {
-            "OPENAPI_SPEC_URL": "https://glama.ai/api/mcp/openapi.json"
-        }
+      "command": "uvx",
+      "args": [
+        "mcp-openapi-proxy"
+      ],
+      "env": {
+        "OPENAPI_SPEC_URL": "https://glama.ai/api/mcp/openapi.json"
+      }
     },
     "getzep": {
-        "command": "uvx",
-        "args": ["mcp-openapi-proxy"],
-        "env": {
-            "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/matthewhand/mcp-openapi-proxy/refs/heads/main/examples/getzep.swagger.json",
-            "TOOL_WHITELIST": "/sessions",
-            "API_KEY": "${GETZEP_API_KEY}",
-            "API_AUTH_TYPE": "Api-Key",
-            "TOOL_NAME_PREFIX": "zep_"
-        }
+      "command": "uvx",
+      "args": [
+        "mcp-openapi-proxy"
+      ],
+      "env": {
+        "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/matthewhand/mcp-openapi-proxy/refs/heads/main/examples/getzep.swagger.json",
+        "TOOL_WHITELIST": "/sessions",
+        "API_KEY": "${GETZEP_API_KEY}",
+        "API_AUTH_TYPE": "Api-Key",
+        "TOOL_NAME_PREFIX": "zep_"
+      }
     },
     "slack": {
-        "command": "uvx",
-        "args": ["mcp-openapi-proxy"],
-        "env": {
-            "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/slackapi/slack-api-specs/master/web-api/slack_web_openapi_v2.json",
-            "TOOL_WHITELIST": "/chat,/bots,/conversations,/reminders,/files,/users",
-            "API_KEY": "${SLACK_API_KEY}",
-            "STRIP_PARAM": "token"
-        }
+      "command": "uvx",
+      "args": [
+        "mcp-openapi-proxy"
+      ],
+      "env": {
+        "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/slackapi/slack-api-specs/master/web-api/slack_web_openapi_v2.json",
+        "TOOL_WHITELIST": "/chat,/bots,/conversations,/reminders,/files,/users",
+        "API_KEY": "${SLACK_API_KEY}",
+        "STRIP_PARAM": "token"
+      }
     },
     "render": {
-        "command": "uvx",
-        "args": ["mcp-openapi-proxy"],
-        "env": {
-            "OPENAPI_SPEC_URL": "https://api-docs.render.com/openapi/6140fb3daeae351056086186",
-            "TOOL_WHITELIST": "/services,/maintenance",
-            "API_KEY": "${RENDER_API_KEY}"
-        }
+      "command": "uvx",
+      "args": [
+        "mcp-openapi-proxy"
+      ],
+      "env": {
+        "OPENAPI_SPEC_URL": "https://api-docs.render.com/openapi/6140fb3daeae351056086186",
+        "TOOL_WHITELIST": "/services,/maintenance",
+        "API_KEY": "${RENDER_API_KEY}"
+      }
     },
     "flyio": {
       "command": "uvx",
-      "args": ["mcp-openapi-proxy"],
+      "args": [
+        "mcp-openapi-proxy"
+      ],
       "env": {
-          "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/abhiaagarwal/peristera/refs/heads/main/fly-machines-gen/fixed_spec.json",
-          "API_KEY": "${FLY_API_KEY}"
+        "OPENAPI_SPEC_URL": "https://raw.githubusercontent.com/abhiaagarwal/peristera/refs/heads/main/fly-machines-gen/fixed_spec.json",
+        "API_KEY": "${FLY_API_KEY}"
       }
     },
     "rag-docs": {
@@ -358,7 +380,9 @@
     "mcp-llms-txt": {
       "command": "uvx",
       "args": [
-        "--from","git+https://github.com/SecretiveShell/MCP-llms-txt","mcp-llms-txt"
+        "--from",
+        "git+https://github.com/SecretiveShell/MCP-llms-txt",
+        "mcp-llms-txt"
       ]
     }
   },
