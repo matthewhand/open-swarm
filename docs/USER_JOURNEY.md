@@ -8,13 +8,16 @@ and every screenshot in [`docs/screenshots/`](./screenshots/) was captured from
 a live local server by [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py).
 Where a page shows demo, placeholder, or empty-state data, the caption says so.
 
-> Screenshots captured 2026-06-11 with a fresh development database; terminal
-> transcripts captured 2026-06-10 on `main`.
+> Screenshots last regenerated **2026-07-21** with Playwright
+> (`scripts/capture_user_journey.py`) against a live local server. Captures
+> reflect that environment’s data (e.g. session explorer may show many
+> historical `/v1/responses` rows; empty states are called out in captions).
+> Terminal transcripts below were captured 2026-06-10 on `main`.
 
 > **Documentation map:** [USERGUIDE.md](../USERGUIDE.md) is the `swarm-cli`
 > reference, this file is the end-to-end story,
 > [GUIDED_TOUR.md](./GUIDED_TOUR.md) is the screenshot-per-page visual tour of
-> the web UI (including the React SPA pages), and
+> the web UI (Django operator shell + lightweight SPA dashboard/chat), and
 > [SCREENSHOTS.md](./SCREENSHOTS.md) is the capture registry.
 
 ---
@@ -152,18 +155,16 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 ![Landing page](./screenshots/landing.png)
 
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
-serves the React SPA — now shipping styled (DaisyUI 5 / Tailwind 4) CSS. The
-dashboard's blueprint/model counts are fetched live from `/v1/blueprints/`
-and `/v1/models/`, and "Backend API: Online" is a real health indicator. The
-SPA's inner pages (`/chat`, `/teams`, `/blueprints`, `/agent-creator`,
-`/settings`) are wired to the real backend APIs — see the page-by-page
-[guided tour](./GUIDED_TOUR.md#2-react-spa-tour) with captures of each
-(`spa-chat.png`, `spa-teams.png`, `spa-blueprints.png`,
-`spa-agent-creator.png`, `spa-settings.png` in
-[`docs/screenshots/`](./screenshots/)). Remaining gaps are tracked in the
-Roadmap (e.g. the chat websocket protocol ignores the blueprint selector).
-Delete or skip building `webui/frontend/dist/` to get the Django template UI
-at `/` instead; the template pages below remain the supported admin surface.
+serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
+teams/blueprints/models counts come from the API; Quick Actions open the
+**Django** operator UI (`/teams/launch/`, `/blueprint-library/`, `/settings/`,
+…). Bare `/teams`, `/blueprints`, `/settings`, and `/agent-creator` **redirect**
+to those Django pages — `spa-*.png` captures document the redirect landing
+surfaces. Experimental SPA chat remains at `/chat` (login required for the
+websocket consumer). See the page-by-page
+[guided tour](./GUIDED_TOUR.md). Without `webui/frontend/dist/`, `/` falls
+back to Django templates; the Django pages below are the supported admin
+surface either way.
 
 ### Teams admin — `/teams/`
 
@@ -178,19 +179,20 @@ with any OpenAI client.
 
 ![Team launcher](./screenshots/teams-launch.png)
 
-Pick a team blueprint (here the bundled `django_chat` is pre-selected), type a
-task, and stream the team's output in the browser. The output panel is empty
-because nothing has been launched yet in this fresh environment.
+Pick a team blueprint (the launcher lists bundled options such as
+`hybrid_team`, `django_chat`, `persona_council`, … — the capture shows the
+first option, **`hybrid_team`**, selected), type a task, and stream the
+team's output in the browser. The output panel is empty until you launch.
 
 ### Blueprint library — `/blueprint-library/`
 
 ![Blueprint library](./screenshots/blueprint-library.png)
 
-Browse the bundled blueprints (Django Chat, GAWD, Geese, Dynamic Team, Rue
-Code, Chucks Angels, Jeeves, Zeus, Codey, …) with per-blueprint requirement
-badges (e.g. "MCP: OK" / "MCP: Missing") computed from your local
-environment. The summary tiles (5 available / 0 installed / 0 custom /
-5 categories) reflect this fresh dev setup.
+Browse discoverable blueprints with per-blueprint MCP requirement badges
+(e.g. "MCP: OK" / "MCP: Missing") from your local environment. The grid is
+**paginated** on first paint (Show more) so the catalog does not dump every
+card at once; summary tiles reflect available / installed / custom /
+category counts for this environment.
 
 ### My blueprints — `/blueprint-library/my-blueprints/`
 
@@ -203,9 +205,10 @@ empty state — a fresh environment with nothing added to the library yet.
 
 ![Agent creator](./screenshots/agent-creator.png)
 
-Build a custom agent persona from a form (name, personality, expertise,
-communication style, special instructions); the right-hand panel generates,
-validates, and saves the resulting Python blueprint code.
+Build a custom agent persona with **progressive disclosure**: essentials
+(name, description, special instructions) open by default; Persona and Tags
+are optional collapsed sections. The right-hand panel generates, validates,
+and saves the resulting Python blueprint code.
 
 ### Settings dashboard — `/settings/`
 
@@ -220,18 +223,23 @@ environment. Values shown are this dev machine's local configuration.
 
 ![Login page](./screenshots/login.png)
 
-The login form — deliberately minimal and unstyled. Both `/accounts/login/`
-and `/login/` are wired to the `custom_login` view (earlier captures of this
-journey reported them 404/500; that has been fixed). The "testuser/testpass"
-hint is baked into the dev template; that account only exists when the
-dev-only auto-login flag is enabled. Logging in is what enables the SPA chat
-page's websocket session — the chat consumer rejects anonymous connections.
+The login form. Both `/accounts/login/` and `/login/` are wired to the
+`custom_login` view. Logging in enables authenticated operator pages and the
+SPA chat websocket session — the chat consumer rejects anonymous connections.
 
-### Pages not captured
+### Session explorer — `/sessions/`
 
-* **`/webui/`** — the legacy websocket-chat template page no longer ships;
-  the URL now issues a redirect to `/` for old bookmarks, so there is nothing
-  distinct to capture.
+See [GUIDED_TOUR.md](./GUIDED_TOUR.md) (`sessions.png`). Lists stateful
+`/v1/responses` sessions with a default limit of 50 newest (live poll keeps
+the same cap).
+
+### Pages not captured as distinct products
+
+* **Bare SPA dual routes** (`/teams`, `/blueprints`, `/settings`,
+  `/agent-creator`) — they redirect to Django; covered by `spa-*.png`
+  redirect captures, not separate products.
+* **`/webui/`** — legacy template; redirects to `/` for old bookmarks.
+
 
 ## 4. Use it as an OpenAI-compatible API
 
