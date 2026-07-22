@@ -126,11 +126,43 @@ def get_stateful_chat_id_path() -> str:
 
 
 # API Tokens and Keys
-def get_api_auth_token() -> str | None:
-    """Get API auth token. If SWARM_ALLOW_NO_AUTH, return None to disable built-in auth."""
+def get_api_auth_tokens() -> list[str]:
+    """All accepted API auth secrets, deduped (order preserved).
+
+    Sources (merged):
+    - singles: ``API_AUTH_TOKEN``, ``SWARM_API_KEY``
+    - multi (comma-separated): ``API_AUTH_TOKENS``, ``SWARM_API_KEYS``
+
+    Returns an empty list when ``SWARM_ALLOW_NO_AUTH`` is truthy (built-in
+    auth intentionally disabled).
+    """
     if os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 'yes'):
-        return None
-    return os.getenv('API_AUTH_TOKEN') or os.getenv('SWARM_API_KEY')
+        return []
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for key in ('API_AUTH_TOKEN', 'SWARM_API_KEY'):
+        val = os.getenv(key)
+        if not val:
+            continue
+        t = val.strip()
+        if t and t not in seen:
+            tokens.append(t)
+            seen.add(t)
+    for key in ('API_AUTH_TOKENS', 'SWARM_API_KEYS'):
+        for t in get_csv_env(key):
+            if t not in seen:
+                tokens.append(t)
+                seen.add(t)
+    return tokens
+
+
+def get_api_auth_token() -> str | None:
+    """Primary API auth token (first of :func:`get_api_auth_tokens`).
+
+    If SWARM_ALLOW_NO_AUTH, return None to disable built-in auth.
+    """
+    tokens = get_api_auth_tokens()
+    return tokens[0] if tokens else None
 
 
 def get_openai_api_key() -> str | None:
@@ -378,8 +410,9 @@ def get_enforced_api_auth_token() -> str | None:
         return None
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
-        "API_AUTH_TOKEN is required when DJANGO_DEBUG is not enabled. "
-        "Set API_AUTH_TOKEN, or set SWARM_ALLOW_NO_AUTH=true if an external layer gates access."
+        "API_AUTH_TOKEN (or API_AUTH_TOKENS / SWARM_API_KEY / SWARM_API_KEYS) is required "
+        "when DJANGO_DEBUG is not enabled. "
+        "Set a token, or set SWARM_ALLOW_NO_AUTH=true if an external layer gates access."
     )
 
 

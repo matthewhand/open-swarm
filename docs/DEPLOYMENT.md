@@ -62,6 +62,11 @@ docker compose up -d
 Point any OpenAI client at `http://<host>:8000/v1` with
 `Authorization: Bearer $API_AUTH_TOKEN`.
 
+For multiple clients with separate ownership principals, set
+`API_AUTH_TOKENS=key-a,key-b` (or `SWARM_API_KEYS`) — comma-separated secrets
+accepted alongside the single `API_AUTH_TOKEN` / `SWARM_API_KEY`. Each Bearer
+maps to its own `token:<sha256-prefix>` principal for response ownership.
+
 > **Single worker until a shared queue exists.** Async `/v1/responses` cancel
 > and in-flight limits are **process-local**. Compose/Dockerfile default
 > `SWARM_UVICORN_WORKERS=1`. Setting workers > 1 is refused by default

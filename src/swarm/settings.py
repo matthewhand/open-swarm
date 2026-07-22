@@ -32,17 +32,23 @@ DEBUG = is_django_debug()
 ALLOWED_HOSTS = get_django_allowed_hosts()
 
 # --- Custom Swarm Settings ---
-# Load the API auth token. In production (DEBUG=False) a missing token raises
+# Load API auth token(s). In production (DEBUG=False) a missing token raises
 # ImproperlyConfigured so the server refuses to start with auth silently disabled.
+# Multi-key: API_AUTH_TOKENS / SWARM_API_KEYS (CSV) merge with singles.
+# get_enforced_api_auth_token returns the primary (first) token or None.
 _raw_api_token = get_enforced_api_auth_token()
+_raw_api_tokens = get_api_auth_tokens()
 
-# *** Only enable API auth if the token is actually set ***
+# *** Only enable API auth if any token is actually set ***
 ENABLE_API_AUTH = bool(_raw_api_token)
-SWARM_API_KEY = _raw_api_token # Assign the loaded token (or None)
+SWARM_API_KEY = _raw_api_token  # primary token for backward compat
+# Full accepted list (primary first). StaticTokenAuthentication compares all.
+SWARM_API_KEYS = list(_raw_api_tokens)
 
 if ENABLE_API_AUTH:
     # Add assertion to satisfy type checkers within this block
     assert SWARM_API_KEY is not None, "SWARM_API_KEY cannot be None when ENABLE_API_AUTH is True"
+    assert SWARM_API_KEYS, "SWARM_API_KEYS cannot be empty when ENABLE_API_AUTH is True"
 
 SWARM_CONFIG_PATH = get_swarm_config_path()
 BLUEPRINT_DIRECTORY = get_blueprint_directory()
