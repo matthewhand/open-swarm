@@ -84,6 +84,22 @@ def test_env_style_keys_are_redacted_by_substring():
     assert redacted["env"]["NORMAL_PATH"] == "/usr/bin/npx"
 
 
+def test_empty_user_uri_credentials_are_redacted():
+    """redis://:password@host (empty user) must not leak the password."""
+    from swarm.utils.redact import redact_uri_credentials
+
+    assert "onlypass" not in redact_uri_credentials("redis://:onlypass@host:6379")
+    assert "hunter2" not in redact_uri_credentials("postgres://admin:hunter2@db/prod")
+    plain = "https://example.com/path"
+    assert redact_uri_credentials(plain) == plain
+    nested = redact_sensitive_data(
+        {"notes": "cache at redis://:onlypass@host:6379/0"},
+        mask="***HIDDEN***",
+    )
+    assert "onlypass" not in nested["notes"]
+    assert "***HIDDEN***" in nested["notes"]
+
+
 def test_is_sensitive_key_helper():
     from swarm.utils.redact import is_sensitive_key
 

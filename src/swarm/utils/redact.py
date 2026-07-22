@@ -38,9 +38,10 @@ SENSITIVE_PATTERNS = [
 ]
 _COMPILED_SENSITIVE_PATTERNS = [re.compile(p) for p in SENSITIVE_PATTERNS]
 
-# scheme://user:password@host — mask only the password segment (not bare https URLs).
+# scheme://user:password@host and scheme://:password@host (empty user).
+# User part may be empty; bare https://host (no credentials) does not match.
 _URI_CREDENTIALS_PATTERN = re.compile(
-    r"([a-zA-Z][a-zA-Z0-9+.-]*://[^:/?#\s]+):([^@/\s]+)@"
+    r"([a-zA-Z][a-zA-Z0-9+.-]*://[^@/\s:]*):([^@/\s]+)@"
 )
 
 

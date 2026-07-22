@@ -533,7 +533,12 @@ def _persist(
 
 
 def _assert_owner_access(request: Request, record: dict[str, Any] | None) -> None:
-    """Refuse cross-principal access when API auth is on and owner is stamped."""
+    """Refuse access when API auth is on and the principal is not the owner.
+
+    Fail-closed: legacy records without an ``owner`` stamp are also denied
+    (see :func:`responses_store.owner_allows`). Skipped entirely when API auth
+    is off (open local-dev mode).
+    """
     if not bool(getattr(settings, "ENABLE_API_AUTH", False)):
         return
     principal = request_principal(request)

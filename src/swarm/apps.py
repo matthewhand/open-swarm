@@ -79,6 +79,8 @@ class SwarmConfig(AppConfig):
                 raise
             logger.warning("Test-mode guard check failed: %s", e)
 
+        self._warn_if_api_auth_disabled()
+
         # Resume async /v1/responses tasks left in-flight by a restart — server
         # processes only (not migrate/test), guarded against the runserver
         # reloader's parent process to avoid double-resume.
@@ -86,6 +88,25 @@ class SwarmConfig(AppConfig):
         self._maybe_resume_async_tasks()
 
         logger.info("Swarm app initialization checks completed.")
+
+    @staticmethod
+    def _warn_if_api_auth_disabled() -> None:
+        """Surface the DEBUG / missing-token footgun when the process is serving."""
+        import sys
+
+        argv = " ".join(sys.argv)
+        serving = any(
+            s in argv for s in ("uvicorn", "swarm-api", "gunicorn", "daphne", "runserver")
+        )
+        if not serving:
+            return
+        if bool(getattr(settings, "ENABLE_API_AUTH", False)):
+            return
+        logger.warning(
+            "API authentication is OFF (ENABLE_API_AUTH=false — typically DEBUG "
+            "without API_AUTH_TOKEN / SWARM_API_KEY). Fine for local development; "
+            "do not expose this process on a network without setting an API token."
+        )
 
     @staticmethod
     def _check_uvicorn_workers() -> None:
