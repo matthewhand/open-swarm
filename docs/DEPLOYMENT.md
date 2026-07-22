@@ -125,6 +125,8 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   --check-auth` on the host.
 - **Server refuses to start** → in production (`DJANGO_DEBUG` not true) you must
   set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, and `API_AUTH_TOKEN`.
+  Production also enables secure cookies + `X-Content-Type-Options` / `X-Frame-Options`
+  (opt out of secure cookies with `SWARM_SECURE_COOKIES=false` for HTTP staging).
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
 - **gemini slow / stalls** → the free `oauth-personal` tier throttles the pro
   model heavily; the flash default answers in seconds. Use a paid `GEMINI_API_KEY`

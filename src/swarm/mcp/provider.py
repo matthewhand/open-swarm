@@ -163,6 +163,12 @@ class BlueprintMCPProvider:
         started_servers = []
         for server_name in required_servers:
             if server_name not in self._mcp_config:
+                if server_name == "playwright":
+                    from swarm.core.browser_tools import BROWSER_UNAVAILABLE
+                    raise ValueError(
+                        f"{BROWSER_UNAVAILABLE} "
+                        f"(MCP server config 'playwright' not found in swarm_config.json)"
+                    )
                 raise ValueError(f"MCP server config '{server_name}' not found in swarm_config.json")
             server_cfg_dict = self._mcp_config[server_name]
             mcp_config = MCPServerConfig(**server_cfg_dict)
@@ -186,15 +192,15 @@ class BlueprintMCPProvider:
                         if attempt < 2:
                             time.sleep(2 ** attempt)  # Exponential backoff
                         else:
-                            raise RuntimeError(f"Failed to start MCP server '{server_name}' after 3 attempts")
+                            raise self._mcp_start_error(server_name, "exited after 3 attempts")
                 except Exception as e:
                     logger.warning(f"Attempt {attempt + 1} failed for MCP server '{server_name}': {e}")
                     if attempt < 2:
                         time.sleep(2 ** attempt)
                     else:
-                        raise RuntimeError(f"Failed to start MCP server '{server_name}' after 3 attempts: {e}")
+                        raise self._mcp_start_error(server_name, str(e)) from e
             if process is None:
-                raise RuntimeError(f"Failed to start MCP server '{server_name}'")
+                raise self._mcp_start_error(server_name, "process was never created")
             started_servers.append({
                 'name': server_name,
                 'process': process,

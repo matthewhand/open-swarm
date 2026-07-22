@@ -80,4 +80,32 @@ How to proceed:
 
 ---
 
+
+
+## 7. Browser automation / Playwright MCP
+
+Blueprints that declare a ``browser`` capability (e.g. ``whiskeytango_foxtrot``,
+``jeeves``) expect the official **microsoft/playwright-mcp** server
+(``npx -y @playwright/mcp@latest``). Open Swarm auto-provisions it in the tool
+catalog when missing from config, but it still needs Node/npx available on the
+host and a successful MCP process start.
+
+There is **no stub browser that fakes success**. If Playwright MCP is not
+configured or fails to start, tools should report:
+
+```
+browser automation unavailable: no playwright MCP server
+```
+
+(see ``swarm.core.browser_tools.browser_unavailable_error``).
+
+Fix checklist:
+- Ensure Node.js / ``npx`` is on ``PATH`` for the server process.
+- Optionally pin a ``playwright`` entry under ``mcpServers`` in
+  ``swarm_config.json`` (command ``npx``, args ``["-y", "@playwright/mcp@latest"]``).
+- Confirm with ``GET /v1/blueprints/<id>/tools`` that ``satisfied.browser`` is
+  ``playwright`` and that the process can actually spawn ``npx``.
+- First run may download Chromium; allow network or pre-install browsers.
+
+
 **Tip:** Most issues are caused by misconfigured API keys, missing dependencies, or a corrupted config file. Reviewing or resetting your config often resolves stubborn problems.

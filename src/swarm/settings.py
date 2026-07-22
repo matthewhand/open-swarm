@@ -309,6 +309,26 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 
+# --- Production security defaults ---
+# Applied when DEBUG is False (production). Tests force DJANGO_DEBUG=true via
+# TESTING, so this block does not affect the suite. Explicit env overrides:
+#   SWARM_SECURE_COOKIES=false  → allow non-HTTPS cookies (HTTP staging)
+#   DJANGO_X_FRAME_OPTIONS      → override frame policy (default DENY)
+# API_AUTH_TOKEN is already required in production via get_enforced_api_auth_token().
+if not DEBUG:
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = os.getenv("DJANGO_X_FRAME_OPTIONS", "DENY")
+    # Secure cookies default on in production; opt out with SWARM_SECURE_COOKIES=false.
+    _secure_cookies_env = os.getenv("SWARM_SECURE_COOKIES", "").strip().lower()
+    if _secure_cookies_env in ("false", "0", "no", "n", "off"):
+        _secure_cookies = False
+    else:
+        # true/1/yes/on OR unset → secure cookies when DEBUG is False
+        _secure_cookies = True
+    SESSION_COOKIE_SECURE = _secure_cookies
+    CSRF_COOKIE_SECURE = _secure_cookies
+
+
 # --- ComfyUI Configuration for Avatar Generation ---
 COMFYUI_ENABLED = is_comfyui_enabled()
 COMFYUI_HOST = get_comfyui_host()
