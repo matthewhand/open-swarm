@@ -79,9 +79,15 @@ class TestAssertSafeBlueprintSource:
         with pytest.raises(ValueError, match=r"os\.system"):
             assert_safe_blueprint_source("import os\nos.system('id')\n")
 
-    def test_getattr_fails(self):
-        with pytest.raises(ValueError, match=r"getattr"):
+    def test_builtins_name_fails(self):
+        with pytest.raises(ValueError, match=r"__builtins__"):
             assert_safe_blueprint_source("getattr(__builtins__, 'eval')\n")
+
+    def test_getattr_constant_attr_allowed(self):
+        # Common pattern in generated team blueprints.
+        assert_safe_blueprint_source(
+            "result = object()\ncontent = getattr(result, 'final_output', str(result))\n"
+        )
 
     def test_allowed_imports_pass(self):
         src = """

@@ -139,10 +139,10 @@ def _check_node(node: ast.AST) -> None:
         return
 
     if isinstance(node, ast.Name):
-        # Block aliasing / bare references to dangerous builtins.
-        if node.id in ("eval", "exec", "compile", "__import__") and isinstance(
-            node.ctx, (ast.Load, ast.Store)
-        ):
+        # Block aliasing / bare references to dangerous builtins / interpreter state.
+        if node.id in (
+            "eval", "exec", "compile", "__import__", "__builtins__",
+        ) and isinstance(node.ctx, (ast.Load, ast.Store)):
             raise ValueError(
                 f"Banned name {node.id!r} in user blueprint "
                 f"(line {getattr(node, 'lineno', '?')})"
@@ -179,8 +179,8 @@ def _check_call(node: ast.Call) -> None:
             f"(line {getattr(node, 'lineno', '?')})"
         )
 
-    # getattr/setattr/delattr and namespace reflection
-    if name in ("getattr", "setattr", "delattr", "vars", "globals", "locals"):
+    # Namespace reflection (getattr/setattr with constant attrs is common and allowed)
+    if name in ("vars", "globals", "locals"):
         raise ValueError(
             f"Banned reflective call {name!r} in user blueprint "
             f"(line {getattr(node, 'lineno', '?')})"

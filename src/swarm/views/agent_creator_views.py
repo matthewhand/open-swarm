@@ -20,18 +20,26 @@ from swarm.core import paths
 _BANNED_CODE_SNIPPETS = ("__import__", "subprocess", "os.system", "eval(", "exec(")
 
 
-def _banned_code_error(code: str) -> str | None:
-    """Return an error message if code contains unsandboxed-exec patterns.
-
-    Runs the substring ban list first, then the AST sandbox gate (stronger).
-    """
-    lowered = code.lower()
+def _banned_snippet_error(text: str) -> str | None:
+    """Substring ban for free-text prompts and source (no AST — text need not be Python)."""
+    lowered = text.lower()
     for banned in _BANNED_CODE_SNIPPETS:
         if banned in lowered:
             return (
                 f"Saved blueprints may not contain {banned!r} "
                 "(unsandboxed exec blocked)."
             )
+    return None
+
+
+def _banned_code_error(code: str) -> str | None:
+    """Return an error message if blueprint *source* is unsafe.
+
+    Substring ban list first, then AST sandbox (full Python module only).
+    """
+    snippet = _banned_snippet_error(code)
+    if snippet:
+        return snippet
     try:
         from swarm.core.blueprint_sandbox import assert_safe_blueprint_source
         assert_safe_blueprint_source(code)
@@ -821,7 +829,7 @@ def save_team_swarm(request):
         for field in ("system_prompt", "instructions", "description", "role"):
             val = agent.get(field) or ""
             if isinstance(val, str):
-                banned = _banned_code_error(val)
+                banned = _banned_snippet_error(val)
                 if banned:
                     return JsonResponse({"success": False, "error": banned}, status=400)
         cleaned_agents.append({
