@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play } from 'lucide-react';
 
 interface Blueprint {
   id: string;
@@ -27,7 +27,7 @@ export default function BlueprintsPage() {
       try {
         const res = await fetch('/v1/blueprints');
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as Record<string, any>;
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
           setBlueprints(list.map((b: any) => ({
             id: String(b.id || b.name || Math.random()),
