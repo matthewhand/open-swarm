@@ -40,4 +40,21 @@ describe('Modal Accessibility and Focus Restoration', () => {
       expect(document.activeElement).toBe(triggerBtn);
     });
   });
+
+  it('renders focusable button backdrop and calls onClose when clicked', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal isOpen={true} onClose={onClose} title="Backdrop Test">
+        <p>Backdrop content</p>
+      </Modal>
+    );
+
+    const backdrop = screen.getByRole('button', { name: 'close' });
+    expect(backdrop).toBeInTheDocument();
+    expect(backdrop).toHaveClass('modal-backdrop');
+    expect(backdrop).toHaveAttribute('tabIndex', '-1');
+
+    backdrop.click();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

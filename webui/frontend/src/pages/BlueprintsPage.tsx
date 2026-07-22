@@ -29,15 +29,31 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
-            id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
-            installed: !!b.installed,
-            featured: !!b.featured,
-          })));
+          setBlueprints(list.map((item: unknown) => {
+            if (typeof item !== 'object' || item === null) {
+              return {
+                id: String(Math.random()),
+                name: 'unknown',
+                description: 'Blueprint for AI tasks',
+                category: 'General',
+                version: '0.1',
+                installed: false,
+                featured: false,
+              };
+            }
+            const b = item as Record<string, unknown>;
+            const bId = String(b.id || b.name || Math.random());
+
+            return {
+              id: bId,
+              name: typeof b.name === 'string' ? b.name : (typeof b.id === 'string' ? b.id : 'unknown'),
+              description: typeof b.description === 'string' ? b.description : (typeof b.desc === 'string' ? b.desc : 'Blueprint for AI tasks'),
+              category: typeof b.category === 'string' ? b.category : (typeof b.tag === 'string' ? b.tag : 'General'),
+              version: typeof b.version === 'string' ? b.version : '0.1',
+              installed: !!b.installed,
+              featured: !!b.featured,
+            };
+          }));
         } else {
           throw new Error('API not available');
         }
