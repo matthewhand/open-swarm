@@ -67,11 +67,12 @@ For multiple clients with separate ownership principals, set
 accepted alongside the single `API_AUTH_TOKEN` / `SWARM_API_KEY`. Each Bearer
 maps to its own `token:<sha256-prefix>` principal for response ownership.
 
-> **Single worker until a shared queue exists.** Async `/v1/responses` cancel
-> and in-flight limits are **process-local**. Compose/Dockerfile default
+> **Single worker preferred for inflight limits.** Async `/v1/responses`
+> inflight limits are **process-local**; cooperative cancel is shared via the
+> filesystem when workers share `SWARM_RESPONSES_DIR`. Compose/Dockerfile default
 > `SWARM_UVICORN_WORKERS=1`. Setting workers > 1 is refused by default
-> (`SWARM_ENFORCE_SINGLE_WORKER=true`); only override if you accept broken
-> cross-worker cancel. Oracle systemd unit already uses `--workers 1`.
+> (`SWARM_ENFORCE_SINGLE_WORKER=true`); only override if you accept per-worker
+> inflight accounting. Oracle systemd unit already uses `--workers 1`.
 
 > **Persist Responses state.** `/v1/responses` is stateful: stored responses (for
 > `previous_response_id` chaining and `GET`/`DELETE`) live under

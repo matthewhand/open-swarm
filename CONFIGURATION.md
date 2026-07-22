@@ -267,7 +267,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
 | `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
 | `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |
-| `SWARM_UVICORN_WORKERS` | uvicorn worker count. Prefer **1** — async cancel/inflight are process-local. | `1` |
+| `SWARM_UVICORN_WORKERS` | uvicorn worker count. Prefer **1** — inflight limits are process-local; cancel is filesystem-shared when workers share `SWARM_RESPONSES_DIR`. | `1` |
 | `SWARM_ENFORCE_SINGLE_WORKER` | When true (default), refuse `SWARM_UVICORN_WORKERS` &gt; 1 at app startup. | `true` |
 | `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` | When true, scan user blueprint dirs (exec_module). Default off so creator saves are write-only. | `false` |
 
