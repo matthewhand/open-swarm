@@ -25,30 +25,35 @@ User = get_user_model()
 # --- Static Token Authentication ---
 class StaticTokenAuthentication(BaseAuthentication):
     """
-    Authenticates requests based on a static API token passed in a header
+    Authenticates requests based on static API token(s) passed in a header
     (Authorization: Bearer <token> or X-API-Key: <token>).
 
-    Returns (AnonymousUser, token) on success. This allows permission classes
-    to check request.auth to see if token authentication succeeded, even though
-    no specific user model is associated with the token.
+    Accepts any token in ``settings.SWARM_API_KEYS`` (or the single
+    ``settings.SWARM_API_KEY`` when the list is empty). On match returns
+    ``(AnonymousUser(), provided_token)`` so ``request.auth`` is the presenting
+    credential and ``request_principal`` can hash that specific token.
     """
     keyword = 'Bearer'
 
     def authenticate(self, request):
         """
-        Attempts to authenticate using a static token.
+        Attempts to authenticate using a static token against all accepted keys.
         """
         logger.debug("[Auth][StaticToken] Attempting static token authentication.")
-        # Retrieve the expected token from settings.
-        expected_token = getattr(settings, 'SWARM_API_KEY', None)
+        # Preferred: multi-key list. Fall back to single SWARM_API_KEY.
+        accepted = list(getattr(settings, 'SWARM_API_KEYS', None) or [])
+        if not accepted:
+            single = getattr(settings, 'SWARM_API_KEY', None)
+            if single:
+                accepted = [single]
 
-        # If no token is configured in settings, this method cannot authenticate.
-        if not expected_token:
+        # If no tokens configured, this method cannot authenticate.
+        if not accepted:
             logger.error(
-                "[Auth][StaticToken] SWARM_API_KEY is not set in Django settings. "
+                "[Auth][StaticToken] SWARM_API_KEY(S) not set in Django settings. "
                 "Cannot use static token auth."
             )
-            return None # Indicate authentication method did not run or failed pre-check
+            return None  # Indicate authentication method did not run or failed pre-check
 
         # Extract the provided token from standard Authorization header or
         # custom X-API-Key header.
@@ -65,19 +70,20 @@ class StaticTokenAuthentication(BaseAuthentication):
         # If no token was found in either header, authentication fails for this method.
         if not provided_token:
             logger.debug("[Auth][StaticToken] No token found in relevant headers.")
-            return None # Indicate authentication method did not find credentials
+            return None  # Indicate authentication method did not find credentials
 
-        # Constant-time compare to mitigate timing attacks on the API token.
-        if hmac.compare_digest(str(provided_token), str(expected_token)):
-            logger.info("[Auth][StaticToken] Static token authentication successful.")
-            # Return AnonymousUser and the token itself as request.auth.
-            # This signals successful authentication via token without linking to
-            # a specific User model.
-            return (AnonymousUser(), provided_token)
-        else:
-            # Token was provided but did not match. Raise AuthenticationFailed.
-            logger.warning("[Auth][StaticToken] Invalid static token provided.")
-            raise exceptions.AuthenticationFailed(_("Invalid API Key."))
+        # Constant-time compare against each accepted token (small N).
+        provided_str = str(provided_token)
+        for expected in accepted:
+            if hmac.compare_digest(provided_str, str(expected)):
+                logger.info("[Auth][StaticToken] Static token authentication successful.")
+                # Return AnonymousUser and the *provided* token as request.auth so
+                # ownership principals differ per credential under multi-key setups.
+                return (AnonymousUser(), provided_token)
+
+        # Token was provided but did not match any accepted key.
+        logger.warning("[Auth][StaticToken] Invalid static token provided.")
+        raise exceptions.AuthenticationFailed(_("Invalid API Key."))
 
 # --- Custom *Synchronous* Session Authentication ---
 class CustomSessionAuthentication(SessionAuthentication):
@@ -152,8 +158,9 @@ def request_principal(request) -> str | None:
 
     - Session user → ``user:<username>``
     - Static API token (request.auth) → ``token:<sha256-prefix>`` of the
-      presenting credential (single configured token ⇒ one principal; multi-key
-      is a future extension)
+      presenting credential. With multi-key auth (``API_AUTH_TOKENS`` /
+      ``SWARM_API_KEYS``), each accepted Bearer maps to a distinct principal
+      because the hash is over the token that authenticated the request.
     - Unauthenticated → ``None``
     """
     import hashlib

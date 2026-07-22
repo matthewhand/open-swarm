@@ -110,7 +110,7 @@ class SwarmConfig(AppConfig):
 
     @staticmethod
     def _check_uvicorn_workers() -> None:
-        """Refuse/warn multi-worker async when serving (process-local cancel)."""
+        """Refuse/warn multi-worker async when serving (process-local inflight)."""
         import sys
 
         argv = " ".join(sys.argv)

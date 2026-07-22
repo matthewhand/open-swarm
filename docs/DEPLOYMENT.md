@@ -62,11 +62,17 @@ docker compose up -d
 Point any OpenAI client at `http://<host>:8000/v1` with
 `Authorization: Bearer $API_AUTH_TOKEN`.
 
-> **Single worker until a shared queue exists.** Async `/v1/responses` cancel
-> and in-flight limits are **process-local**. Compose/Dockerfile default
+For multiple clients with separate ownership principals, set
+`API_AUTH_TOKENS=key-a,key-b` (or `SWARM_API_KEYS`) — comma-separated secrets
+accepted alongside the single `API_AUTH_TOKEN` / `SWARM_API_KEY`. Each Bearer
+maps to its own `token:<sha256-prefix>` principal for response ownership.
+
+> **Single worker preferred for inflight limits.** Async `/v1/responses`
+> inflight limits are **process-local**; cooperative cancel is shared via the
+> filesystem when workers share `SWARM_RESPONSES_DIR`. Compose/Dockerfile default
 > `SWARM_UVICORN_WORKERS=1`. Setting workers > 1 is refused by default
-> (`SWARM_ENFORCE_SINGLE_WORKER=true`); only override if you accept broken
-> cross-worker cancel. Oracle systemd unit already uses `--workers 1`.
+> (`SWARM_ENFORCE_SINGLE_WORKER=true`); only override if you accept per-worker
+> inflight accounting. Oracle systemd unit already uses `--workers 1`.
 
 > **Persist Responses state.** `/v1/responses` is stateful: stored responses (for
 > `previous_response_id` chaining and `GET`/`DELETE`) live under
@@ -119,6 +125,8 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   --check-auth` on the host.
 - **Server refuses to start** → in production (`DJANGO_DEBUG` not true) you must
   set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, and `API_AUTH_TOKEN`.
+  Production also enables secure cookies + `X-Content-Type-Options` / `X-Frame-Options`
+  (opt out of secure cookies with `SWARM_SECURE_COOKIES=false` for HTTP staging).
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
 - **gemini slow / stalls** → the free `oauth-personal` tier throttles the pro
   model heavily; the flash default answers in seconds. Use a paid `GEMINI_API_KEY`

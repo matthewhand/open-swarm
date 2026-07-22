@@ -158,11 +158,30 @@ class BlueprintMCPProvider:
         """
         self._executor = fn
 
+    @staticmethod
+    def _mcp_start_error(server_name: str, detail: str) -> RuntimeError:
+        """Build start-failure error; playwright gets a browser-honesty message."""
+        if server_name == "playwright":
+            from swarm.core.browser_tools import browser_unavailable_error
+            return RuntimeError(browser_unavailable_error(detail))
+        base = f"Failed to start MCP server '{server_name}'"
+        if detail:
+            if "after 3 attempts" in detail or detail.startswith("exited"):
+                return RuntimeError(f"{base} after 3 attempts")
+            return RuntimeError(f"{base} after 3 attempts: {detail}")
+        return RuntimeError(base)
+
     def _start_required_mcp_servers(self, required_servers: list[str]) -> list:
         """Start required MCP servers for blueprint execution."""
         started_servers = []
         for server_name in required_servers:
             if server_name not in self._mcp_config:
+                if server_name == "playwright":
+                    from swarm.core.browser_tools import BROWSER_UNAVAILABLE
+                    raise ValueError(
+                        f"{BROWSER_UNAVAILABLE} "
+                        f"(MCP server config 'playwright' not found in swarm_config.json)"
+                    )
                 raise ValueError(f"MCP server config '{server_name}' not found in swarm_config.json")
             server_cfg_dict = self._mcp_config[server_name]
             mcp_config = MCPServerConfig(**server_cfg_dict)
@@ -186,15 +205,17 @@ class BlueprintMCPProvider:
                         if attempt < 2:
                             time.sleep(2 ** attempt)  # Exponential backoff
                         else:
-                            raise RuntimeError(f"Failed to start MCP server '{server_name}' after 3 attempts")
+                            raise self._mcp_start_error(server_name, "exited after 3 attempts")
+                except RuntimeError:
+                    raise
                 except Exception as e:
                     logger.warning(f"Attempt {attempt + 1} failed for MCP server '{server_name}': {e}")
                     if attempt < 2:
                         time.sleep(2 ** attempt)
                     else:
-                        raise RuntimeError(f"Failed to start MCP server '{server_name}' after 3 attempts: {e}")
+                        raise self._mcp_start_error(server_name, str(e)) from e
             if process is None:
-                raise RuntimeError(f"Failed to start MCP server '{server_name}'")
+                raise self._mcp_start_error(server_name, "")
             started_servers.append({
                 'name': server_name,
                 'process': process,

@@ -42,11 +42,42 @@ class BlueprintLoadError(Exception):
     """Custom exception for errors during blueprint loading."""
     pass
 
+
+def _path_is_under(path: Path, root: Path) -> bool:
+    """Return True if *path* is *root* or a descendant of *root*."""
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _should_sandbox_blueprint_dir(blueprint_dir: Path, sandboxed: bool | None) -> bool:
+    """Decide whether to run the AST sandbox before exec_module.
+
+    Explicit ``sandboxed=True/False`` wins.  When *None*, auto-detect the user
+    blueprints directory (community/extra roots pass sandboxed=True from merge).
+    """
+    from swarm.core.blueprint_sandbox import sandbox_enabled
+
+    if not sandbox_enabled():
+        return False
+    if sandboxed is True:
+        return True
+    if sandboxed is False:
+        return False
+    try:
+        from swarm.core.paths import get_user_blueprints_dir
+        return _path_is_under(blueprint_dir, get_user_blueprints_dir())
+    except Exception:
+        return False
+
+
 # This function was defined but not used in the original discover_blueprints.
 # It might be useful if blueprint names from directories need canonicalization.
 # def _get_blueprint_name_from_dir(dir_name: str) -> str:
 #     """Converts directory name (e.g., 'blueprint_my_agent') to blueprint name (e.g., 'my_agent')."""
-def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dict[str, DiscoveredBlueprintInfo]:
+def discover_blueprints(blueprint_dir: str, namespace: str | None = None, *, sandboxed: bool | None = None) -> dict[str, DiscoveredBlueprintInfo]:
     """
     Discovers blueprints by looking for Python files within subdirectories
     of the given blueprint directory. Extracts metadata including name, version,
@@ -56,6 +87,10 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
 
     Args:
         blueprint_dir: The path to the directory containing blueprint subdirectories.
+        namespace: Optional synthetic module namespace (community packs).
+        sandboxed: When True, run AST safety checks before exec_module.
+            When None (default), auto-enable for the user blueprints dir.
+            Disabled entirely when SWARM_USER_BLUEPRINT_SANDBOX is false.
 
     Returns:
         A dictionary mapping blueprint directory names (as keys) to
@@ -64,6 +99,9 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
     logger.info(f"Starting blueprint discovery in directory: {blueprint_dir}")
     blueprints: dict[str, DiscoveredBlueprintInfo] = {}
     base_dir = Path(blueprint_dir).resolve()
+    apply_sandbox = _should_sandbox_blueprint_dir(base_dir, sandboxed)
+    if apply_sandbox:
+        logger.debug("AST sandbox enabled for blueprint discovery in %s", base_dir)
 
     if not base_dir.is_dir():
         logger.error(f"Blueprint directory not found or is not a directory: {base_dir}")
@@ -136,6 +174,25 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None) -> dic
             module_spec = importlib.util.spec_from_file_location(module_import_path, py_file_path)
 
             if module_spec and module_spec.loader:
+                if apply_sandbox:
+                    from swarm.core.blueprint_sandbox import assert_safe_blueprint_source
+                    try:
+                        source_text = py_file_path.read_text(encoding="utf-8")
+                        assert_safe_blueprint_source(source_text)
+                    except ValueError as sandbox_err:
+                        logger.warning(
+                            "Skipping unsafe user blueprint %s: %s",
+                            py_file_path,
+                            sandbox_err,
+                        )
+                        continue
+                    except OSError as read_err:
+                        logger.warning(
+                            "Skipping blueprint %s (could not read for sandbox): %s",
+                            py_file_path,
+                            read_err,
+                        )
+                        continue
                 module = importlib.util.module_from_spec(module_spec)
                 # Register module before execution to handle circular imports within blueprint
                 sys.modules[module_import_path] = module
@@ -301,7 +358,7 @@ def merge_community_blueprints(
             continue
         namespace = f"swarm_community_{index}"
         try:
-            found = discover_blueprints(directory)
+            found = discover_blueprints(directory, sandboxed=True)
         except Exception:
             logger.exception("Failed discovering community blueprints in %s", directory)
             continue

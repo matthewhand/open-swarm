@@ -3,8 +3,10 @@
 Single-instance only — not a multi-worker distributed semaphore. Used to
 reject overload with a client-safe 429 instead of unbounded thread growth.
 
-Until a shared queue exists, async ``/v1/responses`` cancel + inflight are
-**per process**. Prefer a single uvicorn worker (``SWARM_UVICORN_WORKERS=1``).
+Inflight limits remain **per process**. Cooperative ``/v1/responses`` cancel
+is shared across workers via the file-backed cancel registry when they share
+``SWARM_RESPONSES_DIR``. Prefer a single uvicorn worker
+(``SWARM_UVICORN_WORKERS=1``) so inflight accounting stays accurate.
 """
 from __future__ import annotations
 
@@ -24,7 +26,9 @@ def resolved_uvicorn_workers() -> int:
 
     Default 1. When ``SWARM_ENFORCE_SINGLE_WORKER`` is true (default), values
     greater than 1 raise ``ValueError`` so operators cannot silently break
-    cancel/inflight. Set the env to false to allow multi-worker with a warning.
+    process-local inflight limits. Set the env to false to allow multi-worker
+    with a warning. Cancel is filesystem-shared when workers share the
+    responses store dir; inflight remains per process.
     """
     raw = os.getenv("SWARM_UVICORN_WORKERS", "1") or "1"
     try:
@@ -37,8 +41,10 @@ def resolved_uvicorn_workers() -> int:
     )
     if n > 1:
         msg = (
-            f"SWARM_UVICORN_WORKERS={n} > 1: /v1/responses cancel and inflight "
-            "limits are process-local until a shared queue exists. Prefer workers=1."
+            f"SWARM_UVICORN_WORKERS={n} > 1: /v1/responses inflight limits are "
+            "process-local (per worker). Cancel is shared via the filesystem when "
+            "workers share SWARM_RESPONSES_DIR. Prefer workers=1 unless you accept "
+            "per-worker inflight accounting."
         )
         if enforce:
             raise ValueError(msg + " Set SWARM_ENFORCE_SINGLE_WORKER=false to override.")

@@ -43,7 +43,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.auth import request_principal
-from swarm.core import responses_store
+from swarm.core import cancel_registry, responses_store
 
 from .chat_views import _chunk_is_final, _extract_message_from_chunk
 from .openai_schema import responses_schema
@@ -547,28 +547,23 @@ def _assert_owner_access(request: Request, record: dict[str, Any] | None) -> Non
 
 
 # --- Cancellation registry -------------------------------------------------- #
-# Cooperative cancel: a cancel request adds the id here; the worker checks it
-# between blueprint chunks and stops. A single in-flight CLI call still runs to
-# completion (or its own timeout) — cancellation takes effect at the next chunk
-# boundary, which for multi-step blueprints (fusion/pipeline/planner) is between
-# CLI calls.
-_CANCELLED: set[str] = set()
-_CANCELLED_LOCK = threading.Lock()
+# Cooperative cancel: flags are file-backed under SWARM_RESPONSES_DIR/cancel so
+# multi-worker uvicorn can cancel each other's jobs. A process-local set is a
+# fast path. The worker checks between blueprint chunks; a single in-flight CLI
+# call still runs to completion (or its own timeout) — cancellation takes
+# effect at the next chunk boundary (fusion/pipeline/planner between CLI calls).
 
 
 def _request_cancel(response_id: str) -> None:
-    with _CANCELLED_LOCK:
-        _CANCELLED.add(response_id)
+    cancel_registry.request_cancel(response_id)
 
 
 def _is_cancel_requested(response_id: str) -> bool:
-    with _CANCELLED_LOCK:
-        return response_id in _CANCELLED
+    return cancel_registry.is_cancel_requested(response_id)
 
 
 def _clear_cancel(response_id: str) -> None:
-    with _CANCELLED_LOCK:
-        _CANCELLED.discard(response_id)
+    cancel_registry.clear_cancel(response_id)
 
 
 class _Cancelled(Exception):
