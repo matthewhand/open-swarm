@@ -20,7 +20,10 @@ _BANNED_CODE_SNIPPETS = ("__import__", "subprocess", "os.system", "eval(", "exec
 
 
 def _banned_code_error(code: str) -> str | None:
-    """Return an error message if code contains unsandboxed-exec patterns."""
+    """Return an error message if code contains unsandboxed-exec patterns.
+
+    Runs the substring ban list first, then the AST sandbox gate (stronger).
+    """
     lowered = code.lower()
     for banned in _BANNED_CODE_SNIPPETS:
         if banned in lowered:
@@ -28,6 +31,11 @@ def _banned_code_error(code: str) -> str | None:
                 f"Saved blueprints may not contain {banned!r} "
                 "(unsandboxed exec blocked)."
             )
+    try:
+        from swarm.core.blueprint_sandbox import assert_safe_blueprint_source
+        assert_safe_blueprint_source(code)
+    except ValueError as exc:
+        return str(exc)
     return None
 
 
