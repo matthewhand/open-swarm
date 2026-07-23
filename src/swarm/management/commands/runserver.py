@@ -6,7 +6,11 @@ from django.core.management.base import CommandError
 from django.core.management.commands.runserver import Command as RunserverCommand
 
 from swarm.utils.dotenv_load import load_swarm_dotenv
-from swarm.utils.env_utils import get_api_auth_token, get_api_auth_tokens, is_django_debug
+from swarm.utils.env_utils import (
+    get_api_auth_token,
+    get_api_auth_tokens,
+    is_django_debug,
+)
 
 # Project root: …/management/commands → parents[4] == repo root when under src/swarm/
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
