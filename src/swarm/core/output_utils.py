@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 import time
-from typing import Any
+from typing import Any, List, Dict
 
 # Optional import for markdown rendering
 try:

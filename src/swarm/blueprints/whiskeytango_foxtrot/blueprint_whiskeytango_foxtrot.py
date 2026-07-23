@@ -29,6 +29,7 @@ try:
 
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
+    from swarm.core.blueprint_base import BlueprintBase
 except ImportError as e:
     print(f"ERROR: Import failed in WhiskeyTangoFoxtrotBlueprint: {e}. Check dependencies.")
     print(f"sys.path: {sys.path}")
