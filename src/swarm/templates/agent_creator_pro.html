@@ -89,11 +89,11 @@
 
           <form id="agentFormPro" class="config-form">
             {% csrf_token %}
-            <!-- Basic Info Section -->
+            <!-- Essentials first (progressive disclosure) -->
             <div class="form-section">
               <h4 class="section-title">
                 <span class="section-icon">📋</span>
-                Basic Information
+                Essentials
               </h4>
               
               <div class="form-group">
@@ -106,19 +106,25 @@
               <div class="form-group">
                 <label for="agentDescription" class="form-label">Description *</label>
                 <textarea class="form-control enhanced" id="agentDescription" name="description" 
-                          rows="3" placeholder="Describe what this agent does and its primary purpose" required></textarea>
+                          rows="2" placeholder="Describe what this agent does and its primary purpose" required></textarea>
+                <div class="form-feedback"></div>
+              </div>
+
+              <div class="form-group">
+                <label for="instructions" class="form-label">Special Instructions *</label>
+                <textarea class="form-control enhanced" id="instructions" name="instructions" 
+                          rows="4" placeholder="Detailed instructions on how this agent should behave, what it should focus on, and any specific guidelines" required></textarea>
                 <div class="form-feedback"></div>
               </div>
             </div>
 
-            <!-- Personality Section -->
-            <div class="form-section">
-              <h4 class="section-title">
+            <!-- Optional: collapsed by default -->
+            <details class="form-section acp-optional">
+              <summary class="section-title" style="cursor:pointer;list-style:revert;">
                 <span class="section-icon">🎭</span>
-                Personality & Style
-              </h4>
-              
-              <div class="form-group">
+                Personality &amp; Style <span class="os-meta">optional</span>
+              </summary>
+              <div class="form-group mt-2">
                 <label for="personality" class="form-label">Personality</label>
                 <select class="form-select enhanced" id="personality" name="personality">
                   {% for option in form_data.personality_options %}
@@ -126,7 +132,6 @@
                   {% endfor %}
                 </select>
               </div>
-              
               <div class="form-group">
                 <label for="communicationStyle" class="form-label">Communication Style</label>
                 <select class="form-select enhanced" id="communicationStyle" name="communication_style">
@@ -135,16 +140,14 @@
                   {% endfor %}
                 </select>
               </div>
-            </div>
+            </details>
 
-            <!-- Expertise Section -->
-            <div class="form-section">
-              <h4 class="section-title">
+            <details class="form-section acp-optional">
+              <summary class="section-title" style="cursor:pointer;list-style:revert;">
                 <span class="section-icon">🎯</span>
-                Expertise & Capabilities
-              </h4>
-              
-              <div class="form-group">
+                Expertise &amp; Capabilities <span class="os-meta">optional</span>
+              </summary>
+              <div class="form-group mt-2">
                 <label class="form-label">Areas of Expertise</label>
                 <div class="expertise-grid">
                   {% for option in form_data.expertise_options %}
@@ -155,28 +158,19 @@
                   {% endfor %}
                 </div>
               </div>
-            </div>
+            </details>
 
-            <!-- Instructions Section -->
-            <div class="form-section">
-              <h4 class="section-title">
-                <span class="section-icon">📝</span>
-                Behavior & Instructions
-              </h4>
-              
-              <div class="form-group">
-                <label for="instructions" class="form-label">Special Instructions *</label>
-                <textarea class="form-control enhanced" id="instructions" name="instructions" 
-                          rows="4" placeholder="Detailed instructions on how this agent should behave, what it should focus on, and any specific guidelines" required></textarea>
-                <div class="form-feedback"></div>
-              </div>
-              
-              <div class="form-group">
+            <details class="form-section acp-optional">
+              <summary class="section-title" style="cursor:pointer;list-style:revert;">
+                <span class="section-icon">🏷️</span>
+                Tags <span class="os-meta">optional</span>
+              </summary>
+              <div class="form-group mt-2">
                 <label for="tags" class="form-label">Tags</label>
                 <input type="text" class="form-control enhanced" id="tags" name="tags" 
                        placeholder="custom, helpful, coding (comma-separated)">
               </div>
-            </div>
+            </details>
 
             <!-- Action Buttons -->
             <div class="action-buttons">

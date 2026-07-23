@@ -30,17 +30,23 @@ DEBUG = is_django_debug()
 ALLOWED_HOSTS = get_django_allowed_hosts()
 
 # --- Custom Swarm Settings ---
-# Load the API auth token. In production (DEBUG=False) a missing token raises
+# Load API auth token(s). In production (DEBUG=False) a missing token raises
 # ImproperlyConfigured so the server refuses to start with auth silently disabled.
+# Multi-key: API_AUTH_TOKENS / SWARM_API_KEYS (CSV) merge with singles.
+# get_enforced_api_auth_token returns the primary (first) token or None.
 _raw_api_token = get_enforced_api_auth_token()
+_raw_api_tokens = get_api_auth_tokens()
 
-# *** Only enable API auth if the token is actually set ***
+# *** Only enable API auth if any token is actually set ***
 ENABLE_API_AUTH = bool(_raw_api_token)
-SWARM_API_KEY = _raw_api_token # Assign the loaded token (or None)
+SWARM_API_KEY = _raw_api_token  # primary token for backward compat
+# Full accepted list (primary first). StaticTokenAuthentication compares all.
+SWARM_API_KEYS = list(_raw_api_tokens)
 
 if ENABLE_API_AUTH:
     # Add assertion to satisfy type checkers within this block
     assert SWARM_API_KEY is not None, "SWARM_API_KEY cannot be None when ENABLE_API_AUTH is True"
+    assert SWARM_API_KEYS, "SWARM_API_KEYS cannot be empty when ENABLE_API_AUTH is True"
 
 SWARM_CONFIG_PATH = get_swarm_config_path()
 BLUEPRINT_DIRECTORY = get_blueprint_directory()
@@ -52,18 +58,29 @@ def _blueprint_extra_dirs() -> list[str]:
     Order: the user data 'blueprints' dir (where community packs are installed),
     then any paths in ``SWARM_BLUEPRINT_PATHS`` (os.pathsep-separated). The bundled
     dir always wins on name collisions (see ``discover_all_blueprints``).
+
+    User blueprint discovery (``exec_module`` of files under the user data dir)
+    is **off by default**. Set ``SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY=true`` to
+    include that dir — creator saves never execute code on the write path.
     """
     dirs: list[str] = []
-    try:
-        from swarm.core.paths import get_user_blueprints_dir
-        dirs.append(str(get_user_blueprints_dir()))
-    except Exception:
-        pass
+    allow_user = os.getenv("SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY", "").lower() in (
+        "true", "1", "yes", "y", "t",
+    )
+    if allow_user:
+        try:
+            from swarm.core.paths import get_user_blueprints_dir
+            dirs.append(str(get_user_blueprints_dir()))
+        except Exception:
+            pass
     extra = os.getenv("SWARM_BLUEPRINT_PATHS", "")
     dirs.extend(p for p in extra.split(os.pathsep) if p.strip())
     return dirs
 
 
+# User blueprint dirs (creator output) are only auto-discovered when operators
+# opt in — default ship path must not exec_module untrusted generated code.
+# See SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY in env / CONFIGURATION.md.
 BLUEPRINT_EXTRA_DIRS = _blueprint_extra_dirs()
 
 # Web UI Configuration
@@ -175,10 +192,17 @@ if DATABASE_URL:
         ),
     }
 else:
+    # Prefer DJANGO_DB_NAME; accept SQLITE_DB_PATH as alias (compose historically
+    # set the latter while Django only read the former).
+    _sqlite_name = (
+        os.environ.get('DJANGO_DB_NAME')
+        or os.environ.get('SQLITE_DB_PATH')
+        or '/tmp/db.sqlite3'
+    )
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.environ.get('DJANGO_DB_NAME', '/tmp/db.sqlite3'),
+            'NAME': _sqlite_name,
             'TEST': {
                 'NAME': os.environ.get('DJANGO_TEST_DB_NAME', '/tmp/test_db.sqlite3'),
                 'OPTIONS': {
@@ -216,20 +240,35 @@ REST_FRAMEWORK = {
         'swarm.auth.StaticTokenAuthentication',
         'swarm.auth.CustomSessionAuthentication',
     ],
-    # *** IMPORTANT: Add DEFAULT_PERMISSION_CLASSES ***
-    # If ENABLE_API_AUTH is False, we might want to allow any access for testing.
-    # If ENABLE_API_AUTH is True, we require HasValidTokenOrSession.
-    # We need to set this dynamically based on ENABLE_API_AUTH.
-    # A simple way is to set it here, but a cleaner way might involve middleware
-    # or overriding get_permissions in views. For now, let's adjust this:
+    # If ENABLE_API_AUTH is False, allow any access for local testing.
+    # If ENABLE_API_AUTH is True, require HasValidTokenOrSession.
     'DEFAULT_PERMISSION_CLASSES': [
-         # If auth is enabled, require our custom permission
          'swarm.permissions.HasValidTokenOrSession' if ENABLE_API_AUTH else
-         # Otherwise, allow anyone (useful for dev when token isn't set)
          'rest_framework.permissions.AllowAny'
     ],
+    # Application-level rate limits (override via SWARM_THROTTLE_* env vars).
+    # Disabled under pytest so the suite is not 429'd by its own volume.
+    # Token-auth requests are treated as "user" (authenticated via request.auth).
+    **(
+        {}
+        if TESTING
+        else {
+            'DEFAULT_THROTTLE_CLASSES': [
+                'rest_framework.throttling.AnonRateThrottle',
+                'rest_framework.throttling.UserRateThrottle',
+            ],
+            'DEFAULT_THROTTLE_RATES': {
+                'anon': os.getenv('SWARM_THROTTLE_ANON', '60/min'),
+                'user': os.getenv('SWARM_THROTTLE_USER', '120/min'),
+            },
+        }
+    ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+# Max concurrent in-flight blueprint executions for /v1/responses background work.
+# Additional requests receive 429 when the pool is full.
+SWARM_MAX_INFLIGHT = int(os.getenv('SWARM_MAX_INFLIGHT', '8'))
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Open Swarm API',
@@ -267,6 +306,26 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
+
+# --- Production security defaults ---
+# Applied when DEBUG is False (production). Tests force DJANGO_DEBUG=true via
+# TESTING, so this block does not affect the suite. Explicit env overrides:
+#   SWARM_SECURE_COOKIES=false  → allow non-HTTPS cookies (HTTP staging)
+#   DJANGO_X_FRAME_OPTIONS      → override frame policy (default DENY)
+# API_AUTH_TOKEN is already required in production via get_enforced_api_auth_token().
+if not DEBUG:
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = os.getenv("DJANGO_X_FRAME_OPTIONS", "DENY")
+    # Secure cookies default on in production; opt out with SWARM_SECURE_COOKIES=false.
+    _secure_cookies_env = os.getenv("SWARM_SECURE_COOKIES", "").strip().lower()
+    if _secure_cookies_env in ("false", "0", "no", "n", "off"):
+        _secure_cookies = False
+    else:
+        # true/1/yes/on OR unset → secure cookies when DEBUG is False
+        _secure_cookies = True
+    SESSION_COOKIE_SECURE = _secure_cookies
+    CSRF_COOKIE_SECURE = _secure_cookies
+
 
 # --- ComfyUI Configuration for Avatar Generation ---
 COMFYUI_ENABLED = is_comfyui_enabled()

@@ -6,14 +6,15 @@ from django.core.management.base import CommandError
 from django.core.management.commands.runserver import Command as RunserverCommand
 
 from swarm.utils.dotenv_load import load_swarm_dotenv
-from swarm.utils.env_utils import get_api_auth_token, is_django_debug
+from swarm.utils.env_utils import get_api_auth_token, get_api_auth_tokens, is_django_debug
 
 # Project root: …/management/commands → parents[4] == repo root when under src/swarm/
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 load_swarm_dotenv(project_root=_PROJECT_ROOT)
 
 
-logger = logging.getLogger(__name__) # Get logger for command messages
+logger = logging.getLogger(__name__)  # Get logger for command messages
+
 
 class Command(RunserverCommand):
     help = (
@@ -56,23 +57,30 @@ class Command(RunserverCommand):
                 )
             settings.ENABLE_API_AUTH = False
             settings.SWARM_API_KEY = None
+            settings.SWARM_API_KEYS = []
             logger.warning(
                 "Swarm API authentication DISABLED via --disable-auth "
                 "(development only). Do NOT use this flag in production."
             )
         else:
-            # Default: authentication ON, keyed by API_AUTH_TOKEN (or SWARM_API_KEY).
-            api_key = get_api_auth_token()
+            # Default: authentication ON, keyed by API_AUTH_TOKEN(S) / SWARM_API_KEY(S).
+            api_keys = get_api_auth_tokens()
+            api_key = api_keys[0] if api_keys else get_api_auth_token()
             if api_key:
                 settings.ENABLE_API_AUTH = True
                 settings.SWARM_API_KEY = api_key
-                logger.info("Swarm API authentication ENABLED (default). API_AUTH_TOKEN found.")
+                settings.SWARM_API_KEYS = list(api_keys) if api_keys else [api_key]
+                logger.info(
+                    "Swarm API authentication ENABLED (default). %d accepted key(s).",
+                    len(settings.SWARM_API_KEYS),
+                )
             else:
                 # No token available. In production settings.py would already have
                 # refused to boot (get_enforced_api_auth_token). In debug mode we
                 # warn loudly instead of silently allowing anonymous access.
                 settings.ENABLE_API_AUTH = False
                 settings.SWARM_API_KEY = None
+                settings.SWARM_API_KEYS = []
                 logger.warning(
                     "API_AUTH_TOKEN not set; Swarm API authentication is INACTIVE "
                     "(allowed only because DJANGO_DEBUG=true). Set API_AUTH_TOKEN "

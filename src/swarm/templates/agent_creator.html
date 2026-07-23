@@ -3,6 +3,10 @@
 {% block content %}
 <style>
   .ac-wrap { max-width: 1200px; margin: 1.5rem auto; padding: 0 1rem; }
+  @media (max-width: 991.98px) {
+    .ac-wrap { padding-bottom: 5rem; }
+    .ac-wrap .d-grid.gap-2 { margin-bottom: 2rem; }
+  }
   .ac-head { margin-bottom: 1rem; }
   .ac-grid { display:grid; grid-template-columns: minmax(340px, 1fr) 1.3fr; gap:1rem; align-items:start; }
   @media (max-width: 900px) { .ac-grid { grid-template-columns: 1fr; } }
@@ -40,13 +44,21 @@
                 </h2>
                 <div id="acc-identity" class="accordion-collapse collapse show">
                   <div class="accordion-body">
+                    {# Progressive disclosure: essentials first; advanced in collapsed panels #}
                     <div class="mb-3">
                       <label for="agentName" class="form-label">Agent Name *</label>
-                      <input type="text" class="form-control" id="agentName" name="name" required>
+                      <input type="text" class="form-control" id="agentName" name="name" required
+                             placeholder="e.g. Code Reviewer">
+                    </div>
+                    <div class="mb-3">
+                      <label for="agentDescription" class="form-label">Description *</label>
+                      <textarea class="form-control" id="agentDescription" name="description" rows="2" required
+                                placeholder="One-line purpose for this agent"></textarea>
                     </div>
                     <div class="mb-0">
-                      <label for="agentDescription" class="form-label">Description *</label>
-                      <textarea class="form-control" id="agentDescription" name="description" rows="3" required></textarea>
+                      <label for="instructions" class="form-label">Special Instructions *</label>
+                      <textarea class="form-control" id="instructions" name="instructions" rows="4"
+                                placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
                     </div>
                   </div>
                 </div>
@@ -80,18 +92,13 @@
                   </div>
                 </div>
               </div>
-              <!-- Behavior -->
+              <!-- Tags / extras (collapsed by default) -->
               <div class="accordion-item">
                 <h2 class="accordion-header">
-                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#acc-behavior">Behavior</button>
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#acc-behavior">Tags <span class="os-meta ms-2">optional</span></button>
                 </h2>
-                <div id="acc-behavior" class="accordion-collapse collapse show">
+                <div id="acc-behavior" class="accordion-collapse collapse">
                   <div class="accordion-body">
-                    <div class="mb-3">
-                      <label for="instructions" class="form-label">Special Instructions *</label>
-                      <textarea class="form-control" id="instructions" name="instructions" rows="4"
-                                placeholder="How should this agent behave? What are its specific capabilities?" required></textarea>
-                    </div>
                     <div class="mb-0">
                       <label for="tags" class="form-label">Tags</label>
                       <input type="text" class="form-control" id="tags" name="tags"

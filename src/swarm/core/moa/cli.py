@@ -14,14 +14,16 @@ import json
 import logging
 from typing import Any
 
-from swarm.core.moa import MoAOrchestrator, PermissionMode
+# Import from leaf modules (not package __init__) to avoid circular import:
+# __init__ → agents_orchestrator → tools → cli → __init__
 from swarm.core.moa.backends import (
     AcpxParticipantBackend,
     FakeParticipantBackend,
     GrokParticipantBackend,
     RecordingWriteSurface,
 )
-from swarm.core.moa.types import ActResult
+from swarm.core.moa.orchestrator import MoAOrchestrator
+from swarm.core.moa.types import ActResult, PermissionMode
 
 logger = logging.getLogger(__name__)
 

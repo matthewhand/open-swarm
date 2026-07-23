@@ -41,7 +41,11 @@ def _path_for(response_id: str, base_dir: Path | None) -> Path | None:
 
 
 def save(record: dict[str, Any], *, base_dir: Path | None = None) -> None:
-    """Persist a record (must have a valid ``id``). Atomic write; best-effort."""
+    """Persist a record (must have a valid ``id``). Atomic write; best-effort.
+
+    Optional top-level ``owner`` string stamps the creating principal for IDOR
+    checks when API auth is enabled (see responses detail/cancel views).
+    """
     rid = record.get("id", "")
     path = _path_for(rid, base_dir)
     if path is None:
@@ -71,12 +75,35 @@ def load(response_id: str, *, base_dir: Path | None = None) -> dict[str, Any] | 
         return None
 
 
+def owner_allows(record: dict[str, Any] | None, principal: str | None) -> bool:
+    """Whether ``principal`` may access ``record`` under ownership rules.
+
+    Fail-closed: unowned (legacy) records are not readable by any principal.
+    Views skip this check entirely when ``ENABLE_API_AUTH`` is off, so open
+    deployments still allow access without an owner stamp.
+
+    - No record → False (caller should 404 separately if desired)
+    - No owner on record → False (legacy / missing stamp; deny when auth on)
+    - principal None → False
+    - else principal must equal record['owner']
+    """
+    if record is None:
+        return False
+    owner = record.get("owner")
+    if not owner:
+        return False
+    if not principal:
+        return False
+    return str(owner) == str(principal)
+
+
 def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> list[dict[str, Any]]:
     """Lightweight summaries of stored sessions, newest first.
 
     Each summary: ``{id, model, status, created_at, execution_ms, output_preview,
-    delegations}`` where ``delegations`` is the per-role progress array (possibly
-    empty). Used by the Session Explorer web UI; reads each record once.
+    delegations, owner}`` where ``delegations`` is the per-role progress array
+    (possibly empty) and ``owner`` is the creating principal (or None for legacy).
+    Used by the Session Explorer web UI; reads each record once.
     """
     base = base_dir or _store_dir()
     if not base.is_dir():
@@ -98,6 +125,7 @@ def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> 
             "execution_ms": resp.get("execution_ms"),
             "output_preview": (text[:160] + "…") if len(text) > 160 else text,
             "delegations": resp.get("progress") or [],
+            "owner": record.get("owner"),
         })
     summaries.sort(key=lambda s: s.get("created_at") or 0, reverse=True)
     return summaries[:limit] if limit else summaries

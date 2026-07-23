@@ -3,16 +3,71 @@ Web views for creating custom agents and teams with Python code validation
 """
 import ast
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
 from swarm.core import paths
+
+# Shared ban list for creator write paths (agent + team swarm saves).
+_BANNED_CODE_SNIPPETS = ("__import__", "subprocess", "os.system", "eval(", "exec(")
+
+
+def _banned_snippet_error(text: str) -> str | None:
+    """Substring ban for free-text prompts and source (no AST — text need not be Python)."""
+    lowered = text.lower()
+    for banned in _BANNED_CODE_SNIPPETS:
+        if banned in lowered:
+            return (
+                f"Saved blueprints may not contain {banned!r} "
+                "(unsandboxed exec blocked)."
+            )
+    return None
+
+
+def _banned_code_error(code: str) -> str | None:
+    """Return an error message if blueprint *source* is unsafe.
+
+    Substring ban list first, then AST sandbox (full Python module only).
+    """
+    snippet = _banned_snippet_error(code)
+    if snippet:
+        return snippet
+    try:
+        from swarm.core.blueprint_sandbox import assert_safe_blueprint_source
+        assert_safe_blueprint_source(code)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def _user_blueprint_discovery_enabled() -> bool:
+    """True when operators opted into scanning get_user_blueprints_dir()."""
+    return os.getenv("SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY", "").lower() in (
+        "true", "1", "yes", "y", "t",
+    )
+
+
+def _save_discovery_message() -> str:
+    """Explain runnability of saved blueprints based on discovery flag."""
+    if _user_blueprint_discovery_enabled():
+        return (
+            "User blueprint discovery is enabled "
+            "(SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY); "
+            "the blueprint should appear after a reload."
+        )
+    return (
+        "Saved under the user blueprints directory (write-only until discovery "
+        "is enabled). Set SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY=true to make "
+        "saved blueprints discoverable/runnable."
+    )
 
 
 class BlueprintCodeValidator:
@@ -332,9 +387,10 @@ def agent_creator_page(request):
         return render(request, 'agent_creator.html', context)
 
 
+@login_required
 @require_http_methods(["POST"])
 def generate_agent_code(request):
-    """Generate agent code from form data"""
+    """Generate agent code from form data (authenticated operator session)."""
     try:
         data = json.loads(request.body)
 
@@ -371,9 +427,10 @@ def generate_agent_code(request):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["POST"])
 def validate_agent_code(request):
-    """Validate user-provided agent code"""
+    """Validate user-provided agent code via AST only — never exec."""
     try:
         data = json.loads(request.body)
         code = data.get('code', '')
@@ -404,9 +461,16 @@ def validate_agent_code(request):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["POST"])
 def save_custom_agent(request):
-    """Save a custom agent blueprint"""
+    """Save a custom agent blueprint (write-only; not executed on save).
+
+    Generated code is **not** imported/exec'd on this path. Discovery of
+    user-written blueprints requires ``SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY``
+    (see settings._blueprint_extra_dirs) so the default ship path never
+    exec_module untrusted creator output.
+    """
     try:
         data = json.loads(request.body)
         code = data.get('code', '')
@@ -418,7 +482,7 @@ def save_custom_agent(request):
                 'error': 'Missing code or agent name'
             }, status=400)
 
-        # Validate the code first
+        # Validate the code first (AST/structure only — no exec)
         validation_result = validator.validate_blueprint_code(code)
         if not validation_result['valid']:
             return JsonResponse({
@@ -427,14 +491,20 @@ def save_custom_agent(request):
                 'validation': validation_result
             }, status=400)
 
-        # Save to user_blueprints directory
-        user_blueprints_dir = Path('user_blueprints')
-        agent_dir = user_blueprints_dir / agent_name.lower().replace(' ', '_')
+        banned = _banned_code_error(code)
+        if banned:
+            return JsonResponse({'success': False, 'error': banned}, status=400)
+
+        # Save under XDG/user data dir so discovery (when enabled) can find it.
+        blueprint_id = agent_name.lower().replace(' ', '_')
+        user_blueprints_dir = paths.get_user_blueprints_dir()
+        agent_dir = user_blueprints_dir / blueprint_id
         agent_dir.mkdir(parents=True, exist_ok=True)
 
         # Write the blueprint file
-        blueprint_file = agent_dir / f'blueprint_{agent_name.lower().replace(" ", "_")}.py'
+        blueprint_file = agent_dir / f'blueprint_{blueprint_id}.py'
         blueprint_file.write_text(code)
+        abs_path = str(blueprint_file.resolve())
 
         # Create README
         readme_content = f"""# {agent_name}
@@ -446,7 +516,7 @@ Custom agent blueprint created via the Agent Creator.
 
 ## Usage
 ```bash
-swarm-cli launch {agent_name.lower().replace(' ', '_')}
+swarm-cli launch {blueprint_id}
 ```
 """
         readme_file = agent_dir / 'README.md'
@@ -454,8 +524,12 @@ swarm-cli launch {agent_name.lower().replace(' ', '_')}
 
         return JsonResponse({
             'success': True,
-            'message': f'Agent "{agent_name}" saved successfully',
-            'path': str(blueprint_file)
+            'message': (
+                f'Agent "{agent_name}" saved successfully. '
+                f'{_save_discovery_message()}'
+            ),
+            'path': abs_path,
+            'blueprint_id': blueprint_id,
         })
 
     except json.JSONDecodeError:
@@ -494,8 +568,8 @@ def _get_available_agents():
     ]
     agents.extend(builtin_agents)
 
-    # Add user-created agents
-    user_blueprints_dir = Path('user_blueprints')
+    # Add user-created agents from the XDG/user data blueprints dir
+    user_blueprints_dir = paths.get_user_blueprints_dir()
     if user_blueprints_dir.exists():
         for agent_dir in user_blueprints_dir.iterdir():
             if agent_dir.is_dir():
@@ -716,9 +790,14 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+@login_required
 @require_http_methods(["POST"])
 def save_team_swarm(request):
-    """Persist a multi-bot swarm blueprint from the Team Creator UI."""
+    """Persist a multi-bot swarm blueprint from the Team Creator UI.
+
+    Authenticated write-only path: generated code is not exec'd on save.
+    User blueprint discovery remains opt-in via SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY.
+    """
     try:
         data = json.loads(request.body.decode("utf-8"))
     except Exception:
@@ -746,6 +825,13 @@ def save_team_swarm(request):
         if bot_name.lower() in seen:
             return JsonResponse({"success": False, "error": f"Duplicate bot name: {bot_name}"}, status=400)
         seen.add(bot_name.lower())
+        # Refuse dangerous patterns in free-text prompts that end up in source.
+        for field in ("system_prompt", "instructions", "description", "role"):
+            val = agent.get(field) or ""
+            if isinstance(val, str):
+                banned = _banned_snippet_error(val)
+                if banned:
+                    return JsonResponse({"success": False, "error": banned}, status=400)
         cleaned_agents.append({
             "name": bot_name,
             "role": (agent.get("role") or bot_name).strip(),
@@ -769,15 +855,22 @@ def save_team_swarm(request):
     }
 
     code = _render_swarm_blueprint_code(team)
+    banned = _banned_code_error(code)
+    if banned:
+        return JsonResponse({"success": False, "error": banned}, status=400)
 
-    user_blueprints_dir = Path("user_blueprints")
+    user_blueprints_dir = paths.get_user_blueprints_dir()
     swarm_dir = user_blueprints_dir / blueprint_id
     swarm_dir.mkdir(parents=True, exist_ok=True)
     blueprint_path = swarm_dir / f"blueprint_{blueprint_id}.py"
     if blueprint_path.exists() and not overwrite:
-        return JsonResponse({"success": False, "error": f"Blueprint already exists: {blueprint_path}"}, status=409)
+        return JsonResponse(
+            {"success": False, "error": f"Blueprint already exists: {blueprint_path.resolve()}"},
+            status=409,
+        )
 
     blueprint_path.write_text(code, encoding="utf-8")
+    abs_path = str(blueprint_path.resolve())
 
     readme_path = swarm_dir / "README.md"
     if not readme_path.exists() or overwrite:
@@ -788,7 +881,10 @@ def save_team_swarm(request):
 
     return JsonResponse({
         "success": True,
-        "message": f"Swarm '{name}' saved successfully.",
+        "message": (
+            f"Swarm '{name}' saved successfully. "
+            f"{_save_discovery_message()}"
+        ),
         "blueprint_id": blueprint_id,
-        "path": str(blueprint_path),
+        "path": abs_path,
     })

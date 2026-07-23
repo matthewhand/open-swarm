@@ -59,17 +59,22 @@ async def test_cli_agent_emits_backend_meta_on_final_chunk():
 
 
 async def test_cli_fusion_emits_panel_and_judge_meta():
+    """cli_fusion → MoA: meta.backends lists ok participants (no multi-writer judge)."""
     from swarm.blueprints.cli_fusion.blueprint_cli_fusion import CliFusionBlueprint
 
-    cfg = {
-        "cli_agents": {"a": _echo("A"), "b": _echo("B")},
-        "cli_fusion": {"presets": {"p": {"panel": ["a", "b"], "judge": "a"}}, "default_preset": "p"},
-    }
-    bp = CliFusionBlueprint(config=cfg)
+    bp = CliFusionBlueprint(config={})
+    bp.set_params(
+        {
+            "participants": ["a", "b"],
+            "fake_responses": {"a": "A:x", "b": "B:x"},
+        }
+    )
     meta = None
     async for chunk in bp.run([{"role": "user", "content": "x"}]):
         if isinstance(chunk, dict) and chunk.get("meta"):
             meta = chunk["meta"]
     assert meta is not None
+    assert meta.get("moa") is True
     assert set(meta["backends"]) == {"a", "b"}
-    assert meta["judge"] == "a"
+    # MoA does not emit a separate judge field (orchestrator owns determination).
+    assert backend_fingerprint("cli_fusion", meta) == "cli_fusion:a+b"

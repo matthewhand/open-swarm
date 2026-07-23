@@ -20,6 +20,13 @@
   .dot.completed { background:#22c55e; } .dot.failed { background:#ef4444; }
   .dot.in_progress { background:var(--os-accent); } .dot.queued { background:#64748b; }
   .se-empty { color:var(--os-muted); text-align:center; padding:3rem 1rem; }
+  .se-list-scroll {
+    max-height: min(70vh, 720px);
+    overflow-y: auto;
+    padding-right: .25rem;
+    border-top: 1px solid var(--os-border);
+    margin-top: .5rem;
+  }
   .se-filter { cursor:pointer; user-select:none; }
   .se-filter.active { outline:2px solid var(--os-accent); }
   .se-filter:focus-visible { outline:2px solid var(--os-link); outline-offset:2px; }
@@ -33,7 +40,9 @@
   @media (max-width:640px){ .se-head{ flex-direction:column; align-items:flex-start; } }
 </style>
 
-<div class="se-wrap" id="se-app" data-feed="{% url 'session-list-api' %}">
+<div class="se-wrap" id="se-app"
+     data-feed="{% url 'session-list-api' %}"
+     data-limit="{{ limit }}">
   <div class="se-head">
     <div>
       <h2 style="margin:0;">🧭 Session Explorer</h2>
@@ -42,15 +51,21 @@
     <div class="se-chips">
       <span class="se-chip se-filter active" data-filter="" role="button" tabindex="0" aria-pressed="true"><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
       {% for status, n in status_counts.items %}
-        <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: {{ n }}</span>
+        <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: <span class="se-status-n" data-status="{{ status }}">{{ n }}</span></span>
       {% endfor %}
       <label class="se-chip" style="cursor:pointer;"><span class="se-live-dot" id="se-live-dot"></span><input type="checkbox" id="se-live" checked> live</label>
     </div>
   </div>
 
+  <div id="se-trunc-banner" class="alert alert-secondary py-2 px-3 mb-3" role="status"
+       {% if not truncated %}style="display:none;"{% endif %}>
+    Showing newest <strong id="se-shown">{{ shown }}</strong> of <strong id="se-total-banner">{{ total }}</strong> sessions
+    (limit=<span id="se-limit-label">{{ limit }}</span>). Open a session for detail; use the API for full export.
+  </div>
+
   <div class="se-error" id="se-error" role="alert" aria-live="assertive"></div>
 
-  <div id="se-list" aria-live="polite" aria-busy="false">
+  <div id="se-list" class="se-list-scroll" aria-live="polite" aria-busy="false">
     {% for s in sessions %}
       <div class="se-card" data-status="{{ s.status|default:'unknown' }}">
         <div class="se-row">
@@ -76,11 +91,45 @@
 <script>
 (function(){
   var app = document.getElementById('se-app'); if(!app) return;
-  var feed = app.dataset.feed, live = document.getElementById('se-live');
+  var feed = app.dataset.feed;
+  var pageLimit = parseInt(app.dataset.limit || '50', 10) || 50;
+  var live = document.getElementById('se-live');
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
   function dots(ds){ return (ds||[]).map(function(d){return '<span class="dot '+esc(d.status)+'" title="'+esc(d.role)+': '+esc(d.status)+'"></span>';}).join(''); }
-  function render(sessions){
-    document.getElementById('se-total').textContent = sessions.length;
+  function updateBanner(payload){
+    var total = (payload && typeof payload.total === 'number') ? payload.total : null;
+    var shown = (payload && typeof payload.shown === 'number') ? payload.shown
+              : (payload && payload.sessions ? payload.sessions.length : null);
+    var limit = (payload && typeof payload.limit === 'number') ? payload.limit : pageLimit;
+    var truncated = payload && typeof payload.truncated === 'boolean'
+      ? payload.truncated
+      : (total != null && shown != null && total > shown);
+    var totalEl = document.getElementById('se-total');
+    if(totalEl && total != null) totalEl.textContent = total;
+    var banner = document.getElementById('se-trunc-banner');
+    if(banner){
+      banner.style.display = truncated ? '' : 'none';
+      var shownEl = document.getElementById('se-shown');
+      var totBan = document.getElementById('se-total-banner');
+      var limEl = document.getElementById('se-limit-label');
+      if(shownEl && shown != null) shownEl.textContent = shown;
+      if(totBan && total != null) totBan.textContent = total;
+      if(limEl) limEl.textContent = limit;
+    }
+  }
+  function render(payload){
+    var sessions = (payload && payload.sessions) || [];
+    // Hard client-side cap matching page limit (defense in depth if API omits limit).
+    if(sessions.length > pageLimit) sessions = sessions.slice(0, pageLimit);
+    updateBanner({
+      sessions: sessions,
+      total: payload && payload.total,
+      shown: Math.min(sessions.length, pageLimit),
+      limit: (payload && payload.limit) || pageLimit,
+      truncated: payload && typeof payload.truncated === 'boolean'
+        ? payload.truncated
+        : ((payload && payload.total) > pageLimit)
+    });
     document.getElementById('se-list').innerHTML = sessions.length ? sessions.map(function(s){
       var st = s.status||'unknown';
       var deleg = (s.delegations&&s.delegations.length) ? '<span class="se-deleg se-meta">⛓ '+dots(s.delegations)+' '+s.delegations.length+' delegation'+(s.delegations.length===1?'':'s')+'</span>' : '';
@@ -122,11 +171,12 @@
   function poll(){
     if(!live.checked){ setLive(''); return; }
     setLive('refreshing'); listEl.setAttribute('aria-busy','true');
-    fetch(feed, {headers:{'Accept':'application/json'}})
+    var url = feed + (feed.indexOf('?') >= 0 ? '&' : '?') + 'limit=' + encodeURIComponent(pageLimit);
+    fetch(url, {headers:{'Accept':'application/json'}})
       .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
       .then(function(d){
         if(errEl){ errEl.style.display='none'; } setLive('');
-        render(d.sessions||[]); applyFilter();
+        render(d || {}); applyFilter();
         listEl.setAttribute('aria-busy','false');
       })
       .catch(function(e){

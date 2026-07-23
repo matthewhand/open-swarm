@@ -42,10 +42,11 @@ def find_config_file(
     """
     Locate swarm_config.json using precedence:
       1) User-specified path (explicit ``--config`` always wins)
-      2) XDG (~/.config/swarm/swarm_config.json)
-      3) Upwards search from start_dir
-      4) default_dir/swarm_config.json
-      5) CWD/swarm_config.json
+      2) ``SWARM_CONFIG_PATH`` environment variable
+      3) XDG (~/.config/swarm/swarm_config.json)
+      4) Upwards search from start_dir
+      5) default_dir/swarm_config.json
+      6) CWD/swarm_config.json
     Logs actionable hints on common mistakes.
     """
     # 1. User-specified path — an explicit choice must win over the XDG default.
@@ -60,7 +61,19 @@ def find_config_file(
         )
         # Fall through
 
-    # 2. XDG config path
+    # 2. SWARM_CONFIG_PATH env (production / container deploys)
+    env_path = os.environ.get("SWARM_CONFIG_PATH")
+    if env_path:
+        p = Path(env_path).expanduser()
+        if p.is_file():
+            logger.debug(f"Found config SWARM_CONFIG_PATH: {p}")
+            return p.resolve()
+        logger.warning(
+            f"SWARM_CONFIG_PATH does not exist: {env_path} | "
+            + _hint("Point SWARM_CONFIG_PATH at an existing swarm_config.json")
+        )
+
+    # 3. XDG config path
     xdg_config = _xdg_config_path()
     if xdg_config.is_file():
         logger.debug(f"Found config XDG: {xdg_config}")

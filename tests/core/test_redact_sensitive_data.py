@@ -8,7 +8,8 @@ def test_redacts_api_keys_and_tokens():
         "client_secret": "secretvalue",
         "nested": {
             "password": "hunter2",
-            "not_secret": "hello"
+            # Use a key without sensitive segments (…_secret would redact).
+            "plain_field": "hello"
         },
         "list": [
             {"access_token": "acc-1234"},
@@ -23,7 +24,7 @@ def test_redacts_api_keys_and_tokens():
     assert redacted["client_secret"] == "[REDACTED]"
     # Check nested dict
     assert redacted["nested"]["password"] == "[REDACTED]"
-    assert redacted["nested"]["not_secret"] == "hello"
+    assert redacted["nested"]["plain_field"] == "hello"
     # Check list of dicts
     assert redacted["list"][0]["access_token"] == "[REDACTED]"
     assert redacted["list"][1] == "not_a_secret"

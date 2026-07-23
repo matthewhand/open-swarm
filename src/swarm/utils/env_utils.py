@@ -34,8 +34,13 @@ def get_django_secret_key() -> str:
 
 
 def is_django_debug() -> bool:
-    """Check if Django debug is enabled."""
-    return os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
+    """Check if Django debug is enabled.
+
+    Secure-by-default: when ``DJANGO_DEBUG`` is unset, returns False (production).
+    Local dev and tests must set ``DJANGO_DEBUG=true`` explicitly (settings.py
+    auto-sets it under pytest).
+    """
+    return os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
 
 
 def get_django_allowed_hosts() -> list[str]:
@@ -121,11 +126,43 @@ def get_stateful_chat_id_path() -> str:
 
 
 # API Tokens and Keys
-def get_api_auth_token() -> str | None:
-    """Get API auth token. If SWARM_ALLOW_NO_AUTH, return None to disable built-in auth."""
+def get_api_auth_tokens() -> list[str]:
+    """All accepted API auth secrets, deduped (order preserved).
+
+    Sources (merged):
+    - singles: ``API_AUTH_TOKEN``, ``SWARM_API_KEY``
+    - multi (comma-separated): ``API_AUTH_TOKENS``, ``SWARM_API_KEYS``
+
+    Returns an empty list when ``SWARM_ALLOW_NO_AUTH`` is truthy (built-in
+    auth intentionally disabled).
+    """
     if os.getenv('SWARM_ALLOW_NO_AUTH', 'false').lower() in ('true', '1', 'yes'):
-        return None
-    return os.getenv('API_AUTH_TOKEN') or os.getenv('SWARM_API_KEY')
+        return []
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for key in ('API_AUTH_TOKEN', 'SWARM_API_KEY'):
+        val = os.getenv(key)
+        if not val:
+            continue
+        t = val.strip()
+        if t and t not in seen:
+            tokens.append(t)
+            seen.add(t)
+    for key in ('API_AUTH_TOKENS', 'SWARM_API_KEYS'):
+        for t in get_csv_env(key):
+            if t not in seen:
+                tokens.append(t)
+                seen.add(t)
+    return tokens
+
+
+def get_api_auth_token() -> str | None:
+    """Primary API auth token (first of :func:`get_api_auth_tokens`).
+
+    If SWARM_ALLOW_NO_AUTH, return None to disable built-in auth.
+    """
+    tokens = get_api_auth_tokens()
+    return tokens[0] if tokens else None
 
 
 def get_openai_api_key() -> str | None:
@@ -373,8 +410,9 @@ def get_enforced_api_auth_token() -> str | None:
         return None
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
-        "API_AUTH_TOKEN is required when DJANGO_DEBUG is not enabled. "
-        "Set API_AUTH_TOKEN, or set SWARM_ALLOW_NO_AUTH=true if an external layer gates access."
+        "API_AUTH_TOKEN (or API_AUTH_TOKENS / SWARM_API_KEY / SWARM_API_KEYS) is required "
+        "when DJANGO_DEBUG is not enabled. "
+        "Set a token, or set SWARM_ALLOW_NO_AUTH=true if an external layer gates access."
     )
 
 
@@ -390,6 +428,55 @@ def is_testuser_autologin_allowed() -> bool:
             "This would create an authentication bypass in production."
         )
     return True
+
+
+def is_swarm_test_mode() -> bool:
+    """True when SWARM_TEST_MODE is set to a truthy value."""
+    return os.getenv('SWARM_TEST_MODE', '').lower() in ('true', '1', 't', 'yes', 'y')
+
+
+def assert_test_mode_allowed() -> None:
+    """Refuse SWARM_TEST_MODE outside debug/pytest so prod cannot return canned answers.
+
+    Allowed when:
+    - SWARM_TEST_MODE is unset/false
+    - DJANGO_DEBUG is true
+    - running under pytest (tests force SWARM_TEST_MODE)
+    """
+    if not is_swarm_test_mode():
+        return
+    import sys
+    if is_django_debug():
+        return
+    if 'pytest' in sys.modules or 'PYTEST_VERSION' in os.environ:
+        return
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "SWARM_TEST_MODE is set but DJANGO_DEBUG is not enabled. "
+        "This would return canned/fake agent answers in production. "
+        "Unset SWARM_TEST_MODE, or set DJANGO_DEBUG=true for local testing."
+    )
+
+
+def client_safe_error_message(
+    exc: Exception | None = None,
+    *,
+    public: str = "Internal server error during generation.",
+) -> str:
+    """Return an error string safe to send to API clients.
+
+    In DEBUG, append a short exception type/message for operators. In production,
+    never echo raw exception strings (paths, CLI stderr, stack fragments).
+    """
+    if exc is None or not is_django_debug():
+        return public
+    detail = str(exc).strip()
+    if not detail:
+        return f"{public} ({type(exc).__name__})"
+    # Cap length so clients never get multi-KB dumps even in debug.
+    if len(detail) > 500:
+        detail = detail[:500] + "…"
+    return f"{public} ({type(exc).__name__}: {detail})"
 
 
 def get_testuser_password() -> str:

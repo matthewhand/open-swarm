@@ -123,6 +123,7 @@ Import check: every module below imported successfully via `uv run python -c "im
 | Codey command-injection fix | ✅ | `blueprint_codey.py:933-937` parses with `shlex.split` instead of shell string (commit `2e2ee426` "Fix Command Injection in Codey blueprint") |
 | Sensitive-data redaction | ✅ | `swarm/utils/redact.py`; tests `tests/core/test_redact_sensitive_data.py`, `tests/unit/test_redact*.py` (3 files) pass; marketplace scrubs secrets via `SECRET_PATTERNS` (`marketplace/models.py:20-26`) |
 | API auth (static token / session) | 🟡 | `auth.py:25` `StaticTokenAuthentication`, permission `auth.py:110-135`; `settings.py:40-45` `ENABLE_API_AUTH = bool(SWARM_API_KEY)`. Caveat: when `SWARM_API_KEY` is unset, DRF default permission falls back to `AllowAny` (`settings.py:261-268`) — API is open by default |
+| ChatMessage tenancy + prod security headers | ✅ | `message_views.py` scopes list to `conversation__student=request.user` when `ENABLE_API_AUTH`; token-only → empty qs. Production (`DEBUG=False`): `SECURE_CONTENT_TYPE_NOSNIFF`, `X_FRAME_OPTIONS=DENY`, secure cookies (`SWARM_SECURE_COOKIES`). Browser honesty: `swarm.core.browser_tools` + TROUBLESHOOTING §7 (no fake playwright success). |
 | `SWARM_TEST_MODE` | 🟡 | Works as designed for tests (dummy LLM paths e.g. `blueprint_jeeves.py:276`; `swarm_cli.py:97` installs a bash shim instead of a PyInstaller binary). Caveat: a single env var globally swaps real behavior for canned output — if leaked into prod, responses are fake with no warning |
 
 ---

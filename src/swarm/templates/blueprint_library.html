@@ -127,14 +127,20 @@
                 </div>
                 <span class="os-meta" id="bpSearchCount"></span>
             </div>
-            <div class="row" id="allBlueprintsGrid">
+            <div class="row g-3" id="allBlueprintsGrid">
                 {% for category_id, blueprints in blueprints_by_category.items %}
                     {% for blueprint in blueprints %}
-                    <div class="col-lg-4 col-md-6 mb-4 bp-grid-item" data-bp-name="{{ blueprint.name|lower }}">
+                    <div class="col-xl-3 col-lg-4 col-md-6 bp-grid-item" data-bp-name="{{ blueprint.name|lower }}">
                         {% include "blueprint_card.html" with blueprint=blueprint %}
                     </div>
                     {% endfor %}
                 {% endfor %}
+            </div>
+            <div class="text-center mt-3 mb-2" id="bpShowMoreWrap" style="display:none;">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="bpShowMore" onclick="showMoreBlueprints()">
+                    Show more blueprints
+                </button>
+                <div class="os-meta mt-1" id="bpPageMeta"></div>
             </div>
             <div id="bpSearchEmpty" class="os-empty" style="display:none;">
                 <div class="os-empty-icon"><i class="fas fa-magnifying-glass"></i></div>
@@ -145,9 +151,9 @@
         <!-- Category-specific tabs -->
         {% for category_id, blueprints in blueprints_by_category.items %}
         <div class="tab-pane fade" id="{{ category_id }}" role="tabpanel">
-            <div class="row">
+            <div class="row g-3">
                 {% for blueprint in blueprints %}
-                <div class="col-lg-4 col-md-6 mb-4">
+                <div class="col-xl-3 col-lg-4 col-md-6">
                     {% include "blueprint_card.html" with blueprint=blueprint %}
                 </div>
                 {% endfor %}
@@ -200,24 +206,67 @@
 </div>
 
 <script>
-// Live client-side filter over the "All Blueprints" grid (by name).
-function filterBlueprints() {
+// Client-side page size for "All Blueprints" to avoid card explosion.
+const BP_PAGE_SIZE = 12;
+let bpVisibleLimit = BP_PAGE_SIZE;
+
+function applyBlueprintVisibility() {
     const input = document.getElementById('bpSearch');
-    if (!input) return;
-    const q = input.value.trim().toLowerCase();
-    const items = document.querySelectorAll('#allBlueprintsGrid .bp-grid-item');
-    let shown = 0;
+    const q = input ? input.value.trim().toLowerCase() : '';
+    const items = Array.from(document.querySelectorAll('#allBlueprintsGrid .bp-grid-item'));
+    let matchCount = 0;
+    let rendered = 0;
     items.forEach(el => {
         const match = !q || (el.dataset.bpName || '').includes(q);
-        el.style.display = match ? '' : 'none';
-        if (match) shown++;
+        if (!match) {
+            el.style.display = 'none';
+            return;
+        }
+        matchCount++;
+        if (rendered < bpVisibleLimit) {
+            el.style.display = '';
+            rendered++;
+        } else {
+            el.style.display = 'none';
+        }
     });
     const countEl = document.getElementById('bpSearchCount');
-    if (countEl) countEl.textContent = q
-        ? shown + ' match' + (shown === 1 ? '' : 'es')
-        : items.length + ' blueprints';
+    if (countEl) {
+        countEl.textContent = q
+            ? matchCount + ' match' + (matchCount === 1 ? '' : 'es')
+            : (matchCount ? matchCount + ' blueprints' : '');
+    }
     const emptyEl = document.getElementById('bpSearchEmpty');
-    if (emptyEl) emptyEl.style.display = (q && shown === 0) ? '' : 'none';
+    if (emptyEl) emptyEl.style.display = matchCount === 0 ? '' : 'none';
+    const moreWrap = document.getElementById('bpShowMoreWrap');
+    const meta = document.getElementById('bpPageMeta');
+    if (moreWrap) {
+        const hasMore = matchCount > bpVisibleLimit;
+        moreWrap.style.display = hasMore || (matchCount > BP_PAGE_SIZE) ? '' : 'none';
+        const btn = document.getElementById('bpShowMore');
+        if (btn) {
+            btn.style.display = hasMore ? '' : 'none';
+            btn.textContent = hasMore
+                ? 'Show more (' + Math.min(BP_PAGE_SIZE, matchCount - bpVisibleLimit) + ')'
+                : 'Show more blueprints';
+        }
+        if (meta) {
+            meta.textContent = matchCount
+                ? 'Showing ' + Math.min(bpVisibleLimit, matchCount) + ' of ' + matchCount
+                : '';
+        }
+    }
+}
+
+function showMoreBlueprints() {
+    bpVisibleLimit += BP_PAGE_SIZE;
+    applyBlueprintVisibility();
+}
+
+// Live client-side filter over the "All Blueprints" grid (by name).
+function filterBlueprints() {
+    bpVisibleLimit = BP_PAGE_SIZE;
+    applyBlueprintVisibility();
 }
 
 document.addEventListener('DOMContentLoaded', filterBlueprints);

@@ -217,7 +217,11 @@ class ChatCompletionsView(APIView):
             raise
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True)
-            raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
         finally:
             # Avoid "Task was destroyed but it is pending" when we break early.
             if async_generator is not None and hasattr(async_generator, "aclose"):
@@ -263,7 +267,8 @@ class ChatCompletionsView(APIView):
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 logger.error(f"[ReqID: {request_id}] Unexpected error during streaming: {e}", exc_info=True)
-                error_msg = f"Internal server error: {str(e)}"
+                from swarm.utils.env_utils import client_safe_error_message
+                error_msg = client_safe_error_message(e, public="Internal server error.")
                 error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
                 yield f"data: {json.dumps(error_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -358,7 +363,11 @@ class ChatCompletionsView(APIView):
             raise e
         except Exception as e:
             print_logger.error(f"[ReqID: {request_id}] Unexpected error during serializer validation: {e}", exc_info=True)
-            raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e, public="Internal error during request validation."),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
 
         validated_data = serializer.validated_data
         model_name = validated_data['model']
@@ -382,7 +391,13 @@ class ChatCompletionsView(APIView):
             blueprint_instance = await get_blueprint_instance(model_name, params=blueprint_params)
         except Exception as e:
              logger.error(f"[ReqID: {request_id}] Error getting blueprint instance for '{model_name}': {e}", exc_info=True)
-             raise APIException(f"Failed to load model '{model_name}': {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+             from swarm.utils.env_utils import client_safe_error_message
+             raise APIException(
+                 client_safe_error_message(
+                     e, public=f"Failed to load model '{model_name}'.",
+                 ),
+                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+             ) from e
 
         if blueprint_instance is None:
             logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (get_blueprint_instance returned None).")

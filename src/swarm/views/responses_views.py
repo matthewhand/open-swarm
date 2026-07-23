@@ -42,7 +42,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from swarm.core import responses_store
+from swarm.auth import request_principal
+from swarm.core import cancel_registry, responses_store
 
 from .chat_views import _chunk_is_final, _extract_message_from_chunk
 from .openai_schema import responses_schema
@@ -248,6 +249,8 @@ class ResponsesView(APIView):
     async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
         request_id = str(uuid.uuid4())
         logger.info(f"[ReqID: {request_id}] Processing /v1/responses POST request.")
+        # Stamp owner for store records (IDOR protection on GET/cancel/delete).
+        self._owner_principal = request_principal(request)
 
         # --- Request body parsing ---
         try:
@@ -287,6 +290,7 @@ class ResponsesView(APIView):
             prior = await sync_to_async(responses_store.load)(str(previous_response_id))
             if prior is None:
                 raise NotFound(f"Previous response '{previous_response_id}' not found.")
+            _assert_owner_access(request, prior)
             messages = list(prior.get("messages") or []) + messages
 
         # --- Model access validation (same helper as ChatCompletionsView) ---
@@ -301,7 +305,13 @@ class ResponsesView(APIView):
             blueprint_instance = await get_blueprint_instance(model_name, params=params)
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Error getting blueprint instance for '{model_name}': {e}", exc_info=True)
-            raise APIException(f"Failed to load model '{model_name}': {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(
+                    e, public=f"Failed to load model '{model_name}'.",
+                ),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
 
         if blueprint_instance is None:
             logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize.")
@@ -342,8 +352,10 @@ class ResponsesView(APIView):
             request_id, model_name, "", previous_response_id, None, None, status="queued"
         )
         # The _task spec lets a server restart resume this (see resume_pending_responses).
+        owner = getattr(self, "_owner_principal", None)
         await sync_to_async(responses_store.save)({
             "id": response_id, "object": "response", "response": payload, "messages": None,
+            "owner": owner,
             "_task": _task_spec(request_id, model_name, list(messages), params, previous_response_id),
         })
         # Daemon thread with its own event loop — decoupled from the request
@@ -395,11 +407,17 @@ class ResponsesView(APIView):
             raise
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Unexpected error during /v1/responses generation: {e}", exc_info=True)
-            raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
 
         payload = _build_response_payload(request_id, model_name, answer, previous_response_id, messages, backend_meta)
         if store:
-            await sync_to_async(_persist)(payload, messages, answer)
+            await sync_to_async(_persist)(
+                payload, messages, answer, owner=getattr(self, "_owner_principal", None)
+            )
         return Response(payload, status=status.HTTP_200_OK)
 
     async def _handle_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> StreamingHttpResponse:
@@ -432,13 +450,19 @@ class ResponsesView(APIView):
                 final_text = "".join(full_text_parts)
                 payload = _build_response_payload(request_id, model_name, final_text, previous_response_id, messages, backend_meta)
                 if store:
-                    await sync_to_async(_persist)(payload, messages, final_text)
+                    await sync_to_async(_persist)(
+                        payload, messages, final_text, owner=getattr(self, "_owner_principal", None)
+                    )
                 completed = {"type": "response.completed", "response": payload}
                 yield f"data: {json.dumps(completed)}\n\n"
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 logger.error(f"[ReqID: {request_id}] Error during /v1/responses streaming: {e}", exc_info=True)
-                error_event = {"type": "error", "error": {"message": str(e)}}
+                from swarm.utils.env_utils import client_safe_error_message
+                error_event = {
+                    "type": "error",
+                    "error": {"message": client_safe_error_message(e)},
+                }
                 yield f"data: {json.dumps(error_event)}\n\n"
                 yield "data: [DONE]\n\n"
 
@@ -487,41 +511,59 @@ def _build_response_payload(
     }
 
 
-def _persist(payload: dict[str, Any], messages: list[dict[str, Any]], answer: str) -> None:
+def _persist(
+    payload: dict[str, Any],
+    messages: list[dict[str, Any]],
+    answer: str,
+    *,
+    owner: str | None = None,
+) -> None:
     """Save a response record so it can be retrieved and chained from later."""
+    # Preserve existing owner on update if present.
+    existing = responses_store.load(payload["id"]) or {}
     record = {
         "id": payload["id"],
         "object": "response",
         "response": payload,
         # Full transcript incl. the assistant reply, so previous_response_id replays it.
         "messages": list(messages) + [{"role": "assistant", "content": answer}],
+        "owner": owner if owner is not None else existing.get("owner"),
     }
     responses_store.save(record)
 
 
+def _assert_owner_access(request: Request, record: dict[str, Any] | None) -> None:
+    """Refuse access when API auth is on and the principal is not the owner.
+
+    Fail-closed: legacy records without an ``owner`` stamp are also denied
+    (see :func:`responses_store.owner_allows`). Skipped entirely when API auth
+    is off (open local-dev mode).
+    """
+    if not bool(getattr(settings, "ENABLE_API_AUTH", False)):
+        return
+    principal = request_principal(request)
+    if not responses_store.owner_allows(record, principal):
+        raise PermissionDenied("You do not have access to this response.")
+
+
 # --- Cancellation registry -------------------------------------------------- #
-# Cooperative cancel: a cancel request adds the id here; the worker checks it
-# between blueprint chunks and stops. A single in-flight CLI call still runs to
-# completion (or its own timeout) — cancellation takes effect at the next chunk
-# boundary, which for multi-step blueprints (fusion/pipeline/planner) is between
-# CLI calls.
-_CANCELLED: set[str] = set()
-_CANCELLED_LOCK = threading.Lock()
+# Cooperative cancel: flags are file-backed under SWARM_RESPONSES_DIR/cancel so
+# multi-worker uvicorn can cancel each other's jobs. A process-local set is a
+# fast path. The worker checks between blueprint chunks; a single in-flight CLI
+# call still runs to completion (or its own timeout) — cancellation takes
+# effect at the next chunk boundary (fusion/pipeline/planner between CLI calls).
 
 
 def _request_cancel(response_id: str) -> None:
-    with _CANCELLED_LOCK:
-        _CANCELLED.add(response_id)
+    cancel_registry.request_cancel(response_id)
 
 
 def _is_cancel_requested(response_id: str) -> bool:
-    with _CANCELLED_LOCK:
-        return response_id in _CANCELLED
+    return cancel_registry.is_cancel_requested(response_id)
 
 
 def _clear_cancel(response_id: str) -> None:
-    with _CANCELLED_LOCK:
-        _CANCELLED.discard(response_id)
+    cancel_registry.clear_cancel(response_id)
 
 
 class _Cancelled(Exception):
@@ -572,8 +614,28 @@ def _task_spec(request_id, model_name, messages, params, previous_response_id) -
     }
 
 
-def _spawn_worker(response_id, request_id, model_name, messages, params, previous_response_id) -> None:
-    """Start a daemon worker thread (own event loop) for an async response task."""
+def _spawn_worker(
+    response_id, request_id, model_name, messages, params, previous_response_id,
+    *, acquire: bool = True,
+) -> None:
+    """Start a daemon worker thread (own event loop) for an async response task.
+
+    When ``acquire`` is True (default), takes an in-flight slot and raises
+    :class:`rest_framework.exceptions.Throttled` if the pool is full
+    (see ``SWARM_MAX_INFLIGHT``). Resume paths pass ``acquire=False`` after
+    taking a slot themselves (or skip when full).
+    """
+    from rest_framework.exceptions import Throttled
+
+    from swarm.core.concurrency import max_inflight, try_acquire
+
+    if acquire and not try_acquire():
+        raise Throttled(
+            detail=(
+                f"Too many in-flight requests (limit={max_inflight()}). "
+                "Retry later or raise SWARM_MAX_INFLIGHT."
+            )
+        )
     threading.Thread(
         target=_run_background_response,
         args=(response_id, request_id, model_name, list(messages), params, previous_response_id),
@@ -595,8 +657,30 @@ def _run_background_response(
     The record keeps a ``_task`` spec while queued/in_progress so a server restart
     can resume it; the spec is dropped once the task reaches a terminal state.
     """
+    from swarm.core.concurrency import release
+
     started = time.time()
     spec = _task_spec(request_id, model_name, messages, params, previous_response_id)
+    try:
+        _run_background_response_body(
+            response_id, request_id, model_name, messages, params, previous_response_id,
+            started, spec,
+        )
+    finally:
+        release()
+
+
+def _run_background_response_body(
+    response_id: str,
+    request_id: str,
+    model_name: str,
+    messages: list[dict[str, Any]],
+    params: dict | None,
+    previous_response_id: str | None,
+    started: float,
+    spec: dict[str, Any],
+) -> None:
+    """Inner body of the background worker (slot already acquired)."""
 
     # Per-delegation progress, streamed into the persisted record as each
     # parallel sub-task completes. Guarded by a lock for safe concurrent JSON
@@ -609,7 +693,14 @@ def _run_background_response(
         with progress_lock:
             if progress:
                 payload["progress"] = list(progress)
-        record = {"id": response_id, "object": "response", "response": payload, "messages": transcript}
+        existing = responses_store.load(response_id) or {}
+        record = {
+            "id": response_id,
+            "object": "response",
+            "response": payload,
+            "messages": transcript,
+            "owner": existing.get("owner") or spec.get("owner"),
+        }
         if keep_task:
             record["_task"] = spec
         responses_store.save(record)
@@ -621,7 +712,8 @@ def _run_background_response(
         )
         payload["started_at"] = int(started)
         if error is not None:
-            payload["error"] = {"message": str(error)}
+            from swarm.utils.env_utils import client_safe_error_message
+            payload["error"] = {"message": client_safe_error_message(error if isinstance(error, Exception) else Exception(str(error)))}
         _save(payload, transcript)  # no _task: terminal states aren't resumed
 
     def _on_progress(entry: dict) -> None:
@@ -710,10 +802,17 @@ def resume_pending_responses() -> int:
         spec = record.get("_task")
         if status_str not in ("queued", "in_progress") or not isinstance(spec, dict):
             continue
+        from swarm.core.concurrency import try_acquire
+        if not try_acquire():
+            logger.warning(
+                "Deferring resume of %s — in-flight pool full.", record.get("id"),
+            )
+            continue
         logger.warning("Resuming interrupted async task %s (was %s).", record.get("id"), status_str)
         _spawn_worker(
             record["id"], spec.get("request_id"), spec.get("model"),
             spec.get("messages") or [], spec.get("params"), spec.get("previous_response_id"),
+            acquire=False,
         )
         resumed += 1
     if resumed:
@@ -728,13 +827,18 @@ class ResponsesDetailView(APIView):
     async def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
         return await _async_auth_dispatch(self, request, *args, **kwargs)
 
-    async def get(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+    async def get(self, request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
         record = await sync_to_async(responses_store.load)(response_id)
         if record is None:
             raise NotFound(f"Response '{response_id}' not found.")
+        _assert_owner_access(request, record)
         return Response(record.get("response") or record, status=status.HTTP_200_OK)
 
-    async def delete(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+    async def delete(self, request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+        record = await sync_to_async(responses_store.load)(response_id)
+        if record is None:
+            raise NotFound(f"Response '{response_id}' not found.")
+        _assert_owner_access(request, record)
         deleted = await sync_to_async(responses_store.delete)(response_id)
         if not deleted:
             raise NotFound(f"Response '{response_id}' not found.")
@@ -753,10 +857,11 @@ class ResponsesCancelView(APIView):
         description="Cooperatively cancel an in-flight async task. No request body. Idempotent on finished tasks.",
         request=None,
     )
-    async def post(self, _request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
+    async def post(self, request: Request, response_id: str, *_a: Any, **_k: Any) -> Response:
         record = await sync_to_async(responses_store.load)(response_id)
         if record is None:
             raise NotFound(f"Response '{response_id}' not found.")
+        _assert_owner_access(request, record)
         payload = record.get("response") or {}
         current = payload.get("status")
         # No-op on already-finished tasks (idempotent) — return the current state.
@@ -767,6 +872,12 @@ class ResponsesCancelView(APIView):
         _request_cancel(response_id)
         payload["status"] = "cancelled"
         await sync_to_async(responses_store.save)(
-            {"id": response_id, "object": "response", "response": payload, "messages": record.get("messages")}
+            {
+                "id": response_id,
+                "object": "response",
+                "response": payload,
+                "messages": record.get("messages"),
+                "owner": record.get("owner"),
+            }
         )
         return Response(payload, status=status.HTTP_200_OK)

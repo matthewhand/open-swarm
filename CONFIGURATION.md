@@ -4,10 +4,11 @@
 
 Swarm supports both interactive and manual configuration. The recommended way to set up and manage your config is via the `swarm-cli`, which provides commands to initialize, edit, and validate your configuration interactively. However, you can also hand-edit the config JSON if you prefer full control or need to automate deployment.
 
-- **Interactive:**
-  - Run `swarm-cli configure` to launch guided setup for LLMs, MCP servers, blueprints, and more.
-  - Use `swarm-cli list-config` to view your current configuration.
-  - Use `swarm-cli set <section> <key> <value>` to update specific values.
+- **CLI (`swarm-cli config`):**
+  - `swarm-cli config list [--section llm|mcpServers]` — view profiles / MCP servers.
+  - `swarm-cli config add --section llm|mcpServers --name <name> --json '<...>'` — add a profile or MCP server entry.
+  - `swarm-cli config remove --section … --name …` — remove an entry.
+  - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
 - **Manual:**
   - Edit `~/.config/swarm/swarm_config.json` directly (or wherever your config is located).
 
@@ -25,7 +26,7 @@ Config is resolved in this order:
 3. `./swarm_config.json` in the current working directory.
 
 So dropping a config at `~/.config/swarm/swarm_config.json` is enough — both
-`swarm-cli` and the API server (`swarm-api` / `manage.py runserver`) pick it up
+`swarm-cli` and the API server (`swarm-api` / uvicorn ASGI) pick it up
 with no environment variable. Set `SWARM_CONFIG_PATH` only when you want to point
 at a non-standard path explicitly. (`swarm-cli` additionally does an upward
 directory search for a project-local `swarm_config.json`.)
@@ -122,11 +123,11 @@ directory search for a project-local `swarm_config.json`.)
 
 ## 5. CLI vs Manual Configuration
 
-- The `swarm-cli` is the recommended tool for all config tasks:
-  - `swarm-cli configure` (guided interactive setup)
-  - `swarm-cli list-config` (view config)
-  - `swarm-cli set ...` (update values)
-- Manual editing is fully supported for power users and automation.
+- The `swarm-cli` is the recommended tool for config tasks:
+  - `swarm-cli config list` / `config add` / `config remove` (LLM profiles and MCP servers)
+  - `swarm-cli moa-init` (merge default Mixture-of-Agents config block)
+  - `swarm-cli cli-agents --init [--write]` (wire CLI fusion/MoA over installed CLIs)
+- Manual editing of `swarm_config.json` is fully supported for power users and automation.
 
 ---
 
@@ -259,11 +260,18 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `DJANGO_DEBUG` | Debug mode (verbose errors, DEBUG logging, relaxed auth). Keep **off** in prod. | `false` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** | dev: `localhost,127.0.0.1` |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). | `http://localhost:8000,http://127.0.0.1:8000` |
-| `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. | none |
-| `ENABLE_API_AUTH` | Require auth on `/v1/*`. Auto-on when `API_AUTH_TOKEN` is set. | prod: on |
+| `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. Primary when set. **Required in production** (`DEBUG=False`) unless `SWARM_ALLOW_NO_AUTH=true` — server refuses to start without any token. | none |
+| `SWARM_API_KEY` | Legacy alias for `API_AUTH_TOKEN` (used if the latter is unset). | none |
+| `API_AUTH_TOKENS` / `SWARM_API_KEYS` | Optional comma-separated list of additional (or sole) accepted Bearer secrets. Merged with the single-token vars; each key maps to a distinct ownership principal (`token:<sha256-prefix>`). | none |
+| `ENABLE_API_AUTH` | Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Auto-on when any API auth token is set. | prod: on |
+| `SWARM_SECURE_COOKIES` | When `DEBUG=False`, force `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE`. Default **on** in production; set `false` for HTTP-only staging. | prod: true |
+| `DJANGO_X_FRAME_OPTIONS` | Clickjacking header when `DEBUG=False` (Django `XFrameOptionsMiddleware`). | `DENY` |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
 | `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
 | `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |
+| `SWARM_UVICORN_WORKERS` | uvicorn worker count. Prefer **1** — inflight limits are process-local; cancel is filesystem-shared when workers share `SWARM_RESPONSES_DIR`. | `1` |
+| `SWARM_ENFORCE_SINGLE_WORKER` | When true (default), refuse `SWARM_UVICORN_WORKERS` &gt; 1 at app startup. | `true` |
+| `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` | When true, scan user blueprint dirs (exec_module). Default off so creator saves are write-only. | `false` |
 
 ### Feature flags
 

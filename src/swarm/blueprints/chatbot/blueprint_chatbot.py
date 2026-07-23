@@ -108,10 +108,12 @@ class ChatbotBlueprint(BlueprintBase):
             return f"ERROR: {e}"
 
     def execute_shell_command(self, command: str) -> str:
-        import subprocess
+        import subprocess, shlex
         try:
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=30)
             return result.stdout + result.stderr
+        except (ValueError, subprocess.TimeoutExpired) as e:
+            return f"ERROR: {e}"
         except Exception as e:
             return f"ERROR: {e}"
     # Use proper function_tool decorator instead of PatchedFunctionTool
