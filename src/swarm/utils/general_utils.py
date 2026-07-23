@@ -204,4 +204,3 @@ def custom_json_dumps(obj, **kwargs):
     A wrapper around json.dumps that handles specific types like UUIDs and datetimes.
     """
     return json.dumps(obj, default=swarm_json_serializer, **kwargs)
-
