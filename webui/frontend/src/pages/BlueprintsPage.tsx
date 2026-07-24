@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play } from 'lucide-react';
 
 interface Blueprint {
   id: string;
