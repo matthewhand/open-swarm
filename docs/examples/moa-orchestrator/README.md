@@ -142,7 +142,7 @@ sequenceDiagram
     participant API as model moa_orchestrator
     participant Coord as run_moa_agents_orchestrator
     participant Team as run_moa_then_team
-    participant MoA as consult_moa act=False
+    participant MoA as consult_moa always no-act
     participant Imp as implementer
     participant Tst as tester
     participant Docs as docs specialist
