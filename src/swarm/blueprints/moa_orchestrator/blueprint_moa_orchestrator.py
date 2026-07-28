@@ -19,6 +19,7 @@ from swarm.core.moa.agents_orchestrator import (
     run_moa_agents_orchestrator,
 )
 from swarm.core.moa.config import resolve_moa_preset
+from swarm.core.moa.team import parse_team_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -69,39 +70,8 @@ class MoAOrchestratorBlueprint(BlueprintBase):
         return moa_cfg
 
     def _parse_tasks(self) -> list[SpecialistTask] | None:
-        raw = self._params.get("tasks")
-        if not raw:
-            return None
-        if isinstance(raw, str):
-            # "implementer:do X|tester:check Y"
-            tasks = []
-            for part in raw.split("|"):
-                part = part.strip()
-                if not part:
-                    continue
-                if ":" in part:
-                    purpose, instr = part.split(":", 1)
-                else:
-                    purpose, instr = part, part
-                tasks.append(
-                    SpecialistTask(purpose=purpose.strip(), instruction=instr.strip())
-                )
-            return tasks or None
-        if isinstance(raw, list):
-            tasks = []
-            for item in raw:
-                if isinstance(item, dict):
-                    tasks.append(
-                        SpecialistTask(
-                            purpose=str(item.get("purpose") or "implementer"),
-                            instruction=str(item.get("instruction") or ""),
-                            output_path=item.get("output_path"),
-                        )
-                    )
-                elif isinstance(item, str):
-                    tasks.append(SpecialistTask(purpose=item, instruction=item))
-            return tasks or None
-        return None
+        """Delegate to shared ``parse_team_tasks`` (supports @output paths)."""
+        return parse_team_tasks(self._params.get("tasks"))
 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         parts = []

@@ -1,0 +1,24 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant CLI as swarm-cli moa<br/>or model moa
+    participant Orch as MoAOrchestrator
+    participant A as Seat analyst
+    participant C as Seat critic
+    participant Det as default_synthesize
+
+    User->>CLI: question + backend=fake|grok
+    CLI->>Orch: collect_opinions(participants)
+    Note over Orch: permission = approve-reads only
+    par Read-only consults
+        Orch->>A: consult(question)
+        A-->>Orch: opinion text / JSON claim
+        Orch->>C: consult(question)
+        C-->>Orch: opinion text / JSON claim
+    end
+    Note over A,C: No write_file / no act
+    CLI->>Orch: determine(opinions)
+    Orch->>Det: score + pick primary
+    Det-->>Orch: Determination.answer
+    Orch-->>CLI: determination (+ optional act by orchestrator only)
+    CLI-->>User: consensus text

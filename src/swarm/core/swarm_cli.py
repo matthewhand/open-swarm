@@ -269,6 +269,34 @@ def moa(
         "--act-write",
         help="If --act, path to write the determination markdown (orchestrator only).",
     ),
+    team: bool = typer.Option(
+        False,
+        "--team",
+        help=(
+            "After consensus, run a scripted R/W team (no openai-agents). "
+            "Requires --workdir. See --team-tasks."
+        ),
+    ),
+    team_tasks: str = typer.Option(
+        "implementer:Apply decision|tester:Verify|docs:Write ADR",
+        "--team-tasks",
+        help=(
+            "With --team: pipe-separated tasks "
+            "'purpose:instruction' or 'purpose:instruction@path' "
+            "(default implementer|tester|docs)."
+        ),
+    ),
+    workdir: str = typer.Option(
+        None,
+        "--workdir",
+        help="Workspace directory for --team specialist writes (created if missing).",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Log moa.collect / moa.team steps to stderr (INFO).",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
     trace: str = typer.Option(
         None,
@@ -278,17 +306,38 @@ def moa(
 ):
     """Mixture of Agents: read-only CLI opinions → orchestrator determination.
 
-    Participants never write. Use --act for orchestrator-owned impact after consensus.
+    Participants never write. Use --act for orchestrator-owned impact after consensus,
+    or --team / --workdir for consensus-then-team (scripted specialists, no openai-agents).
     Primary product name is MoA (not fusion/ensemble).
     """
     import asyncio
+    import logging
 
     from swarm.core.moa.cli import format_moa_text, parse_fake_responses, run_moa_cli
     from swarm.core.moa.policy import WriteDeniedError
 
+    if verbose:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s %(name)s | %(message)s",
+            force=True,
+        )
+        logging.getLogger("swarm.core.moa").setLevel(logging.INFO)
+
     names = [n.strip() for n in participants.split(",") if n.strip()]
     if not names:
         typer.echo("Error: provide at least one --participants name.", err=True)
+        raise typer.Exit(code=2)
+
+    if team and act:
+        typer.echo(
+            "Error: use either --team (scripted specialists) or --act (single orchestrator write), not both.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if team and not workdir:
+        typer.echo("Error: --team requires --workdir for specialist writes.", err=True)
         raise typer.Exit(code=2)
 
     try:
@@ -304,21 +353,54 @@ def moa(
                 name: default_texts[i % len(default_texts)]
                 for i, name in enumerate(names)
             }
-        payload = asyncio.run(
-            run_moa_cli(
-                question,
-                names,
-                backend=backend,
-                fake_responses=fakes,
-                cwd=cwd,
-                permission=permission,
-                timeout=timeout,
-                act=act,
-                action=action,
-                act_write_path=act_write,
-                trace_path=trace,
+
+        if team:
+            from swarm.core.moa.team import (
+                format_team_text,
+                parse_team_tasks,
+                run_moa_then_team,
+                team_result_to_payload,
             )
-        )
+
+            tasks = parse_team_tasks(team_tasks)
+            result = asyncio.run(
+                run_moa_then_team(
+                    workdir,
+                    question,
+                    specialist_tasks=tasks,
+                    seed_files={"notes.txt": question[:2000]},
+                    moa_backend=backend,
+                    moa_participants=names,
+                    moa_fake_responses=fakes,
+                )
+            )
+            payload = team_result_to_payload(result, question=question)
+            payload["backend"] = backend
+            payload["participants"] = names
+            payload["permission"] = permission
+            payload["workdir"] = workdir
+            if trace:
+                import json
+                from pathlib import Path
+
+                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                payload["trace_path"] = trace
+        else:
+            payload = asyncio.run(
+                run_moa_cli(
+                    question,
+                    names,
+                    backend=backend,
+                    fake_responses=fakes,
+                    cwd=cwd or workdir,
+                    permission=permission,
+                    timeout=timeout,
+                    act=act,
+                    action=action,
+                    act_write_path=act_write,
+                    trace_path=trace,
+                )
+            )
     except WriteDeniedError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=5) from e
@@ -333,6 +415,10 @@ def moa(
         import json
 
         typer.echo(json.dumps(payload, indent=2))
+    elif team:
+        from swarm.core.moa.team import format_team_text
+
+        typer.echo(format_team_text(payload))
     else:
         typer.echo(format_moa_text(payload))
 

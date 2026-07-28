@@ -1,0 +1,83 @@
+INFO swarm.core.moa.team | moa.team consensus_only start backend=fake seats=['analyst', 'critic']
+INFO swarm.core.moa.orchestrator | moa.run start act=False seats=['analyst', 'critic'] q_len=60
+INFO swarm.core.moa.orchestrator | moa.collect start seats=['analyst', 'critic'] permission=approve-reads cwd=None
+INFO swarm.core.moa.orchestrator | moa.consult seat=analyst permission=approve-reads
+INFO swarm.core.moa.orchestrator | moa.consult done seat=analyst ok=True permission=approve-reads text_len=53
+INFO swarm.core.moa.orchestrator | moa.consult seat=critic permission=approve-reads
+INFO swarm.core.moa.orchestrator | moa.consult done seat=critic ok=True permission=approve-reads text_len=59
+INFO swarm.core.moa.orchestrator | moa.collect done ok=2/2 permissions=['approve-reads']
+INFO swarm.core.moa.orchestrator | moa.determine primary=analyst answer_len=223 participants=['analyst', 'critic']
+INFO swarm.core.moa.orchestrator | moa.run done act=False act_ok=None determination=True
+INFO swarm.core.moa.team | moa.team consensus_only done answer_len=223 panel_writes=[] specialists=0
+INFO swarm.core.moa.team | moa.team consensus_then_team start backend=fake seats=['analyst', 'critic'] tasks=['researcher', 'implementer', 'tester', 'docs'] workspace=/home/matthewh/open-swarm/docs/examples/moa-consensus-vs-team/assets/demo-team-workspace
+INFO swarm.core.moa.orchestrator | moa.run start act=False seats=['analyst', 'critic'] q_len=60
+INFO swarm.core.moa.orchestrator | moa.collect start seats=['analyst', 'critic'] permission=approve-reads cwd=/home/matthewh/open-swarm/docs/examples/moa-consensus-vs-team/assets/demo-team-workspace
+INFO swarm.core.moa.orchestrator | moa.consult seat=analyst permission=approve-reads
+INFO swarm.core.moa.orchestrator | moa.consult done seat=analyst ok=True permission=approve-reads text_len=53
+INFO swarm.core.moa.orchestrator | moa.consult seat=critic permission=approve-reads
+INFO swarm.core.moa.orchestrator | moa.consult done seat=critic ok=True permission=approve-reads text_len=59
+INFO swarm.core.moa.orchestrator | moa.collect done ok=2/2 permissions=['approve-reads']
+INFO swarm.core.moa.orchestrator | moa.determine primary=analyst answer_len=223 participants=['analyst', 'critic']
+INFO swarm.core.moa.orchestrator | moa.run done act=False act_ok=None determination=True
+INFO swarm.core.moa.team | moa.team after_panel answer_len=223 panel_writes=[] (expect [])
+INFO swarm.core.moa.team | moa.team wrote moa_determination.md (orchestrator-owned)
+INFO swarm.core.moa.team | moa.team specialist start purpose=researcher output_path=research_notes.md
+INFO swarm.core.moa.team | moa.team specialist done purpose=researcher ok=True trace=["list_files('.')", "read_file('notes.txt')", "write_file('research_notes.md')"]
+INFO swarm.core.moa.team | moa.team specialist start purpose=implementer output_path=decision.md
+INFO swarm.core.moa.team | moa.team specialist done purpose=implementer ok=True trace=["read_file('notes.txt')", "read_file('moa_determination.md')", "write_file('decision.md')"]
+INFO swarm.core.moa.team | moa.team specialist start purpose=tester output_path=test_notes.md
+INFO swarm.core.moa.team | moa.team specialist done purpose=tester ok=True trace=["write_file('test_notes.md')"]
+INFO swarm.core.moa.team | moa.team specialist start purpose=docs output_path=docs/ADR.md
+INFO swarm.core.moa.team | moa.team specialist done purpose=docs ok=True trace=["write_file('docs/ADR.md')"]
+INFO swarm.core.moa.team | moa.team consensus_then_team done specialists_ok=['researcher', 'implementer', 'tester', 'docs'] writes=['moa_determination.md', 'research_notes.md', 'decision.md', 'test_notes.md', 'docs/ADR.md'] reads=['.', 'notes.txt', 'notes.txt', 'moa_determination.md']
+============================================================
+PATH A — consensus only
+============================================================
+12:03:00 INFO  swarm.core.moa.team | moa.team consensus_only start backend=fake seats=['analyst', 'critic']
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.run start act=False seats=['analyst', 'critic'] q_len=60
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.collect start seats=['analyst', 'critic'] permission=approve-reads cwd=None
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult seat=analyst permission=approve-reads
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult done seat=analyst ok=True permission=approve-reads text_len=53
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult seat=critic permission=approve-reads
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult done seat=critic ok=True permission=approve-reads text_len=59
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.collect done ok=2/2 permissions=['approve-reads']
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.determine primary=analyst answer_len=223 participants=['analyst', 'critic']
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.run done act=False act_ok=None determination=True
+12:03:00 INFO  swarm.core.moa.team | moa.team consensus_only done answer_len=223 panel_writes=[] specialists=0
+CHECK PASS: A.mode — consensus_only
+CHECK PASS: A.writes empty — []
+CHECK PASS: A.panel writes empty
+CHECK PASS: A.approve-reads
+CHECK PASS: A.no specialists
+============================================================
+PATH B — consensus then team
+============================================================
+12:03:00 INFO  swarm.core.moa.team | moa.team consensus_then_team start backend=fake seats=['analyst', 'critic'] tasks=['implementer', 'tester', 'docs', 'researcher'] workspace=/tmp/moa-champagne-trace
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.run start act=False seats=['analyst', 'critic'] q_len=60
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.collect start seats=['analyst', 'critic'] permission=approve-reads cwd=/tmp/moa-champagne-trace
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult seat=analyst permission=approve-reads
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult done seat=analyst ok=True permission=approve-reads text_len=53
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult seat=critic permission=approve-reads
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.consult done seat=critic ok=True permission=approve-reads text_len=59
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.collect done ok=2/2 permissions=['approve-reads']
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.determine primary=analyst answer_len=223 participants=['analyst', 'critic']
+12:03:00 INFO  swarm.core.moa.orchestrator | moa.run done act=False act_ok=None determination=True
+12:03:00 INFO  swarm.core.moa.team | moa.team after_panel answer_len=223 panel_writes=[] (expect [])
+12:03:00 INFO  swarm.core.moa.team | moa.team wrote moa_determination.md (orchestrator-owned)
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist start purpose=implementer output_path=decision.md
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist done purpose=implementer ok=True trace=["read_file('notes.txt')", "read_file('moa_determination.md')", "write_file('decision.md')"]
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist start purpose=tester output_path=test_notes.md
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist done purpose=tester ok=True trace=["write_file('test_notes.md')"]
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist start purpose=docs output_path=docs/ADR.md
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist done purpose=docs ok=True trace=["write_file('docs/ADR.md')"]
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist start purpose=researcher output_path=research_notes.md
+12:03:00 INFO  swarm.core.moa.team | moa.team specialist done purpose=researcher ok=True trace=["list_files('.')", "read_file('notes.txt')", "write_file('research_notes.md')"]
+12:03:00 INFO  swarm.core.moa.team | moa.team consensus_then_team done specialists_ok=['implementer', 'tester', 'docs', 'researcher'] writes=['moa_determination.md', 'decision.md', 'test_notes.md', 'docs/ADR.md', 'research_notes.md'] reads=['notes.txt', 'moa_determination.md', '.', 'notes.txt']
+CHECK PASS: B.mode — consensus_then_team
+CHECK PASS: B.panel_wrote False
+CHECK PASS: B.team writes — ['moa_determination.md', 'decision.md', 'test_notes.md', 'docs/ADR.md', 'research_notes.md']
+CHECK PASS: B.specialists ok — [('implementer', True), ('tester', True), ('docs', True), ('researcher', True)]
+CHECK PASS: B.decision embeds consensus
+============================================================
+10/10 passed
+All champagne invariants held.

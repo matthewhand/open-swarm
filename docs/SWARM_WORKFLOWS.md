@@ -171,6 +171,33 @@ API model ids:
 agents alone get `write_file` / shell-class tools. Coordinator instructions
 require consult-before-write for high-stakes work.
 
+### First-class example packs
+
+| Example | openai-agents? | Link |
+|---------|----------------|------|
+| **Simple consensus vs consensus→team** | No | [`moa-consensus-vs-team`](./examples/moa-consensus-vs-team/README.md) |
+| **openai-agents orchestrator + specialists** | Yes | [`moa-orchestrator`](./examples/moa-orchestrator/README.md) |
+
+Pure APIs (no agents package):
+
+```python
+from swarm.core.moa.team import run_moa_consensus, run_moa_then_team, TeamTask
+
+await run_moa_consensus(question, moa_backend="fake")          # path A
+await run_moa_then_team(ws, question, specialist_tasks=[...])  # path B
+```
+
+| Asset type | What it proves |
+|------------|----------------|
+| Sequence § consensus only | Panel is read-only; synthesizer owns consensus; `writes=[]` |
+| Sequence § then team | Only implementer/tester/docs write after MoA |
+| Captured JSON / workspace tree | Real fake-backend runs |
+
+```bash
+bash docs/examples/moa-consensus-vs-team/scripts/capture_example_runs.sh
+bash docs/examples/moa-orchestrator/scripts/capture_example_runs.sh
+```
+
 ## Naming
 
 | Use | Avoid as primary |

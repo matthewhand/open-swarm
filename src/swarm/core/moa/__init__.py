@@ -56,6 +56,15 @@ from swarm.core.moa.policy import (
     assert_participant_permission,
     participant_acpx_flags,
 )
+from swarm.core.moa.team import (
+    MoATeamResult,
+    TeamTask,
+    format_team_text,
+    parse_team_tasks,
+    run_moa_consensus,
+    run_moa_then_team,
+    team_result_to_payload,
+)
 from swarm.core.moa.types import (
     ActResult,
     Determination,
@@ -72,11 +81,18 @@ __all__ = [
     "GrokParticipantBackend",
     "MoAOrchestrator",
     "MoAResult",
+    "MoATeamResult",
     "ParticipantOpinion",
     "PermissionMode",
     "SpecialistTask",
+    "TeamTask",
     "WriteDeniedError",
     "assert_participant_permission",
+    "format_team_text",
+    "parse_team_tasks",
     "participant_acpx_flags",
     "run_moa_agents_orchestrator",
+    "run_moa_consensus",
+    "run_moa_then_team",
+    "team_result_to_payload",
 ]

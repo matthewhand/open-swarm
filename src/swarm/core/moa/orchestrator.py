@@ -229,11 +229,19 @@ class MoAOrchestrator:
         if not names:
             return []
 
+        logger.info(
+            "moa.collect start seats=%s permission=%s cwd=%s",
+            names,
+            mode,
+            cwd,
+        )
+
         sem = asyncio.Semaphore(self.max_concurrency)
         used: set[str] = set()
 
         async def _consult(name: str) -> ParticipantOpinion:
             async with sem:
+                logger.info("moa.consult seat=%s permission=%s", name, mode)
                 coro = self.backend.consult(
                     name,
                     question,
@@ -241,19 +249,28 @@ class MoAOrchestrator:
                     permission=mode,
                 )
                 if self.per_participant_timeout is None:
-                    return await coro
-                try:
-                    return await asyncio.wait_for(
-                        coro, timeout=float(self.per_participant_timeout)
-                    )
-                except asyncio.TimeoutError:
-                    return ParticipantOpinion(
-                        name=name,
-                        text="",
-                        ok=False,
-                        permission_mode=mode,
-                        error=f"timeout after {self.per_participant_timeout}s",
-                    )
+                    opinion = await coro
+                else:
+                    try:
+                        opinion = await asyncio.wait_for(
+                            coro, timeout=float(self.per_participant_timeout)
+                        )
+                    except asyncio.TimeoutError:
+                        opinion = ParticipantOpinion(
+                            name=name,
+                            text="",
+                            ok=False,
+                            permission_mode=mode,
+                            error=f"timeout after {self.per_participant_timeout}s",
+                        )
+                logger.info(
+                    "moa.consult done seat=%s ok=%s permission=%s text_len=%d",
+                    opinion.name,
+                    opinion.ok,
+                    opinion.permission_mode,
+                    len(opinion.text or ""),
+                )
+                return opinion
 
         async def _one_with_failover(primary: str) -> ParticipantOpinion:
             chain = [primary] + [f for f in self.failover if f != primary]
@@ -293,7 +310,14 @@ class MoAOrchestrator:
                 error="no candidates",
             )
 
-        return list(await asyncio.gather(*[_one_with_failover(n) for n in names]))
+        opinions = list(await asyncio.gather(*[_one_with_failover(n) for n in names]))
+        logger.info(
+            "moa.collect done ok=%d/%d permissions=%s",
+            sum(1 for o in opinions if o.ok),
+            len(opinions),
+            sorted({o.permission_mode for o in opinions}),
+        )
+        return opinions
 
     async def determine(
         self, question: str, opinions: list[ParticipantOpinion]
@@ -355,6 +379,13 @@ class MoAOrchestrator:
                             "vote_weights": dict(self.vote_weights),
                             "primary": primary,
                         }
+        primary = (det.analysis or {}).get("primary") if det.analysis else None
+        logger.info(
+            "moa.determine primary=%s answer_len=%d participants=%s",
+            primary,
+            len(det.answer or ""),
+            det.participant_names,
+        )
         return det
 
     async def act(self, determination: Determination | None, action: str) -> ActResult:
@@ -363,7 +394,14 @@ class MoAOrchestrator:
             raise ValueError("Determination is required before act")
         if self.act_fn is None:
             raise ValueError("No act_fn configured on MoAOrchestrator")
-        return await self.act_fn(determination, action)
+        logger.info("moa.act action=%r answer_len=%d", action, len(determination.answer or ""))
+        result = await self.act_fn(determination, action)
+        logger.info(
+            "moa.act done ok=%s side_effects=%s",
+            result.ok,
+            result.side_effects,
+        )
+        return result
 
     async def run(
         self,
@@ -376,6 +414,12 @@ class MoAOrchestrator:
         permission: PermissionMode | str | None = None,
     ) -> MoAResult:
         """Full MoA path: collect → determine → optional act."""
+        logger.info(
+            "moa.run start act=%s seats=%s q_len=%d",
+            act,
+            list(participants),
+            len(question or ""),
+        )
         opinions = await self.collect_opinions(
             question, participants, cwd=cwd, permission=permission
         )
@@ -385,6 +429,12 @@ class MoAOrchestrator:
             act_result = await self.act(
                 determination, action or "apply determination"
             )
+        logger.info(
+            "moa.run done act=%s act_ok=%s determination=%s",
+            act,
+            None if act_result is None else act_result.ok,
+            bool(determination and determination.answer),
+        )
         return MoAResult(
             opinions=opinions,
             determination=determination,

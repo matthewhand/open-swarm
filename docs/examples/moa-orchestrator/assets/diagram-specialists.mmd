@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant API as model moa_orchestrator
+    participant Coord as Agents coordinator
+    participant MoA as consult_moa act=False
+    participant Imp as implementer
+    participant Tst as tester
+    participant Docs as docs specialist
+
+    User->>API: Ship rate limiting?
+    API->>Coord: run_moa_agents_orchestrator
+    Coord->>MoA: multi-seat panel
+    MoA-->>Coord: determination (read-only)
+    Coord->>Coord: write moa_determination.md
+    par Purpose tasks (R/W)
+        Coord->>Imp: Apply decision
+        Imp->>Imp: write decision.md
+        Coord->>Tst: Verify
+        Tst->>Tst: write test_notes.md
+        Coord->>Docs: ADR
+        Docs->>Docs: write docs/ADR.md
+    end
+    Coord-->>API: summary + meta.specialists
+    API-->>User: report
+    Note over MoA: Panel never writes
+    Note over Imp,Docs: Only specialists write

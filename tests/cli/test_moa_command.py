@@ -77,18 +77,51 @@ def test_grok_backend_build_command_is_readonly_framed():
     assert "--cwd" in argv
 
 
+def _swarm_cli(
+    *args: str,
+    env: dict | None = None,
+    xdg_root: Path | None = None,
+) -> subprocess.CompletedProcess:
+    """Invoke Typer ``swarm-cli`` in a subprocess with isolated XDG dirs.
+
+    Host ``~/.cache`` may be a broken symlink; platformdirs mkdir then fails.
+    Always pin XDG_* (and HOME under them) to a writable tree.
+    """
+    import tempfile
+
+    e = os.environ.copy()
+    e["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
+    root = Path(xdg_root) if xdg_root is not None else Path(tempfile.mkdtemp(prefix="swarm-cli-xdg-"))
+    for sub in ("cache", "config", "data", "home"):
+        (root / sub).mkdir(parents=True, exist_ok=True)
+    e["HOME"] = str(root / "home")
+    e["XDG_CACHE_HOME"] = str(root / "cache")
+    e["XDG_CONFIG_HOME"] = str(root / "config")
+    e["XDG_DATA_HOME"] = str(root / "data")
+    e["SWARM_USER_DATA_DIR"] = str(root / "data" / "swarm")
+    if env:
+        e.update(env)
+    return subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from swarm.core.swarm_cli import app; "
+                "import sys; sys.argv = ['swarm-cli'] + sys.argv[1:]; app()"
+            ),
+            *args,
+        ],
+        capture_output=True,
+        text=True,
+        env=e,
+        timeout=60,
+        cwd=str(Path(__file__).resolve().parents[2]),
+    )
+
+
 def test_swarm_cli_moa_subprocess_fake(tmp_path: Path):
     """Invoke the real Typer entrypoint as users do: python -m / swarm-cli moa."""
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
-    # Prefer package entry if installed; fall back to module path.
-    cmd = [
-        sys.executable,
-        "-c",
-        (
-            "from swarm.core.swarm_cli import app; "
-            "import sys; sys.argv = ['swarm-cli'] + sys.argv[1:]; app()"
-        ),
+    proc = _swarm_cli(
         "moa",
         "Should we add rate limits?",
         "--backend",
@@ -98,14 +131,7 @@ def test_swarm_cli_moa_subprocess_fake(tmp_path: Path):
         "--fake-responses",
         "alpha=Yes with token bucket.||beta=Yes; document the quota.",
         "--json",
-    ]
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(Path(__file__).resolve().parents[2]),
-        timeout=30,
+        xdg_root=tmp_path / "xdg",
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     # JSON may be preceded by noise; find last object.
@@ -116,3 +142,69 @@ def test_swarm_cli_moa_subprocess_fake(tmp_path: Path):
     assert len(data["opinions"]) == 2
     assert data["determination"] is not None
     assert all(o["permission_mode"] == "approve-reads" for o in data["opinions"])
+
+
+def test_swarm_cli_moa_team_mode(tmp_path: Path):
+    """--team runs consensus-then-team without openai-agents."""
+    ws = tmp_path / "teamws"
+    trace = tmp_path / "team_trace.json"
+    proc = _swarm_cli(
+        "moa",
+        "Ship rate limiting?",
+        "--backend",
+        "fake",
+        "--participants",
+        "analyst,critic",
+        "--fake-responses",
+        'analyst={"claim":"ship carefully","confidence":0.9}||critic={"claim":"ship with tests","confidence":0.85}',
+        "--team",
+        "--workdir",
+        str(ws),
+        "--team-tasks",
+        "implementer:Apply|tester:Verify|docs:ADR|researcher:Scan",
+        "--json",
+        "--trace",
+        str(trace),
+        "-v",
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    # Verbose logs on stderr
+    assert "moa.team" in proc.stderr or "consensus_then_team" in proc.stderr
+    out = proc.stdout.strip()
+    start = out.find("{")
+    data = json.loads(out[start:])
+    assert data["mode"] == "consensus_then_team"
+    assert data["panel_wrote"] is False
+    assert "decision.md" in data["writes"]
+    assert "test_notes.md" in data["writes"]
+    assert "docs/ADR.md" in data["writes"]
+    assert "research_notes.md" in data["writes"]
+    assert (ws / "decision.md").is_file()
+    assert (ws / "research_notes.md").is_file()
+    assert trace.is_file()
+    assert "ship" in data["determination"].lower() or "token" in data["determination"].lower() or data["determination"]
+
+
+def test_swarm_cli_moa_team_requires_workdir(tmp_path: Path):
+    proc = _swarm_cli(
+        "moa", "q", "--backend", "fake", "--team", "--json", xdg_root=tmp_path / "xdg"
+    )
+    assert proc.returncode == 2
+    assert "workdir" in (proc.stderr + proc.stdout).lower()
+
+
+def test_swarm_cli_moa_team_xor_act(tmp_path: Path):
+    proc = _swarm_cli(
+        "moa",
+        "q",
+        "--backend",
+        "fake",
+        "--team",
+        "--workdir",
+        str(tmp_path / "ws"),
+        "--act",
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 2
+    assert "--team" in (proc.stderr + proc.stdout) or "act" in (proc.stderr + proc.stdout).lower()

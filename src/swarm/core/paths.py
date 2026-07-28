@@ -68,16 +68,32 @@ def get_project_root_dir() -> Path:
     """
     return Path(__file__).resolve().parent.parent.parent.parent
 
+def _safe_mkdir(path: Path) -> bool:
+    """Create ``path`` (and parents). Return False on OSError (e.g. broken XDG symlink).
+
+    Import-time callers must not crash the whole CLI when one XDG root is unusable
+    (broken ``~/.cache`` symlink is common on multi-disk home layouts).
+    """
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return True
+    except OSError:
+        return False
+
+
 def ensure_swarm_directories_exist():
     """
     Ensures all standard Swarm XDG directories and the user bin directory exist.
     Call this early in application startup.
+
+    Best-effort: failures for individual roots are ignored so a broken cache
+    path does not block config/data setup or CLI import.
     """
-    get_user_data_dir_for_swarm().mkdir(parents=True, exist_ok=True)
-    get_user_blueprints_dir().mkdir(parents=True, exist_ok=True)
-    get_user_bin_dir().mkdir(parents=True, exist_ok=True) # Ensure bin dir also exists
-    get_user_cache_dir_for_swarm().mkdir(parents=True, exist_ok=True)
-    get_user_config_dir_for_swarm().mkdir(parents=True, exist_ok=True)
+    _safe_mkdir(get_user_data_dir_for_swarm())
+    _safe_mkdir(get_user_blueprints_dir())
+    _safe_mkdir(get_user_bin_dir())
+    _safe_mkdir(get_user_cache_dir_for_swarm())
+    _safe_mkdir(get_user_config_dir_for_swarm())
 
 if __name__ == "__main__":
     print(f"Current sys.platform: {sys.platform}")

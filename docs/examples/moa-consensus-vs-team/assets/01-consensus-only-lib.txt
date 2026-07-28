@@ -1,0 +1,4 @@
+mode: consensus_only
+writes: []
+specialists: 0
+determination_preview: yes token bucket at edge /  / — synthesized by orchestrator from 2 participants (primary: analyst) /  / Panel: / - analyst [structured] conf=0.9: yes token bucket at edge / - critic [structured] conf=0.85: yes to

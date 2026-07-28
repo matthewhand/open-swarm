@@ -97,6 +97,12 @@ swarm-cli moa "Review the design" --backend acpx \
 # Orchestrator-only write after determination
 swarm-cli moa "Document the decision" --backend fake --act \
   --act-write ./moa_decision.md
+
+# Consensus then scripted team (no openai-agents; specialists write under --workdir)
+swarm-cli moa "Ship rate limiting?" --backend fake --team \
+  --workdir /tmp/moa-team \
+  --team-tasks 'implementer:Apply|tester:Verify|docs:ADR' \
+  --json -v
 ```
 
 ### Orchestrator tool: `consult_moa`
@@ -155,8 +161,32 @@ await run_moa_agents_orchestrator(
 **Enforcement:** participants never get `act` or approve-all; only tasked
 specialists write. See `docs/SWARM_WORKFLOWS.md`.
 
+### First-class walkthroughs (diagrams + captured runs)
+
+| Example | Path | openai-agents? |
+|---------|------|----------------|
+| **Consensus vs consensus→team** | [`docs/examples/moa-consensus-vs-team/`](./examples/moa-consensus-vs-team/) | **No** — `run_moa_consensus` / `run_moa_then_team` |
+| **openai-agents orchestrator** | [`docs/examples/moa-orchestrator/`](./examples/moa-orchestrator/) | Yes — `moa_orchestrator` / `run_moa_agents_orchestrator` |
+
+```python
+from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team
+
+# A — judgment only
+await run_moa_consensus("Ship rate limiting?", moa_backend="fake")
+
+# B — judgment then purpose files (implementer/tester/docs/…)
+await run_moa_then_team(
+    "./ws",
+    "Ship rate limiting?",
+    specialist_tasks=[TeamTask("implementer", "Apply", "decision.md")],
+    moa_backend="fake",
+)
+```
+
 ```bash
 python scripts/demo_moa_grok_multiseat.py   # live multi-seat grok or fake fallback
+bash docs/examples/moa-consensus-vs-team/scripts/capture_example_runs.sh
+bash docs/examples/moa-orchestrator/scripts/capture_example_runs.sh
 ```
 
 ## Tests

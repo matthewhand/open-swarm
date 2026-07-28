@@ -1,0 +1,5 @@
+determination: yes token bucket /  / — synthesized by orchestrator from 2 participants (primary: analyst) /  / Panel: / - analyst [structured] conf=0.9: yes token bucket / - critic [structured] conf=0.85: yes token bucket with metrics
+specialists: ['implementer', 'tester', 'docs']
+all_ok: True
+writes: ['moa_determination.md', 'decision.md', 'test_notes.md', 'docs/ADR.md']
+reads: ['notes.txt', 'moa_determination.md']

@@ -5,10 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Pure MoA team path (no openai-agents):** `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; champagne logs on `moa.collect` / `moa.team`
+- **`swarm-cli moa --team --workdir`**: consensus then scripted specialists (`--team-tasks`, `-v` INFO logs); mutually exclusive with `--act`
+- **Examples:** `docs/examples/moa-consensus-vs-team/`, `docs/examples/moa-orchestrator/`; demos `scripts/demo_moa_consensus_vs_team.py`, `scripts/trace_moa_champagne.py`
 - **`swarm-cli moa-init`**: merge default `moa` config (Grok live / fake CI presets); `--show-openwebui` connection JSON
 - **`hybrid_moa` blueprint**: MoA consult then implementer `decision.md` write
-- **`moa_orchestrator`**: openai-agents orchestrator mode — MoA read-only consensus then purpose R/W specialists (`implementer`/`tester`/`docs`/`researcher`) via `run_moa_agents_orchestrator`
+- **`moa_orchestrator`**: openai-agents orchestrator mode — MoA read-only consensus then purpose R/W specialists (`implementer`/`tester`/`docs`/`researcher`) via `run_moa_agents_orchestrator` (scripted body reuses `run_moa_then_team`)
 - Docs: `docs/OPENWEBUI_MOA.md`, `docs/examples/moa.swarm_config.json`, multi-seat demo `scripts/demo_moa_grok_multiseat.py`
+
+### Fixed
+- **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` is best-effort per root so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
 
 ## [0.5.4] — 2026-06-19
 

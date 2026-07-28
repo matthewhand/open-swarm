@@ -1,0 +1,15 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant API as run_moa_consensus<br/>or swarm-cli moa
+    participant Panel as Read-only seats
+    participant Det as Synthesizer
+
+    User->>API: question
+    API->>Panel: collect opinions (approve-reads)
+    Panel-->>API: claims / free text
+    Note over Panel: No write_file / no act
+    API->>Det: determine(opinions)
+    Det-->>API: determination.answer
+    API-->>User: consensus text only
+    Note over API: writes = []

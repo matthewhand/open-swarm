@@ -1,0 +1,14 @@
+flowchart TB
+    Q[User question] --> Coord[openai-agents coordinator<br/>model: moa_orchestrator]
+    Coord --> MoA[consult_moa act=False]
+    MoA --> Seats[Read-only seats<br/>analyst · critic · …]
+    Seats --> Det[Determination synthesizer<br/>default_synthesize]
+    Det --> Note[Write moa_determination.md<br/>orchestrator-owned text]
+    Note --> Specs
+    subgraph Specs [Purpose specialists — R/W]
+      Imp[implementer → decision.md]
+      Tst[tester → test_notes.md]
+      Docs[docs → docs/ADR.md]
+      Res[researcher → research notes]
+    end
+    Specs --> Out[Summary + meta.specialists]

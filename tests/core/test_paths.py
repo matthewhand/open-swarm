@@ -213,6 +213,27 @@ class TestEnsureSwarmDirectoriesExist:
                 assert (temp_path / "data").exists()
                 assert (temp_path / "data").is_dir()
 
+    def test_ensure_swarm_directories_exist_tolerates_broken_cache_root(self):
+        """Broken XDG cache symlink must not prevent other dirs from being created."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            broken = temp_path / "broken-cache-link"
+            broken.symlink_to(temp_path / "does-not-exist")
+            # platformdirs-style: parent is broken symlink, child is .../swarm
+            bad_cache = broken / "OpenSwarm" / "swarm"
+
+            with patch('swarm.core.paths.get_user_data_dir_for_swarm', return_value=temp_path / "data"), \
+                 patch('swarm.core.paths.get_user_blueprints_dir', return_value=temp_path / "data" / "blueprints"), \
+                 patch('swarm.core.paths.get_user_bin_dir', return_value=temp_path / "data" / "bin"), \
+                 patch('swarm.core.paths.get_user_cache_dir_for_swarm', return_value=bad_cache), \
+                 patch('swarm.core.paths.get_user_config_dir_for_swarm', return_value=temp_path / "config"):
+
+                ensure_swarm_directories_exist()  # must not raise
+
+                assert (temp_path / "data").is_dir()
+                assert (temp_path / "config").is_dir()
+                assert not bad_cache.exists()
+
 
 class TestPathRelationships:
     """Test relationships between different path functions."""
