@@ -196,6 +196,10 @@ _DEFAULT_OUTPUT_PATHS: dict[str, str] = {
     "researcher": "research_notes.md",
 }
 
+# Recognized artifact extensions for ``purpose:instr@file.ext`` (no slash).
+_OUTPUT_PATH_EXTENSIONS: frozenset[str] = frozenset(
+    {"md", "txt", "json", "yaml", "yml", "rst", "toml", "csv"}
+)
 
 
 def default_output_path(purpose: str) -> str | None:
@@ -210,6 +214,27 @@ def default_output_path(purpose: str) -> str | None:
     return _DEFAULT_OUTPUT_PATHS.get(key)
 
 
+
+
+def _looks_like_output_path(candidate: str) -> bool:
+    """True if *candidate* should be treated as an ``@output_path`` suffix.
+
+    Path-like forms (``out.md``, ``docs/ADR.md``, ``../x.txt``) delimit the
+    instruction. Email domains and handles (``example.com``, ``alice``) do not,
+    so ``implementer:ping user@example.com`` keeps the full instruction and
+    falls back to the purpose default path.
+    """
+    s = (candidate or "").strip()
+    if not s:
+        return False
+    if "/" in s or "\\" in s:
+        return True
+    if s.startswith("~") or s.startswith("./") or s.startswith("../"):
+        return True
+    if "." not in s:
+        return False
+    ext = s.rsplit(".", 1)[-1].lower()
+    return bool(ext) and ext in _OUTPUT_PATH_EXTENSIONS
 
 
 def _portable_relpath(path: str | None) -> str | None:
@@ -242,18 +267,25 @@ def _task_from_dict(item: dict[str, Any]) -> TeamTask:
 def _parse_task_segment(part: str) -> TeamTask | None:
     """Parse one ``purpose[:instruction][@path]`` segment.
 
-    Last ``@`` always delimits the output path (spaces allowed). Empty path
-    after ``@`` falls back to the purpose default. Paths are preserved as
-    given (including backslashes). WorkspaceTools rejects escapes at write time.
+    Last ``@`` delimits the output path only when the suffix is path-like
+    (slash, tilde, or known artifact extension). Empty path after ``@`` falls
+    back to the purpose default. Emails/handles stay in the instruction.
+    WorkspaceTools rejects escapes at write time.
     """
     part = part.strip()
     if not part:
         return None
     output_path: str | None = None
     if "@" in part:
-        part, raw_path = part.rsplit("@", 1)
+        left, raw_path = part.rsplit("@", 1)
         raw_path = raw_path.strip()
-        output_path = _portable_relpath(raw_path) if raw_path else None
+        if raw_path == "":
+            part = left
+            output_path = None
+        elif _looks_like_output_path(raw_path):
+            part = left
+            output_path = _portable_relpath(raw_path)
+        # else: keep ``@`` in the instruction (email / handle / etc.)
     if ":" in part:
         purpose, instr = part.split(":", 1)
     else:

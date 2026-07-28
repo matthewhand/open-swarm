@@ -32,6 +32,28 @@ READ_ONLY_PARTICIPANT_PREAMBLE = (
 )
 
 
+async def _kill_process(proc: asyncio.subprocess.Process) -> None:
+    """Best-effort terminate a live subprocess (timeout or cancel cleanup).
+
+    Outer ``asyncio.wait_for`` around :meth:`ParticipantBackend.consult` cancels
+    the coroutine with ``CancelledError``; without this hook the child process
+    can be left running when ``per_participant_timeout`` is shorter than the
+    backend's own timeout.
+    """
+    if proc.returncode is not None:
+        return
+    try:
+        proc.kill()
+    except ProcessLookupError:
+        return
+    try:
+        # shield so cancel during cleanup still allows wait to reap the child
+        await asyncio.shield(proc.wait())
+    except (ProcessLookupError, asyncio.CancelledError):
+        pass
+
+
+
 @runtime_checkable
 class ParticipantBackend(Protocol):
     """Consult one named participant agent; always under read-only policy."""
@@ -223,8 +245,7 @@ class GrokParticipantBackend:
                 proc.communicate(), timeout=self.default_timeout
             )
         except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            await _kill_process(proc)
             return ParticipantOpinion(
                 name=agent,
                 text="",
@@ -232,6 +253,10 @@ class GrokParticipantBackend:
                 permission_mode=mode,
                 error=f"grok timed out after {self.default_timeout}s",
             )
+        except asyncio.CancelledError:
+            # Orchestrator per_participant_timeout (or task cancel) — free the child.
+            await _kill_process(proc)
+            raise
         stdout = (stdout_b or b"").decode("utf-8", errors="replace").strip()
         stderr = (stderr_b or b"").decode("utf-8", errors="replace").strip()
         rc = proc.returncode if proc.returncode is not None else -1
@@ -334,7 +359,28 @@ class AcpxParticipantBackend:
                 permission_mode=mode,
                 error=f"acpx not found: {e}",
             )
-        stdout_b, stderr_b = await proc.communicate()
+        # CLI --timeout is advisory; also enforce Python-side budget + cancel cleanup
+        # so outer orchestrator wait_for cannot leave orphaned acpx processes.
+        to = timeout if timeout is not None else self.default_timeout
+        try:
+            if to is not None:
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    proc.communicate(), timeout=float(to)
+                )
+            else:
+                stdout_b, stderr_b = await proc.communicate()
+        except asyncio.TimeoutError:
+            await _kill_process(proc)
+            return ParticipantOpinion(
+                name=agent,
+                text="",
+                ok=False,
+                permission_mode=mode,
+                error=f"acpx timed out after {to}s",
+            )
+        except asyncio.CancelledError:
+            await _kill_process(proc)
+            raise
         stdout = (stdout_b or b"").decode("utf-8", errors="replace").strip()
         stderr = (stderr_b or b"").decode("utf-8", errors="replace").strip()
         rc = proc.returncode if proc.returncode is not None else -1

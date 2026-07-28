@@ -192,6 +192,10 @@ class MoAOrchestrator:
         )
         self.max_concurrency = max(1, int(max_concurrency))
         # Soft wall-clock budget per participant consult (None = no extra timeout).
+        # When set, asyncio.wait_for cancels backend.consult; live backends must
+        # kill their subprocesses on CancelledError (see backends._kill_process).
+        # Prefer per_participant_timeout >= backend default_timeout, or rely on
+        # that cancel cleanup so nested timeouts do not orphan grok/acpx children.
         self.per_participant_timeout = per_participant_timeout
         # Optional weights applied during determination scoring (name → weight ≥ 0).
         self.vote_weights = dict(vote_weights or {})

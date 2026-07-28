@@ -495,19 +495,19 @@ def test_parse_team_tasks_purposes_stripped(raw, expected_purposes):
         ("p:i@", "p", "i", None),  # empty path after @ → default (none for "p")
         ("unknown:do", "unknown", "do", None),
         ("implementer:@path.md", "implementer", "implementer", "path.md"),
-        # first ":" splits purpose; last "@" always delimits path
-        ("a:b:c@d", "a", "b:c", "d"),
-        ("a:b@c@d", "a", "b@c", "d"),
+        # first ":" splits purpose; last "@" delimits path only when path-like
+        ("a:b:c@d", "a", "b:c@d", None),  # bare "d" is not path-like
+        ("a:b@c@d", "a", "b@c@d", None),
         ("a:b@c@out/d.md", "a", "b@c", "out/d.md"),
         ("a:b:c@out/d.md", "a", "b:c", "out/d.md"),
-        # bare email after last @ is treated as path (documented ambiguity)
+        # emails/handles stay in instruction; purpose default path applies
         (
             "implementer:ping user@example.com",
             "implementer",
-            "ping user",
-            "example.com",
+            "ping user@example.com",
+            "decision.md",
         ),
-        # last @ wins when email + explicit path
+        # last path-like @ wins when email + explicit path
         (
             "implementer:cc user@ex.com@artifacts/decision.md",
             "implementer",
