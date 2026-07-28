@@ -17,6 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 from swarm.core.moa.policy import (
     DEFAULT_PARTICIPANT_PERMISSION,
     WriteDeniedError,
+    assert_participant_name,
     assert_participant_permission,
 )
 from swarm.core.moa.types import ParticipantOpinion, PermissionMode
@@ -156,13 +157,20 @@ class GrokParticipantBackend:
         return shutil.which(self.grok_bin) is not None
 
     def build_command(self, prompt: str, *, cwd: str | None = None) -> list[str]:
-        # --disallowed-tools aims to keep grok from editing; MoA still treats output as opinion only.
+        # Defense-in-depth: strip common write/exec/network tools from the Grok CLI.
+        # MoA still treats all stdout as opinion only (never as an authorized act).
+        # Team path sets --cwd to the workspace; blocking Bash/Shell is critical so
+        # panelists cannot side-step "read-only" via the shell.
         argv = [
             self.grok_bin,
             "-p",
             prompt,
             "--disallowed-tools",
-            "Write,Edit,MultiEdit,NotebookEdit",
+            (
+                "Write,Edit,MultiEdit,NotebookEdit,"
+                "Bash,Shell,bash,shell,"
+                "WebFetch,WebSearch,Browser,fetch"
+            ),
             "--output-format",
             "plain",
             "--max-turns",
@@ -277,6 +285,8 @@ class AcpxParticipantBackend:
         timeout: float | None = None,
     ) -> list[str]:
         mode = assert_participant_permission(permission)
+        # Reject flag-like seat names so they cannot inject --approve-all etc.
+        safe_agent = assert_participant_name(agent)
         argv: list[str] = [self.acpx_bin, "--format", self.format]
         if mode == PermissionMode.APPROVE_READS.value:
             argv.append("--approve-reads")
@@ -287,7 +297,7 @@ class AcpxParticipantBackend:
         to = timeout if timeout is not None else self.default_timeout
         if to is not None:
             argv.extend(["--timeout", str(int(to))])
-        argv.extend([agent, "exec", prompt])
+        argv.extend([safe_agent, "exec", prompt])
         return argv
 
     def is_available(self) -> bool:

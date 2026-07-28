@@ -71,10 +71,31 @@ grok -p '<read-only framed prompt>' \
     "backend": "grok",
     "participants": ["analyst", "critic"],
     "permission": "approve-reads",
-    "default_timeout": 300
+    "default_timeout": 300,
+    "presets": {
+      "default": { "backend": "grok", "participants": ["analyst", "critic"] },
+      "ci": {
+        "backend": "fake",
+        "participants": ["analyst", "critic"],
+        "fake_responses": { "analyst": "…", "critic": "…" }
+      },
+      "single-grok": { "backend": "grok", "participants": ["grok"] }
+    }
   }
 }
 ```
+
+**Presets** overlay panel fields only (`backend`, `participants`, `fake_responses`,
+optional `permission` / `timeout`). They are **not** where you select team mode.
+
+| Want | How (not a `moa.presets` field) |
+|------|----------------------------------|
+| Consensus only | `swarm-cli moa …` or model `moa` |
+| Consensus → scripted team | `swarm-cli moa … --team --workdir …` |
+| Consensus → one implementer write | model `hybrid_moa` |
+| Consensus → multi specialist | model `moa_orchestrator` + `params.tasks` |
+
+Install/merge the default block with `swarm-cli moa-init` (see below).
 
 ## Dogfood: `swarm-cli moa`
 
@@ -136,16 +157,46 @@ swarm-cli moa-init --show-openwebui
 Example file: `docs/examples/moa.swarm_config.json`.  
 Open WebUI setup: `docs/OPENWEBUI_MOA.md`.
 
-## Hybrid + openai-agents orchestrator
+## Hybrid: consensus → optional specialists
+
+After read-only MoA consensus, impact is **never** delegated to panel seats.
+Post-consensus work uses either the pure team runner or (optionally) an
+openai-agents coordinator.
 
 | Model id | Behavior |
 |----------|----------|
 | `moa` | Panel opinions + determination only |
 | `hybrid_moa` | MoA then one implementer write |
-| **`moa_orchestrator`** | MoA then **multiple purpose agents** (implementer / tester / docs / researcher) |
+| **`moa_orchestrator`** | MoA then **multiple purpose specialists** (implementer / tester / docs / researcher) |
+
+### Pure team path (no openai-agents)
+
+`TeamTask` is the canonical task type. CLI: `swarm-cli moa … --team --workdir …`
+(`--team-tasks`, mutually exclusive with `--act`).
+
+```python
+from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team
+
+# Consensus only — judgment, no specialist writes
+await run_moa_consensus("Ship rate limiting?", moa_backend="fake")
+
+# Consensus then purpose files (implementer/tester/docs/…)
+await run_moa_then_team(
+    "./ws",
+    "Ship rate limiting?",
+    specialist_tasks=[TeamTask("implementer", "Apply", "decision.md")],
+    moa_backend="fake",
+)
+```
+
+### Optional openai-agents orchestrator
+
+Same champagne rules; scripted body reuses `run_moa_then_team`.
+`SpecialistTask` is a **back-compat alias** of `TeamTask`.
 
 ```python
 from swarm.core.moa.agents_orchestrator import SpecialistTask, run_moa_agents_orchestrator
+# or: from swarm.core.moa.team import TeamTask as SpecialistTask
 
 await run_moa_agents_orchestrator(
     "./ws",
@@ -165,23 +216,8 @@ specialists write. See `docs/SWARM_WORKFLOWS.md`.
 
 | Example | Path | openai-agents? |
 |---------|------|----------------|
-| **Consensus vs consensus→team** | [`docs/examples/moa-consensus-vs-team/`](./examples/moa-consensus-vs-team/) | **No** — `run_moa_consensus` / `run_moa_then_team` |
+| **Consensus vs consensus→team** | [`docs/examples/moa-consensus-vs-team/`](./examples/moa-consensus-vs-team/) | **No** — `run_moa_consensus` / `run_moa_then_team` / `swarm-cli moa --team` |
 | **openai-agents orchestrator** | [`docs/examples/moa-orchestrator/`](./examples/moa-orchestrator/) | Yes — `moa_orchestrator` / `run_moa_agents_orchestrator` |
-
-```python
-from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team
-
-# A — judgment only
-await run_moa_consensus("Ship rate limiting?", moa_backend="fake")
-
-# B — judgment then purpose files (implementer/tester/docs/…)
-await run_moa_then_team(
-    "./ws",
-    "Ship rate limiting?",
-    specialist_tasks=[TeamTask("implementer", "Apply", "decision.md")],
-    moa_backend="fake",
-)
-```
 
 ```bash
 python scripts/demo_moa_grok_multiseat.py   # live multi-seat grok or fake fallback

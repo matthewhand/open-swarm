@@ -158,6 +158,16 @@ To launch without installing the executable:
 swarm-cli launch codey --message "Write a Python function to add two numbers"
 ```
 
+**MoA (optional):** multi-seat consensus, or consensus then a scripted team:
+
+```bash
+swarm-cli moa "Ship rate limiting?" --backend fake --team \
+  --workdir /tmp/moa-team \
+  --team-tasks 'implementer:Apply|tester:Verify|docs:ADR'
+```
+
+See [MOA.md](./MOA.md).
+
 ---
 
 ## 5. Managing Blueprints

@@ -1,13 +1,13 @@
 {
   "question": "Should we default public APIs to token-bucket rate limiting?",
-  "path_a": {
+  "consensus_only": {
     "mode": "consensus_only",
     "writes": [],
     "specialists": 0,
     "panel_wrote": false,
     "primary": "analyst"
   },
-  "path_b": {
+  "consensus_then_team": {
     "mode": "consensus_then_team",
     "writes": [
       "moa_determination.md",
@@ -23,12 +23,12 @@
       "docs"
     ],
     "panel_wrote": false,
-    "workspace": "/home/matthewh/open-swarm/docs/examples/moa-consensus-vs-team/assets/demo-team-workspace"
+    "workspace": "docs/examples/moa-consensus-vs-team/assets/demo-team-workspace"
   },
   "invariants": {
     "same_panel_permission": true,
-    "a_writes_empty": true,
-    "b_has_team_writes": true,
+    "consensus_only_writes_empty": true,
+    "consensus_then_team_has_writes": true,
     "neither_panel_wrote": true
   }
 }

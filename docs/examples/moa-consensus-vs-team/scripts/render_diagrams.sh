@@ -26,8 +26,8 @@ print(f"wrote $ASSETS/$out.mmd ({len(body)} bytes)")
 PY
 }
 
-extract "### 2.1 Path A" "diagram-consensus-only"
-extract "### 2.2 Path B" "diagram-then-team"
+extract "### 2.1 consensus_only" "diagram-consensus-only"
+extract "### 2.2 consensus_then_team" "diagram-then-team"
 
 if command -v npx >/dev/null 2>&1; then
   for name in diagram-consensus-only diagram-then-team; do

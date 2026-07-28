@@ -13,6 +13,7 @@ from swarm.core.moa.backends import ParticipantBackend
 from swarm.core.moa.policy import (
     DEFAULT_PARTICIPANT_PERMISSION,
     WriteDeniedError,
+    assert_participant_name,
     assert_participant_permission,
 )
 from swarm.core.moa.types import (
@@ -195,7 +196,8 @@ class MoAOrchestrator:
         # Optional weights applied during determination scoring (name → weight ≥ 0).
         self.vote_weights = dict(vote_weights or {})
         # Ordered failover chain tried when a primary participant fails.
-        self.failover = [str(n) for n in (failover or []) if n]
+        # Validate labels at construction so flag-like names never reach argv.
+        self.failover = [assert_participant_name(str(n)) for n in (failover or []) if n]
 
     async def collect_opinions(
         self,
@@ -207,9 +209,11 @@ class MoAOrchestrator:
     ) -> list[ParticipantOpinion]:
         """Fan out to participants under read-only permission only.
 
-        Failed primaries are replaced by the next unused name from
-        ``self.failover`` (if configured). Per-participant timeouts produce an
-        unsuccessful opinion rather than aborting the whole panel.
+        Seats run concurrently via ``asyncio.gather``, bounded by
+        ``self.max_concurrency`` (default 8 — full parallelism for typical
+        2–N seat panels). Failed primaries are replaced by the next unused
+        name from ``self.failover`` (if configured). Per-participant timeouts
+        produce an unsuccessful opinion rather than aborting the whole panel.
         """
         if permission is not None:
             mode = assert_participant_permission(permission)
@@ -225,13 +229,15 @@ class MoAOrchestrator:
                 f"refused non-readonly participant permission: {mode!r}"
             )
 
-        names = [str(n) for n in participants if n]
+        # Validate seat labels before any backend argv is built (blocks flag injection).
+        names = [assert_participant_name(str(n)) for n in participants if n]
         if not names:
             return []
 
         logger.info(
-            "moa.collect start seats=%s permission=%s cwd=%s",
+            "moa.collect start seats=%s seats_n=%d permission=%s cwd=%s",
             names,
+            len(names),
             mode,
             cwd,
         )
@@ -263,12 +269,15 @@ class MoAOrchestrator:
                             permission_mode=mode,
                             error=f"timeout after {self.per_participant_timeout}s",
                         )
+                # Log lengths + short error only — never opinion text / secrets.
+                err = None if opinion.ok else (opinion.error or "unknown")[:120]
                 logger.info(
-                    "moa.consult done seat=%s ok=%s permission=%s text_len=%d",
+                    "moa.consult done seat=%s ok=%s permission=%s text_len=%d error=%s",
                     opinion.name,
                     opinion.ok,
                     opinion.permission_mode,
                     len(opinion.text or ""),
+                    err,
                 )
                 return opinion
 
@@ -284,6 +293,11 @@ class MoAOrchestrator:
                 if opinion.ok:
                     # Preserve original slot name in meta for tracing failover.
                     if candidate != primary:
+                        logger.info(
+                            "moa.consult failover primary=%s answered_by=%s",
+                            primary,
+                            candidate,
+                        )
                         opinion.meta = {
                             **(opinion.meta or {}),
                             "failover_from": primary,
@@ -311,9 +325,10 @@ class MoAOrchestrator:
             )
 
         opinions = list(await asyncio.gather(*[_one_with_failover(n) for n in names]))
+        ok_n = sum(1 for o in opinions if o.ok)
         logger.info(
-            "moa.collect done ok=%d/%d permissions=%s",
-            sum(1 for o in opinions if o.ok),
+            "moa.collect done ok=%d total=%d permissions=%s",
+            ok_n,
             len(opinions),
             sorted({o.permission_mode for o in opinions}),
         )
@@ -381,10 +396,11 @@ class MoAOrchestrator:
                         }
         primary = (det.analysis or {}).get("primary") if det.analysis else None
         logger.info(
-            "moa.determine primary=%s answer_len=%d participants=%s",
+            "moa.determine primary=%s answer_len=%d participants=%s participants_n=%d",
             primary,
             len(det.answer or ""),
             det.participant_names,
+            len(det.participant_names or []),
         )
         return det
 
@@ -394,12 +410,21 @@ class MoAOrchestrator:
             raise ValueError("Determination is required before act")
         if self.act_fn is None:
             raise ValueError("No act_fn configured on MoAOrchestrator")
-        logger.info("moa.act action=%r answer_len=%d", action, len(determination.answer or ""))
-        result = await self.act_fn(determination, action)
+        # Truncate free-form action text; never log determination answer body.
+        action_preview = (action or "")[:80]
         logger.info(
-            "moa.act done ok=%s side_effects=%s",
+            "moa.act action=%r answer_len=%d",
+            action_preview,
+            len(determination.answer or ""),
+        )
+        result = await self.act_fn(determination, action)
+        # side_effects are expected to be paths/labels, not content payloads.
+        effects = list(result.side_effects or [])
+        logger.info(
+            "moa.act done ok=%s side_effects_n=%d side_effects=%s",
             result.ok,
-            result.side_effects,
+            len(effects),
+            effects[:20],
         )
         return result
 
@@ -414,10 +439,12 @@ class MoAOrchestrator:
         permission: PermissionMode | str | None = None,
     ) -> MoAResult:
         """Full MoA path: collect → determine → optional act."""
+        seats = list(participants)
         logger.info(
-            "moa.run start act=%s seats=%s q_len=%d",
+            "moa.run start act=%s seats=%s seats_n=%d q_len=%d",
             act,
-            list(participants),
+            seats,
+            len(seats),
             len(question or ""),
         )
         opinions = await self.collect_opinions(
@@ -430,10 +457,11 @@ class MoAOrchestrator:
                 determination, action or "apply determination"
             )
         logger.info(
-            "moa.run done act=%s act_ok=%s determination=%s",
+            "moa.run done act=%s act_ok=%s determination=%s ok_opinions=%d",
             act,
             None if act_result is None else act_result.ok,
             bool(determination and determination.answer),
+            sum(1 for o in opinions if o.ok),
         )
         return MoAResult(
             opinions=opinions,

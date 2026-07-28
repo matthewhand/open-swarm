@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from swarm.core.moa.types import PermissionMode
 
 # Modes allowed for MoA participant consultations.
@@ -13,6 +15,10 @@ PARTICIPANT_PERMISSION_MODES: frozenset[str] = frozenset(
 )
 
 DEFAULT_PARTICIPANT_PERMISSION = PermissionMode.APPROVE_READS
+
+# Seat / acpx agent labels only — never leading dashes (flag injection into argv).
+# Hyphen is last in the class so it is always literal (not a range).
+_PARTICIPANT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@/+-]*$")
 
 
 class WriteDeniedError(PermissionError):
@@ -35,9 +41,32 @@ def assert_participant_permission(permission: PermissionMode | str) -> str:
     """
     value = _mode_value(permission)
     if value not in PARTICIPANT_PERMISSION_MODES:
+        allowed = ", ".join(sorted(PARTICIPANT_PERMISSION_MODES))
         raise WriteDeniedError(
-            f"MoA participants must be read-only; refused permission mode {value!r}. "
-            f"Allowed: {sorted(PARTICIPANT_PERMISSION_MODES)}"
+            f"MoA participants must be read-only; refused --permission {value!r}. "
+            f"Allowed: {allowed}"
+        )
+    return value
+
+
+def assert_participant_name(name: str) -> str:
+    """Validate a MoA seat / backend agent label.
+
+    Rejects empty names and strings that look like CLI flags (leading ``-``)
+    so participant lists cannot inject ``--approve-all`` (or similar) into
+    acpx/grok argv when the label is placed positionally.
+
+    Raises
+    ------
+    ValueError
+        If the name is empty or not a safe identifier.
+    """
+    value = str(name).strip()
+    if not value or not _PARTICIPANT_NAME_RE.fullmatch(value):
+        raise ValueError(
+            f"invalid --participants name {name!r}; "
+            "use a non-empty seat label starting with an alphanumeric "
+            "(no leading dashes / flag-like names)"
         )
     return value
 

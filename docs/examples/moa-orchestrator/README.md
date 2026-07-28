@@ -13,18 +13,20 @@
 
 Related product docs: [MOA.md](../../MOA.md) · [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md) · [OPENWEBUI_MOA.md](../../OPENWEBUI_MOA.md)
 
-> **Prefer no openai-agents?** See the sibling example
+> **Prefer the pure team API?** See the sibling example
 > **[moa-consensus-vs-team](../moa-consensus-vs-team/)** — pure
 > `run_moa_consensus` vs `run_moa_then_team` (same champagne rules, scripted
-> WorkspaceTools team). This page focuses on the openai-agents orchestrator
-> surface (`moa_orchestrator` / `run_moa_agents_orchestrator`).
+> WorkspaceTools team). This page covers the `moa_orchestrator` /
+> `run_moa_agents_orchestrator` surface — **same scripted body**
+> (`run_moa_then_team`); agent objects are optional/inspection-only until a
+> real Runner path exists.
 
 | You want… | Jump to |
 |-----------|---------|
 | Understand the architecture | [§1](#1-what-you-are-building) + [§2 diagrams](#2-sequence-diagrams) |
 | Run consensus only (CI-safe) | [§4 step 2](#step-2--consensus-only-fake-panel-ci-safe) |
 | Pure team path (no agents pkg) | [moa-consensus-vs-team](../moa-consensus-vs-team/) |
-| Run specialists after consensus | [§4 step 4](#step-4--openai-agents-orchestrator--specialists) |
+| Run specialists after consensus | [§4 step 4](#step-4--orchestrator-surface--scripted-teamtask-specialists) |
 | See captured terminal / JSON | [§5](#5-captured-screenshots-terminal--json) |
 | Regenerate assets | [§5 regenerate](#regenerate-assets) |
 
@@ -37,10 +39,10 @@ User question
     │
     ▼
 ┌──────────────────────────────────────────────┐
-│  Orchestrator (openai-agents coordinator)    │
-│  • consult_moa → read-only multi-seat panel  │
+│  run_moa_agents_orchestrator (scripted)      │
+│  • MoA → read-only multi-seat panel          │
 │  • determine → single consensus text         │
-│  • task_* → purpose R/W specialists          │
+│  • TeamTask specialists (run_moa_then_team)  │
 └──────────────────────────────────────────────┘
          │                         │
          ▼                         ▼
@@ -53,13 +55,13 @@ User question
 
 ```mermaid
 flowchart TB
-    Q[User question] --> Coord[openai-agents coordinator<br/>model: moa_orchestrator]
+    Q[User question] --> Coord[run_moa_agents_orchestrator<br/>scripted body: run_moa_then_team]
     Coord --> MoA[consult_moa act=False]
     MoA --> Seats[Read-only seats<br/>analyst · critic · …]
     Seats --> Det[Determination synthesizer<br/>default_synthesize]
     Det --> Note[Write moa_determination.md<br/>orchestrator-owned text]
     Note --> Specs
-    subgraph Specs [Purpose specialists — R/W]
+    subgraph Specs [Scripted TeamTask specialists — R/W]
       Imp[implementer → decision.md]
       Tst[tester → test_notes.md]
       Docs[docs → docs/ADR.md]
@@ -76,7 +78,13 @@ flowchart TB
 | **Determine** | Orchestrator synthesizer | One accountable consensus; no “majority writes” |
 | **Act / implement** | Purpose specialists | Writes happen only after a decision exists |
 
-This is **model A then model B** from [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md): champagne consensus (panel never mutates), then agent-as-tool specialists that *may* write.
+This is **model A (MoA) then scripted TeamTask specialists** from
+[SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md) — not live model-B persona-swarm
+or agent-as-tool tasking. Champagne consensus (panel never mutates), then
+purpose specialists write via `run_moa_then_team`.
+`build_moa_orchestrator_agents` can build optional openai-agents objects for
+inspection; `run_moa_agents_orchestrator` does **not** construct them or call
+`Runner.run` until a real Runner path exists.
 
 ### How we enforce / encourage read-only panelists
 
@@ -129,7 +137,8 @@ sequenceDiagram
     autonumber
     actor User
     participant API as model moa_orchestrator
-    participant Coord as Agents coordinator
+    participant Coord as run_moa_agents_orchestrator
+    participant Team as run_moa_then_team
     participant MoA as consult_moa act=False
     participant Imp as implementer
     participant Tst as tester
@@ -137,21 +146,24 @@ sequenceDiagram
 
     User->>API: Ship rate limiting?
     API->>Coord: run_moa_agents_orchestrator
-    Coord->>MoA: multi-seat panel
-    MoA-->>Coord: determination (read-only)
-    Coord->>Coord: write moa_determination.md
-    par Purpose tasks (R/W)
-        Coord->>Imp: Apply decision
+    Coord->>Team: scripted TeamTask path
+    Team->>MoA: multi-seat panel
+    MoA-->>Team: determination (read-only)
+    Team->>Team: write moa_determination.md
+    par Purpose tasks (R/W, template writes)
+        Team->>Imp: Apply decision
         Imp->>Imp: write decision.md
-        Coord->>Tst: Verify
+        Team->>Tst: Verify
         Tst->>Tst: write test_notes.md
-        Coord->>Docs: ADR
+        Team->>Docs: ADR
         Docs->>Docs: write docs/ADR.md
     end
+    Team-->>Coord: MoAAgentsOrchestratorResult
     Coord-->>API: summary + meta.specialists
     API-->>User: report
     Note over MoA: Panel never writes
-    Note over Imp,Docs: Only specialists write
+    Note over Imp,Docs: Only scripted specialists write
+    Note over Coord: No Runner.run / agent-as-tool tasking
 ```
 
 Rendered SVG exports of these diagrams (for PR previews / offline) live in [`assets/`](./assets/):
@@ -174,7 +186,7 @@ Rendered SVG exports of these diagrams (for PR previews / offline) live in [`ass
 |----------|--------------|---------|
 | **`moa`** | Panel opinions + determination only | Only if you pass orchestrator `act` explicitly |
 | **`hybrid_moa`** | MoA then one implementer | Implementer writes `decision.md` |
-| **`moa_orchestrator`** | MoA then multi-purpose specialists | implementer / tester / docs / researcher |
+| **`moa_orchestrator`** | MoA then scripted multi-purpose TeamTask specialists | implementer / tester / docs / researcher |
 
 Legacy aliases for MoA only: `mixture_of_agents`, `cli_fusion`, `cli_ensemble` (not multi-writer fusion).
 
@@ -241,12 +253,14 @@ async def main():
 asyncio.run(main())
 ```
 
-### Step 4 — openai-agents orchestrator + specialists
+### Step 4 — orchestrator surface + scripted TeamTask specialists
 
 ```python
 import asyncio
 from pathlib import Path
 from swarm.core.moa.agents_orchestrator import SpecialistTask, run_moa_agents_orchestrator
+# SpecialistTask is a back-compat alias of TeamTask (swarm.core.moa.team).
+# Body delegates to run_moa_then_team; result.agents is a name roster only.
 
 async def main():
     ws = Path("./.moa-example-workspace")
@@ -269,11 +283,13 @@ async def main():
     print("determination:", result.determination[:200])
     print("writes:", result.writes)
     print("specialists:", [s.persona for s in result.specialist_results])
+    print("agents roster:", result.agents)  # inspection-only names, not live Agents
 
 asyncio.run(main())
 ```
 
 **Expect:** `moa_determination.md` + specialist files; panel did not invent those writes.
+Real openai-agents objects are **not** built on this path.
 
 Captured run: [`assets/02-moa-orchestrator-specialists.txt`](./assets/02-moa-orchestrator-specialists.txt).
 
@@ -405,8 +421,9 @@ MOA_EXAMPLE_SCRATCH=/tmp/my-scratch \
 |------|-------|--------|-------------|
 | MoA seat (analyst/critic/grok) | Yes | **No** | `collect_opinions` / `consult_moa` |
 | Determination synthesizer | N/A | No (text only) | `MoAOrchestrator.determine` |
-| Orchestrator coordinator | Yes | Optional notes only | openai-agents + tools |
-| implementer / tester / docs / researcher | Yes | **Yes** | `SpecialistTask` / `params.tasks` |
+| Orchestrator surface | Yes | Optional notes only | `run_moa_agents_orchestrator` → `run_moa_then_team` (scripted) |
+| implementer / tester / docs / researcher | Yes | **Yes** | scripted `TeamTask` / `SpecialistTask` (alias) / `params.tasks` |
+| Optional agent objects | N/A | N/A | `build_moa_orchestrator_agents` only (inspection; unused by run) |
 
 ---
 
@@ -418,7 +435,8 @@ MOA_EXAMPLE_SCRATCH=/tmp/my-scratch \
 | Grok / fake / acpx backends | `src/swarm/core/moa/backends.py` |
 | Permission policy | `src/swarm/core/moa/policy.py` |
 | Agents orchestrator | `src/swarm/core/moa/agents_orchestrator.py` |
-| CLI | `swarm-cli moa`, `swarm-cli moa-init` |
+| Pure team path (no agents pkg) | `src/swarm/core/moa/team.py`; CLI `swarm-cli moa --team --workdir` |
+| CLI | `swarm-cli moa`, `swarm-cli moa-init` (`src/swarm/core/swarm_cli.py`) |
 | Blueprints | `moa`, `hybrid_moa`, `moa_orchestrator` |
 
 ---
@@ -450,7 +468,7 @@ pytest tests/core/test_moa*.py \
 
 ## 10. Checklist (example pack complete when…)
 
-- [x] README explains model A → specialists with roles table
+- [x] README explains model A (MoA) → scripted TeamTask specialists with roles table
 - [x] Mermaid sequence diagrams for collect and specialists
 - [x] Architecture flowchart
 - [x] Captured fake consensus JSON (×2 runs)

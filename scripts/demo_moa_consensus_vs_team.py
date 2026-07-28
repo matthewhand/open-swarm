@@ -61,26 +61,26 @@ async def main() -> int:
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    print("=== PATH A: consensus only ===")
-    a = await run_moa_consensus(
+    print("=== consensus_only ===")
+    only = await run_moa_consensus(
         Q,
         moa_backend="fake",
         moa_participants=["analyst", "critic"],
         moa_fake_responses=FAKES,
     )
-    a_payload = team_result_to_payload(a, question=Q)
+    only_payload = team_result_to_payload(only, question=Q)
     (out / "05-demo-consensus-only.json").write_text(
-        json.dumps(a_payload, indent=2), encoding="utf-8"
+        json.dumps(only_payload, indent=2) + "\n", encoding="utf-8"
     )
-    print(format_team_text(a_payload))
+    print(format_team_text(only_payload))
 
-    print("=== PATH B: consensus then team ===")
+    print("=== consensus_then_team ===")
     ws = out / "demo-team-workspace"
     if ws.exists():
         import shutil
 
         shutil.rmtree(ws)
-    b = await run_moa_then_team(
+    team = await run_moa_then_team(
         ws,
         Q,
         specialist_tasks=[
@@ -94,42 +94,55 @@ async def main() -> int:
         moa_participants=["analyst", "critic"],
         moa_fake_responses=FAKES,
     )
-    b_payload = team_result_to_payload(b, question=Q)
+    team_payload = team_result_to_payload(team, question=Q)
     (out / "05-demo-consensus-then-team.json").write_text(
-        json.dumps(b_payload, indent=2), encoding="utf-8"
+        json.dumps(team_payload, indent=2) + "\n", encoding="utf-8"
     )
-    print(format_team_text(b_payload))
+    print(format_team_text(team_payload))
 
+    try:
+        workspace_display = ws.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        workspace_display = str(ws)
+
+    # Mode ids match result.mode / global MoA (workflow A) — never Path A/B
+    # (global B is openai-agents persona swarm).
     contrast = {
         "question": Q,
-        "path_a": {
-            "mode": a.mode,
-            "writes": a.writes,
+        "consensus_only": {
+            "mode": only.mode,
+            "writes": only.writes,
             "specialists": 0,
-            "panel_wrote": a.panel_wrote,
-            "primary": (a.moa_payload.get("determination") or {})
+            "panel_wrote": only.panel_wrote,
+            "primary": (only.moa_payload.get("determination") or {})
             .get("analysis", {})
             .get("primary"),
         },
-        "path_b": {
-            "mode": b.mode,
-            "writes": b.writes,
-            "specialists": [s.persona for s in b.specialist_results],
-            "panel_wrote": b.panel_wrote,
-            "workspace": str(ws),
+        "consensus_then_team": {
+            "mode": team.mode,
+            "writes": team.writes,
+            "specialists": [s.persona for s in team.specialist_results],
+            "panel_wrote": team.panel_wrote,
+            "workspace": workspace_display,
         },
         "invariants": {
             "same_panel_permission": all(
                 o.get("permission_mode") == "approve-reads"
-                for o in (a.moa_payload.get("opinions") or [])
+                for o in (only.moa_payload.get("opinions") or [])
             ),
-            "a_writes_empty": a.writes == [],
-            "b_has_team_writes": "decision.md" in b.writes,
-            "neither_panel_wrote": (not a.panel_wrote) and (not b.panel_wrote),
+            # Team-level write surface (consensus-only hard-codes writes=[]).
+            "consensus_only_writes_empty": only.writes == [],
+            "consensus_then_team_has_writes": "decision.md" in team.writes,
+            # Real panel act surface (cli.py payload['writes']); not tautological
+            # MoATeamResult.panel_wrote which is always False for this runner.
+            "neither_panel_wrote": (
+                (only.moa_payload.get("writes") or []) == []
+                and (team.moa_payload.get("writes") or []) == []
+            ),
         },
     }
     (out / "05-demo-contrast.json").write_text(
-        json.dumps(contrast, indent=2), encoding="utf-8"
+        json.dumps(contrast, indent=2) + "\n", encoding="utf-8"
     )
     tree = sorted(p.relative_to(ws).as_posix() for p in ws.rglob("*") if p.is_file())
     (out / "05-demo-workspace-tree.txt").write_text(

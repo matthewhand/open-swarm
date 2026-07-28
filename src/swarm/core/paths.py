@@ -5,7 +5,8 @@ from pathlib import Path
 import platformdirs
 
 APP_NAME = "swarm"
-APP_AUTHOR = "OpenSwarm" # Using OpenSwarm as author for platformdirs
+APP_AUTHOR = "OpenSwarm"  # Using OpenSwarm as author for platformdirs
+
 
 def get_user_data_dir_for_swarm() -> Path:
     """
@@ -18,12 +19,14 @@ def get_user_data_dir_for_swarm() -> Path:
         return Path(override)
     return Path(platformdirs.user_data_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
+
 def get_user_blueprints_dir() -> Path:
     """
     Returns the directory where user-installed blueprint sources are stored.
     Example: ~/.local/share/OpenSwarm/swarm/blueprints/
     """
     return get_user_data_dir_for_swarm() / "blueprints"
+
 
 def get_user_bin_dir() -> Path:
     """
@@ -36,6 +39,7 @@ def get_user_bin_dir() -> Path:
     """
     return get_user_data_dir_for_swarm() / "bin"
 
+
 def get_user_cache_dir_for_swarm() -> Path:
     """
     Returns the user-specific cache directory for swarm.
@@ -43,12 +47,14 @@ def get_user_cache_dir_for_swarm() -> Path:
     """
     return Path(platformdirs.user_cache_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
 
+
 def get_user_config_dir_for_swarm() -> Path:
     """
     Returns the user-specific config directory for swarm.
     Example: ~/.config/OpenSwarm/swarm/ on Linux.
     """
     return Path(platformdirs.user_config_dir(appname=APP_NAME, appauthor=APP_AUTHOR))
+
 
 def get_swarm_config_file(config_filename: str = "config.yaml") -> Path:
     """
@@ -60,6 +66,7 @@ def get_swarm_config_file(config_filename: str = "config.yaml") -> Path:
     safe_filename = Path(config_filename).name  # Strip any path components
     return config_dir / safe_filename
 
+
 def get_project_root_dir() -> Path:
     """
     Returns the project root directory.
@@ -67,6 +74,7 @@ def get_project_root_dir() -> Path:
     Useful for development, testing, or accessing project-relative resources.
     """
     return Path(__file__).resolve().parent.parent.parent.parent
+
 
 def _safe_mkdir(path: Path) -> bool:
     """Create ``path`` (and parents). Return False on OSError (e.g. broken XDG symlink).
@@ -94,6 +102,7 @@ def ensure_swarm_directories_exist():
     _safe_mkdir(get_user_bin_dir())
     _safe_mkdir(get_user_cache_dir_for_swarm())
     _safe_mkdir(get_user_config_dir_for_swarm())
+
 
 if __name__ == "__main__":
     print(f"Current sys.platform: {sys.platform}")

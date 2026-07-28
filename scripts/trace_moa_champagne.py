@@ -43,7 +43,7 @@ async def main() -> int:
     checks: list[tuple[str, bool, str]] = []
 
     print("=" * 60)
-    print("PATH A — consensus only")
+    print("consensus_only")
     print("=" * 60)
     a = await run_moa_consensus(
         Q,
@@ -52,24 +52,24 @@ async def main() -> int:
         moa_fake_responses=FAKES,
     )
     opinions = a.moa_payload.get("opinions") or []
-    checks.append(check("A.mode", a.mode == "consensus_only", a.mode))
-    checks.append(check("A.writes empty", a.writes == [], str(a.writes)))
+    checks.append(check("consensus_only.mode", a.mode == "consensus_only", a.mode))
+    checks.append(check("consensus_only.writes empty", a.writes == [], str(a.writes)))
     checks.append(
         check(
-            "A.panel writes empty",
+            "consensus_only.panel writes empty",
             (a.moa_payload.get("writes") or []) == [],
         )
     )
     checks.append(
         check(
-            "A.approve-reads",
+            "consensus_only.approve-reads",
             {o.get("permission_mode") for o in opinions} == {"approve-reads"},
         )
     )
-    checks.append(check("A.no specialists", a.specialist_results == []))
+    checks.append(check("consensus_only.no specialists", a.specialist_results == []))
 
     print("=" * 60)
-    print("PATH B — consensus then team")
+    print("consensus_then_team")
     print("=" * 60)
     ws = Path("/tmp/moa-champagne-trace")
     if ws.exists():
@@ -90,11 +90,13 @@ async def main() -> int:
         moa_participants=["analyst", "critic"],
         moa_fake_responses=FAKES,
     )
-    checks.append(check("B.mode", b.mode == "consensus_then_team", b.mode))
-    checks.append(check("B.panel_wrote False", b.panel_wrote is False))
+    checks.append(
+        check("consensus_then_team.mode", b.mode == "consensus_then_team", b.mode)
+    )
+    checks.append(check("consensus_then_team.panel_wrote False", b.panel_wrote is False))
     checks.append(
         check(
-            "B.team writes",
+            "consensus_then_team.team writes",
             {"decision.md", "test_notes.md", "docs/ADR.md", "research_notes.md"}.issubset(
                 set(b.writes)
             ),
@@ -103,14 +105,17 @@ async def main() -> int:
     )
     checks.append(
         check(
-            "B.specialists ok",
+            "consensus_then_team.specialists ok",
             all(s.ok for s in b.specialist_results),
             str([(s.persona, s.ok) for s in b.specialist_results]),
         )
     )
     decision = (ws / "decision.md").read_text(encoding="utf-8")
     checks.append(
-        check("B.decision embeds consensus", "token bucket" in decision.lower())
+        check(
+            "consensus_then_team.decision embeds consensus",
+            "token bucket" in decision.lower(),
+        )
     )
 
     failed = [n for n, ok, _ in checks if not ok]

@@ -15,14 +15,15 @@ def clear_litellm_env(monkeypatch):
 
 
 def _cli_startup_ms() -> int:
-    import subprocess
-    env = os.environ.copy()
-    env["SWARM_TEST_MODE"] = "1"
+    from tests.xdg_isolation import run_swarm_cli
+
     t = time.monotonic()
     try:
-        subprocess.run(
-            ["python3", "-m", "swarm.core.swarm_cli", "--help"],
-            env=env, capture_output=True, timeout=60,
+        run_swarm_cli(
+            "--help",
+            module="swarm.core.swarm_cli",
+            overrides={"SWARM_TEST_MODE": "1"},
+            timeout=60,
         )
     except Exception:
         return 99999

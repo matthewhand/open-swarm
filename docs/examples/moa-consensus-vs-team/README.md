@@ -1,12 +1,15 @@
 # Example: simple MoA consensus vs consensus that drives a team
 
-**No openai-agents required.** This walkthrough contrasts two pure MoA paths
-that share the same read-only panel and orchestrator-owned determination:
+**No openai-agents required.** This walkthrough contrasts two pure MoA modes
+that share the same read-only panel and orchestrator-owned determination.
+Both sit under global workflow **A** (orchestrated consensus / MoA) in
+[SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md) — they are **not** global
+workflow **B** (openai-agents persona / agent-as-tool swarm).
 
-| Path | API | What happens | Writes? |
+| Mode | API | What happens | Writes? |
 |------|-----|--------------|---------|
-| **A. Consensus only** | `run_moa_consensus` / `swarm-cli moa` | Multi-seat opinions → one determination | **No** (panel never mutates) |
-| **B. Consensus → team** | `run_moa_then_team` | Same MoA step, then purpose specialists | **Yes** — implementer / tester / docs / researcher only |
+| **`consensus_only`** | `run_moa_consensus` / `swarm-cli moa` | Multi-seat opinions → one determination | **No** (panel never mutates) |
+| **`consensus_then_team`** | `run_moa_then_team` | Same MoA step, then purpose specialists | **Yes** — implementer / tester / docs / researcher only |
 
 When you also want openai-agents coordinator objects / live Runner mode, see
 [`../moa-orchestrator/`](../moa-orchestrator/) (`run_moa_agents_orchestrator`).
@@ -31,7 +34,7 @@ Related: [MOA.md](../../MOA.md) · [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md
                                    │
               ┌────────────────────┴────────────────────┐
               ▼                                         ▼
-     Path A: stop here                         Path B: drive a team
+     consensus_only: stop here               consensus_then_team: drive a team
      return consensus text                     implementer → decision.md
                                                tester      → test_notes.md
                                                docs        → docs/ADR.md
@@ -41,13 +44,13 @@ Related: [MOA.md](../../MOA.md) · [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md
 |------|-------------|
 | Panel is read-only | `consult_moa(..., act=False)` + `approve-reads` |
 | Determination is orchestrator-owned | local `default_synthesize`, not a panel vote-to-write |
-| Team writes only after consensus | specialists scheduled only in path B |
+| Team writes only after consensus | specialists scheduled only in `consensus_then_team` |
 
 ---
 
 ## 2. Sequence diagrams
 
-### 2.1 Path A — consensus only
+### 2.1 consensus_only
 
 ```mermaid
 sequenceDiagram
@@ -67,7 +70,7 @@ sequenceDiagram
     Note over API: writes = []
 ```
 
-### 2.2 Path B — consensus then team
+### 2.2 consensus_then_team
 
 ```mermaid
 sequenceDiagram
@@ -96,15 +99,15 @@ sequenceDiagram
 Rendered SVG: [`assets/diagram-consensus-only.svg`](./assets/diagram-consensus-only.svg) ·
 [`assets/diagram-then-team.svg`](./assets/diagram-then-team.svg)
 
-![Path A — consensus only](./assets/diagram-consensus-only.svg)
+![consensus_only](./assets/diagram-consensus-only.svg)
 
-![Path B — consensus then team](./assets/diagram-then-team.svg)
+![consensus_then_team](./assets/diagram-then-team.svg)
 
 ---
 
 ## 3. Side-by-side code
 
-### Path A — consensus only
+### consensus_only
 
 ```python
 import asyncio
@@ -139,7 +142,7 @@ swarm-cli moa "Should we default public APIs to token-bucket rate limiting?" \
 
 Captured: [`assets/01-consensus-only.json`](./assets/01-consensus-only.json)
 
-### Path B — consensus then team
+### consensus_then_team
 
 ```python
 import asyncio
@@ -193,8 +196,8 @@ Captured: [`assets/02-consensus-then-team.txt`](./assets/02-consensus-then-team.
 
 ## 4. What differs in the artifacts
 
-| Check | Path A | Path B |
-|-------|--------|--------|
+| Check | `consensus_only` | `consensus_then_team` |
+|-------|------------------|------------------------|
 | `result.mode` | `consensus_only` | `consensus_then_team` |
 | `result.writes` | `[]` | `moa_determination.md`, `decision.md`, … |
 | Workspace files | none required | specialist outputs |
@@ -205,20 +208,102 @@ Captured: [`assets/02-consensus-then-team.txt`](./assets/02-consensus-then-team.
 
 ```text
 mode: consensus_then_team
-determination: yes token bucket …          # same MoA step as path A
+determination: yes token bucket …          # same MoA step as consensus_only
 specialists: ['implementer', 'tester', 'docs']
 writes: ['moa_determination.md', 'decision.md', 'test_notes.md', 'docs/ADR.md']
 # seats never appear in writes
 ```
 
+### Team JSON / trace schema (`team_result_to_payload`)
+
+Library demos and `swarm-cli moa --team --json` / `--trace` share one serializer:
+[`team_result_to_payload`](../../../src/swarm/core/moa/team.py) on
+`MoATeamResult`. Schema constants and a checker live next to it
+(`TEAM_RESULT_PAYLOAD_KEYS`, `validate_team_payload`).
+
+| Asset | Source | Shape |
+|-------|--------|--------|
+| [`assets/05-demo-consensus-only.json`](./assets/05-demo-consensus-only.json) | `scripts/demo_moa_consensus_vs_team.py` | **serializer only** |
+| [`assets/05-demo-consensus-then-team.json`](./assets/05-demo-consensus-then-team.json) | same | **serializer only** |
+| [`assets/05-demo-contrast.json`](./assets/05-demo-contrast.json) | same | **summary** (not full payload) |
+| [`assets/06-cli-team.json`](./assets/06-cli-team.json) | `swarm-cli moa --team --json` | serializer **+ CLI envelope** |
+
+```json
+{
+  "question": "…",
+  "mode": "consensus_only | consensus_then_team",
+  "determination": {
+    "answer": "…",
+    "rationale": "…",
+    "participant_names": ["analyst", "critic"],
+    "analysis": { "ok_count": 2, "primary": "analyst", "scores": {}, "structured_count": 2 }
+  },
+  "moa": {
+    "question": "…",
+    "participants": ["analyst", "critic"],
+    "backend": "fake",
+    "permission": "approve-reads",
+    "opinions": [
+      {
+        "name": "analyst",
+        "ok": true,
+        "text": "…",
+        "error": null,
+        "permission_mode": "approve-reads",
+        "proposal": { "claim": "…", "confidence": 0.9, "evidence": [], "structured": true }
+      }
+    ],
+    "determination": {
+      "answer": "…",
+      "rationale": "…",
+      "participant_names": ["analyst", "critic"],
+      "analysis": { "ok_count": 2, "primary": "analyst", "scores": {}, "structured_count": 2 }
+    },
+    "act": null,
+    "writes": []
+  },
+  "specialists": [
+    {
+      "persona": "implementer",
+      "instruction": "…",
+      "ok": true,
+      "tool_trace": ["write_file('decision.md')"],
+      "output_preview": "… (≤500 chars)"
+    }
+  ],
+  "writes": ["moa_determination.md", "decision.md"],
+  "reads": ["notes.txt"],
+  "panel_wrote": false,
+  "final_preview": "… (≤800 chars)"
+}
+```
+
+Important distinctions:
+
+* **Top-level `determination`** is the same **object** as plain `moa --json`
+  / `run_moa_cli` (`answer`, `rationale`, `participant_names`, `analysis`).
+  Nested **`moa.determination`** is that same structured form from
+  `consult_moa` (scripts can use `data["determination"]["answer"]` with or
+  without `--team`).
+* **`writes` / `reads`** at the top level are **team** workspace I/O.
+  **`moa.writes`** is the panel act surface (empty when `act=False`).
+* **`panel_wrote`** is always `false` for this runner (panel never mutates).
+* CLI envelope (only on `06-cli-team.json` / live `--team --json`):  
+  `backend`, `participants`, `permission`, `workdir` (optional `trace_path`).  
+  Capture script rewrites absolute `workdir` to a **repo-relative** path for
+  portable docs.
+
+Regression: `tests/core/test_moa_team.py` →
+`test_example_assets_match_team_result_payload_schema`.
+
 ---
 
-## 5. When to pick which path
+## 5. When to pick which mode
 
-| Situation | Path |
+| Situation | Mode |
 |-----------|------|
-| Design review, risk ranking, multi-model judgment | **A** consensus only |
-| Decision must become files (ADR, decision log, test plan) | **B** consensus → team |
+| Design review, risk ranking, multi-model judgment | **`consensus_only`** |
+| Decision must become files (ADR, decision log, test plan) | **`consensus_then_team`** |
 | Live LLM coordinator that *chooses* specialists at runtime | openai-agents mode → [`moa-orchestrator`](../moa-orchestrator/) |
 | Single implementer after MoA (blueprint) | model id `hybrid_moa` (uses scripted hybrid; still champagne) |
 
@@ -228,10 +313,12 @@ writes: ['moa_determination.md', 'decision.md', 'test_notes.md', 'docs/ADR.md']
 
 | Concern | Location |
 |---------|----------|
-| Pure consensus / team APIs | `src/swarm/core/moa/team.py` |
-| CLI consensus | `swarm-cli moa` → `src/swarm/core/moa/cli.py` |
+| Pure consensus / team APIs (`TeamTask`, `run_moa_*`) | `src/swarm/core/moa/team.py` |
+| Team JSON / trace serializer + schema check | `team_result_to_payload` / `validate_team_payload` in `team.py` |
+| CLI flags (`--team`, `--workdir`, `--team-tasks`, …) | `swarm-cli moa` → `src/swarm/core/swarm_cli.py` |
+| Consensus helpers used by CLI | `src/swarm/core/moa/cli.py` (`run_moa_cli`) |
 | Collect / determine policy | `src/swarm/core/moa/orchestrator.py` |
-| openai-agents wrapper (optional) | `src/swarm/core/moa/agents_orchestrator.py` |
+| openai-agents wrapper (optional; `SpecialistTask` = `TeamTask`) | `src/swarm/core/moa/agents_orchestrator.py` |
 
 ---
 
@@ -245,7 +332,7 @@ moa.run start act=False
 moa.collect / moa.consult … permission=approve-reads
 moa.determine primary=…
 moa.run done act=False
-# path B only:
+# consensus_then_team only:
 moa.team after_panel panel_writes=[]
 moa.team specialist … write_file(…)
 moa.team consensus_then_team done writes=[…]

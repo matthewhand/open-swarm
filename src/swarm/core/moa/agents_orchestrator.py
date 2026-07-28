@@ -22,16 +22,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from swarm.core.moa.policy import DEFAULT_PARTICIPANT_PERMISSION
 from swarm.core.moa.team import (
     SPECIALIST_PURPOSES,
     SpecialistTask,
-    TeamTask,
+    _default_fakes,
     run_moa_then_team,
 )
 from swarm.core.moa.tools import consult_moa
+from swarm.core.moa.types import PermissionMode
 from swarm.core.persona_swarm import (
     PersonaResult,
-    PersonaSwarmResult,
     WorkspaceTools,
     build_persona_agents,
 )
@@ -40,12 +41,24 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "SPECIALIST_PURPOSES",
+    "SCRIPTED_ORCHESTRATOR_ROSTER",
     "MoAAgentsOrchestratorResult",
     "SpecialistTask",
-    "TeamTask",
     "build_moa_orchestrator_agents",
     "run_moa_agents_orchestrator",
 ]
+
+# Display-name roster for the scripted orchestrator path. Matches the keys/names
+# produced by :func:`build_moa_orchestrator_agents` without constructing Agents.
+# Building real openai-agents objects costs hundreds of ms and is unused by the
+# deterministic team runner that actually executes specialist writes.
+SCRIPTED_ORCHESTRATOR_ROSTER: dict[str, str] = {
+    "coordinator": "Coordinator",
+    "researcher": "Researcher",
+    "implementer": "Implementer",
+    "tester": "Tester",
+    "docs": "Docs",
+}
 
 
 @dataclass
@@ -59,25 +72,6 @@ class MoAAgentsOrchestratorResult:
     reads: list[str] = field(default_factory=list)
     agents: dict[str, Any] = field(default_factory=dict)
     final: str = ""
-
-    def as_persona_result(self) -> PersonaSwarmResult:
-        steps = [
-            PersonaResult(
-                persona="consult_moa",
-                instruction="MoA read-only consensus",
-                output=self.determination,
-                tool_trace=["consult_moa(act=False)"],
-                ok=bool(self.determination),
-            ),
-            *self.specialist_results,
-        ]
-        return PersonaSwarmResult(
-            steps=steps,
-            final=self.final or self.determination,
-            writes=list(self.writes),
-            reads=list(self.reads),
-            agents=dict(self.agents),
-        )
 
 
 def build_moa_orchestrator_agents(
@@ -97,24 +91,18 @@ def build_moa_orchestrator_agents(
 
     # Override MoA consult defaults to caller's backend/participants when possible.
     seats = list(moa_participants or ["analyst", "critic"])
-    fakes = moa_fake_responses
-    if moa_backend == "fake" and not fakes:
-        fakes = {
-            "analyst": (
-                '{"claim":"Prefer the safer option with clear rollback",'
-                '"confidence":0.85}'
-            ),
-            "critic": (
-                '{"claim":"Prefer the safer option and add monitoring",'
-                '"confidence":0.8}'
-            ),
-        }
+    fakes_override = moa_fake_responses
 
     moa_calls: list[dict[str, Any]] = agents.get("_moa_calls") or []
 
     def _consult_configured(question: str) -> str:
         import asyncio
         import concurrent.futures
+
+        # Match scripted run_moa_then_team / run_moa_agents_orchestrator defaults.
+        fakes = fakes_override
+        if moa_backend == "fake" and not fakes:
+            fakes = _default_fakes(question, seats)
 
         async def _run() -> dict[str, Any]:
             return await consult_moa(
@@ -147,6 +135,30 @@ def build_moa_orchestrator_agents(
         "backend": moa_backend,
         "participants": seats,
     }
+
+    # Live path: coordinator still has persona_swarm's consult_moa_panel which
+    # hardcodes backend="fake". Rebuild the tool so Runner uses configured MoA.
+    try:
+        from agents import function_tool as _function_tool
+
+        @_function_tool
+        def consult_moa_panel(question: str) -> str:
+            """Call Mixture of Agents for a read-only multi-seat consensus opinion.
+
+            Use before high-stakes writes. Participants cannot write; you (or the
+            implementer) apply changes after reviewing the determination.
+            """
+            return _consult_configured(question)
+
+        coord = agents["coordinator"]
+        kept = [
+            t
+            for t in list(coord.tools or [])
+            if getattr(t, "name", None) != "consult_moa_panel"
+        ]
+        coord.tools = kept + [consult_moa_panel]
+    except Exception as e:  # pragma: no cover
+        logger.debug("consult_moa_panel rewire skipped: %s", e)
 
     # Extra specialist: tester + docs as lightweight R/W roles (same tool surface).
     try:
@@ -222,25 +234,25 @@ async def run_moa_agents_orchestrator(
     moa_backend: str = "fake",
     moa_participants: list[str] | None = None,
     moa_fake_responses: dict[str, str] | None = None,
+    record_determination: bool = True,
+    permission: PermissionMode | str = DEFAULT_PARTICIPANT_PERMISSION,
+    cwd: str | Path | None = None,
+    timeout: float = 300.0,
 ) -> MoAAgentsOrchestratorResult:
     """Scripted openai-agents-mode MoA orchestrator (CI-safe).
 
-    Builds the agents roster for inspection / live Runner use, then runs the
-    pure :func:`run_moa_then_team` path for deterministic specialist writes.
+    Thin wrapper around :func:`run_moa_then_team` for deterministic specialist
+    writes. Shared kwargs (``permission`` / ``cwd`` / ``timeout`` /
+    ``record_determination``) are forwarded so both entrypoints stay at parity.
+
+    ``result.agents`` is a lightweight name roster for inspection (same
+    keys/display names as :func:`build_moa_orchestrator_agents`). Real
+    openai-agents objects are **not** constructed here — call
+    :func:`build_moa_orchestrator_agents` when you need live Runner wiring.
 
     Prefer :func:`swarm.core.moa.team.run_moa_then_team` when you do not need
-    openai-agents objects at all.
+    the agents-mode result shape at all.
     """
-    tools = WorkspaceTools(workspace)
-    # Build roster against a throwaway view of the workspace root so agent
-    # construction does not pollute write tracking (team runner owns writes).
-    agents = build_moa_orchestrator_agents(
-        tools,
-        moa_backend=moa_backend,
-        moa_participants=moa_participants,
-        moa_fake_responses=moa_fake_responses,
-    )
-
     team = await run_moa_then_team(
         workspace,
         question,
@@ -249,6 +261,10 @@ async def run_moa_agents_orchestrator(
         moa_backend=moa_backend,
         moa_participants=moa_participants,
         moa_fake_responses=moa_fake_responses,
+        record_determination=record_determination,
+        permission=permission,
+        cwd=cwd,
+        timeout=timeout,
     )
     return MoAAgentsOrchestratorResult(
         determination=team.determination,
@@ -256,10 +272,6 @@ async def run_moa_agents_orchestrator(
         specialist_results=list(team.specialist_results),
         writes=list(team.writes),
         reads=list(team.reads),
-        agents={
-            k: getattr(v, "name", k)
-            for k, v in agents.items()
-            if not str(k).startswith("_")
-        },
+        agents=dict(SCRIPTED_ORCHESTRATOR_ROSTER),
         final=team.final,
     )

@@ -102,6 +102,24 @@ app()
   --team-tasks 'implementer:Apply|tester:Verify|docs:ADR|researcher:Scan' \
   --json 2>/dev/null | tee "$ASSETS/06-cli-team.json"
 
+# Portable docs: rewrite absolute workdir to repo-relative path
+"$PY" - <<PY
+import json
+from pathlib import Path
+root = Path(${ROOT@Q}).resolve()
+path = Path(${ASSETS@Q}) / "06-cli-team.json"
+data = json.loads(path.read_text(encoding="utf-8"))
+wd = data.get("workdir")
+if isinstance(wd, str):
+    try:
+        data["workdir"] = Path(wd).resolve().relative_to(root).as_posix()
+    except Exception:
+        # Fall back to known assets-relative path
+        data["workdir"] = "docs/examples/moa-consensus-vs-team/assets/cli-team-workspace"
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    print("normalized workdir:", data["workdir"])
+PY
+
 echo "== demo + champagne trace =="
 MOA_DEMO_OUT="$ASSETS" "$PY" "$ROOT/scripts/demo_moa_consensus_vs_team.py" -v \
   2>"$ASSETS/04-trace-run.log" | tee "$ASSETS/05-demo-stdout.txt" || true
@@ -111,6 +129,26 @@ if [[ -f "$ASSETS/04-trace-run.log" ]]; then
     && mv "$ASSETS/04-trace-run.log.tmp" "$ASSETS/04-trace-run.log" || true
 fi
 "$PY" "$ROOT/scripts/trace_moa_champagne.py" >> "$ASSETS/04-trace-run.log" 2>&1 || true
+
+# Normalize absolute workspace path in demo contrast JSON for portable docs
+"$PY" - <<PY
+import json
+from pathlib import Path
+root = Path(${ROOT@Q}).resolve()
+path = Path(${ASSETS@Q}) / "05-demo-contrast.json"
+if path.is_file():
+    data = json.loads(path.read_text(encoding="utf-8"))
+    branch = data.get("consensus_then_team") or data.get("path_b") or {}
+    ws = branch.get("workspace")
+    key = "consensus_then_team" if "consensus_then_team" in data else "path_b"
+    if isinstance(ws, str) and key in data:
+        try:
+            data[key]["workspace"] = Path(ws).resolve().relative_to(root).as_posix()
+        except Exception:
+            data[key]["workspace"] = "docs/examples/moa-consensus-vs-team/assets/demo-team-workspace"
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        print(f"normalized {key}.workspace:", data[key]["workspace"])
+PY
 
 if [[ -n "$SCRATCH" ]]; then
   mkdir -p "$SCRATCH/moa_consensus_vs_team"

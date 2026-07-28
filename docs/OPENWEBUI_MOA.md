@@ -10,6 +10,7 @@ Point any OpenAI-compatible client (Open WebUI, Continue, curl) at **swarm-api**
 | API key | `SWARM_API_KEY` / token configured for the API |
 | Model | `moa` (aliases: `mixture_of_agents`, `cli_fusion`, `cli_ensemble`) |
 | Hybrid | `hybrid_moa` — MoA consult then write `decision.md` |
+| Orchestrator | `moa_orchestrator` — MoA then multi-specialist R/W (`params.tasks`, `workdir`) |
 
 ## Example request
 
@@ -45,7 +46,7 @@ CI-safe (no live CLI):
 ## Open WebUI UI steps
 
 1. Admin → Connections → OpenAI → add connection with Base URL + API key above  
-2. Enable model **`moa`** (and optionally **`hybrid_moa`**)  
+2. Enable model **`moa`** (and optionally **`hybrid_moa`** / **`moa_orchestrator`**)  
 3. In chat advanced/body params, pass `params` as custom body if your Open WebUI build supports it; otherwise configure defaults via `swarm_config.json` `moa` block  
 
 ## Config init
