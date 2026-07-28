@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play } from 'lucide-react';
 
 interface Blueprint {
   id: string;
@@ -29,19 +29,20 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
+          setBlueprints(list.map((b: Record<string, unknown>) => ({
             id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
+            name: String(b.name || b.id || 'unknown'),
+            description: String(b.description || b.desc || 'Blueprint for AI tasks'),
+            category: String(b.category || b.tag || 'General'),
+            version: String(b.version || '0.1'),
             installed: !!b.installed,
             featured: !!b.featured,
           })));
+
         } else {
           throw new Error('API not available');
         }
-      } catch (e) {
+      } catch (e: unknown) {
         setError('Using demo data (backend /v1/blueprints not reachable in this env)');
         setBlueprints([
           {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},
@@ -82,8 +83,8 @@ export default function BlueprintsPage() {
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
 
-      {error && <Alert type="warning">{error}</Alert>}
-      {launchResult && <Alert type="success" className="mb-4">{launchResult}</Alert>}
+      {error && <div role="alert" aria-live="assertive"><Alert type="warning">{error}</Alert></div>}
+      {launchResult && <div role="status" aria-live="polite"><Alert type="success" className="mb-4">{launchResult}</Alert></div>}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
@@ -99,9 +100,14 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {!loading && !error && filtered.length === 0 && (
+            <div className="col-span-full py-12 text-center text-gray-500" role="status">
+              No blueprints found.
+            </div>
+          )}
           {filtered.map((blueprint) => (
             <Card key={blueprint.id} bordered className="hover:shadow-lg transition-shadow">
               <div className="card-body">
