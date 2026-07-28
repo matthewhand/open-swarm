@@ -140,7 +140,7 @@ log("Launching " + audits.len().to_string() + " parallel audit agents");
 let audit_jobs = [];
 for a in audits {
     let p = "";
-    p += "You are a meticulous code auditor on the open-swarm repo at /home/matthewh/open-swarm. ";
+    p += "You are a meticulous code auditor in the open-swarm repository root ";
     p += "Focus ONLY on: " + a.focus + ". Primary path: " + a.path + ". ";
     p += "Use read_file/grep/list_dir on the real code — never invent from memory. ";
     p += "Also check related tests if relevant. ";
@@ -201,18 +201,18 @@ if to_verify.len() == 0 {
     // Still run test panels even with zero findings.
     let tjobs = [];
     let t1 = "";
-    t1 += "In /home/matthewh/open-swarm run: PYTHONPATH=src python -m pytest ";
+    t1 += "In the repository root run: PYTHONPATH=src python -m pytest ";
     t1 += "tests/core/test_moa_team.py tests/cli/test_moa_command.py ";
     t1 += "tests/core/test_moa_agents_orchestrator.py tests/core/test_moa.py ";
     t1 += "tests/core/test_paths.py -q --tb=short --no-cov. ";
     t1 += "Return passed, summary, failures list.";
     tjobs.push(#{ prompt: t1, label: "test-core-moa", capability_mode: "execute", output_schema: test_schema });
     let t2 = "";
-    t2 += "In /home/matthewh/open-swarm run: PYTHONPATH=src python scripts/demo_moa_consensus_vs_team.py 2>&1 | tail -40. ";
+    t2 += "In the repository root run: PYTHONPATH=src python scripts/demo_moa_consensus_vs_team.py 2>&1 | tail -40. ";
     t2 += "Confirm invariants_ok. Return passed, summary, failures.";
     tjobs.push(#{ prompt: t2, label: "test-demo", capability_mode: "execute", output_schema: test_schema });
     let t3 = "";
-    t3 += "In /home/matthewh/open-swarm run: PYTHONPATH=src python scripts/trace_moa_champagne.py 2>&1 | tail -30. ";
+    t3 += "In the repository root run: PYTHONPATH=src python scripts/trace_moa_champagne.py 2>&1 | tail -30. ";
     t3 += "Return passed, summary, failures.";
     tjobs.push(#{ prompt: t3, label: "test-trace", capability_mode: "execute", output_schema: test_schema });
     let tres = parallel(tjobs);
@@ -227,7 +227,7 @@ log("Verifying " + to_verify.len().to_string() + " findings with independent ske
 let vjobs = [];
 for f in to_verify {
     let vp = "";
-    vp += "Adversarially verify this finding in /home/matthewh/open-swarm by reading the shipped code yourself. ";
+    vp += "Adversarially verify this finding in the repository root by reading the shipped code yourself. ";
     vp += "Claim severity=" + f.severity + " file=" + f.file + " issue=" + f.issue + " claimed_evidence=" + f.evidence + ". ";
     vp += "Set real=true ONLY with concrete independent evidence (quotes, line numbers, failing logic). ";
     vp += "Default real=false if uncertain, outdated, or nit-level style only. ";
@@ -264,19 +264,19 @@ phase("Hardening");
 // Always run test + edge-case generator panels.
 let hard_jobs = [];
 let h1 = "";
-h1 += "In /home/matthewh/open-swarm run with shell: ";
+h1 += "In the repository root run with shell: ";
 h1 += "PYTHONPATH=src python -m pytest tests/core/test_moa_team.py tests/cli/test_moa_command.py ";
 h1 += "tests/core/test_moa_agents_orchestrator.py tests/core/test_moa.py tests/core/test_paths.py ";
 h1 += "tests/core/test_moa_leftovers.py -q --tb=short --no-cov. Report passed/summary/failures.";
 hard_jobs.push(#{ prompt: h1, label: "pytest-moa", capability_mode: "execute", output_schema: test_schema });
 
 let h2 = "";
-h2 += "In /home/matthewh/open-swarm: PYTHONPATH=src python scripts/demo_moa_consensus_vs_team.py ; ";
+h2 += "In the repository root: PYTHONPATH=src python scripts/demo_moa_consensus_vs_team.py ; ";
 h2 += "PYTHONPATH=src python scripts/trace_moa_champagne.py. Report combined passed/summary/failures.";
 hard_jobs.push(#{ prompt: h2, label: "demos", capability_mode: "execute", output_schema: test_schema });
 
 let h3 = "";
-h3 += "In /home/matthewh/open-swarm inspect import graph: PYTHONPATH=src python -c \"from swarm.core.moa import *; from swarm.core.swarm_cli import app; print('ok')\". ";
+h3 += "In the repository root inspect import graph: PYTHONPATH=src python -c \"from swarm.core.moa import *; from swarm.core.swarm_cli import app; print('ok')\". ";
 h3 += "Also try nested asyncio concerns. Report passed/summary/failures.";
 hard_jobs.push(#{ prompt: h3, label: "imports", capability_mode: "execute", output_schema: test_schema });
 
@@ -287,7 +287,7 @@ for c in confirmed {
         let sev = c.severity;
         if sev == "critical" || sev == "high" || sev == "medium" {
             let fp = "";
-            fp += "Fix this confirmed issue in /home/matthewh/open-swarm. ";
+            fp += "Fix this confirmed issue in the repository root ";
             fp += "Issue: " + c.issue + " in " + c.file + ". Evidence: " + c.evidence + ". ";
             if c.fix_hint != () { fp += "Hint: " + c.fix_hint + ". "; }
             fp += "Make a minimal correct fix. Add/adjust a unit test if practical. ";
@@ -315,7 +315,7 @@ let cov_prompts = [
 let ci = 0;
 for cp in cov_prompts {
     hard_jobs.push(#{
-        prompt: "In /home/matthewh/open-swarm: " + cp,
+        prompt: "In the repository root: " + cp,
         label: "cov-" + ci.to_string(),
         capability_mode: "all",
         isolation_worktree: true,
