@@ -11,9 +11,10 @@ workflow **B** (openai-agents persona / agent-as-tool swarm).
 | **`consensus_only`** | `run_moa_consensus` / `swarm-cli moa` | Multi-seat opinions → one determination | **No** (panel never mutates) |
 | **`consensus_then_team`** | `run_moa_then_team` | Same MoA step, then purpose specialists | **Yes** — implementer / tester / docs / researcher only |
 
-When you also want openai-agents coordinator objects / live Runner mode, see
-[`../moa-orchestrator/`](../moa-orchestrator/) (`run_moa_agents_orchestrator`).
-That mode **reuses** the same team runner for its scripted body.
+For the same scripted team under a `moa_orchestrator` / agents-shaped API
+wrapper (still **not** a live openai-agents Runner by default), see
+[`../moa-orchestrator/`](../moa-orchestrator/). Live `Agent` / `Runner` wiring is
+optional and separate (`build_moa_orchestrator_agents`).
 
 Related: [MOA.md](../../MOA.md) · [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md)
 
@@ -42,9 +43,10 @@ Related: [MOA.md](../../MOA.md) · [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md
 
 | Rule | Enforcement |
 |------|-------------|
-| Panel is read-only | `consult_moa(..., act=False)` + `approve-reads` |
+| Panel is read-only | `consult_moa` has **no** `act` arg (always no-act); permission `approve-reads` / `deny-all` only |
 | Determination is orchestrator-owned | local `default_synthesize`, not a panel vote-to-write |
 | Team writes only after consensus | specialists scheduled only in `consensus_then_team` |
+| Soft panel failure | if no usable opinions, team path **skips** specialist writes (no fake “success” files from a dead panel) |
 
 ---
 

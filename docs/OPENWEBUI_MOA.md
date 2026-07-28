@@ -10,7 +10,7 @@ Point any OpenAI-compatible client (Open WebUI, Continue, curl) at **swarm-api**
 | API key | `SWARM_API_KEY` / token configured for the API |
 | Model | `moa` (aliases: `mixture_of_agents`, `cli_fusion`, `cli_ensemble`) |
 | Hybrid | `hybrid_moa` — MoA consult then write `decision.md` |
-| Orchestrator | `moa_orchestrator` — MoA then multi-specialist R/W (`params.tasks`, `workdir`) |
+| Orchestrator | `moa_orchestrator` — MoA then multi-specialist **scripted** R/W (`params.tasks`, `workdir`; not a live openai-agents Runner) |
 
 ## Example request
 

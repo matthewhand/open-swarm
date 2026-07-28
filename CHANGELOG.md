@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - **Pure MoA team path (no openai-agents):** `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; INFO logs on `moa.collect` / `moa.team` (champagne trace)
 - **`swarm-cli moa --team --workdir`**: consensus then scripted specialists (`--team-tasks`, `-v` INFO logs); mutually exclusive with `--act`
 - **Examples:** `docs/examples/moa-consensus-vs-team/`, `docs/examples/moa-orchestrator/`; demos `scripts/demo_moa_consensus_vs_team.py`, `scripts/trace_moa_champagne.py`
-- **`moa_orchestrator` blueprint**: builds an openai-agents specialist roster, then runs a scripted MoA→team body via `run_moa_agents_orchestrator` (reuses `run_moa_then_team` for `implementer`/`tester`/`docs`/`researcher` writes; no live Runner required)
+- **`moa_orchestrator` blueprint**: scripted MoA→team via `run_moa_agents_orchestrator` → `run_moa_then_team` (`implementer`/`tester`/`docs`/`researcher` writes; no live openai-agents Runner by default; optional `build_moa_orchestrator_agents` for real Agents)
 
 ### Fixed
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import

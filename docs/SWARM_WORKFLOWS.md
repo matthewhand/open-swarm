@@ -151,16 +151,17 @@ swarm-cli moa "Ship feature X?" --backend fake --team \
   --json -v
 ```
 
-### Optional openai-agents orchestrator mode
+### Agents-shaped wrapper (scripted; not live Runner by default)
 
-When you want openai-agents **coordinator** objects / live Runner mode:
+`run_moa_agents_orchestrator` / model `moa_orchestrator`:
 
-1. Calls **MoA** for read-only multi-seat consensus (`consult_moa`, never `act`)
-2. Tasks **purpose-specific R/W specialists**: `implementer`, `tester`, `docs`, `researcher`
+1. Calls **MoA** for read-only multi-seat consensus (`consult_moa` — no `act` arg)
+2. Runs **purpose specialists** via the same scripted `run_moa_then_team` path
 
-Scripted body reuses `run_moa_then_team`. Prefer the pure team path above when
-you do not need agents package objects. `SpecialistTask` is a back-compat alias
-of `TeamTask`.
+It does **not** start openai-agents `Runner` or construct live `Agent` objects.
+Prefer pure `run_moa_then_team` when you do not need the agents-mode result
+shape. `SpecialistTask` is a back-compat alias of `TeamTask`. Optional live
+roster building is `build_moa_orchestrator_agents` only.
 
 ```python
 from swarm.core.moa.agents_orchestrator import (
@@ -178,7 +179,7 @@ result = await run_moa_agents_orchestrator(
     ],
     moa_backend="fake",  # or "grok"
 )
-# Panel never writes; specialists do.
+# Panel never writes; specialists do (WorkspaceTools, not shell).
 ```
 
 API model ids:
@@ -186,15 +187,15 @@ API model ids:
 | Model | Behavior |
 |-------|----------|
 | `moa` | Consensus only (read-only panel + determination) |
-| `hybrid_moa` | MoA then single implementer write |
-| `moa_orchestrator` | MoA then multi-specialist R/W tasks (`params.tasks`) |
+| `hybrid_moa` | MoA then single implementer-style write |
+| `moa_orchestrator` | MoA then multi-specialist **scripted** team (`params.tasks`) |
 
 ```json
 {
   "model": "moa_orchestrator",
   "messages": [{"role": "user", "content": "Ship feature X?"}],
   "params": {
-    "backend": "grok",
+    "backend": "fake",
     "participants": ["analyst", "critic"],
     "workdir": "/tmp/orch",
     "tasks": "implementer:apply|tester:verify|docs:adr"
@@ -202,16 +203,16 @@ API model ids:
 }
 ```
 
-**Enforcement:** MoA path always `act=False` + read-only permissions. Specialist
-agents alone get `write_file` / shell-class tools. Coordinator instructions
-require consult-before-write for high-stakes work.
+**Enforcement:** panel is always no-act + `approve-reads` / `deny-all` only.
+Scripted specialists write only through sandboxed `WorkspaceTools` (not panel
+seats, not unrestricted shell). Soft panel failure skips specialist writes.
 
 ### First-class example packs
 
-| Example | openai-agents? | Link |
-|---------|----------------|------|
+| Example | Live openai-agents Runner? | Link |
+|---------|----------------------------|------|
 | **Simple consensus vs consensus→team** (`consensus_only` / `consensus_then_team`; both under **A**, not global **B**) | No | [`moa-consensus-vs-team`](./examples/moa-consensus-vs-team/README.md) |
-| **openai-agents orchestrator + specialists** | Yes | [`moa-orchestrator`](./examples/moa-orchestrator/README.md) |
+| **MoA orchestrator surface + scripted specialists** | No by default (optional live Agents separate) | [`moa-orchestrator`](./examples/moa-orchestrator/README.md) |
 
 | Asset type | What it proves |
 |------------|----------------|

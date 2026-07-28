@@ -1,18 +1,19 @@
-"""MoA orchestrator in openai-agents mode.
+"""MoA orchestrator surface (agents-shaped API; scripted by default).
 
-Flow (enforced by construction, not just prompts):
+Default dogfood / CI path (:func:`run_moa_agents_orchestrator`):
 
 1. **Collect** — read-only MoA participants (fake/grok/acpx) via ``consult_moa``
-   (always ``act=False``).
-2. **Determine** — local synthesizer (or injectable) owns the consensus text.
-3. **Task** — the orchestrator (openai-agents coordinator) may then hand work to
-   **specialist R/W agents** (implementer, researcher, tester, …) for purpose-specific
-   work. Panelists never receive write tools.
+   (no ``act`` parameter; always no-act).
+2. **Determine** — local synthesizer owns the consensus text.
+3. **Task** — scripted purpose specialists (implementer / tester / docs /
+   researcher) via :func:`swarm.core.moa.team.run_moa_then_team` +
+   ``WorkspaceTools``. Panelists never write.
 
-For the same champagne path **without** openai-agents (simple consensus vs
-consensus→team), use :mod:`swarm.core.moa.team` —
-``run_moa_consensus`` / ``run_moa_then_team``. The scripted body of
-``run_moa_agents_orchestrator`` delegates to that runner.
+This is **not** a live openai-agents ``Runner`` path. Optional live Agent
+construction is :func:`build_moa_orchestrator_agents` only.
+
+For the pure team API without the agents-shaped result wrapper, use
+:mod:`swarm.core.moa.team` directly.
 """
 
 from __future__ import annotations

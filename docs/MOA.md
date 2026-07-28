@@ -160,19 +160,20 @@ Open WebUI setup: `docs/OPENWEBUI_MOA.md`.
 ## Hybrid: consensus → optional specialists
 
 After read-only MoA consensus, impact is **never** delegated to panel seats.
-Post-consensus work uses either the pure team runner or (optionally) an
-openai-agents coordinator.
+Post-consensus work is almost always **scripted** (`WorkspaceTools` writers).
+A live openai-agents `Runner` is **not** the default for `moa_orchestrator`.
 
-| Model id | Behavior |
-|----------|----------|
+| Model id | Behavior (what actually runs) |
+|----------|-------------------------------|
 | `moa` | Panel opinions + determination only |
-| `hybrid_moa` | MoA then one implementer write |
-| **`moa_orchestrator`** | MoA then **multiple purpose specialists** (implementer / tester / docs / researcher) |
+| `hybrid_moa` | MoA then one implementer-style write (persona/hybrid path) |
+| **`moa_orchestrator`** | MoA then multi-specialist **scripted** team via `run_moa_agents_orchestrator` → `run_moa_then_team` |
 
 ### Pure team path (no openai-agents)
 
 `TeamTask` is the canonical task type. CLI: `swarm-cli moa … --team --workdir …`
-(`--team-tasks`, mutually exclusive with `--act`).
+(`--team-tasks`, mutually exclusive with `--act`). Without `--team`,
+`swarm-cli moa --json` is `mode=consensus_only` (same serializer family).
 
 ```python
 from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team
@@ -189,10 +190,17 @@ await run_moa_then_team(
 )
 ```
 
-### Optional openai-agents orchestrator
+If the panel returns no usable opinions, the team path **does not** schedule
+specialists or write determination artifacts (soft-fail, not silent fake writes).
 
-Same champagne rules; scripted body reuses `run_moa_then_team`.
-`SpecialistTask` is a **back-compat alias** of `TeamTask`.
+### Agents-shaped wrapper (still scripted by default)
+
+`run_moa_agents_orchestrator` is a thin result-shape wrapper around
+`run_moa_then_team`. It does **not** construct openai-agents `Agent` objects or
+call `Runner.run`. Prefer pure `run_moa_then_team` unless you want the
+agents-mode result shape / blueprint id. `SpecialistTask` is a **back-compat
+alias** of `TeamTask`. For optional live Agent construction only, use
+`build_moa_orchestrator_agents` (separate from the dogfood path).
 
 ```python
 from swarm.core.moa.agents_orchestrator import SpecialistTask, run_moa_agents_orchestrator
@@ -205,19 +213,20 @@ await run_moa_agents_orchestrator(
         SpecialistTask("implementer", "Apply", "decision.md"),
         SpecialistTask("tester", "Verify", "test_notes.md"),
     ],
-    moa_backend="grok",  # or fake
+    moa_backend="fake",  # or "grok" for live panel seats
 )
 ```
 
-**Enforcement:** participants never get `act` or approve-all; only tasked
-specialists write. See `docs/SWARM_WORKFLOWS.md`.
+**Enforcement:** `consult_moa` has no `act` parameter (always no-act). Panel
+permission is only `approve-reads` / `deny-all`. Specialists write via sandboxed
+`WorkspaceTools`, not panel seats. See `docs/SWARM_WORKFLOWS.md`.
 
 ### First-class walkthroughs (diagrams + captured runs)
 
-| Example | Path | openai-agents? |
-|---------|------|----------------|
-| **Consensus vs consensus→team** | [`docs/examples/moa-consensus-vs-team/`](./examples/moa-consensus-vs-team/) | **No** — `run_moa_consensus` / `run_moa_then_team` / `swarm-cli moa --team` |
-| **openai-agents orchestrator** | [`docs/examples/moa-orchestrator/`](./examples/moa-orchestrator/) | Yes — `moa_orchestrator` / `run_moa_agents_orchestrator` |
+| Example | Path | Live openai-agents Runner? |
+|---------|------|----------------------------|
+| **Consensus vs consensus→team** | [`docs/examples/moa-consensus-vs-team/`](./examples/moa-consensus-vs-team/) | **No** — pure `run_moa_consensus` / `run_moa_then_team` / `swarm-cli moa --team` |
+| **MoA orchestrator surface** | [`docs/examples/moa-orchestrator/`](./examples/moa-orchestrator/) | **No by default** — same scripted team; optional `build_moa_orchestrator_agents` for live Agents |
 
 ```bash
 python scripts/demo_moa_grok_multiseat.py   # live multi-seat grok or fake fallback

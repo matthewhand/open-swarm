@@ -1,4 +1,4 @@
-# First-class example: Mixture of Agents + openai-agents orchestrator
+# First-class example: MoA orchestrator surface (scripted specialists)
 
 **Canonical walkthrough** for open-swarm’s champagne consensus path:
 **read-only multi-seat panel → orchestrator-owned determination → purpose R/W specialists.**
@@ -7,19 +7,22 @@
 |------|---------|
 | **MoA participants** | Read-only seats (fake / Grok / optional acpx). Opinions only. |
 | **Orchestrator determination** | Open-swarm synthesizes consensus — panel does not “vote write.” |
-| **Purpose specialists** | R/W agents (`implementer`, `tester`, `docs`, `researcher`) tasked *after* consensus. |
+| **Purpose specialists** | Scripted R/W roles (`implementer`, `tester`, `docs`, `researcher`) after consensus via `WorkspaceTools`. |
+
+**Honest default:** `run_moa_agents_orchestrator` and the `moa_orchestrator`
+blueprint **do not** start a live openai-agents `Runner`. They wrap
+`run_moa_then_team` and return a lightweight name roster. Optional live
+`Agent` objects come only from `build_moa_orchestrator_agents` (not this
+dogfood path).
 
 **Not the primary name:** fusion / ensemble (legacy aliases only → MoA).
 
 Related product docs: [MOA.md](../../MOA.md) · [SWARM_WORKFLOWS.md](../../SWARM_WORKFLOWS.md) · [OPENWEBUI_MOA.md](../../OPENWEBUI_MOA.md)
 
-> **Prefer the pure team API?** See the sibling example
-> **[moa-consensus-vs-team](../moa-consensus-vs-team/)** — pure
-> `run_moa_consensus` vs `run_moa_then_team` (same champagne rules, scripted
-> WorkspaceTools team). This page covers the `moa_orchestrator` /
-> `run_moa_agents_orchestrator` surface — **same scripted body**
-> (`run_moa_then_team`); agent objects are optional/inspection-only until a
-> real Runner path exists.
+> **Prefer the pure team API?** See
+> **[moa-consensus-vs-team](../moa-consensus-vs-team/)** —
+> `run_moa_consensus` vs `run_moa_then_team` (same champagne rules, no
+> agents-shaped wrapper).
 
 | You want… | Jump to |
 |-----------|---------|
@@ -56,7 +59,7 @@ User question
 ```mermaid
 flowchart TB
     Q[User question] --> Coord[run_moa_agents_orchestrator<br/>scripted body: run_moa_then_team]
-    Coord --> MoA[consult_moa act=False]
+    Coord --> MoA[consult_moa always no-act]
     MoA --> Seats[Read-only seats<br/>analyst · critic · …]
     Seats --> Det[Determination synthesizer<br/>default_synthesize]
     Det --> Note[Write moa_determination.md<br/>orchestrator-owned text]
@@ -90,12 +93,12 @@ inspection; `run_moa_agents_orchestrator` does **not** construct them or call
 
 | Mechanism | Strength |
 |-----------|----------|
-| `consult_moa(..., act=False)` | Hard — no act path for panel |
+| `consult_moa` (no `act` parameter; always no-act) | Hard — panel cannot act |
 | Permission only `approve-reads` / `deny-all` | Hard — `approve-all` raises |
-| Grok `--disallowed-tools Write,Edit,…` | Strong for tool use |
+| Grok `--disallowed-tools` includes Write/Edit and Bash/Shell | Strong for tool use (not a full OS sandbox) |
 | acpx `--approve-reads` (never `--approve-all`) | Strong when using acpx |
 | Prompt preamble “read-only consultant” | Soft |
-| Specialists alone get `write_file` | Hard for scripted orchestrator |
+| Scripted specialists write only via sandboxed `WorkspaceTools` | Hard for dogfood path (not shell) |
 
 ---
 

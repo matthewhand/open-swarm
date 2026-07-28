@@ -1,10 +1,10 @@
-"""MoA orchestrator blueprint — openai-agents mode.
+"""MoA orchestrator blueprint — scripted consensus then specialists.
 
 Model id: ``moa_orchestrator``.
 
-1. Collect read-only MoA consensus (``consult_moa``, never act).
+1. Collect read-only MoA consensus (``consult_moa``, always no-act).
 2. Task purpose-specific R/W specialists (implementer, tester, docs, researcher)
-   based on ``params.tasks`` or a sensible default (implementer only).
+   via the **scripted** team runner (not a live openai-agents Runner).
 
 ``params.tasks`` formats (via :func:`swarm.core.moa.team.parse_team_tasks`)::
 
@@ -34,19 +34,20 @@ logger = logging.getLogger(__name__)
 
 
 class MoAOrchestratorBlueprint(BlueprintBase):
-    """openai-agents orchestrator: MoA panel then task R/W specialists."""
+    """MoA panel then scripted R/W specialists (not a live Runner)."""
 
     metadata: ClassVar[dict[str, Any]] = {
         "name": "moa_orchestrator",
-        "title": "MoA Agents Orchestrator (consensus then specialists)",
+        "title": "MoA Orchestrator (consensus then specialists)",
         "description": (
-            "Orchestrator runs in openai-agents mode: first collects read-only "
-            "MoA consensus (Grok/fake/acpx), then tasks purpose-specific R/W "
-            "agents (implementer, tester, docs, researcher). Panelists never write."
+            "Collects read-only MoA consensus (Grok/fake/acpx), then runs "
+            "scripted purpose specialists (implementer, tester, docs, researcher) "
+            "via WorkspaceTools. Panelists never write. Default path does not "
+            "start a live openai-agents Runner."
         ),
         "version": "0.1.0",
         "author": "Open Swarm Team",
-        "tags": ["moa", "orchestrator", "openai-agents", "specialists", "hybrid"],
+        "tags": ["moa", "orchestrator", "specialists", "hybrid", "scripted"],
         "aliases": ["moa-orch", "agents_moa"],
         "required_mcp_servers": [],
         "env_vars": [],
