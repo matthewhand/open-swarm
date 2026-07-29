@@ -43,22 +43,25 @@ const TeamsPage = () => {
       // These are also surfaced live via /v1/models and /v1/blueprints (merged in views/utils.py)
       const res = await fetch('/teams/export?format=json');
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as Record<string, unknown>;
         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
-          name: t.id || 'unknown-team',
-          description: t.description || 'Dynamic team (no description)',
-          status: 'active' as const,
-          members: 1,
-          created: 'via registry',
-          llm_profile: t.llm_profile || 'default',
-        }));
+        const list: Team[] = Object.values(data || {}).map((t: unknown) => {
+          const team = t as Record<string, unknown>;
+          return {
+            id: String(team.id || Object.keys(data).find(k => data[k]===t) || Math.random()),
+            name: String(team.id || 'unknown-team'),
+            description: String(team.description || 'Dynamic team (no description)'),
+            status: 'active' as const,
+            members: 1,
+            created: 'via registry',
+            llm_profile: String(team.llm_profile || 'default'),
+          };
+        });
         setTeams(list);
       } else {
         throw new Error('Export API failed');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
       // Fallback demo only on error
       setTeams([
@@ -80,7 +83,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
     setActionLoading(true);
     setError(null);
     try {
@@ -128,8 +131,9 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      setError(`Create failed via form POST: ${errorMessage}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);

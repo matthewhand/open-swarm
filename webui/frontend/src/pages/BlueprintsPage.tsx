@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play } from 'lucide-react';
 
 interface Blueprint {
   id: string;
@@ -27,21 +27,24 @@ export default function BlueprintsPage() {
       try {
         const res = await fetch('/v1/blueprints');
         if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
-            id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
-            installed: !!b.installed,
-            featured: !!b.featured,
-          })));
+          const data = (await res.json()) as Record<string, unknown>;
+          const list = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : (Array.isArray(data.blueprints) ? data.blueprints : []));
+          setBlueprints(list.map((b: unknown) => {
+            const bp = b as Record<string, unknown>;
+            return {
+              id: String(bp.id || bp.name || Math.random()),
+              name: String(bp.name || bp.id || 'unknown'),
+              description: String(bp.description || bp.desc || 'Blueprint for AI tasks'),
+              category: String(bp.category || bp.tag || 'General'),
+              version: String(bp.version || '0.1'),
+              installed: !!bp.installed,
+              featured: !!bp.featured,
+            };
+          }));
         } else {
           throw new Error('API not available');
         }
-      } catch (e) {
+      } catch (e: unknown) {
         setError('Using demo data (backend /v1/blueprints not reachable in this env)');
         setBlueprints([
           {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},
@@ -99,7 +102,7 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((blueprint) => (
