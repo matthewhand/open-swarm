@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -79,8 +79,12 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
+
+  const confirmDelete = async () => {
+    if (!teamToDelete) return;
+    const id = teamToDelete;
+    setTeamToDelete(null);
     setActionLoading(true);
     setError(null);
     try {
@@ -97,6 +101,10 @@ const TeamsPage = () => {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
+  };
+
+  const handleDelete = (id: string | number) => {
+    setTeamToDelete(id);
   };
 
   const openCreate = () => {
@@ -336,6 +344,17 @@ const TeamsPage = () => {
       </Modal>
 
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+      >
+        <p>Delete team "{teamToDelete}"? (calls backend)</p>
+      </ConfirmModal>
     </div>
   );
 };
