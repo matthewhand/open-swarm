@@ -41,6 +41,7 @@ export const LoadingSpinner = ({
       aria-label={ariaLabel}
       aria-live="polite"
       aria-busy="true"
+      data-testid="loading-spinner"
     />
   );
 };
