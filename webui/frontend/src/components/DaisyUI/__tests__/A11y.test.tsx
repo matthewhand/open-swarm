@@ -84,7 +84,8 @@ describe('Async Loading Accessibility', () => {
     expect(button).toHaveAttribute('aria-busy', 'true');
     expect(button).toHaveAttribute('aria-disabled', 'true');
 
-    // Check for sr-only text
-    expect(screen.getByText('Loading')).toHaveClass('sr-only');
+    // Check for role="status" and aria-label
+    const spinner = screen.getByRole('status', { name: 'Loading' });
+    expect(spinner).toBeInTheDocument();
   });
 });
