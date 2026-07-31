@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { buildTraitsConfig, candidatesFromEdits, cliForModel } from '../inferenceProfile'
 import { resolve, rank, splitCandidate } from '../inferenceProfile'
 import { buildCandidates } from '../../components/InferenceProfilePanel'
 
@@ -52,7 +53,6 @@ describe('buildCandidates', () => {
   })
 })
 
-import { buildTraitsConfig, candidatesFromEdits } from '../inferenceProfile'
 
 describe('buildTraitsConfig', () => {
   it('emits cli traits + per-model models block', () => {
@@ -88,7 +88,6 @@ describe('buildCandidates prefix matching (bug hunt)', () => {
   })
 })
 
-import { cliForModel } from '../inferenceProfile'
 
 describe('cliForModel', () => {
   it('picks the longest CLI matching at a hyphen boundary', () => {
