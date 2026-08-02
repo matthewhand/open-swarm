@@ -1,12 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play, ArchiveX } from 'lucide-react';
 
 interface Blueprint {
   id: string;
   name: string;
   description?: string;
   category?: string;
+  version?: string;
+  installed?: boolean;
+  featured?: boolean;
+}
+
+interface ApiBlueprint {
+  id?: string | number;
+  name?: string;
+  description?: string;
+  desc?: string;
+  category?: string;
+  tag?: string;
   version?: string;
   installed?: boolean;
   featured?: boolean;
@@ -29,12 +41,12 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
+          setBlueprints(list.map((b: ApiBlueprint) => ({
             id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
+            name: String(b.name || b.id || 'unknown'),
+            description: String(b.description || b.desc || 'Blueprint for AI tasks'),
+            category: String(b.category || b.tag || 'General'),
+            version: String(b.version || '0.1'),
             installed: !!b.installed,
             featured: !!b.featured,
           })));
@@ -82,8 +94,16 @@ export default function BlueprintsPage() {
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
 
-      {error && <Alert type="warning">{error}</Alert>}
-      {launchResult && <Alert type="success" className="mb-4">{launchResult}</Alert>}
+      {error && (
+        <Alert type="warning" role="alert" className="mb-4">
+          {error}
+        </Alert>
+      )}
+      {launchResult && (
+        <Alert type="success" role="status" className="mb-4">
+          {launchResult}
+        </Alert>
+      )}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
@@ -99,7 +119,19 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card bordered className="text-center py-12" role="status">
+          <div className="mb-4">
+            <ArchiveX className="h-16 w-16 mx-auto text-gray-400" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
+          <p className="text-gray-500 mb-4">
+            {searchTerm ? 'No blueprints match your search criteria.' : 'No blueprints available.'}
+          </p>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((blueprint) => (
