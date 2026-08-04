@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
-import { Book, Plus, Search, Star, Download, Eye, Play } from 'lucide-react';
+import { Book, Search, Eye, Play } from 'lucide-react';
 
 interface Blueprint {
   id: string;
@@ -29,15 +29,22 @@ export default function BlueprintsPage() {
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((b: any) => ({
-            id: String(b.id || b.name || Math.random()),
-            name: b.name || b.id || 'unknown',
-            description: b.description || b.desc || 'Blueprint for AI tasks',
-            category: b.category || b.tag || 'General',
-            version: b.version || '0.1',
-            installed: !!b.installed,
-            featured: !!b.featured,
-          })));
+          if (Array.isArray(list)) {
+            setBlueprints(list.map((b: unknown) => {
+              const obj = (b && typeof b === 'object' ? b : {}) as Record<string, unknown>;
+              return {
+                id: String(obj.id || obj.name || Math.random()),
+                name: typeof obj.name === 'string' ? obj.name : (typeof obj.id === 'string' ? obj.id : 'unknown'),
+                description: typeof obj.description === 'string' ? obj.description : (typeof obj.desc === 'string' ? obj.desc : 'Blueprint for AI tasks'),
+                category: typeof obj.category === 'string' ? obj.category : (typeof obj.tag === 'string' ? obj.tag : 'General'),
+                version: typeof obj.version === 'string' ? obj.version : '0.1',
+                installed: !!obj.installed,
+                featured: !!obj.featured,
+              };
+            }));
+          } else {
+            setBlueprints([]);
+          }
         } else {
           throw new Error('API not available');
         }

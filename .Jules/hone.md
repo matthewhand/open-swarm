@@ -1,3 +1,6 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-07-26 | [Architectural Audit] | Insight: Fragile direct DOM query in keyboard navigation logic | Protocol: Replace `document.getElementById` with an array of React `useRef` for deterministic internal tab management and proper React isolation.
+## 2024-07-26 | [Architectural Audit] | Insight: Ambiguous Pagination a11y state | Protocol: Enforce adding `aria-current="page"` explicitly to the active pagination button for precise screen-reader announcement.
+## 2024-07-26 | [Architectural Audit] | Insight: Type integrity bypassed by extensive `any` usage in parsed APIs | Protocol: Adopt explicit `unknown` typing coupled with comprehensive type guarding and strict structural checks before rendering UI states.
