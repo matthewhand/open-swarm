@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,6 +29,9 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // State for confirm modal
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -79,25 +82,31 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+  const handleDelete = async () => {
+    if (teamToDelete === null) return;
+
     setActionLoading(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
-      fd.append('team_id', String(id));
+      fd.append('team_id', String(teamToDelete));
       // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
       await fetch('/teams/', { method: 'POST', body: fd });
-      setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      setSuccessMsg(`Deleted ${teamToDelete}. Registry updated.`);
       await loadTeams();
     } catch (e) {
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
       setActionLoading(false);
+      setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
+
+  const handleConfirmDelete = (id: string | number) => {
+    setTeamToDelete(id);
+  }
 
   const openCreate = () => {
     setFormName('');
@@ -215,7 +224,7 @@ const TeamsPage = () => {
                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
+                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleConfirmDelete(team.id)} disabled={actionLoading}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -336,6 +345,17 @@ const TeamsPage = () => {
       </Modal>
 
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        onConfirm={handleDelete}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+      >
+        <p>Delete team "{teamToDelete}"? (calls backend)</p>
+      </ConfirmModal>
     </div>
   );
 };
