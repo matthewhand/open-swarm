@@ -5,3 +5,7 @@
 ## 2024-05-23 | [Architectural Audit] | Insight: Missing deterministic async states | Protocol: Ensure all async views have an explicit empty state component, and use `aria-live="polite"` and `aria-busy="true"` for loading components, and `role="alert"` for errors.
 
 ## 2024-05-23 | [Architectural Audit] | Insight: Lax type checking and use of 'any' | Protocol: Do not use `any`. Use strict TypeScript types or generics, and `unknown` in catch blocks combined with `e instanceof Error` for safety.
+
+## 2024-05-18 | [Architectural Audit] | Insight: Modal component uses inaccessible <form method="dialog"> for backdrop, lacks rigorous focus management, and relies on brittle `document.getElementById` navigation in Tabs. Pagination is missing `aria-current="page"` and `aria-live` is misused or missing on loading states. | Protocol: Refactor Modal backdrop to a proper focusable button with `tabIndex={-1}`, ensure robust state handling across components and use explicit accessibility patterns
+
+## 2024-05-18 | [Architectural Audit] | Insight: Codebase uses `any` types when parsing API responses in `TeamsPage.tsx` and `BlueprintsPage.tsx`. | Protocol: Replace `any` with `unknown` and strict type guards to ensure TypeScript integrity during async data extraction.
