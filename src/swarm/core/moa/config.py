@@ -1,4 +1,29 @@
-"""MoA config helpers — default block + merge into swarm_config.json."""
+"""MoA config helpers — default block + merge into swarm_config.json.
+
+``moa`` block schema (known keys consumed by blueprints / resolve_moa_preset)
+----------------------------------------------------------------------------
+Top-level keys (panel / consensus only)::
+
+    backend          fake | grok | acpx
+    participants     list of read-only seat names
+    permission       approve-reads | deny-all  (never approve-all)
+    default_timeout  seconds (per participant)
+    presets          named overlays; see below
+    fake_responses   optional dict (usually under a ``ci`` preset)
+
+Preset overlay keys (same panel fields; preset values win on resolve)::
+
+    backend, participants, permission, fake_responses, timeout
+
+Team / specialist mode is **not** a config or preset key. Select it via:
+
+* CLI: ``swarm-cli moa --team --workdir … [--team-tasks …]``
+* Models: ``hybrid_moa`` (one implementer write) or ``moa_orchestrator``
+  (``params.tasks`` for purpose specialists)
+* Python: ``run_moa_then_team`` / ``run_moa_consensus``
+
+Do not invent preset fields for team; tasks stay on the request/CLI surface.
+"""
 
 from __future__ import annotations
 
@@ -7,16 +32,21 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+# Default moa block for moa-init. Presets name panel/consensus settings only
+# (backend + seats [+ fake_responses for CI]). Team mode is CLI/model-path, not
+# a preset field — see module docstring.
 DEFAULT_MOA_BLOCK: dict[str, Any] = {
     "backend": "grok",
     "participants": ["analyst", "critic"],
     "permission": "approve-reads",
     "default_timeout": 300,
     "presets": {
+        # Live multi-seat Grok panel (same as top-level defaults).
         "default": {
             "backend": "grok",
             "participants": ["analyst", "critic"],
         },
+        # Deterministic panel for CI / Open WebUI smoke (no live CLI).
         "ci": {
             "backend": "fake",
             "participants": ["analyst", "critic"],
@@ -30,6 +60,7 @@ DEFAULT_MOA_BLOCK: dict[str, Any] = {
                 ),
             },
         },
+        # Single Grok seat (cheaper live consensus).
         "single-grok": {
             "backend": "grok",
             "participants": ["grok"],
@@ -108,7 +139,12 @@ def write_moa_config(
 def resolve_moa_preset(
     moa_cfg: dict[str, Any] | None, preset: str | None
 ) -> dict[str, Any]:
-    """Flatten a named preset onto the moa config (preset fields win)."""
+    """Flatten a named preset onto the moa config (preset fields win).
+
+    Presets are panel overlays only (``backend``, ``participants``,
+    ``fake_responses``, etc.). Team / specialist selection is not resolved
+    here — use CLI ``--team`` or models ``hybrid_moa`` / ``moa_orchestrator``.
+    """
     base = dict(moa_cfg or {})
     if not preset:
         return base

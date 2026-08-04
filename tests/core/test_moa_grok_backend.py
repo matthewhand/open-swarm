@@ -23,6 +23,8 @@ def test_grok_build_command_is_readonly_and_not_codex():
     assert "-p" in argv
     tools = argv[argv.index("--disallowed-tools") + 1]
     assert "Write" in tools and "Edit" in tools
+    # Team path sets --cwd to the workspace; panelists must not keep Bash/Shell.
+    assert "Bash" in tools and "Shell" in tools
     assert "--approve-all" not in argv
     assert "codex" not in " ".join(argv).lower()
     assert "--cwd" in argv and "/repo" in argv
@@ -33,7 +35,7 @@ def test_build_backend_prefers_fake_default_and_grok():
     assert type(fake).__name__ == "FakeParticipantBackend"
     grok = build_backend(backend="grok", timeout=10)
     assert isinstance(grok, GrokParticipantBackend)
-    with pytest.raises(ValueError, match="unknown backend"):
+    with pytest.raises(ValueError, match=r"unknown --backend"):
         build_backend(backend="codex")
 
 

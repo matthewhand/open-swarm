@@ -1,42 +1,53 @@
-"""MoA orchestrator blueprint — openai-agents mode.
+"""MoA orchestrator blueprint — scripted consensus then specialists.
 
 Model id: ``moa_orchestrator``.
 
-1. Collect read-only MoA consensus (``consult_moa``, never act).
+1. Collect read-only MoA consensus (``consult_moa``, always no-act).
 2. Task purpose-specific R/W specialists (implementer, tester, docs, researcher)
-   based on ``params.tasks`` or a sensible default (implementer only).
+   via the **scripted** team runner (not a live openai-agents Runner).
+
+``params.tasks`` formats (via :func:`swarm.core.moa.team.parse_team_tasks`)::
+
+    # pipe-separated string
+    "implementer:apply|tester:verify@qa/notes.md|docs:adr@docs/ADR.md"
+
+    # list of dicts (API-friendly)
+    [{"purpose": "implementer", "instruction": "apply", "output_path": "out.md"}]
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, ClassVar
 
 from swarm.core.blueprint_base import BlueprintBase
-from swarm.core.moa.agents_orchestrator import (
+from swarm.core.moa.agents_orchestrator import run_moa_agents_orchestrator
+from swarm.core.moa.config import resolve_moa_preset
+from swarm.core.moa.team import (
     SPECIALIST_PURPOSES,
     SpecialistTask,
-    run_moa_agents_orchestrator,
+    parse_team_tasks,
 )
-from swarm.core.moa.config import resolve_moa_preset
 
 logger = logging.getLogger(__name__)
 
 
 class MoAOrchestratorBlueprint(BlueprintBase):
-    """openai-agents orchestrator: MoA panel then task R/W specialists."""
+    """MoA panel then scripted R/W specialists (not a live Runner)."""
 
     metadata: ClassVar[dict[str, Any]] = {
         "name": "moa_orchestrator",
-        "title": "MoA Agents Orchestrator (consensus then specialists)",
+        "title": "MoA Orchestrator (consensus then specialists)",
         "description": (
-            "Orchestrator runs in openai-agents mode: first collects read-only "
-            "MoA consensus (Grok/fake/acpx), then tasks purpose-specific R/W "
-            "agents (implementer, tester, docs, researcher). Panelists never write."
+            "Collects read-only MoA consensus (Grok/fake/acpx), then runs "
+            "scripted purpose specialists (implementer, tester, docs, researcher) "
+            "via WorkspaceTools. Panelists never write. Default path does not "
+            "start a live openai-agents Runner."
         ),
         "version": "0.1.0",
         "author": "Open Swarm Team",
-        "tags": ["moa", "orchestrator", "openai-agents", "specialists", "hybrid"],
+        "tags": ["moa", "orchestrator", "specialists", "hybrid", "scripted"],
         "aliases": ["moa-orch", "agents_moa"],
         "required_mcp_servers": [],
         "env_vars": [],
@@ -66,42 +77,20 @@ class MoAOrchestratorBlueprint(BlueprintBase):
         for key in ("backend", "participants", "permission", "fake_responses", "timeout"):
             if key in self._params:
                 moa_cfg[key] = self._params[key]
+        # SWARM_TEST_MODE: force fake backend so API smoke / CI never hit network.
+        if os.environ.get("SWARM_TEST_MODE") and "backend" not in self._params:
+            moa_cfg["backend"] = "fake"
         return moa_cfg
 
     def _parse_tasks(self) -> list[SpecialistTask] | None:
+        """Delegate to shared ``parse_team_tasks`` (supports @output paths).
+
+        Accepts ``params.tasks`` or alias ``params.team_tasks`` (CLI naming).
+        """
         raw = self._params.get("tasks")
-        if not raw:
-            return None
-        if isinstance(raw, str):
-            # "implementer:do X|tester:check Y"
-            tasks = []
-            for part in raw.split("|"):
-                part = part.strip()
-                if not part:
-                    continue
-                if ":" in part:
-                    purpose, instr = part.split(":", 1)
-                else:
-                    purpose, instr = part, part
-                tasks.append(
-                    SpecialistTask(purpose=purpose.strip(), instruction=instr.strip())
-                )
-            return tasks or None
-        if isinstance(raw, list):
-            tasks = []
-            for item in raw:
-                if isinstance(item, dict):
-                    tasks.append(
-                        SpecialistTask(
-                            purpose=str(item.get("purpose") or "implementer"),
-                            instruction=str(item.get("instruction") or ""),
-                            output_path=item.get("output_path"),
-                        )
-                    )
-                elif isinstance(item, str):
-                    tasks.append(SpecialistTask(purpose=item, instruction=item))
-            return tasks or None
-        return None
+        if raw is None or raw == "":
+            raw = self._params.get("team_tasks")
+        return parse_team_tasks(raw)
 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         parts = []
@@ -113,6 +102,8 @@ class MoAOrchestratorBlueprint(BlueprintBase):
         if not question:
             yield {
                 "messages": [{"role": "assistant", "content": "No prompt provided."}],
+                "role": "assistant",
+                "content": "No prompt provided.",
                 "final": True,
             }
             return
@@ -122,6 +113,8 @@ class MoAOrchestratorBlueprint(BlueprintBase):
         participants = settings.get("participants") or ["analyst", "critic"]
         if isinstance(participants, str):
             participants = [p.strip() for p in participants.split(",") if p.strip()]
+        if not participants:
+            participants = ["analyst", "critic"]
         fake = settings.get("fake_responses")
         workdir = self._params.get("workdir") or self._params.get("cwd") or "."
         tasks = self._parse_tasks()
@@ -158,6 +151,9 @@ class MoAOrchestratorBlueprint(BlueprintBase):
             "specialists": [s.persona for s in result.specialist_results],
             "writes": list(result.writes),
             "specialist_purposes": sorted(SPECIALIST_PURPOSES),
+            "specialists_ok": all(s.ok for s in result.specialist_results)
+            if result.specialist_results
+            else True,
         }
         yield {
             "messages": [{"role": "assistant", "content": content}],

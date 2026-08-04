@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -78,37 +76,31 @@ async def test_workflow_a_participant_write_denied():
         surface.write_as_participant("evil.txt", "nope")
 
 
-def test_workflow_a_swarm_cli_moa_entry():
+def test_workflow_a_swarm_cli_moa_entry(tmp_path: Path):
     """Drive Typer swarm-cli moa the way users do."""
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT / "src")
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from swarm.core.swarm_cli import app; import sys; "
-            "sys.argv=['swarm-cli']+sys.argv[1:]; app()",
-            "moa",
-            "Prove MoA workflow A",
-            "--backend",
-            "fake",
-            "--participants",
-            "p1,p2",
-            "--fake-responses",
-            'p1={"claim":"option one","confidence":0.9}||p2={"claim":"option one with tests","confidence":0.85}',
-            "--json",
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(ROOT),
+    from tests.xdg_isolation import run_swarm_cli
+
+    proc = run_swarm_cli(
+        "moa",
+        "Prove MoA workflow A",
+        "--backend",
+        "fake",
+        "--participants",
+        "p1,p2",
+        "--fake-responses",
+        'p1={"claim":"option one","confidence":0.9}||p2={"claim":"option one with tests","confidence":0.85}',
+        "--json",
+        xdg_root=tmp_path / "xdg",
         timeout=30,
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     data = json.loads(proc.stdout[proc.stdout.find("{") :])
-    assert len(data["opinions"]) == 2
-    assert data["determination"]
-    assert all(o["permission_mode"] == "approve-reads" for o in data["opinions"])
+    # Path A CLI: consensus_only envelope (team_result_to_payload).
+    assert data["mode"] == "consensus_only"
+    assert isinstance(data["determination"], dict) and data["determination"].get("answer")
+    opinions = (data.get("moa") or {}).get("opinions") or []
+    assert len(opinions) == 2
+    assert all(o["permission_mode"] == "approve-reads" for o in opinions)
 
 
 # ---------------------------------------------------------------------------

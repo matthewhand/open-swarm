@@ -59,7 +59,8 @@ must not be the path that mutates the workspace as part of the consensus round.
 
 - `swarm.core.moa` — `MoAOrchestrator`, backends, policy, schema
 - `swarm.core.moa.tools.consult_moa` — orchestrator tool entry
-- `swarm-cli moa` — CLI dogfood
+- `swarm.core.moa.team` — pure `run_moa_consensus` / `run_moa_then_team` / `TeamTask` (no openai-agents)
+- `swarm-cli moa` — CLI dogfood (`--act` or `--team --workdir` + `--team-tasks`)
 - Blueprint `moa` (legacy names: `cli_fusion` / `cli_ensemble` → read-only MoA only)
 
 **Docs:** [MOA.md](./MOA.md)
@@ -120,16 +121,51 @@ result = await run_hybrid_scripted(
 # result.steps[1] == implementer write decision.md
 ```
 
-### openai-agents orchestrator mode (recommended)
+### Pure consensus → team (no openai-agents)
 
-The orchestrator is an openai-agents **coordinator**. It:
+First-class scripted path. Panel stays read-only; purpose specialists write via
+`WorkspaceTools` only after determination. Canonical task type is **`TeamTask`**.
 
-1. Calls **MoA** for read-only multi-seat consensus (`consult_moa`, never `act`)
-2. Tasks **purpose-specific R/W agents**: `implementer`, `tester`, `docs`, `researcher`
+```python
+from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team
+
+await run_moa_consensus(question, moa_backend="fake")  # consensus only
+await run_moa_then_team(
+    ws,
+    question,
+    specialist_tasks=[
+        TeamTask("implementer", "Apply decision", "decision.md"),
+        TeamTask("tester", "Write verification notes", "test_notes.md"),
+        TeamTask("docs", "Write ADR", "docs/ADR.md"),
+    ],
+    moa_backend="fake",  # or "grok"
+)
+```
+
+CLI (mutually exclusive with `--act`):
+
+```bash
+swarm-cli moa "Ship feature X?" --backend fake --team \
+  --workdir /tmp/moa-team \
+  --team-tasks 'implementer:Apply|tester:Verify|docs:ADR' \
+  --json -v
+```
+
+### Agents-shaped wrapper (scripted; not live Runner by default)
+
+`run_moa_agents_orchestrator` / model `moa_orchestrator`:
+
+1. Calls **MoA** for read-only multi-seat consensus (`consult_moa` — no `act` arg)
+2. Runs **purpose specialists** via the same scripted `run_moa_then_team` path
+
+It does **not** start openai-agents `Runner` or construct live `Agent` objects.
+Prefer pure `run_moa_then_team` when you do not need the agents-mode result
+shape. `SpecialistTask` is a back-compat alias of `TeamTask`. Optional live
+roster building is `build_moa_orchestrator_agents` only.
 
 ```python
 from swarm.core.moa.agents_orchestrator import (
-    SpecialistTask,
+    SpecialistTask,  # alias of TeamTask
     run_moa_agents_orchestrator,
 )
 
@@ -143,7 +179,7 @@ result = await run_moa_agents_orchestrator(
     ],
     moa_backend="fake",  # or "grok"
 )
-# Panel never writes; specialists do.
+# Panel never writes; specialists do (WorkspaceTools, not shell).
 ```
 
 API model ids:
@@ -151,15 +187,15 @@ API model ids:
 | Model | Behavior |
 |-------|----------|
 | `moa` | Consensus only (read-only panel + determination) |
-| `hybrid_moa` | MoA then single implementer write |
-| `moa_orchestrator` | MoA then multi-specialist R/W tasks (`params.tasks`) |
+| `hybrid_moa` | MoA then single implementer-style write |
+| `moa_orchestrator` | MoA then multi-specialist **scripted** team (`params.tasks`) |
 
 ```json
 {
   "model": "moa_orchestrator",
   "messages": [{"role": "user", "content": "Ship feature X?"}],
   "params": {
-    "backend": "grok",
+    "backend": "fake",
     "participants": ["analyst", "critic"],
     "workdir": "/tmp/orch",
     "tasks": "implementer:apply|tester:verify|docs:adr"
@@ -167,9 +203,27 @@ API model ids:
 }
 ```
 
-**Enforcement:** MoA path always `act=False` + read-only permissions. Specialist
-agents alone get `write_file` / shell-class tools. Coordinator instructions
-require consult-before-write for high-stakes work.
+**Enforcement:** panel is always no-act + `approve-reads` / `deny-all` only.
+Scripted specialists write only through sandboxed `WorkspaceTools` (not panel
+seats, not unrestricted shell). Soft panel failure skips specialist writes.
+
+### First-class example packs
+
+| Example | Live openai-agents Runner? | Link |
+|---------|----------------------------|------|
+| **Simple consensus vs consensus→team** (`consensus_only` / `consensus_then_team`; both under **A**, not global **B**) | No | [`moa-consensus-vs-team`](./examples/moa-consensus-vs-team/README.md) |
+| **MoA orchestrator surface + scripted specialists** | No by default (optional live Agents separate) | [`moa-orchestrator`](./examples/moa-orchestrator/README.md) |
+
+| Asset type | What it proves |
+|------------|----------------|
+| Sequence § consensus only | Panel is read-only; synthesizer owns consensus; `writes=[]` |
+| Sequence § then team | Only implementer/tester/docs write after MoA |
+| Captured JSON / workspace tree | Real fake-backend runs |
+
+```bash
+bash docs/examples/moa-consensus-vs-team/scripts/capture_example_runs.sh
+bash docs/examples/moa-orchestrator/scripts/capture_example_runs.sh
+```
 
 ## Naming
 
@@ -200,6 +254,7 @@ python scripts/prove_swarm_workflows.py
 | Path | What is proven |
 |------|----------------|
 | **A** | Multi-participant MoA via `run_moa_cli` / `swarm-cli moa`; `approve-reads` only; orchestrator `act` writes; participant write denied |
+| **A team** | `run_moa_then_team` / `swarm-cli moa --team --workdir` — scripted specialists write after consensus; no openai-agents; panel never writes |
 | **A live** | Grok first-class backend (`GrokParticipantBackend`); multi-seat one-shots; Codex not required |
 | **B** | Real `agents.Agent` personas with R/W `function_tool`s; coordinator switches researcher → implementer; implementer writes `summary.md` |
 | **API** | Discoverable model ids `moa` / `mixture_of_agents` / legacy aliases; fingerprint from meta |

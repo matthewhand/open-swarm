@@ -3,37 +3,23 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.xdg_isolation import run_swarm_cli
 
 
 def test_moa_init_write(tmp_path: Path):
     cfg = tmp_path / "swarm_config.json"
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT / "src")
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from swarm.core.swarm_cli import app; import sys; "
-            "sys.argv=['swarm-cli']+sys.argv[1:]; app()",
-            "moa-init",
-            "--config",
-            str(cfg),
-            "--write",
-            "--backend",
-            "fake",
-            "-p",
-            "a,b",
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(ROOT),
+    proc = run_swarm_cli(
+        "moa-init",
+        "--config",
+        str(cfg),
+        "--write",
+        "--backend",
+        "fake",
+        "-p",
+        "a,b",
+        xdg_root=tmp_path / "xdg",
         timeout=30,
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
@@ -42,22 +28,11 @@ def test_moa_init_write(tmp_path: Path):
     assert data["moa"]["participants"] == ["a", "b"]
 
 
-def test_moa_init_show_openwebui():
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT / "src")
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from swarm.core.swarm_cli import app; import sys; "
-            "sys.argv=['swarm-cli']+sys.argv[1:]; app()",
-            "moa-init",
-            "--show-openwebui",
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(ROOT),
+def test_moa_init_show_openwebui(tmp_path: Path):
+    proc = run_swarm_cli(
+        "moa-init",
+        "--show-openwebui",
+        xdg_root=tmp_path / "xdg",
         timeout=30,
     )
     assert proc.returncode == 0, proc.stderr

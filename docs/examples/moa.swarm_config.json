@@ -1,5 +1,6 @@
 {
   "_comment": "Mixture of Agents (read-only consensus). Merge the 'moa' block into your swarm_config.json. Live path uses local grok CLI; Codex is not required. See docs/MOA.md.",
+  "_comment_presets": "moa.presets name panel settings only (backend, participants, fake_responses). Team/specialist mode is not a preset key — use swarm-cli moa --team --workdir, or models hybrid_moa / moa_orchestrator (params.tasks).",
 
   "llm": {
     "default": {

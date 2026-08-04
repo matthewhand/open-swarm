@@ -43,7 +43,16 @@ def parse_fake_responses(raw: str | None) -> dict[str, str]:
         return {}
     raw = raw.strip()
     if raw.startswith("{"):
-        data = json.loads(raw)
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"--fake-responses looks like JSON but failed to parse: {e}"
+            ) from e
+        if not isinstance(data, dict):
+            raise ValueError(
+                "--fake-responses JSON must be an object of name→text pairs"
+            )
         return {str(k): str(v) for k, v in data.items()}
     out: dict[str, str] = {}
     for part in raw.split("||"):
@@ -51,9 +60,18 @@ def parse_fake_responses(raw: str | None) -> dict[str, str]:
         if not part:
             continue
         if "=" not in part:
-            raise ValueError(f"fake response must be name=text, got {part!r}")
+            raise ValueError(
+                "--fake-responses entries must be name=text "
+                f"(pairs separated by ||) or a JSON object; got {part!r}"
+            )
         name, text = part.split("=", 1)
-        out[name.strip()] = text.strip()
+        name = name.strip()
+        if not name:
+            raise ValueError(
+                "--fake-responses entries must be name=text; "
+                f"missing name before '=': {part!r}"
+            )
+        out[name] = text.strip()
     return out
 
 
@@ -67,13 +85,18 @@ def build_backend(
     kind = (backend or "fake").lower()
     if kind == "fake":
         if not fake_responses:
-            raise ValueError("--backend fake requires --fake-responses")
+            raise ValueError(
+                "--backend fake requires --fake-responses "
+                "(name=text pairs separated by ||, or a JSON object)"
+            )
         return FakeParticipantBackend(fake_responses)
     if kind == "grok":
         return GrokParticipantBackend(default_timeout=timeout)
     if kind == "acpx":
         return AcpxParticipantBackend(default_timeout=timeout)
-    raise ValueError(f"unknown backend {backend!r}; use fake|grok|acpx")
+    raise ValueError(
+        f"unknown --backend {backend!r}; choose one of: fake, grok, acpx"
+    )
 
 
 async def run_moa_cli(
@@ -163,6 +186,11 @@ async def run_moa_cli(
             else None
         ),
         "writes": list(write_surface.writes),
+        # Path A markers (parity with team_result_to_payload / --team JSON).
+        # Panel seats never write; specialists only exist on consensus_then_team.
+        "mode": "consensus_only",
+        "specialists": [],
+        "panel_wrote": False,
     }
     if trace_path:
         with open(trace_path, "w", encoding="utf-8") as f:

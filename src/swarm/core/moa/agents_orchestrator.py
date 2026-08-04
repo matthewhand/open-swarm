@@ -1,15 +1,19 @@
-"""MoA orchestrator in openai-agents mode.
+"""MoA orchestrator surface (agents-shaped API; scripted by default).
 
-Flow (enforced by construction, not just prompts):
+Default dogfood / CI path (:func:`run_moa_agents_orchestrator`):
 
 1. **Collect** — read-only MoA participants (fake/grok/acpx) via ``consult_moa``
-   (always ``act=False``).
-2. **Determine** — local synthesizer (or injectable) owns the consensus text.
-3. **Task** — the orchestrator (openai-agents coordinator) may then hand work to
-   **specialist R/W agents** (implementer, researcher, tester, …) for purpose-specific
-   work. Panelists never receive write tools.
+   (no ``act`` parameter; always no-act).
+2. **Determine** — local synthesizer owns the consensus text.
+3. **Task** — scripted purpose specialists (implementer / tester / docs /
+   researcher) via :func:`swarm.core.moa.team.run_moa_then_team` +
+   ``WorkspaceTools``. Panelists never write.
 
-This is the champagne path: opinions from the panel, impact from tasked agents.
+This is **not** a live openai-agents ``Runner`` path. Optional live Agent
+construction is :func:`build_moa_orchestrator_agents` only.
+
+For the pure team API without the agents-shaped result wrapper, use
+:mod:`swarm.core.moa.team` directly.
 """
 
 from __future__ import annotations
@@ -19,34 +23,43 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from swarm.core.moa.policy import DEFAULT_PARTICIPANT_PERMISSION
+from swarm.core.moa.team import (
+    SPECIALIST_PURPOSES,
+    SpecialistTask,
+    _default_fakes,
+    run_moa_then_team,
+)
 from swarm.core.moa.tools import consult_moa
+from swarm.core.moa.types import PermissionMode
 from swarm.core.persona_swarm import (
     PersonaResult,
-    PersonaSwarmResult,
     WorkspaceTools,
     build_persona_agents,
 )
 
 logger = logging.getLogger(__name__)
 
-# Built-in specialist purposes the scripted orchestrator can schedule.
-SPECIALIST_PURPOSES = frozenset(
-    {
-        "researcher",  # inspect / notes (R/W scratch ok)
-        "implementer",  # apply changes from determination
-        "tester",  # write/run verification notes
-        "docs",  # documentation-only writes
-    }
-)
+__all__ = [
+    "SPECIALIST_PURPOSES",
+    "SCRIPTED_ORCHESTRATOR_ROSTER",
+    "MoAAgentsOrchestratorResult",
+    "SpecialistTask",
+    "build_moa_orchestrator_agents",
+    "run_moa_agents_orchestrator",
+]
 
-
-@dataclass
-class SpecialistTask:
-    """One post-consensus assignment for a R/W specialist."""
-
-    purpose: str
-    instruction: str
-    output_path: str | None = None  # preferred write target relative to workspace
+# Display-name roster for the scripted orchestrator path. Matches the keys/names
+# produced by :func:`build_moa_orchestrator_agents` without constructing Agents.
+# Building real openai-agents objects costs hundreds of ms and is unused by the
+# deterministic team runner that actually executes specialist writes.
+SCRIPTED_ORCHESTRATOR_ROSTER: dict[str, str] = {
+    "coordinator": "Coordinator",
+    "researcher": "Researcher",
+    "implementer": "Implementer",
+    "tester": "Tester",
+    "docs": "Docs",
+}
 
 
 @dataclass
@@ -60,25 +73,6 @@ class MoAAgentsOrchestratorResult:
     reads: list[str] = field(default_factory=list)
     agents: dict[str, Any] = field(default_factory=dict)
     final: str = ""
-
-    def as_persona_result(self) -> PersonaSwarmResult:
-        steps = [
-            PersonaResult(
-                persona="consult_moa",
-                instruction="MoA read-only consensus",
-                output=self.determination,
-                tool_trace=["consult_moa(act=False)"],
-                ok=bool(self.determination),
-            ),
-            *self.specialist_results,
-        ]
-        return PersonaSwarmResult(
-            steps=steps,
-            final=self.final or self.determination,
-            writes=list(self.writes),
-            reads=list(self.reads),
-            agents=dict(self.agents),
-        )
 
 
 def build_moa_orchestrator_agents(
@@ -98,24 +92,18 @@ def build_moa_orchestrator_agents(
 
     # Override MoA consult defaults to caller's backend/participants when possible.
     seats = list(moa_participants or ["analyst", "critic"])
-    fakes = moa_fake_responses
-    if moa_backend == "fake" and not fakes:
-        fakes = {
-            "analyst": (
-                '{"claim":"Prefer the safer option with clear rollback",'
-                '"confidence":0.85}'
-            ),
-            "critic": (
-                '{"claim":"Prefer the safer option and add monitoring",'
-                '"confidence":0.8}'
-            ),
-        }
+    fakes_override = moa_fake_responses
 
     moa_calls: list[dict[str, Any]] = agents.get("_moa_calls") or []
 
     def _consult_configured(question: str) -> str:
         import asyncio
         import concurrent.futures
+
+        # Match scripted run_moa_then_team / run_moa_agents_orchestrator defaults.
+        fakes = fakes_override
+        if moa_backend == "fake" and not fakes:
+            fakes = _default_fakes(question, seats)
 
         async def _run() -> dict[str, Any]:
             return await consult_moa(
@@ -148,6 +136,30 @@ def build_moa_orchestrator_agents(
         "backend": moa_backend,
         "participants": seats,
     }
+
+    # Live path: coordinator still has persona_swarm's consult_moa_panel which
+    # hardcodes backend="fake". Rebuild the tool so Runner uses configured MoA.
+    try:
+        from agents import function_tool as _function_tool
+
+        @_function_tool
+        def consult_moa_panel(question: str) -> str:
+            """Call Mixture of Agents for a read-only multi-seat consensus opinion.
+
+            Use before high-stakes writes. Participants cannot write; you (or the
+            implementer) apply changes after reviewing the determination.
+            """
+            return _consult_configured(question)
+
+        coord = agents["coordinator"]
+        kept = [
+            t
+            for t in list(coord.tools or [])
+            if getattr(t, "name", None) != "consult_moa_panel"
+        ]
+        coord.tools = kept + [consult_moa_panel]
+    except Exception as e:  # pragma: no cover
+        logger.debug("consult_moa_panel rewire skipped: %s", e)
 
     # Extra specialist: tester + docs as lightweight R/W roles (same tool surface).
     try:
@@ -223,169 +235,44 @@ async def run_moa_agents_orchestrator(
     moa_backend: str = "fake",
     moa_participants: list[str] | None = None,
     moa_fake_responses: dict[str, str] | None = None,
+    record_determination: bool = True,
+    permission: PermissionMode | str = DEFAULT_PARTICIPANT_PERMISSION,
+    cwd: str | Path | None = None,
+    timeout: float = 300.0,
 ) -> MoAAgentsOrchestratorResult:
     """Scripted openai-agents-mode MoA orchestrator (CI-safe).
 
-    1. ``consult_moa`` — read-only consensus (never act)
-    2. Schedule purpose-specific R/W specialists from ``specialist_tasks``
-       (default: implementer writes decision.md from the determination)
-    """
-    tools = WorkspaceTools(workspace)
-    if seed_files:
-        for rel, content in seed_files.items():
-            tools.write_file(rel, content)
-        tools.writes.clear()
-        tools.reads.clear()
+    Thin wrapper around :func:`run_moa_then_team` for deterministic specialist
+    writes. Shared kwargs (``permission`` / ``cwd`` / ``timeout`` /
+    ``record_determination``) are forwarded so both entrypoints stay at parity.
 
-    agents = build_moa_orchestrator_agents(
-        tools,
+    ``result.agents`` is a lightweight name roster for inspection (same
+    keys/display names as :func:`build_moa_orchestrator_agents`). Real
+    openai-agents objects are **not** constructed here — call
+    :func:`build_moa_orchestrator_agents` when you need live Runner wiring.
+
+    Prefer :func:`swarm.core.moa.team.run_moa_then_team` when you do not need
+    the agents-mode result shape at all.
+    """
+    team = await run_moa_then_team(
+        workspace,
+        question,
+        specialist_tasks=specialist_tasks,
+        seed_files=seed_files,
         moa_backend=moa_backend,
         moa_participants=moa_participants,
         moa_fake_responses=moa_fake_responses,
+        record_determination=record_determination,
+        permission=permission,
+        cwd=cwd,
+        timeout=timeout,
     )
-
-    seats = list(moa_participants or ["analyst", "critic"])
-    fakes = moa_fake_responses
-    if moa_backend == "fake" and not fakes:
-        fakes = {
-            "analyst": (
-                f'{{"claim":"Proceed carefully on: {question[:60]}",'
-                f'"confidence":0.85}}'
-            ),
-            "critic": (
-                f'{{"claim":"Proceed carefully and monitor: {question[:60]}",'
-                f'"confidence":0.8}}'
-            ),
-        }
-
-    # --- 1. MoA consensus (read-only) ---
-    moa_payload = await consult_moa(
-        question,
-        seats,
-        backend=moa_backend,
-        fake_responses=fakes,
-        cwd=str(tools.root),
-    )
-    det = (moa_payload.get("determination") or {}).get("answer") or ""
-    tools.write_file(
-        "moa_determination.md",
-        f"# MoA determination (read-only panel)\n\n{det}\n",
-    )
-
-    if specialist_tasks is None:
-        specialist_tasks = [
-            SpecialistTask(
-                purpose="implementer",
-                instruction="Apply the MoA determination to decision.md",
-                output_path="decision.md",
-            ),
-        ]
-
-    specialist_results: list[PersonaResult] = []
-    for task in specialist_tasks:
-        purpose = task.purpose.lower().strip()
-        if purpose not in SPECIALIST_PURPOSES:
-            specialist_results.append(
-                PersonaResult(
-                    persona=task.purpose,
-                    instruction=task.instruction,
-                    output=f"unknown specialist purpose {task.purpose!r}; "
-                    f"known: {sorted(SPECIALIST_PURPOSES)}",
-                    ok=False,
-                )
-            )
-            continue
-
-        trace: list[str] = []
-        out_parts: list[str] = []
-        try:
-            if purpose == "researcher":
-                listing = tools.list_files(".")
-                trace.append("list_files('.')")
-                notes = ""
-                if (tools.root / "notes.txt").exists():
-                    notes = tools.read_file("notes.txt")
-                    trace.append("read_file('notes.txt')")
-                path = task.output_path or "research_notes.md"
-                body = (
-                    f"# Research\n\n## Task\n{task.instruction}\n\n"
-                    f"## MoA determination\n{det[:1500]}\n\n"
-                    f"## Workspace\n{listing}\n\n## Notes\n{notes}\n"
-                )
-                tools.write_file(path, body)
-                trace.append(f"write_file({path!r})")
-                out_parts.append(body)
-            elif purpose == "implementer":
-                path = task.output_path or "decision.md"
-                notes = ""
-                if (tools.root / "notes.txt").exists():
-                    notes = tools.read_file("notes.txt")
-                    trace.append("read_file('notes.txt')")
-                if (tools.root / "moa_determination.md").exists():
-                    tools.read_file("moa_determination.md")
-                    trace.append("read_file('moa_determination.md')")
-                body = (
-                    f"# Decision\n\n## Context\n{notes or question}\n\n"
-                    f"## MoA consensus\n{det}\n\n"
-                    f"## Task\n{task.instruction}\n\n"
-                    f"_Applied by Implementer after MoA (openai-agents orchestrator)._\n"
-                )
-                tools.write_file(path, body)
-                trace.append(f"write_file({path!r})")
-                out_parts.append(body)
-            elif purpose == "tester":
-                path = task.output_path or "test_notes.md"
-                body = (
-                    f"# Test notes\n\n## Against determination\n{det[:1200]}\n\n"
-                    f"## Task\n{task.instruction}\n\n"
-                    f"- [ ] Verify happy path\n- [ ] Verify failure modes\n"
-                    f"_Tester persona (R/W)._\n"
-                )
-                tools.write_file(path, body)
-                trace.append(f"write_file({path!r})")
-                out_parts.append(body)
-            elif purpose == "docs":
-                path = task.output_path or "docs/ADR.md"
-                body = (
-                    f"# ADR\n\n## Status\nAccepted (post-MoA)\n\n"
-                    f"## Context\n{question}\n\n## Decision\n{det}\n\n"
-                    f"## Task\n{task.instruction}\n\n_Docs persona (R/W)._\n"
-                )
-                tools.write_file(path, body)
-                trace.append(f"write_file({path!r})")
-                out_parts.append(body)
-
-            specialist_results.append(
-                PersonaResult(
-                    persona=purpose,
-                    instruction=task.instruction,
-                    output="\n".join(out_parts),
-                    tool_trace=trace,
-                    ok=True,
-                )
-            )
-        except Exception as e:
-            specialist_results.append(
-                PersonaResult(
-                    persona=purpose,
-                    instruction=task.instruction,
-                    output=str(e),
-                    tool_trace=trace,
-                    ok=False,
-                )
-            )
-
-    final = specialist_results[-1].output if specialist_results else det
     return MoAAgentsOrchestratorResult(
-        determination=det,
-        moa_payload=moa_payload,
-        specialist_results=specialist_results,
-        writes=list(tools.writes),
-        reads=list(tools.reads),
-        agents={
-            k: getattr(v, "name", k)
-            for k, v in agents.items()
-            if not str(k).startswith("_")
-        },
-        final=final,
+        determination=team.determination,
+        moa_payload=team.moa_payload,
+        specialist_results=list(team.specialist_results),
+        writes=list(team.writes),
+        reads=list(team.reads),
+        agents=dict(SCRIPTED_ORCHESTRATOR_ROSTER),
+        final=team.final,
     )

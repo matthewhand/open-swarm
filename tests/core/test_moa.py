@@ -96,6 +96,35 @@ def test_policy_participant_permission_modes():
     assert "exec" in flags  # one-shot
 
 
+def test_policy_participant_name_rejects_flag_injection():
+    """Seat labels must not look like CLI flags (acpx argv injection)."""
+    from swarm.core.moa.policy import assert_participant_name
+    from swarm.core.moa.backends import AcpxParticipantBackend
+
+    assert assert_participant_name("analyst") == "analyst"
+    assert assert_participant_name("claude-code") == "claude-code"
+    for bad in ("--approve-all", "-f", "", "  ", "--cwd", "../x", "a b"):
+        with pytest.raises(ValueError, match=r"invalid --participants name|invalid MoA participant"):
+            assert_participant_name(bad)
+
+    be = AcpxParticipantBackend()
+    with pytest.raises(ValueError, match=r"invalid --participants name|invalid MoA participant"):
+        be.build_command("--approve-all", "hello")
+    argv = be.build_command("claude", "hello", cwd="/tmp/ws")
+    assert "--approve-all" not in argv
+    assert argv[argv.index("claude") + 1] == "exec"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_rejects_flag_like_participant_names():
+    """collect_opinions must fail closed on flag-like seats before backend calls."""
+    backend = FakeParticipantBackend({"analyst": "ok"})
+    orch = MoAOrchestrator(backend=backend)
+    with pytest.raises(ValueError, match=r"invalid --participants name|invalid MoA participant"):
+        await orch.collect_opinions("q", participants=["--approve-all"])
+    assert backend.calls == []
+
+
 # ---------------------------------------------------------------------------
 # Orchestrator-only determination
 # ---------------------------------------------------------------------------

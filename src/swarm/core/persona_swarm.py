@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -45,44 +45,83 @@ class PersonaSwarmResult:
 
 
 class WorkspaceTools:
-    """Read/write tool surface bound to a workspace root (model B specialists)."""
+    """Read/write tool surface bound to a workspace root (model B specialists).
 
-    def __init__(self, root: str | Path) -> None:
+    Paths use a **portable relative grammar** so the same calls work on Windows
+    and POSIX hosts:
+
+    * Both ``/`` and ``\\`` are separators (backslash is never a literal name char).
+    * Absolute forms are rejected up front: POSIX (``/etc``), Windows drive
+      (``C:\\...``, ``C:foo``), and UNC (``\\\\server\\share``).
+    * ``..`` segments that resolve outside the workspace root are rejected.
+    * ``reads`` / ``writes`` traces use POSIX-style relative keys (``docs/ADR.md``).
+    """
+
+    def __init__(self, root: str | os.PathLike[str] | Path) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.reads: list[str] = []
         self.writes: list[str] = []
 
-    def _safe(self, rel: str) -> Path:
-        path = (self.root / rel).resolve()
-        # Reject sibling escapes (e.g. ../ws_evil) — startswith(root) is insufficient
-        # when another path is a prefix sibling of root.
-        try:
-            if not path.is_relative_to(self.root):
-                raise ValueError(f"path escapes workspace: {rel}")
-        except AttributeError:  # pragma: no cover — Python < 3.9
-            root_s = str(self.root)
-            if path != self.root and not str(path).startswith(root_s + os.sep):
-                raise ValueError(f"path escapes workspace: {rel}") from None
+    def _relkey(self, path: Path) -> str:
+        """Stable POSIX-style path relative to the workspace (for traces)."""
+        rel = path.relative_to(self.root)
+        key = rel.as_posix()
+        return key if key not in ("", ".") else "."
+
+    def _safe(self, rel: str | os.PathLike[str] | Path) -> Path:
+        """Resolve *rel* under the workspace; reject absolute and escaping paths.
+
+        Host ``Path`` joining alone is not portable: on POSIX, ``\\`` is a normal
+        character, so Windows-style ``..\\escape`` would not traverse and drive
+        letter paths would nest as relative directories. Normalize separators and
+        reject absolute/drive/UNC forms with PurePosixPath / PureWindowsPath
+        before joining under the real root.
+        """
+        raw = os.fspath(rel)
+        if raw in ("", "."):
+            return self.root
+
+        # Portable relative grammar: treat backslash as a separator everywhere.
+        norm = raw.replace("\\", "/")
+        posix = PurePosixPath(norm)
+        win = PureWindowsPath(norm)
+
+        # Reject POSIX absolute, Windows absolute/UNC, and drive-relative (C:foo).
+        if posix.is_absolute() or win.is_absolute() or win.drive:
+            raise ValueError(f"path escapes workspace: {rel}")
+
+        parts = [p for p in posix.parts if p not in ("", ".")]
+        path = self.root.joinpath(*parts).resolve() if parts else self.root
+
+        # Reject sibling escapes (e.g. ../ws_evil). Prefix startswith is unsafe
+        # when another path is a string prefix of root (root=/ws vs /ws_evil).
+        if not path.is_relative_to(self.root):
+            raise ValueError(f"path escapes workspace: {rel}")
         return path
 
-    def read_file(self, path: str) -> str:
-        self.reads.append(path)
+    def read_file(self, path: str | os.PathLike[str] | Path) -> str:
         p = self._safe(path)
-        return p.read_text(encoding="utf-8")
+        text = p.read_text(encoding="utf-8")
+        # Record only after path validation + successful read.
+        self.reads.append(self._relkey(p))
+        return text
 
-    def write_file(self, path: str, content: str) -> str:
-        self.writes.append(path)
+    def write_file(self, path: str | os.PathLike[str] | Path, content: str) -> str:
         p = self._safe(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
-        return f"OK: wrote {path} ({len(content)} bytes)"
+        # Record only after path validation + successful write (never log escapes).
+        key = self._relkey(p)
+        self.writes.append(key)
+        return f"OK: wrote {key} ({len(content)} bytes)"
 
-    def list_files(self, directory: str = ".") -> str:
-        self.reads.append(directory)
+    def list_files(self, directory: str | os.PathLike[str] | Path = ".") -> str:
         p = self._safe(directory)
         if not p.is_dir():
             return f"ERROR: not a directory: {directory}"
+        # Record only after path validation succeeds.
+        self.reads.append(self._relkey(p))
         return "\n".join(sorted(x.name for x in p.iterdir()))
 
 

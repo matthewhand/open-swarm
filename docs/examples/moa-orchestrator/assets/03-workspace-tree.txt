@@ -1,0 +1,5 @@
+./decision.md
+./docs/ADR.md
+./moa_determination.md
+./notes.txt
+./test_notes.md

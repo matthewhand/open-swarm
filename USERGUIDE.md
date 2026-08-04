@@ -42,8 +42,8 @@ swarm-cli list
 | `cli-agents` / `agents` | Autodiscover installed agentic CLIs (`--check-auth`, `--init`, `--smoke`, …) |
 | `skills` | List reusable `SKILL.md` capabilities (apply via `cli_agent` `skill=` param) |
 | `wizard` | Scaffold a new team blueprint (supports `--non-interactive`) |
-| `moa` | Mixture of Agents CLI (`--backend fake\|grok\|acpx`) |
-| `moa-init` | Install/merge default `moa` config block (`--write`, `--show-openwebui`) |
+| `moa` | Mixture of Agents CLI (`--backend fake\|grok\|acpx`; optional `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for consensus→team — no openai-agents) |
+| `moa-init` | Install/merge default `moa` panel config/presets (`--write`, `--show-openwebui`; team mode is CLI/model-path, not a preset key) |
 
 Run `swarm-cli --help` or `swarm-cli <command> --help` for the authoritative
 usage text.

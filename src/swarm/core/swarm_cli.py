@@ -251,7 +251,14 @@ def moa(
         "--fake-responses",
         help="For --backend fake: JSON object or name=text||name=text pairs.",
     ),
-    cwd: str = typer.Option(None, "--cwd", help="Working directory for participants."),
+    cwd: str = typer.Option(
+        None,
+        "--cwd",
+        help=(
+            "Read-only working directory for panel participants (repo under review). "
+            "Not a write workspace — use --workdir with --team for specialist writes."
+        ),
+    ),
     permission: str = typer.Option(
         "approve-reads",
         "--permission",
@@ -269,6 +276,40 @@ def moa(
         "--act-write",
         help="If --act, path to write the determination markdown (orchestrator only).",
     ),
+    team: bool = typer.Option(
+        False,
+        "--team",
+        help=(
+            "After consensus, run a scripted R/W team (no openai-agents). "
+            "Requires --workdir (write workspace). Mutually exclusive with --act. "
+            "Optional --cwd sets panel read context (defaults to --workdir)."
+        ),
+    ),
+    team_tasks: str = typer.Option(
+        "implementer:Apply decision|tester:Verify|docs:Write ADR",
+        "--team-tasks",
+        help=(
+            "With --team: pipe-separated specialist tasks. "
+            "Form: purpose[:instruction][@rel/path]. "
+            "Purposes: implementer, tester, docs, researcher. "
+            "Default paths: decision.md | test_notes.md | docs/ADR.md | research_notes.md. "
+            "Default tasks: implementer + tester + docs."
+        ),
+    ),
+    workdir: str = typer.Option(
+        None,
+        "--workdir",
+        help=(
+            "Write workspace for --team specialists (created if missing). "
+            "Only valid with --team; for panel-only runs use --cwd instead."
+        ),
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Log moa.collect / moa.team steps to stderr (INFO).",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
     trace: str = typer.Option(
         None,
@@ -278,17 +319,75 @@ def moa(
 ):
     """Mixture of Agents: read-only CLI opinions → orchestrator determination.
 
-    Participants never write. Use --act for orchestrator-owned impact after consensus.
-    Primary product name is MoA (not fusion/ensemble).
+    Participants never write. Modes after consensus:
+
+    * default — determination only (optional ``--cwd`` for panel context)
+    * ``--act`` / ``--act-write`` — single orchestrator-owned write
+    * ``--team`` / ``--workdir`` — scripted specialists (implementer/tester/docs/researcher)
+
+    ``--cwd`` is panel read context; ``--workdir`` is the team write workspace
+    (not interchangeable). Primary product name is MoA (not fusion/ensemble).
+
+    Exit codes: 0 success; 1 runtime failure; 2 usage/validation; 5 write denied.
     """
     import asyncio
+    import logging
 
     from swarm.core.moa.cli import format_moa_text, parse_fake_responses, run_moa_cli
     from swarm.core.moa.policy import WriteDeniedError
 
-    names = [n.strip() for n in participants.split(",") if n.strip()]
+    if verbose:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s %(name)s | %(message)s",
+            force=True,
+        )
+        logging.getLogger("swarm.core.moa").setLevel(logging.INFO)
+
+    from swarm.core.moa.policy import assert_participant_name
+
+    try:
+        names = [
+            assert_participant_name(n)
+            for n in (p.strip() for p in participants.split(","))
+            if n
+        ]
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=2) from e
     if not names:
-        typer.echo("Error: provide at least one --participants name.", err=True)
+        typer.echo(
+            "Error: --participants must list at least one seat name "
+            "(comma-separated, e.g. analyst,critic).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if team and act:
+        typer.echo(
+            "Error: --team and --act are mutually exclusive; "
+            "use --team for scripted specialists or --act for a single "
+            "orchestrator write, not both.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if workdir and not team:
+        typer.echo(
+            "Error: --workdir is the team write workspace and requires --team. "
+            "For panel-only participant context use --cwd instead "
+            '(e.g. swarm-cli moa "…" --cwd .).',
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if team and not (workdir or "").strip():
+        typer.echo(
+            "Error: --team requires --workdir PATH (specialist write workspace; "
+            "created if missing). --cwd is only the optional panel read context, "
+            "not a substitute for --workdir.",
+            err=True,
+        )
         raise typer.Exit(code=2)
 
     try:
@@ -304,27 +403,113 @@ def moa(
                 name: default_texts[i % len(default_texts)]
                 for i, name in enumerate(names)
             }
-        payload = asyncio.run(
-            run_moa_cli(
-                question,
-                names,
-                backend=backend,
-                fake_responses=fakes,
-                cwd=cwd,
-                permission=permission,
-                timeout=timeout,
-                act=act,
-                action=action,
-                act_write_path=act_write,
-                trace_path=trace,
+
+        if team:
+            from swarm.core.moa.team import (
+                parse_team_tasks,
+                run_moa_then_team,
+                team_result_to_payload,
             )
-        )
+
+            tasks = parse_team_tasks(team_tasks)
+            if not tasks:
+                typer.echo(
+                    "Error: --team-tasks is empty or invalid after parsing. "
+                    "Use purpose[:instruction][@path] segments separated by | "
+                    "(e.g. implementer:Apply|tester:Verify|docs:Write ADR).",
+                    err=True,
+                )
+                raise typer.Exit(code=2)
+            result = asyncio.run(
+                run_moa_then_team(
+                    workdir,
+                    question,
+                    specialist_tasks=tasks,
+                    seed_files={"notes.txt": question[:2000]},
+                    moa_backend=backend,
+                    moa_participants=names,
+                    moa_fake_responses=fakes,
+                    # Same participant policy as non-team path; never approve-all.
+                    permission=permission,
+                    # Panel read context: optional --cwd; else team workspace.
+                    cwd=cwd,
+                    timeout=timeout,
+                )
+            )
+            payload = team_result_to_payload(result, question=question)
+            payload["backend"] = backend
+            payload["participants"] = names
+            # Prefer the validated mode recorded on the MoA panel payload.
+            payload["permission"] = (
+                (result.moa_payload or {}).get("permission") or permission
+            )
+            payload["workdir"] = workdir
+            if cwd:
+                payload["cwd"] = cwd
+            if trace:
+                import json
+                from pathlib import Path
+
+                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                payload["trace_path"] = trace
+        elif act:
+            # Orchestrator-owned single write still uses run_moa_cli.
+            payload = asyncio.run(
+                run_moa_cli(
+                    question,
+                    names,
+                    backend=backend,
+                    fake_responses=fakes,
+                    cwd=cwd,
+                    permission=permission,
+                    timeout=timeout,
+                    act=True,
+                    action=action,
+                    act_write_path=act_write,
+                    trace_path=trace,
+                )
+            )
+        else:
+            # Path A: consensus_only via the same serializer as --team.
+            from swarm.core.moa.team import (
+                run_moa_consensus,
+                team_result_to_payload,
+            )
+
+            result = asyncio.run(
+                run_moa_consensus(
+                    question,
+                    moa_backend=backend,
+                    moa_participants=names,
+                    moa_fake_responses=fakes,
+                    cwd=cwd,
+                    permission=permission,
+                    timeout=timeout,
+                )
+            )
+            payload = team_result_to_payload(result, question=question)
+            payload["backend"] = backend
+            payload["participants"] = names
+            payload["permission"] = (
+                (result.moa_payload or {}).get("permission") or permission
+            )
+            if cwd:
+                payload["cwd"] = cwd
+            if trace:
+                import json
+                from pathlib import Path
+
+                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                payload["trace_path"] = trace
     except WriteDeniedError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=5) from e
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=2) from e
+    except typer.Exit:
+        # Usage validation inside the try (e.g. empty --team-tasks) must keep its code.
+        raise
     except Exception as e:
         typer.echo(f"MoA failed: {e}", err=True)
         raise typer.Exit(code=1) from e
@@ -333,6 +518,10 @@ def moa(
         import json
 
         typer.echo(json.dumps(payload, indent=2))
+    elif team or payload.get("mode") in ("consensus_only", "consensus_then_team"):
+        from swarm.core.moa.team import format_team_text
+
+        typer.echo(format_team_text(payload))
     else:
         typer.echo(format_moa_text(payload))
 
@@ -593,7 +782,13 @@ def moa_init(
         help="Print Open WebUI / OpenAI client connection JSON and exit.",
     ),
 ):
-    """Install default Mixture of Agents (moa) config block (Grok live; no Codex)."""
+    """Install default Mixture of Agents (moa) config block (Grok live; no Codex).
+
+    Writes panel/consensus defaults and named presets (default, ci, single-grok).
+    Presets are backend/participants/fake_responses only — team mode is not a
+    preset key. Use ``swarm-cli moa --team --workdir …`` or models hybrid_moa /
+    moa_orchestrator for consensus-then-team. See docs/MOA.md.
+    """
     import json as _json
     from pathlib import Path as _Path
 
@@ -639,7 +834,11 @@ def moa_init(
     if not write:
         typer.echo(f"# Dry-run — would write moa block to {cfg_path}")
         typer.echo(_json.dumps({"moa": merged.get("moa", DEFAULT_MOA_BLOCK)}, indent=2))
-        typer.echo("\nRe-run with --write to persist. See docs/OPENWEBUI_MOA.md")
+        typer.echo(
+            "\n# Presets are panel-only (backend/participants/fake_responses). "
+            "Team mode: swarm-cli moa --team --workdir …  (not a preset key)."
+        )
+        typer.echo("\nRe-run with --write to persist. See docs/OPENWEBUI_MOA.md and docs/MOA.md")
         raise typer.Exit(code=0)
 
     path = write_moa_config(
@@ -650,7 +849,14 @@ def moa_init(
     )
     typer.echo(f"Wrote MoA config to {path}")
     typer.echo(f"  backend={merged['moa'].get('backend')} participants={merged['moa'].get('participants')}")
-    typer.echo("Models: moa | hybrid_moa | mixture_of_agents (legacy: cli_fusion, cli_ensemble)")
+    typer.echo(
+        "Models: moa | hybrid_moa | moa_orchestrator | mixture_of_agents "
+        "(legacy: cli_fusion, cli_ensemble)"
+    )
+    typer.echo(
+        "Team mode is not in moa.presets — use swarm-cli moa --team --workdir … "
+        "or hybrid_moa / moa_orchestrator (params.tasks)."
+    )
 
 
 @app.command(name="config")
