@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,6 +29,9 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
+  const [launchingId, setLaunchingId] = useState<string | number | null>(null);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -80,8 +83,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
-    setActionLoading(true);
+    setDeletingId(id);
     setError(null);
     try {
       const fd = new FormData();
@@ -91,10 +93,12 @@ const TeamsPage = () => {
       await fetch('/teams/', { method: 'POST', body: fd });
       setSuccessMsg(`Deleted ${id}. Registry updated.`);
       await loadTeams();
-    } catch (e) {
-      setError('Delete failed (local UI may be stale; try refresh or server admin).');
+    } catch (e: unknown) {
+      const errMessage = e instanceof Error ? e.message : String(e);
+      setError(`Delete failed: ${errMessage} (local UI may be stale; try refresh or server admin).`);
     } finally {
-      setActionLoading(false);
+      setDeletingId(null);
+      setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -137,12 +141,16 @@ const TeamsPage = () => {
   };
 
   const handleLaunch = (team: Team) => {
+    setLaunchingId(team.id);
     const modelId = typeof team.id === 'string' ? team.id : team.name.toLowerCase().replace(/\s+/g, '-');
     // Real launch uses the team id as model in the OpenAI compatible endpoint.
     // Streaming supported server-side: POST /v1/chat/completions { "model": "...", "messages": [...], "stream": true }
     // Auth: pass Authorization: Bearer <token> (from SWARM_API_KEY or equiv) or X-API-Key when enabled.
     setSuccessMsg(`Launch: use model="${modelId}" with /v1/chat/completions (stream=true supported in backend chat_views). See Settings for auth notes.`);
-    setTimeout(() => setSuccessMsg(null), 6000);
+    setTimeout(() => {
+      setSuccessMsg(null);
+      setLaunchingId(null);
+    }, 6000);
   };
 
   return (
@@ -215,7 +223,7 @@ const TeamsPage = () => {
                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
+                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => setTeamToDelete(team.id)} loading={deletingId === team.id} disabled={deletingId === team.id || actionLoading}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -242,8 +250,8 @@ const TeamsPage = () => {
                   <Button variant="outline" size="sm">
                     View Details
                   </Button>
-                  <Button variant="primary" size="sm" onClick={() => handleLaunch(team)} disabled={actionLoading}>
-                    <Play className="h-4 w-4 mr-1" />
+                  <Button variant="primary" size="sm" onClick={() => handleLaunch(team)} loading={launchingId === team.id} disabled={launchingId === team.id || actionLoading}>
+                    {launchingId !== team.id && <Play className="h-4 w-4 mr-1" />}
                     Launch
                   </Button>
                 </div>
@@ -269,6 +277,23 @@ const TeamsPage = () => {
           </Button>
         </Card>
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        onConfirm={() => {
+          if (teamToDelete !== null) {
+            handleDelete(teamToDelete);
+            setTeamToDelete(null); // Close modal immediately, row shows loading state
+          }
+        }}
+        title="Confirm Deletion"
+        confirmText="Delete Team"
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete this team? This action cannot be undone.</p>
+      </ConfirmModal>
 
       {/* Create Team Modal - uses DaisyUI Modal component for consistency */}
       <Modal
