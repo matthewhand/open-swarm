@@ -45,15 +45,18 @@ const TeamsPage = () => {
       if (res.ok) {
         const data = await res.json();
         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
-          name: t.id || 'unknown-team',
-          description: t.description || 'Dynamic team (no description)',
+        const list: Team[] = Object.values(data || {}).map((t: unknown) => {
+          const team = t as Record<string, unknown>;
+          return {
+          id: typeof team.id === 'string' ? team.id : String(Object.keys(data).find(k => data[k]===t) || Math.random()),
+          name: typeof team.id === 'string' ? team.id : 'unknown-team',
+          description: typeof team.description === 'string' ? team.description : 'Dynamic team (no description)',
           status: 'active' as const,
           members: 1,
           created: 'via registry',
-          llm_profile: t.llm_profile || 'default',
-        }));
+          llm_profile: typeof team.llm_profile === 'string' ? team.llm_profile : 'default',
+        };
+      });
         setTeams(list);
       } else {
         throw new Error('Export API failed');
@@ -80,7 +83,7 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
     setActionLoading(true);
     setError(null);
     try {
@@ -128,8 +131,9 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      setError(`Create failed via form POST: ${errMsg}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -167,8 +171,8 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {error && <Alert type="error" className="mb-4">{error}</Alert>}
-      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      {error && <div role="alert" aria-live="assertive"><Alert type="error" className="mb-4">{error}</Alert></div>}
+      {successMsg && <div role="status" aria-live="polite"><Alert type="success" className="mb-4">{successMsg}</Alert></div>}
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">
@@ -199,7 +203,7 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      {loading && <div className="flex justify-center py-8" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (
@@ -255,7 +259,7 @@ const TeamsPage = () => {
 
       {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12">
+        <Card bordered className="text-center py-12" role="status">
           <div className="mb-4">
             <Users className="h-16 w-16 mx-auto text-gray-400" />
           </div>
@@ -335,7 +339,7 @@ const TeamsPage = () => {
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
 
-      {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+      {actionLoading && <div className="fixed bottom-4 right-4" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>}
     </div>
   );
 };
