@@ -1,3 +1,5 @@
+/* eslint-disable testing-library/no-container */
+/* eslint-disable testing-library/no-node-access */
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import { Button } from '../Button'
