@@ -96,14 +96,15 @@ def serve_swarm_config(_request):
 def list_available_blueprints_api(_request):
      """API endpoint to list discoverable blueprints."""
      # Re-use discovery logic if possible, or adapt from CLI
-     from swarm.extensions.blueprint.discovery import (
-         discover_blueprints,  # Assuming this exists
-     )
+     from swarm.core.blueprint_discovery import discover_blueprints
      try:
         bp_dir = Path(settings.BLUEPRINTS_DIR) # Assuming settings has BLUEPRINTS_DIR
-        discovered = discover_blueprints(directories=[str(bp_dir)])
+        discovered = discover_blueprints(str(bp_dir))
         # Format the response
-        blueprint_list = [{"name": name, "description": meta.get("description", "N/A")} for name, meta in discovered.items()]
+        blueprint_list = [
+            {"name": name, "description": (info.get("metadata") or {}).get("description") or "N/A"}
+            for name, info in discovered.items()
+        ]
         return JsonResponse({"blueprints": blueprint_list})
      except Exception as e:
           logger.error(f"Error listing blueprints via API: {e}", exc_info=True)

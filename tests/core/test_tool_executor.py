@@ -12,8 +12,17 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+try:
+    # openai >= 1.99: ChatCompletionMessageToolCall became a discriminated Union
+    # and the concrete function variant is ChatCompletionMessageFunctionToolCall.
+    from openai.types.chat import ChatCompletionMessageFunctionToolCall
+except ImportError:  # openai < 1.99: the concrete class is ChatCompletionMessageToolCall
+    from openai.types.chat.chat_completion_message_tool_call import (
+        ChatCompletionMessageToolCall as ChatCompletionMessageFunctionToolCall,
+    )
 from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,
+    ChatCompletionMessageToolCall,  # noqa: F401  (Union on >=1.99; concrete class on <1.99)
     Function,
 )
 
@@ -31,106 +40,90 @@ from swarm.types import Agent, Result
 
 
 class TestRedactSensitiveData:
-    """Tests for redact_sensitive_data function."""
+    """tool_executor.redact_sensitive_data delegates to swarm.utils.redact."""
 
     def test_redacts_dict_with_sensitive_keys(self):
-        """Keys containing 'key', 'token', 'secret', 'password', 'auth' are redacted."""
         data = {
-            "api_key": "sk-1234567890abcdef",  # 19 chars
-            "token": "tok-abcdef123456",  # 16 chars
-            "client_secret": "secretvalue",  # 11 chars
-            "password": "hunter2",  # 7 chars
-            "auth_header": "Bearer xyz",  # 10 chars
+            "api_key": "sk-1234567890abcdef",
+            "token": "tok-abcdef123456",
+            "client_secret": "secretvalue",
+            "password": "hunter2",
+            "authorization": "Bearer xyz",
+            "model": "gpt-4",
         }
         redacted = redact_sensitive_data(data)
-
-        # Long strings (>4 chars) get partial redaction: first 2 + * (len-4) + last 2
-        # sk-1234567890abcdef (19 chars) -> sk + 15 asterisks + ef
-        assert redacted["api_key"] == "sk" + "*" * 15 + "ef"
-        # tok-abcdef123456 (16 chars) -> to + 12 asterisks + 56
-        assert redacted["token"] == "to" + "*" * 12 + "56"
-        # secretvalue (11 chars) -> se + 7 asterisks + ue
-        assert redacted["client_secret"] == "se" + "*" * 7 + "ue"
-        # hunter2 (7 chars) -> hu + 3 asterisks + r2
-        assert redacted["password"] == "hu" + "*" * 3 + "r2"
-        # Bearer xyz (10 chars) -> Be + 6 asterisks + yz
-        assert redacted["auth_header"] == "Be" + "*" * 6 + "yz"
+        assert redacted["api_key"] == "[REDACTED]"
+        assert redacted["token"] == "[REDACTED]"
+        assert redacted["client_secret"] == "[REDACTED]"
+        assert redacted["password"] == "[REDACTED]"
+        assert redacted["authorization"] == "[REDACTED]"
+        assert redacted["model"] == "gpt-4"
 
     def test_redacts_nested_dicts(self):
-        """Nested dictionaries are recursively redacted."""
         data = {
             "nested": {
-                "api_key": "sk-test-key",  # 11 chars
+                "api_key": "sk-test-key",
                 "normal_field": "visible",
             }
         }
         redacted = redact_sensitive_data(data)
-
-        # sk-test-key (11 chars) -> sk + 7 asterisks + ey
-        assert redacted["nested"]["api_key"] == "sk" + "*" * 7 + "ey"
+        assert redacted["nested"]["api_key"] == "[REDACTED]"
         assert redacted["nested"]["normal_field"] == "visible"
 
     def test_redacts_lists(self):
-        """Lists are recursively processed."""
         data = [
-            {"api_key": "sk-secret"},  # 9 chars
+            {"api_key": "sk-secret"},
             "plain string",
-            {"nested": {"token": "abc123xyz"}},  # 9 chars
+            {"nested": {"token": "abc123xyz"}},
         ]
         redacted = redact_sensitive_data(data)
-
-        # sk-secret (9 chars) -> sk + 5 asterisks + et
-        assert redacted[0]["api_key"] == "sk" + "*" * 5 + "et"
+        assert redacted[0]["api_key"] == "[REDACTED]"
         assert redacted[1] == "plain string"
-        # abc123xyz (9 chars) -> ab + 5 asterisks + yz
-        assert redacted[2]["nested"]["token"] == "ab" + "*" * 5 + "yz"
+        assert redacted[2]["nested"]["token"] == "[REDACTED]"
 
     def test_redacts_strings_with_api_key_patterns(self):
-        """Strings containing API key patterns are redacted."""
-        # Pattern: sk- prefix
-        assert redact_sensitive_data("sk-1234567890") == "***REDACTED***"
-        # Pattern: Bearer prefix
-        assert redact_sensitive_data("Bearer token123") == "***REDACTED***"
-        # Pattern: Basic auth prefix
+        assert redact_sensitive_data("sk-1234567890") == "[REDACTED]"
+        assert redact_sensitive_data("Bearer token123") == "[REDACTED]"
         assert redact_sensitive_data("Basic dXNlcjpwYXNz") == "***REDACTED***"
-        # Pattern: JWT-like (eyJ prefix)
         assert redact_sensitive_data("eyJhbGciOiJIUzI1NiJ9") == "***REDACTED***"
 
     def test_does_not_redact_normal_strings(self):
-        """Normal strings without sensitive patterns pass through."""
         assert redact_sensitive_data("hello world") == "hello world"
         assert redact_sensitive_data("not-sensitive-key") == "not-sensitive-key"
 
     def test_handles_non_string_values_in_dict(self):
-        """Non-string values in sensitive fields get '***'."""
         data = {
             "api_key": 12345,
             "token": None,
             "secret": True,
         }
         redacted = redact_sensitive_data(data)
-
-        assert redacted["api_key"] == "***"
-        assert redacted["token"] == "***"
-        assert redacted["secret"] == "***"
+        assert redacted["api_key"] == "[REDACTED]"
+        assert redacted["token"] == "[REDACTED]"
+        assert redacted["secret"] == "[REDACTED]"
 
     def test_handles_empty_and_none_inputs(self):
-        """Empty containers and None pass through."""
         assert redact_sensitive_data({}) == {}
         assert redact_sensitive_data([]) == []
         assert redact_sensitive_data(None) is None
         assert redact_sensitive_data("") == ""
 
     def test_short_sensitive_values_get_masked(self):
-        """Short sensitive values (<=4 chars) get '***'."""
         data = {
-            "api_key": "abcd",  # 4 chars - gets ***
-            "token": "xyz",  # 3 chars - gets ***
+            "api_key": "abcd",
+            "token": "xyz",
         }
         redacted = redact_sensitive_data(data)
+        assert redacted["api_key"] == "[REDACTED]"
+        assert redacted["token"] == "[REDACTED]"
 
-        assert redacted["api_key"] == "***"
-        assert redacted["token"] == "***"
+    def test_env_style_and_empty_user_uri(self):
+        redacted = redact_sensitive_data({
+            "OPENAI_API_KEY": "sk-log-leak",
+            "notes": "redis://:onlypass@host:6379",
+        })
+        assert redacted["OPENAI_API_KEY"] == "[REDACTED]"
+        assert "onlypass" not in redacted["notes"]
 
 
 # =============================================================================
@@ -200,8 +193,12 @@ class TestHandleFunctionResult:
 
 
 def make_tool_call(tool_id: str, name: str, arguments: str) -> ChatCompletionMessageToolCall:
-    """Helper to create a ChatCompletionMessageToolCall for testing."""
-    return ChatCompletionMessageToolCall(
+    """Helper to create a tool call for testing.
+
+    openai>=1.99 made ChatCompletionMessageToolCall a discriminated Union (not
+    instantiable); use the concrete function-tool-call class.
+    """
+    return ChatCompletionMessageFunctionToolCall(
         id=tool_id,
         function=Function(name=name, arguments=arguments),
         type="function",
@@ -318,18 +315,42 @@ class TestHandleToolCalls:
 
     @pytest.mark.asyncio
     async def test_handles_invalid_json_arguments(self):
-        """Invalid JSON arguments are handled gracefully."""
+        """Invalid JSON arguments are handled gracefully and logged as error."""
         tool_call = make_tool_call("call-bad-json", "test_tool", "not valid json")
 
         def test_tool(**kwargs):
             return "ok"
 
-        response = await handle_tool_calls(
-            [tool_call], [test_tool], {}, debug=False
-        )
+        with patch("swarm.tool_executor.logger") as mock_logger:
+            response = await handle_tool_calls(
+                [tool_call], [test_tool], {}, debug=False
+            )
 
         # Should still execute with empty args
         assert response.messages[0]["content"] == "ok"
+        mock_logger.error.assert_called()
+        error_msg = mock_logger.error.call_args[0][0]
+        assert "Failed to parse JSON arguments for tool 'test_tool'" in error_msg
+        assert "not valid json" in error_msg
+
+    @pytest.mark.asyncio
+    async def test_handles_non_dict_json_arguments(self):
+        """JSON arguments that are not a dict are handled and logged as warning."""
+        tool_call = make_tool_call("call-non-dict", "test_tool", "[1, 2, 3]")
+
+        def test_tool(**kwargs):
+            return "ok"
+
+        with patch("swarm.tool_executor.logger") as mock_logger:
+            response = await handle_tool_calls(
+                [tool_call], [test_tool], {}, debug=False
+            )
+
+        # Should still execute with empty args
+        assert response.messages[0]["content"] == "ok"
+        mock_logger.warning.assert_called()
+        warning_msg = mock_logger.warning.call_args[0][0]
+        assert "Parsed arguments for tool 'test_tool' is not a dictionary" in warning_msg
 
     @pytest.mark.asyncio
     async def test_handles_tool_exception(self):

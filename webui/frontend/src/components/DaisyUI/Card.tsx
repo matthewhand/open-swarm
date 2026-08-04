@@ -1,10 +1,10 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 
 /**
  * Card component using DaisyUI classes
  * Docs: https://daisyui.com/components/card/
  */
-export interface CardProps {
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   title?: string;
   bordered?: boolean;
@@ -26,11 +26,14 @@ export const Card = ({
   imageFull = false,
   className = '',
   actions,
+  ...props
 }: CardProps) => {
   // Build class list
   const classes = [
     'card',
-    bordered ? 'card-bordered' : '',
+    // daisyUI 5 renamed `card-bordered` to `card-border`; keep an explicit
+    // Tailwind border as well so the outline is never theme-dependent.
+    bordered ? 'card-border border border-base-300' : '',
     compact ? 'card-compact' : '',
     normal ? 'card-normal' : '',
     side ? 'card-side' : '',
@@ -39,7 +42,7 @@ export const Card = ({
   ].filter(Boolean);
 
   return (
-    <div className={classes.join(' ')}>
+    <div className={classes.join(' ')} {...props}>
       {title && (
         <div className="card-title p-4 pb-0">
           {title}

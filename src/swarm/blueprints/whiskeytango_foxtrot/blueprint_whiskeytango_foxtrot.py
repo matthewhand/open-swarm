@@ -122,7 +122,11 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         "author": "Open Swarm Team (Refactored)",
         "tags": ["web scraping", "database", "sqlite", "multi-agent", "hierarchy", "mcp"],
         "required_mcp_servers": ["sqlite", "brave-search", "mcp-npx-fetch", "mcp-doc-forge", "filesystem"],
-        "env_vars": ["BRAVE_API_KEY", "SQLITE_DB_PATH", "ALLOWED_PATH"] # Actual required vars
+        "env_vars": ["BRAVE_API_KEY", "SQLITE_DB_PATH", "ALLOWED_PATH"], # Actual required vars
+        # Capability-based tool needs (see swarm.core.tool_capabilities): this
+        # scraper wants real browser automation — auto-provisioned from the
+        # non-auth official microsoft/playwright-mcp.
+        "tool_requirements": {"browser": "mandatory", "web_search": "optional"},
     }
 
     # Caches
@@ -216,6 +220,11 @@ class WhiskeyTangoFoxtrotBlueprint(BlueprintBase):
         """Main execution entry point for the WhiskeyTangoFoxtrot blueprint."""
         logger.info("WhiskeyTangoFoxtrotBlueprint run method called.")
         instruction = messages[-1].get("content", "") if messages else ""
+        # --- Test Mode: yield a canned answer immediately, never spawn the
+        # multi-tier agent loop (which hangs without a live LLM). ---
+        if os.environ.get("SWARM_TEST_MODE"):
+            yield {"messages": [{"role": "assistant", "content": f"[TEST-MODE] WhiskeyTangoFoxtrot tracking free services. You said: '{instruction}'"}]}
+            return
         from agents import Runner
         ux = BlueprintUXImproved(style="serious")
         spinner_idx = 0

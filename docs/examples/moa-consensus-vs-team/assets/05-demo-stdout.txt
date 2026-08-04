@@ -1,0 +1,149 @@
+=== consensus_only ===
+MoA mode: consensus_only
+Question: Should we default public APIs to token-bucket rate limiting?
+
+## Determination (orchestrator)
+yes token bucket at edge
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst [structured] conf=0.9: yes token bucket at edge
+- critic [structured] conf=0.85: yes token bucket with metrics
+
+## Specialists
+(none — consensus only; no team writes)
+## Writes
+(none)
+
+panel_wrote=False
+
+=== consensus_then_team ===
+MoA mode: consensus_then_team
+Question: Should we default public APIs to token-bucket rate limiting?
+
+## Determination (orchestrator)
+yes token bucket at edge
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst [structured] conf=0.9: yes token bucket at edge
+- critic [structured] conf=0.85: yes token bucket with metrics
+
+## Specialists (R/W team)
+### researcher [ok]
+trace: list_files('.'), read_file('notes.txt'), write_file('research_notes.md')
+# Research
+
+## Task
+Inventory context
+
+## MoA determination
+yes token bucket at edge
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst [structured] conf=0.9: yes token bucket at edge
+- critic [structured] conf=0.85: yes token bucket with metrics
+
+## Workspace
+mo
+
+### implementer [ok]
+trace: read_file('notes.txt'), read_file('moa_determination.md'), write_file('decision.md')
+# Decision
+
+## Context
+Public API; abuse risk high.
+
+## MoA consensus
+yes token bucket at edge
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst [structured] conf=0.9: yes token bucket at edge
+- critic [structured] conf=0.85: yes token bucket with metrics
+
+## Ta
+
+### tester [ok]
+trace: write_file('test_notes.md')
+# Test notes
+
+## Against determination
+yes token bucket at edge
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst [structured] conf=0.9: yes token bucket at edge
+- critic [structured] conf=0.85: yes token bucket with metrics
+
+## Task
+Verify
+
+- [ ] Verify happy p
+
+### docs [ok]
+trace: write_file('docs/ADR.md')
+# ADR
+
+## Status
+Accepted (post-MoA)
+
+## Context
+Should we default public APIs to token-bucket rate limiting?
+
+## Decision
+yes token bucket at edge
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst [structured] conf=0.9: yes token bucket at edge
+- critic [struct
+
+## Writes
+moa_determination.md, research_notes.md, decision.md, test_notes.md, docs/ADR.md
+
+panel_wrote=False
+
+=== CONTRAST ===
+{
+  "question": "Should we default public APIs to token-bucket rate limiting?",
+  "consensus_only": {
+    "mode": "consensus_only",
+    "writes": [],
+    "specialists": 0,
+    "panel_wrote": false,
+    "primary": "analyst"
+  },
+  "consensus_then_team": {
+    "mode": "consensus_then_team",
+    "writes": [
+      "moa_determination.md",
+      "research_notes.md",
+      "decision.md",
+      "test_notes.md",
+      "docs/ADR.md"
+    ],
+    "specialists": [
+      "researcher",
+      "implementer",
+      "tester",
+      "docs"
+    ],
+    "panel_wrote": false,
+    "workspace": "docs/examples/moa-consensus-vs-team/assets/demo-team-workspace"
+  },
+  "invariants": {
+    "same_panel_permission": true,
+    "consensus_only_writes_empty": true,
+    "consensus_then_team_has_writes": true,
+    "neither_panel_wrote": true
+  }
+}
+invariants_ok: True

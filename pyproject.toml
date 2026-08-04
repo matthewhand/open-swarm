@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-swarm"
-version = "0.2.1"
+version = "0.5.4"
 description = "Open Swarm: Orchestrating AI Agent Swarms with Django"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,6 +36,7 @@ dependencies = [
     "uvicorn>=0.23.0",
     "gunicorn>=21.0.0",
     "psycopg2-binary>=2.9.0",
+    "dj-database-url>=2.1.0",
     "django-extensions>=3.2.0",
     "drf-yasg>=1.21.0",
     "channels>=4.0",
@@ -61,31 +62,45 @@ dependencies = [
     "drf-spectacular>=0.28.0",
     "jmespath>=1.0.1",
     "filelock>=3.18.0",
-    # Optional Wagtail CMS for marketplace (enabled via ENABLE_WAGTAIL)
-    "wagtail>=6.0,<7.0",
-    "django-taggit>=5.0.0",
-    "django-modelcluster>=6.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/open-swarm"
-Documentation = "https://github.com/yourusername/open-swarm/blob/main/README.md"
-Repository = "https://github.com/yourusername/open-swarm.git"
-Changelog = "https://github.com/yourusername/open-swarm/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/matthewhand/open-swarm"
+Documentation = "https://github.com/matthewhand/open-swarm/blob/main/README.md"
+Repository = "https://github.com/matthewhand/open-swarm.git"
+Changelog = "https://github.com/matthewhand/open-swarm/blob/main/CHANGELOG.md"
 
 [project.scripts]
 swarm-api = "swarm.extensions.launchers.swarm_api:main"
- swarm-cli = "swarm.core.swarm_cli:app"
+swarm-cli = "swarm.core.swarm_cli:app"
 codey = "swarm.blueprints.codey.codey_cli:main"
 suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
 [project.optional-dependencies]
+memory = [
+    # The mem0 integration imports `from mem0 import Memory`; that module is
+    # provided by the `mem0ai` distribution on PyPI (there is no `mem0` dist).
+    "mem0ai>=0.1.0",
+    # langmem and papr integrations are incomplete placeholders (see
+    # src/swarm/memory/langmem_memory.py and src/swarm/memory/papr_memory.py;
+    # their imports are commented out). The pins below do not resolve on PyPI
+    # for all supported Python versions, so they are excluded until the
+    # integrations are implemented.
+    # "langmem>=0.1.0",
+    # "papr>=0.1.0",
+]
+# NOTE: MCP server mode (ENABLE_MCP_SERVER) needs the `django-mcp-server`
+# distribution (module `mcp_server`). It is NOT declared as an extra here because
+# its transitive `mcp` SDK dependency only resolves with pre-releases enabled,
+# which would break `uv lock --check`. Install it manually when you need MCP
+# server mode: `pip install django-mcp-server` (see docs/mcp_server_mode.md).
 dev = [
     "pytest>=8.0.0",
     "pytest-django>=4.7.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-timeout>=2.1.0",
     "mypy>=1.5.0",
     "ruff>=0.1.0",
     "pre-commit>=3.5.0",
@@ -107,6 +122,10 @@ test = [
     "anyio>=4.0.0",
     "respx>=0.20.0",
     "psutil>=5.9.0",
+    "pytest-timeout>=2.1.0",
+    # Browser automation for the opt-in golden-journey suite (tests/e2e_visual,
+    # gated behind RUN_E2E_VISUAL=1; see .github/workflows/visual-regression.yml).
+    "playwright>=1.49.0",
 ]
 docs = [
     "Sphinx>=7.0.0",
@@ -116,9 +135,6 @@ docs = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.hatch.version]
-path = "src/swarm/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/tests", "/README.md", "/LICENSE"]
@@ -171,3 +187,11 @@ omit = ["*/migrations/*", "*/tests/*", "src/swarm/settings.py", "src/swarm/wsgi.
 [tool.coverage.report]
 show_missing = true
 fail_under = 70
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=0.25.1",
+    "pytest-cov>=6.0.0",
+    "pytest-django>=4.10.0",
+    "pytest-mock>=3.14.0",
+]

@@ -1,11 +1,10 @@
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
-    Function,
 )
 from typing import List, Callable, Union, Optional, Dict, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 # AgentFunction = Callable[[], Union[str, "Agent", dict]]
 AgentFunction = Callable[..., Union[str, "Agent", dict]]
@@ -24,6 +23,8 @@ class Agent(BaseModel):
     mcp_servers: Optional[List[str]] = None  # List of MCP server names
     env_vars: Optional[Dict[str, str]] = None  # Environment variables required
     response_format: Optional[Dict[str, Any]] = None  # Structured Output
+    memory_type: Optional[str] = None  # Optional memory backend (mem0, langmem, papr)
+    memory_config: Optional[Dict[str, Any]] = None  # Config for memory backend
 
 class Response(BaseModel):
     id: Optional[str] = None  # id needed for REST

@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant API as run_moa_then_team
+    participant Panel as Read-only seats
+    participant Imp as implementer
+    participant Tst as tester
+    participant Docs as docs
+
+    User->>API: question + TeamTask list
+    API->>Panel: consult_moa act=False
+    Panel-->>API: determination
+    API->>API: write moa_determination.md
+    par Specialists (WorkspaceTools R/W)
+        API->>Imp: write decision.md
+        API->>Tst: write test_notes.md
+        API->>Docs: write docs/ADR.md
+    end
+    API-->>User: determination + writes + specialist results
+    Note over Panel: Never writes
+    Note over Imp,Docs: Only team writes

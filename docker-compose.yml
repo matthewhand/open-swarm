@@ -1,0 +1,98 @@
+# Open Swarm — containerized gateway.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHAT THIS GIVES YOU BY DEFAULT: the OpenAI-compatible API only.
+# ─────────────────────────────────────────────────────────────────────────────
+# Out of the box this container serves /v1/chat/completions, /v1/responses and
+# /v1/models backed by your REST / LLM profiles (the `llm` block in
+# swarm_config.json). That covers the pure-REST blueprints (chatbot, the REST
+# half of hybrid_team, anything that talks to an OpenAI-compatible HTTP backend).
+#
+# It does NOT include the agentic CLIs (claude, grok, gemini, codex, opencode).
+# Those carry their OWN host-bound auth (OAuth / device login living in your home
+# dir) and cannot be baked into a portable image. So the CLI-driven blueprints
+# (cli_agent, cli_fusion, cli_orchestrator, cli_map, persona_council, the cli_*
+# orchestrators, the CLI half of the hybrids) will NOT work until you map each
+# CLI in yourself.
+#
+# ── The trade-off of running in a container ──
+# To use any CLI blueprint you must map that CLI's binary, runtime and auth
+# folder into the container MANUALLY. This is deliberate — the project does not
+# ship/maintain mappings for every CLI (paths, runtimes and login state differ
+# per host and per version). Copy docker-compose.override.example.yml to
+# docker-compose.override.yml, uncomment the CLIs you actually have, and adjust
+# the paths to your machine. Compose auto-merges the override on `up`.
+#
+# Native (systemd-on-host) deployment avoids all of this — the CLIs are already
+# installed and authed. See docs/ORACLE_DEPLOY.md. Use the container when you
+# only need the REST surface, or you're willing to map the CLIs by hand.
+#
+# Quick start (production-ish):
+#   echo "DOCKER_UID=$(id -u)" >  .env
+#   echo "DOCKER_GID=$(id -g)" >> .env
+#   # REQUIRED for non-debug: API_AUTH_TOKEN, DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS
+#   # For local open API only: SWARM_ALLOW_NO_AUTH=true  (NOT the default)
+#   docker compose up --build
+#   # …then add docker-compose.override.yml for host CLIs if needed.
+
+services:
+  swarm:
+    build:
+      context: .
+      args:
+        PORT: "8000"
+    image: open-swarm:local
+    # Run as your host user so any folders you later bind-mount (CLI auth, config)
+    # stay readable/writable and files the app writes don't end up root-owned.
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    # Inject provider keys / app config from .env (e.g. DATABASE_URL, *_API_KEY).
+    # required:false keeps this portable — a no-op when no .env is present.
+    # Explicit `environment:` below still wins over anything in .env.
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # Portable default. On a host where 8000 is taken (e.g. another service),
+      # remap with an override rather than editing this published default.
+      # For live-reload dev, use: make dev  (docker-compose.dev.yml, host :8002).
+      - "8000:8000"
+    environment:
+      # Pin the in-container listen port. `environment` wins over `env_file`, so
+      # this shields the container from a host-oriented PORT in .env (e.g. the
+      # gateway's 8765) — the published `ports:` mapping alone sets the host port.
+      PORT: "8000"
+      # Keep HOME identical to the host so configs that reference absolute paths
+      # resolve, and the bare CLI commands find their state once you map them in.
+      HOME: "${HOME}"
+      # Production defaults: auth ON unless .env sets SWARM_ALLOW_NO_AUTH=true
+      # (explicit opt-out for local demos / reverse-proxy auth).
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-false}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      API_AUTH_TOKEN: "${API_AUTH_TOKEN:-}"
+      # Durable Django DB + async /v1/responses store on the mounted volume.
+      # DJANGO_DB_NAME is what settings.py reads; SQLITE_DB_PATH is accepted as alias.
+      DJANGO_DB_NAME: "${HOME}/.local/share/swarm/db.sqlite3"
+      SQLITE_DB_PATH: "${HOME}/.local/share/swarm/db.sqlite3"
+      SWARM_RESPONSES_DIR: "${HOME}/.local/share/swarm/responses"
+      # Async /v1/responses cancel + inflight limits are process-local until a
+      # shared queue exists. Keep a single uvicorn worker (see Dockerfile CMD).
+      SWARM_UVICORN_WORKERS: "${SWARM_UVICORN_WORKERS:-1}"
+    volumes:
+      # Your swarm config (llm profiles + any cli_agents) — read-only.
+      - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"
+      # Writable state: SQLite DB + async /v1/responses task store.
+      - "${HOME}/.local/share/swarm:${HOME}/.local/share/swarm"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped

@@ -15,12 +15,12 @@ def parse_arguments() -> Namespace:
         argparse.Namespace: Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        description="Run Open Swarm MCP in various modes or manage configurations."
+        description="Run Open Swarm in various modes or manage configurations."
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Subparser for running modes
-    run_parser = subparsers.add_parser("run", help="Run Open Swarm MCP in various modes.")
+    run_parser = subparsers.add_parser("run", help="Run Open Swarm in various modes.")
     run_parser.add_argument(
         "--mode",
         type=str,

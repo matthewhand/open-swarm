@@ -25,7 +25,7 @@ class MarketplaceItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     repository_url = models.URLField(blank=True)
-    source = models.CharField(max_length=50, default='github')  # github, wagtail, local
+    source = models.CharField(max_length=50, default='github')  # github, local
     manifest_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -74,7 +74,7 @@ class Blueprint(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     repository_url = models.URLField(blank=True)
-    source = models.CharField(max_length=50, default='github')  # github, wagtail, local
+    source = models.CharField(max_length=50, default='github')  # github, local
     manifest_data = models.JSONField(default=dict, blank=True)
     code_template = models.TextField(blank=True, help_text="Blueprint source template only")
     required_mcp_servers = models.JSONField(default=list, blank=True)
@@ -127,7 +127,7 @@ class MCPConfig(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     repository_url = models.URLField(blank=True)
-    source = models.CharField(max_length=50, default='github')  # github, wagtail, local
+    source = models.CharField(max_length=50, default='github')  # github, local
     manifest_data = models.JSONField(default=dict, blank=True)
     config_template = models.TextField(
         blank=True,
@@ -180,7 +180,7 @@ class MarketplaceIndex(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     repository_url = models.URLField(blank=True)
-    source = models.CharField(max_length=50, default='github')  # github, wagtail, local
+    source = models.CharField(max_length=50, default='github')  # github, local
     manifest_data = models.JSONField(default=dict, blank=True)
 
     # Foreign key to the actual item (either Blueprint or MCPConfig)

@@ -1,0 +1,74 @@
+{
+  "_comment": "Example Open Swarm config for the cli_agent and cli_fusion blueprints. Copy the cli_agents / cli_fusion blocks into your ~/.config/swarm/swarm_config.json. Panelists run in FULL-CAPABILITY (non-interactive auto-approve) mode — they can read, write, and run commands. The non-negotiable flag per CLI is the one that skips approval prompts; without it the CLI blocks on a prompt and is killed on timeout. Flags and JSON-parse paths vary by CLI version — verify with each CLI's --help. See docs/CLI_FUSION.md.",
+
+  "llm": {
+    "default": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "${OPENAI_API_KEY}"
+    }
+  },
+
+  "cli_agents": {
+    "grok": {
+      "cmd": ["grok", "-p", "{prompt}", "--output-format", "json", "--always-approve"],
+      "parse": "json:.text",
+      "mode": "write",
+      "timeout": 240
+    },
+    "claude": {
+      "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
+              "--dangerously-skip-permissions"],
+      "parse": "json:.result",
+      "mode": "write",
+      "timeout": 240,
+      "env_allowlist": ["ANTHROPIC_API_KEY"]
+    },
+    "gemini": {
+      "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
+      "parse": "json:.response",
+      "mode": "write",
+      "timeout": 240,
+      "env_allowlist": ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+    },
+    "codex": {
+      "cmd": ["codex", "exec", "{prompt}", "--dangerously-bypass-approvals-and-sandbox"],
+      "parse": "text",
+      "mode": "write",
+      "timeout": 240,
+      "env_allowlist": ["OPENAI_API_KEY"]
+    },
+    "opencode": {
+      "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
+      "parse": "text",
+      "mode": "write",
+      "timeout": 240
+    }
+  },
+
+  "cli_fusion": {
+    "default_cli": "grok",
+    "default_preset": "general-high",
+    "max_rounds": 1,
+    "isolate_workdir": true,
+    "show_analysis": false,
+    "presets": {
+      "general-high":   { "panel": ["grok", "claude", "gemini", "codex"], "judge": "grok" },
+      "general-budget": { "panel": ["gemini"],                            "judge": "gemini" }
+    }
+  },
+
+  "cli_orchestrator": {
+    "router": "grok",
+    "panel": ["grok", "claude", "gemini", "codex"],
+    "judge": "grok"
+  },
+
+  "cli_map": {
+    "planner": "grok",
+    "workers": ["grok", "claude", "gemini", "codex"],
+    "reducer": "grok",
+    "max_items": 6
+  }
+}

@@ -3,12 +3,31 @@ import time
 
 # *** Import async_to_sync ***
 from asgiref.sync import async_to_sync
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from swarm.marketplace import github_service as gh_service
+from swarm.auth import api_permission_classes
+
+# Shared request body for creating/updating a custom blueprint (documents the
+# OpenAPI requestBody so MCP/codegen clients know what fields to send).
+_custom_blueprint_request = inline_serializer(
+    name="CustomBlueprintRequest",
+    fields={
+        "id": serializers.CharField(required=False, help_text="Blueprint id (or provide name)."),
+        "name": serializers.CharField(required=False, help_text="Display name (id or name is required)."),
+        "description": serializers.CharField(required=False, allow_blank=True),
+        "category": serializers.CharField(required=False, help_text="Default: ai_assistants."),
+        "tags": serializers.ListField(child=serializers.CharField(), required=False),
+        "requirements": serializers.CharField(required=False, allow_blank=True),
+        "code": serializers.CharField(required=False, allow_blank=True, help_text="Blueprint source."),
+        "required_mcp_servers": serializers.ListField(child=serializers.CharField(), required=False),
+        "env_vars": serializers.ListField(child=serializers.CharField(), required=False),
+    },
+)
+
+from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
     ENABLE_GITHUB_MARKETPLACE,
     GITHUB_MARKETPLACE_ORG_ALLOWLIST,
@@ -28,77 +47,13 @@ logger = logging.getLogger(__name__)
 _custom_blueprints_registry: list[dict] = []
 
 
-# --- Optional: Marketplace (Wagtail) headless API helpers ---
-def get_marketplace_blueprints() -> list[dict]:
-    """Return blueprint marketplace items as plain dicts.
-
-    Attempts to import Wagtail models. If unavailable or disabled, returns an empty list.
-    """
-    try:
-        from django.conf import settings as dj_settings
-        if not getattr(dj_settings, 'ENABLE_WAGTAIL', False):
-            return []
-        from swarm.marketplace.models import BlueprintPage  # type: ignore
-        items = []
-        # Late import to avoid hard dependency during tests
-        for page in BlueprintPage.objects.live().public():  # type: ignore[attr-defined]
-            cat = None
-            try:
-                if getattr(page, 'category', None):
-                    cat = {
-                        'slug': getattr(page.category, 'slug', None),
-                        'name': getattr(page.category, 'name', None),
-                    }
-            except Exception:
-                cat = None
-            tags_str = getattr(page, 'tags', '') or ''
-            tag_list = [t.strip() for t in str(tags_str).split(',') if t.strip()]
-            items.append({
-                'id': page.id,
-                'title': getattr(page, 'title', None),
-                'summary': getattr(page, 'summary', ''),
-                'version': getattr(page, 'version', ''),
-                'category': cat,
-                'tags': tag_list,
-                'repository_url': getattr(page, 'repository_url', ''),
-                # Expose templates as content fields (already validated to avoid secrets)
-                'manifest_json': getattr(page, 'manifest_json', ''),
-                'code_template': getattr(page, 'code_template', ''),
-            })
-        return items
-    except Exception:
-        return []
-
-
-def get_marketplace_mcp_configs() -> list[dict]:
-    """Return MCP config marketplace items as plain dicts.
-
-    Attempts to import Wagtail models. If unavailable or disabled, returns an empty list.
-    """
-    try:
-        from django.conf import settings as dj_settings
-        if not getattr(dj_settings, 'ENABLE_WAGTAIL', False):
-            return []
-        from swarm.marketplace.models import MCPConfigPage  # type: ignore
-        items = []
-        for page in MCPConfigPage.objects.live().public():  # type: ignore[attr-defined]
-            items.append({
-                'id': page.id,
-                'title': getattr(page, 'title', None),
-                'summary': getattr(page, 'summary', ''),
-                'version': getattr(page, 'version', ''),
-                'server_name': getattr(page, 'server_name', ''),
-                'config_template': getattr(page, 'config_template', ''),
-            })
-        return items
-    except Exception:
-        return []
-
 class ModelsListView(APIView):
     """
     API view to list available models (blueprints) compatible with OpenAI's /v1/models format.
     """
-    permission_classes = [AllowAny]
+    # Respect ENABLE_API_AUTH (was hard-coded AllowAny — open discovery when locked down).
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         try:
@@ -141,7 +96,8 @@ class BlueprintsListView(APIView):
     """
     API view to list available blueprints with richer metadata than /v1/models.
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         try:
@@ -201,7 +157,9 @@ class CustomBlueprintsView(APIView):
     GET  /v1/blueprints/custom/           -> list (with optional filters)
     POST /v1/blueprints/custom/           -> create
     """
-    permission_classes = [AllowAny]
+    # Mutating surface: require token/session when API auth is enabled.
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         lib = get_user_blueprint_library()
@@ -230,6 +188,7 @@ class CustomBlueprintsView(APIView):
         filtered = [i for i in items if match(i)]
         return Response({"object": "list", "data": filtered}, status=status.HTTP_200_OK)
 
+    @extend_schema(summary="Create a custom blueprint", request=_custom_blueprint_request)
     def post(self, request, *_args, **_kwargs):
         try:
             body = request.data or {}
@@ -240,7 +199,8 @@ class CustomBlueprintsView(APIView):
 
             lib = get_user_blueprint_library()
             custom = lib.get("custom", [])
-            if any(i.get("id") == bp_id for i in custom):
+            existing_ids = {i.get("id") for i in custom}
+            if bp_id in existing_ids:
                 return Response({"error": "id already exists"}, status=status.HTTP_409_CONFLICT)
 
             item = {
@@ -278,7 +238,8 @@ class CustomBlueprintDetailView(APIView):
     PUT    /v1/blueprints/custom/<id>/
     DELETE /v1/blueprints/custom/<id>/
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def _load(self, bp_id: str):
         lib = get_user_blueprint_library()
@@ -304,8 +265,15 @@ class CustomBlueprintDetailView(APIView):
         lib["custom"] = items
         if not save_user_blueprint_library(lib):
             return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Keep in-memory fallback registry in sync (GET falls back when disk empty).
+        try:
+            _custom_blueprints_registry.clear()
+            _custom_blueprints_registry.extend(items)
+        except Exception:
+            pass
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @extend_schema(summary="Update a custom blueprint", request=_custom_blueprint_request)
     def patch(self, request, blueprint_id: str, *_args, **_kwargs):
         try:
             lib, items, item = self._load(blueprint_id)
@@ -326,6 +294,11 @@ class CustomBlueprintDetailView(APIView):
                     item[key] = body[key]
             if not save_user_blueprint_library(lib):
                 return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            try:
+                _custom_blueprints_registry.clear()
+                _custom_blueprints_registry.extend(items)
+            except Exception:
+                pass
             return Response(item, status=status.HTTP_200_OK)
         except Exception:
             logger.exception("Error updating custom blueprint")
@@ -334,56 +307,9 @@ class CustomBlueprintDetailView(APIView):
     put = patch
 
 
-class MarketplaceBlueprintsView(APIView):
-    """Headless API for marketplace blueprint pages (optional Wagtail)."""
-    permission_classes = [AllowAny]
-
-    def get(self, request, *_args, **_kwargs):
-        items = get_marketplace_blueprints()
-        # Simple filters: search by title or tag
-        search = (request.query_params.get('search') or '').strip().lower()
-        tag = (request.query_params.get('tag') or '').strip().lower()
-
-        def match(it: dict) -> bool:
-            if search and not (
-                search in str(it.get('title', '')).lower()
-                or search in str(it.get('summary', '')).lower()
-            ):
-                return False
-            if tag:
-                tags = [str(t).lower() for t in it.get('tags', [])]
-                if tag not in tags:
-                    return False
-            return True
-
-        data = [it for it in items if match(it)]
-        return Response({'object': 'list', 'data': data}, status=status.HTTP_200_OK)
-
-
-class MarketplaceMCPConfigsView(APIView):
-    """Headless API for marketplace MCP config pages (optional Wagtail)."""
-    permission_classes = [AllowAny]
-
-    def get(self, request, *_args, **_kwargs):
-        items = get_marketplace_mcp_configs()
-        # Simple filters: search by title or server_name
-        search = (request.query_params.get('search') or '').strip().lower()
-        server = (request.query_params.get('server') or '').strip().lower()
-
-        def match(it: dict) -> bool:
-            if search and not (
-                search in str(it.get('title', '')).lower()
-                or search in str(it.get('summary', '')).lower()
-            ):
-                return False
-            return not (server and server not in str(it.get('server_name', '')).lower())
-
-        data = [it for it in items if match(it)]
-        return Response({'object': 'list', 'data': data}, status=status.HTTP_200_OK)
-
-
 class MarketplaceGitHubBlueprintsView(APIView):
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         if not ENABLE_GITHUB_MARKETPLACE:
@@ -415,7 +341,8 @@ class MarketplaceGitHubBlueprintsView(APIView):
 
 
 class MarketplaceGitHubMCPConfigsView(APIView):
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
 
     def get(self, request, *_args, **_kwargs):
         if not ENABLE_GITHUB_MARKETPLACE:
@@ -453,3 +380,172 @@ def get_last_used_map() -> dict[tuple[str, str], float]:
     per-user usage from the database. Tests monkeypatch this function.
     """
     return {}
+
+
+class BlueprintSourceView(APIView):
+    """Read-only source of a blueprint's directory: file list + one file's content.
+
+    GET /v1/blueprints/<id>/source[?file=<name>] -> {files, primary, selected, content}.
+    Confined to the blueprint's own directory under BLUEPRINT_DIRECTORY (no traversal).
+    """
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    _ALLOWED_SUFFIXES = (".py", ".md", ".json", ".txt", ".toml", ".yaml", ".yml", ".cfg")
+
+    def get(self, request, blueprint_id, *_args, **_kwargs):
+        from pathlib import Path
+
+        from swarm.settings import BLUEPRINT_DIRECTORY
+
+        base = Path(BLUEPRINT_DIRECTORY).resolve()
+        bp_dir = (base / blueprint_id).resolve()
+        if base not in bp_dir.parents or not bp_dir.is_dir():
+            return Response({"error": "blueprint not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        files = sorted(
+            p for p in bp_dir.iterdir()
+            if p.is_file() and p.suffix in self._ALLOWED_SUFFIXES
+        )
+        if not files:
+            return Response({"id": blueprint_id, "files": [], "primary": None, "selected": None, "content": ""})
+
+        primary = next((p for p in files if p.name.startswith("blueprint_")), files[0])
+        target = primary
+        req_name = request.query_params.get("file")
+        if req_name:
+            cand = (bp_dir / req_name).resolve()
+            if cand.is_file() and cand.parent == bp_dir and cand.suffix in self._ALLOWED_SUFFIXES:
+                target = cand
+        try:
+            content = target.read_text(encoding="utf-8", errors="replace")[:200_000]
+        except OSError:
+            content = ""
+
+        return Response({
+            "id": blueprint_id,
+            "files": [{"name": p.name, "path": p.name} for p in files],
+            "primary": primary.name,
+            "selected": target.name,
+            "content": content,
+        })
+
+
+class CliAgentsView(APIView):
+    """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
+
+    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]}}.
+    """
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import cli_catalog
+
+        return Response({
+            "clis": cli_catalog.catalog_names(),
+            "native_consensus": cli_catalog.NATIVE_CONSENSUS,
+            "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
+        })
+
+
+class ConfigOptionsView(APIView):
+    """Everything the Builder UI needs to configure the new decoupling features.
+
+    GET /v1/config-options/ ->
+      {
+        skills:        [{name, description, assets}],
+        inference: {
+          traits:      ["intelligence","speed","cost"],
+          cli_traits:  {cli: {trait: 0..1}},     # per-provider defaults
+          model_traits:{model: {trait: 0..1}},   # per-model overrides
+          model_flags: {cli: "<flag>"},          # how each CLI pins a model
+        },
+        tools: {
+          capabilities: ["web_search","browser",...],
+          mcp_catalog:  [{name, provides, command, args, needs_auth, env, note}],
+        },
+      }
+    """
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import cli_catalog, inference_profile, skills, tool_capabilities
+
+        return Response({
+            "skills": [
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "assets": s.assets,
+                    "instructions": s.instructions,
+                }
+                for s in skills.discover_skills().values()
+            ],
+            "inference": {
+                "traits": list(inference_profile.TRAITS),
+                "cli_traits": cli_catalog.CLI_TRAITS,
+                "model_traits": cli_catalog.MODEL_TRAITS,
+                "model_flags": cli_catalog.MODEL_FLAG,
+            },
+            "tools": {
+                "capabilities": sorted(
+                    {c for s in tool_capabilities.CATALOG for c in s.provides}
+                ),
+                "mcp_catalog": [
+                    {
+                        "name": s.name,
+                        "provides": list(s.provides),
+                        "command": s.command,
+                        "args": list(s.args),
+                        "needs_auth": s.needs_auth,
+                        "auth_env": list(s.auth_env),
+                        "note": s.note,
+                    }
+                    for s in tool_capabilities.CATALOG
+                ],
+            },
+        })
+
+
+class BlueprintToolsView(APIView):
+    """Resolve a blueprint's abstract tool needs to concrete MCP providers.
+
+    GET /v1/blueprints/<id>/tools -> for a blueprint declaring ``tool_requirements``
+    in its metadata, returns the providers each capability resolves to (non-auth
+    preferred, auto-provisioned from the catalog), so the decoupling is inspectable:
+      {
+        requirements: {capability: "mandatory"|"optional"},
+        servers:      {name: {command, args, provides, ...}},  # what to launch
+        satisfied:    {capability: server_name},
+        missing_mandatory: [...], skipped_optional: [...], ok: bool,
+      }
+    """
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, blueprint_id: str, *_args, **_kwargs):
+        from swarm.core import tool_capabilities
+        from swarm.core.config_loader import find_config_file, load_config
+
+        blueprints = async_to_sync(get_available_blueprints)()
+        info = blueprints.get(blueprint_id) if isinstance(blueprints, dict) else None
+        if info is None:
+            return Response({"detail": f"Unknown blueprint '{blueprint_id}'."},
+                            status=status.HTTP_404_NOT_FOUND)
+        meta = info.get("metadata", {}) if isinstance(info, dict) else {}
+        requirements = meta.get("tool_requirements") or {}
+
+        cfg_file = find_config_file()
+        config = load_config(cfg_file) if cfg_file else {}
+        servers, res = tool_capabilities.resolve_mcp_servers(requirements, config)
+        return Response({
+            "blueprint": blueprint_id,
+            "requirements": tool_capabilities.normalize_requirements(requirements),
+            "servers": servers,
+            "satisfied": res.satisfied,
+            "missing_mandatory": res.missing_mandatory,
+            "skipped_optional": res.skipped_optional,
+            "ok": res.ok,
+        })

@@ -1,17 +1,19 @@
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from tests.xdg_isolation import pin_xdg_env
+
 # Tests for:
 # 1) swarm-cli config add persists secrets to ~/.config/swarm/.env
 # 2) ${ENV_VAR} expansion works via config_loader substitution
 #
 # Notes:
-# - Runs in isolated HOME to avoid polluting host environment.
+# - Runs in isolated HOME/XDG to avoid polluting host environment and to
+#   survive a broken host ~/.cache symlink.
 # - Uses SWARM_TEST_MODE for determinism if respected by the CLI.
 # - If 'swarm-cli config add' is not implemented, we skip the persistence assertion gracefully.
 
@@ -20,12 +22,14 @@ PYTEST_ROOT = Path(__file__).resolve().parents[2]
 SWARM_MODULE = "src.swarm.extensions.launchers.swarm_cli"
 
 
-def run_cli(env_overrides: dict, args: list[str]) -> tuple[int, str, str]:
-    env = os.environ.copy()
-    # Ensure XDG_CONFIG_HOME doesn't override our HOME isolation if not intended
-    if "HOME" in env_overrides and "XDG_CONFIG_HOME" not in env_overrides:
-        env.pop("XDG_CONFIG_HOME", None)
-    env.update(env_overrides)
+def run_cli(home: Path, env_overrides: dict, args: list[str]) -> tuple[int, str, str]:
+    env = pin_xdg_env(
+        home=home,
+        overrides={
+            "DJANGO_DEBUG": "true",
+            **env_overrides,
+        },
+    )
 
     cmd = [sys.executable, "-m", SWARM_MODULE] + args
     proc = subprocess.run(
@@ -62,8 +66,8 @@ def test_cli_config_add_persists_secrets_to_env_file(tmp_path, key, value):
 
     for args in tried_cmds:
         rc, out, err = run_cli(
+            home,
             {
-                "HOME": str(home),
                 "SWARM_TEST_MODE": "1",
                 "SWARM_STARTUP_HINTS": "0",
             },
@@ -125,7 +129,7 @@ def test_env_var_expansion_in_config_loader(tmp_path, monkeypatch):
     # Some loaders may read XDG_CONFIG_HOME; ensure default path under HOME/.config/swarm works.
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
-    from src.swarm.extensions.config import config_loader  # type: ignore
+    from src.swarm.core import config_loader  # type: ignore
 
     # Many loaders accept an explicit config_path; provide it for clarity in tests
     cfg = config_loader.load_config(config_path=str(config_path))  # Should resolve env vars recursively

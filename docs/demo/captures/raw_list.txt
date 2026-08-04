@@ -1,0 +1,26 @@
+--- Installed Blueprint Executables (in /home/matthewh/.local/share/swarm/bin) ---
+- jeeves
+
+--- Bundled Blueprints (available from package) ---
+- django_chat (entry: apps.py)
+- gawd (entry: apps.py)
+- geese (entry: geese_memory_objects.py)
+- dynamic_team (entry: blueprint_dynamic_team.py)
+- poets (entry: poets_cli.py)
+- flock (entry: blueprint_flock.py)
+- stewie (entry: apps.py)
+- rue_code (entry: blueprint_rue_code.py)
+- chucks_angels (entry: blueprint_chucks_angels.py)
+- digitalbutlers (entry: blueprint_digitalbutlers.py)
+- jeeves (entry: blueprint_jeeves.py)
+- zeus (entry: apps.py)
+- common (entry: progress.py)
+- whiskeytango_foxtrot (entry: apps.py)
+- suggestion (entry: suggestion_cli.py)
+- codey (entry: blueprint_codey.py)
+- whinge_surf (entry: blueprint_whinge_surf.py)
+
+--- User Blueprint Sources (in /home/matthewh/.local/share/swarm/blueprints) ---
+(No user blueprint sources found in /home/matthewh/.local/share/swarm/blueprints)
+You can add blueprints by copying their source folders to this directory.
+

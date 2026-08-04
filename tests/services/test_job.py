@@ -385,11 +385,23 @@ class TestDefaultJobService:
         pruned_ids = job_service.prune_completed()
         assert pruned_ids == []
 
+    @staticmethod
+    def _join_monitor_threads(job_service):
+        """Wait for background monitor threads to finish.
+
+        launch() starts a real monitor thread whose `finally` block re-inserts
+        the job into the service's job dict; joining first makes the
+        mutate-then-prune assertions deterministic instead of racing it.
+        """
+        for thread in list(job_service._threads.values()):
+            thread.join(timeout=5)
+
     @patch('swarm.services.job.subprocess.Popen')
     def test_prune_completed_jobs(self, mock_popen, job_service):
         """Test pruning completed jobs."""
         job_id1 = job_service.launch(["echo", "hello"])
         job_id2 = job_service.launch(["python", "-m", "http.server"])
+        self._join_monitor_threads(job_service)
 
         job1 = job_service.get_status(job_id1)
         job1.status = "COMPLETED"
@@ -430,6 +442,7 @@ class TestDefaultJobService:
     def test_prune_with_log_file_deletion(self, mock_unlink, mock_popen, job_service):
         """Test that log files are deleted when pruning jobs."""
         job_id = job_service.launch(["echo", "hello"])
+        self._join_monitor_threads(job_service)
         job = job_service.get_status(job_id)
         job.status = "COMPLETED"
         job.exit_code = 0
@@ -444,6 +457,7 @@ class TestDefaultJobService:
         mock_unlink.side_effect = OSError("Cannot delete file")
 
         job_id = job_service.launch(["echo", "hello"])
+        self._join_monitor_threads(job_service)
         job = job_service.get_status(job_id)
         job.status = "COMPLETED"
         job.exit_code = 0

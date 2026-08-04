@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { Button } from './Button';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
@@ -70,8 +70,9 @@ export const Pagination = ({
         onClick={() => onPageChange(1)}
         disabled={currentPage === 1}
         className={buttonSize[size]}
+        aria-label="First page"
       >
-        <ChevronsLeft className="h-4 w-4" />
+        <ChevronsLeft className="h-4 w-4" aria-hidden="true" />
       </Button>
 
       {/* Previous page button */}
@@ -81,8 +82,9 @@ export const Pagination = ({
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
         className={buttonSize[size]}
+        aria-label="Previous page"
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       </Button>
 
       {/* Page numbers */}
@@ -92,6 +94,7 @@ export const Pagination = ({
             key={page}
             className={`btn ${buttonSize[size]} ${currentPage === page ? 'btn-active' : ''}`}
             onClick={() => onPageChange(page)}
+            aria-current={currentPage === page ? 'page' : undefined}
           >
             {page}
           </button>
@@ -105,8 +108,9 @@ export const Pagination = ({
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
         className={buttonSize[size]}
+        aria-label="Next page"
       >
-        <ChevronRight className="h-4 w-4" />
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Button>
 
       {/* Last page button */}
@@ -116,8 +120,9 @@ export const Pagination = ({
         onClick={() => onPageChange(totalPages)}
         disabled={currentPage === totalPages}
         className={buttonSize[size]}
+        aria-label="Last page"
       >
-        <ChevronsRight className="h-4 w-4" />
+        <ChevronsRight className="h-4 w-4" aria-hidden="true" />
       </Button>
     </div>
   );
@@ -193,21 +198,15 @@ export const AdvancedPagination = ({
 }) => {
   if (totalPages <= 1) return null;
 
-  const buttonSize = {
-    sm: 'btn-sm',
-    md: 'btn-md',
-    lg: 'btn-lg',
-  };
-
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-base-content/70">
         Showing {(currentPage - 1) * itemsPerPage + 1} to 
         {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">Items per page:</span>
+        <span className="text-sm text-base-content/70">Items per page:</span>
         <select
           className="select select-bordered select-sm"
           value={itemsPerPage}
@@ -240,13 +239,11 @@ export const usePagination = (
   const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage);
 
   const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    setCurrentPage(Math.max(1, page));
   };
 
   const goToNext = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
+    setCurrentPage(currentPage + 1);
   };
 
   const goToPrevious = () => {
@@ -291,26 +288,29 @@ export const usePagination = (
     calculateTotalPages,
     getCurrentPageItems,
     setCurrentPage,
-    setItemsPerPage: setItemsPerPageHandler,
   };
 };
 
 /**
  * Infinite scroll pagination hook
  */
-export const useInfiniteScroll = (
-  initialItems: any[] = [],
+export const useInfiniteScroll = <T,>(
+  initialItems: T[] = [],
   itemsPerPage: number = 10
 ) => {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<T[]>(initialItems);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const [page, setPage] = useState(1);
 
-  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<any[]>) => {
+  const isEmpty = items.length === 0 && !hasMore && !isLoading && !error;
+
+  const loadMore = async (fetchFunction: (page: number, itemsPerPage: number) => Promise<T[]>) => {
     if (isLoading || !hasMore) return;
 
     setIsLoading(true);
+    setError(null);
     try {
       const newItems = await fetchFunction(page + 1, itemsPerPage);
       
@@ -320,8 +320,9 @@ export const useInfiniteScroll = (
         setItems(prev => [...prev, ...newItems]);
         setPage(prev => prev + 1);
       }
-    } catch (error) {
-      console.error('Error loading more items:', error);
+    } catch (err) {
+      console.error('Error loading more items:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsLoading(false);
     }
@@ -330,6 +331,7 @@ export const useInfiniteScroll = (
   const reset = () => {
     setItems(initialItems);
     setHasMore(true);
+    setError(null);
     setPage(1);
   };
 
@@ -337,16 +339,20 @@ export const useInfiniteScroll = (
     items,
     hasMore,
     isLoading,
+    error,
+    isEmpty,
     loadMore,
     reset,
     setItems,
   };
 };
 
-export default {
+const PaginationComponents = {
   Pagination,
   SimplePagination,
   AdvancedPagination,
   usePagination,
   useInfiniteScroll,
 };
+
+export default PaginationComponents;

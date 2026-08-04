@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 
 /**
  * Alert component using DaisyUI classes
@@ -9,6 +9,7 @@ export interface AlertProps {
   type?: 'info' | 'success' | 'warning' | 'error';
   icon?: ReactNode;
   className?: string;
+  role?: string;
 }
 
 export const Alert = ({
@@ -16,6 +17,7 @@ export const Alert = ({
   type = 'info',
   icon,
   className = '',
+  role = 'alert',
 }: AlertProps) => {
   const alertClasses = [
     'alert',
@@ -24,7 +26,7 @@ export const Alert = ({
   ].filter(Boolean);
 
   return (
-    <div role="alert" className={alertClasses.join(' ')}>
+    <div role={role} className={alertClasses.join(' ')}>
       {icon && <div className="mr-2">{icon}</div>}
       <div>{children}</div>
     </div>

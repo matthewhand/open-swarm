@@ -1,0 +1,752 @@
+# Granular commit log for the 2026-06 FOSS cleanup waves
+# (squashed into main as 8de3c161; full per-change narrative below, newest first)
+
+858bc837 2026-06-11 feat(asgi): wire websocket chat; release prep 0.3.0; docs current
+    - swarm/asgi.py + routing.py (channels/daphne were core deps all along,
+     never wired); 9 full-stack ws tests; live-verified under daphne
+    - version 0.3.0; CHANGELOG sectioned; ROADMAP/FEATURE_STATUS rows
+     updated (websocket ✅; Wagtail/SAML decision recorded: drop, execution
+     delegated to next agent)
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+92db4db1 2026-06-11 docs: correct websocket-chat status — consumer exists but is unroutable
+    settings.py references swarm.asgi.application which does not exist; 
+    channels is not in INSTALLED_APPS. Verified live: plain runserver never 
+    upgrades /ws/ai-demo/. New ROADMAP §2 item to create asgi.py + routing. 
+    SPA rows updated for the auth flow + ChatPage work.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+6e71db3c 2026-06-11 feat(webui): auth token UX and websocket ChatPage
+    - api.ts: ApiAuthError + window auth-error event on 401/403
+    - AuthContext: token state persisted to localStorage; no login wall
+     (tokenless requests still work on auth-disabled deployments)
+    - SettingsPage: masked token entry, save/clear, immediate query retry
+    - AuthErrorBanner shown only after a real 401/403, links to Settings
+    - ChatPage: blueprint selector, chat bubbles, streaming via
+     ws /ws/ai-demo/<id>/ with a parser translating the server's HTMx
+     partials into typed events; honest 'unavailable' fallback — verified
+     live that plain runserver does NOT upgrade the ws (no ASGI routing
+     exists backend-side; see ROADMAP)
+    - type-check and build green
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+ae61a44b 2026-06-11 fix(mcp): make ENABLE_MCP_SERVER honest instead of broken
+    Research: PyPI 'django-mcp-server' (v0.5.7) installs module
+    'mcp_server', not 'django_mcp_server' — the /mcp/ mount could never
+    import. Worse, settings.py appended the nonexistent app to
+    INSTALLED_APPS inside a useless try/except (list append never raises),
+    so setting the flag CRASHED django.setup(). Now:
+    - settings registers the app only if importable (find_spec, robust to
+     spec-less test stubs), warns otherwise
+    - urls.py except branch logs a clear warning naming the missing module
+    - docs/mcp_server_mode.md documents the real adoption options
+    - guard test asserts the warning and 404 behavior Boot verified with
+    flag on; suite 858 passed.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+14314ab2 2026-06-11 chore: add triaged remote-branch deletion script (dry-run default docs)
+    Tier 1 recomputed mechanically at run time (merged into origin/main); 
+    tiers 2-4 from the 2026-06-10 full triage (superseded / duplicate / 
+    stale-diverged incl. reviewed refactor-wip). Run AFTER pushing main.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+f75de838 2026-06-11 docs(config): document memory configuration (mem0 default, experimental)
+    Every key verified against code: backend / user_id / limit / config
+    (passed to mem0.Memory.from_config); per-blueprint over top-level 
+    resolution order; pre-run injection + post-run storage semantics; 
+    graceful disable without the [memory] extra. Honest status note re: 
+    fake-backend testing and langmem/papr placeholders.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+c363e460 2026-06-11 docs(roadmap): check off second-wave completions
+    16 branches merged, refactor-wip verdict (nothing to salvage), async 
+    test salvage, blueprint test collection, stewie rename, shim migrations,
+    Teams JSON API + TeamsPage, CI/publish/CONTRIBUTING. Suite: 857 passed /
+    2 skipped / 0 failed.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+1f6ea0b7 2026-06-11 ci: add release-gated publish workflow and CONTRIBUTING.md
+    Companions to the workflow deletions already landed: the deleted 
+    testpypi.yaml published to REAL PyPI on every push to main with 
+    sed-timestamp versions; publish.yml is release/tag-driven with 
+    workflow_dispatch (testpypi default), version from pyproject. 
+    CONTRIBUTING.md references only files that exist.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+650e7551 2026-06-11 feat(teams): JSON Teams API + wire SPA TeamsPage
+    - /v1/teams/ GET/POST and /v1/teams/<id>/ DELETE (views/teams_api.py),
+     OpenAI-style list envelope, permissions consistent with sibling /v1
+     endpoints; routes registered in urls.py (previous commit)
+    - TeamsPage rewritten from honest-empty state to react-query CRUD with
+     loading/error/empty states; api.ts gains fetchTeams/createTeam/
+     deleteTeam
+    - tests/views/test_teams_api.py covers list/create/delete + auth
+    - frontend type-check and build green
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+b03934d1 2026-06-11 fix(routing): route custom_login; redirect legacy /webui/
+    - accounts/login/ (name 'login', Django default) and login/ (name
+     'custom_login', matches settings.LOGIN_URL) both serve custom_login;
+     previously the view had no URL and /accounts/login/ 404'd
+    - WebUIView now redirects to / (its webui/index.html template no longer
+     exists; route kept for backward compat)
+    - locked by tests/views/test_login_routing.py (14 tests incl. open-
+     redirect rejection through the routed URL)
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+e678c50d 2026-06-11 test: eliminate session-poisoning sys.modules mocks from merged branches
+    Three merged agent branches wrote MagicMocks into sys.modules at import
+    (typer/click/platformdirs in test_swarm_cli_utils; django/httpx in 
+    test_github_client) — poisoning the whole pytest session and breaking 
+    later CLI tests with 'click is not a package'. All are real deps here; 
+    mocks removed. test_launchers now surfaces result.exception on failure 
+    instead of a bare exit-code assert.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+414c93d5 2026-06-11 fix(models): register marketplace models and add their missing migration
+    The GitHubClient refactor merge introduced swarm/models/core_models.py 
+    whose models registered with Django only when the submodule happened to 
+    be imported (e.g. at test collection) — with no migration, test-database 
+    serialization then queried a nonexistent marketplace_blueprint table, 
+    erroring 82 tests order-dependently. Models now import in 
+    swarm/models/__init__.py; migration 0011 creates the tables.
+
+    Also restore serialize_datetime as a back-compat wrapper around 
+    swarm_json_serializer (two test modules import it).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+8c7ae93d 2026-06-10 test: port async API tests from archive branch (salvage complete)
+    auth/validation/failing async chat-completions tests adapted to the 
+    current API layer; closes the interrupted archive-salvage roadmap item.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+4d655fdb 2026-06-10 test: restore manifest-creation coverage on new GitHubClient module
+    Re-adds the fix-github-client-tests branch's manifest tests, rewritten 
+    from session-poisoning sys.modules mocks to per-test monkeypatch of the 
+    module's Blueprint/MCPConfig (the old style broke pytest-django). 12
+    tests pass.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+131ec4a7 2026-06-10 Merge: refactor-github-client-args (GitHubClient config object, models package fix)
+    From triage of unmerged agent branches (merge-worthy #14). Fixes the 
+    import-broken swarm.models.core_models (models/ dir lacked __init__.py 
+    and was shadowed by models.py).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+    # Conflicts:
+    #	tests/services/test_github_client.py
+
+f6ab4a89 2026-06-10 test: drop obsolete TestSerializeDatetime from merged json tests
+    serialize_datetime was replaced by swarm_json_serializer in the 
+    json-dumps branch (already merged); the surviving tests cover the same
+    datetime behavior. Fixes collection error from the conflict resolution.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+0fe6bb87 2026-06-10 Merge: fix-github-client-tests-and-cleanup-13306157145992233602
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+b96924b0 2026-06-10 Merge: fix-silenced-exception-consumers-635413646384447553
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+7796fde7 2026-06-10 Merge: testing-improvement-merge-chunk-7517809755519373335
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+97c5d0b9 2026-06-10 Merge: testing-improvement-json-utils-16471455918804581912
+    Add/add conflict with the json-dumps branch's richer version of the same
+    file: kept that version, salvaged the unique TestSerializeDatetime class
+    from this branch, dropped its duplicate TestCustomJsonDumps.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+9268cd23 2026-06-10 Merge: testing-improvement-json-dumps-3119663989176998118
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+1403a7d8 2026-06-10 test: int content is coerced by DRF, only non-dict items error
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+6cb6f66b 2026-06-10 test: adapt merged branch tests to current behavior
+    - serializers: DRF reports per-item positional errors (non_field_errors
+     for non-dict items), not the custom item_N shape the branch expected
+    - saml settings: scope the open() mock to the spconfig file only --
+     settings.py legitimately reads .env during import now
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+b55608ee 2026-06-10 Merge test coverage: test-serializers-improvement-11722632366688355403
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+68c2033c 2026-06-10 Merge test coverage: test-saml-settings-error-handling-11909144457732923469
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+17d4d6fb 2026-06-10 Merge test coverage: test-get-agent-name-utility-13038436601444276343
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+47c0fd28 2026-06-10 Merge test coverage: testing-improvement-find-entry-point-utility-8861643876763756281
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+9606f14f 2026-06-10 Merge test coverage: testing-improvement-filter-blueprints-12058467774434414197
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+1a1f1008 2026-06-10 Merge test coverage: testing-improvement-paths-tests-15180172352266963163
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+cc7a464f 2026-06-10 Merge test coverage: testing-improvement-tool-utils-18224706002408321836
+    From triage of unmerged agent branches (merge-worthy).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+0f397991 2026-06-10 docs(mcp): correct stale provider docstring — call_tool executes blueprints
+    FEATURE_STATUS audit verified provider.py:84-137 really executes 
+    blueprints with passing tests; the 'TODO: integrate real execution' 
+    claim predated that. Point remaining gaps at ROADMAP §3.3.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+f0f18d76 2026-06-10 docs(roadmap): reflect cleanup wave; add newly-found unfinished items
+    Check off everything landed 2026-06-10; add discoveries from the wave: 
+    custom_login has no URL route, /webui/ 500s, blueprint test_basic.py 
+    files never collected (testpaths), stewie module naming debt, async API 
+    test port unfinished, shim sunset plan, Teams JSON API gap, npm audit 
+    advisories, MCP server dep undeclared, release-engineering section.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+7834f57d 2026-06-10 Merge security fix: validate redirect URLs in custom_login (open redirect)
+    From triage of 84 unmerged agent branches (merge-worthy, security #1). 
+    Conflict resolved by grafting the next-URL validation onto the hardened 
+    auto-login path (testpass-era code on the branch was superseded by 
+    6fe06d07).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+27293c87 2026-06-10 Merge security fix: secure_subprocess wrapper for sandboxed execution
+    From triage of 84 unmerged agent branches (merge-worthy, security #2).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+076ea4b0 2026-06-10 Merge security fix: enable CSRF protection on agent/team creator views
+    From triage of 84 unmerged agent branches (merge-worthy, security #3).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+1b9770f1 2026-06-10 refactor: consolidate duplicate implementations to single sources of truth
+    Strangler-fig consolidation (winners absorb, losers shim with 
+    DeprecationWarning + ROADMAP sunset pointer):
+
+    - spinners 5->1: core/spinner.py absorbs SwarmSpinner (lazy rich
+     import); common/spinner + ux/spinner are shims; geese_spinner deleted
+     (zero importers); 3 CLI import sites repointed
+    - config loaders 2->1: core/config_loader absorbs extensions version
+     (find/load/save/validate/profile/create_default); extensions file is
+     a shim (views/settings_manager keeps working); dead config_manager,
+     server_config, setup_wizard deleted (import-broken or zero importers)
+    - extensions/blueprint: package was fully unimportable (bad __init__);
+     now a thin shim re-exporting core BlueprintBase/discovery/messages +
+     spinner + slash_commands (README path works again); 11 dead modules
+     and modes/ deleted
+    - ansi boxes: utils/ansi_box shims ux version; get_cli_splash rewired
+     to string-returning core.output_utils.ansi_box
+    - pyproject swarm-cli entry verified correct (core IS the maintained
+     target); unchanged
+    - tests: +38 incl. test_deprecation_shims.py locking shim identity
+
+    Full suite: 711 passed, 2 skipped, 0 failed; manage.py check clean; all
+    4 entry points verified.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+6fe06d07 2026-06-10 fix(security): remove testuser auto-login bypass; auth-on-by-default
+    Implements the bypass-flag audit (pattern: explicit flag + production 
+    refusal + documented):
+
+    - testuser auto-login now requires ALLOW_TESTUSER_AUTOLOGIN=true AND
+     DJANGO_DEBUG=true; flag outside debug raises ImproperlyConfigured;
+     password is per-process random (secrets) or TESTUSER_PASSWORD env --
+     no 'testpass' literal remains in src (regression-tested)
+    - django_chat default-user creation refuses outside debug
+    - production boot refuses without API_AUTH_TOKEN/SWARM_API_KEY
+     (get_enforced_api_auth_token); debug warns once
+    - manage.py runserver: auth ON by default; --disable-auth requires
+     debug; --enable-auth deprecated no-op
+    - csrf_exempt removed from team_admin and settings views (forms
+     verified to send csrf_token)
+    - .env.example rewritten: required-in-production section with
+     generation commands; dev-only-flags section with warnings
+    - tests: +29 (test_auth_hardening.py); fix pre-existing flake in
+     test_job.py (race with background monitor thread)
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+cf3a05a4 2026-06-10 docs: add screenshot-illustrated user journey guide
+    - docs/USER_JOURNEY.md: install -> CLI (verbatim captured output) ->
+     web UI tour (7 Playwright screenshots, demo/mock data labeled) ->
+     OpenAI-compatible API examples -> regeneration instructions
+    - scripts/capture_user_journey.py: idempotent capture harness (starts
+     its own server on :8321, superuser fallback for auth'd pages,
+     skips-and-reports broken pages)
+    - docs/screenshots/: 7 PNGs + index; current/archive convention
+    - README: linked from Development section
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+9706202f 2026-06-10 fix(urls): spa_fallback missing default for path arg
+    The SPA catch-all re_path has no capture group, so Django called 
+    spa_fallback(request) while the signature required path -> TypeError / 
+    HTTP 500 on every non-root SPA route (e.g. /login/). Found while 
+    capturing user-journey screenshots. Verified /login/ and arbitrary SPA 
+    routes now return 200.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+b2739033 2026-06-10 feat(webui): wire SPA to real APIs, remove all mock data
+    - src/lib/api.ts: typed fetch wrapper (bearer token, ApiError),
+     fetchBlueprints/fetchModels; /v1 added to vite proxy
+    - BlueprintsPage: real /v1/blueprints/ via react-query with loading/
+     error/empty states; fabricated ratings/installs/featured removed
+    - TeamsPage: honest 'Teams API not yet implemented (see ROADMAP)' state
+     linking the server-rendered /teams/ page; mock teams removed
+    - Dashboard: real blueprint/model counts; fake activity table and
+     invented stats removed; System Status derived from live query health
+    - QueryClientProvider in main.tsx
+    - webui/frontend/.gitignore: negate root 'lib/' pattern that silently
+     ignored src/lib/
+    - type-check and build pass; zero mock data remains in src
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+9f81a618 2026-06-10 docs: add FEATURE_STATUS.md evidence-table feature audit
+    58 evidence rows across 10 domains; every row cites file:line and the 
+    specific defect/proof. Notable verified findings: MCP server provider 
+    actually executes blueprints (its TODO docstring is stale); 
+    swarm.extensions.blueprint package is import-broken (circular import, 
+    references removed swarm.core.Swarm); blueprint test_basic.py files are 
+    never collected (testpaths=tests); stewie module still named 
+    blueprint_family_ties.py. Rows for urls.py SPA bug and memory wiring 
+    updated same-day to reflect fixes f1fa20b1 / 4c7e1b28.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+4c7e1b28 2026-06-10 feat(memory): wire opt-in memory backends into the agent loop
+    Roadmap item 'pass memory context into BlueprintBase runs':
+    - MemoryBackend protocol (search/add) + get_memory_backend() factory;
+     mem0 lazy-imported, warns and degrades to None when [memory] extra
+     absent; langmem/papr remain explicit placeholders
+    - BlueprintBase: resolves backend from blueprint config ('memory'
+     block), injects retrieved memories into run context before execution,
+     stores conversation after; strict no-op when unconfigured
+    - 11 tests: fake backend, no-op default, injection, post-run storage,
+     graceful-missing-mem0 (incl. logger propagation fix for caplog)
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+d9996f7c 2026-06-10 test: port salvaged coverage from archive branch
+    From archive/local-main-2025-04 (pre-restructure local main), adapted to
+    current module layout: general_utils unit tests, spinner/result-box UX
+    tests for geese/jeeves/rue_code/zeus, api conftest, and the parallel 
+    stress-test harness (scripts/stress_test_suite.py). 43 tests, all green. 
+    Async API test port was interrupted by session restart; tracked for 
+    follow-up.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+a7aad56f 2026-06-10 chore: remove tier-1 dead code (8 orphaned blueprints, dead modules)
+    All verified zero-import before deletion; full suite green after
+    (619 passed / 0 failed; A/B run confirmed no failure attributable).
+
+    - blueprints: chatbot, echocraft, mcp_demo, messenger,
+     mission_improbable, monkai_magic, nebula_shellz, omniplex
+    - modules: repl/, agent/, llm/, cli/ (async_input superseded by
+     extensions/cli/utils), messages.py, 4 duplicate PyInstaller builders
+    - stale system test scripts for deleted blueprints; compliance script
+     blueprint list updated
+
+    Kept (audit false-positives with live imports): tool_executor.py, 
+    mcp/apps.py+integration.py, extensions/blueprint/output_utils.py, 
+    blueprints/common/output_formatters.py.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+ce436086 2026-06-10 fix(webui): regenerate lockfile, repair type-check, fix Pagination bugs
+    - package-lock.json regenerated in sync with package.json (npm ci was
+     impossible: @testing-library subtree never locked); npm is canonical
+    - tsconfig: add jsx react-jsx (type-check previously failed everywhere);
+     fix all 36 surfaced TS errors (prop unions, Omit size/color clashes,
+     dead inline page stubs shadowing imported pages, unused React imports)
+    - Pagination: remove duplicate setItemsPerPage key; add missing useState
+     import; clamp goToPage/goToNext (referenced undefined totalPages)
+    - add src/vite-env.d.ts for vite client types
+    - npm run build and npm run type-check both pass (node 22)
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+3419d809 2026-06-10 fix(security): production-safe defaults for SECRET_KEY, DEBUG, ALLOWED_HOSTS
+    - DJANGO_SECRET_KEY required when not in debug (ImproperlyConfigured);
+     insecure fallback now dev-only
+    - DJANGO_DEBUG defaults to false (was true)
+    - DJANGO_ALLOWED_HOSTS required in production; localhost default is
+     debug-only; entries whitespace-stripped
+    - pytest bootstraps DJANGO_DEBUG=true via settings.py TESTING guard
+     (pytest-django loads settings before conftest) + conftest setdefault;
+     explicit env always wins so tests can exercise production mode
+    - tests: +3 covering the new refusals
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+f1fa20b1 2026-06-10 fix(urls): use django.urls re_path; make index test hermetic
+    django.conf.urls.re_path was removed in Django 4; the import only 
+    executes when webui/frontend/dist exists, so it lay dormant until the 
+    frontend was first built locally and then broke 59 view/mcp tests.
+
+    test_index_success now forces _ensure_frontend_built() -> None so it 
+    tests the template fallback path regardless of dist/ presence.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+dbca45f1 2026-06-10 docs(readme): rewrite as honest FOSS-product README
+    1153 -> ~210 lines. Removes era-accretion: triplicated uv tips,
+    duplicate env-var/scaffolding/contributing sections, S-tier marketing,
+    blueprint table rows for deleted blueprints, and docs for swarm-cli
+    commands that no longer exist (wizard/config/add -> noted in roadmap
+    instead).
+
+    Structure: what it is -> verified quickstarts (CLI + API) -> concepts -> 
+    curated blueprint table -> env vars with security warnings -> dev guide
+    -> nested 'Roadmap / Unfinished Features' section at bottom mapping all 
+    known-incomplete work (React SPA mock-data status, memory wiring, MCP 
+    server mode, auth hardening, consolidation, marketplace/SAML decision).
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+720a08ae 2026-06-10 fix(packaging): repair uv resolution, entry-point typo, URLs, test deps
+    - remove phantom langmem/papr pins from [memory] extra (imports were
+     commented-out placeholders); fix mem0 -> mem0ai (actual PyPI dist)
+    - uv lock / uv sync --all-extras now succeed (were hard-broken)
+    - fix leading space in swarm-cli script key
+    - replace yourusername placeholder URLs with matthewhand
+    - add pytest-timeout to dev/test extras (pytest.ini relies on it)
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+68d68a82 2026-06-10 docs: add nested ROADMAP, attribution, slim TODO; archive cruft reports
+    - ROADMAP.md: nested-checkbox roadmap (shipped / nearly-done /
+    far-from-done)
+    - README: OpenAI Swarm / openai-agents attribution; Python>=3.10,
+    Node>=22
+     prerequisites; React webui marked experimental (Django UI is supported)
+    - TODO.md slimmed 328->40 lines, strategic content moved to ROADMAP.md
+    - CHANGELOG: Unreleased entry for the June 2026 cleanup wave
+    - CODE_SWEEP_REPORT.md deleted; IMPLEMENTATION_SUMMARY.md ->
+    docs/archive/
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+f9a8b33a 2026-06-10 chore: untrack node_modules and .letta, extend .gitignore
+    webui/frontend/node_modules (8,356 files, ~69MB) and personal .letta/ 
+    settings were tracked in git. Files remain on disk; only the index 
+    changes. Blocks FOSS publication otherwise.
+
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+dc669a4a 2026-06-04 feat: add tests and enhance custom_json_dumps for UUID and date support
+    - Implemented comprehensive unit tests for `custom_json_dumps` in
+    `tests/unit/test_general_utils_json.py`.
+    - Enhanced `swarm_json_serializer` (formerly `serialize_datetime`) to
+    handle `uuid.UUID` and `datetime.date` objects.
+    - Added type documentation and improved code clarity in
+    `src/swarm/utils/general_utils.py`.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+4e8c99c7 2026-06-04 🧪 [testing improvement] Add unit tests for find_entry_point utility
+    Implemented comprehensive unit tests for the `find_entry_point` utility
+    in `src/swarm/core/swarm_cli.py`. The tests cover:
+    - Single valid `.py` file (returns full filename).
+    - Multiple valid `.py` files.
+    - Ignoring files starting with underscores (e.g., `__init__.py`).
+    - Ignoring subdirectories with `.py` extension.
+    - Handling of empty directories and directories without `.py` files.
+
+    Mocks were used for environment-specific dependencies (`typer`, `click`,
+    `platformdirs`) to ensure tests run reliably in restricted environments.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+5d093f80 2026-06-04 🔒 [security] Fix Open Redirect vulnerability in custom_login view.
+    Validated the 'next' URL parameter using Django's
+    'url_has_allowed_host_and_scheme' to ensure redirects remain within the
+    allowed host and use secure schemes when appropriate. Applied to both
+    manual and auto-login paths. Added regression tests.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+2525e794 2026-06-04 🧪 Implement unit tests for merge_chunk and merge_fields
+    This PR adds a new test file `tests/unit/test_util.py` to cover the
+    utility functions in `src/swarm/util.py`.
+    - `merge_fields`: Tests string appending, recursive dictionary merging,
+    and type filtering.
+    - `merge_chunk`: Tests content aggregation, role removal, and
+    incremental tool call assembly.
+
+    Additionally, `src/swarm/util.py` was refactored to move the `Tool`
+    import inside `function_to_json` to avoid circular dependencies and
+    facilitate easier testing of the core merging logic.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+2737c6fa 2026-06-04 🧪 [testing] Add tests for blueprint/mcp manifest creation and cleanup code
+    - Added comprehensive tests for `create_blueprint_from_manifest` and
+    `create_mcp_config_from_manifest` in
+    `tests/services/test_github_client.py`.
+    - Tests cover happy path, name normalization, collision handling
+    (including multiple collisions), and fallback name generation.
+    - Cleaned up redundant ternary operator in
+    `src/swarm/services/github_client.py`.
+    - Verified that the name collision `while` loop correctly increments
+    `counter`.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+cd0938df 2026-06-03 feat: add unit tests for ChatCompletionRequestSerializer.validate_messages
+    This commit adds comprehensive unit tests for the
+    `ChatCompletionRequestSerializer` and its `validate_messages` method in
+    `src/swarm/serializers.py`.
+
+    The new tests cover:
+    - Happy path with valid messages
+    - Validation for empty messages list
+    - Validation for incorrect type of the messages field (non-list)
+    - Validation for incorrect type of message items (non-dictionary)
+    - Nested validation for the 'content' field within messages (must be
+    string or null)
+    - Aggregation of multiple validation errors
+    - Validation for the 'model' field (must be a string)
+
+    These tests ensure that raw type checks performed on `initial_data` are 
+    correctly functioning as intended.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+86643869 2026-06-03 test: add unit tests for get_agent_name utility
+    - Added `tests/core/test_common_utils.py` with comprehensive tests for
+    `get_agent_name`.
+    - Covered objects with `name` attribute (class and instance).
+    - Covered objects with `__name__` attribute (classes and functions).
+    - Verified precedence of `name` over `__name__`.
+    - Verified fallback to `"<unknown>"` for objects with neither attribute.
+    - Included edge cases for `None` and basic types.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+56fc019d 2026-06-03 test: add error handling tests for SAML SP config parsing
+    Added unit tests to cover the 'except Exception: pass' blocks and 
+    validation logic in src/swarm/settings.py related to SAML SP 
+    configurations. Verified that malformed JSON and missing files do not
+    crash the settings initialization.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+88e7746f 2026-06-03 🧪 [testing improvement: custom_json_dumps]
+    Add unit tests for custom_json_dumps and serialize_datetime in
+    general_utils.py. The tests cover:
+    - Successful serialization of datetime objects to ISO format.
+    - Handling of string inputs.
+    - Raising TypeError for unsupported types (e.g., int, set).
+    - Integration with json.dumps via custom_json_dumps, including kwargs
+    support.
+    - Nested structures with datetime objects.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+d12e624a 2026-06-03 🧪 [testing improvement: enhance paths.py coverage]
+    This commit improves the reliability and coverage of the paths utility
+    tests.
+
+    Changes:
+    - Removed 'src.' import prefixes in `tests/core/test_paths.py`.
+    - Replaced tautological assertion in
+    `test_get_project_root_dir_contains_src` with robust directory and file
+    checks.
+    - Added `TestPlatformDirsIntegration` to verify correct library usage.
+    - Added `TestCrossPlatformMocks` to simulate Windows and Linux path
+    resolution.
+    - Verified all 31 tests pass in the development environment.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+1665b86d 2026-06-03 security fix: enable CSRF protection on agent creator views
+    - Removed @csrf_exempt from views in agent_creator_views.py and
+    agent_creator_pro.py.
+    - Added {% csrf_token %} to agent_creator.html, team_creator.html, and
+    agent_creator_pro.html.
+    - Updated frontend fetch calls to include X-CSRFToken header.
+    - Removed now unused csrf_exempt imports.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+c687375f 2026-06-03 🧪 [testing improvement: filter_blueprints edge cases]
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+e28931aa 2026-06-03 🧪 [testing improvement: tool utility coverage]
+    Added comprehensive unit tests for `get_function_schema` and the `tool`
+    decorator in `src/swarm/core/tool_utils.py`.
+
+    - What: Addressed missing test coverage for core tool utility functions.
+    - Coverage: Tested JSON schema generation for various types (str, int,
+    float, bool, list, dict, Generic types), handling of default values,
+    docstring parsing, method introspection (self/cls exclusion), and
+    sync/async decorator execution.
+    - Result: Increased reliability and maintainability of the tool
+    registration system.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+8b266066 2026-06-03 🧹 [code health] Log silenced ChatConversation.DoesNotExist in consumers.py
+    - Import logging and initialize logger in src/swarm/consumers.py
+    - Log warning in delete_conversation when ChatConversation does not
+    exist
+    - Log debug message in fetch_conversation when ChatConversation does not
+    exist
+    - Improve observability of conversation lifecycle events
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+7f510981 2026-06-02 🧹 Refactor GitHubClient and fix models package structure
+    🎯 **What:**
+    - Refactored `GitHubClient` to use a `GitHubConfig` object for settings,
+    addressing the "too many arguments" issue.
+    - Converted `src/swarm/models.py` into a package
+    (`src/swarm/models/__init__.py`) to allow submodules like
+    `core_models.py`.
+    - Moved logic from top-level functions in `github_client.py` into class
+    methods.
+    - Added legacy wrappers and aliases to maintain backward compatibility.
+    - Cleaned up unused imports and constants.
+
+    💡 **Why:**
+    - Improves maintainability and adheres to clean code principles.
+    - Fixes a CI failure where `swarm.models` was not recognized as a
+    package, preventing imports from `swarm.models.core_models`.
+    - 그룹화 related GitHub operations and configuration.
+
+    ✅ **Verification:**
+    - Verified compilation of `github_client.py` and `github_views.py`.
+    - Added unit tests for the new `GitHubClient` structure.
+    - Corrected the directory structure to satisfy Python's package
+    requirements.
+
+    ✨ **Result:**
+    - Solidified the marketplace discovery service with better
+    encapsulation.
+    - Resolved structural issues in the `swarm.models` module.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+
+88fb1929 2026-04-05 Implement security hardening for subprocess execution
+    Adds secure_subprocess.py module with:
+    - execute_command_safe(): Safe subprocess execution without shell=True
+    - validate_command_safety(): Command validation for injection prevention
+    - sanitize_environment(): Environment variable sanitization
+    - SecureCommandExecutor: Context manager for secure execution
+
+    Updates job.py to:
+    - Import and use secure subprocess utilities
+    - Validate commands before execution
+    - Prevent command injection vulnerabilities
+
+    Security improvements:
+    - Replaces shell=True with safe alternatives
+    - Validates commands for suspicious patterns
+    - Sanitizes environment variables
+    - Provides fallback mechanism with warnings
+
+    Fixes: Multiple shell=True instances across codebase Related to:
+    Security hardening initiative Approved-by: Security review
+
+64f56594 2026-03-13 🧹 Refactor GitHubClient to use a configuration object
+    🎯 **What:**
+    - Introduced `GitHubConfig` dataclass to encapsulate configuration
+    parameters like `token`, `base_url`, `timeout`, `max_retries`, and
+    `user_agent`.
+    - Refactored `GitHubClient` class to accept a `GitHubConfig` instance,
+    significantly reducing the number of arguments in its methods.
+    - Moved logic from top-level functions (`search_repos_by_topics`,
+    `fetch_repo_manifests`, etc.) into `GitHubClient` methods.
+    - Fixed broken imports in `src/swarm/views/github_views.py` by
+    implementing missing functions and providing aliases
+    (`fetch_github_repositories`, `sync_marketplace_items`).
+
+    💡 **Why:**
+    - Improves maintainability and readability by using a
+    settings/configuration object instead of long argument lists (addressing
+    the "too many arguments" issue).
+    - Enhances encapsulation by grouping related logic within the
+    `GitHubClient` class.
+    - Restores broken functionality in the marketplace discovery views.
+
+    ✅ **Verification:**
+    - Verified that `src/swarm/services/github_client.py` and
+    `src/swarm/views/github_views.py` compile successfully.
+    - Added unit tests in `tests/services/test_github_client.py` to verify
+    the new class and configuration structure.
+    - Maintained backward compatibility for existing callers through
+    top-level legacy wrappers and a flexible `GitHubClient` constructor that
+    supports both `config` objects and `**kwargs`.
+
+    ✨ **Result:**
+    - Cleaner, more maintainable code with a modular configuration system.
+    - Fixed broken imports in the marketplace discovery module.
+
+    Co-authored-by: matthewhand
+    <11550632+matthewhand@users.noreply.github.com>
+

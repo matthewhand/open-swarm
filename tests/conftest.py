@@ -4,6 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from asgiref.sync import sync_to_async
 
+# The Django defaults are secure-by-default (DJANGO_DEBUG defaults to False,
+# which makes DJANGO_SECRET_KEY/DJANGO_ALLOWED_HOSTS mandatory). The test
+# suite runs in development mode, so enable debug here (before
+# swarm.settings is imported by pytest-django) unless the caller has
+# explicitly set DJANGO_DEBUG.
+os.environ.setdefault("DJANGO_DEBUG", "true")
+
 # --- Fixtures ---
 
 def pytest_collection_modifyitems(config, items):

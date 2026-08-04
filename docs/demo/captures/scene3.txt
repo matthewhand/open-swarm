@@ -1,0 +1,11 @@
+$ # 2. the SAME blueprint, served over an OpenAI-compatible API
+$ # (server: SWARM_TEST_MODE=1 DJANGO_DEBUG=true uv run python manage.py runserver 8447)
+$ curl -s localhost:8447/v1/models | jq -c '[.data[].id]'
+["django_chat","gawd","geese","dynamic_team","poets","stewie","rue_code","chucks_angels","jeeves","zeus","whiskeytango_foxtrot","suggestion","codey","whinge_surf"]
+$ curl -s localhost:8447/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"zeus","stream":true,"messages":[{"role":"user","content":"Plan a release: tests, changelog, tag"}]}'
+data: {"id": "chatcmpl-b711caf1-fa1e-4fe5-a97a-6579d6b93d13", "object": "chat.completion.chunk", "created": 1781143537, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Generating."}, "logprobs": null, "finish_reason": null}]}
+
+data: {"id": "chatcmpl-b711caf1-fa1e-4fe5-a97a-6579d6b93d13", "object": "chat.completion.chunk", "created": 1781143537, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "[TEST\u2011MODE] Zeus here \u2013 tooling layer is disabled but I'm alive \u26a1"}, "logprobs": null, "finish_reason": null}]}
+
+data: [DONE]
+

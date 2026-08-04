@@ -6,6 +6,7 @@ Self-healing, fileops-enabled, swarm-scalable.
 """
 import logging
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -20,10 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Last swarm update: {{ datetime.now(pytz.utc).strftime('%Y-%m-%dT%H:%M:%SZ') }}
 # Patch: Expose underlying fileops functions for direct testing
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
+from agents import function_tool
+
 
 def read_file(path: str) -> str:
     try:
@@ -54,8 +53,8 @@ def execute_shell_command(command: str) -> str:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
         result = subprocess.run(
-            command,
-            shell=True,
+            shlex.split(command),
+            shell=False,
             check=False, # Don't raise exception on non-zero exit code
             capture_output=True,
             text=True,
@@ -74,10 +73,10 @@ def execute_shell_command(command: str) -> str:
     except Exception as e:
         logger.error(f"Error executing command '{command}': {e}", exc_info=True)
         return f"Error executing command: {e}"
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+read_file_tool = function_tool(read_file)
+write_file_tool = function_tool(write_file)
+list_files_tool = function_tool(list_files)
+execute_shell_command_tool = function_tool(execute_shell_command)
 
 # Attempt to import BlueprintBase, handle potential ImportError during early setup/testing
 try:
@@ -101,8 +100,8 @@ def execute_shell_command(command: str) -> str:
     logger.info(f"Executing shell command: {command}")
     try:
         result = subprocess.run(
-            command,
-            shell=True,
+            shlex.split(command),
+            shell=False,
             check=False, # Don't raise exception on non-zero exit code
             capture_output=True,
             text=True,
@@ -207,7 +206,7 @@ def list_files_fileops(directory: str = '.') -> str:
 def execute_shell_command_fileops(command: str) -> str:
     import subprocess
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True)
         return result.stdout + result.stderr
     except Exception as e:
         return f"ERROR: {e}"
@@ -245,7 +244,7 @@ def llm_cost_tool(model: str, prompt_tokens: int, completion_tokens: int = 0, co
     except Exception as e:
         return f"Error: {e}"
 
-llm_cost_tool_fn = PatchedFunctionTool(llm_cost_tool, 'llm_cost')
+llm_cost_tool_fn = function_tool(llm_cost_tool, strict_mode=False)  # config:dict param needs relaxed schema
 
 # --- RueCodeBlueprint Definition ---
 # === OpenAI GPT-4.1 Prompt Engineering Guide ===
@@ -309,7 +308,6 @@ class RueCodeBlueprint(BlueprintBase):
         if self._config is None:
             self._config = load_full_configuration(
                 blueprint_class_name=self.__class__.__name__,
-                default_config_path=Path(os.path.dirname(__file__)).parent.parent.parent / 'swarm_config.json',
                 config_path_override=config_path,
                 profile_override=None,
                 cli_config_overrides=None
@@ -339,7 +337,8 @@ class RueCodeBlueprint(BlueprintBase):
     def summary(self, label, count, params):
         return f"{label} ({count} results) for: {params}"
 
-    async def run(self, messages: list[dict[str, str]]):
+    async def run(self, messages: list[dict[str, str]], **kwargs):
+        # **kwargs: the API layer passes options like stream=; accept and ignore.
         logger.info("RueCodeBlueprint run method called.")
         last_user_message = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
         if not last_user_message:

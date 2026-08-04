@@ -2,8 +2,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path, re_path
 from django.http import HttpResponse, FileResponse
+from django.views.generic import RedirectView
 from django.views.static import serve
 from pathlib import Path
+
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 from swarm.views.agent_creator_pro import agent_creator_pro_page
 from swarm.views.agent_creator_views import (
@@ -16,12 +23,14 @@ from swarm.views.agent_creator_views import (
 )
 from swarm.views.api_views import (
     BlueprintsListView,
+    BlueprintSourceView,
+    BlueprintToolsView,
+    CliAgentsView,
+    ConfigOptionsView,
     CustomBlueprintDetailView,
     CustomBlueprintsView,
-    MarketplaceBlueprintsView,
     MarketplaceGitHubBlueprintsView,
     MarketplaceGitHubMCPConfigsView,
-    MarketplaceMCPConfigsView,
 )
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
@@ -34,36 +43,83 @@ from swarm.views.blueprint_library_views import (
     my_blueprints,
     remove_blueprint_from_library,
 )
-from swarm.views.chat_views import ChatCompletionsView
+from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
+from swarm.views.responses_views import ResponsesCancelView, ResponsesDetailView, ResponsesView
+from swarm.views.session_explorer import session_detail, session_explorer, session_list_api
+from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.settings_views import (
     environment_variables,
     settings_api,
     settings_dashboard,
 )
+from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
+    custom_login,
     index,
     profiles_page,
     team_admin,
     team_launcher,
     teams_export,
 )
+from swarm.views.webui import WebUIView
 
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
     path("", index, name="index"),  # Root path for web UI
+    # Lightweight liveness probe (no auth) — used by the Fly health check.
+    path("health", HealthCheckView.as_view(), name="health"),
+    path("health/", HealthCheckView.as_view()),
+    # Session Explorer web UI (browse stateful /v1/responses sessions + delegation timelines)
+    path("sessions/", session_explorer, name="session-explorer"),
+    path("sessions/<str:response_id>/", session_detail, name="session-detail"),
+    path("api/sessions/", session_list_api, name="session-list-api"),
+    # Authentication. Two aliases for the same view:
+    # - accounts/login/ matches Django's default LOGIN_URL ('/accounts/login/')
+    #   and is the canonical 'login' name used by auth machinery.
+    # - login/ matches this project's settings.LOGIN_URL ('/login/') and the
+    #   'custom_login' name referenced by templates/account/login.html.
+    path("accounts/login/", custom_login, name="login"),
+    path("login/", custom_login, name="custom_login"),
     path("v1/models", OpenAIModelsView.as_view(), name="models-list-no-slash"),
     path("v1/models/", OpenAIModelsView.as_view(), name="models-list"),
     path("v1/blueprints", BlueprintsListView.as_view(), name="blueprints-list-no-slash"),
     path("v1/blueprints/", BlueprintsListView.as_view(), name="blueprints-list"),
+    path("v1/blueprints/<str:blueprint_id>/source", BlueprintSourceView.as_view(), name="blueprint-source"),
+    path("v1/blueprints/<str:blueprint_id>/tools", BlueprintToolsView.as_view(), name="blueprint-tools"),
+    path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
+    path("v1/config-options/", ConfigOptionsView.as_view(), name="config-options-api"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
     path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
-    # Optional marketplace (Wagtail) headless endpoints (return empty list if disabled)
-    path("marketplace/blueprints/", MarketplaceBlueprintsView.as_view(), name="marketplace-blueprints"),
-    path("marketplace/mcp-configs/", MarketplaceMCPConfigsView.as_view(), name="marketplace-mcp-configs"),
+    # GitHub-topics marketplace discovery (returns empty list if disabled)
     path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
     path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
+    # OpenAI Responses API (MVP) — normalizes `input`/`instructions` to messages
+    # and reuses the same blueprint-resolution + run path as chat completions.
+    path("v1/responses", ResponsesView.as_view(), name="responses"),
+    path("v1/responses/<str:response_id>/cancel", ResponsesCancelView.as_view(), name="responses-cancel"),
+    path("v1/responses/<str:response_id>", ResponsesDetailView.as_view(), name="responses-detail"),
+    # OpenAPI schema + interactive docs (drf-spectacular).
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/schema/swagger-ui/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "api/schema/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
+    # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
+    path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
+    path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
+    path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
+    # JSON Blueprint Library API (REST counterpart to /blueprint-library/)
+    path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
+    path("v1/library/", LibraryAPIView.as_view(), name="library-api"),
+    path("v1/library/<str:blueprint_name>/", LibraryDetailAPIView.as_view(), name="library-api-detail"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),
@@ -92,38 +148,14 @@ urlpatterns = [
     # Avatar generation endpoints
     path("blueprint-library/generate-avatar/<str:blueprint_name>/", generate_avatar, name="generate_avatar"),
     path("blueprint-library/comfyui-status/", check_comfyui_status, name="check_comfyui_status"),
+    
+    # Web UI endpoint
+    path("webui/", WebUIView.as_view(), name="webui"),
 ]
 
 # Serve avatar images in development
 if settings.DEBUG:
     urlpatterns += static(settings.AVATAR_URL_PREFIX, document_root=settings.AVATAR_STORAGE_PATH)
-
-# Optional Wagtail admin/site when enabled
-if getattr(settings, 'ENABLE_WAGTAIL', False):
-    try:  # Import lazily to avoid hard dependency when disabled
-        from django.urls import include
-        from wagtail import urls as wagtail_urls
-        from wagtail.admin import urls as wagtailadmin_urls
-        from wagtail.documents import urls as wagtaildocs_urls
-
-        urlpatterns += [
-            path('cms/admin/', include(wagtailadmin_urls)),
-            path('cms/documents/', include(wagtaildocs_urls)),
-            path('cms/', include(wagtail_urls)),
-        ]
-    except Exception:
-        pass
-
-# Optional SAML IdP (djangosaml2idp) when enabled
-if getattr(settings, 'ENABLE_SAML_IDP', False):
-    try:
-        from django.urls import include
-        urlpatterns += [
-            path('idp/', include('djangosaml2idp.urls')),
-        ]
-    except Exception:
-        # Package not installed or import failed; ignore if disabled in env
-        pass
 
 # Optional MCP server (django-mcp-server) when enabled
 import os
@@ -132,12 +164,48 @@ if os.getenv('ENABLE_MCP_SERVER', '').lower() in ('true', '1', 'yes'):
     try:
         from django.urls import include
         urlpatterns += [
-            path('mcp/', include('django_mcp_server.urls')),
+            path('mcp/', include('mcp_server.urls')),
         ]
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
 
-# SPA Fallback for React Router - must be last
+        logging.getLogger(__name__).warning(
+            "ENABLE_MCP_SERVER is set but the '/mcp/' mount was skipped: could not "
+            "import 'mcp_server.urls' (%s). Install the MCP server package with "
+            "`pip install django-mcp-server` (provides the 'mcp_server' module). "
+            "See docs/mcp_server_mode.md.",
+            exc,
+        )
+
+# Canonical product UI is Django (trailing-slash). Bare SPA-style paths that used
+# to dual-mount the React shell now redirect so users never hit two different UIs
+# for the same concept (e.g. /teams vs /teams/).
+urlpatterns += [
+    path(
+        "teams",
+        RedirectView.as_view(url="/teams/launch/", permanent=False, query_string=True),
+        name="spa_teams_to_django",
+    ),
+    path(
+        "blueprints",
+        RedirectView.as_view(url="/blueprint-library/", permanent=False, query_string=True),
+        name="spa_blueprints_to_django",
+    ),
+    path(
+        "settings",
+        RedirectView.as_view(url="/settings/", permanent=False, query_string=True),
+        name="spa_settings_to_django",
+    ),
+    # Bare /agent-creator (no slash) used to hit an empty SPA shell; canonical
+    # creator is Django at /agent-creator/.
+    path(
+        "agent-creator",
+        RedirectView.as_view(url="/agent-creator/", permanent=False, query_string=True),
+        name="spa_agent_creator_to_django",
+    ),
+]
+
+# SPA Fallback for React Router - must be last (home `/` and experimental routes).
 def _get_frontend_path():
     """Get the path to the built frontend assets."""
     frontend_path = Path("webui/frontend/dist")
@@ -148,20 +216,21 @@ def _get_frontend_path():
 frontend_path = _get_frontend_path()
 if frontend_path and frontend_path.exists():
     from django.views.static import serve
-    from django.conf.urls import re_path
-    
+    # re_path imported from django.urls at module top (Django 4+)
+
     # Serve static assets
     urlpatterns += [
         re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': str(frontend_path / 'assets')}),
     ]
     
     # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
-    def spa_fallback(request, path):
+    # (the catch-all regex below has no capture group, so path must default)
+    def spa_fallback(request, path=""):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             return FileResponse(open(index_file, 'rb'), content_type='text/html')
         return HttpResponse("Not Found", status=404)
     
     urlpatterns += [
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/).*$', spa_fallback),
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/).*$', spa_fallback),
     ]

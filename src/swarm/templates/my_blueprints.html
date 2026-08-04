@@ -3,6 +3,16 @@
 {% block title %}My Blueprints - Open Swarm{% endblock %}
 
 {% block content %}
+<style>
+  /* #8: hide the redundant global "Select a Blueprint" quick-launch toolbar on
+     this page — the header's Browse Library / Create New cover the same intent. */
+  .blueprint-select { display: none !important; }
+  /* #2: dashed "create new" ghost card so a near-empty grid isn't a lonely sliver. */
+  .bp-ghost-card { border: 1.5px dashed var(--os-border); background: transparent;
+    display: flex; align-items: center; justify-content: center; color: var(--os-muted);
+    text-decoration: none; transition: border-color .12s ease, color .12s ease; }
+  .bp-ghost-card:hover { border-color: var(--os-accent); color: var(--os-accent); transform: none; }
+</style>
 <div class="container-fluid mt-4">
     <!-- Header -->
     <div class="row mb-4">
@@ -26,15 +36,17 @@
         </div>
     </div>
 
-    <!-- Stats -->
+    <h2 class="visually-hidden">Library overview</h2>
+    <!-- Stats: 3 meaningful tiles (counts computed in the view; the old 4th
+         "Ready to Run" duplicated Total, and Total used a broken |add: chain). -->
     <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-0 bg-primary text-white">
+        <div class="col-md-4">
+            <div class="card os-stat os-stat-blue">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Installed</h6>
-                            <h3 class="mb-0">{{ installed_blueprints|length }}</h3>
+                            <div class="card-title">Installed</div>
+                            <h3 class="mb-0">{{ installed_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-download fa-2x opacity-75"></i>
@@ -43,13 +55,13 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-0 bg-success text-white">
+        <div class="col-md-4">
+            <div class="card os-stat os-stat-green">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Custom Created</h6>
-                            <h3 class="mb-0">{{ custom_blueprints|length }}</h3>
+                            <div class="card-title">Custom Created</div>
+                            <h3 class="mb-0">{{ custom_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-magic fa-2x opacity-75"></i>
@@ -58,31 +70,16 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-0 bg-info text-white">
+        <div class="col-md-4">
+            <div class="card os-stat os-stat-cyan">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Total</h6>
-                            <h3 class="mb-0">{{ installed_blueprints|length|add:custom_blueprints|length }}</h3>
+                            <div class="card-title">Total</div>
+                            <h3 class="mb-0">{{ total_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-cubes fa-2x opacity-75"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-0 bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title">Ready to Run</h6>
-                            <h3 class="mb-0">{{ installed_blueprints|length|add:custom_blueprints|length }}</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-play fa-2x opacity-75"></i>
                         </div>
                     </div>
                 </div>
@@ -101,35 +98,34 @@
                 {% for blueprint in installed_blueprints %}
                 <div class="col-lg-4 col-md-6 mb-4">
                     <div class="card blueprint-runner-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-start">
-                            <div>
-                                <h5 class="card-title mb-1">{{ blueprint.name }}</h5>
-                                <small class="text-muted">{{ blueprint.category_info.name }}</small>
-                            </div>
-                            <span class="badge bg-success">Installed</span>
-                        </div>
-                        
                         <div class="card-body d-flex flex-column">
-                            <p class="card-text flex-grow-1">{{ blueprint.description }}</p>
-                            
-                            <!-- Quick Actions -->
-                            <div class="mt-auto">
-                                <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-run-blueprint" 
-                                            data-blueprint-id="{{ blueprint.id }}"
-                                            data-blueprint-name="{{ blueprint.name }}">
-                                        <i class="fas fa-play me-1"></i>Run Blueprint
+                            <!-- Identity: icon + name + category + status -->
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <div class="bp-icon-badge"><i class="fas fa-robot"></i></div>
+                                <div class="flex-grow-1 min-w-0">
+                                    <div class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</div>
+                                    <small class="text-muted">{{ blueprint.category_info.name }}</small>
+                                </div>
+                                <span class="badge badge-status st-completed">Installed</span>
+                            </div>
+
+                            <p class="card-text bp-desc flex-grow-1">{{ blueprint.description }}</p>
+
+                            <!-- One primary action + an overflow menu for the rest -->
+                            <div class="mt-auto d-flex gap-2">
+                                <button class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
+                                        data-blueprint-id="{{ blueprint.id }}"
+                                        data-blueprint-name="{{ blueprint.name }}">
+                                    <i class="fas fa-play me-1"></i>Run
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
+                                        <i class="fas fa-ellipsis-h"></i>
                                     </button>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary" 
-                                                onclick="previewBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-eye"></i> Preview
-                                        </button>
-                                        <button class="btn btn-outline-danger" 
-                                                onclick="removeBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-trash"></i> Remove
-                                        </button>
-                                    </div>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" type="button" onclick="previewBlueprint('{{ blueprint.id }}')"><i class="fas fa-eye me-2"></i>Preview</button></li>
+                                        <li><button class="dropdown-item text-danger" type="button" onclick="if (confirm('Remove {{ blueprint.name|escapejs }} from your library?')) removeBlueprint('{{ blueprint.id }}')"><i class="fas fa-trash me-2"></i>Remove</button></li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
@@ -152,56 +148,67 @@
                 {% for blueprint in custom_blueprints %}
                 <div class="col-lg-4 col-md-6 mb-4">
                     <div class="card blueprint-runner-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-start">
-                            <div>
-                                <h5 class="card-title mb-1">{{ blueprint.name }}</h5>
-                                <small class="text-muted">{{ blueprint.category }}</small>
-                            </div>
-                            <span class="badge bg-info">Custom</span>
-                        </div>
-                        
                         <div class="card-body d-flex flex-column">
-                            <p class="card-text flex-grow-1">{{ blueprint.description }}</p>
-                            
+                            <!-- Identity: icon + name + category + status -->
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <div class="bp-icon-badge"><i class="fas fa-wand-magic-sparkles"></i></div>
+                                <div class="flex-grow-1 min-w-0">
+                                    <div class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</div>
+                                    <small class="text-muted">{{ blueprint.category }}</small>
+                                </div>
+                                <span class="badge badge-status st-in_progress">Custom</span>
+                            </div>
+
+                            <p class="card-text bp-desc flex-grow-1">{{ blueprint.description }}</p>
+
                             {% if blueprint.tags %}
-                            <div class="mb-3">
+                            <div class="mb-2">
                                 {% for tag in blueprint.tags %}
-                                <span class="badge bg-light text-dark me-1">{{ tag }}</span>
+                                <span class="bp-tag">#{{ tag }}</span>
                                 {% endfor %}
                             </div>
                             {% endif %}
-                            
-                            <!-- Quick Actions -->
-                            <div class="mt-auto">
-                                <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-run-blueprint" 
-                                            data-blueprint-id="{{ blueprint.id }}"
-                                            data-blueprint-name="{{ blueprint.name }}"
-                                            data-blueprint-code="{{ blueprint.code|escape }}">
-                                        <i class="fas fa-play me-1"></i>Run Blueprint
+
+                            <!-- One primary action + an overflow menu for the rest -->
+                            <div class="mt-auto d-flex gap-2">
+                                <button class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
+                                        data-blueprint-id="{{ blueprint.id }}"
+                                        data-blueprint-name="{{ blueprint.name }}"
+                                        data-blueprint-code="{{ blueprint.code|escape }}">
+                                    <i class="fas fa-play me-1"></i>Run
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
+                                        <i class="fas fa-ellipsis-h"></i>
                                     </button>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary" 
-                                                onclick="editBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-edit"></i> Edit
-                                        </button>
-                                        <button class="btn btn-outline-danger" 
-                                                onclick="deleteBlueprint('{{ blueprint.id }}')">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </div>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" type="button" onclick="editBlueprint('{{ blueprint.id }}')"><i class="fas fa-edit me-2"></i>Edit</button></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><button class="dropdown-item text-danger" type="button" onclick="if (confirm('Delete {{ blueprint.name|escapejs }}? This cannot be undone.')) deleteBlueprint('{{ blueprint.id }}')"><i class="fas fa-trash me-2"></i>Delete</button></li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
-                        
+
+                        {% if blueprint.created_display %}
                         <div class="card-footer">
                             <small class="text-muted">
-                                <i class="fas fa-calendar me-1"></i>Created: {{ blueprint.created_at }}
+                                <i class="fas fa-calendar me-1"></i>Created {{ blueprint.created_display }}
                             </small>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
+                <!-- Add-another ghost card so the row fills out and invites creation -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <a href="{% url 'blueprint_creator' %}" class="card blueprint-runner-card bp-ghost-card h-100 text-center p-4">
+                        <span>
+                            <i class="fas fa-plus fa-2x d-block mb-2"></i>
+                            Create a new blueprint
+                        </span>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -240,7 +247,7 @@
                 <h5 class="modal-title">
                     <i class="fas fa-play me-2"></i>Running: <span id="runnerBlueprintName"></span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <!-- Input Section -->
@@ -296,6 +303,61 @@
     </div>
 </div>
 
+<!-- Edit Blueprint Modal -->
+<div class="modal fade" id="editBlueprintModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>Edit Blueprint
+                </h5>
+                <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editBlueprintForm">
+                    <input type="hidden" id="edit_blueprint_id">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="edit_name" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="edit_name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_category" class="form-label">Category</label>
+                            <select class="form-select" id="edit_category" required>
+                                {% for cat_id, cat_info in categories.items %}
+                                <option value="{{ cat_id }}">{{ cat_info.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="edit_description" rows="2" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_tags" class="form-label">Tags (comma separated)</label>
+                        <input type="text" class="form-control" id="edit_tags">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_requirements" class="form-label">Requirements</label>
+                        <textarea class="form-control" id="edit_requirements" rows="4"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_code" class="form-label">Code</label>
+                        <textarea class="form-control" id="edit_code" rows="10" style="font-family: monospace;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveBlueprintBtn">
+                    <i class="fas fa-save me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Handle run blueprint buttons
@@ -322,6 +384,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p>Output will appear here when you run the blueprint...</p>
             </div>
         `;
+    });
+
+    // Handle save blueprint button
+    document.getElementById('saveBlueprintBtn').addEventListener('click', function() {
+        const blueprintId = document.getElementById('edit_blueprint_id').value;
+        const data = {
+            name: document.getElementById('edit_name').value,
+            category: document.getElementById('edit_category').value,
+            description: document.getElementById('edit_description').value,
+            tags: document.getElementById('edit_tags').value.split(',').map(tag => tag.trim()).filter(tag => tag),
+            requirements: document.getElementById('edit_requirements').value,
+            code: document.getElementById('edit_code').value
+        };
+
+        fetch(`/v1/blueprints/custom/${blueprintId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error: Failed to save changes');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving changes');
+        });
     });
 });
 
@@ -412,14 +507,45 @@ function removeBlueprint(blueprintId) {
 }
 
 function editBlueprint(blueprintId) {
-    // TODO: Implement blueprint editing
-    alert('Blueprint editing will be implemented soon!');
+    fetch(`/v1/blueprints/custom/${blueprintId}/`)
+        .then(response => response.json())
+        .then(blueprint => {
+            document.getElementById('edit_blueprint_id').value = blueprint.id;
+            document.getElementById('edit_name').value = blueprint.name;
+            document.getElementById('edit_category').value = blueprint.category;
+            document.getElementById('edit_description').value = blueprint.description;
+            document.getElementById('edit_tags').value = (blueprint.tags || []).join(', ');
+            document.getElementById('edit_requirements').value = blueprint.requirements || '';
+            document.getElementById('edit_code').value = blueprint.code || '';
+
+            const modal = new bootstrap.Modal(document.getElementById('editBlueprintModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while fetching blueprint details');
+        });
 }
 
 function deleteBlueprint(blueprintId) {
     if (confirm('Are you sure you want to delete this custom blueprint? This action cannot be undone.')) {
-        // TODO: Implement custom blueprint deletion
-        alert('Custom blueprint deletion will be implemented soon!');
+        fetch(`/v1/blueprints/custom/${blueprintId}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error: Failed to delete blueprint');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the blueprint');
+        });
     }
 }
 </script>

@@ -487,8 +487,8 @@ def test_run_blueprint_sync_with_string_result(monkeypatch):
 # ============================================================================
 
 
-def test_register_blueprints_missing_django_mcp_server(monkeypatch):
-    """Test register_blueprints_with_mcp when django_mcp_server is not installed."""
+def test_register_blueprints_missing_mcp_server(monkeypatch):
+    """Test register_blueprints_with_mcp when mcp_server is not installed."""
     fake_discovered = {
         "test_bp": {
             "metadata": {"name": "Test", "description": "Test blueprint"},
@@ -499,9 +499,9 @@ def test_register_blueprints_missing_django_mcp_server(monkeypatch):
     from swarm.mcp import provider as prov
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
 
-    # Remove django_mcp_server from modules if present
+    # Remove mcp_server from modules if present
     for mod in list(sys.modules.keys()):
-        if mod.startswith("django_mcp_server"):
+        if mod.startswith("mcp_server"):
             del sys.modules[mod]
 
     from swarm.mcp import integration as integ
@@ -528,8 +528,8 @@ def test_register_blueprints_registration_error(monkeypatch):
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
 
     # Create stub registry that fails for one tool
-    reg_pkg = ModuleType("django_mcp_server")
-    reg_mod = ModuleType("django_mcp_server.registry")
+    reg_pkg = ModuleType("mcp_server")
+    reg_mod = ModuleType("mcp_server.registry")
     calls = []
 
     def register_tool(name, parameters, description, handler):
@@ -539,8 +539,8 @@ def test_register_blueprints_registration_error(monkeypatch):
 
     reg_mod.register_tool = register_tool
     reg_pkg.registry = reg_mod
-    sys.modules["django_mcp_server"] = reg_pkg
-    sys.modules["django_mcp_server.registry"] = reg_mod
+    sys.modules["mcp_server"] = reg_pkg
+    sys.modules["mcp_server.registry"] = reg_mod
 
     from swarm.mcp import integration as integ
     importlib.reload(integ)
@@ -572,8 +572,8 @@ def test_register_blueprints_handler_execution(monkeypatch):
     mock_blueprint_cls.return_value = mock_instance
 
     # Create stub registry
-    reg_pkg = ModuleType("django_mcp_server")
-    reg_mod = ModuleType("django_mcp_server.registry")
+    reg_pkg = ModuleType("mcp_server")
+    reg_mod = ModuleType("mcp_server.registry")
     registered_handler = None
 
     def register_tool(name, parameters, description, handler):
@@ -582,8 +582,8 @@ def test_register_blueprints_handler_execution(monkeypatch):
 
     reg_mod.register_tool = register_tool
     reg_pkg.registry = reg_mod
-    sys.modules["django_mcp_server"] = reg_pkg
-    sys.modules["django_mcp_server.registry"] = reg_mod
+    sys.modules["mcp_server"] = reg_pkg
+    sys.modules["mcp_server.registry"] = reg_mod
 
     from swarm.mcp import integration as integ
     importlib.reload(integ)

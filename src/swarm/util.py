@@ -7,9 +7,6 @@ ensuring compatibility with OpenAI API requirements and robust handling of agent
 
 import inspect
 
-from .types import Tool  # Adjust import as needed if 'Tool' is in a different location
-
-
 def merge_fields(target: dict, source: dict) -> None:
     """
     Recursively merge fields from source into target, appending strings and updating nested dictionaries.
@@ -65,6 +62,8 @@ def function_to_json(func, truncate_desc: bool = False) -> dict:
     Raises:
         ValueError: If function signature cannot be inspected (for raw functions).
     """
+    from .types import Tool
+
     # Handle Tool instances from MCP servers
     if isinstance(func, Tool):
         name = func.name

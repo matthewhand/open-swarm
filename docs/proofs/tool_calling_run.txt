@@ -1,0 +1,8 @@
+## TOOL-CALLING PROOF (each CLI must actually read a real file)
+Q: Read the file pyproject.toml in the current directory and tell me the exact project version string. Reply with just: VERSION=<value>
+actual version in file: version = "0.4.11"
+
+=== gemini (flash-lite) ===
+VERSION=0.4.11
+=== claude -p ===
+VERSION=0.4.11

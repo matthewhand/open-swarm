@@ -5,7 +5,6 @@ Handles discovery and merging of tools and resources from MCP servers.
 
 import logging
 from typing import List, Dict, Any, Optional, cast
-import asyncio # Needed for async operations
 
 # Import necessary types from the core swarm types
 from swarm.types import Agent, AgentFunction

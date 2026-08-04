@@ -11,7 +11,16 @@ import os
 import sys
 import threading
 import time
-from typing import Any
+from typing import Any, ClassVar
+
+# Ensure src path + django settings VERY EARLY (fixes django_chat settings load issues on import/discovery)
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+_src_path = os.path.join(_project_root, 'src')
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
+import django
+django.setup()
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -23,15 +32,8 @@ from rich.text import Text
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
-from swarm.core.blueprint_ux import BlueprintUXImproved
 from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
-
-# Django imports after CLI rejection
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
-import django
-
-django.setup()
 
 # --- Logging Setup ---
 def setup_logging():
@@ -119,9 +121,10 @@ class DjangoChatBlueprint(Blueprint):
         super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
         self.blueprint_id = blueprint_id
         self.config_path = config_path
-        self._config = config if config is not None else None
-        self._llm_profile_name = None
-        self._llm_profile_data = None
+        # NOTE: do NOT re-assign self._config / self._llm_profile_name here — the
+        # base __init__ already loads the config (from app.config when none is
+        # passed). Nulling them broke LLM-profile resolution at runtime (the
+        # blueprint reported "not configured" even with a valid llm profile).
         self._markdown_output = None
         class DummyLLM:
             def chat_completion_stream(self, _messages, **_):
@@ -145,12 +148,24 @@ class DjangoChatBlueprint(Blueprint):
         }
 
     def get_or_create_default_user(self):
-        """Create or retrieve a default 'testuser' for development purposes."""
+        """Create or retrieve a default 'testuser' (DEBUG mode only).
+
+        Refused outside debug mode (DJANGO_DEBUG=true); never uses a
+        hardcoded password (random per-process unless TESTUSER_PASSWORD is set).
+        """
+        from django.core.exceptions import PermissionDenied
+
+        from swarm.utils.env_utils import get_testuser_password, is_django_debug
+        if not is_django_debug():
+            raise PermissionDenied(
+                "The default 'testuser' fallback is a development-only convenience "
+                "and is disabled because DJANGO_DEBUG is not enabled."
+            )
         username = "testuser"
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            user = User.objects.create_user(username=username, password="testpass")
+            user = User.objects.create_user(username=username, password=get_testuser_password())
             logger.info(f"Created default user: {username}")
         return user
 
@@ -171,48 +186,48 @@ class DjangoChatBlueprint(Blueprint):
     def render_prompt(self, _template_name: str, context: dict) -> str:
         return f"User request: {context.get('user_request', '')}\nHistory: {context.get('history', '')}\nAvailable tools: {', '.join(context.get('available_tools', []))}"
 
-    async def run(self, messages: list[dict[str, str]]):
-        """Main execution entry point for the DjangoChat blueprint."""
+    async def run(self, messages: list[dict[str, str]], **kwargs):
+        """Main execution entry point for the DjangoChat blueprint.
+
+        Accepts **kwargs (e.g. ``stream=``) for compatibility with the
+        OpenAI-compatible API layer, which always passes ``stream``.
+        """
+        # Proxy the conversation to the configured LLM profile (OpenAI-compatible),
+        # mirroring DynamicTeamBlueprint. Previously this only yielded a simulated
+        # "[DjangoChat LLM] Would respond to: …" box — it never called a model.
+        from openai import AsyncOpenAI
+
         logger.info("DjangoChatBlueprint run method called.")
-        instruction = messages[-1].get("content", "") if messages else ""
-        ux = BlueprintUXImproved(style="serious")
-        spinner_idx = 0
-        start_time = time.time()
-        spinner_yield_interval = 1.0  # seconds
-        last_spinner_time = start_time
         try:
-            # Simulate agent runner pattern (replace with actual agent logic if available)
-            prompt_context = {
-                "user_request": instruction,
-                "history": messages[:-1],
-                "available_tools": ["django_chat"]
-            }
-            rendered_prompt = self.render_prompt("django_chat_prompt.j2", prompt_context)
-            # Simulate progressive spinner for a few cycles
-            for _ in range(3):
-                now = time.time()
-                if now - last_spinner_time >= spinner_yield_interval:
-                    taking_long = (now - start_time > 10)
-                    spinner_msg = ux.spinner(spinner_idx, taking_long=taking_long)
-                    yield {"messages": [{"role": "assistant", "content": spinner_msg}]}
-                    spinner_idx += 1
-                    last_spinner_time = now
-                    await asyncio.sleep(0.2)
-            # Final result
-            summary = ux.summary("Operation", 1, {"instruction": instruction[:40]})
-            box = ux.ansi_emoji_box(
-                title="DjangoChat Result",
-                content=f"[DjangoChat LLM] Would respond to: {rendered_prompt}",
-                summary=summary,
-                params={"instruction": instruction[:40]},
-                result_count=1,
-                op_type="run",
-                status="success"
+            profile = self.get_llm_profile(self.llm_profile_name)
+            base_url = profile.get("base_url")
+            api_key = profile.get("api_key") or "ollama"  # local backends ignore the key
+            # No hardcoded model fallback: the profile's model is authoritative,
+            # with LITELLM_MODEL/DEFAULT_LLM as the only escape hatch.
+            import os
+            model_name = profile.get("model") or os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM")
+        except Exception as e:  # config not initialized / no profile
+            logger.warning("DjangoChat: LLM profile unavailable (%s)", e)
+            base_url = None
+            model_name = None
+
+        if not base_url or not model_name:
+            yield {"messages": [{"role": "assistant", "content": (
+                "DjangoChat is not configured with an LLM profile. "
+                "Add an 'llm' profile in swarm_config.json to enable responses."
+            )}]}
+            return
+
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        try:
+            resp = await client.chat.completions.create(
+                model=model_name, messages=messages, stream=False
             )
-            yield {"messages": [{"role": "assistant", "content": box}]}
+            text = (resp.choices[0].message.content or "").strip()
+            yield {"messages": [{"role": "assistant", "content": text}]}
         except Exception as e:
-            logger.error(f"Error during DjangoChat run: {e}", exc_info=True)
-            yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+            logger.error(f"DjangoChat LLM call failed: {e}", exc_info=True)
+            yield {"messages": [{"role": "assistant", "content": f"[DjangoChat Error] {e}"}]}
 
     def run_with_context(self, _messages: list[dict[str, str]], context_variables: dict) -> dict:
         """Minimal implementation for CLI compatibility without agents."""

@@ -9,11 +9,11 @@ from django.conf import settings
 from swarm.utils.env_utils import *
 
 try:
-    # Use the extensions config loader which provides discovery utilities
-    from swarm.extensions.config.config_loader import (
+    # Use the core config loader which provides discovery utilities
+    from swarm.core.config_loader import (
         find_config_file as _find_config_file,
     )
-    from swarm.extensions.config.config_loader import (
+    from swarm.core.config_loader import (
         load_config as _load_config,
     )
 except Exception:
@@ -24,7 +24,7 @@ except Exception:
 def load_config():
     """Load the primary swarm configuration as a dictionary.
 
-    This wrapper locates the config file using the extensions discovery
+    This wrapper locates the config file using the core discovery
     logic and loads it. Tests patch this symbol directly, so we keep it
     as a simple no-arg function.
     """
@@ -275,18 +275,27 @@ class SettingsManager:
 
             llm_settings = {}
 
-            # LLM providers
+            # LLM providers — mark sensitive when api keys present (API redacts value).
             for provider, config_data in llm_config.items():
+                sensitive = False
+                if isinstance(config_data, dict):
+                    sensitive = any(
+                        k.lower() in ("api_key", "apikey", "token", "secret", "password")
+                        or "key" in k.lower()
+                        for k in config_data
+                    )
+                else:
+                    sensitive = "api_key" in str(config_data).lower()
                 llm_settings[f'LLM_{provider.upper()}'] = {
                     'value': config_data,
                     'env_var': None,
                     'type': 'object',
                     'description': f'Configuration for {provider} LLM provider',
                     'category': 'provider',
-                    'sensitive': 'api_key' in str(config_data).lower()
+                    'sensitive': sensitive,
                 }
 
-            # LLM profiles
+            # LLM profiles often embed api_key / base_url secrets — always treat as sensitive.
             for profile, profile_data in profiles_config.items():
                 llm_settings[f'PROFILE_{profile.upper()}'] = {
                     'value': profile_data,
@@ -294,7 +303,7 @@ class SettingsManager:
                     'type': 'object',
                     'description': f'LLM profile configuration for {profile}',
                     'category': 'profile',
-                    'sensitive': False
+                    'sensitive': True,
                 }
 
             # Environment variables for common LLM providers
@@ -411,13 +420,22 @@ class SettingsManager:
             mcp_settings = {}
 
             for server_name, server_config in mcp_config.items():
+                # MCP configs almost always carry env tokens/keys — mark sensitive so
+                # dashboard/API redaction never treats them as plain metadata.
+                sensitive = True
+                if isinstance(server_config, dict):
+                    env = server_config.get("env") or {}
+                    headers = server_config.get("headers") or {}
+                    if not env and not headers:
+                        # No credential surfaces — still recurse-redact nested dicts.
+                        sensitive = False
                 mcp_settings[f'MCP_{server_name.upper()}'] = {
                     'value': server_config,
                     'env_var': None,
                     'type': 'object',
                     'description': f'MCP server configuration for {server_name}',
                     'category': 'server',
-                    'sensitive': False
+                    'sensitive': sensitive,
                 }
 
             if not mcp_settings:

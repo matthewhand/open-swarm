@@ -27,15 +27,16 @@
         </div>
     </div>
 
+    <h2 class="visually-hidden">Library overview</h2>
     <!-- Stats Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card border-0 bg-primary text-white">
+            <div class="card os-stat os-stat-blue">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Total Available</h6>
-                            <h3 class="mb-0">{{ blueprints_by_category|length }}</h3>
+                            <div class="card-title">Total Available</div>
+                            <h3 class="mb-0">{{ total_available }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-cubes fa-2x opacity-75"></i>
@@ -45,11 +46,11 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 bg-success text-white">
+            <div class="card os-stat os-stat-green">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Installed</h6>
+                            <div class="card-title">Installed</div>
                             <h3 class="mb-0">{{ installed_count }}</h3>
                         </div>
                         <div class="align-self-center">
@@ -60,11 +61,11 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 bg-info text-white">
+            <div class="card os-stat os-stat-cyan">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Custom Created</h6>
+                            <div class="card-title">Custom Created</div>
                             <h3 class="mb-0">{{ custom_count }}</h3>
                         </div>
                         <div class="align-self-center">
@@ -75,12 +76,12 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 bg-warning text-white">
+            <div class="card os-stat os-stat-amber">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Categories</h6>
-                            <h3 class="mb-0">{{ categories|length }}</h3>
+                            <div class="card-title">Categories</div>
+                            <h3 class="mb-0">{{ category_count }}</h3>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-tags fa-2x opacity-75"></i>
@@ -118,23 +119,41 @@
     <div class="tab-content" id="categoryTabContent">
         <!-- All Blueprints Tab -->
         <div class="tab-pane fade show active" id="all" role="tabpanel">
-            <div class="row">
+            <!-- Live name search over the local blueprints -->
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                <div class="position-relative" style="flex:1 1 320px; max-width:440px;">
+                    <i class="fas fa-search position-absolute text-muted" aria-hidden="true" style="left:.85rem; top:50%; transform:translateY(-50%);"></i>
+                    <input type="text" id="bpSearch" class="form-control ps-5" placeholder="Search blueprints by name…" aria-label="Search blueprints by name" autocomplete="off" oninput="filterBlueprints()">
+                </div>
+                <span class="os-meta" id="bpSearchCount"></span>
+            </div>
+            <div class="row g-3" id="allBlueprintsGrid">
                 {% for category_id, blueprints in blueprints_by_category.items %}
                     {% for blueprint in blueprints %}
-                    <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="col-xl-3 col-lg-4 col-md-6 bp-grid-item" data-bp-name="{{ blueprint.name|lower }}">
                         {% include "blueprint_card.html" with blueprint=blueprint %}
                     </div>
                     {% endfor %}
                 {% endfor %}
+            </div>
+            <div class="text-center mt-3 mb-2" id="bpShowMoreWrap" style="display:none;">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="bpShowMore" onclick="showMoreBlueprints()">
+                    Show more blueprints
+                </button>
+                <div class="os-meta mt-1" id="bpPageMeta"></div>
+            </div>
+            <div id="bpSearchEmpty" class="os-empty" style="display:none;">
+                <div class="os-empty-icon"><i class="fas fa-magnifying-glass"></i></div>
+                No blueprints match your search.
             </div>
         </div>
 
         <!-- Category-specific tabs -->
         {% for category_id, blueprints in blueprints_by_category.items %}
         <div class="tab-pane fade" id="{{ category_id }}" role="tabpanel">
-            <div class="row">
+            <div class="row g-3">
                 {% for blueprint in blueprints %}
-                <div class="col-lg-4 col-md-6 mb-4">
+                <div class="col-xl-3 col-lg-4 col-md-6">
                     {% include "blueprint_card.html" with blueprint=blueprint %}
                 </div>
                 {% endfor %}
@@ -148,7 +167,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <input type="text" id="ghSearch" class="form-control" placeholder="Search by name..." style="min-width: 240px; display: inline-block;">
-                    <button class="btn btn-outline-primary ms-2" onclick="loadGithubMarketplace()"><i class="fas fa-search"></i></button>
+                    <button class="btn btn-outline-primary ms-2" onclick="loadGithubMarketplace()" aria-label="Search GitHub marketplace"><i class="fas fa-search" aria-hidden="true"></i></button>
                 </div>
                 <div>
                     <select id="ghType" class="form-select form-select-sm me-2" style="width: 190px; display: inline-block;">
@@ -179,7 +198,7 @@
         <div class="toast-header">
             <i class="fas fa-info-circle me-2"></i>
             <strong class="me-auto">Notification</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="toast"></button>
         </div>
         <div class="toast-body" id="toastMessage">
         </div>
@@ -187,6 +206,71 @@
 </div>
 
 <script>
+// Client-side page size for "All Blueprints" to avoid card explosion.
+const BP_PAGE_SIZE = 12;
+let bpVisibleLimit = BP_PAGE_SIZE;
+
+function applyBlueprintVisibility() {
+    const input = document.getElementById('bpSearch');
+    const q = input ? input.value.trim().toLowerCase() : '';
+    const items = Array.from(document.querySelectorAll('#allBlueprintsGrid .bp-grid-item'));
+    let matchCount = 0;
+    let rendered = 0;
+    items.forEach(el => {
+        const match = !q || (el.dataset.bpName || '').includes(q);
+        if (!match) {
+            el.style.display = 'none';
+            return;
+        }
+        matchCount++;
+        if (rendered < bpVisibleLimit) {
+            el.style.display = '';
+            rendered++;
+        } else {
+            el.style.display = 'none';
+        }
+    });
+    const countEl = document.getElementById('bpSearchCount');
+    if (countEl) {
+        countEl.textContent = q
+            ? matchCount + ' match' + (matchCount === 1 ? '' : 'es')
+            : (matchCount ? matchCount + ' blueprints' : '');
+    }
+    const emptyEl = document.getElementById('bpSearchEmpty');
+    if (emptyEl) emptyEl.style.display = matchCount === 0 ? '' : 'none';
+    const moreWrap = document.getElementById('bpShowMoreWrap');
+    const meta = document.getElementById('bpPageMeta');
+    if (moreWrap) {
+        const hasMore = matchCount > bpVisibleLimit;
+        moreWrap.style.display = hasMore || (matchCount > BP_PAGE_SIZE) ? '' : 'none';
+        const btn = document.getElementById('bpShowMore');
+        if (btn) {
+            btn.style.display = hasMore ? '' : 'none';
+            btn.textContent = hasMore
+                ? 'Show more (' + Math.min(BP_PAGE_SIZE, matchCount - bpVisibleLimit) + ')'
+                : 'Show more blueprints';
+        }
+        if (meta) {
+            meta.textContent = matchCount
+                ? 'Showing ' + Math.min(bpVisibleLimit, matchCount) + ' of ' + matchCount
+                : '';
+        }
+    }
+}
+
+function showMoreBlueprints() {
+    bpVisibleLimit += BP_PAGE_SIZE;
+    applyBlueprintVisibility();
+}
+
+// Live client-side filter over the "All Blueprints" grid (by name).
+function filterBlueprints() {
+    bpVisibleLimit = BP_PAGE_SIZE;
+    applyBlueprintVisibility();
+}
+
+document.addEventListener('DOMContentLoaded', filterBlueprints);
+
 document.addEventListener('DOMContentLoaded', function() {
     // Fetch MCP compliance for all blueprints and update badges
     fetch('/blueprint-library/requirements/')
@@ -250,13 +334,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Update button state
                     const card = this.closest('.blueprint-card');
                     if (action === 'add') {
-                        this.classList.remove('btn-success', 'btn-add-blueprint');
+                        this.classList.remove('btn-outline-success', 'btn-add-blueprint');
                         this.classList.add('btn-outline-danger', 'btn-remove-blueprint');
                         this.innerHTML = '<i class="fas fa-minus me-1"></i>Remove';
                         card.classList.add('installed');
                     } else {
                         this.classList.remove('btn-outline-danger', 'btn-remove-blueprint');
-                        this.classList.add('btn-success', 'btn-add-blueprint');
+                        this.classList.add('btn-outline-success', 'btn-add-blueprint');
                         this.innerHTML = '<i class="fas fa-plus me-1"></i>Add to Library';
                         card.classList.remove('installed');
                     }
@@ -354,16 +438,22 @@ function showNotification(message, type) {
 
 .blueprint-card.installed {
     border-color: #198754;
-    background-color: #f8fff9;
+    /* subtle dark green tint — NOT a near-white fill, which would be
+       white-on-white against the dark theme */
+    background-color: rgba(25, 135, 84, .10);
 }
 
 .difficulty-badge {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: .22rem .5rem;
 }
 
-.difficulty-beginner { background-color: #28a745; }
-.difficulty-intermediate { background-color: #ffc107; color: #000; }
-.difficulty-advanced { background-color: #dc3545; }
+/* muted, tinted difficulty pills (aligned with the dark .st-* status palette)
+   instead of loud saturated Bootstrap solids that dominate every card */
+.difficulty-beginner { background-color: #14532d; color: #86efac; }
+.difficulty-intermediate { background-color: #3f3413; color: #fde68a; }
+.difficulty-advanced { background-color: #4c1d1d; color: #fca5a5; }
 
 .tag-badge {
     font-size: 0.7rem;

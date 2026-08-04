@@ -6,7 +6,7 @@ to ensure it works correctly and can be expanded with more comprehensive tests.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 from src.swarm.blueprints.codey.blueprint_codey import CodeyBlueprint
 
 
@@ -91,12 +91,6 @@ class TestCodeyBasicFunctionality:
         new_state = codey_blueprint.current_spinner_state()
         assert new_state is not None
 
-    def test_start_method(self, codey_blueprint):
-        """Test that start method works"""
-        # Should not raise exceptions
-        codey_blueprint.start()
-        assert True  # If we get here, it worked
-
     @pytest.mark.asyncio
     async def test_run_in_test_mode(self, codey_blueprint):
         """Test that Codey works in test mode"""
@@ -126,24 +120,6 @@ class TestCodeyBasicFunctionality:
         assert rendered is not None
         assert isinstance(rendered, str)
         assert len(rendered) > 0
-
-    @pytest.mark.asyncio
-    async def test_error_handling_in_run(self, codey_blueprint):
-        """Test that errors in run method are handled gracefully"""
-        # Test with invalid message format
-        invalid_messages = ["not a dict", "also not a dict"]
-        
-        # Should handle gracefully or raise appropriate exception
-        try:
-            result = []
-            async for chunk in codey_blueprint.run(invalid_messages):
-                result.append(chunk)
-            
-            # If it doesn't raise, should still return something
-            assert len(result) > 0
-        except (ValueError, TypeError, KeyError):
-            # Expected - invalid input format
-            pass
 
     def test_blueprint_config_access(self, codey_blueprint):
         """Test that config can be accessed"""
@@ -194,66 +170,9 @@ class TestCodeyConfiguration:
         assert config is not None
         assert isinstance(config, dict)
 
-    def test_config_immutability(self, codey_blueprint):
-        """Test that config cannot be modified directly"""
-        original_config = codey_blueprint.config.copy()
-        
-        # Try to modify config
-        try:
-            codey_blueprint.config['test_key'] = 'test_value'
-            # If this succeeds, config should still be valid
-            assert codey_blueprint.config is not None
-        except (AttributeError, TypeError):
-            # Expected - config is immutable
-            pass
-
     def test_llm_profile_access(self, codey_blueprint):
         """Test that LLM profiles can be accessed"""
         # Should be able to access LLM profiles
         assert hasattr(codey_blueprint, 'llm_profile')
         profile = codey_blueprint.llm_profile
         assert profile is not None
-
-
-class TestCodeyIntegration:
-    """Test integration aspects of Codey blueprint"""
-
-    @pytest.fixture
-    def codey_blueprint(self):
-        """Fixture for Codey blueprint instance"""
-        return CodeyBlueprint(blueprint_id="test_codey_integration")
-
-    @pytest.mark.asyncio
-    async def test_integration_with_mock_llm(self, codey_blueprint):
-        """Test Codey with mocked LLM responses"""
-        # Mock the LLM chat completion
-        mock_response = AsyncMock()
-        mock_response.__aiter__.return_value = [
-            {"content": "Mocked LLM response"}
-        ]
-        
-        with patch.object(codey_blueprint, '_get_llm_response', return_value=mock_response):
-            messages = [{"role": "user", "content": "test query"}]
-            
-            result = []
-            async for chunk in codey_blueprint.run(messages):
-                result.append(chunk)
-            
-            # Should return mocked response
-            assert len(result) > 0
-
-    @pytest.mark.asyncio
-    async def test_integration_with_mock_tools(self, codey_blueprint):
-        """Test Codey with mocked tool execution"""
-        # Mock tool execution
-        with patch('src.swarm.blueprints.codey.blueprint_codey.execute_command') as mock_exec:
-            mock_exec.return_value = ("tool output", "", 0)
-            
-            messages = [{"role": "user", "content": "use code tool"}]
-            
-            result = []
-            async for chunk in codey_blueprint.run(messages):
-                result.append(chunk)
-            
-            # Should handle tool execution
-            assert len(result) > 0

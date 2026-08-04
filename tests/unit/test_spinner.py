@@ -1,54 +1,61 @@
+"""Tests for the canonical spinner implementation in swarm.core.spinner.
+
+Historical note: this file previously tested the legacy swarm.ux.spinner
+implementation, which is now a deprecation shim re-exporting the core
+spinner (see ROADMAP.md sunset notes).
+"""
+
 import time
 
-from swarm.ux.spinner import Spinner
+from swarm.core.spinner import Spinner
+
+
+def test_spinner_disabled_when_not_interactive():
+    spinner = Spinner(interactive=False)
+    assert spinner.enabled is False
+    spinner.start("Working")
+    assert spinner.running is False
+    # stop() on a never-started spinner is a no-op
+    spinner.stop()
+    assert spinner.running is False
 
 
 def test_spinner_runs_and_stops():
-    spinner = Spinner(base_message="Running", long_wait_timeout=0.02)
-    spinner.start()
+    spinner = Spinner(interactive=True)
+    spinner.enabled = True  # force-enable (pytest stdout is not a TTY)
+    spinner.start("Working")
     assert spinner.running is True
-    time.sleep(0.05)
+    assert spinner.thread is not None and spinner.thread.is_alive()
+    time.sleep(0.15)
     spinner.stop()
     assert spinner.running is False
-    assert spinner.thread is not None
-    assert not spinner.thread.is_alive()
-
-
-def test_spinner_long_wait_state_transition():
-    spinner = Spinner(base_message="Generating", long_wait_timeout=0.02)
-    spinner.start()
-    time.sleep(0.5)
-    # After timeout elapses, internal long-wait flag should be set
-    assert spinner._long_wait is True  # noqa: SLF001 (intentional: validate behavior)
-    spinner.stop()
-
-
-def test_set_message_resets_long_wait():
-    spinner = Spinner(base_message="Generating", long_wait_timeout=0.02)
-    spinner.start()
-    time.sleep(0.5)
-    assert spinner._long_wait is True  # noqa: SLF001
-    # Changing the message should reset long-wait state
-    spinner.set_message("New Task")
-    assert spinner.base_message == "New Task"
-    assert spinner._long_wait is False  # noqa: SLF001
-    # It should transition back to long-wait after the timeout again
-    time.sleep(0.5)
-    assert spinner._long_wait is True  # noqa: SLF001
-    spinner.stop()
+    assert spinner.thread is None
 
 
 def test_spinner_writes_status_messages(capsys):
-    spinner = Spinner(base_message="Working", long_wait_timeout=0.02)
+    spinner = Spinner(interactive=True)
+    spinner.enabled = True
+    spinner.start("Crunching numbers")
+    time.sleep(0.25)
+    spinner.stop()
+    out = capsys.readouterr().out
+    assert "Crunching numbers" in out
+
+
+def test_spinner_custom_sequence(capsys):
+    spinner = Spinner(interactive=True, custom_sequence="generating")
+    spinner.enabled = True
     spinner.start()
-    time.sleep(0.03)
-    # Capture early output showing animated states (e.g., Working.)
-    early = capsys.readouterr().out
-    assert "Working" in early
-    # Wait long enough to trigger the long-wait message
     time.sleep(0.5)
     spinner.stop()
     out = capsys.readouterr().out
-    combined = early + out
-    assert "Working" in combined
-    assert "Taking longer than expected" in combined
+    assert "Generating" in out
+
+
+def test_ux_spinner_shim_reexports_core_spinner():
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        from swarm.ux.spinner import Spinner as ShimSpinner
+    assert ShimSpinner is Spinner

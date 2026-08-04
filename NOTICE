@@ -1,0 +1,35 @@
+Open Swarm
+Copyright (c) 2024-2026 Matthew Hand
+
+Licensed under the MIT License; see the LICENSE file in this repository.
+This NOTICE file is the project's single source of license/attribution
+information — individual source files intentionally carry no per-file
+license headers.
+
+Attribution
+-----------
+
+* Open Swarm is a derivative of OpenAI's experimental "Swarm" framework
+  (https://github.com/openai/swarm, MIT License) — it began as an extension
+  of the original Swarm concept of lightweight multi-agent orchestration via
+  agents and handoffs.
+* Core agent, tool, and handoff functionality is built on the openai-agents
+  SDK (https://github.com/openai/openai-agents-python, MIT License), Swarm's
+  production-ready successor. openai-agents is consumed as a regular
+  dependency, not vendored.
+
+Vendored third-party assets
+---------------------------
+
+The following third-party assets are redistributed in this repository under
+their own licenses:
+
+* marked v15.0.6 (src/swarm/static/contrib/markedjs/marked.min.js)
+  Copyright (c) 2011-2025, Christopher Jeffrey. MIT License.
+  https://github.com/markedjs/marked
+* Tabler Icons (src/swarm/static/contrib/tabler-icons/)
+  Copyright (c) 2020-2024 Paweł Kuna. MIT License.
+  https://github.com/tabler/tabler-icons
+* Font Awesome webfonts (src/swarm/static/contrib/fonts/fontawesome-webfont.*)
+  Font files licensed under the SIL Open Font License 1.1.
+  https://fontawesome.com

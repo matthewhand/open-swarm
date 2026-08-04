@@ -1,5 +1,5 @@
 """
-Web UI views for Open Swarm MCP Core.
+Web UI views for Open Swarm Core.
 Handles rendering index, blueprint pages, login, and serving config.
 """
 import json
@@ -11,6 +11,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 
 # Import config loader if needed, or assume config is loaded elsewhere
@@ -103,7 +104,7 @@ def index(request):
     try:
         # Discover blueprints dynamically each time the index is loaded
         # Consider caching this if performance becomes an issue
-        discovered_metadata = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
+        discovered_metadata = discover_blueprints(BLUEPRINT_DIRECTORY)
         blueprint_names = list(discovered_metadata.keys())
         logger.debug(f"Rendering index with blueprints: {blueprint_names}")
     except Exception as e:
@@ -116,31 +117,6 @@ def index(request):
         "blueprints": blueprint_names # Use the dynamically discovered list
     }
     return render(request, "index.html", context)
-
-@csrf_exempt
-def blueprint_webpage(request, blueprint_name):
-    """Render a simple webpage for querying agents of a specific blueprint."""
-    logger.debug(f"Received request for blueprint webpage: '{blueprint_name}'")
-    try:
-        # Discover blueprints to check if the requested one exists
-        discovered_metadata = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
-        if blueprint_name not in discovered_metadata:
-            logger.warning(f"Blueprint '{blueprint_name}' not found during discovery.")
-            available_blueprints = "".join(f"<li>{bp}</li>" for bp in discovered_metadata)
-            return HttpResponse(
-                f"<h1>Blueprint '{blueprint_name}' not found.</h1><p>Available blueprints:</p><ul>{available_blueprints}</ul>",
-                status=404,
-            )
-        # Blueprint exists, render the page
-        context = {
-            "blueprint_name": blueprint_name,
-            "dark_mode": request.session.get('dark_mode', True),
-            "is_chatbot": False # Adjust if needed based on blueprint type
-            }
-        return render(request, "simple_blueprint_page.html", context)
-    except Exception as e:
-        logger.error(f"Error processing blueprint page for '{blueprint_name}': {e}", exc_info=True)
-        return HttpResponse("<h1>Error loading blueprint page.</h1>", status=500)
 
 
 @csrf_exempt
@@ -155,26 +131,47 @@ def custom_login(request):
             # User authenticated successfully
             login(request, user)
             next_url = request.GET.get("next", "/chatbot/") # Default redirect
+            # Security: Validate the 'next' URL to prevent open redirects
+            if not url_has_allowed_host_and_scheme(
+                url=next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                logger.warning(f"Invalid 'next' URL detected: '{next_url}'. Falling back to default.")
+                next_url = "/chatbot/"
+
             logger.info(f"User '{username}' logged in successfully. Redirecting to '{next_url}'.")
             return redirect(next_url)
         else:
             # Authentication failed
             logger.warning(f"Failed login attempt for user '{username}'.")
-            # Check if auto-login for 'testuser' is enabled (ONLY for development/testing)
-            enable_auth = is_enable_api_auth() # Default to TRUE
-            if not enable_auth:
-                logger.info("API Auth is disabled. Attempting auto-login for 'testuser'.")
+            # Dev-only 'testuser' auto-login. Honoured ONLY when BOTH
+            # ALLOW_TESTUSER_AUTOLOGIN=true AND DJANGO_DEBUG=true.
+            # is_testuser_autologin_allowed() raises ImproperlyConfigured if the
+            # flag is enabled outside debug mode (refuse, never silently allow).
+            if is_testuser_autologin_allowed():
+                logger.info("ALLOW_TESTUSER_AUTOLOGIN enabled (debug mode). Attempting 'testuser' auto-login.")
                 try:
-                    # Attempt to log in 'testuser' with a known password (e.g., 'testpass')
-                    # Ensure this user/password exists in your DB or fixture
-                    test_user = authenticate(request, username="testuser", password="testpass")
-                    if test_user is not None:
-                        login(request, test_user)
-                        next_url = request.GET.get("next", "/chatbot/")
-                        logger.info("Auto-logged in as 'testuser' because API auth is disabled. Redirecting.")
-                        return redirect(next_url)
-                    else:
-                         logger.warning("Auto-login for 'testuser' failed (user/password incorrect or user doesn't exist).")
+                    from django.contrib.auth.models import User
+                    test_user, created = User.objects.get_or_create(username="testuser")
+                    if created:
+                        # Never a hardcoded password: per-boot random unless
+                        # TESTUSER_PASSWORD is explicitly set in the environment.
+                        test_user.set_password(get_testuser_password())
+                        test_user.save()
+                        logger.info("Created dev-only 'testuser' account.")
+                    login(request, test_user, backend='django.contrib.auth.backends.ModelBackend')
+                    next_url = request.GET.get("next", "/chatbot/")
+                    # Security: validate the 'next' URL to prevent open redirects
+                    if not url_has_allowed_host_and_scheme(
+                        url=next_url,
+                        allowed_hosts={request.get_host()},
+                        require_https=request.is_secure(),
+                    ):
+                        logger.warning(f"Invalid 'next' URL detected during auto-login: '{next_url}'. Falling back to default.")
+                        next_url = "/chatbot/"
+                    logger.info("Auto-logged in as 'testuser' (dev-only convenience). Redirecting.")
+                    return redirect(next_url)
                 except Exception as auto_login_err:
                      logger.error(f"Error during 'testuser' auto-login attempt: {auto_login_err}")
 
@@ -244,9 +241,12 @@ def team_launcher(request):
     return render(request, "teams_launch.html", context)
 
 
-@csrf_exempt
 def team_admin(request):
-    """Simple admin page to list and add dynamic teams."""
+    """Simple admin page to list and add dynamic teams.
+
+    Note: deliberately NOT @csrf_exempt — this view mutates state on POST and
+    its forms in teams_admin.html include {% csrf_token %}.
+    """
     if not _webui_enabled():
         return HttpResponse("Web UI disabled. Set ENABLE_WEBUI=true to enable.", status=404)
 
@@ -346,7 +346,7 @@ def team_admin(request):
             return render(request, "teams_admin.html", {"error": f"Team '{slug}' already exists.", "teams": teams_current, **_profiles_ctx()})
         # Guard against collisions with statically discovered blueprints
         try:
-            discovered = discover_blueprints(directories=[BLUEPRINT_DIRECTORY])
+            discovered = discover_blueprints(BLUEPRINT_DIRECTORY)
             if isinstance(discovered, dict) and slug in discovered:
                 return render(request, "teams_admin.html", {"error": f"Name '{slug}' conflicts with an existing blueprint.", "teams": teams_current, **_profiles_ctx()})
         except Exception:

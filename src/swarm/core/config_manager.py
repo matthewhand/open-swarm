@@ -6,7 +6,6 @@ import shutil
 import sys
 from typing import Any
 
-from swarm.core.utils.logger import *
 from swarm.extensions.cli.utils.prompt_user import prompt_user
 from swarm.settings import DEBUG
 

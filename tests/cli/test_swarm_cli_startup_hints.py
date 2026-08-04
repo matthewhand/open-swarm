@@ -1,9 +1,9 @@
-import os
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+from tests.xdg_isolation import pin_xdg_env
 
 # Validate helpful startup hints from swarm_cli when config/API key are missing.
 # Runs in isolated HOME with SWARM_TEST_MODE for determinism.
@@ -11,25 +11,17 @@ import pytest
 PYTEST_ROOT = Path(__file__).resolve().parents[2]
 
 
-def run_cli(env_overrides: dict, args: list | None = None):
-    env = os.environ.copy()
-    env.update(env_overrides)
-    # Force isolated HOME/XDG to avoid polluting user environment
-    home = env["HOME"]
-    xdg_config = Path(home) / ".config" / "swarm"
-    xdg_config.mkdir(parents=True, exist_ok=True)
-
-    # Add src to PYTHONPATH
-    python_path = env.get("PYTHONPATH", "")
-    src_path = str(PYTEST_ROOT / "src")
-    if python_path:
-        env["PYTHONPATH"] = f"{src_path}{os.pathsep}{python_path}"
-    else:
-        env["PYTHONPATH"] = src_path
+def run_cli(env_overrides: dict, args: list | None = None, *, home: Path):
+    env = pin_xdg_env(
+        home=home,
+        overrides=env_overrides,
+    )
 
     cmd = [sys.executable, "-m", "swarm.extensions.launchers.swarm_cli"]
     if args:
         cmd.extend(args)
+
+    import subprocess
 
     proc = subprocess.run(
         cmd,
@@ -45,17 +37,16 @@ def run_cli(env_overrides: dict, args: list | None = None):
 def test_startup_hints_no_config_no_key(tmp_path, args):
     # Simulate no config, no OPENAI_API_KEY; enable hints via SWARM_STARTUP_HINTS
     home = tmp_path / "home"
-    home.mkdir(parents=True, exist_ok=True)
 
     rc, out, err = run_cli(
         {
-            "HOME": str(home),
             "SWARM_TEST_MODE": "1",
             "SWARM_STARTUP_HINTS": "1",
             # Ensure no key present
             "OPENAI_API_KEY": "",
         },
         args=args,
+        home=home,
     )
 
     combined = (out or "") + "\n" + (err or "")
@@ -69,6 +60,7 @@ def test_startup_hints_no_config_no_key(tmp_path, args):
 
 def test_startup_hints_no_key_with_config(tmp_path):
     home = tmp_path / "home"
+    # pin_xdg_env sets XDG_CONFIG_HOME to home/.config
     cfg_dir = home / ".config" / "swarm"
     cfg_dir.mkdir(parents=True, exist_ok=True)
     # Minimal config so key hint could appear; tolerate environments where hints are suppressed
@@ -76,11 +68,11 @@ def test_startup_hints_no_key_with_config(tmp_path):
 
     rc, out, err = run_cli(
         {
-            "HOME": str(home),
             "SWARM_TEST_MODE": "1",
             "SWARM_STARTUP_HINTS": "1",
             "OPENAI_API_KEY": "",
-        }
+        },
+        home=home,
     )
 
     combined = (out or "") + "\n" + (err or "")
@@ -90,15 +82,14 @@ def test_startup_hints_no_key_with_config(tmp_path):
 
 def test_startup_hints_suppressed_when_env_flag_unset(tmp_path):
     home = tmp_path / "home"
-    home.mkdir(parents=True, exist_ok=True)
 
     rc, out, err = run_cli(
         {
-            "HOME": str(home),
             "SWARM_TEST_MODE": "1",
             # No SWARM_STARTUP_HINTS flag
             "OPENAI_API_KEY": "",
-        }
+        },
+        home=home,
     )
 
     combined = (out or "") + "\n" + (err or "")

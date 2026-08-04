@@ -69,6 +69,8 @@ def patch_xdg_paths(mocker, mock_dirs):
 
 def test_swarm_cli_entrypoint():
     result = runner.invoke(swarm_cli.app, ["--help"])
+    if result.exit_code != 0:  # surface the underlying exception, not just the code
+        raise AssertionError(f"exit={result.exit_code} exc={result.exception!r} out={result.output[:500]}")
     assert result.exit_code == 0
     assert "[OPTIONS] COMMAND [ARGS]..." in result.stdout
     assert "Swarm CLI tool" in result.stdout
@@ -102,7 +104,12 @@ def test_swarm_cli_install_executable_creates_executable(mock_pyinstaller_run, m
         print(f"CLI Output (Test Mode):\n{result_test_mode.stdout}")
     assert result_test_mode.exit_code == 0, result_test_mode.stdout
     assert f"Installing blueprint '{blueprint_name}' as executable..." in result_test_mode.stdout
-    assert f"Test-mode shim installed at: {target_path}" in result_test_mode.stdout
+    # Message text is either the historical "Test-mode shim" or current "Installed stub".
+    out = result_test_mode.stdout
+    assert (
+        f"Test-mode shim installed at: {target_path}" in out
+        or f"Installed stub executable: {target_path}" in out
+    ), out
     assert target_path.exists()
     assert os.access(target_path, os.X_OK)
     monkeypatch.delenv("SWARM_TEST_MODE", raising=False)

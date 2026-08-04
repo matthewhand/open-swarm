@@ -8,8 +8,8 @@ from django.urls import path
 
 
 def _stub_mcp_urls_module():
-    pkg = ModuleType("django_mcp_server")
-    mod = ModuleType("django_mcp_server.urls")
+    pkg = ModuleType("mcp_server")
+    mod = ModuleType("mcp_server.urls")
 
     def health(_request):
         return HttpResponse("OK", content_type="text/plain")
@@ -27,8 +27,8 @@ def test_mcp_urls_included_when_enabled(monkeypatch, client):
 
     # Stub out module tree
     pkg, urls = _stub_mcp_urls_module()
-    sys.modules["django_mcp_server"] = pkg
-    sys.modules["django_mcp_server.urls"] = urls
+    sys.modules["mcp_server"] = pkg
+    sys.modules["mcp_server.urls"] = urls
 
     # Reload settings/urls
     settings_mod = importlib.import_module("swarm.settings")

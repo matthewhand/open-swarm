@@ -1,4 +1,5 @@
 import logging
+import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -31,12 +32,15 @@ class DynamicTeamBlueprint(BlueprintBase):
 
         base_url = profile.get("base_url")
         api_key = profile.get("api_key") or "ollama"  # Ollama usually doesn't require a key
-        model_name = profile.get("model") or "gpt-oss:20b"
+        # No hardcoded model fallback: the profile's model is authoritative, with
+        # env overrides as the only escape hatch (consistent with BlueprintBase).
+        model_name = profile.get("model") or os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM")
 
-        if not base_url:
-            logger.error("DynamicTeamBlueprint missing base_url in llm profile '%s'", profile_name)
-            content = ("Configuration error: base_url missing for LLM profile.\n"
-                       "Please configure an 'ollama' profile in swarm_config.json.")
+        if not base_url or not model_name:
+            missing = "base_url" if not base_url else "model"
+            logger.error("DynamicTeamBlueprint missing %s in llm profile '%s'", missing, profile_name)
+            content = (f"Configuration error: {missing} missing for LLM profile '{profile_name}'.\n"
+                       "Please configure the profile (e.g. an 'ollama' profile) in swarm_config.json.")
             yield {"messages": [{"role": "assistant", "content": content}]}
             return
 

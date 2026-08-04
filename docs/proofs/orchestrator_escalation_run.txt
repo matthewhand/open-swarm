@@ -1,0 +1,12 @@
+### LOW-STAKES (expect: no escalation)  [9.7s]
+Q: What does the acronym CLI stand for? One line.
+  [progress] _Routing with `gemini` (single inference)…_
+  [progress] _Resolved directly — no consensus needed (Basic, universally accepted technical term.)._
+A: CLI stands for Command Line Interface.
+
+### HIGH-STAKES (expect: escalate to panel)  [8.9s]
+Q: Is it safe to run `git push --force` on a shared main branch? Decide carefully.
+  [progress] _Routing with `gemini` (single inference)…_
+  [progress] _Resolved directly — no consensus needed (This is a well-established, non-contested technical fact; force-pushing to shared branches is universally considered destructive.)._
+A: No, it is highly unsafe. Force pushing to a shared branch rewrites history, which causes significant disruption, loss of work, and broken workflows for all other collaborators.
+

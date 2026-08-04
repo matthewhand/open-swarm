@@ -1,0 +1,9 @@
+## TASK
+Explain why git worktrees help when running multiple coding agents on one repo.
+
+[progress] _Pipeline of 2 stage(s): gemini, claude…_
+[progress] _Running stage 1/2 `gemini` (draft)…_
+[progress] _Running stage 2/2 `claude` (refine)…_
+
+## FINAL (after gemini draft -> claude review)  [17.8s]
+Git worktrees are well suited to running multiple coding agents on one repository because they let you check out several branches at once into separate working directories that all share the same underlying `.git` data. Each agent gets an isolated directory, so their file edits, build artifacts, and working states can't collide, enabling safe parallel work on independent tasks (say, a feature in one tree and an urgent hotfix in another) without the disk cost and sync overhead of maintaining multiple full clones.

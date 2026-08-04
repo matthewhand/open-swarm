@@ -1,5 +1,9 @@
 """
-Simple terminal spinner for interactive feedback during long operations.
+Terminal spinners for interactive feedback during long operations.
+
+This module is the single source of truth for spinner implementations:
+- ``Spinner``: plain stdlib spinner for generic terminal feedback.
+- ``SwarmSpinner``: Rich-console spinner used by blueprint CLIs.
 """
 
 import sys
@@ -80,6 +84,45 @@ class Spinner:
                 sys.stdout.flush()
                 self.index += 1
             time.sleep(0.4 if self.custom_sequence else 0.1)
+
+class SwarmSpinner:
+    """Spinner for CLI blueprints, producing standard frames (Rich console)."""
+    FRAMES = ["Generating.", "Generating..", "Generating...", "Running..."]
+    SLOW_FRAME = "Generating... Taking longer than expected"
+    INTERVAL = 0.12
+    SLOW_THRESHOLD = 10  # seconds
+
+    def __init__(self, console):
+        from rich.style import Style
+        from rich.text import Text
+        self._Style = Style
+        self._Text = Text
+        self.console = console
+        self._stop_event = threading.Event()
+        self._start_time = time.time()
+        self._thread = threading.Thread(target=self._spin)
+        self._thread.daemon = True
+        self._thread.start()
+
+    def _spin(self):
+        idx = 0
+        while not self._stop_event.is_set():
+            elapsed = time.time() - self._start_time
+            if elapsed > self.SLOW_THRESHOLD:
+                txt = self._Text(self.SLOW_FRAME, style=self._Style(color="yellow", bold=True))
+            else:
+                frame = self.FRAMES[idx % len(self.FRAMES)]
+                txt = self._Text(frame, style=self._Style(color="cyan", bold=True))
+            self.console.print(txt, end="\r", soft_wrap=True, highlight=False)
+            time.sleep(self.INTERVAL)
+            idx += 1
+        # Clear line on stop
+        self.console.print(" " * 40, end="\r")
+
+    def stop(self):
+        self._stop_event.set()
+        self._thread.join()
+
 
 # Example usage (if run directly)
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MCPServerConfig(BaseModel):
@@ -20,6 +20,6 @@ class MCPServerConfig(BaseModel):
     # type: Optional[str] = Field(None, description="Type of the MCP server (e.g., 'filesystem', 'memory', 'custom').")
     # token_env_var: Optional[str] = Field(None, description="Environment variable name holding an auth token for this server.")
 
-    class Config:
-        extra = 'allow' # Allow extra fields if loaded from a more complex config
+    # Allow extra fields if loaded from a more complex config (pydantic v2 style)
+    model_config = ConfigDict(extra="allow")
 

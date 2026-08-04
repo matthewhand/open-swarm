@@ -36,6 +36,19 @@ app = typer.Typer(help="Swarm CLI tool", add_completion=False)
 
 
 def find_entry_point(blueprint_dir: Path) -> str | None:
+    """Find entry point with deterministic priority for CLI compatibility.
+    Prefers {name}_cli.py, then {name}.py, then blueprint_{name}.py.
+    """
+    name = blueprint_dir.name
+    candidates = [
+        f"{name}_cli.py",
+        f"{name}.py",
+        f"blueprint_{name}.py",
+    ]
+    for cand in candidates:
+        p = blueprint_dir / cand
+        if p.is_file() and not p.name.startswith("_"):
+            return p.name
     for item in blueprint_dir.glob("*.py"):
         if item.is_file() and not item.name.startswith("_"):
             return item.name
@@ -79,6 +92,14 @@ def install_executable(
     typer.echo(f"  Source: {source_dir}")
     typer.echo(f"  Entry Point: {entry_point}")
     typer.echo(f"  Output Executable: {output_bin_path}")
+
+    if os.environ.get("SWARM_TEST_MODE"):
+        # In test mode, skip PyInstaller and create a stub executable
+        output_bin_dir.mkdir(parents=True, exist_ok=True)
+        output_bin_path.write_text(f"#!/bin/sh\nexec python3 {entry_point_path} \"$@\"\n")
+        output_bin_path.chmod(0o755)
+        typer.echo(f"Installed stub executable: {output_bin_path}")
+        raise typer.Exit(code=0)
 
     pyinstaller_cmd = [
         "pyinstaller",
@@ -204,6 +225,307 @@ def launch(
                 )
 
 
+@app.command(name="moa")
+def moa(
+    question: str = typer.Argument(..., help="Question for the Mixture of Agents panel."),
+    participants: str = typer.Option(
+        "analyst,critic",
+        "--participants",
+        "-p",
+        help=(
+            "Comma-separated read-only seat names. With --backend grok each seat "
+            "is a separate grok -p one-shot. Codex is not required."
+        ),
+    ),
+    backend: str = typer.Option(
+        "fake",
+        "--backend",
+        "-b",
+        help=(
+            "Participant backend: fake (demo/CI, default), grok (live consensus via "
+            "local grok CLI), or acpx (optional multi-vendor; Codex not required)."
+        ),
+    ),
+    fake_responses: str = typer.Option(
+        None,
+        "--fake-responses",
+        help="For --backend fake: JSON object or name=text||name=text pairs.",
+    ),
+    cwd: str = typer.Option(
+        None,
+        "--cwd",
+        help=(
+            "Read-only working directory for panel participants (repo under review). "
+            "Not a write workspace — use --workdir with --team for specialist writes."
+        ),
+    ),
+    permission: str = typer.Option(
+        "approve-reads",
+        "--permission",
+        help="Participant permission: approve-reads or deny-all (never approve-all).",
+    ),
+    timeout: float = typer.Option(300.0, "--timeout", help="Per-participant timeout seconds."),
+    act: bool = typer.Option(
+        False,
+        "--act",
+        help="After determination, let the orchestrator perform a write (never participants).",
+    ),
+    action: str = typer.Option(None, "--action", help="Description of orchestrator act."),
+    act_write: str = typer.Option(
+        None,
+        "--act-write",
+        help="If --act, path to write the determination markdown (orchestrator only).",
+    ),
+    team: bool = typer.Option(
+        False,
+        "--team",
+        help=(
+            "After consensus, run a scripted R/W team (no openai-agents). "
+            "Requires --workdir (write workspace). Mutually exclusive with --act. "
+            "Optional --cwd sets panel read context (defaults to --workdir)."
+        ),
+    ),
+    team_tasks: str = typer.Option(
+        "implementer:Apply decision|tester:Verify|docs:Write ADR",
+        "--team-tasks",
+        help=(
+            "With --team: pipe-separated specialist tasks. "
+            "Form: purpose[:instruction][@rel/path]. "
+            "Purposes: implementer, tester, docs, researcher. "
+            "Default paths: decision.md | test_notes.md | docs/ADR.md | research_notes.md. "
+            "Default tasks: implementer + tester + docs."
+        ),
+    ),
+    workdir: str = typer.Option(
+        None,
+        "--workdir",
+        help=(
+            "Write workspace for --team specialists (created if missing). "
+            "Only valid with --team; for panel-only runs use --cwd instead."
+        ),
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Log moa.collect / moa.team steps to stderr (INFO).",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    trace: str = typer.Option(
+        None,
+        "--trace",
+        help="Write full MoA telemetry JSON (opinions, scores, determination) to this path.",
+    ),
+):
+    """Mixture of Agents: read-only CLI opinions → orchestrator determination.
+
+    Participants never write. Modes after consensus:
+
+    * default — determination only (optional ``--cwd`` for panel context)
+    * ``--act`` / ``--act-write`` — single orchestrator-owned write
+    * ``--team`` / ``--workdir`` — scripted specialists (implementer/tester/docs/researcher)
+
+    ``--cwd`` is panel read context; ``--workdir`` is the team write workspace
+    (not interchangeable). Primary product name is MoA (not fusion/ensemble).
+
+    Exit codes: 0 success; 1 runtime failure; 2 usage/validation; 5 write denied.
+    """
+    import asyncio
+    import logging
+
+    from swarm.core.moa.cli import format_moa_text, parse_fake_responses, run_moa_cli
+    from swarm.core.moa.policy import WriteDeniedError
+
+    if verbose:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s %(name)s | %(message)s",
+            force=True,
+        )
+        logging.getLogger("swarm.core.moa").setLevel(logging.INFO)
+
+    from swarm.core.moa.policy import assert_participant_name
+
+    try:
+        names = [
+            assert_participant_name(n)
+            for n in (p.strip() for p in participants.split(","))
+            if n
+        ]
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    if not names:
+        typer.echo(
+            "Error: --participants must list at least one seat name "
+            "(comma-separated, e.g. analyst,critic).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if team and act:
+        typer.echo(
+            "Error: --team and --act are mutually exclusive; "
+            "use --team for scripted specialists or --act for a single "
+            "orchestrator write, not both.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if workdir and not team:
+        typer.echo(
+            "Error: --workdir is the team write workspace and requires --team. "
+            "For panel-only participant context use --cwd instead "
+            '(e.g. swarm-cli moa "…" --cwd .).',
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if team and not (workdir or "").strip():
+        typer.echo(
+            "Error: --team requires --workdir PATH (specialist write workspace; "
+            "created if missing). --cwd is only the optional panel read context, "
+            "not a substitute for --workdir.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    try:
+        fakes = parse_fake_responses(fake_responses) if fake_responses else None
+        if backend == "fake" and not fakes:
+            # Sensible demo defaults so `swarm-cli moa "…"` works out of the box.
+            default_texts = [
+                "Prefer a simple, well-tested approach with clear rollback.",
+                "Prefer explicit validation and structured logging at the boundary.",
+                "Prefer least privilege and deny-by-default for side effects.",
+            ]
+            fakes = {
+                name: default_texts[i % len(default_texts)]
+                for i, name in enumerate(names)
+            }
+
+        if team:
+            from swarm.core.moa.team import (
+                parse_team_tasks,
+                run_moa_then_team,
+                team_result_to_payload,
+            )
+
+            tasks = parse_team_tasks(team_tasks)
+            if not tasks:
+                typer.echo(
+                    "Error: --team-tasks is empty or invalid after parsing. "
+                    "Use purpose[:instruction][@path] segments separated by | "
+                    "(e.g. implementer:Apply|tester:Verify|docs:Write ADR).",
+                    err=True,
+                )
+                raise typer.Exit(code=2)
+            result = asyncio.run(
+                run_moa_then_team(
+                    workdir,
+                    question,
+                    specialist_tasks=tasks,
+                    seed_files={"notes.txt": question[:2000]},
+                    moa_backend=backend,
+                    moa_participants=names,
+                    moa_fake_responses=fakes,
+                    # Same participant policy as non-team path; never approve-all.
+                    permission=permission,
+                    # Panel read context: optional --cwd; else team workspace.
+                    cwd=cwd,
+                    timeout=timeout,
+                )
+            )
+            payload = team_result_to_payload(result, question=question)
+            payload["backend"] = backend
+            payload["participants"] = names
+            # Prefer the validated mode recorded on the MoA panel payload.
+            payload["permission"] = (
+                (result.moa_payload or {}).get("permission") or permission
+            )
+            payload["workdir"] = workdir
+            if cwd:
+                payload["cwd"] = cwd
+            if trace:
+                import json
+                from pathlib import Path
+
+                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                payload["trace_path"] = trace
+        elif act:
+            # Orchestrator-owned single write still uses run_moa_cli.
+            payload = asyncio.run(
+                run_moa_cli(
+                    question,
+                    names,
+                    backend=backend,
+                    fake_responses=fakes,
+                    cwd=cwd,
+                    permission=permission,
+                    timeout=timeout,
+                    act=True,
+                    action=action,
+                    act_write_path=act_write,
+                    trace_path=trace,
+                )
+            )
+        else:
+            # Path A: consensus_only via the same serializer as --team.
+            from swarm.core.moa.team import (
+                run_moa_consensus,
+                team_result_to_payload,
+            )
+
+            result = asyncio.run(
+                run_moa_consensus(
+                    question,
+                    moa_backend=backend,
+                    moa_participants=names,
+                    moa_fake_responses=fakes,
+                    cwd=cwd,
+                    permission=permission,
+                    timeout=timeout,
+                )
+            )
+            payload = team_result_to_payload(result, question=question)
+            payload["backend"] = backend
+            payload["participants"] = names
+            payload["permission"] = (
+                (result.moa_payload or {}).get("permission") or permission
+            )
+            if cwd:
+                payload["cwd"] = cwd
+            if trace:
+                import json
+                from pathlib import Path
+
+                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                payload["trace_path"] = trace
+    except WriteDeniedError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=5) from e
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    except typer.Exit:
+        # Usage validation inside the try (e.g. empty --team-tasks) must keep its code.
+        raise
+    except Exception as e:
+        typer.echo(f"MoA failed: {e}", err=True)
+        raise typer.Exit(code=1) from e
+
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(payload, indent=2))
+    elif team or payload.get("mode") in ("consensus_only", "consensus_then_team"):
+        from swarm.core.moa.team import format_team_text
+
+        typer.echo(format_team_text(payload))
+    else:
+        typer.echo(format_moa_text(payload))
+
+
 @app.command(name="list")
 def list_blueprints(
     installed: bool = typer.Option(False, "--installed", "-i", help="List only installed blueprint executables."),
@@ -269,6 +591,412 @@ def list_blueprints(
             typer.echo(f"(No user blueprint sources found in {user_blueprints_src_dir})")
             typer.echo("You can add blueprints by copying their source folders to this directory.")
         typer.echo("")
+
+
+@app.command(name="cli-agents")
+def cli_agents(
+    config_path: str = typer.Option(None, "--config", "-c", help="Path to swarm_config.json (defaults to the usual search)."),
+    check_auth: bool = typer.Option(False, "--check-auth", "-a", help="Also probe each installed CLI's authentication (runs its configured auth_check)."),
+    suggest: bool = typer.Option(False, "--suggest", "-S", help="Suggest ready-to-paste config blocks for supported CLIs that are installed but not yet configured."),
+    smoke: bool = typer.Option(False, "--smoke", "-s", help="Run one trivial one-shot per installed CLI to confirm it returns in non-interactive mode. NOTE: invokes each CLI's model once (small quota cost)."),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
+    init: bool = typer.Option(False, "--init", "-i", help="Print a complete, ready-to-run swarm_config wiring every mode (cli_fusion/cli_orchestrator/cli_map) over the CLIs installed on this host."),
+    write: bool = typer.Option(False, "--write", "-w", help="With --init, write the config to your swarm config path (backs up any existing file)."),
+):
+    """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
+    import asyncio
+    import json
+
+    from swarm.core.cli_adapter import CliAdapterRegistry
+    from swarm.core import cli_catalog
+    from swarm.core.config_loader import find_config_file, load_config
+
+    if init:
+        installed = cli_catalog.installed_catalog_clis()
+        blob = json.dumps(cli_catalog.build_starter_config(installed), indent=2)
+        if write:
+            from swarm.core import paths
+            dest = Path(config_path) if config_path else (paths.get_user_config_dir_for_swarm() / "swarm_config.json")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                backup = dest.with_suffix(dest.suffix + ".bak")
+                dest.replace(backup)
+                typer.echo(f"Backed up existing config to {backup}")
+            dest.write_text(blob)
+            typer.echo(f"Wrote starter config for {len(installed)} CLI(s) [{', '.join(installed) or 'none'}] to {dest}")
+            typer.echo("Next: export OPENAI_API_KEY, then `swarm-cli cli-agents` to verify.")
+        else:
+            if not installed:
+                typer.echo("# No catalog CLIs (claude/gemini/codex/opencode) found on this host.")
+            typer.echo(blob)
+        raise typer.Exit(code=0)
+
+    cfg_file = find_config_file(specific_path=config_path)
+    config = load_config(cfg_file) if cfg_file else {}
+    registry = CliAdapterRegistry.from_config(config)
+    rows = asyncio.run(registry.discover_auth()) if check_auth else registry.discover()
+
+    if output_json:
+        payload: dict = {"agents": [d.as_dict() for d in rows]}
+        # Native (built-in) consensus capability per configured CLI, so a UI can
+        # offer a "use this CLI's own consensus mode" toggle only where available.
+        payload["native_consensus"] = {
+            d.name: cli_catalog.NATIVE_CONSENSUS[d.name]
+            for d in rows
+            if cli_catalog.has_native_consensus(d.name)
+        }
+        if smoke:
+            smoke_names = [d.name for d in rows if d.installed]
+            payload["smoke"] = [
+                s.as_dict() for s in asyncio.run(registry.smoke_check_all(names=smoke_names))
+            ]
+        if suggest:
+            payload["suggestions"] = cli_catalog.suggest_unconfigured(registry.names())
+        typer.echo(json.dumps(payload, indent=2))
+        raise typer.Exit(code=0)
+
+    if not rows:
+        typer.echo("No CLI agents configured. Add a 'cli_agents' block to your swarm config (see docs/CLI_FUSION.md).")
+    elif check_auth:
+        typer.echo(f"{'AGENT':16} {'STATUS':10} {'AUTH':16} {'MODE':10} EXECUTABLE")
+        for d in rows:
+            status = "installed" if d.installed else "missing"
+            typer.echo(f"{d.name:16} {status:10} {d.authenticated:16} {d.mode:10} {d.executable or '-'}")
+    else:
+        typer.echo(f"{'AGENT':16} {'STATUS':10} {'MODE':10} EXECUTABLE")
+        for d in rows:
+            status = "installed" if d.installed else "missing"
+            typer.echo(f"{d.name:16} {status:10} {d.mode:10} {d.executable or '-'}")
+    if rows:
+        installed = sum(1 for d in rows if d.installed)
+        typer.echo(f"\n{installed}/{len(rows)} configured CLI agents installed on this host.")
+
+    if smoke:
+        installed = [d.name for d in rows if d.installed]
+        typer.echo("")
+        if not installed:
+            typer.echo("No installed CLI agents to smoke-test.")
+        else:
+            typer.echo(f"Smoke-testing {len(installed)} installed CLI(s) (one trivial one-shot each)…")
+            results = asyncio.run(registry.smoke_check_all(names=installed))
+            typer.echo(f"\n{'AGENT':16} {'SMOKE':6} {'TIME':>7}  DETAIL")
+            for s in results:
+                typer.echo(f"{s.name:16} {s.status:6} {s.duration:6.1f}s  {s.detail}")
+
+    if suggest:
+        suggestions = cli_catalog.suggest_unconfigured(registry.names())
+        typer.echo("")
+        if not suggestions:
+            typer.echo("No suggestions: every supported CLI installed on this host is already configured.")
+        else:
+            names = ", ".join(sorted(suggestions))
+            typer.echo(f"Suggested cli_agents for installed-but-unconfigured CLIs ({names}):")
+            typer.echo("Verify each CLI's flags with --help before use; see docs/CLI_FUSION.md.\n")
+            typer.echo(json.dumps({"cli_agents": suggestions}, indent=2))
+
+
+# Laconic alias: `swarm-cli agents` == `swarm-cli cli-agents`.
+app.command(name="agents", help="Alias for cli-agents.")(cli_agents)
+
+
+@app.command(name="skills")
+def skills_command(
+    show: str = typer.Option(None, "--show", "-s", help="Print the full SKILL.md instructions for one skill."),
+    skills_dir: str = typer.Option(None, "--dir", "-d", help="Skills directory to scan (defaults to <project>/skills)."),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit a machine-readable JSON object instead of a table."),
+):
+    """List discoverable skills (reusable capabilities applied via the cli_agent `skill=` param)."""
+    import json
+
+    from swarm.core import skills as skills_mod
+
+    catalog = skills_mod.discover_skills(skills_dir)
+
+    if show:
+        skill = catalog.get(show)
+        if skill is None:
+            typer.echo(f"No skill named '{show}'. Available: {', '.join(sorted(catalog)) or 'none'}")
+            raise typer.Exit(code=1)
+        if output_json:
+            typer.echo(json.dumps(
+                {"name": skill.name, "description": skill.description,
+                 "assets": skill.assets, "instructions": skill.instructions}, indent=2))
+        else:
+            typer.echo(f"# {skill.name}\n{skill.description}\n")
+            if skill.assets:
+                typer.echo(f"Bundled assets: {', '.join(skill.assets)}\n")
+            typer.echo(skill.instructions)
+        raise typer.Exit(code=0)
+
+    if output_json:
+        typer.echo(json.dumps(
+            {"skills": [{"name": s.name, "description": s.description, "assets": s.assets}
+                        for s in catalog.values()]}, indent=2))
+        raise typer.Exit(code=0)
+
+    if not catalog:
+        typer.echo("No skills found. Add a SKILL.md under the skills/ directory (see docs/CLI_FUSION.md).")
+        raise typer.Exit(code=0)
+    typer.echo(f"{'SKILL':22} {'ASSETS':>6}  DESCRIPTION")
+    for s in sorted(catalog.values(), key=lambda x: x.name):
+        typer.echo(f"{s.name:22} {len(s.assets):>6}  {s.description[:70]}")
+    typer.echo(f"\n{len(catalog)} skill(s). Apply one: `model=cli_agent`, param `skill=<name>`.")
+
+
+import json as _json
+import shutil as _shutil
+from pathlib import Path as _Path
+
+
+@app.command(name="moa-init")
+def moa_init(
+    config: str = typer.Option(
+        None,
+        "--config",
+        help="Path to swarm_config.json (default: XDG user config or find_config_file).",
+    ),
+    write: bool = typer.Option(
+        False,
+        "--write",
+        help="Write merged MoA block to the config file (otherwise dry-run print).",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace existing moa block entirely (default merges missing keys only).",
+    ),
+    backend: str = typer.Option(
+        None,
+        "--backend",
+        help="Override moa.backend (fake|grok|acpx). Default template uses grok.",
+    ),
+    participants: str = typer.Option(
+        None,
+        "--participants",
+        "-p",
+        help="Comma-separated seat names for moa.participants.",
+    ),
+    show_openwebui: bool = typer.Option(
+        False,
+        "--show-openwebui",
+        help="Print Open WebUI / OpenAI client connection JSON and exit.",
+    ),
+):
+    """Install default Mixture of Agents (moa) config block (Grok live; no Codex).
+
+    Writes panel/consensus defaults and named presets (default, ci, single-grok).
+    Presets are backend/participants/fake_responses only — team mode is not a
+    preset key. Use ``swarm-cli moa --team --workdir …`` or models hybrid_moa /
+    moa_orchestrator for consensus-then-team. See docs/MOA.md.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    from swarm.core import paths as _paths
+    from swarm.core.config_loader import find_config_file
+    from swarm.core.moa.config import (
+        DEFAULT_MOA_BLOCK,
+        OPENWEBUI_MOA_CONNECTION,
+        merge_moa_config,
+        write_moa_config,
+    )
+
+    if show_openwebui:
+        typer.echo(_json.dumps(OPENWEBUI_MOA_CONNECTION, indent=2))
+        raise typer.Exit(code=0)
+
+    if config:
+        cfg_path = _Path(config)
+    else:
+        found = find_config_file()
+        cfg_path = found if found else (
+            _paths.get_user_config_dir_for_swarm() / "swarm_config.json"
+        )
+
+    seats = None
+    if participants:
+        seats = [s.strip() for s in participants.split(",") if s.strip()]
+
+    existing = {}
+    if cfg_path.is_file():
+        try:
+            existing = _json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    merged = merge_moa_config(
+        existing if isinstance(existing, dict) else {},
+        overwrite=overwrite,
+        backend=backend,
+        participants=seats,
+    )
+
+    if not write:
+        typer.echo(f"# Dry-run — would write moa block to {cfg_path}")
+        typer.echo(_json.dumps({"moa": merged.get("moa", DEFAULT_MOA_BLOCK)}, indent=2))
+        typer.echo(
+            "\n# Presets are panel-only (backend/participants/fake_responses). "
+            "Team mode: swarm-cli moa --team --workdir …  (not a preset key)."
+        )
+        typer.echo("\nRe-run with --write to persist. See docs/OPENWEBUI_MOA.md and docs/MOA.md")
+        raise typer.Exit(code=0)
+
+    path = write_moa_config(
+        cfg_path,
+        overwrite=overwrite,
+        backend=backend,
+        participants=seats,
+    )
+    typer.echo(f"Wrote MoA config to {path}")
+    typer.echo(f"  backend={merged['moa'].get('backend')} participants={merged['moa'].get('participants')}")
+    typer.echo(
+        "Models: moa | hybrid_moa | moa_orchestrator | mixture_of_agents "
+        "(legacy: cli_fusion, cli_ensemble)"
+    )
+    typer.echo(
+        "Team mode is not in moa.presets — use swarm-cli moa --team --workdir … "
+        "or hybrid_moa / moa_orchestrator (params.tasks)."
+    )
+
+
+@app.command(name="config")
+def config_cmd(
+    action: str = typer.Argument(..., help="list | add | remove"),
+    section: str = typer.Option(None, "--section", help="llm or mcpServers"),
+    name: str = typer.Option(None, "--name", help="profile or server name"),
+    json_str: str = typer.Option(None, "--json", help="JSON string for add"),
+    config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
+):
+    """Manage LLM profiles and MCP servers."""
+    from swarm.core.config_loader import find_config_file, load_config
+    from swarm.core import paths as _paths
+    if config:
+        cfg_path = _Path(config)
+    else:
+        found = find_config_file()
+        cfg_path = found if found else (_paths.get_user_config_dir_for_swarm() / "swarm_config.json")
+    try:
+        cfg = _json.loads(cfg_path.read_text()) if cfg_path.is_file() else {"llm": {}, "mcpServers": {}}
+    except Exception:
+        cfg = {"llm": {}, "mcpServers": {}}
+
+    if action == "list":
+        if section in ("llm", None):
+            typer.echo("LLM profiles:")
+            for k, v in cfg.get("llm", {}).items():
+                typer.echo(f"  {k}: {v.get('model', '?')}")
+        if section in ("mcpServers", None):
+            typer.echo("MCP Servers:")
+            for k in cfg.get("mcpServers", {}):
+                typer.echo(f"  {k}")
+    elif action == "add":
+        if not section or not name or not json_str:
+            typer.echo("--section, --name, and --json are required for add", err=True)
+            raise typer.Exit(code=1)
+        try:
+            val = _json.loads(json_str)
+        except _json.JSONDecodeError as e:
+            typer.echo(f"Invalid JSON: {e}", err=True)
+            raise typer.Exit(code=1)
+        cfg.setdefault(section, {})[name] = val
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text(_json.dumps(cfg, indent=2))
+        typer.echo(f"Added '{name}' to {section} in {cfg_path}")
+    elif action == "remove":
+        if not section or not name:
+            typer.echo("--section and --name are required for remove", err=True)
+            raise typer.Exit(code=1)
+        removed = cfg.get(section, {}).pop(name, None)
+        if removed is None:
+            typer.echo(f"'{name}' not found in {section}")
+        else:
+            cfg_path.write_text(_json.dumps(cfg, indent=2))
+            typer.echo(f"Removed '{name}' from {section}")
+    else:
+        typer.echo(f"Unknown action '{action}'. Use: list, add, remove", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command(name="wizard")
+def wizard_cmd(
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Skip prompts, use provided options"),
+    team_name: str = typer.Option(None, "-n", "--name", help="Team/blueprint name"),
+    roles: list[str] = typer.Option([], "-r", "--role", help="Role:description pairs (repeatable)"),
+    no_shortcut: bool = typer.Option(False, "--no-shortcut", help="Don't create a CLI shortcut"),
+    output_dir: str = typer.Option(None, "--output-dir", help="Where to write the blueprint"),
+):
+    """Scaffold a new team blueprint (non-interactive mode supported)."""
+    import re
+    if not team_name:
+        typer.echo("--name is required", err=True)
+        raise typer.Exit(code=1)
+    slug = re.sub(r"[^a-z0-9_]", "", team_name.lower().replace(" ", "_"))
+    out = _Path(output_dir) / slug if output_dir else _Path.cwd() / slug
+    out.mkdir(parents=True, exist_ok=True)
+    agents_code = ""
+    for role_spec in roles:
+        parts = role_spec.split(":", 1)
+        rname, rdesc = (parts[0], parts[1]) if len(parts) == 2 else (parts[0], parts[0])
+        agents_code += f"        Agent(name='{rname}', instructions='{rdesc}'),\n"
+    bp_file = out / f"blueprint_{slug}.py"
+    bp_file.write_text(f'''"""Auto-generated blueprint: {team_name}"""
+from agents import Agent
+from swarm.core.blueprint_base import BlueprintBase
+
+class {slug.title().replace("_","")}Blueprint(BlueprintBase):
+    metadata = {{"name": "{slug}", "description": "Team blueprint: {team_name}"}}
+    async def run(self, messages, **kwargs):
+        yield {{"messages": [{{"role": "assistant", "content": "Team {team_name} ready."}}]}}
+''')
+    typer.echo(f"Team blueprint created: {bp_file}")
+
+
+@app.command(name="add")
+def add_cmd(
+    source: str = typer.Argument(..., help="Path to blueprint directory to add"),
+    name: str = typer.Option(None, "--name", help="Override blueprint name"),
+):
+    """Add a blueprint to the user blueprint library."""
+    from swarm.core import paths as _paths
+    src = _Path(source).resolve()
+    if not src.is_dir():
+        typer.echo(f"Source directory not found: {src}", err=True)
+        raise typer.Exit(code=1)
+    bp_name = name or src.name
+    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / bp_name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        _shutil.rmtree(dest)
+    _shutil.copytree(src, dest)
+    typer.echo(f"Added blueprint '{bp_name}' to {dest}")
+
+
+@app.command(name="delete")
+def delete_cmd(
+    blueprint_name: str = typer.Argument(..., help="Blueprint name to delete from user library"),
+):
+    """Delete a blueprint from the user blueprint library."""
+    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / blueprint_name
+    if not dest.exists():
+        typer.echo(f"Blueprint '{blueprint_name}' not found in user library", err=True)
+        raise typer.Exit(code=1)
+    _shutil.rmtree(dest)
+    typer.echo(f"Deleted blueprint '{blueprint_name}' from {dest}")
+
+
+@app.command(name="uninstall")
+def uninstall_cmd(
+    blueprint_name: str = typer.Argument(..., help="Blueprint executable to uninstall"),
+):
+    """Uninstall a compiled blueprint executable from the user bin directory."""
+    from swarm.core import paths as _paths
+    bin_dir = _paths.get_user_bin_dir()
+    exe = bin_dir / blueprint_name
+    if not exe.exists():
+        typer.echo(f"Executable '{blueprint_name}' not found in {bin_dir}", err=True)
+        raise typer.Exit(code=1)
+    exe.unlink()
+    typer.echo(f"Uninstalled '{blueprint_name}' from {bin_dir}")
 
 
 if __name__ == "__main__":

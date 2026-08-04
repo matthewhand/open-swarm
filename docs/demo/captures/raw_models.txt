@@ -1,0 +1,20 @@
+[
+  {
+    "id": "django_chat",
+    "object": "model",
+    "created": 1781143537,
+    "owned_by": "open-swarm"
+  },
+  {
+    "id": "gawd",
+    "object": "model",
+    "created": 1781143537,
+    "owned_by": "open-swarm"
+  },
+  {
+    "id": "geese",
+    "object": "model",
+    "created": 1781143537,
+    "owned_by": "open-swarm"
+  }
+]

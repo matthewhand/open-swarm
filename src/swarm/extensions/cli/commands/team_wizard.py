@@ -361,10 +361,10 @@ def _render_blueprint_code(spec: TeamSpec, template: str = "simple") -> str:
             except Exception as e:
                 return "ERROR: " + str(e)
         def execute_shell_command(command: str) -> str:
-            import os, subprocess
+            import os, subprocess, shlex
             try:
                 timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-                result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+                result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout)
                 output = "Exit Code: " + str(result.returncode) + "\\n"
                 if result.stdout:
                     output += "STDOUT:\\n" + result.stdout + "\\n"

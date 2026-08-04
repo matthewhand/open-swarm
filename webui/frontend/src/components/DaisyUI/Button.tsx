@@ -1,11 +1,11 @@
-import React, { forwardRef, ButtonHTMLAttributes } from 'react';
+import { forwardRef, ButtonHTMLAttributes } from 'react';
 
 /**
  * Button component using DaisyUI classes
  * Docs: https://daisyui.com/components/button/
  */
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'accent' | 'ghost' | 'link' | 'outline' | 'active' | 'disabled';
+  variant?: 'primary' | 'secondary' | 'accent' | 'info' | 'ghost' | 'link' | 'outline' | 'active' | 'disabled';
   size?: 'lg' | 'md' | 'sm' | 'xs';
   color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error' | 'ghost';
   wide?: boolean;
@@ -52,14 +52,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     glass ? 'glass' : '',
     // Animation
     noAnimation ? 'no-animation' : '',
-    // Loading state
-    loading ? 'loading' : '',
     // Custom classes
     className
   ].filter(Boolean);
 
   return (
-    <button ref={ref} className={classes.join(' ')} {...props} disabled={loading || props.disabled}>
+    <button
+      ref={ref}
+      className={classes.join(' ')}
+      disabled={loading || props.disabled}
+      aria-disabled={loading || props.disabled}
+      aria-busy={loading}
+      {...props}
+    >
+      {/* DaisyUI 5: the bare `loading` btn class no longer renders a spinner —
+          an explicit loading-spinner span is required for visible feedback. */}
+      {loading && <span data-testid="loading-spinner" className="loading loading-spinner loading-sm" aria-hidden="true" />}
+      {loading && <span className="sr-only">Loading</span>}
       {children}
     </button>
   );

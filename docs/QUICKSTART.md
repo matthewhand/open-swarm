@@ -44,19 +44,16 @@ swarm-cli wizard
 ```bash
 swarm-cli wizard --non-interactive \
   -n "Demo Team" \
-  -r "Coordinator:lead, Engineer:code" \
-  --output-dir ./my_blueprints \
-  --bin-dir ./my_bin
+  -r "Coordinator:lead" \
+  -r "Engineer:code" \
+  --output-dir ./my_blueprints
 ```
 
-Flags:
+Flags (see `swarm-cli wizard --help`):
 - `--name/-n`: Team name
-- `--description/-d`: One-line description
-- `--abbreviation/-a`: CLI shortcut name (defaults to slugified name)
-- `--agents/-r`: Comma-separated `Name:role` entries
-- `--use-llm [--model]`: Use LLM with constrained JSON to refine the spec (requires API key)
+- `--role/-r`: Role:description pairs (repeatable)
 - `--no-shortcut`: Skip creating the CLI shortcut
-- `--output-dir`, `--bin-dir`: Control output locations (useful in sandboxes/CI)
+- `--output-dir`: Where to write the blueprint
 
 Outputs:
 - Python file at `<output-dir>/<slug>/blueprint_<slug>.py`
@@ -76,11 +73,12 @@ cp .env.example .env
 # Ensure OPENAI_API_KEY (and optional SWARM_API_KEY) are set in .env
 ```
 
-2) Start the API
+2) Start the API (set `API_AUTH_TOKEN` and `DJANGO_SECRET_KEY` in `.env` for
+production-like boots; see `.env.example`)
 ```bash
 docker compose up -d
 # wait for the healthcheck to pass (or tail the logs)
-# docker compose logs -f open-swarm
+# docker compose logs -f swarm
 ```
 
 3) Smoke-check the API
@@ -88,20 +86,20 @@ docker compose up -d
 # Models
 curl -sf http://localhost:8000/v1/models | jq .
 
-# Chat (non-streaming)
+# Chat (non-streaming) — use a bundled model id from /v1/models
 curl -sf http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${SWARM_API_KEY:-dev}" \
+  -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
   -d '{
-    "model": "echocraft",
+    "model": "suggestion",
     "messages": [{"role":"user","content":"ping"}]
   }' | jq .
 ```
 
 Notes:
-- docker-compose includes a healthcheck for /v1/models
-- PORT defaults to 8000; SWARM_BLUEPRINTS defaults to echocraft
-- Adjust volumes in docker-compose.yaml to mount your blueprints and config
+- docker-compose healthcheck probes `/health` (service name: `swarm`)
+- PORT defaults to 8000
+- Auth is **on** by default; set `SWARM_ALLOW_NO_AUTH=true` only for local demos
 
 ---
 
@@ -110,20 +108,33 @@ Notes:
 Before using LLM-powered agents, you must provide credentials.
 
 ### a. Add an OpenAI API Key (simplest case)
+
 ```bash
-swarm-cli llm add --provider openai --api-key sk-... 
+export OPENAI_API_KEY=sk-...
+# or put OPENAI_API_KEY in .env / ~/.config/swarm/.env
 ```
-- This saves your API key to `~/.config/swarm/.env` as `OPENAI_API_KEY`.
+
+Register an LLM profile with the real CLI (`config`, not `llm add`):
+
+```bash
+swarm-cli config add --section llm --name default --json \
+  '{"provider":"openai","model":"gpt-4o-mini","api_key":"${OPENAI_API_KEY}"}'
+```
 
 ### b. Use a Custom Endpoint or Model
+
 ```bash
-swarm-cli llm add --provider openai --api-key sk-... --base-url https://api.your-endpoint.com/v1 --model gpt-4
+swarm-cli config add --section llm --name local --json \
+  '{"provider":"openai","model":"gpt-4o","base_url":"https://api.your-endpoint.com/v1","api_key":"${OPENAI_API_KEY}"}'
 ```
-- Supports local models and other providers (see `swarm-cli llm add --help`).
 
 ### c. Check or Edit LLM Config
-- View config: `swarm-cli llm list`
-- Edit config manually: `nano ~/.config/swarm/.env`
+
+```bash
+swarm-cli config list --section llm
+# or edit the JSON file:
+# nano ~/.config/swarm/swarm_config.json
+```
 
 ---
 
@@ -146,6 +157,16 @@ To launch without installing the executable:
 ```bash
 swarm-cli launch codey --message "Write a Python function to add two numbers"
 ```
+
+**MoA (optional):** multi-seat consensus, or consensus then a scripted team:
+
+```bash
+swarm-cli moa "Ship rate limiting?" --backend fake --team \
+  --workdir /tmp/moa-team \
+  --team-tasks 'implementer:Apply|tester:Verify|docs:ADR'
+```
+
+See [MOA.md](./MOA.md).
 
 ---
 
@@ -170,11 +191,14 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 
 - The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
 - Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
-- Manage via CLI:
-  ```bash
-  swarm-cli config add --section llm --name openai_default --json '{"provider":"openai","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}"}'
+- Edit it directly (it's plain JSON), then add an `llm` profile like:
+  ```jsonc
+  {"llm": {"openai_default": {"provider": "openai", "model": "gpt-4o",
+    "base_url": "https://api.openai.com/v1", "api_key": "${OPENAI_API_KEY}"}}}
   ```
-- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) for details.
+- For the agentic CLIs, generate the `cli_agents` block from what's installed:
+  `swarm-cli cli-agents --init --write`.
+- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [CONFIGURATION.md](../CONFIGURATION.md) for the full schema.
 
 ---
 
@@ -182,7 +206,7 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 
 - **Blueprint/command not found:** Ensure `~/.local/bin` is in your `$PATH`.
 - **API errors:** Check your API key and network connectivity.
-- **Config issues:** Validate your config with `swarm-cli config validate` (if available).
+- **Config issues:** The config is plain JSON — check it parses (`python -m json.tool ~/.config/swarm/swarm_config.json`); for CLI auth, run `swarm-cli cli-agents --check-auth`.
 - **Logs:** Check `~/.swarm/swarm.log` or run with increased verbosity if supported.
 
 ---

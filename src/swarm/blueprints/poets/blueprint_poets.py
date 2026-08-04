@@ -4,9 +4,11 @@ Poets Blueprint
 Viral docstring update: Operational as of 2025-04-18T10:14:18Z (UTC).
 Self-healing, fileops-enabled, swarm-scalable.
 """
+import asyncio
 import logging
 import os
 import random
+import shlex
 import sqlite3  # Use standard sqlite3 module
 import sys
 from pathlib import Path
@@ -39,7 +41,6 @@ logger = logging.getLogger(__name__)
 # --- Database Constants ---
 DB_FILE_NAME = "swarm_instructions.db"
 DB_PATH = Path(project_root) / DB_FILE_NAME
-TABLE_NAME = "agent_instructions"
 
 # --- Agent Instructions ---
 # Shared knowledge base for collaboration context
@@ -130,10 +131,8 @@ AGENT_BASE_INSTRUCTIONS = {
 
 # --- FileOps Tool Logic Definitions ---
 # Patch: Expose underlying fileops functions for direct testing
-class PatchedFunctionTool:
-    def __init__(self, func, name):
-        self.func = func
-        self.name = name
+from agents import function_tool
+
 
 def read_file(path: str) -> str:
     try:
@@ -162,7 +161,7 @@ def execute_shell_command(command: str) -> str:
     try:
         import os
         timeout = int(os.getenv("SWARM_COMMAND_TIMEOUT", "60"))
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=timeout)
         output = f"Exit Code: {result.returncode}\n"
         if result.stdout:
             output += f"STDOUT:\n{result.stdout}\n"
@@ -176,10 +175,10 @@ def execute_shell_command(command: str) -> str:
     except Exception as e:
         logger.error(f"Error executing command '{command}': {e}", exc_info=True)
         return f"Error executing command: {e}"
-read_file_tool = PatchedFunctionTool(read_file, 'read_file')
-write_file_tool = PatchedFunctionTool(write_file, 'write_file')
-list_files_tool = PatchedFunctionTool(list_files, 'list_files')
-execute_shell_command_tool = PatchedFunctionTool(execute_shell_command, 'execute_shell_command')
+read_file_tool = function_tool(read_file)
+write_file_tool = function_tool(write_file)
+list_files_tool = function_tool(list_files)
+execute_shell_command_tool = function_tool(execute_shell_command)
 
 # --- Spinner and ANSI/emoji operation box for unified UX ---
 import threading
@@ -316,23 +315,25 @@ class PoetsBlueprint(BlueprintBase):
             DB_PATH.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
-                # FIX: Define the table schema instead of ...
-                cursor.execute(f"""
-                    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS agent_instructions (
                         agent_name TEXT PRIMARY KEY,
-                        instruction_text TEXT,
-                        model_profile TEXT
+                        instruction_text TEXT NOT NULL,
+                        model_profile TEXT DEFAULT 'default'
                     )
                 """)
-                logger.debug(f"Table '{TABLE_NAME}' ensured in {DB_PATH}")
-                cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE agent_name = ?", ("Gritty Buk",))
+                logger.debug(f"Table 'agent_instructions' ensured in {DB_PATH}")
+                cursor.execute("SELECT COUNT(*) FROM agent_instructions WHERE agent_name = ?", ("Gritty Buk",))
                 if cursor.fetchone()[0] == 0:
                     logger.info(f"No instructions found for Gritty Buk in {DB_PATH}. Loading sample data...")
-                    for name, base_instr in AGENT_BASE_INSTRUCTIONS.items():
-                        cursor.execute(
-                            f"INSERT OR REPLACE INTO {TABLE_NAME} (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
-                            (name, base_instr[0] if isinstance(base_instr, tuple) else base_instr, "default")
-                        )
+                    data_to_insert = [
+                        (name, base_instr[0] if isinstance(base_instr, tuple) else base_instr, "default")
+                        for name, base_instr in AGENT_BASE_INSTRUCTIONS.items()
+                    ]
+                    cursor.executemany(
+                        "INSERT OR REPLACE INTO agent_instructions (agent_name, instruction_text, model_profile) VALUES (?, ?, ?)",
+                        data_to_insert
+                    )
                     conn.commit()
                     logger.info(f"Sample agent instructions for Poets loaded into {DB_PATH}")
                 else:
@@ -352,7 +353,7 @@ class PoetsBlueprint(BlueprintBase):
                 with sqlite3.connect(DB_PATH) as conn:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.cursor()
-                    cursor.execute(f"SELECT instruction_text, model_profile FROM {TABLE_NAME} WHERE agent_name = ?", (agent_name,))
+                    cursor.execute("SELECT instruction_text, model_profile FROM agent_instructions WHERE agent_name = ?", (agent_name,))
                     row = cursor.fetchone()
                     if row:
                         logger.debug(f"Loaded config for agent '{agent_name}' from SQLite.")

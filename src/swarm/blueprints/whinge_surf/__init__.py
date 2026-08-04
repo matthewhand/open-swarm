@@ -1,1 +1,0 @@
-# Whinge Surf blueprint package

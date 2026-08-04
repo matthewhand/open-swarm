@@ -25,9 +25,12 @@ class ChucksAngelsBlueprint(BlueprintBase): # Inherit from BlueprintBase
     # version: str = "0.1.0"
     # description: str = "A blueprint for coordinating angelic tasks, Chuck Norris style."
 
-    async def run(self, messages: list[dict[str, Any]]) -> AsyncGenerator[dict[str, Any], None]:
+    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         """
         The main execution method for the Chuck's Angels blueprint.
+
+        Accepts **kwargs (e.g. ``stream=``) for compatibility with the
+        OpenAI-compatible API layer, which always passes ``stream``.
         """
         self.console.print(f"[bold green]{self.metadata.get('name', 'Chucks Angels Blueprint')} ({self.blueprint_id}) activated![/bold green]")
         self.console.print(f"Received messages: {messages}")

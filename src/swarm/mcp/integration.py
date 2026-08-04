@@ -15,10 +15,17 @@ def register_blueprints_with_mcp() -> int:
 
     Returns the number of tools registered. If the MCP server module is missing,
     returns 0 without raising.
+
+    NOTE (2026-06-19): `django-mcp-server` (module `mcp_server`) ≥0.5 exposes an
+    ``MCPToolset`` / decorator API, NOT the flat ``registry.register_tool(...)``
+    this was written against — so this bridge is a **no-op** today and needs
+    porting to the toolset paradigm (tracked in ROADMAP §3.3). The mount itself
+    (``/mcp/`` via ``mcp_server.urls``) does work once the ``[mcp]`` extra is
+    installed; only the blueprint→tool bridge below is unported.
     """
     try:
-        # Expected simple registry API in django-mcp-server
-        from django_mcp_server import registry  # type: ignore
+        # Legacy/expected flat registry API — absent in mcp_server >=0.5 (see note).
+        from mcp_server import registry  # type: ignore
     except Exception:
         return 0
 

@@ -2,6 +2,17 @@
 
 This directory contains example blueprints for the Open Swarm framework, showcasing agent coordination, external data handling, database operations, and more via parody-themed agent teams. Each blueprint achieves a practical outcome while demonstrating specific framework capabilities. Blueprints are generally ordered by complexity.
 
+## Two workflow families
+
+See **[docs/SWARM_WORKFLOWS.md](../../../docs/SWARM_WORKFLOWS.md)** for the full taxonomy.
+
+| Model | What it is | Write policy | Entry points |
+|-------|------------|--------------|--------------|
+| **A. Orchestrated consensus (MoA)** | Subagents opine; orchestrator decides | Subagents **read-only**; orchestrator acts | `moa/`, `swarm-cli moa`, `swarm.core.moa` |
+| **B. Persona / agent-as-tool swarm** | Coordinator switches specialists via `openai-agents` | Specialists **read/write** tools | Most blueprints below (codey, rue_code, geese, zeus, …) |
+
+Most table entries below are **model B**. **Model A** is the `moa` blueprint (and legacy `cli_fusion` / `cli_ensemble` aliases that now mean read-only MoA only).
+
 ## Refactored Blueprints (Using `BlueprintBase`)
 
 These blueprints have been updated to use the `BlueprintBase` class, `openai-agents` library conventions (like `Agent`, `@function_tool`, agent-as-tool delegation), and standardized configuration loading.
@@ -14,7 +25,6 @@ These blueprints have been updated to use the `BlueprintBase` class, `openai-age
 | **BurntNoodles**                | `--instruction "Check git status"`                    | Coordinating Git & testing tasks via function tools & agent delegation       | `@function_tool` for CLI commands, Agent-as-tool delegation             |                       | None                        |
 | **RueCode**                     | `--instruction "Refactor this python code..."`        | Multi-agent code generation/refactoring workflow                             | Agent-as-tool delegation, specialized agent roles (Coordinator, Code, etc.) | software-development  | memory                      |
 | **NebulaShellzzar**             | `--instruction "List files in /tmp"`                  | Matrix-themed sysadmin/coding tasks with delegation                        | Agent-as-tool delegation, `@function_tool` for shell/code analysis    |                       | memory                      |
-| **DigitalButlers**              | `--instruction "Search for nearby restaurants"`       | Delegating tasks requiring specific MCPs (search, home automation)         | Agent-as-tool delegation, MCP usage by specialist agents                  |                       | duckduckgo-search, home-assistant |
 | **DilbotUniverse (SQLite)**     | `--instruction "Start the SDLC"`                      | Comedic SDLC simulation, instructions loaded from SQLite                     | Agent-as-tool delegation, SQLite integration for dynamic prompts          |                       | sqlite                      |
 | **Stewie**                      | `--instruction "Create WP post titled 'Hello'..."`    | Coordinating WordPress operations via MCP                                    | Agent-as-tool delegation, specialized agent using specific MCP (WP)     |                       | server-wp-mcp               |
 | **MissionImprobable (SQLite)**  | `--instruction "Use RollinFumble to run 'pwd'"`       | Spy-themed ops, instructions from SQLite, multi-level delegation             | Agent-as-tool delegation, SQLite integration, MCP usage (fs, shell, mem)  |                       | memory, filesystem, mcp-shell |
@@ -28,14 +38,20 @@ These blueprints have been updated to use the `BlueprintBase` class, `openai-age
 
 ## WIP / Needs Refactoring
 
-These blueprints still use older patterns or have known issues (e.g., UVX/NeMo dependencies) and need refactoring to the `BlueprintBase` standard.
+These blueprints still use older patterns or have known issues and are being incrementally improved (many now use BlueprintBase).
 
-| Blueprint Name          | CLI      | Description                                                  | Status          |
-|-------------------------|----------|--------------------------------------------------------------|-----------------|
-| chucks_angels           | chuck    | Manages transcripts, compute, Flowise (UVX/NeMo WIP)         | Needs Refactor  |
-| django_chat             | djchat   | Django-integrated chatbot example                            | Needs Review    |
-| flock                   | flock    | (Details TBC)                                                | Needs Refactor  |
-| messenger               | msg      | (Details TBC)                                                | Needs Refactor  |
+**Duplication reduction:** Common PatchedFunctionTool / DummyTool / file+shell tools now live in `src/swarm/blueprints/common/tool_utils.py` (imported by updated blueprints).
+
+See individual READMEs and `blueprint_audit_status.json` for details.
+
+| Blueprint Name          | CLI      | Description                                                  | Status                  |
+|-------------------------|----------|--------------------------------------------------------------|-------------------------|
+| chucks_angels           | chuck    | Chuck Norris style coordination (minimal)                    | Minimal / Experimental  |
+| django_chat             | djchat   | Django-integrated (early load fix applied)                   | Partial                 |
+| flock                   | flock    | Group orchestration (stub)                                   | Stub                    |
+| messenger               | msg      | UI template only (stub in discovery)                         | Stub                    |
+| digitalbutlers          | butlers  | Assistant stub                                               | Stub                    |
+| codey/rue/jeeves/poets etc. | various | Tool dupe reduction + metadata (see common/tool_utils)      | Partial (improving)     |
 
 ## Configuration (`swarm_config.json`)
 

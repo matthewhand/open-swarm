@@ -1,8 +1,9 @@
 """
-Blueprint Library Views for Open Swarm MCP Core.
+Blueprint Library Views for Open Swarm Core.
 Handles blueprint browsing, library management, and custom blueprint creation.
 """
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -78,15 +79,6 @@ BLUEPRINT_METADATA = {
         "version": "1.0.0",
         "difficulty": "beginner"
     },
-    "whinge_surf": {
-        "name": "Whinge Surf",
-        "description": "System monitoring and process management tool",
-        "category": "system_tools",
-        "tags": ["monitoring", "system", "processes"],
-        "author": "Open Swarm Team",
-        "version": "1.0.0",
-        "difficulty": "intermediate"
-    },
     "poets": {
         "name": "Poets",
         "description": "Creative writing and poetry generation assistant",
@@ -105,8 +97,8 @@ BLUEPRINT_METADATA = {
         "version": "1.0.0",
         "difficulty": "beginner"
     },
-    "family_ties": {
-        "name": "Family Ties",
+    "stewie": {
+        "name": "Stewie",
         "description": "WordPress content management with agent team coordination",
         "category": "web_services",
         "tags": ["wordpress", "cms", "team"],
@@ -233,6 +225,10 @@ def blueprint_library(request):
         context = {
             "blueprints_by_category": blueprints_by_category,
             "categories": BLUEPRINT_CATEGORIES,
+            # total_available is the blueprint count; the template used to show
+            # blueprints_by_category|length here, which is the CATEGORY count.
+            "total_available": len(blueprint_data),
+            "category_count": len(blueprints_by_category),
             "installed_count": len(installed_blueprints),
             "custom_count": len(custom_blueprints),
             "dark_mode": request.session.get('dark_mode', True),
@@ -395,7 +391,7 @@ def blueprint_creator(request):
                 "code": blueprint_code,
                 "avatar_path": avatar_path,
                 "avatar_style": avatar_style if avatar_path else None,
-                "created_at": str(Path().cwd()),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "author": "User Generated"
             }
 
@@ -554,9 +550,31 @@ def my_blueprints(request):
                 "type": "installed"
             })
 
+        # Normalize created_at for display: older records stored a filesystem
+        # path (a leak); new ones store an ISO timestamp. Show a friendly date
+        # for valid timestamps and nothing for anything else (never a raw path).
+        for bp in custom:
+            raw = bp.get("created_at")
+            display = None
+            if isinstance(raw, str):
+                try:
+                    display = datetime.fromisoformat(raw).strftime("%b %d, %Y")
+                except ValueError:
+                    display = None
+            bp["created_display"] = display
+
+        # Compute stat counts in the view: the template can't reliably add two
+        # |length values (the old `|length|add:custom|length` chain produced 0),
+        # which is why "Total" rendered 0 even with custom blueprints present.
+        installed_count = len(installed_data)
+        custom_count = len(custom)
         context = {
             "installed_blueprints": installed_data,
             "custom_blueprints": custom,
+            "installed_count": installed_count,
+            "custom_count": custom_count,
+            "total_count": installed_count + custom_count,
+            "categories": BLUEPRINT_CATEGORIES,
             "dark_mode": request.session.get('dark_mode', True),
         }
 

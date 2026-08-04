@@ -7,7 +7,7 @@ Tests for API views covering:
 - BlueprintsListView: list blueprints with metadata and filters
 - CustomBlueprintsView: CRUD for user custom blueprints
 - CustomBlueprintDetailView: GET/PATCH/DELETE for single blueprint
-- Marketplace views: return empty list when Wagtail disabled
+- Marketplace GitHub views: return empty list when discovery disabled
 
 Uses mocks for blueprint discovery and external calls; no network.
 """
@@ -585,32 +585,8 @@ class TestCustomBlueprintDetailView:
 
 
 # =============================================================================
-# Tests for Marketplace Views
+# Tests for Marketplace Views (GitHub-topics discovery)
 # =============================================================================
-
-class TestMarketplaceBlueprintsView:
-    """Tests for /marketplace/blueprints/ endpoint."""
-
-    def test_list_marketplace_blueprints_disabled(self, api_client):
-        """Test marketplace blueprints returns empty when Wagtail disabled."""
-        response = api_client.get("/marketplace/blueprints/")
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data == {"object": "list", "data": []}
-
-
-class TestMarketplaceMCPConfigsView:
-    """Tests for /marketplace/mcp-configs/ endpoint."""
-
-    def test_list_marketplace_mcp_configs_disabled(self, api_client):
-        """Test marketplace MCP configs returns empty when Wagtail disabled."""
-        response = api_client.get("/marketplace/mcp-configs/")
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data == {"object": "list", "data": []}
-
 
 class TestMarketplaceGitHubBlueprintsView:
     """Tests for /marketplace/github/blueprints/ endpoint."""

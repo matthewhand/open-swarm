@@ -38,6 +38,8 @@ from rest_framework.views import APIView
 # Assuming serializers are in the same app
 from swarm.serializers import ChatCompletionRequestSerializer
 
+from .openai_schema import chat_completions_schema
+
 # Assuming utils are in the same app/directory level
 # Make sure these utils are async-safe or wrapped if they perform sync I/O
 from .utils import (
@@ -60,8 +62,100 @@ except Exception:
     pass
 
 # ==============================================================================
+# Chunk normalization helpers
+# ==============================================================================
+
+def _extract_message_from_chunk(chunk: Any) -> dict[str, Any] | None:
+    """Normalize a single chunk yielded by a blueprint's run() generator.
+
+    Blueprints emit several shapes:
+      - internal dicts: ``{"messages": [{"role", "content"}]}``
+      - OpenAI-like objects: ``{"choices": [{"message"|"delta": {...}}]}``
+      - bare message dicts: ``{"message": {"role", "content"}}`` or
+        top-level ``{"role", "content"}`` (e.g. chucks_angels)
+      - ``AgentInteraction`` dataclasses (``.role``/``.content``/``.final``)
+      - progress side-channel dicts (e.g. ``{"type": "spinner_update", ...}``)
+
+    Returns a ``{"role", "content"}`` dict, or None when the chunk carries no
+    message payload (progress/spinner side-channel chunks).
+    """
+    if chunk is None:
+        return None
+    if not isinstance(chunk, dict):
+        # AgentInteraction-like object (duck-typed: has a string content attr)
+        content = getattr(chunk, "content", None)
+        if isinstance(content, str) and content:
+            return {"role": getattr(chunk, "role", None) or "assistant", "content": content}
+        return None
+    messages = chunk.get("messages")
+    if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+        message = messages[0]
+        if message.get("content") is not None:
+            return {"role": message.get("role") or "assistant", "content": message["content"]}
+        return None
+    message = chunk.get("message")
+    if isinstance(message, dict) and message.get("content") is not None:
+        return {"role": message.get("role") or "assistant", "content": message["content"]}
+    choices = chunk.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        choice0 = choices[0]
+        message = choice0.get("delta") or choice0.get("message") or choice0
+        if isinstance(message, dict) and message.get("content") is not None:
+            return {"role": message.get("role") or "assistant", "content": message["content"]}
+        return None
+    # Bare top-level message dict (e.g. {"type": "message", "role": ..., "content": ...})
+    if chunk.get("content") is not None and (chunk.get("role") or chunk.get("type") == "message"):
+        return {"role": chunk.get("role") or "assistant", "content": chunk["content"]}
+    return None
+
+
+def _chunk_is_final(chunk: Any) -> bool:
+    """True when a chunk carries an explicit final marker (e.g. AgentInteraction.final)."""
+    if isinstance(chunk, dict):
+        return bool(chunk.get("final"))
+    return bool(getattr(chunk, "final", False))
+
+
+# ==============================================================================
 # API Views (DRF based)
 # ==============================================================================
+
+def usage_counts(messages: list[dict[str, Any]] | None, answer: Any, model: str) -> tuple[int, int, int]:
+    """Approximate (prompt, completion, total) token counts for a response.
+
+    Uses tiktoken via ``get_token_count`` (word-count fallback). Better than the
+    zeros we used to return, so OpenAI clients can do cost/usage tracking. It is
+    an estimate of the text in/out of the API, not the CLIs' own tokenisation.
+    """
+    from swarm.utils.context_utils import get_token_count
+
+    prompt = sum(get_token_count(m, model) for m in (messages or []))
+    completion = get_token_count(answer if answer is not None else "", model)
+    return prompt, completion, prompt + completion
+
+
+def backend_fingerprint(model_name: str, meta: dict[str, Any] | None) -> str:
+    """Build ``system_fingerprint`` naming resolved backends (CLI panel / MoA).
+
+    A blueprint may yield a ``meta`` side-channel on its final chunk. Renders
+    e.g. ``moa:analyst+critic`` or ``cli_fusion:gemini+claude``. Accepts
+    ``backends`` or ``ok_participants``. Falls back to the model id.
+    """
+    if not isinstance(meta, dict):
+        return model_name
+    fp = model_name
+    backends = [
+        str(b)
+        for b in (meta.get("backends") or meta.get("ok_participants") or [])
+        if b
+    ]
+    if backends:
+        fp += ":" + "+".join(backends)
+    judge = meta.get("judge")
+    if judge:
+        fp += f"|judge={judge}"
+    return fp
+
 
 class HealthCheckView(APIView):
     """ Simple health check endpoint. """
@@ -86,36 +180,36 @@ class ChatCompletionsView(APIView):
     async def _handle_non_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> Response:
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
-        final_response_data = None
+        final_message = None
+        backend_meta = None
         start_time = time.time()
+        async_generator = None
         try:
-            # The blueprint's run method should be an async generator.
+            # The blueprint's run method should be an async generator. Blueprints
+            # yield progress chunks (spinner frames like "Generating.") BEFORE the
+            # real answer, so we must consume the WHOLE generator and keep the
+            # LAST message — the same content the streaming path emits last.
+            # Chunks carrying an explicit final marker (AgentInteraction.final)
+            # short-circuit the scan.
             async_generator = blueprint_instance.run(messages, stream=False)
             async for chunk in async_generator:
-                # Accept either internal {messages:[{role,content}]} or OpenAI-like completion objects
-                if isinstance(chunk, dict):
-                    if "messages" in chunk and isinstance(chunk["messages"], list):
-                        final_response_data = chunk["messages"]
-                        logger.debug(f"[ReqID: {request_id}] Received final data chunk (messages list).")
-                        break
-                    if "choices" in chunk and isinstance(chunk.get("choices"), list) and chunk["choices"]:
-                        choice0 = chunk["choices"][0]
-                        message = choice0.get("message") or {}
-                        if isinstance(message, dict) and message.get("role") and (message.get("content") is not None):
-                            final_response_data = [message]
-                            logger.debug(f"[ReqID: {request_id}] Received final data chunk (OpenAI object).")
-                            break
-                logger.warning(f"[ReqID: {request_id}] Unexpected chunk format during non-streaming run: {chunk}")
+                if isinstance(chunk, dict) and chunk.get("meta"):
+                    backend_meta = chunk["meta"]  # which CLI(s) answered (system_fingerprint)
+                message = _extract_message_from_chunk(chunk)
+                if message is None:
+                    logger.debug(f"[ReqID: {request_id}] Skipping non-message chunk during non-streaming run: {chunk}")
+                    continue
+                final_message = message
+                if _chunk_is_final(chunk):
+                    logger.debug(f"[ReqID: {request_id}] Received explicitly-final chunk; stopping consumption.")
+                    break
 
-            if not final_response_data or not isinstance(final_response_data, list) or not final_response_data:
-                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not return a valid final message list. Got: {final_response_data}")
+            if not isinstance(final_message, dict) or final_message.get('content') is None:
+                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' did not yield any valid message chunk.")
                  raise APIException("Blueprint did not return valid data.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            if not isinstance(final_response_data[0], dict) or 'role' not in final_response_data[0]:
-                 logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' returned invalid message structure. Got: {final_response_data[0]}")
-                 raise APIException("Blueprint returned invalid message structure.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_response_data[0], "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, "system_fingerprint": None }
+            p_tok, c_tok, t_tok = usage_counts(messages, final_message.get("content"), model_name)
+            response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": p_tok, "completion_tokens": c_tok, "total_tokens": t_tok}, "system_fingerprint": backend_fingerprint(model_name, backend_meta) }
             end_time = time.time()
             logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)
@@ -123,7 +217,18 @@ class ChatCompletionsView(APIView):
             raise
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True)
-            raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
+        finally:
+            # Avoid "Task was destroyed but it is pending" when we break early.
+            if async_generator is not None and hasattr(async_generator, "aclose"):
+                try:
+                    await async_generator.aclose()
+                except Exception:
+                    pass
 
     async def _handle_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """
@@ -131,30 +236,21 @@ class ChatCompletionsView(APIView):
         async def event_stream():
             start_time = time.time()
             chunk_index = 0
+            backend_meta = None
             try:
                 logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()...")
                 async_generator = blueprint_instance.run(messages, stream=True)
                 logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
-                    delta = {"role": "assistant"}
-                    if isinstance(chunk, dict):
-                        if "messages" in chunk and isinstance(chunk["messages"], list) and chunk["messages"] and isinstance(chunk["messages"][0], dict):
-                            delta_content = chunk["messages"][0].get("content")
-                            if delta_content is not None:
-                                delta["content"] = delta_content
-                        elif "choices" in chunk and isinstance(chunk.get("choices"), list) and chunk["choices"]:
-                            # Handle OpenAI-like streaming or completion chunk shapes
-                            choice0 = chunk["choices"][0]
-                            if isinstance(choice0, dict):
-                                # delta content (streaming) or message content (completion)
-                                message = choice0.get("delta") or choice0.get("message") or {}
-                                if isinstance(message, dict) and (message.get("content") is not None):
-                                    delta["content"] = message.get("content")
-                    if "content" not in delta:
+                    if isinstance(chunk, dict) and chunk.get("meta"):
+                        backend_meta = chunk["meta"]  # which CLI(s) answered
+                    message = _extract_message_from_chunk(chunk)
+                    if message is None:
                         logger.warning(f"[ReqID: {request_id}] Skipping invalid chunk format: {chunk}")
                         continue
-                    response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}] }
+                    delta = {"role": "assistant", "content": message["content"]}
+                    response_chunk = { "id": f"chatcmpl-{request_id}", "object": "chat.completion.chunk", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "delta": delta, "logprobs": None, "finish_reason": None}], "system_fingerprint": backend_fingerprint(model_name, backend_meta) }
                     logger.debug(f"[ReqID: {request_id}] Sending SSE chunk {chunk_index}")
                     yield f"data: {json.dumps(response_chunk)}\n\n"
                     chunk_index += 1
@@ -171,7 +267,8 @@ class ChatCompletionsView(APIView):
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 logger.error(f"[ReqID: {request_id}] Unexpected error during streaming: {e}", exc_info=True)
-                error_msg = f"Internal server error: {str(e)}"
+                from swarm.utils.env_utils import client_safe_error_message
+                error_msg = client_safe_error_message(e, public="Internal server error.")
                 error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
                 yield f"data: {json.dumps(error_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -235,6 +332,7 @@ class ChatCompletionsView(APIView):
         return self.response
 
     # --- POST Handler (Keep sync_to_async wrappers here too) ---
+    @chat_completions_schema
     async def post(self, request: Request, *_args: Any, **_kwargs: Any) -> HttpResponseBase:
         """
         Handles POST requests for chat completions. Assumes dispatch has handled auth/perms.
@@ -265,7 +363,11 @@ class ChatCompletionsView(APIView):
             raise e
         except Exception as e:
             print_logger.error(f"[ReqID: {request_id}] Unexpected error during serializer validation: {e}", exc_info=True)
-            raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e, public="Internal error during request validation."),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
 
         validated_data = serializer.validated_data
         model_name = validated_data['model']
@@ -289,7 +391,13 @@ class ChatCompletionsView(APIView):
             blueprint_instance = await get_blueprint_instance(model_name, params=blueprint_params)
         except Exception as e:
              logger.error(f"[ReqID: {request_id}] Error getting blueprint instance for '{model_name}': {e}", exc_info=True)
-             raise APIException(f"Failed to load model '{model_name}': {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+             from swarm.utils.env_utils import client_safe_error_message
+             raise APIException(
+                 client_safe_error_message(
+                     e, public=f"Failed to load model '{model_name}'.",
+                 ),
+                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+             ) from e
 
         if blueprint_instance is None:
             logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (get_blueprint_instance returned None).")
@@ -300,11 +408,45 @@ class ChatCompletionsView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
+        # --- Async fire-and-forget: return a queued handle immediately, run in a
+        #     background worker, poll via GET /v1/responses/{id}. Reuses the
+        #     Responses async machinery. (Streaming is always inline.) ---
+        background = bool(request_data.get('background', False)) if isinstance(request_data, dict) else False
+        if background and not stream:
+            return await self._handle_background_chat(request_id, model_name, messages, blueprint_params)
+
         # --- Handle Streaming or Non-Streaming Response ---
         if stream:
             return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
         else:
             return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
+
+    async def _handle_background_chat(self, request_id: str, model_name: str, messages, params) -> Response:
+        """Queue a chat-completions task on the shared Responses worker; return a
+        chat.completion-shaped handle to poll at GET /v1/responses/{id}."""
+        # Lazy import to avoid the chat_views <-> responses_views import cycle.
+        from swarm.core import responses_store
+
+        from .responses_views import _build_response_payload, _spawn_worker, _task_spec
+
+        response_id = f"resp_{request_id}"
+        rpayload = _build_response_payload(request_id, model_name, "", None, None, None, status="queued")
+        await sync_to_async(responses_store.save)({
+            "id": response_id, "object": "response", "response": rpayload, "messages": None,
+            "_task": _task_spec(request_id, model_name, list(messages), params, None),
+        })
+        _spawn_worker(response_id, request_id, model_name, list(messages), params, None)
+        logger.info(f"[ReqID: {request_id}] /v1/chat/completions queued async task {response_id} (model '{model_name}').")
+        ack = {
+            "id": response_id,
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model_name,
+            "status": "queued",
+            "choices": [],
+            "poll_url": f"/v1/responses/{response_id}",
+        }
+        return Response(ack, status=status.HTTP_202_ACCEPTED)
 
 
 # ==============================================================================

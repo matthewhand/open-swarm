@@ -23,6 +23,23 @@ Having issues with Open Swarm? Here are some common problems and solutions.
   ```
   - The system will regenerate a default config on next run, but you will need to reconfigure agents and LLMs.
 
+### Server crash-loops on startup with `ImproperlyConfigured`
+In production (`DJANGO_DEBUG` unset/false) the server **refuses to boot** until a
+couple of env vars are set, exiting with e.g.:
+
+```
+django.core.exceptions.ImproperlyConfigured: DJANGO_SECRET_KEY environment
+variable is required when DJANGO_DEBUG is not enabled (production).
+```
+
+Fix — set the required production vars (or enable dev mode):
+- `DJANGO_SECRET_KEY` — any strong random string (`python -c "import secrets;print(secrets.token_hex(32))"`).
+- `DJANGO_ALLOWED_HOSTS` — comma-separated hostnames (e.g. `example.com,www.example.com`).
+- …or for local development only, set `DJANGO_DEBUG=true` to use insecure dev defaults.
+
+The error names exactly which var is missing; it surfaces them one at a time, so
+set both. See [CONFIGURATION.md](../CONFIGURATION.md) → Environment Variables.
+
 ## 4. Logs and Debugging
 - Check logs at `~/.swarm/swarm.log` for error messages.
 - Run CLI commands with increased verbosity if supported (e.g., `--verbose`).
@@ -62,5 +79,33 @@ How to proceed:
 - Reference secrets in JSON using `${ENV_VAR}` (e.g., `"api_key": "${OPENAI_API_KEY}"`).
 
 ---
+
+
+
+## 7. Browser automation / Playwright MCP
+
+Blueprints that declare a ``browser`` capability (e.g. ``whiskeytango_foxtrot``,
+``jeeves``) expect the official **microsoft/playwright-mcp** server
+(``npx -y @playwright/mcp@latest``). Open Swarm auto-provisions it in the tool
+catalog when missing from config, but it still needs Node/npx available on the
+host and a successful MCP process start.
+
+There is **no stub browser that fakes success**. If Playwright MCP is not
+configured or fails to start, tools should report:
+
+```
+browser automation unavailable: no playwright MCP server
+```
+
+(see ``swarm.core.browser_tools.browser_unavailable_error``).
+
+Fix checklist:
+- Ensure Node.js / ``npx`` is on ``PATH`` for the server process.
+- Optionally pin a ``playwright`` entry under ``mcpServers`` in
+  ``swarm_config.json`` (command ``npx``, args ``["-y", "@playwright/mcp@latest"]``).
+- Confirm with ``GET /v1/blueprints/<id>/tools`` that ``satisfied.browser`` is
+  ``playwright`` and that the process can actually spawn ``npx``.
+- First run may download Chromium; allow network or pre-install browsers.
+
 
 **Tip:** Most issues are caused by misconfigured API keys, missing dependencies, or a corrupted config file. Reviewing or resetting your config often resolves stubborn problems.

@@ -1,0 +1,173 @@
+{
+  "question": "Should we default public APIs to token-bucket rate limiting?",
+  "mode": "consensus_then_team",
+  "determination": {
+    "answer": "yes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics",
+    "rationale": "Most-corroborated participant opinion from analyst; panel digest attached for transparency.",
+    "participant_names": [
+      "analyst",
+      "critic"
+    ],
+    "analysis": {
+      "ok_count": 2,
+      "primary": "analyst",
+      "scores": {
+        "analyst": 4.05,
+        "critic": 4.0
+      },
+      "structured_count": 2
+    }
+  },
+  "moa": {
+    "question": "Should we default public APIs to token-bucket rate limiting?",
+    "participants": [
+      "analyst",
+      "critic"
+    ],
+    "backend": "fake",
+    "permission": "approve-reads",
+    "opinions": [
+      {
+        "name": "analyst",
+        "ok": true,
+        "text": "{\"claim\":\"yes token bucket at edge\",\"confidence\":0.9}",
+        "error": null,
+        "permission_mode": "approve-reads",
+        "proposal": {
+          "claim": "yes token bucket at edge",
+          "confidence": 0.9,
+          "evidence": [],
+          "structured": true
+        }
+      },
+      {
+        "name": "critic",
+        "ok": true,
+        "text": "{\"claim\":\"yes token bucket with metrics\",\"confidence\":0.85}",
+        "error": null,
+        "permission_mode": "approve-reads",
+        "proposal": {
+          "claim": "yes token bucket with metrics",
+          "confidence": 0.85,
+          "evidence": [],
+          "structured": true
+        }
+      }
+    ],
+    "determination": {
+      "answer": "yes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics",
+      "rationale": "Most-corroborated participant opinion from analyst; panel digest attached for transparency.",
+      "participant_names": [
+        "analyst",
+        "critic"
+      ],
+      "analysis": {
+        "ok_count": 2,
+        "primary": "analyst",
+        "scores": {
+          "analyst": 4.05,
+          "critic": 4.0
+        },
+        "structured_count": 2
+      }
+    },
+    "act": null,
+    "writes": [],
+    "mode": "consensus_only",
+    "specialists": [],
+    "panel_wrote": false
+  },
+  "specialists": [
+    {
+      "persona": "researcher",
+      "instruction": "Scan",
+      "ok": true,
+      "tool_trace": [
+        "list_files('.')",
+        "read_file('notes.txt')",
+        "write_file('research_notes.md')"
+      ],
+      "output_preview": "# Research\n\n## Task\nScan\n\n## MoA determination\nyes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics\n\n## Workspace\ndecision.md\ndocs\nmoa_determination.md\nnotes.txt\nresearch_notes.md\ntest_notes.md\n\n## Notes\nShould we default public APIs to token-bucket rate limiting?\n\n_Researcher specialist \u2014 scripted team after MoA (no openai-age"
+    },
+    {
+      "persona": "implementer",
+      "instruction": "Apply",
+      "ok": true,
+      "tool_trace": [
+        "read_file('notes.txt')",
+        "read_file('moa_determination.md')",
+        "write_file('decision.md')"
+      ],
+      "output_preview": "# Decision\n\n## Context\nShould we default public APIs to token-bucket rate limiting?\n\n## MoA consensus\nyes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics\n\n## Task\nApply\n\n_Implementer specialist \u2014 scripted team after MoA (no openai-agents)._\n"
+    },
+    {
+      "persona": "tester",
+      "instruction": "Verify",
+      "ok": true,
+      "tool_trace": [
+        "write_file('test_notes.md')"
+      ],
+      "output_preview": "# Test notes\n\n## Against determination\nyes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics\n\n## Task\nVerify\n\n- [ ] Verify happy path\n- [ ] Verify failure modes\n\n_Tester specialist \u2014 scripted team after MoA (no openai-agents)._\n"
+    },
+    {
+      "persona": "docs",
+      "instruction": "ADR",
+      "ok": true,
+      "tool_trace": [
+        "write_file('docs/ADR.md')"
+      ],
+      "output_preview": "# ADR\n\n## Status\nAccepted (post-MoA)\n\n## Context\nShould we default public APIs to token-bucket rate limiting?\n\n## Decision\nyes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics\n\n## Task\nADR\n\n_Docs specialist \u2014 scripted team after MoA (no openai-agents)._\n"
+    }
+  ],
+  "writes": [
+    "moa_determination.md",
+    "research_notes.md",
+    "decision.md",
+    "test_notes.md",
+    "docs/ADR.md"
+  ],
+  "reads": [
+    ".",
+    "notes.txt",
+    "notes.txt",
+    "moa_determination.md"
+  ],
+  "panel_wrote": false,
+  "final_preview": "# ADR\n\n## Status\nAccepted (post-MoA)\n\n## Context\nShould we default public APIs to token-bucket rate limiting?\n\n## Decision\nyes token bucket at edge\n\n\u2014 synthesized by orchestrator from 2 participants (primary: analyst)\n\nPanel:\n- analyst [structured] conf=0.9: yes token bucket at edge\n- critic [structured] conf=0.85: yes token bucket with metrics\n\n## Task\nADR\n\n_Docs specialist \u2014 scripted team after MoA (no openai-agents)._\n",
+  "opinions": [
+    {
+      "name": "analyst",
+      "ok": true,
+      "text": "{\"claim\":\"yes token bucket at edge\",\"confidence\":0.9}",
+      "error": null,
+      "permission_mode": "approve-reads",
+      "proposal": {
+        "claim": "yes token bucket at edge",
+        "confidence": 0.9,
+        "evidence": [],
+        "structured": true
+      }
+    },
+    {
+      "name": "critic",
+      "ok": true,
+      "text": "{\"claim\":\"yes token bucket with metrics\",\"confidence\":0.85}",
+      "error": null,
+      "permission_mode": "approve-reads",
+      "proposal": {
+        "claim": "yes token bucket with metrics",
+        "confidence": 0.85,
+        "evidence": [],
+        "structured": true
+      }
+    }
+  ],
+  "act": null,
+  "backend": "fake",
+  "participants": [
+    "analyst",
+    "critic"
+  ],
+  "permission": "approve-reads",
+  "workdir": "docs/examples/moa-consensus-vs-team/assets/cli-team-workspace"
+}

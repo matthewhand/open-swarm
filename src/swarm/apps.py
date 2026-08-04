@@ -58,5 +58,129 @@ class SwarmConfig(AppConfig):
                 "DJANGO_SETTINGS_MODULE not set, setting default 'swarm.settings'"
             )
 
+        # Load the swarm config ONCE and cache it on the AppConfig so every
+        # blueprint reads the same file. BlueprintBase._load_configuration already
+        # prefers ``apps.get_app_config('swarm').config`` — populating it here from
+        # the XDG path is what makes the server honor ~/.config/swarm/swarm_config.json
+        # (like swarm-cli does). We load ONLY SWARM_CONFIG_PATH or the XDG path;
+        # if neither exists we leave config empty and BlueprintBase's own
+        # working-directory fallback still picks up a ./swarm_config.json — so cwd
+        # behavior is unchanged, we only *add* XDG.
+        self.config = self._load_swarm_config()
+
+        # Refuse SWARM_TEST_MODE in non-debug production (silent canned answers).
+        try:
+            from swarm.utils.env_utils import assert_test_mode_allowed
+            assert_test_mode_allowed()
+        except Exception as e:
+            # Re-raise ImproperlyConfigured; log unexpected errors.
+            from django.core.exceptions import ImproperlyConfigured
+            if isinstance(e, ImproperlyConfigured):
+                raise
+            logger.warning("Test-mode guard check failed: %s", e)
+
+        self._warn_if_api_auth_disabled()
+
+        # Resume async /v1/responses tasks left in-flight by a restart — server
+        # processes only (not migrate/test), guarded against the runserver
+        # reloader's parent process to avoid double-resume.
+        self._check_uvicorn_workers()
+        self._maybe_resume_async_tasks()
+
         logger.info("Swarm app initialization checks completed.")
+
+    @staticmethod
+    def _warn_if_api_auth_disabled() -> None:
+        """Surface the DEBUG / missing-token footgun when the process is serving."""
+        import sys
+
+        argv = " ".join(sys.argv)
+        serving = any(
+            s in argv for s in ("uvicorn", "swarm-api", "gunicorn", "daphne", "runserver")
+        )
+        if not serving:
+            return
+        if bool(getattr(settings, "ENABLE_API_AUTH", False)):
+            return
+        logger.warning(
+            "API authentication is OFF (ENABLE_API_AUTH=false — typically DEBUG "
+            "without API_AUTH_TOKEN / SWARM_API_KEY). Fine for local development; "
+            "do not expose this process on a network without setting an API token."
+        )
+
+    @staticmethod
+    def _check_uvicorn_workers() -> None:
+        """Refuse/warn multi-worker async when serving (process-local inflight)."""
+        import sys
+
+        argv = " ".join(sys.argv)
+        if not any(s in argv for s in ("uvicorn", "swarm-api", "gunicorn", "daphne")):
+            # Still validate env when set so unit tests can exercise the helper.
+            if not os.environ.get("SWARM_UVICORN_WORKERS"):
+                return
+        try:
+            from swarm.core.concurrency import resolved_uvicorn_workers
+
+            resolved_uvicorn_workers()
+        except ValueError as e:
+            logger.error("Multi-worker async contract: %s", e)
+            raise
+        except Exception as e:
+            logger.debug("uvicorn workers check skipped: %s", e)
+
+    @staticmethod
+    def _maybe_resume_async_tasks() -> None:
+        import sys
+
+        if os.environ.get("SWARM_TEST_MODE"):
+            return
+        argv = " ".join(sys.argv)
+        if "runserver" in argv:
+            serving = ("--noreload" in argv) or os.environ.get("RUN_MAIN") == "true"
+        else:
+            serving = any(s in argv for s in ("swarm-api", "daphne", "uvicorn", "gunicorn"))
+        if not serving:
+            return
+        try:
+            import threading
+
+            from swarm.views.responses_views import resume_pending_responses
+
+            threading.Thread(target=resume_pending_responses, daemon=True).start()
+        except Exception as e:  # never let resume break startup
+            logger.warning("Could not schedule async-task resume: %s", e)
+
+    @staticmethod
+    def _load_swarm_config() -> dict:
+        """Resolve + load swarm_config.json (XDG-aware), env-substituted. Never raises.
+
+        Loads the JSON leniently (no ``llm``-section requirement) — a CLI-fusion
+        gateway config is often ``cli_agents``-only, and the validation in
+        ``config_loader.load_config`` would otherwise reject it and lose the config.
+        """
+        import json
+        from pathlib import Path
+
+        from swarm.core import config_loader
+
+        try:
+            env_path = os.environ.get("SWARM_CONFIG_PATH")
+            if env_path and Path(env_path).is_file():
+                path = Path(env_path)
+            else:
+                # XDG only here; ./swarm_config.json is handled by BlueprintBase's
+                # own cwd fallback so we don't change cwd behavior (or break tests
+                # that simulate "no config files").
+                xdg = config_loader._xdg_config_path()
+                path = xdg if xdg.is_file() else None
+            if not path:
+                logger.info("No XDG/SWARM_CONFIG_PATH swarm_config.json; deferring to cwd fallback.")
+                return {}
+            raw = json.loads(Path(path).read_text())
+            cfg = config_loader._substitute_env_vars(raw)
+            logger.info("Swarm config loaded from %s", path)
+            return cfg if isinstance(cfg, dict) else {}
+        except Exception as e:
+            logger.warning("Failed to load swarm config (%s); using empty config.", e)
+            return {}
 

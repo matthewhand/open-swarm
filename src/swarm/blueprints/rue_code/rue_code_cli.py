@@ -3,7 +3,7 @@ import os
 import sys
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
-from swarm.blueprints.common.spinner import SwarmSpinner
+from swarm.core.spinner import SwarmSpinner
 from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint
 
 # Early test-mode: simulate spinner output and exit for RueCode CLI tests
