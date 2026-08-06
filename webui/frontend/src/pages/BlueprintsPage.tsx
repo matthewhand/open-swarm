@@ -12,7 +12,7 @@ interface Blueprint {
   featured?: boolean;
 }
 
-interface ApiBlueprint {
+export interface ApiBlueprint {
   id?: string | number;
   name?: string;
   description?: string;
