@@ -76,6 +76,8 @@ export const LoadingDots = ({
       className={`loading loading-dots ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -111,6 +113,8 @@ export const LoadingRing = ({
       className={`loading loading-ring ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -146,6 +150,8 @@ export const LoadingBall = ({
       className={`loading loading-ball ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -181,6 +187,8 @@ export const LoadingBars = ({
       className={`loading loading-bars ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -216,6 +224,8 @@ export const LoadingInfinity = ({
       className={`loading loading-infinity ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
       role="status"
       aria-label={ariaLabel}
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -240,6 +250,10 @@ export const Skeleton = ({
     <div
       className={`skeleton ${rounded ? 'rounded' : ''} ${className}`}
       style={{ width, height }}
+      role="status"
+      aria-label="Loading"
+      aria-live="polite"
+      aria-busy="true"
     />
   );
 };
@@ -257,7 +271,7 @@ export const SkeletonText = ({
   className?: string;
 }) => {
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className={`space-y-2 ${className}`} role="status" aria-label="Loading text" aria-live="polite" aria-busy="true">
       {Array.from({ length: lines }).map((_, index) => (
         <Skeleton key={index} width={width} height="16px" />
       ))}
@@ -274,7 +288,7 @@ export const SkeletonCard = ({
   className?: string;
 }) => {
   return (
-    <div className={`card bg-base-200 ${className}`}>
+    <div className={`card bg-base-200 ${className}`} role="status" aria-label="Loading content" aria-live="polite" aria-busy="true">
       <div className="card-body">
         <Skeleton width="60%" height="24px" className="mb-4" />
         <SkeletonText lines={3} className="mb-4" />
@@ -300,7 +314,7 @@ export const SkeletonTable = ({
   className?: string;
 }) => {
   return (
-    <div className={`overflow-x-auto ${className}`}>
+    <div className={`overflow-x-auto ${className}`} role="status" aria-label="Loading data" aria-live="polite" aria-busy="true">
       <table className="table w-full">
         <thead>
           <tr>
