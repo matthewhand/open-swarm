@@ -12,6 +12,7 @@ export interface ModalProps {
   title?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  'aria-label'?: string;
 }
 
 export const Modal = ({
@@ -21,6 +22,7 @@ export const Modal = ({
   title,
   size = 'md',
   className = '',
+  'aria-label': ariaLabel,
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -91,6 +93,7 @@ export const Modal = ({
       className={`modal ${isOpen ? 'modal-open' : ''}`}
       onClick={handleBackdropClick}
       aria-labelledby={title ? titleId : undefined}
+      aria-label={!title && ariaLabel ? ariaLabel : undefined}
       aria-modal="true"
     >
       <div 
@@ -108,7 +111,7 @@ export const Modal = ({
         type="button"
         className="modal-backdrop"
         onClick={onClose}
-        aria-label="close"
+        aria-label="close modal"
         tabIndex={-1}
       >
         close
