@@ -12,3 +12,8 @@ if (!HTMLDialogElement.prototype.close) {
         this.dispatchEvent(event);
     };
 }
+
+// Add scrollIntoView stub to HTMLElement prototype since jsdom doesn't implement it
+if (!HTMLElement.prototype.scrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = function() {};
+}
