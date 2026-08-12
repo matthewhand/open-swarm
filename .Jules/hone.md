@@ -1,11 +1,3 @@
-## 2024-05-23 | [Architectural Audit] | Insight: Pagination state is missing from SR announcements | Protocol: Always explicitly add `aria-current="page"` to the active page button in pagination components.
-
-## 2024-05-23 | [Architectural Audit] | Insight: Missing focus traps in user confirmation | Protocol: Use `<ConfirmModal>` for user confirmations instead of native `window.confirm()` to ensure focus trapping and HTML5 modal semantics.
-
-## 2024-05-23 | [Architectural Audit] | Insight: Missing deterministic async states | Protocol: Ensure all async views have an explicit empty state component, and use `aria-live="polite"` and `aria-busy="true"` for loading components, and `role="alert"` for errors.
-
-## 2024-05-23 | [Architectural Audit] | Insight: Lax type checking and use of 'any' | Protocol: Do not use `any`. Use strict TypeScript types or generics, and `unknown` in catch blocks combined with `e instanceof Error` for safety.
-
-## 2024-05-18 | [Architectural Audit] | Insight: Modal component uses inaccessible <form method="dialog"> for backdrop, lacks rigorous focus management, and relies on brittle `document.getElementById` navigation in Tabs. Pagination is missing `aria-current="page"` and `aria-live` is misused or missing on loading states. | Protocol: Refactor Modal backdrop to a proper focusable button with `tabIndex={-1}`, ensure robust state handling across components and use explicit accessibility patterns
-
-## 2024-05-18 | [Architectural Audit] | Insight: Codebase uses `any` types when parsing API responses in `TeamsPage.tsx` and `BlueprintsPage.tsx`. | Protocol: Replace `any` with `unknown` and strict type guards to ensure TypeScript integrity during async data extraction.
+## 2024-08-12 | [Architectural Audit] | Insight: DaisyUI Pagination component relies on non-semantic div wrapper and lacks current page state announcement. | Protocol: Wrap pagination in a semantic `<nav aria-label="Pagination">` and ensure the active button includes `aria-current="page"`.
+## 2024-08-12 | [Architectural Audit] | Insight: HTML5 `<dialog>` modals in DaisyUI override native backdrop closing and focus management using non-semantic patterns. | Protocol: Retain native `<form method="dialog">` for the backdrop and ensure focus is explicitly restored to the triggering element using standard React refs.
+## 2024-08-12 | [Architectural Audit] | Insight: Loading indicators in DaisyUI are implemented as generic spans with classes, often missing proper `role="status"` and `aria-live` regions. | Protocol: Standardize loading indicators to use `role="status"` and appropriate `aria-live` assertions for assistive technologies.
