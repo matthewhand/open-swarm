@@ -76,6 +76,8 @@ describe('Async Loading Accessibility', () => {
     render(<LoadingSpinner />);
     const spinner = screen.getByRole('status');
     expect(spinner).toHaveAttribute('aria-label', 'Loading');
+    expect(spinner).toHaveAttribute('aria-live', 'polite');
+    expect(spinner).toHaveAttribute('aria-busy', 'true');
   });
 
   it('Button should announce busy state when loading', () => {
