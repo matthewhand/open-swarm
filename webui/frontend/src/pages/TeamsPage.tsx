@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { useState, useEffect } from 'react';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -12,9 +12,6 @@ interface Team {
   llm_profile?: string;
 }
 
-// Live teams come from backend dynamic registry via /teams/export (populated into /v1/models + blueprints too)
-// Create/delete use the available /teams/ endpoint (csrf_exempt form POST in web_views.team_admin -> register_dynamic_team which saves to teams.json)
-
 const statusColors: Record<string, 'success' | 'warning' | 'error'> = {
   active: 'success',
   idle: 'warning',
@@ -25,10 +22,12 @@ const TeamsPage = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -39,28 +38,24 @@ const TeamsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      // Prefer /teams/export for rich dynamic team registry data (id, description, llm_profile)
-      // These are also surfaced live via /v1/models and /v1/blueprints (merged in views/utils.py)
       const res = await fetch('/teams/export?format=json');
       if (res.ok) {
-        const data = await res.json();
-        // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
-          name: t.id || 'unknown-team',
-          description: t.description || 'Dynamic team (no description)',
+        const data = await res.json() as Record<string, Record<string, unknown>>;
+        const list: Team[] = Object.values(data || {}).map((t) => ({
+          id: (t.id as string) || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
+          name: (t.id as string) || 'unknown-team',
+          description: (t.description as string) || 'Dynamic team (no description)',
           status: 'active' as const,
           members: 1,
           created: 'via registry',
-          llm_profile: t.llm_profile || 'default',
+          llm_profile: (t.llm_profile as string) || 'default',
         }));
         setTeams(list);
       } else {
         throw new Error('Export API failed');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
-      // Fallback demo only on error
       setTeams([
         { id: 'code-review', name: 'Code Review Team', description: 'Automated code review and quality assurance (demo)', status: 'active', members: 4, created: '2024-01-15', llm_profile: 'default' },
         { id: 'docs-squad', name: 'Documentation Squad', description: 'Technical writing and documentation generation (demo)', status: 'idle', members: 3, created: '2024-02-20', llm_profile: 'default' },
@@ -79,22 +74,23 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
-    setActionLoading(true);
+  const handleDeleteConfirm = async () => {
+    if (teamToDelete === null) return;
+    const id = teamToDelete;
+    setDeletingId(id);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
       fd.append('team_id', String(id));
-      // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
       await fetch('/teams/', { method: 'POST', body: fd });
       setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      setTeamToDelete(null);
       await loadTeams();
-    } catch (e) {
+    } catch (e: unknown) {
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
-      setActionLoading(false);
+      setDeletingId(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -119,7 +115,6 @@ const TeamsPage = () => {
       fd.append('team_name', formName.trim());
       if (formDesc.trim()) fd.append('description', formDesc.trim());
       if (formLlm.trim()) fd.append('llm_profile', formLlm.trim());
-      // No 'action' => add path in team_admin. Persists to teams.json + dynamic registry.
       const res = await fetch('/teams/', { method: 'POST', body: fd });
       if (!res.ok && res.status !== 200) {
         throw new Error('Create POST returned non-ok (but may have side-effected)');
@@ -128,8 +123,9 @@ const TeamsPage = () => {
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Create failed via form POST: ${msg}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -138,9 +134,6 @@ const TeamsPage = () => {
 
   const handleLaunch = (team: Team) => {
     const modelId = typeof team.id === 'string' ? team.id : team.name.toLowerCase().replace(/\s+/g, '-');
-    // Real launch uses the team id as model in the OpenAI compatible endpoint.
-    // Streaming supported server-side: POST /v1/chat/completions { "model": "...", "messages": [...], "stream": true }
-    // Auth: pass Authorization: Bearer <token> (from SWARM_API_KEY or equiv) or X-API-Key when enabled.
     setSuccessMsg(`Launch: use model="${modelId}" with /v1/chat/completions (stream=true supported in backend chat_views). See Settings for auth notes.`);
     setTimeout(() => setSuccessMsg(null), 6000);
   };
@@ -170,7 +163,6 @@ const TeamsPage = () => {
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
       {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
 
-      {/* Search and Filters */}
       <Card bordered className="mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -201,7 +193,6 @@ const TeamsPage = () => {
 
       {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
 
-      {/* Teams Grid (live or fallback) */}
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredTeams.map((team) => (
@@ -215,7 +206,7 @@ const TeamsPage = () => {
                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
+                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => setTeamToDelete(team.id)} disabled={deletingId === team.id || actionLoading}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -253,7 +244,6 @@ const TeamsPage = () => {
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
         <Card bordered className="text-center py-12">
           <div className="mb-4">
@@ -270,7 +260,6 @@ const TeamsPage = () => {
         </Card>
       )}
 
-      {/* Create Team Modal - uses DaisyUI Modal component for consistency */}
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -334,6 +323,20 @@ const TeamsPage = () => {
         </div>
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+        loading={deletingId !== null}
+      >
+        <p>
+          Are you sure you want to delete team "{teamToDelete}"? This calls the backend to remove it from the dynamic registry.
+        </p>
+      </ConfirmModal>
 
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
     </div>

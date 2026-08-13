@@ -1,3 +1,7 @@
-## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
-## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
-## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-07-25 | [Architectural Audit] | Insight: TeamsPage component relies on a native confirm() dialog and has multiple loosely typed 'any' uses and unhandled asynchronous states | Protocol: Refactor TeamsPage to use ConfirmModal, type-safe API responses using Record<string, unknown>, use strict typescript instead of any, and manage asynchronous action states per-item (e.g. deletingId) instead of generic booleans (actionLoading).
+
+## 2024-07-25 | [Architectural Audit] | Insight: DaisyUI Buttons are using raw ARIA without visual correlation (e.g. loading has aria-busy but bare loading class in DaisyUI 5 doesn't render spinner). | Protocol: Update Button components to ensure loading state renders `.loading.loading-spinner` alongside `aria-busy` and explicit child element (as specified in memory notes). (Already in DaisyUI button? Let's check.)
+
+## 2024-07-25 | [Architectural Audit] | Insight: BlueprintsPage uses any typing, weak error handling, and unhandled async launch state per item. | Protocol: Refactor BlueprintsPage to use strict TS types, manage per-item launchId async state, and use explicit error handling (e instanceof Error).
+
+## 2024-07-25 | [Architectural Audit] | Insight: Modal component ConfirmModal subcomponent uses standard <button> tag which loses Button component's loading/ARIA/disabled features. | Protocol: Refactor ConfirmModal to use standard internal Button component, pass `loading` and `disabled` props into it.

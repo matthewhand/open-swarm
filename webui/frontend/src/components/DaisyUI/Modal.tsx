@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useId } from 'react';
+import { Button } from "./Button";
 import FocusTrap from 'focus-trap-react';
 
 /**
@@ -126,6 +127,7 @@ export interface ConfirmModalProps extends ModalProps {
   onConfirm: () => void;
   confirmText?: string;
   cancelText?: string;
+  loading?: boolean;
   confirmVariant?: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'error';
 }
 
@@ -137,6 +139,7 @@ export const ConfirmModal = ({
   title = 'Confirm Action',
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  loading = false,
   confirmVariant = 'primary',
   ...props
 }: ConfirmModalProps) => {
@@ -146,12 +149,12 @@ export const ConfirmModal = ({
         {children}
       </div>
       <div className="modal-action flex gap-2">
-        <button className="btn btn-outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} disabled={loading}>
           {cancelText}
-        </button>
-        <button className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
+        </Button>
+        <Button variant={confirmVariant} onClick={onConfirm} loading={loading}>
           {confirmText}
-        </button>
+        </Button>
       </div>
     </Modal>
   );
