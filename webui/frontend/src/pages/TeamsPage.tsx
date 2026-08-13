@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { useState, useEffect } from 'react';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,6 +29,8 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -79,24 +81,33 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+  const confirmDelete = async () => {
+    if (!teamToDelete) return;
     setActionLoading(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
-      fd.append('team_id', String(id));
+      fd.append('team_id', String(teamToDelete));
       // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
       await fetch('/teams/', { method: 'POST', body: fd });
-      setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      setSuccessMsg(`Deleted ${teamToDelete}. Registry updated.`);
       await loadTeams();
     } catch (e) {
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
       setActionLoading(false);
+      setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
+  };
+
+  const handleDelete = (id: string | number) => {
+    setTeamToDelete(id);
+  };
+
+  const cancelDelete = () => {
+    setTeamToDelete(null);
   };
 
   const openCreate = () => {
@@ -167,8 +178,10 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {error && <Alert type="error" className="mb-4">{error}</Alert>}
-      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      <div aria-live="polite">
+        {error && <Alert type="error" className="mb-4" role="alert">{error}</Alert>}
+        {successMsg && <Alert type="success" className="mb-4" role="status">{successMsg}</Alert>}
+      </div>
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">
@@ -199,7 +212,12 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      {loading && (
+        <div className="flex justify-center py-8" role="status" aria-busy="true" aria-live="polite">
+          <LoadingSpinner />
+          <span className="sr-only">Loading teams...</span>
+        </div>
+      )}
 
       {/* Teams Grid (live or fallback) */}
       {!loading && (
@@ -255,19 +273,21 @@ const TeamsPage = () => {
 
       {/* Empty State */}
       {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12">
-          <div className="mb-4">
-            <Users className="h-16 w-16 mx-auto text-gray-400" />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">No teams found</h3>
-          <p className="text-gray-500 mb-4">
-            {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started (persists via backend)'}
-          </p>
-          <Button variant="primary" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Team
-          </Button>
-        </Card>
+        <div role="status" aria-live="polite">
+          <Card bordered className="text-center py-12">
+            <div className="mb-4">
+              <Users className="h-16 w-16 mx-auto text-gray-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No teams found</h3>
+            <p className="text-gray-500 mb-4">
+              {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started (persists via backend)'}
+            </p>
+            <Button variant="primary" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Team
+            </Button>
+          </Card>
+        </div>
       )}
 
       {/* Create Team Modal - uses DaisyUI Modal component for consistency */}
@@ -335,7 +355,25 @@ const TeamsPage = () => {
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
 
-      {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+      {actionLoading && (
+        <div className="fixed bottom-4 right-4" role="status" aria-busy="true" aria-live="polite">
+          <LoadingSpinner />
+          <span className="sr-only">Processing action...</span>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={teamToDelete !== null}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Confirm Deletion"
+        confirmText={actionLoading ? 'Deleting...' : 'Delete'}
+        cancelText="Cancel"
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete team "{teamToDelete}"?</p>
+        <p className="text-sm text-gray-500 mt-2">This action will call the backend and cannot be undone.</p>
+      </ConfirmModal>
     </div>
   );
 };
