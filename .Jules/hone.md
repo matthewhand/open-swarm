@@ -1,3 +1,6 @@
 ## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
 ## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
 ## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-07-19 | [Architectural Audit] | Insight: Unexpected use of native confirm dialog for destructive action | Protocol: Use ConfirmModal component with proper ARIA handling for delete actions.
+## 2024-07-19 | [Architectural Audit] | Insight: Direct Node access in tests | Protocol: Follow testing-library best practices and use document.querySelector with eslint overrides only when strictly necessary to test non-semantic DOM structure.
+## 2024-07-19 | [Architectural Audit] | Insight: Missing aria-live regions for async states | Protocol: Ensured all network-dependent components (like BuilderPage and ChatPage) use proper `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on their loading components instead of raw spinners.

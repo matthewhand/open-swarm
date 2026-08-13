@@ -170,7 +170,7 @@ export default function BuilderPage() {
       </p>
 
       {isPending && (
-        <div aria-busy="true" aria-live="polite" role="status">
+        <div aria-busy="true" aria-live="polite">
           <LoadingSpinner />
         </div>
       )}
@@ -255,7 +255,7 @@ export default function BuilderPage() {
                   <code className="text-xs font-normal text-base-content/70">{source.data.selected}</code>
                 )}
               </h2>
-              {source.isPending && <div aria-live="polite" aria-busy="true" role="status"><LoadingSpinner size="sm" /></div>}
+              {source.isPending && <LoadingSpinner size="sm" />}
               {source.isError && <Alert type="warning">Source unavailable for this blueprint.</Alert>}
               {source.data && (
                 // Show the file browser only when there's more than one file;
@@ -278,7 +278,7 @@ export default function BuilderPage() {
                     </ul>
                   )}
                   <div className="overflow-hidden rounded-lg border border-base-300">
-                    <Suspense fallback={<div className="p-4" aria-live="polite" aria-busy="true" role="status"><LoadingSpinner size="sm" /></div>}>
+                    <Suspense fallback={<div className="p-4"><LoadingSpinner size="sm" /></div>}>
                       <CodeViewer value={source.data.content} />
                     </Suspense>
                   </div>

@@ -1,0 +1,20 @@
+--- webui/frontend/src/pages/ChatPage.tsx
++++ webui/frontend/src/pages/ChatPage.tsx
+@@ -172,7 +172,7 @@
+         {/* Blueprint selector (from /v1/blueprints/) */}
+         <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
+           {blueprintsQuery.isPending ? (
+-            <div className="flex items-center gap-2 py-2">
++            <div className="flex items-center gap-2 py-2" aria-live="polite" aria-busy="true" role="status">
+               <LoadingSpinner size="sm" />
+               <span className="text-sm">Loading blueprints…</span>
+             </div>
+@@ -375,7 +375,9 @@
+   switch (status) {
+     case 'connecting':
+       return (
+-        <Badge type="warning">
++        <Badge type="warning" aria-live="polite" aria-busy="true" role="status">
+           <LoadingSpinner size="xs" className="mr-1" />
+           Connecting…
+         </Badge>

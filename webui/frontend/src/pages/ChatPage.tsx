@@ -171,7 +171,7 @@ const ChatPage = () => {
         {/* Blueprint selector (from /v1/blueprints/) */}
         <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
           {blueprintsQuery.isPending ? (
-            <div className="flex items-center gap-2 py-2">
+            <div className="flex items-center gap-2 py-2" aria-live="polite" aria-busy="true" role="status">
               <LoadingSpinner size="sm" />
               <span className="text-sm">Loading blueprints…</span>
             </div>
@@ -374,10 +374,12 @@ function ConnectionBadge({ status }: { status: ConnectionStatus }) {
   switch (status) {
     case 'connecting':
       return (
-        <Badge type="warning">
-          <LoadingSpinner size="xs" className="mr-1" />
-          Connecting…
-        </Badge>
+        <span aria-live="polite" aria-busy="true" role="status">
+          <Badge type="warning">
+            <LoadingSpinner size="xs" className="mr-1" />
+            Connecting…
+          </Badge>
+        </span>
       )
     case 'open':
       return <Badge type="success">Connected</Badge>

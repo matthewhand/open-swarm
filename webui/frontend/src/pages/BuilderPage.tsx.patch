@@ -1,0 +1,29 @@
+--- webui/frontend/src/pages/BuilderPage.tsx
++++ webui/frontend/src/pages/BuilderPage.tsx
+@@ -171,7 +171,7 @@
+       </p>
+
+       {isPending && (
+-        <div aria-busy="true" aria-live="polite">
++        <div aria-busy="true" aria-live="polite" role="status">
+           <LoadingSpinner />
+         </div>
+       )}
+@@ -255,7 +255,7 @@
+                   <code className="text-xs font-normal text-base-content/70">{source.data.selected}</code>
+                 )}
+               </h2>
+-              {source.isPending && <LoadingSpinner size="sm" />}
++              {source.isPending && <div aria-live="polite" aria-busy="true" role="status"><LoadingSpinner size="sm" /></div>}
+               {source.isError && <Alert type="warning">Source unavailable for this blueprint.</Alert>}
+               {source.data && (
+                 // Show the file browser only when there's more than one file;
+@@ -278,7 +278,7 @@
+                     </ul>
+                   )}
+                   <div className="overflow-hidden rounded-lg border border-base-300">
+-                    <Suspense fallback={<div className="p-4"><LoadingSpinner size="sm" /></div>}>
++                    <Suspense fallback={<div className="p-4" aria-live="polite" aria-busy="true" role="status"><LoadingSpinner size="sm" /></div>}>
+                       <CodeViewer value={source.data.content} />
+                     </Suspense>
+                   </div>

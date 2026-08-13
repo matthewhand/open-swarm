@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,6 +29,8 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -80,21 +82,28 @@ const TeamsPage = () => {
   );
 
   const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
+    setTeamToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!teamToDelete) return;
     setActionLoading(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
-      fd.append('team_id', String(id));
+      fd.append('team_id', String(teamToDelete));
       // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
       await fetch('/teams/', { method: 'POST', body: fd });
-      setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      setSuccessMsg(`Deleted ${teamToDelete}. Registry updated.`);
       await loadTeams();
     } catch (e) {
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
       setActionLoading(false);
+      setShowDeleteModal(false);
+      setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -334,6 +343,18 @@ const TeamsPage = () => {
         </div>
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Team"
+        confirmText="Delete"
+        confirmVariant="error"
+      >
+        <p>Are you sure you want to delete the team "{teamToDelete}"?</p>
+        <p className="text-sm text-gray-500 mt-2">This action cannot be undone and calls the backend.</p>
+      </ConfirmModal>
 
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
     </div>
