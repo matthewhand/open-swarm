@@ -1,0 +1,54 @@
+--- webui/frontend/src/pages/TeamsPage.tsx
++++ webui/frontend/src/pages/TeamsPage.tsx
+@@ -1,6 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+-import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
++import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
+ import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
+
+ interface Team {
+@@ -31,6 +31,8 @@
+   const [error, setError] = useState<string | null>(null);
+   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+   const [actionLoading, setActionLoading] = useState(false);
++  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
++  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+   // Form state for create
+   const [formName, setFormName] = useState('');
+@@ -79,8 +81,13 @@
+     b.description.toLowerCase().includes(searchTerm.toLowerCase())
+   );
+
+-  const handleDelete = async (id: string | number) => {
+-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
++  const promptDelete = (id: string | number) => {
++    setTeamToDelete(id);
++    setShowDeleteModal(true);
++  };
++
++  const executeDelete = async () => {
++    const id = teamToDelete;
++    if (id === null) return;
+     setActionLoading(true);
+     setError(null);
++    setShowDeleteModal(false);
+     try {
+       const fd = new FormData();
+       fd.append('action', 'delete');
+@@ -95,6 +102,7 @@
+     } finally {
+       setActionLoading(false);
++      setTeamToDelete(null);
+       setTimeout(() => setSuccessMsg(null), 3000);
+     }
+   };
+@@ -213,7 +221,7 @@
+                     <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
+                       <Edit className="h-3 w-3" />
+                     </Button>
+-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
++                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => promptDelete(team.id)} disabled={actionLoading}>
+                       <Trash2 className="h-3 w-3" />
+                     </Button>
+                   </div>

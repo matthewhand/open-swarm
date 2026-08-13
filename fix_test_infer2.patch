@@ -1,0 +1,27 @@
+--- webui/frontend/src/lib/__tests__/inferenceProfile.test.ts
++++ webui/frontend/src/lib/__tests__/inferenceProfile.test.ts
+@@ -1,6 +1,6 @@
+ import { describe, it, expect } from 'vitest'
+-import { resolve, rank, splitCandidate } from '../inferenceProfile'
++import { resolve, rank, splitCandidate, buildTraitsConfig, candidatesFromEdits, cliForModel } from '../inferenceProfile'
+ import { buildCandidates } from '../../components/InferenceProfilePanel'
+
+ const CANDIDATES = {
+@@ -52,8 +52,6 @@
+   })
+ })
+
+-import { buildTraitsConfig, candidatesFromEdits } from '../inferenceProfile'
+-
+ describe('buildTraitsConfig', () => {
+   it('emits cli traits + per-model models block', () => {
+     const cfg = buildTraitsConfig(
+@@ -88,8 +86,6 @@
+   })
+ })
+
+-import { cliForModel } from '../inferenceProfile'
+-
+ describe('cliForModel', () => {
+   it('picks the longest CLI matching at a hyphen boundary', () => {
+     expect(cliForModel('claude-opus-4-8', ['c', 'claude'])).toBe('claude')

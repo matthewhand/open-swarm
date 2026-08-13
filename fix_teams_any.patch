@@ -1,0 +1,11 @@
+--- webui/frontend/src/pages/TeamsPage.tsx
++++ webui/frontend/src/pages/TeamsPage.tsx
+@@ -45,7 +45,7 @@
+       if (res.ok) {
+         const data = await res.json();
+         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
+-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
++        const list: Team[] = Object.values(data || {}).map((t: Record<string, unknown>) => ({
+           id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
+           name: t.id || 'unknown-team',
+           description: t.description || 'Dynamic team (no description)',

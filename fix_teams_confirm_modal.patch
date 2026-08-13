@@ -1,0 +1,20 @@
+--- webui/frontend/src/pages/TeamsPage.tsx
++++ webui/frontend/src/pages/TeamsPage.tsx
+@@ -341,6 +341,17 @@
+         </div>
+         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
+       </Modal>
+
++      <ConfirmModal
++        isOpen={showDeleteModal}
++        onClose={() => setShowDeleteModal(false)}
++        onConfirm={executeDelete}
++        title="Delete Team"
++        confirmText="Delete"
++        confirmVariant="error"
++      >
++        <p>Are you sure you want to delete team "{teamToDelete}"? This action cannot be undone and will call the backend API.</p>
++      </ConfirmModal>
++
+       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+     </div>

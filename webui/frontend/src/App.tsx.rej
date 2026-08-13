@@ -1,0 +1,12 @@
+--- webui/frontend/src/App.tsx
++++ webui/frontend/src/App.tsx
+@@ -1,7 +1,7 @@
+ import { useState, useEffect } from 'react'
+-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
++import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+ import { Settings, Home, Users, Book, PlusCircle } from 'lucide-react'
+-import { Button, Card, Badge, Alert, LoadingSpinner } from './components/DaisyUI'
++import { Button, Card, Badge, Alert } from './components/DaisyUI'
+
+ import TeamsPage from './pages/TeamsPage'
+ import BlueprintsPage from './pages/BlueprintsPage'

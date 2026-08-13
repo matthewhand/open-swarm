@@ -1,3 +1,7 @@
-## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
-## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
-## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-03-24 | [Architectural Audit] | Insight: Type Safety | Protocol: Eliminate 'any' usage across frontend pages such as TeamsPage, BlueprintsPage, and App logic to strict TypeScript types.
+## 2024-03-24 | [Architectural Audit] | Insight: Modal Component Accessibility & State | Protocol: Replace native `confirm()` with `ConfirmModal` across the UI to guarantee screen-reader accessible warnings for destructive actions.
+## 2024-03-24 | [Architectural Audit] | Insight: Testing Rigidity in Loading Buttons | Protocol: Update tests strictly query buttons visually and structurally using `getByRole('button')` per Testing Library's A11y rules instead of accessing `.container` properties.
+
+## 2024-03-24 | [Architectural Audit] | Insight: Type Safety (Refactor Follow Up) | Protocol: Re-enforced that component files (e.g. TeamsPage.tsx) do not contain implicit anys from API fetches.
+## 2024-03-24 | [Architectural Audit] | Insight: Modal Component Accessibility & State (Refactor Follow Up) | Protocol: Migrated from native `confirm()` functions to full-fledged ConfirmModals imported properly from internal framework tools. Fixed earlier false-import bugs.
+## 2024-03-24 | [Architectural Audit] | Insight: Testing Rigidity in Loading Buttons (Refactor Follow Up) | Protocol: Completely removed raw DOM traversal (.container) from tests in Button.test.tsx using native screen.getByRole and .toContainHTML() assertions.

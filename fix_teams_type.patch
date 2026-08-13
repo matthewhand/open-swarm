@@ -1,0 +1,21 @@
+--- webui/frontend/src/pages/TeamsPage.tsx
++++ webui/frontend/src/pages/TeamsPage.tsx
+@@ -45,13 +45,13 @@
+       if (res.ok) {
+         const data = await res.json();
+         // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
+-        const list: Team[] = Object.values(data || {}).map((t: Record<string, unknown>) => ({
+-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
+-          name: t.id || 'unknown-team',
+-          description: t.description || 'Dynamic team (no description)',
++        const list: Team[] = Object.values(data || {}).map((t: unknown) => ({
++          id: (t as Record<string, unknown>).id as string || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
++          name: (t as Record<string, unknown>).id as string || 'unknown-team',
++          description: (t as Record<string, unknown>).description as string || 'Dynamic team (no description)',
+           status: 'active' as const,
+           members: 1,
+           created: 'via registry',
+-          llm_profile: t.llm_profile || 'default',
++          llm_profile: (t as Record<string, unknown>).llm_profile as string || 'default',
+         }));
+         setTeams(list);

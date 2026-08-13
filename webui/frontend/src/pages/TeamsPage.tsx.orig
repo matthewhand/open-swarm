@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
+import React, { useState, useEffect } from 'react';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
 
 interface Team {
@@ -29,8 +29,6 @@ const TeamsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [teamToDelete, setTeamToDelete] = useState<string | number | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Form state for create
   const [formName, setFormName] = useState('');
@@ -81,17 +79,10 @@ const TeamsPage = () => {
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const promptDelete = (id: string | number) => {
-    setTeamToDelete(id);
-    setShowDeleteModal(true);
-  };
-
-  const executeDelete = async () => {
-    const id = teamToDelete;
-    if (id === null) return;
+  const promptDelete = (id: string | number) => { setTeamToDelete(id); setShowDeleteModal(true); }; const executeDelete = async () => { const id = teamToDelete; if (id === null) return;
+    setShowDeleteModal(false);
     setActionLoading(true);
     setError(null);
-    setShowDeleteModal(false);
     try {
       const fd = new FormData();
       fd.append('action', 'delete');
@@ -103,8 +94,7 @@ const TeamsPage = () => {
     } catch (e) {
       setError('Delete failed (local UI may be stale; try refresh or server admin).');
     } finally {
-      setActionLoading(false);
-      setTeamToDelete(null);
+      setActionLoading(false); setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
@@ -141,7 +131,7 @@ const TeamsPage = () => {
     } catch (e: unknown) {
       setError(`Create failed via form POST: ${e instanceof Error ? e.message : e}. (Registry change may require page reload or use /teams admin HTML.)`);
     } finally {
-      setActionLoading(false);
+      setActionLoading(false); setTeamToDelete(null);
       setTimeout(() => setSuccessMsg(null), 5000);
     }
   };
@@ -344,17 +334,6 @@ const TeamsPage = () => {
         </div>
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
-
-      <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={executeDelete}
-        title="Delete Team"
-        confirmText="Delete"
-        confirmVariant="error"
-      >
-        <p>Are you sure you want to delete team "{teamToDelete}"? This action cannot be undone and will call the backend API.</p>
-      </ConfirmModal>
 
       {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
     </div>

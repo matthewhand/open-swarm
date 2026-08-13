@@ -1,0 +1,11 @@
+--- webui/frontend/src/App.tsx
++++ webui/frontend/src/App.tsx
+@@ -107,8 +107,8 @@
+           health.blueprints = bpRes.ok ? 'ok' : 'fail';
+           setApiHealth(health);
+         }
+-      } catch (e: any) {
++      } catch (e: unknown) {
+         if (!cancelled) setErrorStats('Partial live data (some fetches failed; check vite proxy + backend).');
+       } finally {
+         if (!cancelled) setLoadingStats(false);

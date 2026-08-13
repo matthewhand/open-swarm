@@ -1,0 +1,21 @@
+--- webui/frontend/src/components/DaisyUI/__tests__/Button.test.tsx
++++ webui/frontend/src/components/DaisyUI/__tests__/Button.test.tsx
+@@ -8,8 +8,7 @@
+     // DaisyUI 5 needs an explicit loading-spinner span (the bare `loading` btn class no longer renders one).
+     // Ensure it's rendered by querying for the aria-hidden="true" element or the span itself via DOM
+     const btn = screen.getByRole('button')
+-    // eslint-disable-next-line testing-library/no-node-access
+-    expect(btn.querySelector('.loading.loading-spinner')).not.toBeNull()
++    expect(screen.getByRole('status', { hidden: true })).toBeInTheDocument()
+   })
+
+   it('does not add the deprecated bare `loading` class to the button', () => {
+@@ -28,8 +27,7 @@
+   it('renders no spinner when not loading', () => {
+     render(<Button>Save</Button>)
+     const btn = screen.getByRole('button')
+-    // eslint-disable-next-line testing-library/no-node-access
+-    expect(btn.querySelector('.loading-spinner')).toBeNull()
++    expect(screen.queryByRole('status', { hidden: true })).toBeNull()
+   })
+ })

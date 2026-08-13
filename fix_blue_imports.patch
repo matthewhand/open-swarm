@@ -1,0 +1,7 @@
+--- webui/frontend/src/pages/BlueprintsPage.tsx
++++ webui/frontend/src/pages/BlueprintsPage.tsx
+@@ -1,4 +1,4 @@
+-import React, { useState, useEffect } from 'react';
++import { useState, useEffect } from 'react';
+ import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
+ import { Book, Search, Eye, Play } from 'lucide-react';
