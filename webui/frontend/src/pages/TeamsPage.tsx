@@ -1,102 +1,123 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Alert, Badge, LoadingSpinner, Modal } from '../components/DaisyUI';
-import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
+import { Users, Plus, Search, Play, Trash2, Edit } from 'lucide-react';
 
 interface Team {
   id: string | number;
   name: string;
   description: string;
-  status: 'active' | 'idle' | 'error';
   members: number;
   created: string;
+  status: 'active' | 'idle' | 'error';
   llm_profile?: string;
 }
 
-// Live teams come from backend dynamic registry via /teams/export (populated into /v1/models + blueprints too)
-// Create/delete use the available /teams/ endpoint (csrf_exempt form POST in web_views.team_admin -> register_dynamic_team which saves to teams.json)
-
-const statusColors: Record<string, 'success' | 'warning' | 'error'> = {
+const statusColors: Record<Team['status'], 'success' | 'warning' | 'error'> = {
   active: 'success',
   idle: 'warning',
   error: 'error',
 };
 
-const TeamsPage = () => {
-  const [teams, setTeams] = useState<Team[]>([]);
+const fallbackTeams: Team[] = [
+  { id: '1', name: 'Code Review Team', description: 'Specialized in reviewing PRs', members: 3, created: '2023-10-01', status: 'active' },
+  { id: '2', name: 'Research Assistants', description: 'Gathers and summarizes info', members: 2, created: '2023-10-15', status: 'idle' },
+];
+
+const fetchTeams = async (): Promise<Team[]> => {
+  const res = await fetch('/teams/export?format=json');
+  if (!res.ok) {
+    throw new Error(`Failed to load teams: ${res.status}`);
+  }
+  const data: Record<string, Record<string, unknown>> = await res.json();
+  const arr: Team[] = [];
+  if (Object.keys(data).length === 0) {
+    return [];
+  }
+  for (const [slug, tObj] of Object.entries(data)) {
+    arr.push({
+      id: (tObj.id as string) || slug,
+      name: (tObj.name as string) || slug,
+      description: (tObj.description as string) || (tObj.desc as string) || '',
+      members: (tObj.agent_count as number) || (Array.isArray(tObj.agents) ? tObj.agents.length : 0) || 1,
+      created: tObj.created_at ? new Date(tObj.created_at as string).toLocaleDateString() : 'Unknown',
+      status: 'idle',
+      llm_profile: (tObj.llm_profile as string) || undefined,
+    });
+  }
+  return arr;
+};
+
+export const TeamsPage = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
 
-  // Form state for create
+  // Form state
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formLlm, setFormLlm] = useState('');
 
-  const loadTeams = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Prefer /teams/export for rich dynamic team registry data (id, description, llm_profile)
-      // These are also surfaced live via /v1/models and /v1/blueprints (merged in views/utils.py)
-      const res = await fetch('/teams/export?format=json');
-      if (res.ok) {
-        const data = await res.json();
-        // data shape: { "team-slug": {id, description, llm_profile}, ... }  (object map, not array)
-        const list: Team[] = Object.values(data || {}).map((t: any) => ({
-          id: t.id || String(Object.keys(data).find(k => data[k]===t) || Math.random()),
-          name: t.id || 'unknown-team',
-          description: t.description || 'Dynamic team (no description)',
-          status: 'active' as const,
-          members: 1,
-          created: 'via registry',
-          llm_profile: t.llm_profile || 'default',
-        }));
-        setTeams(list);
-      } else {
-        throw new Error('Export API failed');
-      }
-    } catch (e) {
-      setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
-      // Fallback demo only on error
-      setTeams([
-        { id: 'code-review', name: 'Code Review Team', description: 'Automated code review and quality assurance (demo)', status: 'active', members: 4, created: '2024-01-15', llm_profile: 'default' },
-        { id: 'docs-squad', name: 'Documentation Squad', description: 'Technical writing and documentation generation (demo)', status: 'idle', members: 3, created: '2024-02-20', llm_profile: 'default' },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: teams = fallbackTeams, isPending, isError } = useQuery({
+    queryKey: ['teams'],
+    queryFn: fetchTeams,
+    retry: 1,
+  });
 
-  useEffect(() => {
-    loadTeams();
-  }, []);
+  const createTeamMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const res = await fetch('/teams/', { method: 'POST', body: formData });
+      if (!res.ok && res.status !== 200) {
+        throw new Error('Create POST returned non-ok (but may have side-effected)');
+      }
+      return res;
+    },
+    onSuccess: (_, variables) => {
+      setShowCreateModal(false);
+      setSuccessMsg(`Team "${variables.get('team_name')}" created successfully.`);
+      setFormName('');
+      setFormDesc('');
+      setFormLlm('');
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setTimeout(() => setSuccessMsg(null), 5000);
+    },
+    onError: (e: Error) => {
+      setError(`Create failed via form POST: ${e.message}.`);
+    },
+  });
+
+  const deleteTeamMutation = useMutation({
+    mutationFn: async (id: string | number) => {
+      const fd = new FormData();
+      fd.append('action', 'delete');
+      fd.append('team_id', String(id));
+      const res = await fetch('/teams/', { method: 'POST', body: fd });
+      if (!res.ok && res.status !== 200) {
+        throw new Error('Delete POST returned non-ok');
+      }
+      return id;
+    },
+    onSuccess: (id) => {
+      setSuccessMsg(`Deleted ${id}. Registry updated.`);
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setTimeout(() => setSuccessMsg(null), 3000);
+    },
+    onError: () => {
+      setError('Delete failed (local UI may be stale; try refresh or server admin).');
+    },
+  });
 
   const filteredTeams = teams.filter(team =>
     team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     team.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm(`Delete team "${id}"? (calls backend)`)) return;
-    setActionLoading(true);
+  const handleDelete = (id: string | number) => {
+    if (!window.confirm(`Delete team "${id}"? (calls backend)`)) return;
     setError(null);
-    try {
-      const fd = new FormData();
-      fd.append('action', 'delete');
-      fd.append('team_id', String(id));
-      // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
-      await fetch('/teams/', { method: 'POST', body: fd });
-      setSuccessMsg(`Deleted ${id}. Registry updated.`);
-      await loadTeams();
-    } catch (e) {
-      setError('Delete failed (local UI may be stale; try refresh or server admin).');
-    } finally {
-      setActionLoading(false);
-      setTimeout(() => setSuccessMsg(null), 3000);
-    }
+    deleteTeamMutation.mutate(id);
   };
 
   const openCreate = () => {
@@ -107,43 +128,26 @@ const TeamsPage = () => {
     setError(null);
   };
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     if (!formName.trim()) {
       setError('Team name is required');
       return;
     }
-    setActionLoading(true);
     setError(null);
-    try {
-      const fd = new FormData();
-      fd.append('team_name', formName.trim());
-      if (formDesc.trim()) fd.append('description', formDesc.trim());
-      if (formLlm.trim()) fd.append('llm_profile', formLlm.trim());
-      // No 'action' => add path in team_admin. Persists to teams.json + dynamic registry.
-      const res = await fetch('/teams/', { method: 'POST', body: fd });
-      if (!res.ok && res.status !== 200) {
-        throw new Error('Create POST returned non-ok (but may have side-effected)');
-      }
-      setShowCreateModal(false);
-      setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
-      setFormName(''); setFormDesc(''); setFormLlm('');
-      await loadTeams();
-    } catch (e: any) {
-      setError(`Create failed via form POST: ${e?.message || e}. (Registry change may require page reload or use /teams admin HTML.)`);
-    } finally {
-      setActionLoading(false);
-      setTimeout(() => setSuccessMsg(null), 5000);
-    }
+    const fd = new FormData();
+    fd.append('team_name', formName.trim());
+    if (formDesc.trim()) fd.append('description', formDesc.trim());
+    if (formLlm.trim()) fd.append('llm_profile', formLlm.trim());
+    createTeamMutation.mutate(fd);
   };
 
   const handleLaunch = (team: Team) => {
     const modelId = typeof team.id === 'string' ? team.id : team.name.toLowerCase().replace(/\s+/g, '-');
-    // Real launch uses the team id as model in the OpenAI compatible endpoint.
-    // Streaming supported server-side: POST /v1/chat/completions { "model": "...", "messages": [...], "stream": true }
-    // Auth: pass Authorization: Bearer <token> (from SWARM_API_KEY or equiv) or X-API-Key when enabled.
     setSuccessMsg(`Launch: use model="${modelId}" with /v1/chat/completions (stream=true supported in backend chat_views). See Settings for auth notes.`);
     setTimeout(() => setSuccessMsg(null), 6000);
   };
+
+  const isActionLoading = createTeamMutation.isPending || deleteTeamMutation.isPending;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -156,19 +160,22 @@ const TeamsPage = () => {
           <p className="text-gray-500 mt-1">Create and manage your AI teams (live from backend dynamic registry)</p>
         </div>
         <div className="flex gap-2 mt-4 lg:mt-0">
-          <Button variant="primary" onClick={openCreate} disabled={actionLoading}>
+          <Button variant="primary" onClick={openCreate} disabled={isActionLoading}>
             <Plus className="h-4 w-4 mr-2" />
             Create Team
           </Button>
-          <Button variant="outline" onClick={loadTeams} disabled={loading}>
+          <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['teams'] })} disabled={isPending}>
             <Search className="h-4 w-4 mr-2" />
             Refresh
           </Button>
         </div>
       </div>
 
-      {error && <Alert type="error" className="mb-4">{error}</Alert>}
-      {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      <div aria-live="polite" aria-atomic="true">
+        {error && <Alert type="error" className="mb-4">{error}</Alert>}
+        {isError && !error && <Alert type="warning" className="mb-4">Could not load teams. Using fallback or no data.</Alert>}
+        {successMsg && <Alert type="success" className="mb-4">{successMsg}</Alert>}
+      </div>
 
       {/* Search and Filters */}
       <Card bordered className="mb-6">
@@ -199,76 +206,78 @@ const TeamsPage = () => {
         </div>
       </Card>
 
-      {loading && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
+      <div aria-busy={isPending} role={isPending ? 'status' : undefined}>
+        {isPending && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
 
-      {/* Teams Grid (live or fallback) */}
-      {!loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredTeams.map((team) => (
-            <Card key={team.id} bordered className="hover:shadow-lg transition-shadow">
-              <div className="card-body">
-                <div className="flex justify-between items-start mb-2">
-                  <Badge type={statusColors[team.status]}>
-                    {team.status.charAt(0).toUpperCase() + team.status.slice(1)}
-                  </Badge>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
-                      <Edit className="h-3 w-3" />
+        {/* Teams Grid */}
+        {!isPending && filteredTeams.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredTeams.map((team) => (
+              <Card key={team.id} bordered className="hover:shadow-lg transition-shadow">
+                <div className="card-body">
+                  <div className="flex justify-between items-start mb-2">
+                    <Badge type={statusColors[team.status]}>
+                      {team.status.charAt(0).toUpperCase() + team.status.slice(1)}
+                    </Badge>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={isActionLoading}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <h2 className="card-title mb-1">{team.name}</h2>
+                  <p className="text-sm text-gray-500 mb-1">{team.description}</p>
+                  {team.llm_profile && <div className="text-xs text-gray-400 mb-2">LLM: {team.llm_profile}</div>}
+
+                  <div className="divider my-2"></div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Members:</span>
+                      <span className="font-medium">{team.members}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Created:</span>
+                      <span className="font-medium">{team.created}</span>
+                    </div>
+                  </div>
+
+                  <div className="card-actions justify-end mt-4">
+                    <Button variant="outline" size="sm">
+                      View Details
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => handleDelete(team.id)} disabled={actionLoading}>
-                      <Trash2 className="h-3 w-3" />
+                    <Button variant="primary" size="sm" onClick={() => handleLaunch(team)} disabled={isActionLoading}>
+                      <Play className="h-4 w-4 mr-1" />
+                      Launch
                     </Button>
                   </div>
                 </div>
-
-                <h2 className="card-title mb-1">{team.name}</h2>
-                <p className="text-sm text-gray-500 mb-1">{team.description}</p>
-                {team.llm_profile && <div className="text-xs text-gray-400 mb-2">LLM: {team.llm_profile}</div>}
-
-                <div className="divider my-2"></div>
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Members:</span>
-                    <span className="font-medium">{team.members}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Created:</span>
-                    <span className="font-medium">{team.created}</span>
-                  </div>
-                </div>
-
-                <div className="card-actions justify-end mt-4">
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={() => handleLaunch(team)} disabled={actionLoading}>
-                    <Play className="h-4 w-4 mr-1" />
-                    Launch
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && filteredTeams.length === 0 && (
-        <Card bordered className="text-center py-12">
-          <div className="mb-4">
-            <Users className="h-16 w-16 mx-auto text-gray-400" />
+              </Card>
+            ))}
           </div>
-          <h3 className="text-xl font-semibold mb-2">No teams found</h3>
-          <p className="text-gray-500 mb-4">
-            {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started (persists via backend)'}
-          </p>
-          <Button variant="primary" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Team
-          </Button>
-        </Card>
-      )}
+        )}
+
+        {/* Empty State */}
+        {!isPending && filteredTeams.length === 0 && (
+          <Card bordered className="text-center py-12">
+            <div className="mb-4">
+              <Users className="h-16 w-16 mx-auto text-gray-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No teams found</h3>
+            <p className="text-gray-500 mb-4">
+              {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started (persists via backend)'}
+            </p>
+            <Button variant="primary" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Team
+            </Button>
+          </Card>
+        )}
+      </div>
 
       {/* Create Team Modal - uses DaisyUI Modal component for consistency */}
       <Modal
@@ -291,7 +300,7 @@ const TeamsPage = () => {
               className="input input-bordered w-full"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              disabled={actionLoading}
+              disabled={isActionLoading}
             />
             <div className="text-xs text-gray-400 mt-1">Becomes the model id (alphanumeric + dashes).</div>
           </div>
@@ -305,7 +314,7 @@ const TeamsPage = () => {
               className="textarea textarea-bordered w-full h-20"
               value={formDesc}
               onChange={(e) => setFormDesc(e.target.value)}
-              disabled={actionLoading}
+              disabled={isActionLoading}
             ></textarea>
           </div>
 
@@ -319,23 +328,23 @@ const TeamsPage = () => {
               className="input input-bordered w-full"
               value={formLlm}
               onChange={(e) => setFormLlm(e.target.value)}
-              disabled={actionLoading}
+              disabled={isActionLoading}
             />
           </div>
         </div>
 
         <div className="modal-action flex gap-2 mt-4">
-          <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={actionLoading}>
+          <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={isActionLoading}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleCreate} loading={actionLoading} disabled={actionLoading || !formName.trim()}>
-            {actionLoading ? 'Creating...' : 'Create Team'}
+          <Button variant="primary" onClick={handleCreate} loading={isActionLoading} disabled={isActionLoading || !formName.trim()}>
+            {isActionLoading ? 'Creating...' : 'Create Team'}
           </Button>
         </div>
         <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
       </Modal>
 
-      {actionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
+      {isActionLoading && <div className="fixed bottom-4 right-4"><LoadingSpinner /></div>}
     </div>
   );
 };

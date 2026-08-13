@@ -1,3 +1,3 @@
-## 2024-06-15 | [Architectural Audit] | Insight: Missing focus traps in modals | Protocol: Wrap modal contents with `focus-trap-react` and manage native dialog open states deterministically.
-## 2024-06-15 | [Architectural Audit] | Insight: Silent async states | Protocol: Apply `aria-live="polite"`, `aria-busy="true"`, and `role="status"` on Loading, Error, and Empty states of network-dependent components.
-## 2024-06-15 | [Architectural Audit] | Insight: Anonymous default exports | Protocol: Assign objects to a named variable before `export default` to adhere to modern ESLint rules and maintain strict type-safety standards.
+## 2024-07-27 | [Architectural Audit] | Insight: Modal focus traps and ARIA attributes were missing. | Protocol: Refactored `Modal.tsx` to wrap native `<dialog>` with `FocusTrap` using the `active` prop, and added `aria-modal="true"` and `aria-labelledby`.
+## 2024-07-27 | [Architectural Audit] | Insight: Brittle async state handling across views. | Protocol: Migrated async data fetching to `@tanstack/react-query` to ensure deterministic UI states and proper ARIA live regions.
+## 2024-07-27 | [Architectural Audit] | Insight: Widespread use of `any` types for API data. | Protocol: Removed `any` in favor of strict interfaces and `Record<string, unknown>`.
