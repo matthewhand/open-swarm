@@ -62,7 +62,7 @@ export const Pagination = ({
   const visiblePages = getVisiblePages();
 
   return (
-    <div className={`flex items-center justify-center gap-2 ${className}`}>
+    <nav aria-label="Pagination" className={`flex items-center justify-center gap-2 ${className}`}>
       {/* First page button */}
       <Button
         variant="outline"
@@ -124,7 +124,7 @@ export const Pagination = ({
       >
         <ChevronsRight className="h-4 w-4" aria-hidden="true" />
       </Button>
-    </div>
+    </nav>
   );
 };
 

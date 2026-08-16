@@ -358,10 +358,16 @@ const AgentCreatorPageContent = () => {
         </h2>
 
         {customQuery.isPending && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-live="polite">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" role="status" aria-label="Loading custom blueprints" aria-busy="true" aria-live="polite">
+            <div>
+              <SkeletonCard />
+            </div>
+            <div>
+              <SkeletonCard />
+            </div>
+            <div>
+              <SkeletonCard />
+            </div>
           </div>
         )}
 

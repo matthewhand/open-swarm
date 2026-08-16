@@ -9,3 +9,6 @@
 ## 2024-05-18 | [Architectural Audit] | Insight: Modal component uses inaccessible <form method="dialog"> for backdrop, lacks rigorous focus management, and relies on brittle `document.getElementById` navigation in Tabs. Pagination is missing `aria-current="page"` and `aria-live` is misused or missing on loading states. | Protocol: Refactor Modal backdrop to a proper focusable button with `tabIndex={-1}`, ensure robust state handling across components and use explicit accessibility patterns
 
 ## 2024-05-18 | [Architectural Audit] | Insight: Codebase uses `any` types when parsing API responses in `TeamsPage.tsx` and `BlueprintsPage.tsx`. | Protocol: Replace `any` with `unknown` and strict type guards to ensure TypeScript integrity during async data extraction.
+## 2026-08-16 | [Architectural Audit] | Insight: Pagination accessibility needs structure | Protocol: Use semantic `<nav>` wrapper and `aria-current` properly
+## 2026-08-16 | [Architectural Audit] | Insight: TypeScript warnings on unused variables and redeclarations | Protocol: Clean up unused imports and duplicate declarations
+## 2026-08-16 | [Architectural Audit] | Insight: DaisyUI Modals should use <form method="dialog"> for the backdrop, not a <button> | Protocol: Retain native <form method="dialog"> for the backdrop to allow the browser to natively handle modal closing semantics
