@@ -12,18 +12,6 @@ interface Blueprint {
   featured?: boolean;
 }
 
-interface ApiBlueprint {
-  id?: string | number;
-  name?: string;
-  description?: string;
-  desc?: string;
-  category?: string;
-  tag?: string;
-  version?: string;
-  installed?: boolean;
-  featured?: boolean;
-}
-
 export default function BlueprintsPage() {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,8 +28,9 @@ export default function BlueprintsPage() {
         const res = await fetch('/v1/blueprints');
         if (res.ok) {
           const data = await res.json();
-          const list = Array.isArray(data) ? data : (data.data || data.blueprints || []);
-          setBlueprints(list.map((item: unknown) => {
+          // Fix for "State Integrity" request - ensuring we handle async response deterministically and cleanly
+          const list = Array.isArray(data) ? data : (data && typeof data === 'object' && ('data' in data || 'blueprints' in data) ? ((data as {data?: unknown}).data || (data as {blueprints?: unknown}).blueprints || []) : []);
+          setBlueprints(Array.isArray(list) ? list.map((item: unknown) => {
             if (typeof item !== 'object' || item === null) {
               return {
                 id: String(Math.random()),
@@ -65,7 +54,7 @@ export default function BlueprintsPage() {
               installed: !!b.installed,
               featured: !!b.featured,
             };
-          }));
+          }) : []);
         } else {
           throw new Error('API not available');
         }
