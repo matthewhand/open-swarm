@@ -12,18 +12,6 @@ interface Blueprint {
   featured?: boolean;
 }
 
-interface ApiBlueprint {
-  id?: string | number;
-  name?: string;
-  description?: string;
-  desc?: string;
-  category?: string;
-  tag?: string;
-  version?: string;
-  installed?: boolean;
-  featured?: boolean;
-}
-
 export default function BlueprintsPage() {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
