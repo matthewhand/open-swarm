@@ -104,15 +104,16 @@ export const Modal = ({
           {children}
         </div>
       </div>
-      <button
-        type="button"
-        className="modal-backdrop"
-        onClick={onClose}
-        aria-label="close"
-        tabIndex={-1}
-      >
-        close
-      </button>
+      <form method="dialog" className="modal-backdrop" data-testid="modal-backdrop-form">
+        <button
+          type="submit"
+          onClick={onClose}
+          aria-label="close"
+          tabIndex={-1}
+        >
+          close
+        </button>
+      </form>
     </dialog>
   );
 

@@ -12,3 +12,4 @@ if (!HTMLDialogElement.prototype.close) {
         this.dispatchEvent(event);
     };
 }
+if (!HTMLFormElement.prototype.requestSubmit) { HTMLFormElement.prototype.requestSubmit = function () { if (this.submit) this.submit(); }; }

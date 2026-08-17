@@ -49,12 +49,17 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    const backdrop = screen.getByRole('button', { name: 'close' });
-    expect(backdrop).toBeInTheDocument();
-    expect(backdrop).toHaveClass('modal-backdrop');
-    expect(backdrop).toHaveAttribute('tabIndex', '-1');
+    const closeBtn = screen.getByRole('button', { name: 'close' });
+    expect(closeBtn).toBeInTheDocument();
 
-    backdrop.click();
+    // the parent form has the class, not the button, but we shouldn't test DOM traversal directly
+    const form = screen.getByTestId('modal-backdrop-form');
+    expect(form).toBeInTheDocument();
+    expect(form).toHaveAttribute('method', 'dialog');
+
+    expect(closeBtn).toHaveAttribute('tabIndex', '-1');
+
+    closeBtn.click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
