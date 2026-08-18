@@ -445,3 +445,90 @@ class TestResidualApiAuthSurfaces:
             response = view(request)
         assert response.status_code == 200
 
+
+# --- Background chat completions must stamp owner for /v1/responses poll --- #
+
+
+@pytest.mark.django_db(transaction=True)
+class TestChatBackgroundOwnership:
+    """POST /v1/chat/completions?background stamps owner so auth'd poll succeeds."""
+
+    @pytest.fixture
+    async def alice_client(self, db):
+        from asgiref.sync import sync_to_async
+        from django.test import AsyncClient
+
+        User = get_user_model()
+        user, _ = await sync_to_async(User.objects.get_or_create)(username="bg_chat_alice")
+        if not user.has_usable_password():
+            await sync_to_async(user.set_password)("x")
+            await sync_to_async(user.save)()
+        client = AsyncClient()
+        await sync_to_async(client.force_login)(user)
+        return client
+
+    @pytest.fixture
+    async def bob_client(self, db):
+        from asgiref.sync import sync_to_async
+        from django.test import AsyncClient
+
+        User = get_user_model()
+        user, _ = await sync_to_async(User.objects.get_or_create)(username="bg_chat_bob")
+        if not user.has_usable_password():
+            await sync_to_async(user.set_password)("x")
+            await sync_to_async(user.save)()
+        client = AsyncClient()
+        await sync_to_async(client.force_login)(user)
+        return client
+
+    @pytest.mark.asyncio
+    async def test_background_chat_owner_can_poll_foreign_denied(
+        self, store, alice_client, bob_client, settings, monkeypatch
+    ):
+        settings.ENABLE_API_AUTH = True
+        settings.SWARM_API_KEY = TOKEN
+        monkeypatch.setattr(
+            "swarm.views.chat_views.validate_model_access", lambda *a, **k: True
+        )
+        # Avoid racing a real blueprint worker; ownership is stamped on the
+        # initial queued save before the worker runs.
+        monkeypatch.setattr("swarm.views.responses_views._spawn_worker", lambda *a, **k: None)
+
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_bp = MagicMock()
+        monkeypatch.setattr(
+            "swarm.views.chat_views.get_blueprint_instance",
+            AsyncMock(return_value=mock_bp),
+        )
+
+        payload = {
+            "model": "chatbot",
+            "messages": [{"role": "user", "content": "ping"}],
+            "background": True,
+        }
+        created = await alice_client.post(
+            "/v1/chat/completions",
+            data=json.dumps(payload),
+            content_type="application/json",
+            SERVER_NAME="localhost",
+        )
+        assert created.status_code == 202, created.content
+        body = json.loads(created.content)
+        rid = body["id"]
+        assert rid.startswith("resp_")
+        assert body.get("status") == "queued"
+
+        rec = responses_store.load(rid)
+        assert rec is not None
+        assert rec.get("owner") == "user:bg_chat_alice"
+
+        # Same principal can poll the queued handle.
+        ok = await alice_client.get(f"/v1/responses/{rid}", SERVER_NAME="localhost")
+        assert ok.status_code == 200
+        assert json.loads(ok.content)["id"] == rid
+
+        # Different principal is refused (IDOR).
+        denied = await bob_client.get(f"/v1/responses/{rid}", SERVER_NAME="localhost")
+        assert denied.status_code == 403
+

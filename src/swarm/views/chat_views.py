@@ -36,6 +36,7 @@ from rest_framework.views import APIView
 
 # Import custom permission
 # Assuming serializers are in the same app
+from swarm.auth import request_principal
 from swarm.serializers import ChatCompletionRequestSerializer
 
 from .openai_schema import chat_completions_schema
@@ -340,6 +341,8 @@ class ChatCompletionsView(APIView):
         request_id = str(uuid.uuid4())
         logger.info(f"[ReqID: {request_id}] Processing POST request.")
         print_logger.debug(f"[ReqID: {request_id}] User in post: {getattr(request, 'user', 'N/A')}, Auth: {getattr(request, 'auth', 'N/A')}")
+        # Stamp owner for async/background store records (IDOR protection on GET poll).
+        self._owner_principal = request_principal(request)
 
         # --- Request Body Parsing & Validation ---
         try:
@@ -431,8 +434,12 @@ class ChatCompletionsView(APIView):
 
         response_id = f"resp_{request_id}"
         rpayload = _build_response_payload(request_id, model_name, "", None, None, None, status="queued")
+        # Same owner stamp as /v1/responses _handle_hybrid — GET poll fail-closes
+        # without it when ENABLE_API_AUTH is on.
+        owner = getattr(self, "_owner_principal", None)
         await sync_to_async(responses_store.save)({
             "id": response_id, "object": "response", "response": rpayload, "messages": None,
+            "owner": owner,
             "_task": _task_spec(request_id, model_name, list(messages), params, None),
         })
         _spawn_worker(response_id, request_id, model_name, list(messages), params, None)
