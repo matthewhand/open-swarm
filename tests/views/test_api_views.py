@@ -600,6 +600,51 @@ class TestMarketplaceGitHubBlueprintsView:
         data = response.json()
         assert data == {"object": "list", "data": []}
 
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_list_github_blueprints_429_propagates(self, mock_search, api_client):
+        """GitHub 429 becomes non-200 JSON error with Retry-After."""
+        from swarm.services.github_topics_service import GitHubAPIError
+
+        mock_search.side_effect = GitHubAPIError(
+            "GitHub search failed with status 429",
+            status_code=429,
+            retry_after="60",
+        )
+        response = api_client.get("/marketplace/github/blueprints/")
+
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert response.json() == {"error": "GitHub search failed with status 429"}
+        assert response["Retry-After"] == "60"
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_list_github_blueprints_upstream_error_is_502(self, mock_search, api_client):
+        """Non-429 GitHub failures map to 502."""
+        from swarm.services.github_topics_service import GitHubAPIError
+
+        mock_search.side_effect = GitHubAPIError(
+            "GitHub search failed with status 403",
+            status_code=403,
+        )
+        response = api_client.get("/marketplace/github/blueprints/")
+
+        assert response.status_code == status.HTTP_502_BAD_GATEWAY
+        assert "error" in response.json()
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.gh_service.fetch_repo_manifests", return_value=[])
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_list_github_blueprints_happy_path(self, mock_search, _mock_manifests, api_client):
+        """Successful search still returns 200 list payload."""
+        mock_search.return_value = [{"full_name": "o/r", "html_url": "https://github.com/o/r"}]
+        response = api_client.get("/marketplace/github/blueprints/")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["object"] == "list"
+        assert data["data"] == []
+
 
 class TestMarketplaceGitHubMCPConfigsView:
     """Tests for /marketplace/github/mcp-configs/ endpoint."""
@@ -612,3 +657,20 @@ class TestMarketplaceGitHubMCPConfigsView:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data == {"object": "list", "data": []}
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_list_github_mcp_configs_429_propagates(self, mock_search, api_client):
+        """GitHub 429 becomes non-200 JSON error with Retry-After for MCP configs."""
+        from swarm.services.github_topics_service import GitHubAPIError
+
+        mock_search.side_effect = GitHubAPIError(
+            "GitHub search failed with status 429",
+            status_code=429,
+            retry_after="30",
+        )
+        response = api_client.get("/marketplace/github/mcp-configs/")
+
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert response.json()["error"]
+        assert response["Retry-After"] == "30"

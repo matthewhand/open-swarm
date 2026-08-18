@@ -23,6 +23,20 @@ from swarm.views.utils import get_available_blueprints
 
 logger = logging.getLogger(__name__)
 
+
+def _github_marketplace_error_response(exc: gh_service.GitHubAPIError) -> Response:
+    """Map upstream GitHub failures to a non-200 JSON error for marketplace clients."""
+    http_status = (
+        status.HTTP_429_TOO_MANY_REQUESTS
+        if exc.status_code == 429
+        else status.HTTP_502_BAD_GATEWAY
+    )
+    headers = {}
+    if exc.retry_after:
+        headers["Retry-After"] = str(exc.retry_after)
+    return Response({"error": str(exc)}, status=http_status, headers=headers)
+
+
 # Shared request body for creating/updating a custom blueprint (documents the
 # OpenAPI requestBody so MCP/codegen clients know what fields to send).
 _custom_blueprint_request = inline_serializer(
@@ -324,7 +338,17 @@ class MarketplaceGitHubBlueprintsView(APIView):
         if org:
             orgs = [org]
 
-        repos = gh_service.search_repos_by_topics(topics, orgs, sort=(None if sort == 'last_used' else sort), order=order, query=search, token=GITHUB_TOKEN)
+        try:
+            repos = gh_service.search_repos_by_topics(
+                topics,
+                orgs,
+                sort=(None if sort == 'last_used' else sort),
+                order=order,
+                query=search,
+                token=GITHUB_TOKEN,
+            )
+        except gh_service.GitHubAPIError as exc:
+            return _github_marketplace_error_response(exc)
         items: list[dict] = []
         for repo in repos:
             manifests = gh_service.fetch_repo_manifests(repo, token=GITHUB_TOKEN)
@@ -357,7 +381,17 @@ class MarketplaceGitHubMCPConfigsView(APIView):
         if org:
             orgs = [org]
 
-        repos = gh_service.search_repos_by_topics(topics, orgs, sort=(None if sort == 'last_used' else sort), order=order, query=search, token=GITHUB_TOKEN)
+        try:
+            repos = gh_service.search_repos_by_topics(
+                topics,
+                orgs,
+                sort=(None if sort == 'last_used' else sort),
+                order=order,
+                query=search,
+                token=GITHUB_TOKEN,
+            )
+        except gh_service.GitHubAPIError as exc:
+            return _github_marketplace_error_response(exc)
         items: list[dict] = []
         for repo in repos:
             manifests = gh_service.fetch_repo_manifests(repo, token=GITHUB_TOKEN)

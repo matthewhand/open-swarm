@@ -103,49 +103,70 @@ class TestSearchReposByTopics:
         assert result == []
 
     def test_search_non_200_status(self, monkeypatch):
-        """Returns empty list on non-200 status."""
+        """Raises GitHubAPIError on non-200 status."""
         def mock_get(*args, **kwargs):
             mock_resp = MagicMock()
             mock_resp.status_code = 404
+            mock_resp.headers = {}
             return mock_resp
 
         monkeypatch.setattr(github_service.httpx.Client, "get", mock_get)
         github_service._CACHE.clear()
 
-        result = github_service.search_repos_by_topics(topics=["blueprint"])
+        with pytest.raises(github_service.GitHubAPIError) as exc_info:
+            github_service.search_repos_by_topics(topics=["blueprint"])
 
-        assert result == []
+        assert exc_info.value.status_code == 404
+
+    def test_search_429_includes_retry_after(self, monkeypatch):
+        """429 raises GitHubAPIError and preserves Retry-After."""
+        def mock_get(*args, **kwargs):
+            mock_resp = MagicMock()
+            mock_resp.status_code = 429
+            mock_resp.headers = {"Retry-After": "60"}
+            return mock_resp
+
+        monkeypatch.setattr(github_service.httpx.Client, "get", mock_get)
+        github_service._CACHE.clear()
+
+        with pytest.raises(github_service.GitHubAPIError) as exc_info:
+            github_service.search_repos_by_topics(topics=["blueprint"])
+
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.retry_after == "60"
 
     def test_search_exception(self, monkeypatch):
-        """Returns empty list on exception."""
+        """Raises GitHubAPIError on transport exception."""
         def mock_get(*args, **kwargs):
             raise Exception("Network error")
 
         monkeypatch.setattr(github_service.httpx.Client, "get", mock_get)
         github_service._CACHE.clear()
 
-        result = github_service.search_repos_by_topics(topics=["blueprint"])
+        with pytest.raises(github_service.GitHubAPIError) as exc_info:
+            github_service.search_repos_by_topics(topics=["blueprint"])
 
-        assert result == []
+        assert exc_info.value.status_code == 502
+        assert "Network error" in str(exc_info.value)
 
-    def test_search_with_auth_token(self, monkeypatch):
+    def test_search_with_auth_token(self):
         """Includes Authorization header when token provided."""
-        def mock_get(self, url, **kwargs):
-            headers = kwargs.get("headers", {})
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"items": []}
+        mock_instance = MagicMock()
+        mock_instance.get.return_value = mock_resp
+
+        with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client:
+            mock_client.return_value.__enter__ = MagicMock(return_value=mock_instance)
+            mock_client.return_value.__exit__ = MagicMock(return_value=False)
+            github_service._CACHE.clear()
+
+            result = github_service.search_repos_by_topics(topics=["blueprint"], token="mytoken")
+
+            assert result == []
+            headers = mock_client.call_args.kwargs.get("headers") or {}
             assert headers.get("Authorization") == "Bearer mytoken"
-            
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = {"items": []}
-            return mock_resp
-
-        monkeypatch.setattr(github_service.httpx.Client, "get", mock_get)
-        github_service._CACHE.clear()
-
-        result = github_service.search_repos_by_topics(topics=["blueprint"], token="mytoken")
-
-        assert result == []
-
 
 class TestFetchRepoManifests:
     """Tests for fetch_repo_manifests function."""

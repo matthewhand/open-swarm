@@ -23,6 +23,21 @@ _CACHE: dict[tuple[str, str, str, str], tuple[float, list[dict[str, Any]]]] = {}
 _CACHE_TTL_SECONDS = 300.0
 
 
+class GitHubAPIError(Exception):
+    """Raised when a GitHub API call fails (non-200 or transport error)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        retry_after: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.retry_after = retry_after
+
+
 def search_repos_by_topics(
     topics: list[str],
     orgs: list[str] | None = None,
@@ -34,8 +49,8 @@ def search_repos_by_topics(
 ) -> list[dict[str, Any]]:
     """Search public GitHub repositories by topics/orgs with optional name query.
 
-    Returns a subset of fields for each repo. This function is safe to mock in
-    tests; on failure it returns an empty list.
+    Returns a subset of fields for each repo. Raises GitHubAPIError on non-200
+    responses or transport failures (does not pretend success with []).
     """
     try:
         q_parts = []
@@ -67,7 +82,12 @@ def search_repos_by_topics(
         with httpx.Client(timeout=10.0, headers=headers) as client:
             resp = client.get(f"{GITHUB_API}/search/repositories", params=params)
             if resp.status_code != 200:
-                return []
+                retry_after = resp.headers.get("Retry-After")
+                raise GitHubAPIError(
+                    f"GitHub search failed with status {resp.status_code}",
+                    status_code=resp.status_code,
+                    retry_after=retry_after,
+                )
             data = resp.json() or {}
             items = data.get("items") or []
             out: list[dict[str, Any]] = []
@@ -78,8 +98,13 @@ def search_repos_by_topics(
                 })
             _CACHE[ck] = (now, out)
             return out
-    except Exception:
-        return []
+    except GitHubAPIError:
+        raise
+    except Exception as exc:
+        raise GitHubAPIError(
+            f"GitHub search request failed: {exc}",
+            status_code=502,
+        ) from exc
 
 
 def fetch_repo_manifests(
