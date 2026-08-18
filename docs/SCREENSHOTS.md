@@ -39,26 +39,30 @@ but points readers at this tour.
 ## Mobile captures (`docs/screenshots/mobile/`)
 
 Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
-Django pages use the five-item bottom primary bar; SPA dashboard uses five
-tabs linking to Django destinations.
+Django and SPA shells share the same five-tab bottom bar:
+**Home · Blueprints · Teams · Sessions · Settings**. On the SPA, Home stays
+on `/`; the other four tabs are Django `href`s (`/blueprint-library/`,
+`/teams/launch/`, `/sessions/`, `/settings/`). Bare SPA paths (`/teams`,
+`/blueprints`, `/settings`, `/agent-creator`) still **redirect** to those
+Django surfaces; `spa-*` captures keep the sticky “Redirected: …” banner.
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack; bottom tabs → Django hrefs | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | Disconnected / login-required composer + dock clearance | 2026-08-18 | current |
-| `mobile/spa-teams.png` | `/teams` → launch | Redirect to Django launcher + bottom nav | 2026-08-18 | current |
-| `mobile/spa-blueprints.png` | `/blueprints` → library | Redirect to library; single-column cards | 2026-08-18 | current |
-| `mobile/spa-settings.png` | `/settings` → settings/ | Redirect to Django settings | 2026-08-18 | current |
-| `mobile/spa-agent-creator.png` | `/agent-creator` → creator/ | Redirect to Django agent creator | 2026-08-18 | current |
-| `mobile/login.png` | `/accounts/login/` | Full-width login card | 2026-08-18 | current |
-| `mobile/teams.png` | `/teams/` | Bottom primary tabs; form wraps | 2026-08-18 | current |
-| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width | 2026-08-18 | current |
-| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack | 2026-08-18 | current |
-| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs | 2026-08-18 | current |
-| `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; bottom tabs | 2026-08-18 | current |
-| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap | 2026-08-18 | current |
-| `mobile/sessions.png` | `/sessions/` | Session list + limit banner | 2026-08-18 | current |
-| `mobile/profiles.png` | `/profiles/` | Profiles table; Settings bottom tab active | 2026-08-18 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; bottom bar Home · Blueprints · Teams · Sessions · Settings (non-Home → Django) | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | Disconnected / login-required composer; bottom-nav clearance (same five tabs) | 2026-08-18 | current |
+| `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Django launcher; Teams tab active | 2026-08-18 | current |
+| `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Blueprints tab active | 2026-08-18 | current |
+| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Settings tab active | 2026-08-18 | current |
+| `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect banner over Agent Creator; Blueprints tab active | 2026-08-18 | current |
+| `mobile/login.png` | `/accounts/login/` | Full-width login card (no bottom primary bar) | 2026-08-18 | current |
+| `mobile/teams.png` | `/teams/` | Bottom primary tabs (Teams active); form wraps | 2026-08-18 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; Teams tab active | 2026-08-18 | current |
+| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack; Blueprints tab active | 2026-08-18 | current |
+| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs; Blueprints tab active | 2026-08-18 | current |
+| `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; Blueprints tab active | 2026-08-18 | current |
+| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Settings tab active | 2026-08-18 | current |
+| `mobile/sessions.png` | `/sessions/` | Session list + limit banner; Sessions tab active | 2026-08-18 | current |
+| `mobile/profiles.png` | `/profiles/` | Profiles table; Settings tab active (profiles nest under Settings) | 2026-08-18 | current |
 
 Regenerate with:
 
