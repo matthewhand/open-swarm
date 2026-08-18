@@ -20,10 +20,19 @@ fi
 cd webui/frontend
 
 echo "Installing dependencies..."
-npm install --no-audit --no-fund --legacy-peer-deps
+if [ -f package-lock.json ]; then
+    npm ci --no-audit --no-fund --legacy-peer-deps
+else
+    npm install --no-audit --no-fund --legacy-peer-deps
+fi
 
 echo "Building frontend assets..."
 npm run build
+
+if [ ! -f dist/index.html ]; then
+    echo "Error: dist/index.html missing after build"
+    exit 1
+fi
 
 echo "Frontend build complete!"
 echo "Assets are in: $(pwd)/dist"

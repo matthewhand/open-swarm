@@ -7,6 +7,24 @@ on:
     branches: [main]
 
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Build ADR-001 SPA (make frontend)
+        run: ./scripts/build_frontend.sh
+
+      - name: Confirm dist/index.html
+        run: test -f webui/frontend/dist/index.html
+
   test:
     runs-on: ubuntu-latest
     strategy:

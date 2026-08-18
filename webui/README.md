@@ -32,11 +32,12 @@ The development server runs on port 3000 and proxies API requests to the Django 
 ### Building for Production
 
 ```bash
-# Build optimized assets
-npm run build
+# Preferred (from repo root) — ADR-001 SPA after pull
+make frontend
 
-# Or use the convenience script
+# Or the underlying script / direct Vite build
 ./scripts/build_frontend.sh
+# cd webui/frontend && npm ci && npm run build
 ```
 
 Built assets will be in `webui/frontend/dist/` and automatically served by Django.
@@ -72,9 +73,9 @@ per ADR-001 and must not be remounted.
 
 The frontend is automatically detected and served by Django when built
 (`webui/frontend/dist/` is gitignored). After pulling SPA changes (ADR-001
-route cut, chat auth messaging, mobile dock, etc.), run `npm run build`
-locally (or `./scripts/build_frontend.sh`) so journey captures and `/` serve
-the new bundle — **rebuild is required** for the `/` + `/chat`-only shell.
+route cut, chat auth messaging, mobile dock, etc.), run **`make frontend`**
+(or `./scripts/build_frontend.sh`) so journey captures and `/` serve the new
+bundle — **rebuild is required** for the `/` + `/chat`-only shell.
 The `index` view in `src/swarm/views/web_views.py` prefers built assets over
 Django templates when `dist/` exists.
 
