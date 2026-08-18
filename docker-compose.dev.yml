@@ -1,9 +1,11 @@
-# Open Swarm — DEV override: live code-reload in the container.
+# Open Swarm — DEV override: bind-mount source + uvicorn --reload.
 #
 # WHAT THIS DOES
-#   Bind-mounts the repo over /app so Django's runserver autoreloader (already
-#   the image's default CMD — no --noreload) restarts on every edit. No rebuild
-#   needed for Python changes; just save and the in-container server reloads.
+#   Bind-mounts the repo over /app and overrides the image CMD so uvicorn runs
+#   with --reload (single process; --reload is incompatible with multi-worker).
+#   The production image CMD is uvicorn WITHOUT --reload — a mount alone does
+#   not auto-restart. Python edits under src/ are picked up via PYTHONPATH;
+#   rebuild still needed for dependency / Dockerfile changes.
 #
 # PORT
 #   Publishes on host :8002 to avoid the busy ports on the open-swarm-oracle
@@ -17,9 +19,9 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 #
 # NOTE
-#   This is REST-API-only iteration. CLI blueprints need the host-coupled
-#   docker-compose.override.yml mappings, which the explicit -f list above
-#   intentionally does not load.
+#   Same ASGI path as production (uvicorn → swarm.asgi), so websockets work.
+#   CLI blueprints need the host-coupled docker-compose.override.yml mappings,
+#   which the explicit -f list above intentionally does not load.
 
 services:
   swarm:
@@ -28,20 +30,33 @@ services:
     # bind (and collide with whatever holds :8000 on the host).
     ports: !override
       - "8002:8000"
+    # Image CMD is migrate-then-uvicorn without --reload. Override so saves under
+    # the bind-mount restart the ASGI app. --reload requires a single process.
+    # Port 8000 is the in-container listen port (host maps 8002:8000); DB paths
+    # come from the merged environment, same as the production service.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        python manage.py migrate --fake-initial
+        echo "--- Starting Open Swarm ASGI (uvicorn --reload) ---"
+        exec uvicorn swarm.asgi:application --host 0.0.0.0 --port 8000 --reload
     volumes:
-      # Live source — runserver autoreloads on change. Named volumes keep the
-      # image's build artifacts from being shadowed by the host checkout.
+      # Live source tree. hatchling installs into site-packages (no src/
+      # open_swarm.egg-info), so PYTHONPATH below is what makes this mount win.
       - ".:/app"
-      - "/app/src/open_swarm.egg-info"
     environment:
       # Local dev: enables Django DEBUG (also drops the production
       # DJANGO_SECRET_KEY requirement) and surfaces tracebacks.
       DJANGO_DEBUG: "true"
       DJANGO_LOG_LEVEL: "DEBUG"
       SWARM_LOG_LEVEL: "DEBUG"
+      # --reload cannot share the process with multiple workers.
+      SWARM_UVICORN_WORKERS: "1"
       # CRITICAL for live-reload: the image does `pip install .`, so `import
       # swarm` resolves to the frozen copy in site-packages, NOT the bind-mounted
       # source (the package lives at src/swarm/). Prepending the mounted source
-      # to PYTHONPATH makes edits the code that actually runs, so runserver's
-      # autoreloader picks them up.
+      # to PYTHONPATH makes edits the code that actually runs, so uvicorn's
+      # reloader picks them up.
       PYTHONPATH: "/app/src"

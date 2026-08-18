@@ -54,7 +54,7 @@ services:
     ports:
       # Portable default. On a host where 8000 is taken (e.g. another service),
       # remap with an override rather than editing this published default.
-      # For live-reload dev, use: make dev  (docker-compose.dev.yml, host :8002).
+      # For bind-mount + uvicorn --reload, use: make dev (docker-compose.dev.yml, :8002).
       - "8000:8000"
     environment:
       # Pin the in-container listen port. `environment` wins over `env_file`, so
