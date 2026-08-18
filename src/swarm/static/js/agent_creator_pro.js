@@ -572,7 +572,7 @@ class AgentCreatorPro {
         // Tags
         const tagsContainer = document.getElementById('previewTags');
         const tags = formData.tags ? formData.tags.split(',').map(t => t.trim()) : [];
-        tagsContainer.innerHTML = tags.map(tag => `<span class="tag">${tag}</span>`).join('');
+        tagsContainer.innerHTML = tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('');
         
         // Capabilities
         const capabilitiesContainer = document.getElementById('previewCapabilities');
