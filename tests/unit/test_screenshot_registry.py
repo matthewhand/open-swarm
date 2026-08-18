@@ -169,14 +169,96 @@ def test_capture_script_parks_django_and_spa_mobile_bottom_navs():
     assert ".os-bottom-nav" in src
     assert "fixed.bottom-0" in src or "bottom-0" in src
     assert "position = 'static'" in src or 'position = "static"' in src or "position='static'" in src
+    # Desktop lg:hidden docks must stay hidden — only park visible bars.
+    assert "getComputedStyle" in src
+    assert 'display === \'none\'' in src or 'display === "none"' in src
+    assert 'aria-label="Mobile primary"' in src or "Mobile primary" in src
 
 
 def test_capture_script_injects_redirect_banner_for_spa_stems():
-    """spa-* captures must be distinct from canonical pages (redirect banner)."""
+    """spa-* redirect captures must be distinct from canonical pages (banner)."""
     src = CAPTURE_SCRIPT.read_text()
     assert "os-capture-redirect-banner" in src
     assert "Redirected:" in src
     assert "urlparse" in src
+    assert "SPA_REDIRECT_STEMS" in src
+    assert "banner_injected" in src
+    # Insert above sticky Django header so full-page PNGs show the banner.
+    assert "document.body.insertBefore" in src
+
+
+def _capture_pages_rows() -> list[tuple[str, str]]:
+    """Return (stem, path_prefix) for each PAGES row (path may be f-string prefix)."""
+    src = CAPTURE_SCRIPT.read_text()
+    tree = ast.parse(src)
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id == "PAGES":
+                    rows: list[tuple[str, str]] = []
+                    for elt in node.value.elts:  # type: ignore[union-attr]
+                        stem = _ast_str(elt.elts[0])
+                        path = _ast_str(elt.elts[1])
+                        if stem is None or path is None:
+                            raise AssertionError(f"bad PAGES row: {ast.dump(elt)}")
+                        rows.append((stem, path))
+                    return rows
+    raise AssertionError("PAGES list not found")
+
+
+def test_capture_pages_spa_only_root_and_chat():
+    """ADR-001: real SPA destinations are only `/` and `/chat`; other spa-* are redirects."""
+    rows = _capture_pages_rows()
+    by_stem = dict(rows)
+    assert by_stem.get("landing") == "/"
+    assert by_stem.get("spa-chat") == "/chat"
+    # Deleted SPA operator pages must not be remounted as capture targets.
+    for banned in ("spa-builder", "builder", "spa-agent-creator-page"):
+        assert banned not in by_stem
+    redirect_stems = {
+        "spa-teams": "/teams",
+        "spa-blueprints": "/blueprints",
+        "spa-settings": "/settings",
+        "spa-agent-creator": "/agent-creator",
+    }
+    for stem, path in redirect_stems.items():
+        assert by_stem.get(stem) == path, f"{stem} must capture bare redirect entry {path}"
+    # No other spa-* stems beyond chat + redirect documentation.
+    spa_stems = [s for s, _ in rows if s.startswith("spa-")]
+    assert set(spa_stems) == {"spa-chat", *redirect_stems}
+
+
+def test_capture_script_waits_for_connected_or_unavailable():
+    """spa-chat must wait for a terminal WS badge (not Connecting…)."""
+    src = CAPTURE_SCRIPT.read_text()
+    assert 'aria-label="Connection status"' in src
+    assert "Connected" in src and "Unavailable" in src
+    # Word boundaries avoid matching Connecting… as Connected (JS \\b in source).
+    assert r"\b(Connected|Unavailable|Disconnected)\b" in src or (
+        r"\\b(Connected|Unavailable|Disconnected)\\b" in src
+    )
+    assert "SPA_CHAT_STATUS_TIMEOUT_MS" in src
+    assert "20_000" in src or "20000" in src
+    assert "connection_status" in src
+
+
+def test_capture_script_seeds_session_detail_after_sessions_list():
+    """Empty sessions.png then seed resp_journey_seed before session-detail."""
+    src = CAPTURE_SCRIPT.read_text()
+    assert "seed_session_detail_fixture" in src
+    assert "resp_journey_seed" in src
+    assert "sessions_captured" in src
+    stems = _capture_script_stems()
+    assert stems.index("sessions") < stems.index("session-detail")
+    assert "SESSION_DETAIL_ID" in src
+    assert "SWARM_RESPONSES_DIR" in src
+
+
+def test_capture_script_requires_frontend_dist():
+    """Without dist/, ADR-001 `/` + `/chat` cannot be captured honestly."""
+    src = CAPTURE_SCRIPT.read_text()
+    assert "require_frontend_dist" in src
+    assert "webui/frontend/dist" in src or "FRONTEND_DIST_INDEX" in src
 
 
 def test_user_journey_embeds_sessions_and_profiles_when_captured():
@@ -219,22 +301,22 @@ def test_session_detail_caption_is_seeded_fixture_not_live_run():
             assert banned not in text, f"{path.name} must not claim: {banned!r}"
 
 
-def test_user_journey_launcher_caption_matches_hybrid_team_default():
-    """teams-launch capture defaults to first option hybrid_team, not django_chat/fs_introspect."""
+def test_user_journey_launcher_caption_matches_fs_introspect_default():
+    """teams-launch capture defaults to first option fs_introspect (not hybrid_team)."""
     for path in (USER_JOURNEY, GUIDED_TOUR, SCREENSHOTS_MD):
         text = path.read_text()
         # Near the launcher capture, docs must name the selected blueprint honestly.
-        assert "hybrid_team" in text
+        assert "**`fs_introspect`** selected" in text or "`fs_introspect`** selected" in text
         # Must not claim a different blueprint is pre-selected in the PNG.
         assert "django_chat` is pre-selected" not in text
         assert "django_chat is pre-selected" not in text
-        assert "`fs_introspect`** selected" not in text
-        assert "**`fs_introspect`** selected" not in text
+        assert "**`hybrid_team`** selected (first" not in text
+        assert "**`hybrid_team`** selected (first bundled" not in text
 
 
 def test_user_journey_screenshot_date_is_current_regeneration():
     text = USER_JOURNEY.read_text()
-    assert "2026-08-18" in text
+    assert "2026-08-19" in text
     assert "2026-06-11 with a fresh development database" not in text
     assert "2026-07-21" not in text
 
@@ -251,14 +333,14 @@ def test_tour_captions_include_spa_desktop_chat_nav():
         )
 
 
-def test_tour_captions_do_not_claim_sticky_banner_in_checked_in_spa_pngs():
-    """Checked-in spa-*.png are redirect landings; banner is injection-on-regen only."""
+def test_tour_captions_claim_sticky_banner_in_checked_in_spa_pngs():
+    """Checked-in spa-*.png include the capture-injected Redirected banner."""
     for path in (GUIDED_TOUR, SCREENSHOTS_MD):
         text = path.read_text()
-        # Honest regeneration note is fine; claiming the on-disk PNG shows the banner is not.
-        assert "with redirect banner" not in text
-        assert "Sticky “Redirected: …” banner over Team Launcher" not in text
-        assert "banner on regeneration" in text or "injects" in text.lower()
+        assert "Redirected:" in text or "“Redirected:" in text or '"Redirected:' in text
+        # Must not claim the banner is missing from on-disk PNGs.
+        assert "banner on regeneration" not in text
+        assert "regenerate to inject" not in text.lower()
 
 
 def test_spa_app_mobile_dock_omits_settings_tab():
@@ -373,13 +455,14 @@ def test_guided_tour_embeds_mobile_spa_chat_when_captured():
     )
 
 
-def test_spa_chat_checked_in_caption_does_not_hardclaim_connected_badge():
-    """Checked-in spa-chat PNGs show Connecting…; docs must not claim Connected as on-disk fact."""
+def test_spa_chat_checked_in_caption_hardclaims_connected_badge():
+    """Checked-in spa-chat PNGs show Connected; docs must match on-disk fact."""
     for path in (GUIDED_TOUR, SCREENSHOTS_MD):
         text = path.read_text()
-        # Ban the old hard claim that checked-in frames are Connected.
-        assert "both show the **Connected**" not in text
-        assert "**Connected** composer + blueprint selector" not in text
-        assert "**Connected** shell after journey login" not in text
-        # Honest language for the checked-in frame.
-        assert "Connecting…" in text or "Connecting" in text
+        # On-disk frames are Connected after journey login + healthy ASGI.
+        assert "**Connected**" in text
+        # Must not leave the stale Connecting… claim as the checked-in fact.
+        assert "frames still\nshow **Connecting…" not in text
+        assert "Checked-in frame: **Connecting…" not in text
+        assert "checked-in frames show **Connecting…" not in text.lower()
+        assert "Connecting…" not in text

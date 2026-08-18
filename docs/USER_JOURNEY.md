@@ -8,7 +8,7 @@ and every screenshot in [`docs/screenshots/`](./screenshots/) was captured from
 a live local server by [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py).
 Where a page shows demo, placeholder, or empty-state data, the caption says so.
 
-> Screenshots last regenerated **2026-08-18** with Playwright
+> Screenshots last regenerated **2026-08-19** with Playwright
 > (`scripts/capture_user_journey.py`) against a live local server. Captures
 > reflect that environment’s data (empty states and login-gated chat are
 > called out in captions). Terminal transcripts below were captured
@@ -158,18 +158,19 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
 serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
-teams/blueprints/models counts come from the API (this capture: 0 / 55 / 55).
+teams/blueprints/models counts come from the API (this capture: 0 / 45 / 45).
 Top nav is **Home · Chat · Blueprints · Teams · Sessions · Settings**
 (matches `landing.png` / `App.tsx`). Quick Actions: **Launch Team**,
 **Browse Blueprints**, **Manage Teams**, **Settings** (recaptured after
-`npm run build` on **2026-08-18**). Bare `/teams`, `/blueprints`,
+`npm run build` on **2026-08-19**). Bare `/teams`, `/blueprints`,
 `/settings`, and `/agent-creator` **redirect** to Django (`/teams/launch/`,
 `/blueprint-library/`, `/settings/`, `/agent-creator/`) — `spa-*.png`
-captures document those redirect landings. Experimental SPA chat remains at
-`/chat` (login required for the websocket consumer). See the page-by-page
-[guided tour](./GUIDED_TOUR.md). Without `webui/frontend/dist/`, `/` falls
-back to Django templates; the Django pages below are the supported admin
-surface either way.
+captures document those redirect landings (sticky “Redirected: …” banner).
+Experimental SPA chat remains at `/chat` (**Connected** after journey login
+when ASGI/`/ws/` is up; **Unavailable** is the 4401 / unreachable path). See
+the page-by-page [guided tour](./GUIDED_TOUR.md). Without
+`webui/frontend/dist/`, `/` falls back to Django templates; the Django pages
+below are the supported admin surface either way.
 
 ### Teams admin — `/teams/`
 
@@ -186,8 +187,8 @@ OpenAI client. Export at `/teams/export` is also login-gated.
 ![Team launcher](./screenshots/teams-launch.png)
 
 Pick a team blueprint (the launcher lists bundled options such as
-`hybrid_team`, `fs_introspect`, `django_chat`, `persona_council`, … — the
-capture shows **`hybrid_team`** selected, the first dropdown option), type
+`fs_introspect`, `hybrid_swarm`, `django_chat`, `hybrid_team`, … — the
+capture shows **`fs_introspect`** selected, the first dropdown option), type
 a task, and stream the team's output in the browser. The output panel is
 empty until you launch.
 
@@ -198,7 +199,7 @@ empty until you launch.
 **Login required.** Browse discoverable blueprints with per-blueprint MCP
 status badges (async check; this capture still shows the checking spinner
 labeled **MCP** on each card). The grid is **paginated** on first paint
-(Show more — e.g. 12 of 55) so the catalog does not dump every card at once;
+(Show more — e.g. 12 of 38) so the catalog does not dump every card at once;
 summary tiles reflect available / installed / custom / category counts for
 this environment. Add/remove, the creator form, and avatar generation are
 operator mutators and also require login.

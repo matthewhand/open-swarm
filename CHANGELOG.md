@@ -4,12 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Journey screenshots (2026-08-19):** regenerated desktop + mobile via `capture_user_journey.py`; captions/registry now match **Connected** `spa-chat`, **`fs_introspect`** launcher default, sticky **Redirected:** banners on `spa-*`, dashboard 0/45/45 + library 12 of 38, ADR-001 nav honesty (`tests/unit/test_screenshot_registry.py`)
+
 ### Fixed
 - **Agent Creator echo-only codegen:** `AgentPersonaGenerator` no longer emits nonexistent `model.chat_completion_stream`; uses `AsyncOpenAI` + `chat.completions.create(stream=True)` with warned echo fallback (same fix as library `generate_blueprint_code`) — `tests/unit/test_agent_creator_codegen.py`
 - **Blueprint source/tools URL slash twins:** `/v1/blueprints/<id>/source/` and `/tools/` no longer 404; `/v1/cli-agents` and `/v1/config-options` gain no-slash twins (same pattern as `/v1/responses` and `/v1/chat/completions`)
 - **FEATURE_STATUS / AUTH CSP honesty:** SPA mobile dock row no longer lists Settings (five tabs: Home·Chat·Blueprints·Teams·Sessions; Settings is desktop/gear); AUTH overview drops stale “style residual” — prod CSP is `script-src`/`style-src` `'self'` only. Locked by `tests/unit/test_screenshot_registry.py`
 - **MCP blueprint→tool bridge silent no-op:** `register_blueprints_with_mcp()` now `logger.error`s when `mcp_server` ≥0.5 lacks flat `registry.register_tool` (or registration fails). `FEATURE_STATUS` + `docs/mcp_server_mode.md` state clearly: flag mounts `/mcp/`, blueprints are NOT tools until the MCPToolset port.
-- **Screenshot/docs ADR-001 alignment:** tour captions name SPA desktop **Home · Chat · …**; `spa-*` embeds describe redirect landings (sticky “Redirected” banner is capture-script injection on regen, not claimed in checked-in PNGs); SPA mobile dock drops Settings tab to match five-tab PNGs / SCREENSHOTS.md
+- **Screenshot/docs ADR-001 alignment:** tour captions name SPA desktop **Home · Chat · …**; `spa-*` embeds describe redirect landings with sticky “Redirected” banners in checked-in PNGs; SPA mobile dock drops Settings tab to match five-tab PNGs / SCREENSHOTS.md
 - **WS anonymous receive race:** `DjangoChatConsumer.receive` re-checks session auth so a frame that lands after accept-but-before 4401 close cannot crash the consumer or reach blueprint/LLM paths
 - **MoA `--act` phantom write:** `run_moa_cli` with `--act` and no `--act-write` now actually creates `moa_determination.md` (previously only `RecordingWriteSurface` + `ActResult` claimed the write)
 - **Fly HTTP health check:** re-enable `[[http_service.checks]]` GET `/health` in `fly.toml` (was disabled 2026-06-20 while the image lacked the route); live `open-swarm.fly.dev/health` returns 200 `{"status":"ok"}`

@@ -46,15 +46,25 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 PORT = int(os.environ.get("CAPTURE_PORT", "8321"))
 BASE_URL = f"http://127.0.0.1:{PORT}"
 SCREENSHOT_DIR = REPO_ROOT / "docs" / "screenshots"
+FRONTEND_DIST_INDEX = REPO_ROOT / "webui" / "frontend" / "dist" / "index.html"
 VIEWPORT = {"width": 1280, "height": 800}
 # iPhone 14-class emulation for --mobile runs.
 MOBILE_VIEWPORT = {"width": 390, "height": 844}
+# Match e2e_visual chat WS wait — 8s was flaky under load (Connecting… → capture).
+SPA_CHAT_STATUS_TIMEOUT_MS = 20_000
+# Bare SPA entry paths that Django RedirectView sends to trailing-slash operator UI.
+SPA_REDIRECT_STEMS = frozenset(
+    {"spa-teams", "spa-blueprints", "spa-settings", "spa-agent-creator"}
+)
+# ADR-001: only these stems are real SPA destinations (not redirect documentation).
+SPA_ROUTE_STEMS = frozenset({"landing", "spa-chat"})
 
 # Throwaway credentials for the dev-server superuser (local only, never
 # committed anywhere; the dev db is throwaway state).
@@ -112,6 +122,33 @@ SERVER_ENV = {
     # Uncomment to exercise token auth instead of open dev access:
     # "API_AUTH_TOKEN": "local-journey-token",
 }
+
+
+def require_frontend_dist() -> None:
+    """ADR-001 SPA captures need a built ``webui/frontend/dist`` (gitignored)."""
+    if FRONTEND_DIST_INDEX.is_file():
+        return
+    raise SystemExit(
+        f"Missing {FRONTEND_DIST_INDEX.relative_to(REPO_ROOT)}. "
+        "Build the SPA first (ADR-001 `/` + `/chat`):\n"
+        "  make frontend\n"
+        "  # or: cd webui/frontend && npm ci && npm run build"
+    )
+
+
+def assert_pages_adr001_contract() -> None:
+    """Guard PAGES drift: SPA destinations stay `/` + `/chat` only."""
+    by_stem = {stem: path for stem, path, _name in PAGES}
+    assert by_stem["landing"] == "/" and by_stem["spa-chat"] == "/chat"
+    assert SPA_ROUTE_STEMS == {"landing", "spa-chat"}
+    assert SPA_REDIRECT_STEMS == {
+        "spa-teams",
+        "spa-blueprints",
+        "spa-settings",
+        "spa-agent-creator",
+    }
+    for stem in SPA_REDIRECT_STEMS:
+        assert stem in by_stem and not by_stem[stem].endswith("/"), stem
 
 
 def start_server() -> subprocess.Popen:
@@ -295,27 +332,32 @@ def capture(page, slug: str, path: str, name: str,
         page.wait_for_load_state("networkidle", timeout=10000)
     except Exception:
         pass  # busy pages (polling) never go idle; capture anyway
-    # spa-chat: wait for WS Connected vs Unavailable so the PNG matches auth
-    # reality (session login → Connected; anonymous/ASGI fail → Unavailable).
+    # spa-chat: wait for a *terminal* WS badge (word-bounded) so Connecting…
+    # is not mistaken for Connected. Session login → Connected; anonymous /
+    # ASGI fail → Unavailable / Disconnected.
     if slug == "spa-chat":
         try:
             page.wait_for_function(
                 """() => {
                   const el = document.querySelector('[aria-label="Connection status"]');
-                  const t = (el && el.textContent) || '';
-                  return /Connected|Unavailable|Disconnected/i.test(t);
+                  const t = ((el && el.textContent) || '').trim();
+                  return /\\b(Connected|Unavailable|Disconnected)\\b/i.test(t);
                 }""",
-                timeout=8000,
+                timeout=SPA_CHAT_STATUS_TIMEOUT_MS,
             )
         except Exception:
             pass  # still capture connecting/empty rather than abort
+        try:
+            entry["connection_status"] = (
+                page.locator('[aria-label="Connection status"]').inner_text(timeout=2000).strip()
+            )
+        except Exception:
+            entry["connection_status"] = ""
     page.wait_for_timeout(750)
     final_url = page.url
     entry["final_url"] = final_url
     # Compare path only (keep trailing-slash differences): /settings → /settings/
     # is still a redirect for bare SPA entry documentation.
-    from urllib.parse import urlparse
-
     final_path = urlparse(final_url).path or "/"
     entry["redirected"] = final_path != path and path not in (
         "/accounts/login/",
@@ -332,8 +374,10 @@ def capture(page, slug: str, path: str, name: str,
     except Exception as exc:
         entry["dom_error"] = str(exc)
     # When this slug documents a bare SPA path that redirected, inject a
-    # capture-only banner so spa-*.png is not a pixel twin of the canonical page.
-    if entry.get("redirected") and slug.startswith("spa-"):
+    # capture-only banner so spa-* redirect PNGs are not pixel twins of the
+    # canonical Django page. Insert at body start (above sticky header).
+    entry["banner_injected"] = False
+    if entry.get("redirected") and slug in SPA_REDIRECT_STEMS:
         try:
             from_path = path
             to_path = final_url.replace(BASE_URL, "") or final_url
@@ -343,32 +387,37 @@ def capture(page, slug: str, path: str, name: str,
                   const b = document.createElement('div');
                   b.id = 'os-capture-redirect-banner';
                   b.setAttribute('role', 'status');
-                  b.style.cssText = [
-                    'position:sticky','top:0','z-index:2000','padding:0.55rem 1rem',
-                    'background:#1e3a5f','color:#e2e8f0','font:600 0.9rem/1.35 system-ui,sans-serif',
-                    'border-bottom:2px solid #3b82f6','box-shadow:0 4px 12px rgba(0,0,0,.35)'
-                  ].join(';');
+                  b.setAttribute(
+                    'style',
+                    [
+                      'position:sticky','top:0','z-index:2000','padding:0.55rem 1rem',
+                      'background:#1e3a5f','color:#e2e8f0','font:600 0.9rem/1.35 system-ui,sans-serif',
+                      'border-bottom:2px solid #3b82f6','box-shadow:0 4px 12px rgba(0,0,0,.35)'
+                    ].join(';')
+                  );
                   b.textContent = 'Redirected: ' + fromPath + ' → ' + toPath
                     + '  ·  canonical Django operator UI (bare SPA path is not a separate product)';
-                  const main = document.querySelector('main.os-main, main, body');
-                  if (main && main.firstChild) main.insertBefore(b, main.firstChild);
-                  else document.body.insertBefore(b, document.body.firstChild);
+                  document.body.insertBefore(b, document.body.firstChild);
                 }""",
                 [from_path, to_path],
             )
+            entry["banner_injected"] = bool(
+                page.locator("#os-capture-redirect-banner").count()
+            )
         except Exception:
-            pass
+            entry["banner_injected"] = False
 
     # Full-page PNGs paint *fixed* bottom bars over content in Chromium stitch
     # (Django `.os-bottom-nav` and SPA `nav.fixed.bottom-0` / Daisy dock).
-    # Park them as static at document end so mid-page metrics/CTAs stay readable.
+    # Park only *visible* docks as static so desktop `lg:hidden` bars stay hidden.
     try:
         page.evaluate(
             """() => {
               const nodes = document.querySelectorAll(
-                '.os-bottom-nav, nav.fixed.bottom-0, nav[class*="fixed"][class*="bottom-0"]'
+                '.os-bottom-nav, nav.fixed.bottom-0, nav[class*="fixed"][class*="bottom-0"], nav[aria-label="Mobile primary"]'
               );
               nodes.forEach((n) => {
+                if (getComputedStyle(n).display === 'none') return;
                 n.style.position = 'static';
                 n.style.boxShadow = 'none';
                 n.style.inset = 'auto';
@@ -417,14 +466,18 @@ def main() -> int:
     if args.mobile:
         context_kwargs.update(device_scale_factor=2, is_mobile=True, has_touch=True)
 
+    assert_pages_adr001_contract()
+    require_frontend_dist()
     screenshot_dir.mkdir(parents=True, exist_ok=True)
     reset_capture_responses_dir()
     print(f"Starting Django dev server on port {PORT} ...")
     print(f"  [store    ] SWARM_RESPONSES_DIR={CAPTURE_RESPONSES_DIR}")
+    print(f"  [spa      ] {FRONTEND_DIST_INDEX.relative_to(REPO_ROOT)} present (ADR-001 / + /chat)")
     server = start_server()
     captured: list[tuple[str, str]] = []
     skipped: list[tuple[str, str]] = []
     entries: list[dict] = []
+    sessions_captured = False
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
@@ -439,10 +492,25 @@ def main() -> int:
             except Exception as exc:
                 print(f"  [auth     ] anonymous capture (login failed: {exc})")
             for slug, path, name in PAGES:
-                # Seed after empty list capture so sessions.png stays empty-state.
+                # Seed only after the empty list PNG so sessions.png stays empty-state.
                 if slug == "session-detail":
+                    if not sessions_captured:
+                        entry = {
+                            "stem": slug,
+                            "path": path,
+                            "name": name,
+                            "ok": False,
+                            "error": "seed blocked: sessions list was not captured first",
+                        }
+                        entries.append(entry)
+                        skipped.append((f"{name} ({path})", entry["error"]))
+                        print(f"  [skipped ] {name:40s} {path} -- {entry['error']}")
+                        continue
                     try:
                         seed_session_detail_fixture()
+                        seed_path = CAPTURE_RESPONSES_DIR / f"{SESSION_DETAIL_ID}.json"
+                        if not seed_path.is_file():
+                            raise FileNotFoundError(f"missing seed file {seed_path}")
                         print(f"  [seed     ] {SESSION_DETAIL_ID} → {CAPTURE_RESPONSES_DIR}")
                     except Exception as exc:
                         entry = {
@@ -468,10 +536,15 @@ def main() -> int:
                     }
                 entries.append(entry)
                 if entry.get("ok"):
+                    if slug == "sessions":
+                        sessions_captured = True
                     detail = entry.get("screenshot", "")
                     captured.append((name, detail))
                     redir = f" -> {entry.get('final_url', '')}" if entry.get("redirected") else ""
-                    print(f"  [captured] {name:40s} {path}{redir} -> {detail}")
+                    conn = entry.get("connection_status")
+                    conn_s = f" [{conn}]" if conn else ""
+                    banner = " +banner" if entry.get("banner_injected") else ""
+                    print(f"  [captured] {name:40s} {path}{redir}{banner}{conn_s} -> {detail}")
                 else:
                     detail = entry.get("error", "unknown")
                     skipped.append((f"{name} ({path})", detail))
