@@ -57,7 +57,13 @@
           <td>{{ p.model }}</td>
           <td>
             {% if p.base_url and p.base_url != 'None' and p.base_url != 'null' %}
-            <a class="prof-url" href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer">{{ p.base_url }}</a>
+              {% with u=p.base_url|lower %}
+              {% if u|slice:":8" == "https://" or u|slice:":7" == "http://" %}
+              <a class="prof-url" href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer">{{ p.base_url }}</a>
+              {% else %}
+              <span class="prof-url">{{ p.base_url }}</span>
+              {% endif %}
+              {% endwith %}
             {% else %}
             <span class="text-muted">Not set</span>
             {% endif %}
@@ -86,7 +92,13 @@
       <div class="prof-meta"><strong>Model</strong> · {{ p.model }}</div>
       <div class="prof-meta"><strong>Base URL</strong> ·
         {% if p.base_url and p.base_url != 'None' and p.base_url != 'null' %}
-        <a class="prof-url" href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer">{{ p.base_url }}</a>
+          {% with u=p.base_url|lower %}
+          {% if u|slice:":8" == "https://" or u|slice:":7" == "http://" %}
+          <a class="prof-url" href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer">{{ p.base_url }}</a>
+          {% else %}
+          <span class="prof-url">{{ p.base_url }}</span>
+          {% endif %}
+          {% endwith %}
         {% else %}
         <span class="text-muted">Not set</span>
         {% endif %}

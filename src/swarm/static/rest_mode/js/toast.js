@@ -2,6 +2,12 @@
  * toast.js - Handles toast notifications
  */
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
 /**
  * Displays a toast notification.
  * @param {string} message - The message to display.
@@ -15,7 +21,7 @@ export function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.classList.add('toast', type);
     toast.innerHTML = `
-        <span>${message}</span>
+        <span>${escapeHtml(message)}</span>
         <button class="close-btn" aria-label="Close">&times;</button>
     `;
 

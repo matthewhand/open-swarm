@@ -330,26 +330,33 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
 function showSuccessModal(blueprint) {
     const previewDiv = document.getElementById('blueprintPreview');
+    const tags = Array.isArray(blueprint.tags) ? blueprint.tags : [];
     previewDiv.innerHTML = `
         <div class="row">
             <div class="col-md-6">
                 <h6>Blueprint Details</h6>
                 <ul class="list-unstyled">
-                    <li><strong>Name:</strong> ${blueprint.name}</li>
-                    <li><strong>Category:</strong> ${blueprint.category}</li>
-                    <li><strong>Author:</strong> ${blueprint.author}</li>
-                    <li><strong>Created:</strong> ${blueprint.created_at}</li>
+                    <li><strong>Name:</strong> ${escapeHtml(blueprint.name)}</li>
+                    <li><strong>Category:</strong> ${escapeHtml(blueprint.category)}</li>
+                    <li><strong>Author:</strong> ${escapeHtml(blueprint.author)}</li>
+                    <li><strong>Created:</strong> ${escapeHtml(blueprint.created_at)}</li>
                 </ul>
             </div>
             <div class="col-md-6">
                 <h6>Description</h6>
-                <p class="text-muted">${blueprint.description}</p>
-                ${blueprint.tags.length > 0 ? `
+                <p class="text-muted">${escapeHtml(blueprint.description)}</p>
+                ${tags.length > 0 ? `
                 <h6>Tags</h6>
                 <div>
-                    ${blueprint.tags.map(tag => `<span class="badge bg-light text-dark me-1">${tag}</span>`).join('')}
+                    ${tags.map(tag => `<span class="badge bg-light text-dark me-1">${escapeHtml(tag)}</span>`).join('')}
                 </div>
                 ` : ''}
             </div>
