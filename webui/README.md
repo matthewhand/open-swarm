@@ -65,8 +65,8 @@ webui/
 - **API Integration**: Proxied to Django backend
 
 Operator chrome (Teams, Blueprint Library, Settings, Sessions, Agent Creator)
-lives on Django trailing-slash routes. Leftover page sources sit under
-`frontend/src/pages/_quarantine/` and are **not** mounted.
+lives on Django trailing-slash routes. Leftover SPA operator pages were deleted
+per ADR-001 and must not be remounted.
 
 ## Integration with Django
 

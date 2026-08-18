@@ -1,11 +1,11 @@
 # Builder config panels (web UI)
 
-> **Orphaned / historical (2026-08):** `BuilderPage` is **not mounted** in
-> `App.tsx` (`*` → `/`). These panels and screenshots document a leftover SPA
-> surface under `webui/frontend/src/pages/BuilderPage.tsx`. Day-to-day agent
-> creation is the Django operator UI at **`/agent-creator/`**. Pure helpers
+> **Orphaned / historical (2026-08):** `BuilderPage` was **deleted** with the
+> ADR-001 SPA cut (`App.tsx` mounts `/` + `/chat` only). These panels and
+> screenshots document a former SPA surface. Day-to-day agent creation is the
+> Django operator UI at **`/agent-creator/`**. Pure helpers
 > (`inferenceProfile.ts`, `toolCapabilities.ts`, `skills.ts`) and unit tests
-> remain valid; Playwright `e2e/builder.spec.ts` is skipped until remount.
+> remain valid; do not remount Builder.
 
 Proof of the Builder UI panels that configure the decoupling features, each
 bound to `GET /v1/config-options/`. Built on the existing React + TanStack Query

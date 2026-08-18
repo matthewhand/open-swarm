@@ -18,7 +18,8 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
-- **ADR-001 SPA route cut:** React SPA mounts only `/` + `/chat`; Teams/Blueprints/Settings/Builder/AgentCreator pages moved to `webui/frontend/src/pages/_quarantine/`; e2e/a11y/shots limited to live stems; nav/dock link out to Django for operator chrome. Rebuild `dist/` after pull (`npm run build` — gitignored).
+- **ADR-001 SPA finish:** delete `webui/frontend/src/pages/_quarantine/` (no remount bait); drop Builder/Settings e2e stubs; VISION/FEATURE_STATUS/ROADMAP align — SPA stays `/` + `/chat` only. Rebuild `dist/` after pull (`npm run build` — gitignored).
+- **ADR-001 SPA route cut:** React SPA mounts only `/` + `/chat`; Teams/Blueprints/Settings/Builder/AgentCreator pages were first quarantined then deleted; e2e/a11y/shots limited to live stems; nav/dock link out to Django for operator chrome.
 - **v1 product vocabulary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) + honesty sweeps (Blueprint vs `/v1/teams` LLM-profile alias; Operator UI vs SPA Chat); tombstone `swarm.extensions.blueprint` shim docs; confirm `blueprint_audit_status.json` gone; ROADMAP v1 cut → ADR-001 + glossary
 - **Settings dashboard dead-end honesty:** Validate Config / env Export use “(not available)” (not “(soon)”); unwired path-check buttons removed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
@@ -32,7 +33,7 @@ All notable changes to this project will be documented in this file.
 ### Removed
 - **Orphan argparse CLI trees:** delete `src/swarm/extensions/cli/` and unused `src/swarm/core/cli/` (dead-alias warning source); drop non-shipped `extensions.launchers.swarm_cli` / `swarm_wrapper`; relocate `AsyncInputHandler` → `swarm.core.async_input`, `prompt_user` → `swarm.core.config_manager`. `swarm-api` / `swarm-cli` both enter via `swarm.core.*` in pyproject; deprecated `extensions.launchers.swarm_api` shim kept for old `-m` imports. Tests that only covered the orphan trees removed.
 - **Agent Creator Pro leftovers:** delete unused `agent_creator_pro` view/template/JS/CSS; `/agent-creator-pro/` redirect to `/agent-creator/` retained
-- **SPA leftover mounts:** TeamsPage / BlueprintsPage / SettingsPage / BuilderPage / AgentCreatorPage no longer routed in `App.tsx` (sources under `webui/frontend/src/pages/_quarantine/` per ADR-001)
+- **SPA leftover pages:** TeamsPage / BlueprintsPage / SettingsPage / BuilderPage / AgentCreatorPage deleted from the SPA tree (ADR-001); `App.tsx` mounts `/` + `/chat` only
 - **Orphaned rest_mode templates:** delete unrouted `templates/rest_mode/` (`slackbot.html`, `message_ui.html`, components); static `rest_mode/js` retained for XSS regressions
 - **Stewie nested Django leftovers:** delete broken `apps`/`models`/`serializers`/`views`/`urls`/`settings` that imported nonexistent `blueprints.chc` and were never on `INSTALLED_APPS`; keep `blueprint_stewie.py`
 - **Empty blueprint husks:** remove `family_ties/` and `whinge_surf/` directories that contained only `__pycache__` (not discoverable)

@@ -121,15 +121,15 @@ The consolidation left 7 import shims emitting `DeprecationWarning`
 
 Status: **ADR-001 accepted** — Django trailing-slash UI is canonical; SPA mounts
 **only** `/` (dashboard) + `/chat`. Leftover Teams/Blueprints/Settings/Builder/
-AgentCreator sources live under `webui/frontend/src/pages/_quarantine/` (not
-imported). Do **not** remount them; SPA↔Django parity is **rejected** as a v1 goal.
+AgentCreator SPA pages were **deleted** (no quarantine remount bait). Do **not**
+remount them; SPA↔Django parity is **rejected** as a v1 goal.
 
 - [x] SPA scope cut to Dashboard + Chat (ADR-001)
   - [x] Component library (13 DaisyUI/React components)
   - [x] Vite + TypeScript + Tailwind/DaisyUI build setup; lockfile in sync
   - [x] Dashboard on live blueprint/model/team counts; fabricated stats removed
   - [x] ChatPage (blueprint selector, WS via ASGI; session-cookie auth; 4401 when anonymous)
-  - [x] Leftover SPA pages quarantined (`_quarantine/`); e2e/a11y/shots = `/` + `/chat` only
+  - [x] Leftover SPA operator pages deleted; e2e/a11y/shots = `/` + `/chat` only
   - [x] Bare `/teams` `/blueprints` `/settings` `/agent-creator` redirect to Django
   - [x] **JSON Teams API** — `/v1/teams/` LLM-profile aliases (see GLOSSARY) — Django UI owns CRUD chrome
   - [x] Resolved npm audit advisories: vite 5 → 8 (PR #84), 0 vulnerabilities
@@ -294,8 +294,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 - [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
   (`:324`), no markdown/code rendering (`:301`).
 - [x] **BuilderPage / AgentCreatorPage / Teams / Blueprints / Settings SPA** —
-  quarantined under `src/pages/_quarantine/` (ADR-001); `App.tsx` mounts `/` +
-  `/chat` only. Canonical creator is Django `/agent-creator/`.
+  deleted (ADR-001); `App.tsx` mounts `/` + `/chat` only. Canonical creator is
+  Django `/agent-creator/`.
 - [ ] **Django legacy surface off-brand/broken** — Bootstrap CDN (offline breaks),
   `profiles.html` uses DaisyUI classes on a Bootstrap base (unstyled),
   `base.html` missing `title`/`head` blocks. Decide retire-vs-migrate.

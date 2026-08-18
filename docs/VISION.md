@@ -78,7 +78,7 @@ This is verified, shipped, and covered by an 1100+ test suite. Status marks:
 | **Inference profiles** — pick a backend by traits (intelligence/speed/cost), not brand | ✅ | `docs/examples/inference-profile-routing.md` |
 | **Skills** — Anthropic Agent-Skills `SKILL.md`, applied to any CLI via `skill=` | ✅ | `docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md` |
 | **Tool capabilities** — declare an abstract need, resolve to an MCP provider | 🟡 | `swarm/core/tool_capabilities.py` |
-| Web UI dashboard + live websocket chat | 🟡 | Django operator UI is canonical ([ADR-001](./ADR-001-primary-ui.md)); SPA mounts `/` + `/chat` only; leftover SPA pages quarantined |
+| Web UI dashboard + live websocket chat | 🟡 | Django operator UI is canonical ([ADR-001](./ADR-001-primary-ui.md)); SPA mounts `/` + `/chat` only; leftover SPA operator pages deleted |
 | Opt-in cross-conversation **memory** (mem0) | 🟡 | wired, not yet validated against a live mem0 |
 
 ### Proof it actually works (captured live, this repo)
@@ -122,8 +122,9 @@ accounting.
 
 ### Other known gaps (unchanged from the roadmap)
 
-- **React SPA parity** with the Django UI — live on real APIs, not yet per-page
-  complete; the Django templates UI remains the supported surface.
+- **SPA vs Django** — [ADR-001](./ADR-001-primary-ui.md) keeps the SPA at `/` +
+  `/chat` only; Django trailing-slash UI is the supported operator surface.
+  Full React SPA parity / remounting Builder is **rejected** as a v1 goal.
 - **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly.
 - **Memory** — mem0 wired and opt-in, not yet validated end-to-end against a live
   mem0; `letta`/`langmem` are placeholders.

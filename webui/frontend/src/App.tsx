@@ -7,7 +7,7 @@ import ChatPage from './pages/ChatPage'
 /**
  * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
  * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
- * Leftover page sources live under pages/_quarantine/ (not imported).
+ * Do not remount deleted Teams/Blueprints/Settings/Builder/AgentCreator SPA pages.
  */
 function App() {
   const [darkMode, setDarkMode] = useState(true)
@@ -71,7 +71,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/chat" element={<ChatPage />} />
             {/* Bare /teams|/blueprints|/settings|/agent-creator|/builder: Django RedirectView in
-                production; unknown SPA paths fall through to dashboard (never remount leftovers). */}
+                production; unknown SPA paths fall through to dashboard. */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

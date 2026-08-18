@@ -47,7 +47,7 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 
 ## 4. Web UI — Django templates + HTMx (operator UI) — ✅ 6 · 🗑 1 · ❌ 1
 
-Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` prefers the React SPA `dist/index.html` when built (`web_views.index`); SPA itself only mounts `/` + `/chat` ([ADR-001](docs/ADR-001-primary-ui.md)). Bare `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`, `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (quarantined SPA pages are not mounted).
+Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` prefers the React SPA `dist/index.html` when built (`web_views.index`); SPA itself only mounts `/` + `/chat` ([ADR-001](docs/ADR-001-primary-ui.md)). Bare `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`, `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (deleted SPA operator pages are not remounted).
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -61,16 +61,16 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | ❌ | Removed 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · ❌ 1
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 2
 
-Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) and `/chat`. Teams / Blueprints / Settings / Builder / AgentCreator pages are quarantined under `webui/frontend/src/pages/_quarantine/`. Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app.
+Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) and `/chat`. Teams / Blueprints / Settings / Builder / AgentCreator SPA pages were **deleted** (not quarantined for remount). Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app.
 
 | Feature | Status | Evidence |
 |---|---|---|
 | DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; dashboard + chat still use these. |
-| Dashboard (`/`) + Chat (`/chat`) | 🟡 | `App.tsx` routes only these two; desktop nav Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings); mobile dock Home·Chat + Django hrefs (Blueprints·Teams·Sessions). ChatPage WS via ASGI; needs Django **session cookie** (bearer does **not** auth websockets). Anonymous sockets close **4401**. |
-| TeamsPage / BlueprintsPage / SettingsPage | ❌ | **Quarantined** (`src/pages/_quarantine/`). Not mounted; `*` → `/`. Canonical UI: `/teams/launch/`, `/blueprint-library/`, `/settings/`. Bare paths redirect to Django. |
-| BuilderPage / AgentCreatorPage | ❌ | **Quarantined** (same folder). Do not remount. Canonical creator UI is Django `/agent-creator/`. |
+| Dashboard (`/`) + Chat (`/chat`) | 🟡 | `App.tsx` routes only these two; desktop nav Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings); mobile dock Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings). ChatPage WS via ASGI; needs Django **session cookie** (bearer does **not** auth websockets). Anonymous sockets close **4401**. |
+| TeamsPage / BlueprintsPage / SettingsPage | 🗑 deleted | Deleted from the SPA tree (ADR-001). Canonical UI: `/teams/launch/`, `/blueprint-library/`, `/settings/`. Bare paths redirect to Django; SPA `*` → `/`. |
+| BuilderPage / AgentCreatorPage | 🗑 deleted | Removed (same cut). Do not remount. Canonical creator UI is Django `/agent-creator/`. |
 | API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Journey `spa-chat.png` shows **Connected** after login when ASGI is up. |
 
 ## 6. Memory — 🔲 1 · 📋 2
@@ -178,6 +178,6 @@ This doc decays fast (a cleanup wave was rewriting the tree while it was generat
 1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
 3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (deprecation shim — succeeds with `DeprecationWarning`; prefer `swarm.core`).
-4. **SPA scope:** `App.tsx` routes only `/` + `/chat`; leftovers under `src/pages/_quarantine/` (excluded from vitest/tsc). Canonical operator UI is Django (bare SPA paths redirect).
+4. **SPA scope:** `App.tsx` routes only `/` + `/chat`; leftover operator SPA pages deleted (ADR-001). Canonical operator UI is Django (bare SPA paths redirect).
 5. **Flags vs deps:** `grep -n "django-mcp-server\\|mcp_server" pyproject.toml docs/mcp_server_mode.md` — flag without a declared lockfile dependency stays 📋.
 6. **Resolved:** `urls.py` imports `re_path` from `django.urls` (Django 4+); the old `django.conf.urls` import bug is gone.

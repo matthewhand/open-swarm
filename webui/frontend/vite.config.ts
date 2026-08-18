@@ -34,8 +34,8 @@ export default defineConfig({
                 changeOrigin: true,
             },
             // Agent-creator generate/validate endpoints (Django views).
-            // SPA no longer mounts /agent-creator (ADR-001); proxy remains for
-            // any remaining client helpers during quarantine.
+            // SPA does not mount /agent-creator (ADR-001); proxies remain for
+            // Django CTAs reached from the SPA shell during local Vite dev.
             '/agent-creator/generate': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
@@ -50,7 +50,7 @@ export default defineConfig({
                 changeOrigin: true,
             },
             // Read-only settings APIs (Django). SPA /settings is unmounted
-            // (ADR-001); proxies remain for quarantined page helpers / Chat CTAs.
+            // (ADR-001); proxies remain for Django CTAs during local Vite dev.
             '/settings/api': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
@@ -74,8 +74,7 @@ export default defineConfig({
         globals: true,
         // Unit/component tests live under src/; e2e/*.spec.ts is Playwright and
         // must not be collected by vitest (different runner).
-        // pages/_quarantine is archival (ADR-001) — not mounted, not tested.
         include: ['src/**/*.{test,spec}.{ts,tsx}'],
-        exclude: ['**/node_modules/**', '**/dist/**', '**/_quarantine/**'],
+        exclude: ['**/node_modules/**', '**/dist/**'],
     }
 })
