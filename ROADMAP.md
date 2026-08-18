@@ -311,6 +311,10 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 ### 4.7 API + tests
 - [x] **`/v1/responses` trailing-slash twins** — `…/responses/`, detail, and cancel
   now resolve (same pattern as `/v1/blueprints` / `/v1/teams`).
+- [x] **Blueprint source/tools + cli-agents/config-options slash twins** —
+  `/v1/blueprints/<id>/source/` + `/tools/` no longer 404; `/v1/cli-agents` and
+  `/v1/config-options` accept no-slash too (`tests/api/test_blueprint_source.py`,
+  `test_blueprint_tools.py`). Broader DRF-router cleanup still open in §4.5.
 - [x] **Silent model fallback** — unknown `default_model` / named profile silently
   used `default` or `{}`. Now honors `blueprints[].default_model` /
   `settings.default_llm_profile`, warns on miss (Stewie + `get_llm_profile` +
