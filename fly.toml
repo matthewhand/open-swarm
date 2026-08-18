@@ -22,22 +22,17 @@ primary_region = 'syd'
   max_machines_running = 1 
   processes = ['app']
 
-# HTTP health check temporarily DISABLED (2026-06-20).
-# The currently-deployed image (mhand79/open-swarm:latest) has no /health route
-# AND its index ("/") 500s with NoReverseMatch: 'cli_agent' — so no path returns
-# a clean 200, and a failing check makes fly-proxy stop routing ALL traffic
-# (including the working /v1 API). Disabled so the API serves while a fresh image
-# is built/released. urls.py now wires /health — RE-ENABLE this check (path=/health,
-# Host header below) once an image carrying that route is deployed:
-#
-# [[http_service.checks]]
-#   grace_period = "120s"
-#   interval = "30s"
-#   timeout = "15s"
-#   method = "GET"
-#   path = "/health"
-#   [http_service.checks.headers]
-#     Host = "open-swarm.fly.dev"
+# Liveness via AllowAny /health (urls.py HealthCheckView). Verified live on
+# open-swarm.fly.dev (200 {"status":"ok"}); re-enabled after the 2026-06-20
+# disable that avoided fly-proxy blackholing /v1 while the image lacked /health.
+[[http_service.checks]]
+  grace_period = "120s"
+  interval = "30s"
+  timeout = "15s"
+  method = "GET"
+  path = "/health"
+  [http_service.checks.headers]
+    Host = "open-swarm.fly.dev"
 
 [deploy]
 wait_timeout = "20m"    # Increase from default 5m

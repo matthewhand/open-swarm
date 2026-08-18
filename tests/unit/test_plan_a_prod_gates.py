@@ -290,6 +290,15 @@ class TestComposeAuthDefault:
         assert "uvicorn swarm.asgi:application" in text
         assert "manage.py runserver" not in text
 
+    def test_fly_toml_http_health_check_enabled(self):
+        """Fly liveness must probe /health (not left commented out)."""
+        fly = Path(__file__).resolve().parents[2] / "fly.toml"
+        text = fly.read_text(encoding="utf-8")
+        assert "[[http_service.checks]]" in text
+        assert 'path = "/health"' in text
+        # Stale "temporarily DISABLED" block must not be the only mention
+        assert "# [[http_service.checks]]" not in text
+
 
 # ---------------------------------------------------------------------------
 # Criterion 5: no raw exception strings on client-facing 5xx / stream paths
