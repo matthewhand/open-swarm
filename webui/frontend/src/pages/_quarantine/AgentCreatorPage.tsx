@@ -11,7 +11,7 @@ import {
   Textarea,
   ToastProvider,
   useToast,
-} from '../components/DaisyUI';
+} from '../../components/DaisyUI';
 import {
   AlertCircle,
   Bot,
@@ -31,7 +31,7 @@ import {
   validateAgentCode,
   type CodeValidationResult,
   type CustomBlueprint,
-} from '../lib/api';
+} from '../../lib/api';
 
 /**
  * Agent creator page.

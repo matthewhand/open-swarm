@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
+import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../../components/DaisyUI';
 import { Users, Plus, Trash2, Search, Play } from 'lucide-react';
-import { createTeam, deleteTeam } from '../lib/api';
+import { createTeam, deleteTeam } from '../../lib/api';
 
 interface Team {
   id: string | number;

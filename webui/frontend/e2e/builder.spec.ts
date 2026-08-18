@@ -1,10 +1,9 @@
 import { test, expect, type Page } from '@playwright/test'
 
-// SKIPPED: BuilderPage is not mounted in App.tsx (`*` → `/`). These panels
-// still exist under src/pages/BuilderPage.tsx but /builder is not a live
-// surface. Operator agent creation is Django `/agent-creator/`.
-// Re-enable if/when Builder is remounted.
-test.skip(true, 'SPA /builder unmounted — App.tsx has no BuilderPage route')
+// SKIPPED: BuilderPage is quarantined under src/pages/_quarantine/ (ADR-001).
+// /builder is not mounted (`*` → `/`). Operator agent creation is Django
+// `/agent-creator/`. Do not remount without a new intentional SPA milestone.
+test.skip(true, 'SPA /builder quarantined — ADR-001; use Django /agent-creator/')
 
 // Historical e2e for the Builder config panels (route-mocked API).
 

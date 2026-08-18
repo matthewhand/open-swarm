@@ -21,6 +21,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
+  "exclude": ["src/pages/_quarantine"],
   "references": [
     {
       "path": "./tsconfig.node.json"

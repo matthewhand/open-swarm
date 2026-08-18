@@ -33,9 +33,9 @@ export default defineConfig({
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },
-            // Agent-creator generate/validate endpoints (Django views). Only
-            // the API subpaths are proxied so a hard refresh on the SPA's
-            // /agent-creator route still serves the SPA.
+            // Agent-creator generate/validate endpoints (Django views).
+            // SPA no longer mounts /agent-creator (ADR-001); proxy remains for
+            // any remaining client helpers during quarantine.
             '/agent-creator/generate': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
@@ -44,14 +44,13 @@ export default defineConfig({
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },
-            // CSRF cookie priming for the agent-creator POSTs (see api.ts
-            // ensureCsrfCookie); /login/ sets Django's csrftoken cookie.
+            // CSRF cookie priming for Django POSTs; /login/ sets csrftoken.
             '/login': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },
-            // Read-only settings APIs (Django views). Subpaths only, so the
-            // SPA's /settings route keeps working on hard refresh.
+            // Read-only settings APIs (Django). SPA /settings is unmounted
+            // (ADR-001); proxies remain for quarantined page helpers / Chat CTAs.
             '/settings/api': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
@@ -75,6 +74,8 @@ export default defineConfig({
         globals: true,
         // Unit/component tests live under src/; e2e/*.spec.ts is Playwright and
         // must not be collected by vitest (different runner).
+        // pages/_quarantine is archival (ADR-001) — not mounted, not tested.
         include: ['src/**/*.{test,spec}.{ts,tsx}'],
+        exclude: ['**/node_modules/**', '**/dist/**', '**/_quarantine/**'],
     }
 })

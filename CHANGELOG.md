@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
+- **ADR-001 SPA route cut:** React SPA mounts only `/` + `/chat`; Teams/Blueprints/Settings/Builder/AgentCreator pages moved to `webui/frontend/src/pages/_quarantine/`; e2e/a11y/shots limited to live stems; nav/dock link out to Django for operator chrome. Rebuild `dist/` after pull (`npm run build` — gitignored).
 - **v1 product vocabulary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) + honesty sweeps (Blueprint vs `/v1/teams` LLM-profile alias; Operator UI vs SPA Chat); tombstone `swarm.extensions.blueprint` shim docs; confirm `blueprint_audit_status.json` gone; ROADMAP v1 cut → ADR-001 + glossary
 - **Settings dashboard dead-end honesty:** Validate Config / env Export use “(not available)” (not “(soon)”); unwired path-check buttons removed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs

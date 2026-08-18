@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { Home, Settings, Bot, Book, Users, PlusCircle, History, MessageSquare } from 'lucide-react'
 import { Card, Alert, Badge } from './components/DaisyUI'
-import TeamsPage from './pages/TeamsPage'
-import BlueprintsPage from './pages/BlueprintsPage'
 import ChatPage from './pages/ChatPage'
 
+/**
+ * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
+ * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
+ * Leftover page sources live under pages/_quarantine/ (not imported).
+ */
 function App() {
   const [darkMode, setDarkMode] = useState(true)
 
@@ -31,6 +34,7 @@ function App() {
                 </Link>
                 <div className="hidden lg:flex items-center gap-1">
                   <NavLink to="/">Home</NavLink>
+                  <NavLink to="/chat">Chat</NavLink>
                   <a className="btn btn-ghost btn-sm" href="/blueprint-library/">
                     Blueprints
                   </a>
@@ -66,16 +70,12 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/chat" element={<ChatPage />} />
-            {/* Client-side leftovers: prefer Django operator UI for primary surfaces */}
-            <Route path="/teams" element={<TeamsPage />} />
-            <Route path="/blueprints" element={<BlueprintsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            {/* Unknown SPA paths: never show a blank shell (was a screenshot P0) */}
+            {/* Bare /teams|/blueprints|/settings|/agent-creator|/builder: Django RedirectView in
+                production; unknown SPA paths fall through to dashboard (never remount leftovers). */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
 
-        {/* Fixed horizontal bottom nav on small screens */}
         <nav
           className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-base-300 bg-base-200 flex justify-around items-stretch h-16"
           aria-label="Mobile primary"
@@ -85,6 +85,7 @@ function App() {
           <MobileTab href="/blueprint-library/" icon={<Book className="h-5 w-5" />} label="Blueprints" />
           <MobileTab href="/teams/launch/" icon={<Users className="h-5 w-5" />} label="Teams" />
           <MobileTab href="/sessions/" icon={<History className="h-5 w-5" />} label="Sessions" />
+          <MobileTab href="/settings/" icon={<Settings className="h-5 w-5" />} label="Settings" />
         </nav>
       </div>
     </Router>
@@ -118,7 +119,6 @@ function MobileTab({
 }) {
   const { pathname } = useLocation()
   const target = href || to || '/'
-  // SPA routes use exact/prefix match; Django href tabs are never "current" in the SPA router.
   const active = to
     ? to === '/'
       ? pathname === '/'
@@ -210,8 +210,8 @@ function Dashboard() {
       </Alert>
       <Alert type="warning">
         <span className="text-sm">
-          This React shell is a lightweight dashboard. Full library, sessions, creators, and
-          settings live on the Django paths (trailing slash).
+          This React shell is a lightweight dashboard + chat. Full library, sessions, creators, and
+          settings live on the Django paths (trailing slash). See ADR-001.
         </span>
       </Alert>
 
@@ -228,7 +228,7 @@ function Dashboard() {
             <div className="stat-value text-primary">
               {loadingStats ? '…' : (teamsCount ?? 0)}
             </div>
-            <div className="stat-desc">Registered teams</div>
+            <div className="stat-desc">LLM-profile aliases (/v1/teams)</div>
           </div>
         </Card>
         <Card compact bordered>
@@ -293,6 +293,9 @@ function Dashboard() {
               Sessions, creators, and full settings live on the Django shell (
               <code className="text-xs">ENABLE_WEBUI=true</code>).
             </li>
+            <li>
+              SPA chat is at <Link className="link" to="/chat">/chat</Link> (Django session cookie).
+            </li>
           </ul>
         )}
       </Card>
@@ -310,54 +313,6 @@ function Dashboard() {
           <Badge type={apiOnline ? 'success' : apiOnline === false ? 'error' : 'ghost'}>
             {apiOnline === null ? 'Checking…' : apiOnline ? 'Reachable' : 'Unreachable'}
           </Badge>
-        </div>
-      </Card>
-    </div>
-  )
-}
-
-function SettingsPage() {
-  // Django RedirectView owns bare /settings in production. In SPA-only preview
-  // we surface an explicit continue CTA (autofocus) instead of a fake "Redirected" badge.
-  useEffect(() => {
-    const link = document.getElementById('settings-django-continue') as HTMLAnchorElement | null
-    link?.focus()
-  }, [])
-
-  return (
-    <div className="max-w-2xl space-y-4">
-      <div className="flex items-center gap-3">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <Badge type="warning">SPA stub</Badge>
-      </div>
-      <Alert type="info" role="status">
-        <span className="text-sm">
-          Full settings live on the Django operator UI. When this app is served behind Django,
-          bare <code>/settings</code> redirects to{' '}
-          <a className="link font-semibold" href="/settings/">
-            /settings/
-          </a>
-          .
-        </span>
-      </Alert>
-      <a id="settings-django-continue" href="/settings/" className="btn btn-primary">
-        Continue to /settings/
-      </a>
-      <Card title="Application Settings" bordered>
-        <div className="space-y-4 text-sm">
-          <div>
-            <h2 className="font-semibold mb-2">Auth</h2>
-            <p>
-              When API auth is enabled, send{' '}
-              <code>Authorization: Bearer &lt;token&gt;</code> or <code>X-API-Key</code>.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-semibold mb-2">Streaming</h2>
-            <p>
-              Use <code>stream: true</code> on <code>/v1/chat/completions</code>.
-            </p>
-          </div>
         </div>
       </Card>
     </div>

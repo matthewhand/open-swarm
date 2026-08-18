@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI'
+import { Card, Alert, Badge, LoadingSpinner } from '../../components/DaisyUI'
 import { Wrench, Cpu, Sparkles, FileCode, FileText, Copy, Check, Download } from 'lucide-react'
 import {
   fetchBlueprints,
@@ -9,14 +9,14 @@ import {
   fetchConfigOptions,
   type Blueprint,
   type CliAgentsInfo,
-} from '../lib/api'
-import { InferenceProfilePanel } from '../components/InferenceProfilePanel'
-import { ToolCapabilitiesPanel } from '../components/ToolCapabilitiesPanel'
-import { TraitEditorPanel } from '../components/TraitEditorPanel'
-import { SkillsPanel } from '../components/SkillsPanel'
-import { BlueprintToolsBadges } from '../components/BlueprintToolsBadges'
+} from '../../lib/api'
+import { InferenceProfilePanel } from '../../components/InferenceProfilePanel'
+import { ToolCapabilitiesPanel } from '../../components/ToolCapabilitiesPanel'
+import { TraitEditorPanel } from '../../components/TraitEditorPanel'
+import { SkillsPanel } from '../../components/SkillsPanel'
+import { BlueprintToolsBadges } from '../../components/BlueprintToolsBadges'
 
-const CodeViewer = lazy(() => import('../components/CodeViewer'))
+const CodeViewer = lazy(() => import('../../components/CodeViewer'))
 
 /** Fallback native-consensus map used until /v1/cli-agents/ loads. */
 export const NATIVE_CONSENSUS: Record<string, string[]> = { grok: ['--best-of-n', '{n}'] }

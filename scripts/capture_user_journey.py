@@ -28,9 +28,10 @@ Usage:
 
 Requires: `.venv/bin/pip install playwright && .venv/bin/playwright install chromium`
 
-Canonical operator UI is Django trailing-slash routes. Bare ``/teams``,
-``/blueprints``, and ``/settings`` 302 to Django; spa-* stems still capture
-those entry URLs so the tour can document the redirect honestly.
+Canonical operator UI is Django trailing-slash routes (ADR-001). SPA mounts
+only ``/`` and ``/chat``. Bare ``/teams``, ``/blueprints``, ``/settings``,
+and ``/agent-creator`` 302 to Django; spa-* stems still capture those entry
+URLs so the tour can document the redirect honestly.
 """
 
 from __future__ import annotations

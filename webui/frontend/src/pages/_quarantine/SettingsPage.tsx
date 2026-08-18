@@ -1,15 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Eye, EyeOff, KeyRound, Plug, ServerCog, TerminalSquare } from 'lucide-react'
-import { Alert, Button, Card, Input, LoadingSpinner, useToast } from '../components/DaisyUI'
-import { ApiAccessPanel } from '../components/ApiAccessPanel'
-import { useAuth } from '../lib/AuthContext'
+import { Alert, Button, Card, Input, LoadingSpinner, useToast } from '../../components/DaisyUI'
+import { ApiAccessPanel } from '../../components/ApiAccessPanel'
+import { useAuth } from '../../lib/AuthContext'
 import {
   fetchEnvironmentVariables,
   fetchModels,
   fetchServerSettings,
   type ServerSettingsGroup,
-} from '../lib/api'
+} from '../../lib/api'
 
 /**
  * Client-side masking for secret-looking values, applied on top of the

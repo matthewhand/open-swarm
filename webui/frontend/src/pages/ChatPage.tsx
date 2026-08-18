@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
 import {
@@ -239,9 +239,9 @@ const ChatPage = () => {
                   <>
                     {' '}
                     (authentication failed —{' '}
-                    <Link to="/settings" className="link">
+                    <a href="/settings/" className="link">
                       set an API token
-                    </Link>
+                    </a>
                     )
                   </>
                 ) : (

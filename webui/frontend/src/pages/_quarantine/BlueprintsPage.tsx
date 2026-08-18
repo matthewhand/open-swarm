@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
+import { Card, Alert, Badge, LoadingSpinner } from '../../components/DaisyUI';
 import { Book, Search, Eye, Play, ArchiveX } from 'lucide-react';
 
 interface Blueprint {
