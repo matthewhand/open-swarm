@@ -1120,6 +1120,13 @@ class TestGenerateBlueprintCode:
         assert "-> AsyncGenerator" in code
         assert 'if __name__ == "__main__"' not in code
         assert "asyncio.run(" not in code
+        # Must call a real OpenAI-compatible client API, not agents SDK fiction.
+        assert "chat_completion_stream" not in code
+        assert "AsyncOpenAI" in code
+        assert "chat.completions.create" in code
+        assert "get_llm_profile" in code
+        assert "WARNING: LLM call failed" in code
+        assert "falling back to echo" in code
 
     def test_generate_blueprint_code_with_spaces(self):
         """Test blueprint code generation with name containing spaces."""
@@ -1137,3 +1144,5 @@ class TestGenerateBlueprintCode:
         assert "My Test Agent" in code  # Original name in metadata
         assert "AsyncGenerator" in code
         assert "yield" in code
+        assert "chat_completion_stream" not in code
+        assert "chat.completions.create" in code

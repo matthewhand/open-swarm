@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Library-generated blueprints echo-only run:** `generate_blueprint_code` no longer calls nonexistent `model.chat_completion_stream`; uses `AsyncOpenAI` + `chat.completions.create(stream=True)` (DjangoChat/DynamicTeam pattern) with an explicit warned echo fallback
 - **Silent LLM profile fallback:** honor `blueprints[].default_model` / `settings.default_llm_profile`; **warn** (never silent) when a requested profile is missing, then fall back. `get_llm_profile` and Stewie warn on named misses; `llm_profile` stays fail-loud. Docs aligned in CONFIGURATION.md.
 
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Removed
+- **Orphaned rest_mode templates:** delete unrouted `templates/rest_mode/` (`slackbot.html`, `message_ui.html`, components); static `rest_mode/js` retained for XSS regressions
 - **Stewie nested Django leftovers:** delete broken `apps`/`models`/`serializers`/`views`/`urls`/`settings` that imported nonexistent `blueprints.chc` and were never on `INSTALLED_APPS`; keep `blueprint_stewie.py`
 - **Empty blueprint husks:** remove `family_ties/` and `whinge_surf/` directories that contained only `__pycache__` (not discoverable)
 
