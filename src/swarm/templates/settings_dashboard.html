@@ -359,6 +359,11 @@
   background: var(--os-well);
 }
 
+.group-header:focus-visible {
+  outline: 2px solid var(--os-link);
+  outline-offset: 2px;
+}
+
 .group-title h3 { color: var(--os-text-strong); }
 
 .group-title {
@@ -749,6 +754,11 @@ function showToast(message, type = 'info') {
   const toast = document.createElement('div');
   toast.className = `alert alert-${type} position-fixed`;
   toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+  // textContent keeps the message XSS-safe; announce it for assistive tech.
+  const assertive = type === 'danger' || type === 'error' || type === 'warning';
+  toast.setAttribute('role', assertive ? 'alert' : 'status');
+  toast.setAttribute('aria-live', assertive ? 'assertive' : 'polite');
+  toast.setAttribute('aria-atomic', 'true');
 
   const text = document.createElement('span');
   text.textContent = message;

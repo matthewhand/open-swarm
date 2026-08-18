@@ -250,8 +250,8 @@ visual suites log in through this form when a page redirects.
 ![Session explorer: empty list, 0 sessions, live toggle](./screenshots/sessions.png)
 
 **Login required.** Fresh-db empty state: **0 sessions**, a **live**
-auto-refresh toggle, and “No sessions yet. Make a `POST /v1/responses`
-request and they'll appear here.” Status filter chips and the newest-N
+auto-refresh toggle, and “No sessions for your account yet… This list shows
+only sessions you own.” Status filter chips and the newest-N
 truncation banner show once sessions exist (and when the list is truncated
 to the default limit of 50). See also [GUIDED_TOUR.md](./GUIDED_TOUR.md) and
 [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).

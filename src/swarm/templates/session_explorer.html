@@ -88,14 +88,14 @@
         {% if s.output_preview %}<div class="se-preview">{{ s.output_preview }}</div>{% endif %}
       </div>
     {% empty %}
-      <div class="se-empty os-empty">
+      <div class="se-empty os-empty" role="status">
         <div class="os-empty-icon" aria-hidden="true">🧭</div>
-        <div>No sessions yet.</div>
-        <div class="os-meta mt-1">Make a <code>POST /v1/responses</code> request and they'll appear here.</div>
+        <div>No sessions for your account yet.</div>
+        <div class="os-meta mt-1">Create one with <code>POST /v1/responses</code> (include API credentials when auth is enabled). This list shows only sessions you own.</div>
       </div>
     {% endfor %}
   </div>
-  <div id="se-filter-empty" class="se-empty" style="display:none;" role="status">No sessions match this filter.</div>
+  <div id="se-filter-empty" class="se-empty" style="display:none;" role="status" aria-live="polite">No sessions match this filter.</div>
 </div>
 
 <script>
@@ -150,7 +150,7 @@
         + (s.execution_ms?'<span class="se-meta">'+s.execution_ms+' ms</span>':'')
         + deleg + '</div>'
         + (s.output_preview?'<div class="se-preview">'+esc(s.output_preview)+'</div>':'') + '</div>';
-    }).join('') : '<div class="se-empty os-empty"><div class="os-empty-icon" aria-hidden="true">🧭</div><div>No sessions yet.</div><div class="os-meta mt-1">Make a <code>POST /v1/responses</code> request and they\'ll appear here.</div></div>';
+    }).join('') : '<div class="se-empty os-empty" role="status"><div class="os-empty-icon" aria-hidden="true">🧭</div><div>No sessions for your account yet.</div><div class="os-meta mt-1">Create one with <code>POST /v1/responses</code> (include API credentials when auth is enabled). This list shows only sessions you own.</div></div>';
   }
   // --- status filtering (click a status chip) ---
   var currentFilter = "";

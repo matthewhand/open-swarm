@@ -64,6 +64,17 @@ def test_session_explorer_list_view(auth_client, store):
 
 
 @pytest.mark.django_db
+def test_session_explorer_empty_state_is_owner_scoped(auth_client, store):
+    """Empty copy must not imply a public/global session inventory."""
+    resp = auth_client.get(reverse("session-explorer"))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert "No sessions for your account yet." in body
+    assert "only sessions you own" in body
+    assert "No sessions yet." not in body.split("<script>", 1)[0]
+
+
+@pytest.mark.django_db
 def test_session_detail_view_shows_delegations(auth_client, store):
     _save("resp_d", progress=[
         {"role": "agent", "status": "completed", "result": "coded", "model_used": "gpt-4o"},

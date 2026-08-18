@@ -230,9 +230,10 @@ active).*
 
 ![Django session explorer: empty list, 0 sessions, live toggle](./screenshots/sessions.png)
 
-*Stateful `/v1/responses` sessions. This fresh-db capture is empty: **0
-sessions**, a **live** poll toggle, and “No sessions yet. Make a `POST
-/v1/responses` request and they'll appear here.” Per-status filter chips and
+*Stateful `/v1/responses` sessions (**login required**, owner-scoped). This
+fresh-db capture is empty: **0 sessions**, a **live** poll toggle, and “No
+sessions for your account yet… This list shows only sessions you own.”
+Per-status filter chips and
 the “Showing newest N of M (limit=50)” truncation banner appear only once
 sessions exist and the list is truncated — they are not in this PNG.*
 

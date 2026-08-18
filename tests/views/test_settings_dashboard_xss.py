@@ -78,6 +78,9 @@ def test_settings_dashboard_avoids_onclick_js_string_interpolation():
     # Toast/env rendering must use textContent, not message-in-innerHTML.
     assert "text.textContent = message" in html
     assert "keyEl.textContent = key" in html
+    # Live region so screen readers hear toasts that already use textContent.
+    assert 'setAttribute(\'aria-live\'' in html or 'setAttribute("aria-live"' in html
+    assert "aria-atomic" in html
 
 
 @pytest.mark.django_db
@@ -100,6 +103,7 @@ def test_settings_dashboard_progress_meter_and_section_headings():
     assert '<h1 class="dashboard-title">Settings Dashboard</h1>' in html
     assert '<h2 class="visually-hidden">Quick actions</h2>' in html
     assert '<h2 class="visually-hidden">Settings groups</h2>' in html
+    assert ".group-header:focus-visible" in html
 
 
 def test_data_attr_keeps_quote_payload_out_of_js_handler_source():
