@@ -231,14 +231,13 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   page + JS exist, but generate/validate/save routes are missing (JS POSTs 404).
   Honesty banner + FEATURE_STATUS 🟡 point users to `/agent-creator/`. Finish
   wiring or hide behind a flag.
-- [ ] **Fake buttons (Django UI):** `my_blueprints.html:445-463` "Run Blueprint"
-  is a `setTimeout` simulation; `settings_dashboard.html:661-672`
-  Validate/Check/Export only toast "coming soon"; `team_creator.html:341`
-  validation is a no-op demo toast. Wire or remove.
-- [ ] **SPA `loading` button shows no spinner (DaisyUI 5)** —
-  `components/DaisyUI/Button.tsx:56` uses the bare `loading` class (removed in
-  v5; needs a `loading-spinner` span). Every mutating action lacks feedback.
-  Also dead `active`/`disabled` variants (`:8,38`).
+- [x] **Fake buttons honesty (Django UI):** My Blueprints runner labeled
+  “Simulate run (demo)” with warning banner; Settings Validate/path-check/env
+  Export disabled “(soon)”; Team Creator Validate marked demo. Still need real
+  wiring later — trust erosion from silent fakes is addressed.
+- [x] **SPA `loading` button spinner (DaisyUI 5)** — `Button.tsx` renders
+  `loading loading-spinner` + `aria-busy`; covered by `Button.test.tsx` /
+  `A11y.test.tsx`. Dead `active`/`disabled` variant aliases remain low priority.
 
 ### 4.3 Docs-vs-reality (breaks onboarding)
 - [ ] **Docs instruct nonexistent CLI commands** — QUICKSTART (`swarm-cli llm add`,

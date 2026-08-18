@@ -56,8 +56,10 @@
       <button type="button" class="btn btn-outline-info" onclick="viewEnvironment()">
         <i class="fas fa-list" aria-hidden="true"></i> Environment Variables
       </button>
-      <button type="button" class="btn btn-outline-warning" onclick="validateConfiguration()">
-        <i class="fas fa-check-circle" aria-hidden="true"></i> Validate Config
+      <button type="button" class="btn btn-outline-warning" disabled
+              title="Config validation is not implemented yet"
+              aria-disabled="true">
+        <i class="fas fa-check-circle" aria-hidden="true"></i> Validate Config (soon)
       </button>
       <a class="btn btn-outline-secondary" href="{% url 'profiles_page' %}">LLM profiles</a>
     </div>
@@ -136,7 +138,10 @@
                       <code>{{ setting.value|default:"Not Set" }}</code>
                       {% if setting.value and setting.value != 'Not Set' %}
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-check-path"
-                                data-path="{{ setting.value }}" aria-label="Check path exists">
+                                data-path="{{ setting.value }}" disabled
+                                title="Path check is not implemented yet"
+                                aria-disabled="true"
+                                aria-label="Check path exists (not available yet)">
                           <i class="fas fa-folder-open" aria-hidden="true"></i>
                         </button>
                       {% endif %}
@@ -226,8 +231,10 @@
           <div id="envContent">Loading...</div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" onclick="exportEnvVars()">
-            <i class="fas fa-download" aria-hidden="true"></i> Export
+          <button type="button" class="btn btn-outline-secondary" disabled
+                  title="Environment export is not implemented yet"
+                  aria-disabled="true">
+            <i class="fas fa-download" aria-hidden="true"></i> Export (soon)
           </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         </div>
@@ -738,16 +745,16 @@ async function viewEnvironment() {
 }
 
 function validateConfiguration() {
-  showToast('Configuration validation feature coming soon!', 'info');
+  // Button is disabled in the template; keep a no-op guard if called.
+  showToast('Configuration validation is not implemented yet.', 'warning');
 }
 
 function checkPath(path) {
-  showToast(`Path check feature coming soon for: ${path}`, 'info');
+  showToast('Path check is not implemented yet.', 'warning');
 }
 
 function exportEnvVars() {
-  // This would export environment variables
-  showToast('Environment variables export feature coming soon!', 'info');
+  showToast('Environment variables export is not implemented yet.', 'warning');
 }
 
 function showToast(message, type = 'info') {
@@ -793,7 +800,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.btn-view-object').forEach((btn) => {
     btn.addEventListener('click', () => viewObject(btn.dataset.groupId, btn.dataset.settingName));
   });
-  document.querySelectorAll('.btn-check-path').forEach((btn) => {
+  document.querySelectorAll('.btn-check-path:not([disabled])').forEach((btn) => {
     btn.addEventListener('click', () => checkPath(btn.dataset.path));
   });
   document.querySelectorAll('.btn-copy-env').forEach((btn) => {

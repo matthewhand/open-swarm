@@ -248,11 +248,16 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-play me-2"></i>Running: <span id="runnerBlueprintName"></span>
+                    <i class="fas fa-play me-2" aria-hidden="true"></i>Simulate run (demo): <span id="runnerBlueprintName"></span>
                 </h5>
                 <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div class="alert alert-warning py-2" role="status">
+                    <strong>Client-side demo only.</strong>
+                    This does not execute blueprint code or call the API — output is simulated locally.
+                    Use <code>POST /v1/chat/completions</code> or the CLI for a real run.
+                </div>
                 <!-- Input Section -->
                 <div class="row mb-4">
                     <div class="col-md-8">
@@ -263,8 +268,9 @@
                     <div class="col-md-4">
                         <label class="form-label">Actions</label>
                         <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-primary" id="runBlueprintBtn">
-                                <i class="fas fa-play me-1" aria-hidden="true"></i>Run
+                            <button type="button" class="btn btn-primary" id="runBlueprintBtn"
+                                    title="Simulates output locally — does not run the blueprint">
+                                <i class="fas fa-play me-1" aria-hidden="true"></i>Simulate run
                             </button>
                             <button type="button" class="btn btn-outline-secondary" id="clearOutputBtn">
                                 <i class="fas fa-eraser me-1" aria-hidden="true"></i>Clear Output
@@ -471,7 +477,7 @@ function runBlueprint() {
     }
     outputDiv.innerHTML = '<div class="text-center py-3" role="status" aria-live="polite"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0">Executing blueprint…</p></div>';
     
-    // Simulate blueprint execution (in real implementation, this would call the actual blueprint)
+    // Client-side demo only — does not execute blueprint code or hit the API.
     setTimeout(() => {
         const output = simulateBlueprintExecution(window.currentBlueprint, input);
         outputDiv.replaceChildren();
@@ -479,11 +485,11 @@ function runBlueprint() {
         pre.className = 'mb-0';
         pre.textContent = output;
         outputDiv.appendChild(pre);
-        showStatus('Blueprint completed successfully', 'success');
+        showStatus('Demo simulation finished (not a real blueprint run)', 'warning');
         if (runBtn) {
             runBtn.disabled = false;
             runBtn.removeAttribute('aria-busy');
-            runBtn.innerHTML = '<i class="fas fa-play me-1" aria-hidden="true"></i>Run';
+            runBtn.innerHTML = '<i class="fas fa-play me-1" aria-hidden="true"></i>Simulate run';
         }
     }, 2000);
 }

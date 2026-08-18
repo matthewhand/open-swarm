@@ -58,8 +58,9 @@
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5>Generated Swarm Blueprint</h5>
           <div>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-action="validate-team" id="validateTeamBtn" disabled>
-              ✅ Validate
+            <button type="button" class="btn btn-sm btn-outline-primary" data-action="validate-team" id="validateTeamBtn" disabled
+                    title="Client-side demo check only — does not run server validation">
+              ✅ Validate (demo)
             </button>
             <button type="button" class="btn btn-sm btn-success" data-action="save-team" id="saveTeamBtn" disabled>
               💾 Save Swarm
@@ -339,7 +340,10 @@ function displayTeamValidation(validation) {
 }
 
 function validateTeamCode() {
-    showTeamMessage('Team validation complete (client-side demo)', 'info');
+    showTeamMessage(
+        'Demo only: no server-side team validation is wired yet. Review the generated code before saving.',
+        'warning'
+    );
 }
 
 function saveTeam() {

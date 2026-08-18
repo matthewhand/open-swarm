@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Fake Django UI actions honesty:** My Blueprints “Simulate run (demo)” + banner; Settings Validate/path-check/env Export disabled as not implemented; Team Creator Validate marked demo-only
 - **`/v1/chat/completions` trailing slash:** slash twin so `…/completions/` no longer 404s
 - **Agent Creator Pro honesty:** warning banner + FEATURE_STATUS 🟡 — Pro page is preview-only (generate/validate/save routes unwired); canonical creator remains `/agent-creator/`
 - **Agent Creator Pro preview XSS:** escape personality/style/expertise/template (and template tooltip) before capability `innerHTML`

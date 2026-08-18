@@ -235,3 +235,40 @@ class TestUxShellTemplateContracts:
         assert "/agent-creator/" in html
         assert "agent-creator-pro/generate" in html
         assert "not wired" in html.lower() or "404" in html
+
+    def test_my_blueprints_runner_is_labeled_demo_simulation(self, client):
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(username="uxmb", password="ux-mb-pass")
+        client.force_login(user)
+        response = client.get("/blueprint-library/my-blueprints/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert "Simulate run (demo)" in html
+        assert "Client-side demo only" in html
+        assert "Simulate run" in html
+        assert "does not execute blueprint code" in html
+
+    def test_settings_unwired_actions_are_disabled(self, client):
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(username="uxset", password="ux-set-pass")
+        client.force_login(user)
+        response = client.get("/settings/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert "Validate Config (soon)" in html
+        assert "Export (soon)" in html
+        assert "onclick=\"validateConfiguration()\"" not in html
+        assert "onclick=\"exportEnvVars()\"" not in html
+
+    def test_team_creator_validate_marked_demo(self, client):
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(username="uxtd", password="ux-td-pass")
+        client.force_login(user)
+        response = client.get("/team-creator/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert "Validate (demo)" in html
+        assert "no server-side team validation" in html

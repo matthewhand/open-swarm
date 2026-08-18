@@ -53,7 +53,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 |---|---|---|
 | Index/dashboard | ✅ | `web_views.index` serves SPA `dist/index.html` when present, else Django `index.html`; `tests/views/test_web_views.py::TestIndexView` |
 | Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; renders `teams_launch.html` (`web_views.py`), `teams_admin.html`. **Auth:** `team_admin` + `teams_export` are `@login_required`; `team_launcher` stays public |
-| Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py`. **Auth:** browse + add/remove/creator/avatar mutators are `@login_required` (CSRF on POSTs) |
+| Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py`. **Auth:** browse + add/remove/creator/avatar mutators are `@login_required` (CSRF on POSTs). **Honesty:** My Blueprints runner is labeled “Simulate run (demo)” (no live execution) |
 | Agent creator | ✅ | `/agent-creator/` + generate/validate/save in `views/agent_creator_views.py`. **Auth:** GET page is public; generate/validate/save mutators are `@login_required` |
 | Agent Creator Pro | 🟡 | `/agent-creator-pro/` page + static JS only — **no** generate/validate/save routes (JS POSTs 404). Honesty banner points to canonical `/agent-creator/`. ROADMAP §4.2 clickware |
 | Settings dashboard | ✅ | `/settings/` → `views/settings_views.py` renders `settings_dashboard.html` (`@login_required`) |
