@@ -10,17 +10,20 @@ Operator story (docs/AUTH.md §1 + §4):
 3. REST ``GET /v1/responses/{id}`` stays strict same-principal IDOR — the
    bridge does **not** escalate API privileges.
 
-Library create→run closer (CHANGELOG library path + echo-only fix):
+Library create→run→sessions closer (CHANGELOG library path + echo-only fix):
 
 4. ``generate_blueprint_code`` emits a BlueprintBase ``AsyncGenerator`` ``run``
    that calls real ``AsyncOpenAI`` + ``chat.completions.create(stream=True)``
    (not nonexistent ``chat_completion_stream`` / echo-only stubs).
 5. My Blueprints runner POSTs ``/v1/chat/completions`` (session credentials).
 6. That chat create path stamps ``owner`` the same way as responses create.
+7. Session Explorer lists + details those chat-created records (bridge for
+   configured ``token:…``; foreign ``user:…`` hidden) while REST IDOR stays
+   same-principal.
 
-These tests must FAIL if create→own→list or library create→run regresses
-(missing owner stamp, bridge/IDOR leaks, echo-only generated run, or demo
-simulate runner).
+These tests must FAIL if create→own→list or library create→run→sessions
+regresses (missing owner stamp, Explorer omission, bridge/IDOR leaks,
+echo-only generated run, or demo simulate runner).
 """
 from __future__ import annotations
 
@@ -275,7 +278,7 @@ def _load_generated_blueprint(code: str):
 
 @pytest.mark.django_db(transaction=True)
 class TestLibraryCreateRunCloser:
-    """Library create→run: generated AsyncOpenAI stream + runner + ownership."""
+    """Library create→run→sessions: stream contract, runner, ownership, Explorer."""
 
     def test_generate_blueprint_code_streams_via_async_openai(self):
         """Generated run() must call AsyncOpenAI streaming — not echo-only fiction."""
@@ -397,7 +400,7 @@ class TestLibraryCreateRunCloser:
     async def test_runner_chat_completions_background_stamps_owner(
         self, store, settings, monkeypatch
     ):
-        """My Blueprints session POST /v1/chat/completions?background stamps owner."""
+        """Library chat create→run→sessions: owner stamp, Explorer bridge, REST IDOR."""
         settings.ENABLE_API_AUTH = True
         settings.SWARM_API_KEY = TOKEN
         settings.SWARM_API_KEYS = [TOKEN]
@@ -470,3 +473,44 @@ class TestLibraryCreateRunCloser:
         token_rec = responses_store.load(token_rid)
         assert token_rec is not None
         assert token_rec.get("owner") == token_principal(TOKEN)
+
+        # → sessions: Explorer must list chat-created records (bridge for token).
+        alice_web = Client()
+        await sync_to_async(alice_web.force_login)(alice)
+        feed = await sync_to_async(alice_web.get)(reverse("session-list-api"))
+        assert feed.status_code == 200
+        alice_ids = {s["id"] for s in json.loads(feed.content)["sessions"]}
+        assert rid in alice_ids, (
+            "Alice must see library chat-created session in Explorer"
+        )
+        assert token_rid in alice_ids, (
+            "Alice must see token chat-created session via operator bridge"
+        )
+        page = await sync_to_async(alice_web.get)(reverse("session-explorer"))
+        assert page.status_code == 200
+        page_body = page.content.decode()
+        assert rid in page_body and token_rid in page_body
+        assert (
+            await sync_to_async(alice_web.get)(
+                reverse("session-detail", kwargs={"response_id": rid})
+            )
+        ).status_code == 200
+        assert (
+            await sync_to_async(alice_web.get)(
+                reverse("session-detail", kwargs={"response_id": token_rid})
+            )
+        ).status_code == 200
+
+        bob_web = Client()
+        await sync_to_async(bob_web.force_login)(bob)
+        bob_feed = await sync_to_async(bob_web.get)(reverse("session-list-api"))
+        assert bob_feed.status_code == 200
+        bob_ids = {s["id"] for s in json.loads(bob_feed.content)["sessions"]}
+        assert token_rid in bob_ids
+        assert rid not in bob_ids
+
+        # Bridge ≠ REST privilege for the token-owned chat record.
+        alice_rest_token = await alice_api.get(
+            f"/v1/responses/{token_rid}", SERVER_NAME="localhost"
+        )
+        assert alice_rest_token.status_code == 403
