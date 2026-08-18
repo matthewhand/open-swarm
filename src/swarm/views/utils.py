@@ -47,28 +47,40 @@ def load_dynamic_registry() -> dict[str, dict]:
         path = _dynamic_registry_path()
         if path.exists():
             import json
-            _dynamic_registry = json.loads(path.read_text(encoding="utf-8")) or {}
+            raw = path.read_text(encoding="utf-8")
+            if not raw.strip():
+                # Empty file is treated as an empty registry (common after truncate).
+                _dynamic_registry = {}
+            else:
+                _dynamic_registry = json.loads(raw) or {}
         else:
             _dynamic_registry = {}
     except Exception:
+        logger.exception("Failed to load dynamic teams registry; using empty registry.")
         _dynamic_registry = {}
     return _dynamic_registry
 
 
 def save_dynamic_registry() -> None:
+    """Persist the in-memory dynamic teams registry to teams.json.
+
+    Raises on I/O or serialization failure so callers can surface errors
+    instead of reporting a false success.
+    """
+    path = _dynamic_registry_path()
+    import json
     try:
-        path = _dynamic_registry_path()
-        import json
         path.write_text(json.dumps(_dynamic_registry, indent=2), encoding="utf-8")
     except Exception:
-        # Non-fatal in demo mode
-        pass
+        logger.exception("Failed to persist dynamic teams registry to %s", path)
+        raise
 
 
 def register_dynamic_team(team_id: str, description: str | None = None, llm_profile: str | None = None) -> None:
     """Registers a dynamic team in memory and persists to disk.
 
     team_id is both the human-facing team name/slug and the model id exposed via /v1/models.
+    Raises if the registry cannot be persisted.
     """
     reg = load_dynamic_registry()
     reg[team_id] = {
@@ -82,7 +94,10 @@ def register_dynamic_team(team_id: str, description: str | None = None, llm_prof
 
 
 def deregister_dynamic_team(team_id: str) -> bool:
-    """Removes a dynamic team from the registry. Returns True if removed."""
+    """Removes a dynamic team from the registry. Returns True if removed.
+
+    Raises if the team existed but the registry could not be persisted.
+    """
     reg = load_dynamic_registry()
     if team_id in reg:
         reg.pop(team_id, None)
@@ -94,7 +109,10 @@ def deregister_dynamic_team(team_id: str) -> bool:
 
 
 def reset_dynamic_registry() -> None:
-    """Clears all dynamic teams and persists an empty registry."""
+    """Clears all dynamic teams and persists an empty registry.
+
+    Raises if the empty registry cannot be persisted.
+    """
     global _dynamic_registry, _blueprint_meta_cache
     _dynamic_registry = {}
     _blueprint_meta_cache = None

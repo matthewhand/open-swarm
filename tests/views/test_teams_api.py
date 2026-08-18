@@ -236,6 +236,26 @@ class TestTeamsCreateView:
         assert response.status_code == status.HTTP_201_CREATED
         mock_register.assert_called_once()
 
+    @patch("pathlib.Path.write_text", side_effect=OSError("disk full"))
+    @patch("swarm.views.teams_api.discover_blueprints")
+    @patch("swarm.views.teams_api.load_dynamic_registry")
+    def test_create_team_persist_failure_returns_error(
+        self, mock_load, mock_discover, _mock_write, api_client
+    ):
+        """Registry write failures must not report a false 201 success."""
+        mock_load.return_value = {}
+        mock_discover.return_value = {}
+
+        response = api_client.post(
+            "/v1/teams/",
+            data={"name": "persist-fail", "description": "should not save"},
+            format="json",
+        )
+
+        assert response.status_code != status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "error" in response.json()
+
 
 # =============================================================================
 # Tests for DELETE /v1/teams/<id>/

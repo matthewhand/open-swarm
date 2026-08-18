@@ -278,10 +278,26 @@ def team_admin(request):
         if action == "delete":
             team_id = (request.POST.get("team_id") or "").strip()
             if team_id:
-                deregister_dynamic_team(team_id)
+                try:
+                    deregister_dynamic_team(team_id)
+                except Exception as e:
+                    teams = list(load_dynamic_registry().values())
+                    return render(
+                        request,
+                        "teams_admin.html",
+                        {"error": f"Failed to delete team: {e}", "teams": teams, **_profiles_ctx()},
+                    )
             return redirect("teams_admin")
         if action == "reset":
-            reset_dynamic_registry()
+            try:
+                reset_dynamic_registry()
+            except Exception as e:
+                teams = list(load_dynamic_registry().values())
+                return render(
+                    request,
+                    "teams_admin.html",
+                    {"error": f"Failed to reset teams: {e}", "teams": teams, **_profiles_ctx()},
+                )
             return redirect("teams_admin")
 
         # Add / Import flow
@@ -374,7 +390,14 @@ def team_admin(request):
                 return render(request, "teams_admin.html", {"error": f"Name '{slug}' conflicts with an existing blueprint.", "teams": teams_current, **_profiles_ctx()})
         except Exception:
             pass
-        register_dynamic_team(slug, description=description, llm_profile=llm_profile)
+        try:
+            register_dynamic_team(slug, description=description, llm_profile=llm_profile)
+        except Exception as e:
+            return render(
+                request,
+                "teams_admin.html",
+                {"error": f"Failed to save team: {e}", "teams": teams_current, **_profiles_ctx()},
+            )
         return redirect("teams_admin")
 
     teams = list(load_dynamic_registry().values())
