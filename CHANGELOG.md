@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
+- **Docs honesty (ADR-001 / AUTH):** VISION version → v0.5.4 + AUTH/ADR see-also; QUICKSTART leads with Django-canonical UI + Bearer≠WS, fixes Docker boot trio vs `OPENAI_API_KEY`, renumbers sections, drops false `~/.swarm/swarm.log`; DEPLOYMENT WS 4401 points at `/login/` per AUTH.md. USERGUIDE already matched.
 - **Blueprints README honesty:** inventory lists only discoverable dirs + GLOSSARY links; remove stale EchoCraft/Nebula/MissionImprobable/WhingeSurf/… rows
 - **CSP prep — library/session pages:** extract `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail` inline scripts to `static/js/` (`{% static %}`); AUTH.md extraction progress updated
 - **CSP prep — creator pages:** extract `agent_creator` / `team_creator` inline scripts to `static/js/` (`{% static %}`); team profiles via `json_script` island; AUTH.md extraction progress updated

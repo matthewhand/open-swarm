@@ -70,11 +70,13 @@ swarm-api                 # ASGI server on :8000 (also powers websocket chat)
 docker compose up -d
 ```
 
-**SPA (`/` + `/chat`, ADR-001):** `webui/frontend/dist/` is gitignored. Local
-source checkouts need `make frontend` (or `./scripts/build_frontend.sh`) once
-after pull, or `/` falls back to the Django template index. The **Dockerfile**
-multi-stage build bakes that `dist/` into the image, so `docker compose` /
-Fly deploys serve the SPA without a host-side Node install.
+**SPA (`/` + `/chat`, ADR-001):** `webui/frontend/dist/` is gitignored. After
+`git pull` on a source checkout, run **`make frontend`** (wraps
+`./scripts/build_frontend.sh`) once so `/` serves the React dashboard; without
+`dist/`, Django falls back to the template index. The **Dockerfile** multi-stage
+build bakes that `dist/` into the image, so `docker compose` / Fly deploys serve
+the SPA without a host-side Node install. CI (`python-pytest.yml` `frontend`
+job) runs the same script on PRs.
 
 Point any OpenAI client at `http://<host>:8000/v1` with
 `Authorization: Bearer $API_AUTH_TOKEN`.
@@ -162,8 +164,9 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   [AUTH.md](./AUTH.md) §7.
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
 - **SPA chat “Unavailable — sign in required” / WS close 4401** → no Django
-  session cookie. Sign in via `/accounts/login/` (CSRF required on POST);
-  Settings API tokens do not open the websocket. Unreachable/ASGI-down is a
+  session cookie. Sign in via `/login/` (alias `/accounts/login/`; CSRF
+  required on POST). Settings API tokens do **not** open the websocket
+  (Bearer ≠ session — [AUTH.md](./AUTH.md) §3). Unreachable/ASGI-down is a
   different badge from 4401.
 - **gemini slow / stalls** → the free `oauth-personal` tier throttles the pro
   model heavily; the flash default answers in seconds. Use a paid `GEMINI_API_KEY`

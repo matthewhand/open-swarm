@@ -2,6 +2,13 @@
 
 This guide will help you get started with Open Swarm, install and configure blueprints (like Codey), and run your first LLM-powered agent.
 
+**UI / auth honesty:** day-to-day **operator UI** is Django trailing-slash
+routes (`/teams/launch/`, `/blueprint-library/`, `/settings/`, … —
+[ADR-001](./ADR-001-primary-ui.md)). The React SPA keeps `/` + `/chat` only.
+REST `/v1/*` uses Bearer (or session); websocket chat needs a Django **session**
+cookie — Bearer does not auth WS (close **4401**). Full map:
+[AUTH.md](./AUTH.md). Deploy runbook: [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ---
 
 ## 1. Install Open Swarm
@@ -72,9 +79,11 @@ If you want to expose blueprints over an OpenAI-compatible REST API:
 1) Prepare environment
 ```bash
 cp .env.example .env
-# Set OPENAI_API_KEY. Compose defaults DJANGO_DEBUG=false, so also set
-# API_AUTH_TOKEN (or SWARM_API_KEY), DJANGO_SECRET_KEY, and DJANGO_ALLOWED_HOSTS
-# or the container will refuse to start — see .env.example.
+# Compose defaults DJANGO_DEBUG=false — production boot requires:
+#   DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, and API_AUTH_TOKEN (or SWARM_API_KEY)
+# Optional for LLM-backed blueprints: OPENAI_API_KEY (or wire CLI agents — see §6).
+# ENABLE_API_AUTH is derived from whether a token is set (not a separate switch).
+# See .env.example and AUTH.md.
 ```
 
 2) Start the API
@@ -84,8 +93,7 @@ docker compose up -d
 # docker compose logs -f swarm
 ```
 
-3) Smoke-check the API (Bearer required whenever `API_AUTH_TOKEN` is set —
-`ENABLE_API_AUTH` is derived from the token, not a separate switch)
+3) Smoke-check the API (Bearer required whenever `API_AUTH_TOKEN` is set)
 ```bash
 # Models
 curl -sf http://localhost:8000/v1/models \
@@ -104,14 +112,18 @@ curl -sf http://localhost:8000/v1/chat/completions \
 Notes:
 - docker-compose healthcheck probes `/health` (service name: `swarm`)
 - PORT defaults to 8000
+- SPA `/` + `/chat` is baked into the Docker image; source checkouts need
+  `make frontend` once (gitignored `dist/`) — [ADR-001](./ADR-001-primary-ui.md)
 - Auth is **not** “on by default”: it is on only when a token is configured.
   With compose’s `DJANGO_DEBUG=false`, a missing token refuses boot unless you
   set `SWARM_ALLOW_NO_AUTH=true` (local/demo / external-gateway opt-out only).
   Local `DJANGO_DEBUG=true` with no token leaves the API open (warns).
+- Browser Chat / Session Explorer: sign in at `/login/` (session cookie).
+  Bearer does **not** authenticate websockets ([AUTH.md](./AUTH.md)).
 
 ---
 
-## 3. Configure Your LLM Provider
+## 4. Configure Your LLM Provider
 
 Before using LLM-powered agents, you must provide credentials.
 
@@ -169,7 +181,7 @@ swarm-cli config list --section llm
 
 ---
 
-## 4. Run a Blueprint (e.g., Codey)
+## 5. Run a Blueprint (e.g., Codey)
 
 To start Codey interactively (installed executable):
 ```bash
@@ -201,7 +213,7 @@ See [MOA.md](./MOA.md).
 
 ---
 
-## 5. Managing Blueprints
+## 6. Managing Blueprints
 
 - **List known and installed blueprints:**
   ```bash
@@ -218,7 +230,7 @@ See [MOA.md](./MOA.md).
 
 ---
 
-## 6. Advanced: Configure swarm_config.json
+## 7. Advanced: Configure swarm_config.json
 
 - The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
 - Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
@@ -228,7 +240,7 @@ See [MOA.md](./MOA.md).
     "base_url": "https://api.openai.com/v1", "api_key": "${OPENAI_API_KEY}"}}}
   ```
 - Role-slug gateway example (`orchestration` / `delegation` / `auxiliary` on
-  `LITELLM_BASE_URL`): see [§3b](#b-use-a-custom-endpoint-or-model) and
+  `LITELLM_BASE_URL`): see [§4b](#b-use-a-custom-endpoint-or-model) and
   [USERGUIDE.md](../USERGUIDE.md#local-openai-compatible-gateway-role-model-slugs).
 - For the agentic CLIs, generate the `cli_agents` block from what's installed:
   `swarm-cli cli-agents --init --write`.
@@ -236,16 +248,21 @@ See [MOA.md](./MOA.md).
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 - **Blueprint/command not found:** Ensure `~/.local/bin` is in your `$PATH`.
 - **API errors:** Check your API key and network connectivity.
+- **401/403 on `/v1/*`:** missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`
+  ([AUTH.md](./AUTH.md)).
+- **SPA chat Unavailable / WS 4401:** sign in at `/login/` — Bearer does not
+  auth websockets.
 - **Config issues:** The config is plain JSON — check it parses (`python -m json.tool ~/.config/swarm/swarm_config.json`); for CLI auth, run `swarm-cli cli-agents --check-auth`.
-- **Logs:** Check `~/.swarm/swarm.log` or run with increased verbosity if supported.
+- **Logs:** process/console output from `swarm-api` / compose; rotating files
+  under `./logs/` (cwd) or Django `LOGS_DIR` when configured — not `~/.swarm/swarm.log`.
 
 ---
 
-## 8. Next Steps & Resources
+## 9. Next Steps & Resources
 
 - Run `swarm-cli --help` and `codey --help` for usage info.
 - Explore more blueprints: `swarm-cli list`

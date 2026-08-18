@@ -56,9 +56,9 @@ and Open Swarm makes wiring that a one-line `model:` choice.
 
 ---
 
-## What is built today (v0.4.11)
+## What is built today (v0.5.4)
 
-This is verified, shipped, and covered by an 1100+ test suite. Status marks:
+This is verified, shipped, and covered by a 1200+ test suite. Status marks:
 ✅ working · 🟡 partial.
 
 | Capability | Status | Where |
@@ -183,5 +183,7 @@ the `cli_agents` config block. Adding a CLI never touches a blueprint.
 
 - [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) — sequence diagrams for every pattern
 - [CLI_FUSION.md](./CLI_FUSION.md) — the CLI-fusion blueprints in depth
+- [ADR-001](./ADR-001-primary-ui.md) — Django operator UI canonical; SPA `/` + `/chat` only
+- [AUTH.md](./AUTH.md) — Bearer vs session, WS 4401, Explorer bridge, workdir / blueprint trust
 - [ROADMAP.md](../ROADMAP.md) · [FEATURE_STATUS.md](../FEATURE_STATUS.md) — granular status
 - [docs/archive/](./archive/) — superseded architectures, kept for the record
