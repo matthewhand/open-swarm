@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - **Silent LLM profile fallback:** honor `blueprints[].default_model` / `settings.default_llm_profile`; **warn** (never silent) when a requested profile is missing, then fall back. `get_llm_profile` and Stewie warn on named misses; `llm_profile` stays fail-loud. Docs aligned in CONFIGURATION.md.
 
 ### Security
+- **Prod CSP `style-src 'self'`:** operator template `style=""` moved to `operator.css` (`.os-hide` + `data-pct="N"` widths); ship missing `static/js/htmx_csp.js` referenced by `base.html` (HTMX indicator `<style>` inject off without inline script); session-detail graph uses `.sd-graph-svg` instead of `element.style` (AUTH.md §7)
 - **Filesystem toolset secret dump:** default roots no longer include `~/open-swarm`; reads/lists/grep/find refuse credential files (`.env*`, private keys, `.pem`/`.key`, `.ssh`/`.aws`) even under an allow-listed root so `fs_introspect` cannot return live API keys via `/v1/chat/completions`
 - **MCP stdio env leak:** MCP client/provider no longer pass the full parent `os.environ` into stdio MCP children (that exposed ambient API keys/tokens). Children get essentials (`PATH`/`HOME`/…) plus only vars declared in the server's `env` block.
 

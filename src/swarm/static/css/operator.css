@@ -739,6 +739,7 @@
 
 .sd-title { margin: .2rem 0; }
 .sd-graph-hint { margin-top: .4rem; }
+.sd-graph-svg { display: block; height: auto; width: 100%; max-width: 100%; }
 .tl .badge-status { margin-left: .4rem; }
 
 .se-head .h3 { margin: 0; }

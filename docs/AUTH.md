@@ -151,7 +151,7 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 
 ### Inline extraction (complete for operator templates)
 
-Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone** → `script-src 'self'`. **Inline `<style>` blocks and `style=""` attributes are gone** from `src/swarm/templates/` (classes in `static/css/operator.css`; dynamic progress width via `data-pct` + CSSOM; visibility via `.os-hide`). HTMX's default indicator `<style>` inject is disabled (`htmx.config.includeIndicatorStyles = false` in `base.html`); equivalent rules live in `operator.css`. Prefer classes/external CSS over adding `'unsafe-*'` directives.
+Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone** → `script-src 'self'`. **Inline `<style>` blocks and `style=""` attributes are gone** from `src/swarm/templates/` (classes in `static/css/operator.css`; progress width via `data-pct="N"` CSS rules; visibility via `.os-hide`). HTMX's default indicator `<style>` inject is disabled (`static/js/htmx_csp.js`); equivalent rules live in `operator.css`. Prefer classes/external CSS over adding `'unsafe-*'` directives.
 
 **Pages on external JS:** `settings_dashboard`, `teams_launch`, `session_explorer`, `teams_admin`, `agent_creator`, `team_creator`, `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail`. High-traffic actions use `data-action` (creators, settings quick actions, library search/show-more/GitHub, creator reset).
 

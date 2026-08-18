@@ -16,7 +16,7 @@
   svg.setAttribute('viewBox','0 0 '+W+' '+H);
   svg.setAttribute('width','100%');
   svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-  svg.style.maxWidth = W+'px'; svg.style.height = 'auto'; svg.style.display = 'block';
+  svg.setAttribute('class','sd-graph-svg');
   svg.setAttribute('role','img');
   svg.setAttribute('aria-label', dels.length+' sub-agent delegation'+(dels.length===1?'':'s')
     +' routed from the claude -p orchestrator; node colour indicates status');
