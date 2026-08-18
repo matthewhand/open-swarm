@@ -7,15 +7,27 @@ from pathlib import Path
 from swarm.core import paths  # Assuming paths.py is accessible
 
 
+def _zip_member_is_symlink(member: zipfile.ZipInfo) -> bool:
+    """True if the zip member is a symlink (or symlink-mode Unix link)."""
+    is_symlink = getattr(member, "is_symlink", None)
+    if callable(is_symlink):
+        return bool(is_symlink())
+    # Unix mode in high 16 bits of external_attr; S_IFLNK == 0o120000
+    return (member.external_attr >> 16) & 0o170000 == 0o120000
+
+
 def _zip_member_destination(target_dir: Path, member: zipfile.ZipInfo) -> Path:
     """
     Resolve the extraction path for a zip member and ensure it stays under target_dir.
 
-    Rejects absolute paths and parent-directory references (Zip Slip).
+    Rejects absolute paths, parent-directory references (Zip Slip), and symlink members.
     """
     name = member.filename
     if not name or name.endswith("\x00") or "\x00" in name:
         raise ValueError(f"Unsafe zip member path: {name!r}")
+
+    if _zip_member_is_symlink(member):
+        raise ValueError(f"Refusing zip symlink member: {name!r}")
 
     member_path = Path(name)
     if member_path.is_absolute() or name.startswith(("/", "\\")) or ".." in member_path.parts:
