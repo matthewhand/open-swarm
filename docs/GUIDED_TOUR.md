@@ -52,13 +52,11 @@ replies, team launches) need an LLM profile configured (see
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
 **53**, Models **53** (API listings — the Blueprint Library’s discoverable
 catalog count can differ). Top nav on the capture: Home · Chat · Teams ·
-Blueprints · Builder · Creator · Settings. Quick Actions on the capture:
-**Launch Team**, **Manage Teams**, **Settings**. Banner text states that full
-library, sessions, creators, and settings live on Django trailing-slash paths.
-**Stale `webui/frontend/dist` vs `App.tsx`:** current source already uses
-Django-aligned chrome (Home · Blueprints · Teams · Sessions · Settings) and
-Quick Actions Launch Team / Browse Blueprints / Manage Teams / Settings —
-rebuild `dist`, then recapture `landing` (+ `mobile/landing`) to align.*
+Blueprints · Builder · Creator · Settings. Quick Actions:
+**Launch Team**, **Browse Blueprints**, **Manage Teams**, **Settings**.
+Banner text points operators at Django trailing-slash paths for library,
+sessions, creators, and settings. Recaptured after `npm run build` on
+**2026-08-18** (mobile dock is Home · Blueprints · Teams · Sessions · Settings).*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 

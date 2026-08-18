@@ -13,13 +13,18 @@ Open it at **`/sessions/`**.
 
 The current `sessions.png` capture is a **fresh-db empty state**: **0
 sessions**, a **live** auto-refresh toggle, and a CTA to create sessions via
-`POST /v1/responses`. When sessions exist, the same page also shows:
+`POST /v1/responses`. Per-status filter chips (`completed` / `in_progress` /
+`failed` / …) and the “Showing newest N of M (limit=50)” truncation banner are
+**not** in this PNG — they appear only once sessions exist (and when the list
+is truncated).
 
-1. **Live status summary + auto-refresh toggle** — a running count of sessions by
-   status (`completed` / `in_progress` / `failed` / …). The **`live`** checkbox
+When the store is populated, the same page also shows:
+
+1. **Status filter chips + live toggle** — a total count plus one chip per
+   status. The **`live`** checkbox (also present in the empty capture)
    auto-refreshes the list every few seconds from `/api/sessions/`, so long
-   background runs update in place — no reload. A truncation banner appears when
-   total sessions exceed the default list limit (50).
+   background runs update in place — no reload. The truncation banner appears
+   when total sessions exceed the default list limit (50).
 2. **Inter-agent delegation status** — each session card shows one coloured dot
    per delegated sub-task (green = completed, blue = in progress, red = failed),
    plus the delegation count, so you can see multi-agent fan-out at a glance.
