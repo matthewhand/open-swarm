@@ -15,12 +15,21 @@ logger = logging.getLogger(__name__)
 # Lazy sentinel — replaced on first use so the module-level name is patchable in tests.
 AsyncOpenAI = None
 
-# In-memory conversation storage (populated lazily)
+# In-memory conversation storage (populated lazily).
+# Keys are (user_id, conversation_id) to prevent cross-user cache IDOR.
 IN_MEMORY_CONVERSATIONS = {}
 
 # Custom close code for anonymous connects (HTTP 401 analogue). Accept-then-close
 # so browsers receive a CloseEvent with this code instead of opaque 1006.
 WS_AUTH_REQUIRED_CODE = 4401
+
+
+def _conversation_cache_key(user, conversation_id):
+    """Composite cache key so one user's transcript never leaks to another."""
+    user_id = getattr(user, "pk", None)
+    if user_id is None:
+        user_id = getattr(user, "id", None)
+    return (user_id, conversation_id)
 
 
 class DjangoChatConsumer(AsyncWebsocketConsumer):
@@ -64,8 +73,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 await self.delete_conversation(self.conversation_id)
 
             # Clean up in-memory cache to avoid leaks
-            if self.conversation_id in IN_MEMORY_CONVERSATIONS:
-                del IN_MEMORY_CONVERSATIONS[self.conversation_id]
+            cache_key = _conversation_cache_key(self.user, self.conversation_id)
+            if cache_key in IN_MEMORY_CONVERSATIONS:
+                del IN_MEMORY_CONVERSATIONS[cache_key]
 
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
@@ -215,34 +225,51 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=error_html)
 
     async def respond_with_default_model(self, contents_div_id):
-        """Legacy reply path: server-configured model via the OpenAI client."""
+        """Legacy reply path: server-configured model via LiteLLM/OpenAI env."""
         import swarm.consumers as _self_mod
         _cls = _self_mod.AsyncOpenAI
         if _cls is None:
             from openai import AsyncOpenAI as _cls
             _self_mod.AsyncOpenAI = _cls
-        client = _cls(api_key=os.getenv("OPENAI_API_KEY"))
 
-        # --- PATCH: Enforce LiteLLM-only endpoint and suppress OpenAI tracing/telemetry ---
-        import logging
-        if os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
+        # Mirror blueprint_base.configure_openai_client_from_env / LITELLM_* patterns.
+        base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+        api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        model = (
+            os.environ.get("LITELLM_MODEL")
+            or os.environ.get("OPENAI_MODEL")
+            or os.environ.get("DEFAULT_LLM")
+        )
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = _cls(**client_kwargs)
+
+        if base_url:
             logging.getLogger("openai.agents").setLevel(logging.CRITICAL)
             try:
                 import openai.agents.tracing
                 openai.agents.tracing.TracingClient = lambda *a, **kw: None
             except Exception:
                 pass
+
         def _enforce_litellm_only(client):
-            base_url = getattr(client, 'base_url', None)
-            if base_url and 'openai.com' in base_url:
+            """Reject openai.com fallback when a custom LiteLLM gateway is configured."""
+            expected = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+            if not expected:
                 return
-            if base_url and 'openai.com' not in base_url:
+            actual = str(getattr(client, "base_url", "") or "")
+            if not actual or "openai.com" in actual:
                 import traceback
-                raise RuntimeError(f"Attempted fallback to OpenAI API when custom base_url is set! base_url={base_url}\n{traceback.format_stack()}")
+                raise RuntimeError(
+                    "Attempted fallback to OpenAI API when custom base_url is set! "
+                    f"base_url={actual!r} expected={expected!r}\n{traceback.format_stack()}"
+                )
+
         _enforce_litellm_only(client)
 
         stream = await client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL"),
+            model=model,
             messages=self.messages,
             stream=True,
         )
@@ -277,13 +304,14 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         """
         Fetch conversation messages from memory or DB. If missing from memory, load from DB.
         """
-        if conversation_id in IN_MEMORY_CONVERSATIONS:
-            return IN_MEMORY_CONVERSATIONS[conversation_id]
+        cache_key = _conversation_cache_key(self.user, conversation_id)
+        if cache_key in IN_MEMORY_CONVERSATIONS:
+            return IN_MEMORY_CONVERSATIONS[cache_key]
 
         try:
             chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
             messages = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
-            IN_MEMORY_CONVERSATIONS[conversation_id] = messages  # Cache it
+            IN_MEMORY_CONVERSATIONS[cache_key] = messages  # Cache it
             return messages
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
@@ -295,10 +323,25 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         Disconnect always persists the full transcript. Without clearing
         prior rows, reconnect → disconnect would bulk_create duplicates.
+
+        Lookup is by conversation_id PK only (avoids IntegrityError when the
+        row exists for another student); ownership is then validated.
         """
-        chat, _ = ChatConversation.objects.get_or_create(
-            conversation_id=conversation_id, student=self.user
+        cache_key = _conversation_cache_key(self.user, conversation_id)
+        chat, created = ChatConversation.objects.get_or_create(
+            conversation_id=conversation_id,
+            defaults={"student": self.user},
         )
+        if not created and chat.student_id is not None and chat.student_id != self.user.pk:
+            logger.warning(
+                "Refusing to save conversation %s: owned by another user (requested by %s)",
+                conversation_id,
+                self.user,
+            )
+            return
+        if chat.student_id is None:
+            chat.student = self.user
+            chat.save(update_fields=["student"])
 
         chat_messages = [
             ChatMessage(
@@ -312,18 +355,19 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         ChatMessage.objects.filter(conversation=chat).delete()
         ChatMessage.objects.bulk_create(chat_messages)
 
-        IN_MEMORY_CONVERSATIONS[conversation_id] = list(new_messages)
+        IN_MEMORY_CONVERSATIONS[cache_key] = list(new_messages)
 
     @database_sync_to_async
     def delete_conversation(self, conversation_id):
         """
         Delete the conversation from DB if empty.
         """
+        cache_key = _conversation_cache_key(self.user, conversation_id)
         try:
             chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
             if not chat.messages.exists():  # Check if there are any messages before deleting
                 chat.delete()
-                if conversation_id in IN_MEMORY_CONVERSATIONS:
-                    del IN_MEMORY_CONVERSATIONS[conversation_id]  # Cleanup memory cache
+                if cache_key in IN_MEMORY_CONVERSATIONS:
+                    del IN_MEMORY_CONVERSATIONS[cache_key]  # Cleanup memory cache
         except ChatConversation.DoesNotExist:
             logger.warning(f"Attempted to delete non-existent conversation: {conversation_id} for user: {self.user}")

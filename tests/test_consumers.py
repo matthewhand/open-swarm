@@ -20,7 +20,11 @@ from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 
-from swarm.consumers import DjangoChatConsumer, IN_MEMORY_CONVERSATIONS
+from swarm.consumers import (
+    DjangoChatConsumer,
+    IN_MEMORY_CONVERSATIONS,
+    _conversation_cache_key,
+)
 
 
 # =============================================================================
@@ -225,13 +229,14 @@ class TestDisconnect:
         """Disconnect should clear the in-memory cache for the conversation."""
         consumer.messages = []
         consumer.conversation_id = "test-conv-123"
-        IN_MEMORY_CONVERSATIONS["test-conv-123"] = []
+        cache_key = _conversation_cache_key(consumer.user, "test-conv-123")
+        IN_MEMORY_CONVERSATIONS[cache_key] = []
         
         with patch.object(consumer, 'save_conversation', new_callable=AsyncMock):
             with patch.object(consumer, 'delete_conversation', new_callable=AsyncMock):
                 await consumer.disconnect(close_code=1000)
                 
-                assert "test-conv-123" not in IN_MEMORY_CONVERSATIONS
+                assert cache_key not in IN_MEMORY_CONVERSATIONS
 
     @pytest.mark.asyncio
     async def test_disconnect_unauthenticated_does_not_save(self, mock_scope_unauthenticated, mock_unauthenticated_user):
@@ -487,13 +492,44 @@ class TestFetchConversation:
         """Should return cached conversation from memory."""
         # Use unique key to avoid conflicts with parallel tests
         import uuid
-        unique_key = f"cached-conv-{uuid.uuid4().hex[:8]}"
+        unique_id = f"cached-conv-{uuid.uuid4().hex[:8]}"
         cached_messages = [{"role": "user", "content": "Cached"}]
-        IN_MEMORY_CONVERSATIONS[unique_key] = cached_messages
+        cache_key = _conversation_cache_key(consumer.user, unique_id)
+        IN_MEMORY_CONVERSATIONS[cache_key] = cached_messages
         
-        result = await consumer.fetch_conversation(unique_key)
+        result = await consumer.fetch_conversation(unique_id)
         
         assert result == cached_messages
+
+    def test_cache_hit_does_not_leak_across_users(self):
+        """Composite cache keys prevent serving another user's transcript on hit."""
+        from swarm.models import ChatConversation
+
+        owner = MagicMock()
+        owner.pk = 101
+        attacker = MagicMock()
+        attacker.pk = 202
+
+        conv_id = "shared-looking-conv-id"
+        secret = [{"role": "user", "content": "owner secret transcript"}]
+        IN_MEMORY_CONVERSATIONS[_conversation_cache_key(owner, conv_id)] = secret
+        # Pre-fix bug: bare conversation_id key. Must not be returned to attacker.
+        IN_MEMORY_CONVERSATIONS[conv_id] = secret
+
+        attacker_consumer = DjangoChatConsumer()
+        attacker_consumer.user = attacker
+        fetch_sync = DjangoChatConsumer.__dict__["fetch_conversation"].func
+
+        with patch(
+            "swarm.consumers.ChatConversation.objects.get",
+            side_effect=ChatConversation.DoesNotExist,
+        ) as mock_get:
+            result = fetch_sync(attacker_consumer, conv_id)
+
+        assert result == []
+        mock_get.assert_called_once()
+        assert _conversation_cache_key(attacker, conv_id) not in IN_MEMORY_CONVERSATIONS
+        assert IN_MEMORY_CONVERSATIONS[_conversation_cache_key(owner, conv_id)] == secret
 
     @pytest.mark.django_db
     def test_fetch_from_database_sync(self, test_user):
@@ -617,7 +653,7 @@ class TestSaveConversation:
         # get_or_create + delete + bulk_create should stay well below one query per message.
         assert len(ctx.captured_queries) < num_messages
 
-        IN_MEMORY_CONVERSATIONS.pop("bulk-conv-123", None)
+        IN_MEMORY_CONVERSATIONS.pop(_conversation_cache_key(test_user, "bulk-conv-123"), None)
 
     @pytest.mark.django_db
     def test_save_conversation_idempotent_on_repeat(self, test_user):
@@ -627,6 +663,7 @@ class TestSaveConversation:
         consumer = DjangoChatConsumer()
         consumer.user = test_user
         conv_id = "idempotent-conv-123"
+        cache_key = _conversation_cache_key(test_user, conv_id)
         messages = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
@@ -641,7 +678,7 @@ class TestSaveConversation:
             ).count()
             == len(messages)
         )
-        assert IN_MEMORY_CONVERSATIONS[conv_id] == messages
+        assert IN_MEMORY_CONVERSATIONS[cache_key] == messages
 
         # Simulate reconnect → disconnect with the same in-memory transcript.
         save_sync(consumer, conv_id, messages)
@@ -651,7 +688,7 @@ class TestSaveConversation:
             ).count()
             == len(messages)
         )
-        assert IN_MEMORY_CONVERSATIONS[conv_id] == messages
+        assert IN_MEMORY_CONVERSATIONS[cache_key] == messages
 
         # Growing transcript replaces prior rows rather than appending.
         messages_grown = messages + [
@@ -663,9 +700,40 @@ class TestSaveConversation:
         ).order_by("timestamp")
         assert qs.count() == len(messages_grown)
         assert [m.content for m in qs] == [m["content"] for m in messages_grown]
-        assert IN_MEMORY_CONVERSATIONS[conv_id] == messages_grown
+        assert IN_MEMORY_CONVERSATIONS[cache_key] == messages_grown
 
-        IN_MEMORY_CONVERSATIONS.pop(conv_id, None)
+        IN_MEMORY_CONVERSATIONS.pop(cache_key, None)
+
+    @pytest.mark.django_db
+    def test_save_refuses_other_users_conversation(self, test_user):
+        """get_or_create by PK must not overwrite or IntegrityError on foreign ownership."""
+        from django.contrib.auth import get_user_model
+
+        from swarm.models import ChatConversation, ChatMessage
+
+        User = get_user_model()
+        owner = test_user
+        attacker = User.objects.create_user(username="save-idor-attacker", password="x")
+
+        conv_id = "owned-by-someone-else"
+        chat = ChatConversation.objects.create(conversation_id=conv_id, student=owner)
+        ChatMessage.objects.create(conversation=chat, sender="user", content="owner only")
+
+        attacker_consumer = DjangoChatConsumer()
+        attacker_consumer.user = attacker
+        save_sync = DjangoChatConsumer.__dict__["save_conversation"].func
+        save_sync(
+            attacker_consumer,
+            conv_id,
+            [{"role": "user", "content": "attacker overwrite attempt"}],
+        )
+
+        chat.refresh_from_db()
+        assert chat.student_id == owner.pk
+        assert list(
+            ChatMessage.objects.filter(conversation=chat).values_list("content", flat=True)
+        ) == ["owner only"]
+        assert _conversation_cache_key(attacker, conv_id) not in IN_MEMORY_CONVERSATIONS
 
 
 # =============================================================================
@@ -708,21 +776,21 @@ class TestDeleteConversation:
     def test_delete_clears_memory_cache_sync(self, test_user):
         """Should clear memory cache when deleting (sync version)."""
         from swarm.models import ChatConversation
-        
+
         ChatConversation.objects.create(
             conversation_id="cache-delete",
             student=test_user
         )
-        IN_MEMORY_CONVERSATIONS["cache-delete"] = []
-        
-        # Simulate delete and cache cleanup
-        chat = ChatConversation.objects.get(conversation_id="cache-delete", student=test_user)
-        if not chat.chat_messages.exists():
-            chat.delete()
-            if "cache-delete" in IN_MEMORY_CONVERSATIONS:
-                del IN_MEMORY_CONVERSATIONS["cache-delete"]
-        
-        assert "cache-delete" not in IN_MEMORY_CONVERSATIONS
+        cache_key = _conversation_cache_key(test_user, "cache-delete")
+        IN_MEMORY_CONVERSATIONS[cache_key] = []
+
+        consumer = DjangoChatConsumer()
+        consumer.user = test_user
+        delete_sync = DjangoChatConsumer.__dict__["delete_conversation"].func
+        delete_sync(consumer, "cache-delete")
+
+        assert cache_key not in IN_MEMORY_CONVERSATIONS
+        assert not ChatConversation.objects.filter(conversation_id="cache-delete").exists()
 
     @pytest.mark.django_db
     def test_delete_does_not_delete_if_messages_exist_sync(self, test_user):
@@ -840,9 +908,13 @@ class TestEdgeCases:
         # Use unique keys to avoid conflicts with parallel tests
         key1 = f"conv-1-{uuid.uuid4().hex[:8]}"
         key2 = f"conv-2-{uuid.uuid4().hex[:8]}"
-        
-        IN_MEMORY_CONVERSATIONS[key1] = [{"role": "user", "content": "Msg 1"}]
-        IN_MEMORY_CONVERSATIONS[key2] = [{"role": "user", "content": "Msg 2"}]
+
+        IN_MEMORY_CONVERSATIONS[_conversation_cache_key(consumer.user, key1)] = [
+            {"role": "user", "content": "Msg 1"}
+        ]
+        IN_MEMORY_CONVERSATIONS[_conversation_cache_key(consumer.user, key2)] = [
+            {"role": "user", "content": "Msg 2"}
+        ]
         
         result1 = await consumer.fetch_conversation(key1)
         result2 = await consumer.fetch_conversation(key2)
@@ -850,3 +922,63 @@ class TestEdgeCases:
         assert result1 != result2
         assert result1[0]["content"] == "Msg 1"
         assert result2[0]["content"] == "Msg 2"
+
+
+# =============================================================================
+# Default-model LiteLLM wiring
+# =============================================================================
+
+
+class TestRespondWithDefaultModelLiteLLM:
+    """respond_with_default_model must honor LITELLM_* like blueprint_base."""
+
+    @pytest.mark.asyncio
+    async def test_uses_litellm_base_url_and_api_key(self, consumer, monkeypatch):
+        monkeypatch.setenv("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
+        monkeypatch.setenv("LITELLM_API_KEY", "sk-litellm-test")
+        monkeypatch.setenv("LITELLM_MODEL", "orchestration")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        monkeypatch.delenv("OPENAI_MODEL", raising=False)
+
+        consumer.messages = [{"role": "user", "content": "hi"}]
+
+        async def stream():
+            chunk = MagicMock()
+            chunk.choices = [MagicMock()]
+            chunk.choices[0].delta.content = "ok"
+            yield chunk
+
+        mock_client = MagicMock()
+        mock_client.base_url = "http://127.0.0.1:4000/v1"
+        mock_client.chat.completions.create = AsyncMock(return_value=stream())
+        mock_client.close = AsyncMock()
+
+        with patch("swarm.consumers.AsyncOpenAI", return_value=mock_client) as mock_cls:
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                await consumer.respond_with_default_model("message-response-litellm")
+
+        mock_cls.assert_called_once_with(
+            api_key="sk-litellm-test",
+            base_url="http://127.0.0.1:4000/v1",
+        )
+        create_kwargs = mock_client.chat.completions.create.await_args.kwargs
+        assert create_kwargs["model"] == "orchestration"
+
+    @pytest.mark.asyncio
+    async def test_rejects_openai_com_when_litellm_configured(self, consumer, monkeypatch):
+        monkeypatch.setenv("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
+        monkeypatch.setenv("LITELLM_API_KEY", "sk-litellm-test")
+        monkeypatch.setenv("LITELLM_MODEL", "orchestration")
+
+        consumer.messages = [{"role": "user", "content": "hi"}]
+
+        mock_client = MagicMock()
+        # Simulate accidental default OpenAI endpoint on the constructed client.
+        mock_client.base_url = "https://api.openai.com/v1"
+        mock_client.close = AsyncMock()
+
+        with patch("swarm.consumers.AsyncOpenAI", return_value=mock_client):
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                with pytest.raises(RuntimeError, match="Attempted fallback to OpenAI API"):
+                    await consumer.respond_with_default_model("message-response-bad")
