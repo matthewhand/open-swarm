@@ -144,7 +144,7 @@ parity is reached.
 - [ ] Functional MCP server hosting blueprints as tools
   - [x] URL routing behind the flag
   - [x] `provider.py` executes blueprints with passing tests (stale TODO docstring corrected)
-  - [ ] Declare the `django_mcp_server` dependency (not in `pyproject.toml` — the mount is dead on a clean install)
+  - [ ] Declare the `django-mcp-server` dependency (imports as `mcp_server`; not in `pyproject.toml` — the mount is dead on a clean install; see `docs/mcp_server_mode.md`)
   - [ ] Auth story for MCP clients (token-based)
 
 ### 3.4 Marketplace/Wagtail (`ENABLE_WAGTAIL`) and SAML IdP (`ENABLE_SAML_IDP`) — REMOVED
