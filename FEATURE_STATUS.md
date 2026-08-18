@@ -61,7 +61,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | ❌ | Removed 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 2
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 3
 
 Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) and `/chat`. Teams / Blueprints / Settings / Builder / AgentCreator SPA pages were **deleted** (not quarantined for remount). Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app.
 
