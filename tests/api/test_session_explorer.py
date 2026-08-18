@@ -85,6 +85,15 @@ def test_session_detail_view_shows_delegations(auth_client, store):
     body = resp.content.decode()
     assert "Delegation timeline" in body and "agent" in body and "auxiliary" in body
     assert "coded" in body and "boom" in body
+    # Tablist a11y: named tabs/panels + labelled scrollable output region.
+    assert 'role="tablist"' in body
+    assert 'id="sd-graph-tab"' in body and 'aria-controls="sd-graph"' in body
+    assert 'aria-selected="true"' in body
+    assert 'role="tabpanel" aria-labelledby="sd-graph-tab"' in body
+    assert 'role="tabpanel" aria-labelledby="sd-timeline-tab"' in body
+    assert 'role="tabpanel" aria-labelledby="sd-output-tab"' in body
+    assert 'aria-label="Session output"' in body
+    assert 'role="alert"' in body  # failed delegation error surfaced to AT
 
 
 @pytest.mark.django_db

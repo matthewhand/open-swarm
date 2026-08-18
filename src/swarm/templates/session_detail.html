@@ -4,56 +4,77 @@
 
 <div class="sd-wrap">
   <p><a href="{% url 'session-explorer' %}">&larr; All sessions</a></p>
-  <h2 class="sd-title">Session <span class="sd-id">{{ session.id }}</span></h2>
+  <h2 class="sd-title" id="sd-heading">Session <span class="sd-id">{{ session.id }}</span></h2>
   <div class="sd-meta">
-    <span class="badge-status st-{{ session.status|default:'unknown' }}">{{ session.status|default:'unknown' }}</span>
+    <span class="badge-status st-{{ session.status|default:'unknown' }}" aria-label="Status: {{ session.status|default:'unknown' }}">{{ session.status|default:'unknown' }}</span>
     &nbsp; model <strong>{{ session.model|default:'—' }}</strong>
     {% if session.execution_ms %}&nbsp;&middot;&nbsp; {{ session.execution_ms }} ms{% endif %}
     {% if session.usage %}&nbsp;&middot;&nbsp; {{ session.usage.total_tokens }} tokens{% endif %}
   </div>
 
-  <ul class="nav nav-tabs" role="tablist">
+  <ul class="nav nav-tabs" role="tablist" aria-labelledby="sd-heading">
     {% if delegations %}
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sd-graph" type="button">🕸 Graph</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Delegation timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="sd-graph-tab" data-bs-toggle="tab" data-bs-target="#sd-graph"
+              type="button" role="tab" aria-controls="sd-graph" aria-selected="true">
+        <span aria-hidden="true">🕸</span> Graph
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="sd-timeline-tab" data-bs-toggle="tab" data-bs-target="#sd-timeline"
+              type="button" role="tab" aria-controls="sd-timeline" aria-selected="false">
+        <span aria-hidden="true">⛓</span> Delegation timeline <span class="sd-meta">{{ delegations|length }}</span>
+      </button>
+    </li>
     {% endif %}
-    <li class="nav-item"><button class="nav-link {% if not delegations %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sd-output" type="button">Output</button></li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link {% if not delegations %}active{% endif %}" id="sd-output-tab"
+              data-bs-toggle="tab" data-bs-target="#sd-output" type="button" role="tab"
+              aria-controls="sd-output" aria-selected="{% if not delegations %}true{% else %}false{% endif %}">
+        Output
+      </button>
+    </li>
     {% if messages %}
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-transcript" type="button">Transcript <span class="sd-meta">{{ messages|length }}</span></button></li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="sd-transcript-tab" data-bs-toggle="tab" data-bs-target="#sd-transcript"
+              type="button" role="tab" aria-controls="sd-transcript" aria-selected="false">
+        Transcript <span class="sd-meta">{{ messages|length }}</span>
+      </button>
+    </li>
     {% endif %}
   </ul>
 
   <div class="tab-content">
     {% if delegations %}
-    <div class="tab-pane fade show active" id="sd-graph" role="tabpanel">
+    <div class="tab-pane fade show active" id="sd-graph" role="tabpanel" aria-labelledby="sd-graph-tab" tabindex="0">
       {{ delegations|json_script:"deleg-data" }}
-      <div id="agent-graph"></div>
+      <div id="agent-graph" aria-label="Delegation graph"></div>
       <div class="sd-meta sd-graph-hint">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
     </div>
-    <div class="tab-pane fade" id="sd-timeline" role="tabpanel">
+    <div class="tab-pane fade" id="sd-timeline" role="tabpanel" aria-labelledby="sd-timeline-tab" tabindex="0">
       <ul class="tl">
         {% for d in delegations %}
           <li>
-            <span class="node {{ d.status }}"></span>
+            <span class="node {{ d.status }}" aria-hidden="true"></span>
             <span class="role">{{ d.role }}</span>
             {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
-            <span class="badge-status st-{{ d.status }}">{{ d.status }}</span>
+            <span class="badge-status st-{{ d.status }}" aria-label="Status: {{ d.status }}">{{ d.status }}</span>
             {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
             {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
-            {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}
+            {% if d.error %}<div class="error" role="alert">✗ {{ d.error }}</div>{% endif %}
           </li>
         {% endfor %}
       </ul>
     </div>
     {% endif %}
 
-    <div class="tab-pane fade {% if not delegations %}show active{% endif %}" id="sd-output" role="tabpanel">
-      <pre class="sd-out">{{ session.output_text|default:'(no output yet)' }}</pre>
-      {% if session.error %}<div class="error">Error: {{ session.error.message }}</div>{% endif %}
+    <div class="tab-pane fade {% if not delegations %}show active{% endif %}" id="sd-output" role="tabpanel" aria-labelledby="sd-output-tab" tabindex="0">
+      <pre class="sd-out" tabindex="0" aria-label="Session output">{{ session.output_text|default:'(no output yet)' }}</pre>
+      {% if session.error %}<div class="error" role="alert">Error: {{ session.error.message }}</div>{% endif %}
     </div>
 
     {% if messages %}
-    <div class="tab-pane fade" id="sd-transcript" role="tabpanel">
+    <div class="tab-pane fade" id="sd-transcript" role="tabpanel" aria-labelledby="sd-transcript-tab" tabindex="0">
       {% for m in messages %}
         <div class="msg"><div class="role">{{ m.role }}</div><div>{{ m.content }}</div></div>
       {% endfor %}
