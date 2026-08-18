@@ -128,8 +128,8 @@ accounting.
 - **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly.
 - **Memory** — mem0 wired and opt-in, not yet validated end-to-end against a live
   mem0; `letta`/`langmem` are placeholders.
-- **Deprecation-shim sunset** — `swarm.extensions.blueprint` removed; remaining
-  consolidation shims tracked in ROADMAP §2.1.
+- **Deprecation-shim sunset** — done (ROADMAP §2.1); use `swarm.core.*` /
+  `swarm.ux.ansi_box`.
 
 ---
 

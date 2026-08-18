@@ -23,14 +23,14 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | Blueprint execution (`BlueprintBase.run`) | ✅ | `src/swarm/core/blueprint_base.py` (772 lines); `tests/core/test_blueprint_execution_comprehensive.py`, `test_blueprint_base.py`, `test_blueprint_model_override.py` all pass |
 | openai-agents SDK integration | ✅ | `blueprint_base.py:39` `from agents import set_default_openai_client`; `:644-648` selects `OpenAIResponsesModel` vs `OpenAIChatCompletionsModel` per `api_mode`; agents created via `make_agent` (`:659-683`) |
 | Test suite health | ✅ | 673 passed / 2 skipped as of `4c7e1b28`. (At audit time: 560/621 with 59 order-dependent failures from the `urls.py:155` import bug — fixed in `f1fa20b1`) |
-| `swarm.extensions.blueprint` (legacy path) | 🗑 removed | Package deleted (no warn-once shim). Import `swarm.core.blueprint_base` / `swarm.core.blueprint_discovery` / `swarm.core.spinner` / `swarm.core.slash_commands`. Locked gone by `tests/unit/test_deprecation_shims.py`. Remaining shims: ROADMAP §2.1. |
+| Consolidation deprecation shims | 🗑 removed | `extensions.blueprint`, `extensions.config.config_loader`, `blueprints.common.spinner`, `ux.spinner`, `utils.ansi_box`, `extensions.launchers.swarm_api` deleted. Use `swarm.core.*` / `swarm.ux.ansi_box`. Locked gone by `tests/unit/test_deprecation_shims.py` (ROADMAP §2.1). |
 
 ## 2. CLI — ✅ 4
 
 | Feature | Status | Evidence |
 |---|---|---|
 | `swarm-cli` | ✅ | Entry point `pyproject.toml [project.scripts]` → `swarm.core.swarm_cli:app`; `uv run swarm-cli --help` exits 0. Orphan argparse trees `extensions/cli` + `core/cli` deleted (ROADMAP §3.4b / §4.4). |
-| `swarm-api` | ✅ | → `swarm.core.swarm_api:main` (pyproject); thin deprecated `-m` shim at `swarm.extensions.launchers.swarm_api`; launcher tests `tests/cli/test_launchers.py` pass |
+| `swarm-api` | ✅ | → `swarm.core.swarm_api:main` (pyproject); former `extensions.launchers.swarm_api` `-m` shim removed; launcher tests `tests/cli/test_launchers.py` pass |
 | `codey` | ✅ | → `swarm.blueprints.codey.codey_cli:main`; `--help` exits 0 |
 | `suggestion` | ✅ | → `swarm.blueprints.suggestion.suggestion_cli:main`; `--help` exits 0 |
 

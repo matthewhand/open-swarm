@@ -1230,8 +1230,7 @@ if __name__ == "__main__":
                 for response in result:
                     print(json.dumps(response, indent=2))
 
-# Removed duplicate class definitions (CodeySpinner and SwarmSpinner)
-# These are already defined earlier in the file and imported from swarm.blueprints.common.spinner
+# CodeySpinner is defined earlier in this file; use swarm.core.spinner for shared spinners.
 
 if __name__ == "__main__":
     # CLI entry for shims: must be after all class defs

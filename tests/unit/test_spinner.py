@@ -1,9 +1,4 @@
-"""Tests for the canonical spinner implementation in swarm.core.spinner.
-
-Historical note: this file previously tested the legacy swarm.ux.spinner
-implementation, which is now a deprecation shim re-exporting the core
-spinner (see ROADMAP.md sunset notes).
-"""
+"""Tests for the canonical spinner implementation in swarm.core.spinner."""
 
 import time
 
@@ -50,12 +45,3 @@ def test_spinner_custom_sequence(capsys):
     spinner.stop()
     out = capsys.readouterr().out
     assert "Generating" in out
-
-
-def test_ux_spinner_shim_reexports_core_spinner():
-    import warnings
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        from swarm.ux.spinner import Spinner as ShimSpinner
-    assert ShimSpinner is Spinner

@@ -48,7 +48,7 @@ live on PyPI (`pip install open-swarm`). Highlights since the 2026-06-11 snapsho
 - [x] **Memory configuration documented** in CONFIGURATION.md §9 (mem0 default) (was §3.2 open).
 
 Still open (see below + new items): MCP-server dependency,
-letta/langmem backends, blueprint ecosystem curation, remaining deprecation-shim sunset,
+letta/langmem backends, blueprint ecosystem curation,
 and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
 "not found or not callable" — only `list`/`wizard`/`install` work cleanly).
 
@@ -68,7 +68,7 @@ and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
   - [x] Packaging repaired: `uv sync`/`uv lock` work; phantom `langmem`/`papr` pins removed; `mem0` → `mem0ai`; entry-point typo; real URLs
   - [x] README rewritten as honest FOSS-product doc (only verified features documented)
   - [x] Dead code removed: 8 orphaned blueprints + `repl/`, `agent/`, `llm/`, `cli/`, duplicate builders
-  - [x] Consolidation: 5 spinners → 1, 2 config loaders → 1, ANSI boxes → 1, import-broken `extensions/blueprint` → deprecation shims (see §2.1 sunset)
+  - [x] Consolidation: 5 spinners → 1, 2 config loaders → 1, ANSI boxes → 1; deprecation shims fully sunset (§2.1)
   - [x] Production-safe defaults: `SECRET_KEY` required outside debug, `DEBUG` off by default, `ALLOWED_HOSTS` required in prod
   - [x] Auth bypass elimination: `testuser`/`testpass` auto-login removed (now `ALLOW_TESTUSER_AUTOLOGIN` + debug only, random password); API auth required to boot in production; `runserver` auth-on by default; CSRF restored on mutating endpoints; `.env.example` fully documented
   - [x] Security branches merged: open-redirect validation, `secure_subprocess` wrapper, CSRF agent/team creator
@@ -105,12 +105,14 @@ and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
 
 ### 2.1 Deprecation shim sunset
 
-The consolidation left import shims emitting `DeprecationWarning`. Locked by
+Consolidation shims deleted. Canonical imports:
+`swarm.core.spinner`, `swarm.core.config_loader`, `swarm.ux.ansi_box` /
+`swarm.core.output_utils.ansi_box`, `swarm.core.swarm_api`. Locked gone by
 `tests/unit/test_deprecation_shims.py`.
 
 - [x] Migrate remaining internal callers off shim paths (`views/settings_manager.py` → core config_loader; also fixed a broken `extensions.blueprint.discovery` import in `core_views.py`)
 - [x] Remove `swarm.extensions.blueprint` (`__init__` / `spinner` / `slash_commands`) — deleted; use `swarm.core.*`
-- [ ] Remove remaining shims (`extensions/config/config_loader`, `blueprints/common/spinner`, `ux/spinner`, `utils/ansi_box`)
+- [x] Remove remaining shims (`extensions/config/config_loader`, `blueprints/common/spinner`, `ux/spinner`, `utils/ansi_box`, `extensions/launchers/swarm_api`)
 
 ---
 
@@ -255,9 +257,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 ### 4.4 Dead code / parallel trees
 - [x] **`extensions/` vs `core/` parallel CLI trees** — deleted orphan argparse
   `extensions/cli` + unused `core/cli`; deleted non-shipped
-  `extensions.launchers.swarm_cli` / `swarm_wrapper`; `swarm-cli` and
-  `swarm-api` both point at `swarm.core.*` in pyproject. Thin deprecated
-  `extensions.launchers.swarm_api` shim retained for old `-m` imports.
+  `extensions.launchers.swarm_cli` / `swarm_wrapper` / `swarm_api`; `swarm-cli`
+  and `swarm-api` both point at `swarm.core.*` in pyproject.
   Live helpers relocated: `prompt_user` → `core.config_manager`,
   `AsyncInputHandler` → `core.async_input`.
 - [x] **`extensions/cli/main.py` orphaned** — deleted with the argparse tree

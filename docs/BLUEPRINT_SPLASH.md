@@ -22,11 +22,12 @@ The splash is a visually engaging, branded introduction message shown when a blu
 ```python
 # In blueprint base or per-blueprint
 def get_splash(self):
-    from swarm.utils.ansi_box import ansi_box
+    from swarm.core.output_utils import ansi_box
     return ansi_box(
-        f"{self.metadata['title']}\n{self.metadata['description']}",
-        color='cyan',
-        emoji='🤖'
+        self.metadata['title'],
+        self.metadata['description'],
+        color='96',
+        emoji='🤖',
     )
 
 # In CLI entrypoint:

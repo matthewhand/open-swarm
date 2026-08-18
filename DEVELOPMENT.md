@@ -119,8 +119,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Location:**
     *   **`swarm-cli`:** Uses XDG paths (default: `~/.config/swarm/swarm_config.json`).
     *   **`swarm-api` (Docker):** Typically mounted from the host (e.g., `./swarm_config.json` mapped to `/app/swarm_config.json`).
-*   **Loading:** Handled by `swarm.core.config_loader` (deprecated shim:
-    `swarm.extensions.config.config_loader`). It searches upwards from the
+*   **Loading:** Handled by `swarm.core.config_loader`. It searches upwards from the
     current directory, then checks the default XDG path (primarily relevant
     for `swarm-cli`).
 *   **Structure:** Contains top-level keys like `llm` (for LLM profiles) and `mcpServers`.
