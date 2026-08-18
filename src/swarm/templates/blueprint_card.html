@@ -49,11 +49,11 @@
                     <i class="fas fa-ellipsis-h"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
-                    <li><button class="dropdown-item" type="button" onclick="previewBlueprint('{{ blueprint.id }}')"><i class="fas fa-eye me-2"></i>Preview</button></li>
-                    <li><button class="dropdown-item" type="button" onclick="launchBlueprint('{{ blueprint.id }}')"><i class="fas fa-play me-2"></i>Launch</button></li>
+                    <li><button class="dropdown-item btn-bp-preview" type="button" data-blueprint-id="{{ blueprint.id }}"><i class="fas fa-eye me-2"></i>Preview</button></li>
+                    <li><button class="dropdown-item btn-bp-launch" type="button" data-blueprint-id="{{ blueprint.id }}"><i class="fas fa-play me-2"></i>Launch</button></li>
                     <li><a class="dropdown-item" href="/settings/"><i class="fas fa-plug me-2"></i>Configure MCP</a></li>
                     {% if not blueprint.avatar_path and blueprint.available %}
-                    <li><button class="dropdown-item" type="button" onclick="generateAvatar('{{ blueprint.id }}')"><i class="fas fa-image me-2"></i>Generate Avatar</button></li>
+                    <li><button class="dropdown-item btn-bp-avatar" type="button" data-blueprint-id="{{ blueprint.id }}"><i class="fas fa-image me-2"></i>Generate Avatar</button></li>
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li><span class="dropdown-item-text small text-muted"><i class="fas fa-cube me-2"></i>{{ blueprint.id }}</span></li>
@@ -65,46 +65,38 @@
 
 <script>
 function previewBlueprint(blueprintId) {
-    // Open blueprint preview in modal or new page
-    window.open(`/blueprint/${blueprintId}/`, '_blank');
+    window.open(`/blueprint/${encodeURIComponent(blueprintId)}/`, '_blank');
 }
 
 function launchBlueprint(blueprintId) {
-    // Launch blueprint directly
-    window.open(`/teams/launch/?blueprint=${blueprintId}`, '_blank');
+    window.open(`/teams/launch/?blueprint=${encodeURIComponent(blueprintId)}`, '_blank');
 }
 
-async function generateAvatar(blueprintId) {
+async function generateAvatar(blueprintId, button) {
+    const originalContent = button.innerHTML;
     try {
-        // Show loading state
-        const button = event.target.closest('button');
-        const originalContent = button.innerHTML;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         button.disabled = true;
-        
-        // Get avatar style from user (you could make this a modal or dropdown)
+
         const style = prompt('Choose avatar style (professional, cartoon, anime, realistic, icon):', 'professional');
         if (!style) {
-            button.innerHTML = originalContent;
-            button.disabled = false;
             return;
         }
-        
+
         const formData = new FormData();
         formData.append('avatar_style', style);
-        
-        const response = await fetch(`/blueprint-library/generate-avatar/${blueprintId}/`, {
+
+        const response = await fetch(`/blueprint-library/generate-avatar/${encodeURIComponent(blueprintId)}/`, {
             method: 'POST',
             body: formData,
             headers: {
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
             }
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            // Reload the page to show the new avatar
             location.reload();
         } else {
             alert('Error generating avatar: ' + result.error);
@@ -113,10 +105,25 @@ async function generateAvatar(blueprintId) {
         console.error('Error:', error);
         alert('Error generating avatar');
     } finally {
-        // Restore button state
-        const button = event.target.closest('button');
         button.innerHTML = originalContent;
         button.disabled = false;
     }
 }
+
+document.addEventListener('click', function(event) {
+    const previewBtn = event.target.closest('.btn-bp-preview');
+    if (previewBtn) {
+        previewBlueprint(previewBtn.dataset.blueprintId);
+        return;
+    }
+    const launchBtn = event.target.closest('.btn-bp-launch');
+    if (launchBtn) {
+        launchBlueprint(launchBtn.dataset.blueprintId);
+        return;
+    }
+    const avatarBtn = event.target.closest('.btn-bp-avatar');
+    if (avatarBtn) {
+        generateAvatar(avatarBtn.dataset.blueprintId, avatarBtn);
+    }
+});
 </script>

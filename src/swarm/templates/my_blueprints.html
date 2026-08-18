@@ -123,8 +123,10 @@
                                         <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><button class="dropdown-item" type="button" onclick="previewBlueprint('{{ blueprint.id }}')"><i class="fas fa-eye me-2"></i>Preview</button></li>
-                                        <li><button class="dropdown-item text-danger" type="button" onclick="if (confirm('Remove {{ blueprint.name|escapejs }} from your library?')) removeBlueprint('{{ blueprint.id }}')"><i class="fas fa-trash me-2"></i>Remove</button></li>
+                                        <li><button class="dropdown-item btn-bp-preview" type="button" data-blueprint-id="{{ blueprint.id }}"><i class="fas fa-eye me-2"></i>Preview</button></li>
+                                        <li><button class="dropdown-item text-danger btn-bp-remove" type="button"
+                                                    data-blueprint-id="{{ blueprint.id }}"
+                                                    data-blueprint-name="{{ blueprint.name }}"><i class="fas fa-trash me-2"></i>Remove</button></li>
                                     </ul>
                                 </div>
                             </div>
@@ -182,9 +184,11 @@
                                         <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><button class="dropdown-item" type="button" onclick="editBlueprint('{{ blueprint.id }}')"><i class="fas fa-edit me-2"></i>Edit</button></li>
+                                        <li><button class="dropdown-item btn-bp-edit" type="button" data-blueprint-id="{{ blueprint.id }}"><i class="fas fa-edit me-2"></i>Edit</button></li>
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><button class="dropdown-item text-danger" type="button" onclick="if (confirm('Delete {{ blueprint.name|escapejs }}? This cannot be undone.')) deleteBlueprint('{{ blueprint.id }}')"><i class="fas fa-trash me-2"></i>Delete</button></li>
+                                        <li><button class="dropdown-item text-danger btn-bp-delete" type="button"
+                                                    data-blueprint-id="{{ blueprint.id }}"
+                                                    data-blueprint-name="{{ blueprint.name }}"><i class="fas fa-trash me-2"></i>Delete</button></li>
                                     </ul>
                                 </div>
                             </div>
@@ -370,6 +374,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    document.querySelectorAll('.btn-bp-preview').forEach((button) => {
+        button.addEventListener('click', () => previewBlueprint(button.dataset.blueprintId));
+    });
+    document.querySelectorAll('.btn-bp-remove').forEach((button) => {
+        button.addEventListener('click', () => removeBlueprint(button.dataset.blueprintId, button.dataset.blueprintName));
+    });
+    document.querySelectorAll('.btn-bp-edit').forEach((button) => {
+        button.addEventListener('click', () => editBlueprint(button.dataset.blueprintId));
+    });
+    document.querySelectorAll('.btn-bp-delete').forEach((button) => {
+        button.addEventListener('click', () => deleteBlueprint(button.dataset.blueprintId, button.dataset.blueprintName));
+    });
+
     // Handle run button in modal
     document.getElementById('runBlueprintBtn').addEventListener('click', function() {
         runBlueprint();
@@ -457,7 +474,11 @@ function runBlueprint() {
     // Simulate blueprint execution (in real implementation, this would call the actual blueprint)
     setTimeout(() => {
         const output = simulateBlueprintExecution(window.currentBlueprint, input);
-        outputDiv.innerHTML = `<pre class="mb-0">${output}</pre>`;
+        outputDiv.replaceChildren();
+        const pre = document.createElement('pre');
+        pre.className = 'mb-0';
+        pre.textContent = output;
+        outputDiv.appendChild(pre);
         showStatus('Blueprint completed successfully', 'success');
         if (runBtn) {
             runBtn.disabled = false;
@@ -489,35 +510,37 @@ function showStatus(message, type) {
 }
 
 function previewBlueprint(blueprintId) {
-    window.open(`/blueprint/${blueprintId}/`, '_blank');
+    window.open(`/blueprint/${encodeURIComponent(blueprintId)}/`, '_blank');
 }
 
-function removeBlueprint(blueprintId) {
-    if (confirm('Are you sure you want to remove this blueprint from your library?')) {
-        fetch(`/blueprint-library/remove/${blueprintId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Failed to remove blueprint'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while removing the blueprint');
-        });
+function removeBlueprint(blueprintId, blueprintName) {
+    const label = blueprintName || 'this blueprint';
+    if (!confirm(`Remove ${label} from your library?`)) {
+        return;
     }
+    fetch(`/blueprint-library/remove/${encodeURIComponent(blueprintId)}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to remove blueprint'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while removing the blueprint');
+    });
 }
 
 function editBlueprint(blueprintId) {
-    fetch(`/v1/blueprints/custom/${blueprintId}/`)
+    fetch(`/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`)
         .then(response => response.json())
         .then(blueprint => {
             document.getElementById('edit_blueprint_id').value = blueprint.id;
@@ -537,26 +560,28 @@ function editBlueprint(blueprintId) {
         });
 }
 
-function deleteBlueprint(blueprintId) {
-    if (confirm('Are you sure you want to delete this custom blueprint? This action cannot be undone.')) {
-        fetch(`/v1/blueprints/custom/${blueprintId}/`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            }
-        })
-        .then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                alert('Error: Failed to delete blueprint');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while deleting the blueprint');
-        });
+function deleteBlueprint(blueprintId, blueprintName) {
+    const label = blueprintName || 'this custom blueprint';
+    if (!confirm(`Delete ${label}? This cannot be undone.`)) {
+        return;
     }
+    fetch(`/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Error: Failed to delete blueprint');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting the blueprint');
+    });
 }
 </script>
 
