@@ -164,6 +164,51 @@ class TestAssertSafeBlueprintSource:
             "result = object()\ncontent = getattr(result, 'final_output', '')\n"
         )
 
+    @pytest.mark.parametrize(
+        "src,match",
+        [
+            ("import os as o\no.system('id')\n", r"os\.system"),
+            ("import os as o\no.remove('/tmp/x')\n", r"os\.remove"),
+            ("import os as o\no.open('/tmp/x', 1)\n", r"os\.open"),
+            ("import os as o\ngateway = getattr(o, 'system')\n", r"getattr\(os,"),
+            ("import os\nx = os\nx.system('id')\n", r"os\.system"),
+            ("import os as o\nx = o\nx.unlink('/tmp/x')\n", r"os\.unlink"),
+            (
+                "import asyncio as aio\naio.create_connection(None, '127.0.0.1', 80)\n",
+                r"asyncio\.create_connection",
+            ),
+            (
+                "import asyncio as aio\ngateway = getattr(aio, 'create_connection')\n",
+                r"getattr\(asyncio,",
+            ),
+        ],
+    )
+    def test_os_asyncio_import_alias_cannot_bypass_owner_bans(self, src, match):
+        """import os as o / x = os must not bypass owner-bound os.* / asyncio.* bans."""
+        with pytest.raises(ValueError, match=match):
+            assert_safe_blueprint_source(src)
+
+    def test_import_os_path_as_does_not_mark_as_os_module(self):
+        """``import os.path as osp`` is not the os module — osp.exists stays ok."""
+        assert_safe_blueprint_source(
+            "import os.path as osp\nok = osp.exists('/tmp')\n"
+        )
+
+    @pytest.mark.parametrize(
+        "src,match",
+        [
+            ("import posix\nposix.system('id')\n", r"posix"),
+            ("import posix as p\np.system('id')\n", r"posix"),
+            ("from posix import system\n", r"posix"),
+            ("import nt\n", r"nt"),
+            ("import _posixsubprocess\n", r"_posixsubprocess"),
+        ],
+    )
+    def test_posix_nt_twin_modules_banned(self, src, match):
+        """posix/nt/_posixsubprocess re-expose os process APIs — ban the imports."""
+        with pytest.raises(ValueError, match=match):
+            assert_safe_blueprint_source(src)
+
     def test_os_remove_fails(self):
         with pytest.raises(ValueError, match=r"os\.remove"):
             assert_safe_blueprint_source("import os\nos.remove('/tmp/x')\n")

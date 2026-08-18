@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import os
+from dataclasses import dataclass, field
 from typing import Final
 
 # Top-level modules that must never appear in user blueprint imports.
@@ -32,6 +33,10 @@ BANNED_MODULES: Final[frozenset[str]] = frozenset(
         "signal",
         "code",
         "codeop",
+        # Platform modules backing ``os`` (``posix.system`` / ``nt`` twin of os.*)
+        "posix",
+        "nt",
+        "_posixsubprocess",
         # HTTP / network clients (SSRF / secret exfil)
         "urllib",
         "urllib3",
@@ -233,6 +238,75 @@ def sandbox_enabled() -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "y", "t", "on")
 
 
+@dataclass
+class _ModuleAliases:
+    """Local names bound to ``os`` / ``asyncio`` (import-as and simple assigns)."""
+
+    os_names: set[str] = field(default_factory=lambda: {"os"})
+    asyncio_names: set[str] = field(default_factory=lambda: {"asyncio"})
+
+    def is_os(self, name: str) -> bool:
+        return name in self.os_names
+
+    def is_asyncio(self, name: str) -> bool:
+        return name in self.asyncio_names
+
+
+def _collect_module_aliases(tree: ast.AST) -> _ModuleAliases:
+    """Map ``import os as o`` / ``x = os`` so owner-bound bans still apply.
+
+    Owner checks for ``os.*`` / ``asyncio.*`` used to require the literal name
+    ``os`` / ``asyncio``, so ``import os as o; o.system(...)`` and
+    ``getattr(o, "system")`` bypassed the Attribute / getattr gates.
+    """
+    aliases = _ModuleAliases()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                # Exact module only — ``import os.path as osp`` is not ``os``.
+                if alias.name == "os":
+                    aliases.os_names.add(alias.asname or "os")
+                elif alias.name == "asyncio":
+                    aliases.asyncio_names.add(alias.asname or "asyncio")
+        elif isinstance(node, ast.ImportFrom) and node.module is None:
+            for alias in node.names:
+                if alias.name == "os":
+                    aliases.os_names.add(alias.asname or "os")
+                elif alias.name == "asyncio":
+                    aliases.asyncio_names.add(alias.asname or "asyncio")
+
+    # Fixpoint: ``x = os`` / ``y = x`` after import-as (walk order ≠ exec order).
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            src_name: str | None = None
+            targets: list[ast.Name] = []
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name):
+                src_name = node.value.id
+                targets = [t for t in node.targets if isinstance(t, ast.Name)]
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and isinstance(node.value, ast.Name)
+            ):
+                src_name = node.value.id
+                targets = [node.target]
+            if src_name is None or not targets:
+                continue
+            if aliases.is_os(src_name):
+                for t in targets:
+                    if t.id not in aliases.os_names:
+                        aliases.os_names.add(t.id)
+                        changed = True
+            elif aliases.is_asyncio(src_name):
+                for t in targets:
+                    if t.id not in aliases.asyncio_names:
+                        aliases.asyncio_names.add(t.id)
+                        changed = True
+    return aliases
+
+
 def assert_safe_blueprint_source(source: str) -> None:
     """Raise ``ValueError`` if *source* uses banned constructs.
 
@@ -244,11 +318,12 @@ def assert_safe_blueprint_source(source: str) -> None:
     except SyntaxError as exc:
         raise ValueError(f"Blueprint source has invalid syntax: {exc}") from exc
 
+    aliases = _collect_module_aliases(tree)
     for node in ast.walk(tree):
-        _check_node(node)
+        _check_node(node, aliases)
 
 
-def _check_node(node: ast.AST) -> None:
+def _check_node(node: ast.AST, aliases: _ModuleAliases) -> None:
     if isinstance(node, ast.Import):
         for alias in node.names:
             _reject_module(alias.name, node)
@@ -289,7 +364,7 @@ def _check_node(node: ast.AST) -> None:
         return
 
     if isinstance(node, ast.Call):
-        _check_call(node)
+        _check_call(node, aliases)
         return
 
     if isinstance(node, ast.Attribute):
@@ -344,7 +419,7 @@ def _is_path_ctor_receiver(func: ast.Attribute) -> bool:
     return False
 
 
-def _check_call(node: ast.Call) -> None:
+def _check_call(node: ast.Call, aliases: _ModuleAliases) -> None:
     name = _call_func_name(node)
     if name is None:
         return
@@ -365,19 +440,20 @@ def _check_call(node: ast.Call) -> None:
     # getattr(os, "system") / getattr(asyncio, "create_subprocess_exec") bypass
     # Attribute-node bans when the attr name is a string constant — reject those.
     if name == "getattr":
-        _check_getattr_escape(node)
+        _check_getattr_escape(node, aliases)
 
     # os.* / asyncio.* owner checks before builtin open() so ``os.open`` is
     # banned outright and does not fall through to read-mode open() logic.
+    # Alias-aware: ``import os as o; o.system`` must not bypass ``os.system``.
     if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
         owner = node.func.value.id
         attr = node.func.attr
-        if owner == "os" and attr in _BANNED_OS_ATTRS:
+        if aliases.is_os(owner) and attr in _BANNED_OS_ATTRS:
             raise ValueError(
                 f"Banned call to os.{attr} in user blueprint "
                 f"(line {getattr(node, 'lineno', '?')})"
             )
-        if owner == "asyncio" and attr in _BANNED_ASYNCIO_ATTRS:
+        if aliases.is_asyncio(owner) and attr in _BANNED_ASYNCIO_ATTRS:
             raise ValueError(
                 f"Banned call to asyncio.{attr} in user blueprint "
                 f"(line {getattr(node, 'lineno', '?')})"
@@ -408,12 +484,13 @@ def _check_call(node: ast.Call) -> None:
             )
 
 
-def _check_getattr_escape(node: ast.Call) -> None:
+def _check_getattr_escape(node: ast.Call, aliases: _ModuleAliases) -> None:
     """Reject ``getattr(os, "system")`` / ``getattr(asyncio, "…")`` constant escapes.
 
     Direct ``os.system`` is already banned via Attribute checks; reflection with
     a literal attribute name must not reopen those APIs. Dynamic attribute names
     (variables / expressions) are left to runtime policy, matching open(mode=).
+    Also covers ``import os as o; getattr(o, "system")``.
     """
     if len(node.args) < 2:
         return
@@ -424,12 +501,12 @@ def _check_getattr_escape(node: ast.Call) -> None:
         return
     owner = owner_node.id
     attr = attr_node.value
-    if owner == "os" and attr in _BANNED_OS_ATTRS:
+    if aliases.is_os(owner) and attr in _BANNED_OS_ATTRS:
         raise ValueError(
             f"Banned getattr(os, {attr!r}) in user blueprint "
             f"(line {getattr(node, 'lineno', '?')})"
         )
-    if owner == "asyncio" and (
+    if aliases.is_asyncio(owner) and (
         attr in _BANNED_ASYNCIO_ATTRS or attr in BANNED_CALL_NAMES
     ):
         raise ValueError(
