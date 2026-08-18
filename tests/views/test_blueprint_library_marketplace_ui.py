@@ -1,18 +1,19 @@
-"""Static checks for GitHub marketplace tab JS in blueprint_library.html."""
+"""Static checks for GitHub marketplace tab JS in blueprint_library.js."""
 
 from pathlib import Path
 
-TEMPLATE = (
+JS = (
     Path(__file__).resolve().parents[2]
     / "src"
     / "swarm"
-    / "templates"
-    / "blueprint_library.html"
+    / "static"
+    / "js"
+    / "blueprint_library.js"
 )
 
 
 def _js() -> str:
-    return TEMPLATE.read_text(encoding="utf-8")
+    return JS.read_text(encoding="utf-8")
 
 
 def test_marketplace_rejects_non_ok_http_status():

@@ -151,9 +151,9 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 
 ### Residual inline needs
 
-Django operator templates still ship **inline `<script>` blocks** (library, my_blueprints, and some remaining pages) and many **`style=""` attributes**. Until those move to external JS/CSS, prod CSP keeps `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`. That blocks third-party script/style hosts while remaining compatible with the current templates. Prefer extracting inline scripts over adding more `'unsafe-*'` directives.
+Django operator templates have moved page logic out of inline `<script>` blocks; residual CSP friction is mainly **`style=""` attributes** and a few **inline `onclick=` handlers** (e.g. library search/show-more, creator reset). Until those move to external CSS / `data-action` delegation, prod CSP keeps `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`. That blocks third-party script/style hosts while remaining compatible with the current templates. Prefer extracting inline handlers/styles over adding more `'unsafe-*'` directives.
 
-**Extraction progress:** page logic now lives under `static/js/` and loads via `{% static %}` for `settings_dashboard` (`json_script` data island), `teams_launch`, `session_explorer` (feed/limit via `data-*` on `#se-app`), `teams_admin`, `agent_creator`, and `team_creator` (`json_script` profiles island). Remaining operator pages and inline `style=""` stay; CSP policy is unchanged until more pages are extracted.
+**Extraction progress:** page logic now lives under `static/js/` and loads via `{% static %}` for `settings_dashboard` (`json_script` data island), `teams_launch`, `session_explorer` (feed/limit via `data-*` on `#se-app`), `teams_admin`, `agent_creator`, `team_creator` (`json_script` profiles island), `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator` (form `action` / `data-create-url`), and `session_detail` (`json_script` delegations island). Inline `style=""` and leftover `onclick=` stay; CSP policy is unchanged until those are cleaned up.
 
 ---
 

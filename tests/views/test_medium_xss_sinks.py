@@ -19,7 +19,7 @@ SIMPLE_LOGIC = REST_JS / "simpleLogic.js"
 MESSENGER_LOGIC = REST_JS / "messengerLogic.js"
 BLUEPRINT_MANAGER = REST_JS / "modules" / "blueprintManager.js"
 SESSION_EXPLORER = ROOT / "src" / "swarm" / "static" / "js" / "session_explorer.js"
-BLUEPRINT_CREATOR = ROOT / "src" / "swarm" / "templates" / "blueprint_creator.html"
+BLUEPRINT_CREATOR = ROOT / "src" / "swarm" / "static" / "js" / "blueprint_creator.js"
 PROFILES = ROOT / "src" / "swarm" / "templates" / "profiles.html"
 
 _INNERHTML_MESSAGE_SINK = re.compile(

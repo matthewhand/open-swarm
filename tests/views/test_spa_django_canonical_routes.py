@@ -145,15 +145,26 @@ class TestUxShellTemplateContracts:
 
     def test_blueprint_library_ships_client_pagination(self, client):
         from django.contrib.auth.models import User
+        from pathlib import Path
 
         user = User.objects.create_user(username="uxlib", password="ux-lib-pass")
         client.force_login(user)
         response = client.get("/blueprint-library/")
         assert response.status_code == 200
         html = response.content.decode()
-        assert "BP_PAGE_SIZE" in html
+        assert "blueprint_library.js" in html
+        assert "<script>\n// Client-side page size" not in html
         assert "Show more" in html
         assert "bpShowMore" in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "blueprint_library.js"
+        ).read_text(encoding="utf-8")
+        assert "BP_PAGE_SIZE" in js
 
     def test_session_explorer_ships_scroll_containment(self, client):
         from django.contrib.auth.models import User
@@ -248,6 +259,7 @@ class TestUxShellTemplateContracts:
 
     def test_my_blueprints_runner_posts_chat_completions(self, client):
         from django.contrib.auth.models import User
+        from pathlib import Path
 
         user = User.objects.create_user(username="uxmb", password="ux-mb-pass")
         client.force_login(user)
@@ -256,10 +268,20 @@ class TestUxShellTemplateContracts:
         html = response.content.decode()
         assert "Simulate run (demo)" not in html
         assert "Client-side demo only" not in html
-        assert "/v1/chat/completions" in html
+        assert "my_blueprints.js" in html
+        assert "<script>\ndocument.addEventListener('DOMContentLoaded'" not in html
         assert "Run via API" in html
-        assert "/chat?blueprint=" in html
         assert "/teams/launch/" in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "my_blueprints.js"
+        ).read_text(encoding="utf-8")
+        assert "/v1/chat/completions" in js
+        assert "/chat?blueprint=" in js
 
     def test_settings_unwired_actions_are_disabled(self, client):
         from django.contrib.auth.models import User
