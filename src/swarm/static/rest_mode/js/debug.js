@@ -1,8 +1,9 @@
 // src/swarm/static/rest_mode/js/debug.js
 
 import { showToast } from './toast.js';
-import { chatHistory } from './modules/state.js'; 
-import { contextVariables } from './modules/state.js'; 
+import { escapeHtml } from './htmlSafe.js';
+import { chatHistory } from './modules/state.js';
+import { contextVariables } from './modules/state.js';
 export { debugLog } from './modules/debugLogger.js'; 
 
 /**
@@ -46,16 +47,21 @@ function renderRelevantDebugInfo() {
     const { role, content, sender, metadata } = latestMessage;
 
     debugContent.innerHTML = `
-        <p><strong>Role:</strong> ${role}</p>
-        <p><strong>Sender:</strong> ${sender}</p>
-        <p><strong>Content:</strong> ${content || "No content provided."}</p>
-        <p><strong>Metadata:</strong> <pre>${JSON.stringify(metadata || {}, null, 2)}</pre></p>
+        <p><strong>Role:</strong> ${escapeHtml(role)}</p>
+        <p><strong>Sender:</strong> ${escapeHtml(sender)}</p>
+        <p><strong>Content:</strong> ${escapeHtml(content || "No content provided.")}</p>
+        <p><strong>Metadata:</strong> <pre>${escapeHtml(JSON.stringify(metadata || {}, null, 2))}</pre></p>
     `;
 
     if (contextVariables.active_agent_name) {
         const activeAgentElement = document.createElement("div");
         activeAgentElement.className = "debug-active-agent";
-        activeAgentElement.innerHTML = `<strong>Active Agent:</strong> ${contextVariables.active_agent_name}`;
+        const label = document.createElement("strong");
+        label.textContent = "Active Agent:";
+        activeAgentElement.appendChild(label);
+        activeAgentElement.appendChild(
+            document.createTextNode(` ${contextVariables.active_agent_name}`),
+        );
         debugContent.appendChild(activeAgentElement);
     }
 

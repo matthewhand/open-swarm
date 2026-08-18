@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
 - **`make dev` live-reload:** `docker-compose.dev.yml` now overrides CMD to `uvicorn --reload` (workers=1) instead of claiming Django runserver autoreload; drop stale hatchling-irrelevant `open_swarm.egg-info` anonymous volume
 - **Chat websocket auth messaging:** anonymous connects accept-then-close with code **4401**; SPA distinguishes session-required vs ASGI/unreachable and clarifies session cookie ≠ Settings API token; journey capture waits for the Connected/Unavailable badge
 - **rest_mode chatLogic ESM:** export `initializeChatLogic` for `ui.js` (was a broken import); demo chat helpers append via `textContent`
+- **CLI stream cleanup:** `CliAdapter.stream_run` terminates the process group on generator `aclose`/cancel (SSE client disconnect); chat/responses streaming views `aclose` blueprint generators in `finally`
+- **rest_mode debug/settings XSS:** escape debug pane role/sender/content/metadata and LLM settings field values via `htmlSafe.js`
 - **SPA honesty:** Teams/Blueprints pages no longer invent demo rows on API failure — empty + alert with Django deep-links; Launch is a real `/chat?blueprint=…` link (not a simulated timeout)
 - **Mobile dock:** Chat tab + `aria-current` for SPA routes; Settings remains on the top-bar icon
 - **Chat Unavailable CTA layout:** Sign-in/Reconnect alert uses `shrink-0` so the fixed-height chat column cannot collapse it

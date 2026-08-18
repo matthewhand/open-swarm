@@ -93,3 +93,19 @@ def test_messenger_logic_appends_messages_via_textcontent():
     source = MESSENGER_LOGIC.read_text(encoding="utf-8")
     assert "textContent" in source
     assert _INNERHTML_MESSAGE_SINK.search(source) is None
+
+
+def test_debug_js_escapes_message_fields():
+    source = (REST_JS / "debug.js").read_text(encoding="utf-8")
+    assert "escapeHtml(role)" in source
+    assert "escapeHtml(sender)" in source
+    assert "escapeHtml(content" in source
+    assert "createTextNode" in source
+    assert re.search(r"Active Agent:</strong>\s*\$\{", source) is None
+
+
+def test_settings_js_escapes_llm_config_fields():
+    source = (REST_JS / "settings.js").read_text(encoding="utf-8")
+    assert "escapeHtml(key)" in source
+    assert "escapeAttr(value)" in source
+    assert re.search(r'value="\$\{value\}"', source) is None

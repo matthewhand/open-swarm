@@ -1,6 +1,7 @@
 const DEBUG_MODE = true;
 
 import { showToast } from './toast.js';
+import { escapeAttr, escapeHtml } from './htmlSafe.js';
 
 export let llmConfig = {};
 
@@ -49,11 +50,13 @@ function updateLLMSettingsPane(config) {
         return;
     }
 
+    // Escape keys/values — config may include provider strings from disk/env.
     llmContainer.innerHTML = Object.entries(config)
         .map(([mode, details]) => {
             const isDefault = mode === 'default';
+            const safeMode = escapeAttr(mode);
             const toggleHTML = `
-                <div class="svg-toggle ${isDefault ? 'disabled' : ''}" data-state="on" id="toggle-${mode}">
+                <div class="svg-toggle ${isDefault ? 'disabled' : ''}" data-state="on" id="toggle-${safeMode}">
                     <img src="/static/rest_mode/svg/toggle_on.svg" alt="Toggle On">
                 </div>
             `;
@@ -61,16 +64,17 @@ function updateLLMSettingsPane(config) {
             const fields = Object.entries(details)
                 .map(([key, value]) => `
                     <div class="llm-field">
-                        <label>${key}:</label>
-                        <input type="text" value="${value}" readonly>
+                        <label>${escapeHtml(key)}:</label>
+                        <input type="text" value="${escapeAttr(value)}" readonly>
                     </div>
                 `)
                 .join('');
 
+            const modeLabel = escapeHtml(mode.charAt(0).toUpperCase() + mode.slice(1));
             return `
                 <div class="llm-mode collapsible">
                     <h4 class="collapsible-toggle">
-                        ${toggleHTML} ${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode
+                        ${toggleHTML} ${modeLabel} Mode
                         <span>▼</span>
                     </h4>
                     <div class="collapsible-content hidden">
