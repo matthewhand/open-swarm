@@ -328,19 +328,30 @@ class ResponsesView(APIView):
         # Streaming is always inline. `store:false` can't be polled (nothing is
         # persisted), so it always takes the inline blocking path.
         wait_seconds = _resolve_sync_wait(request_data, background)
+        memory_user_id = getattr(self, "_owner_principal", None)
         # In test mode, skip the background worker and run inline for determinism.
         if wait_seconds is not None and not stream and store and not os.environ.get("SWARM_TEST_MODE"):
             return await self._handle_hybrid(
-                request_id, model_name, messages, params, previous_response_id, wait_seconds
+                request_id, model_name, messages, params, previous_response_id, wait_seconds,
+                user_id=memory_user_id,
             )
 
         if hasattr(blueprint_instance, "set_params"):
             blueprint_instance.set_params(params)
         if stream:
-            return await self._handle_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
-        return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name, store, previous_response_id)
+            return await self._handle_streaming(
+                blueprint_instance, messages, request_id, model_name, store, previous_response_id,
+                user_id=memory_user_id,
+            )
+        return await self._handle_non_streaming(
+            blueprint_instance, messages, request_id, model_name, store, previous_response_id,
+            user_id=memory_user_id,
+        )
 
-    async def _handle_hybrid(self, request_id, model_name, messages, params, previous_response_id, wait_seconds) -> Response:
+    async def _handle_hybrid(
+        self, request_id, model_name, messages, params, previous_response_id, wait_seconds,
+        user_id: str | None = None,
+    ) -> Response:
         """Run on a background worker; wait up to ``wait_seconds`` for completion.
 
         Returns the completed result inline (200) if it finishes within the window,
@@ -352,15 +363,20 @@ class ResponsesView(APIView):
             request_id, model_name, "", previous_response_id, None, None, status="queued"
         )
         # The _task spec lets a server restart resume this (see resume_pending_responses).
-        owner = getattr(self, "_owner_principal", None)
+        owner = user_id if user_id is not None else getattr(self, "_owner_principal", None)
         await sync_to_async(responses_store.save)({
             "id": response_id, "object": "response", "response": payload, "messages": None,
             "owner": owner,
-            "_task": _task_spec(request_id, model_name, list(messages), params, previous_response_id),
+            "_task": _task_spec(
+                request_id, model_name, list(messages), params, previous_response_id, owner=owner,
+            ),
         })
         # Daemon thread with its own event loop — decoupled from the request
         # lifecycle so it survives after we return the response.
-        _spawn_worker(response_id, request_id, model_name, list(messages), params, previous_response_id)
+        _spawn_worker(
+            response_id, request_id, model_name, list(messages), params, previous_response_id,
+            user_id=owner,
+        )
         logger.info(f"[ReqID: {request_id}] /v1/responses task {response_id} started (wait={wait_seconds}s, model '{model_name}').")
 
         if wait_seconds <= 0:
@@ -378,7 +394,10 @@ class ResponsesView(APIView):
         return Response((rec or {}).get("response") or payload, status=status.HTTP_202_ACCEPTED)
 
     @async_retry(max_attempts=3, base_delay=1.0, backoff_factor=2.0)
-    async def _handle_non_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> Response:
+    async def _handle_non_streaming(
+        self, blueprint_instance, messages, request_id, model_name, store=True,
+        previous_response_id=None, user_id: str | None = None,
+    ) -> Response:
         """Consume the blueprint generator, keep the last message, shape a response object.
 
         Retries transient (5xx/connection) failures with exponential backoff
@@ -387,7 +406,8 @@ class ResponsesView(APIView):
         final_message = None
         backend_meta = None
         try:
-            async_generator = blueprint_instance.run(messages, stream=False)
+            # user_id scopes memory per authenticated principal (not shared "default").
+            async_generator = blueprint_instance.run(messages, stream=False, user_id=user_id)
             async for chunk in async_generator:
                 if isinstance(chunk, dict) and chunk.get("meta"):
                     backend_meta = chunk["meta"]  # which CLI(s) answered (system_fingerprint)
@@ -420,7 +440,10 @@ class ResponsesView(APIView):
             )
         return Response(payload, status=status.HTTP_200_OK)
 
-    async def _handle_streaming(self, blueprint_instance, messages, request_id, model_name, store=True, previous_response_id=None) -> StreamingHttpResponse:
+    async def _handle_streaming(
+        self, blueprint_instance, messages, request_id, model_name, store=True,
+        previous_response_id=None, user_id: str | None = None,
+    ) -> StreamingHttpResponse:
         """Stream ``response.output_text.delta`` SSE events, then a final completed response."""
         response_id = f"resp_{request_id}"
 
@@ -429,7 +452,8 @@ class ResponsesView(APIView):
             backend_meta = None
             async_generator = None
             try:
-                async_generator = blueprint_instance.run(messages, stream=True)
+                # user_id scopes memory per authenticated principal (not shared "default").
+                async_generator = blueprint_instance.run(messages, stream=True, user_id=user_id)
                 async for chunk in async_generator:
                     if isinstance(chunk, dict) and chunk.get("meta"):
                         backend_meta = chunk["meta"]
@@ -581,7 +605,7 @@ class _Cancelled(Exception):
 
 async def _consume_blueprint(
     blueprint_instance: Any, messages: list[dict[str, Any]], cancel_check: Any = None,
-    on_progress: Any = None,
+    on_progress: Any = None, user_id: str | None = None,
 ) -> tuple[str, dict | None]:
     """Drive a blueprint to its final answer. Returns (answer, backend_meta).
 
@@ -590,10 +614,11 @@ async def _consume_blueprint(
     :class:`_Cancelled`. ``on_progress(entry)`` (if given) is called for each
     structured progress chunk that carries a ``delegation`` payload — used to
     stream per-delegation status into the persisted record.
+    ``user_id`` scopes memory per authenticated principal.
     """
     final_message = None
     backend_meta = None
-    async for chunk in blueprint_instance.run(messages, stream=False):
+    async for chunk in blueprint_instance.run(messages, stream=False, user_id=user_id):
         if cancel_check is not None and cancel_check():
             raise _Cancelled()
         if isinstance(chunk, dict):
@@ -612,7 +637,9 @@ async def _consume_blueprint(
     return final_message["content"], backend_meta
 
 
-def _task_spec(request_id, model_name, messages, params, previous_response_id) -> dict[str, Any]:
+def _task_spec(
+    request_id, model_name, messages, params, previous_response_id, owner: str | None = None,
+) -> dict[str, Any]:
     """The minimal spec needed to (re)run an async task — persisted for resume."""
     return {
         "request_id": request_id,
@@ -620,12 +647,13 @@ def _task_spec(request_id, model_name, messages, params, previous_response_id) -
         "messages": messages,
         "params": params,
         "previous_response_id": previous_response_id,
+        "owner": owner,
     }
 
 
 def _spawn_worker(
     response_id, request_id, model_name, messages, params, previous_response_id,
-    *, acquire: bool = True,
+    *, acquire: bool = True, user_id: str | None = None,
 ) -> None:
     """Start a daemon worker thread (own event loop) for an async response task.
 
@@ -633,6 +661,7 @@ def _spawn_worker(
     :class:`rest_framework.exceptions.Throttled` if the pool is full
     (see ``SWARM_MAX_INFLIGHT``). Resume paths pass ``acquire=False`` after
     taking a slot themselves (or skip when full).
+    ``user_id`` scopes memory per authenticated principal in the worker run.
     """
     from rest_framework.exceptions import Throttled
 
@@ -647,7 +676,10 @@ def _spawn_worker(
         )
     threading.Thread(
         target=_run_background_response,
-        args=(response_id, request_id, model_name, list(messages), params, previous_response_id),
+        args=(
+            response_id, request_id, model_name, list(messages), params,
+            previous_response_id, user_id,
+        ),
         daemon=True,
     ).start()
 
@@ -659,6 +691,7 @@ def _run_background_response(
     messages: list[dict[str, Any]],
     params: dict | None,
     previous_response_id: str | None,
+    user_id: str | None = None,
 ) -> None:
     """Worker (own thread + event loop): run the blueprint, update the stored record
     queued -> in_progress -> completed/failed/cancelled, with execution timing.
@@ -669,11 +702,16 @@ def _run_background_response(
     from swarm.core.concurrency import release
 
     started = time.time()
-    spec = _task_spec(request_id, model_name, messages, params, previous_response_id)
+    # Prefer explicit user_id; fall back to persisted record owner for resume.
+    existing = responses_store.load(response_id) or {}
+    owner = user_id if user_id is not None else existing.get("owner")
+    spec = _task_spec(
+        request_id, model_name, messages, params, previous_response_id, owner=owner,
+    )
     try:
         _run_background_response_body(
             response_id, request_id, model_name, messages, params, previous_response_id,
-            started, spec,
+            started, spec, user_id=owner,
         )
     finally:
         release()
@@ -688,6 +726,7 @@ def _run_background_response_body(
     previous_response_id: str | None,
     started: float,
     spec: dict[str, Any],
+    user_id: str | None = None,
 ) -> None:
     """Inner body of the background worker (slot already acquired)."""
 
@@ -766,11 +805,13 @@ def _run_background_response_body(
                 exec_timeout = float(os.environ.get("SWARM_RESPONSES_EXEC_TIMEOUT", "600"))
             except ValueError:
                 exec_timeout = 600.0
+            memory_user_id = user_id if user_id is not None else spec.get("owner")
             return await asyncio.wait_for(
                 _consume_blueprint(
                     bp, messages,
                     cancel_check=lambda: _is_cancel_requested(response_id),
                     on_progress=_on_progress,
+                    user_id=memory_user_id,
                 ),
                 timeout=exec_timeout,
             )
@@ -833,6 +874,7 @@ def resume_pending_responses() -> int:
             record["id"], spec.get("request_id"), spec.get("model"),
             spec.get("messages") or [], spec.get("params"), spec.get("previous_response_id"),
             acquire=False,
+            user_id=spec.get("owner") or record.get("owner"),
         )
         resumed += 1
     if resumed:

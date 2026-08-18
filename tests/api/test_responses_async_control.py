@@ -92,7 +92,7 @@ def test_worker_does_not_overwrite_cancel_endpoint_status(monkeypatch):
     rid = "resp_cancel_race1"
     _save_state(rid, "in_progress")
 
-    async def _slow_then_done(bp, messages, cancel_check=None, on_progress=None):
+    async def _slow_then_done(bp, messages, cancel_check=None, on_progress=None, user_id=None):
         # Simulate cancel landing mid-flight after the last cancel_check.
         _save_state(rid, "cancelled", with_task=False)
         return "should-not-persist", None

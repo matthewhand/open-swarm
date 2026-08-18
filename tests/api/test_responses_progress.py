@@ -10,7 +10,7 @@ from swarm.views.responses_views import _consume_blueprint
 
 
 class _FakeBlueprint:
-    async def run(self, messages, stream=False):
+    async def run(self, messages, stream=False, **kwargs):
         # two parallel delegations report in, then a final answer
         yield {
             "type": "delegation_progress", "content": "_• agent completed_",

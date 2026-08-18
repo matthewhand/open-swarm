@@ -241,7 +241,7 @@ class TestResponsesAsync:
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
         import swarm.views.responses_views as rv
 
-        async def _fast(bp, messages, cancel_check=None, on_progress=None):
+        async def _fast(bp, messages, cancel_check=None, on_progress=None, user_id=None):
             return "You said: ping", None
 
         monkeypatch.setattr(rv, "_consume_blueprint", _fast)
@@ -294,7 +294,7 @@ class TestResponsesAsync:
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
         import swarm.views.responses_views as rv
 
-        async def _slow(bp, messages, cancel_check=None, on_progress=None):
+        async def _slow(bp, messages, cancel_check=None, on_progress=None, user_id=None):
             await asyncio.sleep(0.8)
             return "You said: slow", None
 

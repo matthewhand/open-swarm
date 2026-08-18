@@ -178,7 +178,14 @@ class ChatCompletionsView(APIView):
 
     # --- Internal Helper Methods (Unchanged) ---
 
-    async def _handle_non_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> Response:
+    async def _handle_non_streaming(
+        self,
+        blueprint_instance,
+        messages: list[dict[str, str]],
+        request_id: str,
+        model_name: str,
+        user_id: str | None = None,
+    ) -> Response:
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
         final_message = None
@@ -192,7 +199,8 @@ class ChatCompletionsView(APIView):
             # LAST message — the same content the streaming path emits last.
             # Chunks carrying an explicit final marker (AgentInteraction.final)
             # short-circuit the scan.
-            async_generator = blueprint_instance.run(messages, stream=False)
+            # user_id scopes memory per authenticated principal (not shared "default").
+            async_generator = blueprint_instance.run(messages, stream=False, user_id=user_id)
             async for chunk in async_generator:
                 if isinstance(chunk, dict) and chunk.get("meta"):
                     backend_meta = chunk["meta"]  # which CLI(s) answered (system_fingerprint)
@@ -231,7 +239,14 @@ class ChatCompletionsView(APIView):
                 except Exception:
                     pass
 
-    async def _handle_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
+    async def _handle_streaming(
+        self,
+        blueprint_instance,
+        messages: list[dict[str, str]],
+        request_id: str,
+        model_name: str,
+        user_id: str | None = None,
+    ) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """
         logger.info(f"[ReqID: {request_id}] Processing streaming request for model '{model_name}'.")
         async def event_stream():
@@ -241,7 +256,8 @@ class ChatCompletionsView(APIView):
             async_generator = None
             try:
                 logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()...")
-                async_generator = blueprint_instance.run(messages, stream=True)
+                # user_id scopes memory per authenticated principal (not shared "default").
+                async_generator = blueprint_instance.run(messages, stream=True, user_id=user_id)
                 logger.debug(f"[ReqID: {request_id}] Got async generator. Starting iteration...")
                 async for chunk in async_generator:
                     logger.debug(f"[ReqID: {request_id}] Received stream chunk {chunk_index}: {chunk}")
@@ -428,10 +444,15 @@ class ChatCompletionsView(APIView):
             return await self._handle_background_chat(request_id, model_name, messages, blueprint_params)
 
         # --- Handle Streaming or Non-Streaming Response ---
+        memory_user_id = getattr(self, "_owner_principal", None)
         if stream:
-            return await self._handle_streaming(blueprint_instance, messages, request_id, model_name)
+            return await self._handle_streaming(
+                blueprint_instance, messages, request_id, model_name, user_id=memory_user_id
+            )
         else:
-            return await self._handle_non_streaming(blueprint_instance, messages, request_id, model_name)
+            return await self._handle_non_streaming(
+                blueprint_instance, messages, request_id, model_name, user_id=memory_user_id
+            )
 
     async def _handle_background_chat(self, request_id: str, model_name: str, messages, params) -> Response:
         """Queue a chat-completions task on the shared Responses worker; return a
@@ -444,14 +465,14 @@ class ChatCompletionsView(APIView):
         response_id = f"resp_{request_id}"
         rpayload = _build_response_payload(request_id, model_name, "", None, None, None, status="queued")
         # Same owner stamp as /v1/responses _handle_hybrid — GET poll fail-closes
-        # without it when ENABLE_API_AUTH is on.
+        # without it when ENABLE_API_AUTH is on. Also scopes memory per principal.
         owner = getattr(self, "_owner_principal", None)
         await sync_to_async(responses_store.save)({
             "id": response_id, "object": "response", "response": rpayload, "messages": None,
             "owner": owner,
-            "_task": _task_spec(request_id, model_name, list(messages), params, None),
+            "_task": _task_spec(request_id, model_name, list(messages), params, None, owner=owner),
         })
-        _spawn_worker(response_id, request_id, model_name, list(messages), params, None)
+        _spawn_worker(response_id, request_id, model_name, list(messages), params, None, user_id=owner)
         logger.info(f"[ReqID: {request_id}] /v1/chat/completions queued async task {response_id} (model '{model_name}').")
         ack = {
             "id": response_id,
