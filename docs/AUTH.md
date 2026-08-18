@@ -84,7 +84,7 @@ Session users who hit REST with a cookie get `user:<username>` and the same stri
 | Public without session | Landing SPA, `/teams/launch/`, `/profiles/`, agent-creator **GET**, login form |
 | Websocket chat `ws/ai-demo/<conversation_id>/` | Django **session cookie** via `AuthMiddlewareStack` only |
 
-Anonymous websocket connects are **accept-then-close** with code **4401** (`WS_AUTH_REQUIRED_CODE`) and reason `authentication required`, so the SPA can show a Sign-in CTA instead of an opaque failure.
+Anonymous websocket connects are **accept-then-close** with code **4401** (`WS_AUTH_REQUIRED_CODE`) and reason `authentication required`, so the SPA can show a Sign-in CTA instead of an opaque failure. `receive()` also re-checks session auth so a frame that races the close cannot append to a transcript or invoke a blueprint/LLM.
 
 Login: `/login/` and `/accounts/login/` → `custom_login`. POST is **not** CSRF-exempt; `next` is open-redirect hardened (rooted relative paths only).
 

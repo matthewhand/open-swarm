@@ -72,6 +72,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             await self.accept()
         else:
             # Accept first so the client sees close code 4401 (not 1006).
+            # Frames may still arrive before the close is processed — receive()
+            # re-checks auth so anonymous clients cannot hit the LLM path.
+            self.messages = []
             await self.accept()
             await self.close(
                 code=WS_AUTH_REQUIRED_CODE,
@@ -92,6 +95,16 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 del IN_MEMORY_CONVERSATIONS[cache_key]
 
     async def receive(self, text_data):
+        # Auth gate: accept-then-close 4401 leaves a race where a frame can
+        # land before the close is applied. Refuse unauthenticated receives
+        # (do not append to transcript or invoke blueprints / LLM).
+        if not getattr(self.user, "is_authenticated", False):
+            await self.close(
+                code=WS_AUTH_REQUIRED_CODE,
+                reason="authentication required",
+            )
+            return
+
         text_data_json = json.loads(text_data)
         message_text = text_data_json["message"]
 

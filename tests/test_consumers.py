@@ -897,6 +897,70 @@ class TestWebsocketIntegration:
 
     @pytest.mark.django_db
     @pytest.mark.asyncio
+    async def test_unauthenticated_receive_race_does_not_crash(self):
+        """Anonymous frame after accept must not AttributeError or hit LLM path.
+
+        connect() accept-then-closes with 4401; a concurrent client frame can
+        still reach receive() before the close is applied. Guard must refuse
+        without requiring ``self.messages`` from the authenticated branch.
+        """
+        from swarm.consumers import WS_AUTH_REQUIRED_CODE
+
+        communicator = WebsocketCommunicator(
+            DjangoChatConsumer.as_asgi(),
+            "/ws/chat/race-conv/",
+        )
+        communicator.scope["user"] = AnonymousUser()
+        communicator.scope["url_route"] = {
+            "kwargs": {"conversation_id": "race-conv"}
+        }
+
+        connected, _ = await communicator.connect()
+        assert connected
+        await communicator.send_to(text_data=json.dumps({"message": "pwned?"}))
+
+        saw_close = False
+        for _ in range(8):
+            try:
+                event = await communicator.receive_output(timeout=0.5)
+            except Exception:
+                break
+            if event.get("type") == "websocket.close":
+                assert event["code"] == WS_AUTH_REQUIRED_CODE
+                saw_close = True
+                break
+            # Must never emit chat HTML partials for anonymous frames.
+            assert event.get("type") != "websocket.send"
+
+        assert saw_close
+        await communicator.disconnect()
+
+    @pytest.mark.asyncio
+    async def test_receive_unauthenticated_closes_without_append(self):
+        """Unit: receive() for AnonymousUser closes 4401 and skips transcript."""
+        from swarm.consumers import WS_AUTH_REQUIRED_CODE
+
+        consumer = DjangoChatConsumer()
+        consumer.user = AnonymousUser()
+        consumer.messages = []
+        consumer.conversation_id = "anon-recv"
+        consumer.default_blueprint = None
+
+        with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+            with patch.object(
+                consumer, "respond_with_default_model", new_callable=AsyncMock
+            ) as mock_llm:
+                await consumer.receive(text_data=json.dumps({"message": "nope"}))
+
+        mock_close.assert_called_once_with(
+            code=WS_AUTH_REQUIRED_CODE,
+            reason="authentication required",
+        )
+        mock_llm.assert_not_called()
+        assert consumer.messages == []
+
+    @pytest.mark.django_db
+    @pytest.mark.asyncio
     async def test_authenticated_connection_accepted(self):
         """Authenticated WebSocket connection should be accepted."""
         User = get_user_model()
