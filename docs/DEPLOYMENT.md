@@ -70,6 +70,13 @@ swarm-api                 # ASGI server on :8000 (also powers websocket chat)
 docker compose up -d
 ```
 
+**SPA (`/` + `/chat`, ADR-001):** `webui/frontend/dist/` is gitignored. Local
+source checkouts need `cd webui/frontend && npm install && npm run build` (or
+`./scripts/build_frontend.sh`) once after pull, or `/` falls back to the Django
+template index. The **Dockerfile** multi-stage build bakes that `dist/` into
+the image, so `docker compose` / Fly deploys serve the SPA without a host-side
+Node install.
+
 Point any OpenAI client at `http://<host>:8000/v1` with
 `Authorization: Bearer $API_AUTH_TOKEN`.
 

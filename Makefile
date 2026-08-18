@@ -5,7 +5,7 @@ PY ?= uv run
 CLI ?= swarm-cli
 BIN ?= $(HOME)/.local/share/swarm/bin
 
-.PHONY: help dev test list-installed list-available build build-shim build-all-shims build-all-executables launch uninstall build-pyinstaller build-all-pyinstaller
+.PHONY: help dev test frontend list-installed list-available build build-shim build-all-shims build-all-executables launch uninstall build-pyinstaller build-all-pyinstaller
 
 COMPOSE ?= docker compose
 # Host-coupled CLI mapping (gitignored). Auto-included by `make dev` when present
@@ -19,6 +19,7 @@ help:
 	@echo "Common targets:"
 	@echo "  make dev                                # Containerized API with live code-reload (host :8002)"
 	@echo "  make test                               # Run the full test suite"
+	@echo "  make frontend                           # Build ADR-001 SPA (webui/frontend/dist)"
 	@echo "  make list-installed                     # List installed blueprint executables"
 	@echo "  make list-available                     # List available blueprints (bundled/user)"
 	@echo "  make launch NAME=codey MESSAGE=\"Hi\" # Launch installed executable with a message"
@@ -45,6 +46,10 @@ dev:
 
 test:
 	$(PY) python scripts/run_tests.py -q
+
+# Gitignored SPA assets for local `/` + `/chat` (Docker bakes these in-image).
+frontend:
+	./scripts/build_frontend.sh
 
 list-installed:
 	$(PY) $(CLI) list --installed

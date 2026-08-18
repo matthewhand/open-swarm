@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 
 
 ### Added
+- **Docker SPA bake:** multi-stage `Dockerfile` builds `webui/frontend/dist` (Node 22) and copies it into the runtime image so Docker/Fly pullers get ADR-001 `/` + `/chat` without a host-side `npm run build` (gitignored `dist/`; local checkouts still need that once — DEPLOYMENT.md)
 - **Settings credential checklist:** compact AUTH.md callout on `/settings/` (Chat/WS = session; `/v1/*` = Bearer or session; Explorer token bridge when API auth on; link to repo `docs/AUTH.md` — not served in-app)
 - **Auth operator golden path:** `tests/api/test_auth_operator_golden_path.py` — with `ENABLE_API_AUTH`, session + Bearer `POST /v1/responses` stamp owners; Session Explorer bridge lists both for the web login; REST IDOR stays same-principal (bridge ≠ API privilege)
 - **Pure MoA team path (no openai-agents):** `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; INFO logs on `moa.collect` / `moa.team` (champagne trace)

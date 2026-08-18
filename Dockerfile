@@ -1,3 +1,12 @@
+# ADR-001 SPA (`/` + `/chat`) is gitignored; bake dist into the image so
+# Docker/Fly pullers get the dashboard instead of Django index fallback.
+FROM node:22-bookworm-slim AS frontend
+WORKDIR /frontend
+COPY webui/frontend/package.json webui/frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund --legacy-peer-deps
+COPY webui/frontend/ ./
+RUN npm run build && test -f dist/index.html
+
 FROM python:3.11-slim
 
 # Build-time argument for runtime port (default: 8000)
@@ -18,6 +27,9 @@ WORKDIR /app
 
 # Copy all project files first (consider .dockerignore for efficiency)
 COPY . .
+# .dockerignore excludes webui/frontend/dist; copy the built SPA from the
+# frontend stage so Path("webui/frontend/dist") resolves at runtime.
+COPY --from=frontend /frontend/dist /app/webui/frontend/dist
 
 # Upgrade pip
 RUN pip install --upgrade pip setuptools wheel
