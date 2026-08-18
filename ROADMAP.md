@@ -151,7 +151,7 @@ parity is reached.
 
 - [x] **DECISION MADE (2026-06-11): drop both — executed 2026-06-11.** Removed `swarm/marketplace/` (Wagtail app), Wagtail/SAML blocks in settings.py + urls.py, wagtail/taggit/modelcluster pins from pyproject, the Wagtail-backed `MarketplaceBlueprintsView`/`MarketplaceMCPConfigsView` + routes, SAML env getters and `tests/unit/test_settings_saml.py`, and the wagtail/saml docs
   - [x] GitHub-topics discovery kept: service moved to `swarm/services/github_topics_service.py`; `Marketplace*GitHub*` endpoints and `ENABLE_GITHUB_MARKETPLACE` flag unchanged (`docs/github_marketplace.md`)
-  - [x] Stewie blueprint reviewed: no Wagtail coupling; works as a normal blueprint (its optional Django-app self-registration in `blueprints/stewie/settings.py` is independent of Wagtail)
+  - [x] Stewie blueprint reviewed: no Wagtail coupling; works as a normal blueprint (`blueprint_stewie.py`; nested Django leftovers later deleted)
 
 ### 3.5 Blueprint ecosystem rationalization (17 remaining blueprints)
 
