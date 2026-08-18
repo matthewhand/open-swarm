@@ -113,5 +113,18 @@ Fix checklist:
   ``playwright`` and that the process can actually spawn ``npx``.
 - First run may download Chromium; allow network or pre-install browsers.
 
+---
+
+## 8. MoA / `swarm-cli moa` common failures
+
+See [MOA.md](./MOA.md) for the model, flags, and team path. Short fixes:
+
+| Symptom | What it means | Fix |
+|---------|---------------|-----|
+| Grok seats `ok=False` / auth-ish stderr (“not signed in”, login, etc.) | Live `--backend grok` runs local `grok -p`; Open Swarm does **not** supply xAI credentials. | Sign in with the Grok CLI itself; probe with `swarm-cli cli-agents --check-auth`. Use `--backend fake` for offline/CI. |
+| `Error: --team requires --workdir` (exit **2**) | Team mode needs a specialist write workspace. `--cwd` is panel read context only. | Pass both: `--team --workdir /path/to/ws`. |
+| `--permission approve-all` refused (exit **5**) | Panelists are read-only; `approve-all` is never valid for MoA seats. | Use `approve-reads` (default) or `deny-all`. Specialists still write under `--team`. |
+| Soft panel / team failure (exit **1**, JSON still printed) | Unusable panel (`ok_count=0`) skips specialists and determination artifacts; or a specialist returns `ok=False`. Not a silent fake success. | Inspect `--json` / `-v` opinions and specialist `ok` fields; fix backend auth/responses or `--team-tasks` purposes. |
+| Broken `~/.cache` (or other XDG) symlink | `ensure_swarm_directories_exist` is best-effort per root — CLI import should not crash on a bad cache path. | Repair or remove the broken symlink; config/data dirs can still be created. Pin `XDG_*` / `HOME` if testing. |
 
 **Tip:** Most issues are caused by misconfigured API keys, missing dependencies, or a corrupted config file. Reviewing or resetting your config often resolves stubborn problems.

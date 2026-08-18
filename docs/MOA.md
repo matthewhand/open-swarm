@@ -234,6 +234,11 @@ bash docs/examples/moa-consensus-vs-team/scripts/capture_example_runs.sh
 bash docs/examples/moa-orchestrator/scripts/capture_example_runs.sh
 ```
 
+## Troubleshooting
+
+Common CLI failures (Grok not signed in, `--team` / `--workdir`, `approve-all`
+rejected, soft panel exit 1, broken XDG cache): [TROUBLESHOOTING.md §8](./TROUBLESHOOTING.md#8-moa--swarm-cli-moa-common-failures).
+
 ## Tests
 
 ```bash
