@@ -1,9 +1,9 @@
 # Builder config panels (web UI)
 
-> **Orphaned / historical (2026-08):** `BuilderPage` was **deleted** with the
-> ADR-001 SPA cut (`App.tsx` mounts `/` + `/chat` only). These panels and
-> screenshots document a former SPA surface. Day-to-day agent creation is the
-> Django operator UI at **`/agent-creator/`**. Pure helpers
+> **Orphaned / historical (2026-08):** `BuilderPage` **and** its React panel
+> components were **deleted** with the ADR-001 SPA cut (`App.tsx` mounts `/` +
+> `/chat` only). Screenshots below document a former SPA surface. Day-to-day
+> agent creation is the Django operator UI at **`/agent-creator/`**. Pure helpers
 > (`inferenceProfile.ts`, `toolCapabilities.ts`, `skills.ts`) and unit tests
 > remain valid; do not remount Builder.
 
@@ -93,12 +93,12 @@ under Playwright. 6 files / 34 tests pass clean.
 
 ![Builder full page](../screenshots/webui/builder-dark.png)
 
-## Builder e2e (Playwright) — skipped while unmounted
+## Builder e2e (Playwright) — removed
 
 `e2e/builder.spec.ts` historically route-mocked the API and drove the panels
-when `/builder` was mounted. It is **skipped** today (`test.skip`) because
-`App.tsx` has no `BuilderPage` route. Re-enable after remount; until then prefer
-Django `/agent-creator/` for operator creation flows.
+when `/builder` was mounted. The stub was **deleted** with the ADR-001 SPA cut
+(`App.tsx` mounts `/` + `/chat` only). Prefer Django `/agent-creator/` for
+operator creation flows.
 
 ## Bug-hunt: profile resolution declines when there's nothing to score
 

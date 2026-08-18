@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { resolve, rank, splitCandidate, buildTraitsConfig, candidatesFromEdits, cliForModel } from '../inferenceProfile'
-import { buildCandidates } from '../../components/InferenceProfilePanel'
+import {
+  resolve,
+  rank,
+  splitCandidate,
+  buildTraitsConfig,
+  candidatesFromEdits,
+  cliForModel,
+  buildCandidates,
+} from '../inferenceProfile'
 
 const CANDIDATES = {
   smart: { intelligence: 0.95, speed: 0.4, cost: 0.3 },

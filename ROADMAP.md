@@ -287,14 +287,15 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 
 ### 4.6 UX / SPA (medium)
 - [x] **Toast a11y** — DaisyUI `ToastItem` now `role="status"` + `aria-live`
-  (assertive for error/warning). Provider nesting on unmounted pages is leftover.
+  (assertive for error/warning). Orphan Builder panels / AuthContext deleted.
 - [ ] **Modal triple focus/dismiss** — native `<dialog>` + `focus-trap-react` +
   manual backdrop math (`Modal.tsx:84-105`); pick one.
 - [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
   (`:324`), no markdown/code rendering (`:301`).
 - [x] **BuilderPage / AgentCreatorPage / Teams / Blueprints / Settings SPA** —
-  deleted (ADR-001); `App.tsx` mounts `/` + `/chat` only. Canonical creator is
-  Django `/agent-creator/`.
+  deleted (ADR-001); `App.tsx` mounts `/` + `/chat` only. Orphan Builder panel
+  components + unused AuthContext deleted too; canonical creator is Django
+  `/agent-creator/`.
 - [x] **Django operator UI offline + CSP** — Bootstrap 5.3.3, Prism, Font Awesome
   vendored under `src/swarm/static/contrib/`; `base.html` + rest_mode marked use
   `{% static %}` / relative imports (no CDN). Prod (`DEBUG=False`) sets a minimal

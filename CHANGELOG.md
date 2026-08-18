@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Removed
+- **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`
 - **`swarm.extensions.blueprint` deprecation shim:** delete the package (`__init__` / `spinner` / `slash_commands`); import `swarm.core.blueprint_base`, `swarm.core.spinner`, and `swarm.core.slash_commands` instead. Remaining consolidation shims tracked in ROADMAP §2.1.
 - **Orphan argparse CLI trees:** delete `src/swarm/extensions/cli/` and unused `src/swarm/core/cli/` (dead-alias warning source); drop non-shipped `extensions.launchers.swarm_cli` / `swarm_wrapper`; relocate `AsyncInputHandler` → `swarm.core.async_input`, `prompt_user` → `swarm.core.config_manager`. `swarm-api` / `swarm-cli` both enter via `swarm.core.*` in pyproject; deprecated `extensions.launchers.swarm_api` shim kept for old `-m` imports. Tests that only covered the orphan trees removed.
 - **Agent Creator Pro leftovers:** delete unused `agent_creator_pro` view/template/JS/CSS; `/agent-creator-pro/` redirect to `/agent-creator/` retained
@@ -87,6 +88,7 @@ All notable changes to this project will be documented in this file.
 - **Login open redirect:** post-login `next` accepts only rooted same-origin paths; rejects `//evil`, backslash tricks, absolute/external URLs
 
 ### Removed
+- **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`
 - **Leftover `@csrf_exempt` on GET-only WebUI views:** `index`, `team_launcher`, `teams_export`, and unrouted `serve_swarm_config` in `web_views.py` (decorator was pointless on GET; token-auth chat/responses APIs unchanged)
 - **Dead `swarm.views.github_views`:** unrouted legacy marketplace helpers including `csrf_exempt` POST “install” stubs; live GitHub discovery remains `MarketplaceGitHub*` in `api_views` + `github_topics_service`
 
@@ -320,6 +322,7 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Absorbed 18 community/agent branches (perf, security shlex hardening, UX, tests) (#83)
 
 ### Removed
+- **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`
 - Wagtail marketplace and SAML IdP scaffolding (-716 lines; GitHub-topics discovery retained) (#82)
 
 ### Security / hygiene

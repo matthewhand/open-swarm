@@ -20,8 +20,9 @@ export class ApiError extends Error {
 
 /**
  * Thrown when the backend rejects a request with 401/403. A matching
- * AUTH_ERROR_EVENT is dispatched on `window` so the AuthContext can surface
- * a visible indicator (banner) regardless of which query failed.
+ * AUTH_ERROR_EVENT is dispatched on `window` for any listener (banner / CTA).
+ * SPA Settings token UI was deleted with ADR-001; REST still reads
+ * localStorage bearer when present.
  */
 export class ApiAuthError extends ApiError {
   constructor(status: number, message: string) {

@@ -1,7 +1,7 @@
-// Mirror of swarm.core.inference_profile (distance-from-ideal) for live preview
-// in the Builder. The blueprint declares a target on the axes it cares about;
-// we pick the candidate (cli or cli@model) closest in Euclidean distance over
-// only those axes — unspecified axes never penalize.
+// Mirror of swarm.core.inference_profile (distance-from-ideal). The blueprint
+// declares a target on the axes it cares about; we pick the candidate (cli or
+// cli@model) closest in Euclidean distance over only those axes — unspecified
+// axes never penalize. (SPA Builder UI deleted per ADR-001; logic kept for tests.)
 
 export const TRAITS = ['intelligence', 'speed', 'cost'] as const
 export type Trait = (typeof TRAITS)[number]
@@ -92,5 +92,21 @@ export function candidatesFromEdits(
 ): Record<string, TraitVector> {
   const out: Record<string, TraitVector> = { ...cliTraits }
   for (const { cli, model, traits } of modelRows) if (model) out[`${cli}@${model}`] = traits
+  return out
+}
+
+/** Build the resolution candidate map: a provider candidate per CLI plus a
+ *  `<cli>@<model>` candidate for each known model (matched to its CLI by name
+ *  prefix), mirroring the backend's candidate_traits. */
+export function buildCandidates(
+  cliTraits: Record<string, TraitVector>,
+  modelTraits: Record<string, TraitVector>,
+): Record<string, TraitVector> {
+  const out: Record<string, TraitVector> = { ...cliTraits }
+  const names = Object.keys(cliTraits)
+  for (const [model, traits] of Object.entries(modelTraits)) {
+    const cli = cliForModel(model, names)
+    if (cli) out[`${cli}@${model}`] = traits
+  }
   return out
 }
