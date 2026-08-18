@@ -16,7 +16,7 @@ class BlueprintRunner:
         Injects memory context if available and saves the response.
         """
         from agents import Runner
-        
+
         # --- Memory Integration: Inject Context ---
         memory_instance = getattr(agent, "memory", None)
         original_instructions = agent.instructions
@@ -29,7 +29,7 @@ class BlueprintRunner:
                         context_str = "\n".join([c.get("content", "") if isinstance(c, dict) else str(c) for c in context])
                     else:
                         context_str = str(context)
-                    
+
                     # Inject into instructions
                     agent.instructions = f"{original_instructions}\n\n[MEMORY CONTEXT]\n{context_str}\n[/MEMORY CONTEXT]"
             except Exception as e:
@@ -48,12 +48,12 @@ class BlueprintRunner:
                 frame = frame.f_back
             if show_intermediate:
                 spinner = Spinner()
-        
+
         full_response = ""
         try:
             if spinner:
                 spinner.start()
-            
+
             # Save user instruction to memory
             if memory_instance:
                 try:
@@ -62,7 +62,7 @@ class BlueprintRunner:
                     print(f"[MEMORY ERROR] Failed to save user instruction: {e}")
 
             result = await Runner.run(agent, instruction)
-            
+
             # If result is an async generator, iterate over it
             if isinstance(result, types.AsyncGeneratorType):
                 async for chunk in result:
@@ -88,7 +88,7 @@ class BlueprintRunner:
                 content = str(result)
                 full_response += content
                 yield {"messages": [{"role": "assistant", "content": content}]}
-            
+
             # --- Memory Integration: Save Response ---
             if memory_instance and full_response:
                 try:

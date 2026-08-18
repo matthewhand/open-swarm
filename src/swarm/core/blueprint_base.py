@@ -52,7 +52,6 @@ if os.environ.get("SWARM_ENABLE_AGENT_TRACING", "").lower() not in ("1", "true",
 from swarm.core.config_loader import (
     _substitute_env_vars,
     get_resolved_llm_profile,
-    _apply_litellm_overrides,
     list_available_llm_profiles,
 )
 
@@ -696,7 +695,7 @@ class BlueprintBase(ABC):
             if hasattr(self, '_resolved_llm_profile'):
                 del self._resolved_llm_profile
         model_instance = self._get_model_instance(self._resolve_llm_profile())
-        
+
         # Resolve memory settings
         memory_type = memory_type or self.config.get("settings", {}).get("default_memory_type")
         memory_config = memory_config or self.config.get("settings", {}).get("default_memory_config")
@@ -710,12 +709,12 @@ class BlueprintBase(ABC):
             mcp_servers=mcp_servers or [],
             **kwargs
         )
-        
+
         # Attach memory if any
         if memory_instance:
             # We add it as a custom attribute if the SDK agent doesn't have it
             agent.memory = memory_instance
-            
+
         return agent
 
     def request_approval(self, action_type, action_summary, action_details=None):

@@ -56,6 +56,8 @@ ADMIN_PASS = "journey-pass-8321"
 
 # (output filename stem, path, human name)
 # SCREENSHOTS.md tracks every capture produced here.
+# Session detail (`/sessions/<id>/`) is intentionally omitted: a fresh capture
+# DB has no sessions, so SESSION_EXPLORER.md keeps an archived detail still.
 PAGES = [
     # Landing remains the React SPA shell (demoted operator chrome → Django hrefs).
     ("landing", "/", "Landing page (React SPA dashboard)"),

@@ -24,7 +24,7 @@ def get_cache():
         if not settings.configured:
             # Django settings are not configured; return DummyCache
             return DummyCache()
-        
+
         return django_cache
 
     except (ImportError, ImproperlyConfigured):

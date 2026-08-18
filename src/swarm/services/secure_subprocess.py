@@ -38,7 +38,7 @@ def execute_command_safe(
     # Validate command
     if not command:
         raise ValueError("Command cannot be empty")
-    
+
     # Convert string command to list using shlex for safe parsing
     if isinstance(command, str):
         try:
@@ -47,11 +47,11 @@ def execute_command_safe(
             raise ValueError(f"Invalid command syntax: {e}") from e
     else:
         command_list = command
-    
+
     # Validate command list
     if not command_list:
         raise ValueError("Command list cannot be empty after parsing")
-    
+
     # Execute with shell=False for security
     result = subprocess.run(
         command_list,
@@ -61,7 +61,7 @@ def execute_command_safe(
         timeout=timeout,
         check=check
     )
-    
+
     return result
 
 
@@ -122,7 +122,7 @@ def validate_command_safety(command: List[str] | str) -> bool:
     """
     if not command:
         return False
-    
+
     # Convert to list for analysis
     if isinstance(command, str):
         try:
@@ -131,21 +131,21 @@ def validate_command_safety(command: List[str] | str) -> bool:
             return False
     else:
         command_list = command
-    
+
     # Check for suspicious patterns
     suspicious_patterns = [';', '&&', '||', '|', '>', '<', '`', '$(', '${']
-    
+
     for arg in command_list:
         # Check for command injection patterns
         for pattern in suspicious_patterns:
             if pattern in arg:
                 return False
-    
+
     # Check for dangerous commands
     dangerous_commands = ['rm', 'mv', 'chmod', 'chown', 'dd', 'mkfs']
     if command_list[0] in dangerous_commands:
         return False
-    
+
     return True
 
 
@@ -161,10 +161,10 @@ def sanitize_environment(env: Optional[dict] = None) -> dict:
     """
     if env is None:
         env = {}
-    
+
     # Remove potentially dangerous environment variables
     dangerous_vars = ['PATH', 'LD_PRELOAD', 'LD_LIBRARY_PATH']
-    
+
     for var in dangerous_vars:
         if var in env:
             # Keep only known-safe paths
@@ -173,7 +173,7 @@ def sanitize_environment(env: Optional[dict] = None) -> dict:
                 env[var] = ":".join(safe_paths)
             else:
                 del env[var]
-    
+
     return env
 
 
@@ -183,43 +183,43 @@ class SecureCommandExecutor:
     
     Provides additional safety checks and logging.
     """
-    
+
     def __init__(self, timeout: Optional[int] = None):
         self.timeout = timeout
         self.last_command = None
         self.last_result = None
         self.used_fallback = False
-    
+
     def execute(self, command: List[str] | str, **kwargs) -> subprocess.CompletedProcess:
         """Execute command with security checks."""
         # Validate before execution
         if not validate_command_safety(command):
             raise ValueError(f"Unsafe command detected: {command}")
-        
+
         # Execute with safety
         result, used_fallback = execute_command_with_fallback(
             command,
             timeout=self.timeout,
             **kwargs
         )
-        
+
         self.last_command = command
         self.last_result = result
         self.used_fallback = used_fallback
-        
+
         if used_fallback:
             logger.warning(f"Used shell=True fallback for: {command}")
-        
+
         return result
-    
+
     def get_last_command(self) -> Optional[List[str] | str]:
         """Get last executed command."""
         return self.last_command
-    
+
     def get_last_result(self) -> Optional[subprocess.CompletedProcess]:
         """Get last execution result."""
         return self.last_result
-    
+
     def did_use_fallback(self) -> bool:
         """Check if fallback was used."""
         return self.used_fallback

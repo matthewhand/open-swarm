@@ -148,7 +148,7 @@ urlpatterns = [
     # Avatar generation endpoints
     path("blueprint-library/generate-avatar/<str:blueprint_name>/", generate_avatar, name="generate_avatar"),
     path("blueprint-library/comfyui-status/", check_comfyui_status, name="check_comfyui_status"),
-    
+
     # Web UI endpoint
     path("webui/", WebUIView.as_view(), name="webui"),
 ]
@@ -222,7 +222,7 @@ if frontend_path and frontend_path.exists():
     urlpatterns += [
         re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': str(frontend_path / 'assets')}),
     ]
-    
+
     # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
     # (the catch-all regex below has no capture group, so path must default)
     def spa_fallback(request, path=""):
@@ -230,7 +230,7 @@ if frontend_path and frontend_path.exists():
         if index_file.exists():
             return FileResponse(open(index_file, 'rb'), content_type='text/html')
         return HttpResponse("Not Found", status=404)
-    
+
     urlpatterns += [
         re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/).*$', spa_fallback),
     ]

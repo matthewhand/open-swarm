@@ -4,7 +4,7 @@ Handles discovery and merging of tools and resources from MCP servers.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, cast
+from typing import List, Dict, Any
 
 # Import necessary types from the core swarm types
 from swarm.types import Agent, AgentFunction

@@ -1,7 +1,6 @@
 """
 General utility functions for the Swarm framework.
 """
-import datetime
 import json
 import os
 

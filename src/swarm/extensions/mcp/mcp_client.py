@@ -10,7 +10,6 @@ import logging
 import os
 from typing import Any, Dict, List, Callable
 from contextlib import contextmanager
-import sys
 
 from mcp import ClientSession, StdioServerParameters  # type: ignore
 from mcp.client.stdio import stdio_client  # type: ignore

@@ -46,17 +46,17 @@ def _ensure_frontend_built():
     frontend_path = _get_frontend_path()
     if frontend_path:
         return frontend_path
-    
+
     logger.info("Frontend build not found. Attempting to build automatically...")
     try:
         # Check if npm is available
         subprocess.run(["npm", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        
+
         frontend_dir = Path("webui/frontend")
         if not frontend_dir.exists():
             logger.error("Frontend directory not found: webui/frontend")
             return None
-        
+
         logger.info("Installing frontend dependencies...")
         subprocess.run(
             ["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps"],
@@ -65,7 +65,7 @@ def _ensure_frontend_built():
             stderr=sys.stderr,
             check=True
         )
-        
+
         logger.info("Building frontend assets...")
         subprocess.run(
             ["npm", "run", "build"],
@@ -74,18 +74,18 @@ def _ensure_frontend_built():
             stderr=sys.stderr,
             check=True
         )
-        
+
         # Check which build directory was created
         if Path("webui/frontend/dist").exists():
             return Path("webui/frontend/dist")
         elif Path("webui/frontend/build").exists():
             return Path("webui/frontend/build")
-        
+
     except FileNotFoundError:
         logger.error("Could not find 'npm' executable. Please install Node.js and run 'npm run build' manually in webui/frontend/")
     except Exception as e:
         logger.error(f"Automatic frontend build failed: {e}. Please run 'npm run build' manually in webui/frontend/")
-    
+
     return None
 
 @csrf_exempt
@@ -98,7 +98,7 @@ def index(request):
         if index_file.exists():
             logger.debug("Serving static frontend from " + str(index_file))
             return FileResponse(open(index_file, 'rb'), content_type='text/html')
-    
+
     # Fallback to Django template rendering
     logger.debug("Rendering index page with Django templates")
     try:

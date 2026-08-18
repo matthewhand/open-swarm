@@ -220,7 +220,7 @@ class GeeseBlueprint(BlueprintBase):
             # Yield final Geese output for test compatibility as AgentInteraction
             # Create a mock AgentInteraction object for test compatibility
             from swarm.core.interaction_types import AgentInteraction
-            
+
             interaction = AgentInteraction(
                 type="message",
                 role="assistant",
@@ -366,7 +366,7 @@ class GeeseBlueprint(BlueprintBase):
             # Convert string names to mock MCP server configs for tests
             server_names = self._agent_mcp_assignments[agent_name]
             mcp_servers = [{"name": name} for name in server_names]
-        
+
         if agent_name == "Coordinator":
             return AgentConfig(
                 name="Coordinator",

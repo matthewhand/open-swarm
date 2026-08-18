@@ -217,7 +217,7 @@ class DefaultJobService:
             # Validate command safety first
             if not validate_command_safety(job.command_list):
                 raise ValueError(f"Unsafe command detected in job {job.id}: {job.command_list}")
-            
+
             # Use secure subprocess execution
             process = subprocess.Popen(
                 job.command_list,

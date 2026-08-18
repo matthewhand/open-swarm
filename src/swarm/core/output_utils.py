@@ -337,7 +337,7 @@ def print_operation_box(*args, **kwargs):
             else:
                 title = kwargs.get('title', 'No Title')
                 content = kwargs.get('content', '')
-            
+
             style = kwargs.get('style', 'blue')
             result_count = kwargs.get('result_count')
             params = kwargs.get('params')

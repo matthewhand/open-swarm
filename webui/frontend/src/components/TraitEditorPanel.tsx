@@ -115,7 +115,7 @@ export function TraitEditorPanel({ info }: { info: ConfigOptions | undefined }) 
               <select
                 className="select select-bordered select-xs"
                 value={r.cli}
-                aria-label={`model ${i} cli`}
+                aria-label={`Model ${i + 1} CLI`}
                 onChange={(e) => setRow(i, { cli: e.target.value })}
               >
                 {clis.map((c) => (
@@ -127,14 +127,14 @@ export function TraitEditorPanel({ info }: { info: ConfigOptions | undefined }) 
                 className="input input-bordered input-xs w-44 font-mono"
                 placeholder="model id"
                 value={r.model}
-                aria-label={`model ${i} id`}
+                aria-label={`Model ${i + 1} id`}
                 onChange={(e) => setRow(i, { model: e.target.value })}
               />
-              {TRAITS.map((t) => num(r.traits[t] ?? 0.5, (v) => setRowTrait(i, t, v), `model ${i} ${t}`))}
+              {TRAITS.map((t) => num(r.traits[t] ?? 0.5, (v) => setRowTrait(i, t, v), `Model ${i + 1} ${t}`))}
               <button
                 type="button"
                 className="btn btn-ghost btn-xs"
-                aria-label={`remove model ${i}`}
+                aria-label={`Remove model ${i + 1}`}
                 onClick={() => setRows((p) => p.filter((_, j) => j !== i))}
               >
                 <Trash2 className="h-3.5 w-3.5" />

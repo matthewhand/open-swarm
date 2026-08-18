@@ -17,14 +17,9 @@ import subprocess
 import time
 from typing import Any
 
-from swarm.core.blueprint_discovery import (
-    apply_blueprint_aliases,
-    discover_blueprints,
-    merge_community_blueprints,
-)
 from swarm.core.mcp_server_config import MCPServerConfig
 from swarm.core.requirements import load_active_config
-from swarm.settings import BLUEPRINT_DIRECTORY, BLUEPRINT_EXTRA_DIRS
+from swarm.settings import BLUEPRINT_DIRECTORY
 
 logger = logging.getLogger(__name__)
 
