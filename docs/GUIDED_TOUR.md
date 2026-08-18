@@ -47,15 +47,15 @@ replies, team launches) need an LLM profile configured (see
 
 ### Dashboard — `/`
 
-![SPA dashboard: live team/blueprint/model counts, Django quick actions, API reachable](./screenshots/landing.png)
+![SPA dashboard: live team/blueprint/model counts, quick actions, API reachable](./screenshots/landing.png)
 
-*Lightweight React dashboard. Counts load from the API when available
-(`/v1/blueprints` / `/v1/models` may show a higher figure than the
-Blueprint Library’s discoverable catalog count — different listings).
-Quick Actions deep-link into **Django** (`/teams/launch/`,
-`/blueprint-library/`, `/teams/`, `/settings/`). Banner text states that full
-library, sessions, creators, and settings live on Django trailing-slash
-paths.*
+*Lightweight React dashboard. This capture shows Teams **0**, Blueprints
+**53**, Models **53** (API listings — the Blueprint Library’s discoverable
+catalog count can differ). Quick Actions on the capture: **New Team**,
+**Browse Blueprints**, **Open Chat**, **Configure**. Banner text states that
+full library, sessions, creators, and settings live on Django trailing-slash
+paths. (Current `webui/frontend` source labels those buttons Launch Team /
+Manage Teams / Settings — rebuild `dist` and recapture `landing` to align.)*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -99,10 +99,11 @@ separate SPA product).*
 
 ## 3. Django operator UI (canonical)
 
-Primary chrome: **Home · Blueprints · Teams · Sessions · Settings**, with
-GitHub under **More** (desktop). Mobile uses a fixed five-tab bottom bar with
-the same labels (no More/GitHub). The SPA shell reuses that bar: Home → `/`,
-other tabs → Django hrefs.
+Primary Django chrome: **Home · Blueprints · Teams · Sessions · Settings**,
+with GitHub under **More** (desktop). Django mobile uses a fixed five-tab
+bottom bar with those same labels (no More/GitHub). The SPA shell at `/` and
+`/chat` has its own bottom dock (this capture: Home, Chat, Teams, Blueprints,
+Builder, Creator, Settings) — not the Django five-tab set.
 
 ### Login — `/accounts/login/`
 
@@ -120,7 +121,8 @@ other tabs → Django hrefs.
 
 ![Django team launcher: blueprint dropdown, task box, output panel](./screenshots/teams-launch.png)
 
-*Select a team blueprint, enter a task, stream results. Default do-path under
+*Select a team blueprint, enter a task, stream results. Capture shows
+**`fs_introspect`** selected and an empty output panel. Default do-path under
 Teams.*
 
 ### Blueprint Library — `/blueprint-library/`
@@ -151,12 +153,13 @@ collapsed. Generate / validate custom agent blueprints.*
 
 ### Session Explorer — `/sessions/`
 
-![Django session explorer: status chips, limit=50 banner, empty list](./screenshots/sessions.png)
+![Django session explorer: empty list, 0 sessions, live toggle](./screenshots/sessions.png)
 
-*Stateful `/v1/responses` sessions. Status chips plus a “Showing 50 newest
-sessions (limit=50)” truncation banner; empty state (“No sessions yet”)
-until something is created via POST `/v1/responses`. Live poll uses the same
-limit so the list does not balloon.*
+*Stateful `/v1/responses` sessions. This fresh-db capture is empty: **0
+sessions**, a **live** poll toggle, and “No sessions yet. Make a `POST
+/v1/responses` request and they'll appear here.” Per-status filter chips and
+the “Showing newest N of M (limit=50)” truncation banner appear only once
+sessions exist and the list is truncated — they are not in this PNG.*
 
 ### LLM Profiles — `/profiles/`
 

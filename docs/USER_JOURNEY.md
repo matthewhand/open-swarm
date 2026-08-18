@@ -158,12 +158,13 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
 serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
-teams/blueprints/models counts come from the API; Quick Actions open the
-**Django** operator UI (`/teams/launch/`, `/blueprint-library/`, `/settings/`,
-…). Bare `/teams`, `/blueprints`, `/settings`, and `/agent-creator` **redirect**
-to those Django pages — `spa-*.png` captures document the redirect landing
-surfaces. Experimental SPA chat remains at `/chat` (login required for the
-websocket consumer). See the page-by-page
+teams/blueprints/models counts come from the API (this capture: 0 / 53 / 53).
+Quick Actions on the capture read **New Team**, **Browse Blueprints**,
+**Open Chat**, **Configure**. Bare `/teams`, `/blueprints`, `/settings`, and
+`/agent-creator` **redirect** to Django (`/teams/launch/`,
+`/blueprint-library/`, `/settings/`, `/agent-creator/`) — `spa-*.png`
+captures document those redirect landings. Experimental SPA chat remains at
+`/chat` (login required for the websocket consumer). See the page-by-page
 [guided tour](./GUIDED_TOUR.md). Without `webui/frontend/dist/`, `/` falls
 back to Django templates; the Django pages below are the supported admin
 surface either way.
@@ -182,8 +183,8 @@ with any OpenAI client.
 ![Team launcher](./screenshots/teams-launch.png)
 
 Pick a team blueprint (the launcher lists bundled options such as
-`hybrid_team`, `django_chat`, `persona_council`, … — the capture shows the
-first option, **`hybrid_team`**, selected), type a task, and stream the
+`fs_introspect`, `hybrid_team`, `django_chat`, `persona_council`, … — the
+capture shows **`fs_introspect`** selected), type a task, and stream the
 team's output in the browser. The output panel is empty until you launch.
 
 ### Blueprint library — `/blueprint-library/`
@@ -231,13 +232,14 @@ SPA chat websocket session — the chat consumer rejects anonymous connections.
 
 ### Session explorer — `/sessions/`
 
-![Session explorer: status chips, limit=50 banner, empty list](./screenshots/sessions.png)
+![Session explorer: empty list, 0 sessions, live toggle](./screenshots/sessions.png)
 
-Status filter chips (All / Queued / In Progress / Completed / Failed /
-Cancelled / Incomplete), a “Showing 50 newest sessions (limit=50)” banner,
-and an empty list (“No sessions yet. Create one via POST /v1/responses”).
-Live poll keeps the same cap so the list does not balloon. See also
-[GUIDED_TOUR.md](./GUIDED_TOUR.md) and [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).
+Fresh-db empty state: **0 sessions**, a **live** auto-refresh toggle, and
+“No sessions yet. Make a `POST /v1/responses` request and they'll appear
+here.” Status filter chips and the newest-N truncation banner show once
+sessions exist (and when the list is truncated to the default limit of 50).
+See also [GUIDED_TOUR.md](./GUIDED_TOUR.md) and
+[SESSION_EXPLORER.md](./SESSION_EXPLORER.md).
 
 ### LLM profiles — `/profiles/`
 
