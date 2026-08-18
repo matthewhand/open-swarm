@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
-from swarm.auth import request_principal
+from swarm.auth import explorer_owner_allows
 from swarm.core import responses_store
 
 # Default page size for first paint + live poll. Hard ceiling prevents multi-MB
@@ -29,16 +29,15 @@ def _parse_limit(request, default: int = _DEFAULT_LIMIT) -> int:
 
 
 def _session_inventory(request) -> tuple[list[dict], dict[str, int]]:
-    """Principal-scoped inventory (newest first) + status counts.
+    """Operator-bridged inventory (newest first) + status counts.
 
     ``limit=None`` so totals are not silently capped at the store helper's
-    default of 200. Sessions without an owner, or owned by another principal,
-    are excluded via :func:`responses_store.owner_allows` (fail-closed).
+    default of 200. Visibility uses :func:`swarm.auth.explorer_owner_allows`
+    (Session Explorer only — REST keeps strict IDOR).
     """
-    principal = request_principal(request)
     all_sessions = [
         s for s in responses_store.list_summaries(limit=None)
-        if responses_store.owner_allows(s, principal)
+        if explorer_owner_allows(s, request)
     ]
     counts: dict[str, int] = {}
     for s in all_sessions:
@@ -70,8 +69,7 @@ def session_detail(request, response_id: str):
     record = responses_store.load(response_id)
     if record is None:
         raise Http404(f"Session '{response_id}' not found")
-    principal = request_principal(request)
-    if not responses_store.owner_allows(record, principal):
+    if not explorer_owner_allows(record, request):
         raise Http404(f"Session '{response_id}' not found")
     resp = record.get("response") or {}
     return render(request, "session_detail.html", {

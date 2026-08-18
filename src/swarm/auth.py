@@ -153,6 +153,28 @@ def api_permission_classes():
     return [AllowAny]
 
 
+def token_principal(token: str) -> str:
+    """Ownership principal for a static API token (``token:<sha256-prefix>``)."""
+    import hashlib
+
+    digest = hashlib.sha256(str(token).encode("utf-8")).hexdigest()[:24]
+    return f"token:{digest}"
+
+
+def configured_token_principals() -> frozenset[str]:
+    """Principals for every accepted API auth token in settings.
+
+    Used by the Session Explorer operator bridge so a logged-in Django user can
+    observe curl/Bearer-created sessions without loosening REST IDOR.
+    """
+    keys = list(getattr(settings, "SWARM_API_KEYS", None) or [])
+    if not keys:
+        single = getattr(settings, "SWARM_API_KEY", None)
+        if single:
+            keys = [single]
+    return frozenset(token_principal(k) for k in keys if k)
+
+
 def request_principal(request) -> str | None:
     """Stable principal id for the request (ownership stamps).
 
@@ -163,8 +185,6 @@ def request_principal(request) -> str | None:
       because the hash is over the token that authenticated the request.
     - Unauthenticated → ``None``
     """
-    import hashlib
-
     user = getattr(request, "user", None)
     if user is not None and getattr(user, "is_authenticated", False):
         return f"user:{user.get_username()}"
@@ -172,7 +192,37 @@ def request_principal(request) -> str | None:
     auth = getattr(request, "auth", None)
     if auth is not None:
         # request.auth is the raw token string from StaticTokenAuthentication
-        digest = hashlib.sha256(str(auth).encode("utf-8")).hexdigest()[:24]
-        return f"token:{digest}"
+        return token_principal(str(auth))
     return None
+
+
+def explorer_owner_allows(record, request) -> bool:
+    """Session Explorer visibility (operator bridge; not used by REST).
+
+    When ``ENABLE_API_AUTH`` is off, align with REST ``_assert_owner_access``:
+    show all local/unowned records (do not fail-closed-hide everything).
+
+    When auth is on, a logged-in Django operator may see:
+    - records owned by their ``user:<name>`` principal, and
+    - records owned by any currently configured API-token principal.
+
+    Foreign ``user:…`` owners stay hidden. REST GET/cancel/delete keep strict
+    :func:`swarm.core.responses_store.owner_allows` IDOR unchanged.
+    """
+    from swarm.core import responses_store
+
+    if not bool(getattr(settings, "ENABLE_API_AUTH", False)):
+        return record is not None
+
+    if record is None:
+        return False
+
+    principal = request_principal(request)
+    if responses_store.owner_allows(record, principal):
+        return True
+
+    owner = record.get("owner")
+    if owner and str(owner) in configured_token_principals():
+        return True
+    return False
 

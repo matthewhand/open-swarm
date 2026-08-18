@@ -93,6 +93,14 @@ so the timeline fills in live while a session is still running.
 | `GET /sessions/<response_id>/` | session detail + delegation timeline |
 | `GET /api/sessions/` | JSON feed (used by the live refresh) |
 
+**Ownership (when `ENABLE_API_AUTH` is on):** the Explorer is an
+operator bridge for a logged-in Django user. It shows sessions owned by
+`user:<username>` **and** sessions stamped with any currently configured
+API-token principal (`token:<sha256-prefix>` from Bearer/curl creates).
+Foreign `user:…` owners and unowned legacy records stay hidden. REST
+`GET/cancel/delete /v1/responses/{id}` keep strict same-principal IDOR
+unchanged.
+
 > List view: current `sessions.png` from
 > [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py)
 > (`PAGES` stem `sessions` → `/sessions/`, empty isolated store).

@@ -323,7 +323,12 @@ class TestResponseOwnershipHTTP:
 
 @pytest.mark.django_db
 class TestSessionExplorerOwnership:
-    """Session Explorer only shows sessions owned by the logged-in principal."""
+    """Session Explorer operator bridge (not REST IDOR).
+
+    With ``ENABLE_API_AUTH``, a logged-in Django user sees their ``user:…``
+    sessions plus any currently configured API-token principals (curl bridge).
+    Foreign ``user:…`` owners and unowned legacy records stay hidden.
+    """
 
     def _save(self, rid: str, owner: str | None, *, output: str = "hello", created: int = 1):
         rec = {
@@ -355,21 +360,22 @@ class TestSessionExplorerOwnership:
         self._save("resp_se_legacy", None, output="no-owner", created=4)
 
         assert client.login(username="se_alice", password="x")
-        resp = client.get(reverse("session-explorer"))
-        assert resp.status_code == 200
-        body = resp.content.decode()
-        assert "resp_se_alice" in body and "alice-only" in body
-        assert "resp_se_bob" not in body
-        assert "resp_se_legacy" not in body
-        assert "bob-only" not in body
-        assert "no-owner" not in body
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            resp = client.get(reverse("session-explorer"))
+            assert resp.status_code == 200
+            body = resp.content.decode()
+            assert "resp_se_alice" in body and "alice-only" in body
+            assert "resp_se_bob" not in body
+            assert "resp_se_legacy" not in body
+            assert "bob-only" not in body
+            assert "no-owner" not in body
 
-        feed = client.get(reverse("session-list-api"))
-        assert feed.status_code == 200
-        data = json.loads(feed.content)
-        ids = [s["id"] for s in data["sessions"]]
-        assert ids == ["resp_se_alice"]
-        assert data["total"] == 1
+            feed = client.get(reverse("session-list-api"))
+            assert feed.status_code == 200
+            data = json.loads(feed.content)
+            ids = [s["id"] for s in data["sessions"]]
+            assert ids == ["resp_se_alice"]
+            assert data["total"] == 1
 
     def test_foreign_and_unowned_detail_404(self, store, client, django_user_model):
         from django.urls import reverse
@@ -379,16 +385,39 @@ class TestSessionExplorerOwnership:
         self._save("resp_se_no_owner", None, output="legacy")
 
         assert client.login(username="se_viewer", password="x")
-        foreign = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_foreign"}))
-        assert foreign.status_code == 404
-        unowned = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_no_owner"}))
-        assert unowned.status_code == 404
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            foreign = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_foreign"}))
+            assert foreign.status_code == 404
+            unowned = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_no_owner"}))
+            assert unowned.status_code == 404
 
-        # Own session still loads.
-        self._save("resp_se_mine", "user:se_viewer", output="mine-ok")
-        mine = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_mine"}))
-        assert mine.status_code == 200
-        assert b"mine-ok" in mine.content
+            # Own session still loads.
+            self._save("resp_se_mine", "user:se_viewer", output="mine-ok")
+            mine = client.get(reverse("session-detail", kwargs={"response_id": "resp_se_mine"}))
+            assert mine.status_code == 200
+            assert b"mine-ok" in mine.content
+
+    def test_operator_can_see_configured_token_owned_sessions(
+        self, store, client, django_user_model
+    ):
+        """Django operator bridge: Bearer-created sessions appear in Explorer."""
+        from django.urls import reverse
+
+        from swarm.auth import token_principal
+
+        django_user_model.objects.create_user(username="se_ops", password="x")
+        token_owner = token_principal(TOKEN)
+        self._save("resp_se_curl", token_owner, output="from-curl", created=5)
+        self._save("resp_se_other_user", "user:stranger", output="stranger-only-output", created=6)
+
+        assert client.login(username="se_ops", password="x")
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            resp = client.get(reverse("session-explorer"))
+            assert resp.status_code == 200
+            body = resp.content.decode()
+            assert "resp_se_curl" in body and "from-curl" in body
+            assert "resp_se_other_user" not in body
+            assert "stranger-only-output" not in body
 
 
 @pytest.mark.django_db

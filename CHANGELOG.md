@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - **Operator session gates:** require login for teams admin/export and blueprint library browse + mutators (aligned with Settings/Sessions)
+- **Session Explorer operator bridge:** with API auth on, logged-in Django users also see sessions owned by configured Bearer token principals (curl/API creates); foreign `user:…` owners stay hidden; REST IDOR unchanged
 - **CSRF on login:** `custom_login` POST is no longer `@csrf_exempt`
 - **Login open redirect:** post-login `next` accepts only rooted same-origin paths; rejects `//evil`, backslash tricks, absolute/external URLs
 
