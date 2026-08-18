@@ -2,45 +2,6 @@
 {% load static %}
 {% block title %}Sessions - Open Swarm{% endblock %}
 {% block content %}
-<style>
-  .se-wrap { max-width: 1100px; margin: 0 auto; }
-  .se-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
-  .se-chips { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-  /* colors reference the shared --os-* tokens (rest_mode_style.css); the
-     .badge-status/.st-* status pills are also defined globally there, so they
-     are NOT re-declared here (deduped). */
-  .se-chip { font-size:.8rem; padding:.2rem .6rem; border-radius:999px; background:var(--os-border); color:var(--os-text); }
-  .se-card { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:.85rem 1rem;
-             margin:.5rem 0; transition:border-color .15s, transform .05s; }
-  .se-card:hover { border-color:var(--os-accent); }
-  .se-card a.se-id { color:var(--os-link); text-decoration:none; font-family:ui-monospace,monospace; font-size:.9rem; }
-  .se-row { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
-  .se-meta { color:var(--os-muted); font-size:.82rem; }
-  .se-preview { color:var(--os-text); margin-top:.45rem; font-size:.9rem; }
-  .se-deleg { display:inline-flex; gap:.3rem; align-items:center; }
-  .dot { width:.6rem; height:.6rem; border-radius:50%; display:inline-block; }
-  .dot.completed { background:#22c55e; } .dot.failed { background:#ef4444; }
-  .dot.in_progress { background:var(--os-accent); } .dot.queued { background:#64748b; }
-  .se-empty { color:var(--os-muted); text-align:center; padding:2.5rem 1rem; }
-  .se-list-scroll {
-    max-height: min(70vh, 720px);
-    overflow-y: auto;
-    padding-right: .25rem;
-    border-top: 1px solid var(--os-border);
-    margin-top: .5rem;
-  }
-  .se-filter { cursor:pointer; user-select:none; }
-  .se-filter.active { outline:2px solid var(--os-accent); }
-  .se-filter:focus-visible { outline:2px solid var(--os-link); outline-offset:2px; }
-  .se-error { display:none; background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
-              border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem; }
-  .se-live-dot { width:.5rem; height:.5rem; border-radius:50%; background:#22c55e; display:inline-block;
-                 margin-right:.35rem; vertical-align:middle; transition:background .2s; }
-  .se-live-dot.refreshing { background:#3b82f6; animation:se-pulse 1s ease-in-out infinite; }
-  .se-live-dot.stalled { background:#ef4444; animation:none; }
-  @keyframes se-pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
-  @media (max-width:640px){ .se-head{ flex-direction:column; align-items:flex-start; } }
-</style>
 
 <div class="se-wrap" id="se-app"
      data-feed="{% url 'session-list-api' %}"

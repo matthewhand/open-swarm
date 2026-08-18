@@ -243,44 +243,6 @@
     </div>
 </div>
 
-
-<style>
-.blueprint-card {
-    transition: all 0.3s ease;
-    border: 2px solid transparent;
-}
-
-.blueprint-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.blueprint-card.installed {
-    border-color: #198754;
-    /* subtle dark green tint — NOT a near-white fill, which would be
-       white-on-white against the dark theme */
-    background-color: rgba(25, 135, 84, .10);
-}
-
-.difficulty-badge {
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: .22rem .5rem;
-}
-
-/* muted, tinted difficulty pills (aligned with the dark .st-* status palette)
-   instead of loud saturated Bootstrap solids that dominate every card */
-.difficulty-beginner { background-color: #14532d; color: #86efac; }
-.difficulty-intermediate { background-color: #3f3413; color: #fde68a; }
-.difficulty-advanced { background-color: #4c1d1d; color: #fca5a5; }
-
-.tag-badge {
-    font-size: 0.7rem;
-    margin-right: 0.25rem;
-    margin-bottom: 0.25rem;
-}
-</style>
-
 <script src="{% static 'js/blueprint_card.js' %}"></script>
 <script src="{% static 'js/blueprint_library.js' %}"></script>
 {% endblock %}

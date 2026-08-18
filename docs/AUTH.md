@@ -151,7 +151,7 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 
 ### Residual inline needs
 
-Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone**, so prod CSP drops `'unsafe-inline'` from **`script-src`** (`script-src 'self'` only). Residual friction is **`<style>` blocks and `style=""` attributes**, so **`style-src` still allows `'unsafe-inline'`** until those move to external CSS. Prefer extracting inline styles over adding more `'unsafe-*'` directives.
+Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone**, so prod CSP drops `'unsafe-inline'` from **`script-src`** (`script-src 'self'` only). **Inline `<style>` blocks are gone** (aggregated into `static/css/operator.css`, linked from `base.html` and the standalone login page). Residual friction is **`style=""` attributes**, so **`style-src` still allows `'unsafe-inline'`** until those move to classes/external CSS. Prefer extracting inline styles over adding more `'unsafe-*'` directives.
 
 **Extraction progress:** `settings_dashboard`, `teams_launch`, `session_explorer`, `teams_admin`, `agent_creator`, `team_creator`, `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail` load external JS. High-traffic actions use `data-action` (creators, settings quick actions, library search/show-more/GitHub, creator reset).
 

@@ -325,8 +325,8 @@ CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 #
 # Residual CSP inline needs (documented in docs/AUTH.md §7): page JS is external
 # under static/js/ (data-action delegation), so script-src is 'self' only.
-# Templates still use <style> blocks and style="" attributes, so style-src
-# keeps 'unsafe-inline' temporarily. CDN hosts are not allowed.
+# Template <style> blocks moved to static/css/operator.css; residual style=""
+# attributes still need style-src 'unsafe-inline'. CDN hosts are not allowed.
 _SWARM_CSP_POLICY = (
     "default-src 'self'; "
     "base-uri 'self'; "
