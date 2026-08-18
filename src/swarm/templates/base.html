@@ -16,6 +16,7 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
 </head>
 <body class="os-app">
+    <a class="visually-hidden-focusable btn btn-sm btn-primary position-absolute top-0 start-0 m-2 z-3" href="#os-main">Skip to main content</a>
     {% with path=request.path %}
     <header class="os-header sticky-top">
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark os-navbar py-1" aria-label="Primary">
@@ -101,7 +102,7 @@
     </header>
     {% endwith %}
 
-    <main class="os-main container-fluid px-3 px-md-4 py-3">
+    <main id="os-main" class="os-main container-fluid px-3 px-md-4 py-3" tabindex="-1">
         {% block content %}{% endblock %}
     </main>
 

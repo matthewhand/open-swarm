@@ -15,6 +15,12 @@ function App() {
         className={`min-h-screen pb-20 lg:pb-0 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}
         data-theme={darkMode ? 'dark' : 'light'}
       >
+        <a
+          href="#os-main"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-content"
+        >
+          Skip to main content
+        </a>
         <nav className="bg-base-200 shadow-sm border-b sticky top-0 z-40" aria-label="Primary">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-14">
@@ -56,7 +62,7 @@ function App() {
           </div>
         </nav>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main id="os-main" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/chat" element={<ChatPage />} />
@@ -119,14 +125,14 @@ function MobileTab({
   if (href) {
     return (
       <a href={href} className={className}>
-        {icon}
+        <span aria-hidden="true">{icon}</span>
         <span>{label}</span>
       </a>
     )
   }
   return (
     <Link to={target} className={className} aria-current={active ? 'page' : undefined}>
-      {icon}
+      <span aria-hidden="true">{icon}</span>
       <span>{label}</span>
     </Link>
   )

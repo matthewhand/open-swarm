@@ -242,7 +242,6 @@ class GeeseBlueprint(BlueprintBase):
         total_steps = len(spinner_states)
         summary = f"Geese agent run for: '{query}'"
         for i, spinner_state in enumerate(spinner_states, 1):
-            progress_line = f"Step {i}/{total_steps}"
             display_operation_box(
                 title="Geese Agent Run",
                 content="Geese agent is running your request...",

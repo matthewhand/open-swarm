@@ -45,7 +45,6 @@ def main():
         # PATCH: Always use blueprint.run for progressive UX
         messages = [{"role": "user", "content": args.prompt}]
         import asyncio
-        import time
 
         from swarm.blueprints.geese.blueprint_geese import (
             SPINNER_STATES,
@@ -53,15 +52,12 @@ def main():
         )
         async def run_and_print():
             spinner_idx = 0
-            spinner_start = time.time()
             async for chunk in blueprint.run(messages, model=args.model):
                 if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches") or chunk.get("spinner_state")):
-                    elapsed = time.time() - spinner_start
                     spinner_state = chunk.get("spinner_state")
                     if not spinner_state:
                         spinner_state = SPINNER_STATES[spinner_idx % len(SPINNER_STATES)]
                     spinner_idx += 1
-                    chunk.get("type", "search")
                     result_count = len(chunk.get("matches", [])) if chunk.get("matches") is not None else None
                     box_content = f"Matches so far: {result_count}" if result_count is not None else str(chunk)
                     display_operation_box(
@@ -89,7 +85,6 @@ def main():
 
     async def run_and_print():
         spinner_idx = 0
-        spinner_start = time.time()
 
         from swarm.blueprints.geese.blueprint_geese import (
             SPINNER_STATES,
@@ -98,12 +93,10 @@ def main():
         async for chunk in blueprint.run(messages, model=args.model):
             # If chunk is a dict with progress info, show operation box
             if isinstance(chunk, dict) and (chunk.get("progress") or chunk.get("matches") or chunk.get("spinner_state")):
-                elapsed = time.time() - spinner_start
                 spinner_state = chunk.get("spinner_state")
                 if not spinner_state:
                     spinner_state = SPINNER_STATES[spinner_idx % len(SPINNER_STATES)]
                 spinner_idx += 1
-                chunk.get("type", "search")
                 result_count = len(chunk.get("matches", [])) if chunk.get("matches") is not None else None
                 box_content = f"Matches so far: {result_count}" if result_count is not None else str(chunk)
                 display_operation_box(

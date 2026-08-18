@@ -356,7 +356,6 @@ def merge_community_blueprints(
     for index, directory in enumerate(extra_dirs or []):
         if not directory or not Path(directory).is_dir():
             continue
-        namespace = f"swarm_community_{index}"
         try:
             found = discover_blueprints(directory, sandboxed=True)
         except Exception:

@@ -134,7 +134,6 @@ class HybridSwarmBlueprint(BlueprintBase):
 
         registry = support.apply_overrides(support.build_registry(self._config), params)
         grok_name, panel_names, judge_name = self._resolve(params, registry)
-        workdir = params.get(support.PARAM_WORKDIR)
 
         # ---- 1. REST reasoning step (the master plan) -------------------- #
         yield support.progress_chunk("_Reasoning (REST step)…_")

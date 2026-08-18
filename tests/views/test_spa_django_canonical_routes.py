@@ -84,6 +84,8 @@ class TestUxShellTemplateContracts:
             assert label in html
         assert "More" in html
         assert "os-bottom-nav" in html
+        assert "Skip to main content" in html
+        assert 'id="os-main"' in html
         # GitHub not a bare primary peer string next to Settings as sole link —
         # demoted under More dropdown.
         assert 'id="moreNavDropdown"' in html

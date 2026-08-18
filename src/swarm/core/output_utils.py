@@ -341,7 +341,6 @@ def print_operation_box(*args, **kwargs):
             style = kwargs.get('style', 'blue')
             result_count = kwargs.get('result_count')
             params = kwargs.get('params')
-            op_type = kwargs.get('op_type')
             progress_line = kwargs.get('progress_line')
             total_lines = kwargs.get('total_lines')
             spinner_state = kwargs.get('spinner_state')
