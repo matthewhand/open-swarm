@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TOAST_JS = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js" / "toast.js"
+SLACK_LOGIC = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js" / "slackLogic.js"
 BLUEPRINT_CREATOR = ROOT / "src" / "swarm" / "templates" / "blueprint_creator.html"
 PROFILES = ROOT / "src" / "swarm" / "templates" / "profiles.html"
 
@@ -26,7 +27,9 @@ def test_rest_mode_toast_escapes_message():
     body = _slice_after(source, "export function showToast")
     assert "escapeHtml(message)" in body
     assert re.search(r"<span>\$\{\s*message\s*\}</span>", body) is None
-    assert "function escapeHtml" in source
+    # Helper lives in htmlSafe.js (imported), not inlined in toast.js.
+    assert "from './htmlSafe.js'" in source or 'from "./htmlSafe.js"' in source
+    assert "function escapeHtml" not in source
 
 
 def test_blueprint_creator_show_success_modal_escapes_fields():
@@ -51,3 +54,13 @@ def test_profiles_base_url_href_gated_to_http_https():
     assert 'u|slice:":7" == "http://"' in source
     # Non-http(s) values render as text, not a link.
     assert '<span class="prof-url">{{ p.base_url }}</span>' in source
+
+
+def test_slack_logic_appends_messages_via_textcontent():
+    """slackbot.html still loads slackLogic.js — must not sink raw strings into innerHTML."""
+    source = SLACK_LOGIC.read_text(encoding="utf-8")
+    assert "appendMessage" in source
+    assert "textContent" in source
+    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"user-message\">\$\{", source) is None
+    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"assistant-message\">\$\{", source) is None
+    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"error-message\">\$\{", source) is None

@@ -1,3 +1,10 @@
+function appendMessage(history, className, text) {
+    const div = document.createElement('div');
+    div.className = className;
+    div.textContent = text == null ? '' : String(text);
+    history.appendChild(div);
+}
+
 async function fetchBlueprints() {
     const response = await fetch('/v1/models/');
     const data = await response.json();
@@ -32,7 +39,7 @@ async function handleSubmit(event) {
 
     input.value = '';
     const history = document.getElementById('messageHistory');
-    history.innerHTML += `<div class="user-message">${message}</div>`;
+    appendMessage(history, 'user-message', message);
 
     try {
         const response = await fetch('/v1/chat/completions/', {
@@ -47,10 +54,10 @@ async function handleSubmit(event) {
             })
         });
         const data = await response.json();
-        history.innerHTML += `<div class="assistant-message">${data.choices[0].message.content}</div>`;
+        appendMessage(history, 'assistant-message', data.choices[0].message.content);
         history.scrollTop = history.scrollHeight;
     } catch (error) {
-        history.innerHTML += `<div class="error-message">Error: ${error.message}</div>`;
+        appendMessage(history, 'error-message', `Error: ${error.message}`);
     }
 }
 
