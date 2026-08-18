@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Agent Creator echo-only codegen:** `AgentPersonaGenerator` no longer emits nonexistent `model.chat_completion_stream`; uses `AsyncOpenAI` + `chat.completions.create(stream=True)` with warned echo fallback (same fix as library `generate_blueprint_code`) — `tests/unit/test_agent_creator_codegen.py`
 - **Blueprint source/tools URL slash twins:** `/v1/blueprints/<id>/source/` and `/tools/` no longer 404; `/v1/cli-agents` and `/v1/config-options` gain no-slash twins (same pattern as `/v1/responses` and `/v1/chat/completions`)
 - **FEATURE_STATUS / AUTH CSP honesty:** SPA mobile dock row no longer lists Settings (five tabs: Home·Chat·Blueprints·Teams·Sessions; Settings is desktop/gear); AUTH overview drops stale “style residual” — prod CSP is `script-src`/`style-src` `'self'` only. Locked by `tests/unit/test_screenshot_registry.py`
 - **MCP blueprint→tool bridge silent no-op:** `register_blueprints_with_mcp()` now `logger.error`s when `mcp_server` ≥0.5 lacks flat `registry.register_tool` (or registration fails). `FEATURE_STATUS` + `docs/mcp_server_mode.md` state clearly: flag mounts `/mcp/`, blueprints are NOT tools until the MCPToolset port.

@@ -243,11 +243,19 @@ class AgentPersonaGenerator:
     """Generates agent persona code based on user specifications"""
 
     def __init__(self):
+        # Same AsyncOpenAI stream pattern as library generate_blueprint_code
+        # (model_instance.chat_completion_stream does not exist — echo-only fiction).
         self.base_template = '''"""
 {description}
 """
+from __future__ import annotations
+
+import os
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, ClassVar
+
+from openai import AsyncOpenAI
+
 from swarm.core.blueprint_base import BlueprintBase
 
 class {class_name}(BlueprintBase):
@@ -255,7 +263,7 @@ class {class_name}(BlueprintBase):
     {description}
     """
 
-    metadata = {{
+    metadata: ClassVar[dict[str, Any]] = {{
         "name": "{name}",
         "description": "{description}",
         "version": "1.0.0",
@@ -269,59 +277,75 @@ class {class_name}(BlueprintBase):
     }}
 
     async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        """
-        Main execution method for the {name} agent.
-        """
-        # Get the user's message
+        """Yield OpenAI-style message chunks for /v1/chat/completions."""
         user_message = messages[-1].get("content", "") if messages else ""
-
-        # Agent persona instructions
-        persona_prompt = f\"\"\"
-You are {name}, {description}
-
-Personality: {personality}
-Expertise: {expertise_str}
-Communication Style: {communication_style}
-
-Instructions: {instructions}
-
-User Request: {{user_message}}
-\"\"\"
-
-        # Get LLM profile and make the call
-        model_instance = self._get_model_instance(self.llm_profile_name)
-
-        if not model_instance:
-            yield {{
-                "messages": [{{
-                    "role": "assistant",
-                    "content": "Error: Could not initialize model for {name} agent."
-                }}]
-            }}
-            return
+        persona_prompt = (
+            f"You are {name}, {description}\\n\\n"
+            f"Personality: {personality}\\n"
+            f"Expertise: {expertise_str}\\n"
+            f"Communication Style: {communication_style}\\n\\n"
+            f"Instructions: {instructions}"
+        )
+        system = {{"role": "system", "content": persona_prompt}}
+        llm_messages = [system, *messages] if messages else [system]
 
         try:
-            # Stream the response
-            system_message = {{"role": "system", "content": persona_prompt}}
-            user_msg = {{"role": "user", "content": user_message}}
+            profile = self.get_llm_profile(self.llm_profile_name)
+            base_url = profile.get("base_url") or os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            api_key = (
+                profile.get("api_key")
+                or os.getenv("LITELLM_API_KEY")
+                or os.getenv("OPENAI_API_KEY")
+                or "ollama"
+            )
+            model_name = (
+                profile.get("model")
+                or os.getenv("LITELLM_MODEL")
+                or os.getenv("DEFAULT_LLM")
+                or os.getenv("OPENAI_MODEL")
+            )
+            if not model_name:
+                raise RuntimeError(
+                    "No model configured. Set llm profile model or LITELLM_MODEL/DEFAULT_LLM."
+                )
 
-            async for chunk in model_instance.chat_completion_stream(
-                messages=[system_message, user_msg]
-            ):
-                if hasattr(chunk, 'choices') and chunk.choices:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, 'content') and delta.content:
-                        yield {{
-                            "messages": [{{
-                                "role": "assistant",
-                                "content": delta.content
-                            }}]
-                        }}
-        except Exception as e:
+            client_kwargs: dict[str, Any] = {{"api_key": api_key}}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            client = AsyncOpenAI(**client_kwargs)
+            stream = await client.chat.completions.create(
+                model=model_name,
+                messages=llm_messages,
+                stream=True,
+            )
+            yielded = False
+            async for chunk in stream:
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                delta = getattr(choices[0], "delta", None)
+                content = getattr(delta, "content", None) if delta is not None else None
+                if content:
+                    yielded = True
+                    yield {{
+                        "messages": [{{
+                            "role": "assistant",
+                            "content": content,
+                        }}]
+                    }}
+            if yielded:
+                return
+            raise RuntimeError("LLM stream returned no content")
+        except Exception as exc:
             yield {{
                 "messages": [{{
                     "role": "assistant",
-                    "content": f"Error in {name} agent: {{str(e)}}"
+                    "content": (
+                        f"[{{self.metadata.get('name')}}] WARNING: LLM call failed "
+                        f"({{exc}}); falling back to echo.\\n\\n"
+                        f"{{self.metadata.get('description')}}\\n\\n"
+                        f"You said: {{user_message}}"
+                    ),
                 }}]
             }}
 '''
