@@ -35,6 +35,47 @@ except Exception:
 app = typer.Typer(help="Swarm CLI tool", add_completion=False)
 
 
+def _safe_blueprint_segment(name: str) -> str | None:
+    """Return a single path segment for library/bin joins, or None if unsafe.
+
+    Rejects empty names, NUL, ``..``, absolute/drive paths, and any separator so
+    ``root / name`` cannot escape the intended directory via ``../``.
+    """
+    if not isinstance(name, str):
+        return None
+    raw = name.strip()
+    if not raw or "\x00" in raw or raw in (".", ".."):
+        return None
+    normalized = raw.replace("\\", "/")
+    if normalized.startswith("/") or (
+        len(raw) >= 2 and raw[1] == ":" and raw[0].isalpha()
+    ):
+        return None
+    parts = Path(normalized).parts
+    if "/" in normalized or ".." in parts or Path(normalized).name != normalized:
+        return None
+    return raw
+
+
+def _require_safe_blueprint_segment(name: str, *, what: str = "blueprint name") -> str:
+    """Like :func:`_safe_blueprint_segment` but exit the CLI on rejection."""
+    safe = _safe_blueprint_segment(name)
+    if safe is None:
+        typer.echo(
+            f"Error: Invalid {what} {name!r}: must be a single path segment.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    return safe
+
+
+def _path_is_under_root(path: Path, root: Path) -> bool:
+    """True if resolved ``path`` is ``root`` or a descendant."""
+    resolved = path.resolve()
+    root_resolved = root.resolve()
+    return resolved == root_resolved or root_resolved in resolved.parents
+
+
 def configure_moa_verbose_logging() -> None:
     """Enable INFO on ``swarm.core.moa`` without touching the root logger.
 
@@ -93,13 +134,15 @@ def find_entry_point(blueprint_dir: Path) -> str | None:
 def install_executable(
     blueprint_name: str = typer.Argument(..., help="Name of the blueprint directory to install as an executable."),
 ):
-    source_dir_user = paths.get_user_blueprints_dir() / blueprint_name
-    if source_dir_user.is_dir():
+    blueprint_name = _require_safe_blueprint_segment(blueprint_name)
+    user_bp_root = paths.get_user_blueprints_dir()
+    source_dir_user = user_bp_root / blueprint_name
+    if source_dir_user.is_dir() and _path_is_under_root(source_dir_user, user_bp_root):
         source_dir = source_dir_user
     else:
         bundled_base = Path(__file__).resolve().parent.parent / "blueprints"
         bundled_dir = bundled_base / blueprint_name
-        if bundled_dir.is_dir():
+        if bundled_dir.is_dir() and _path_is_under_root(bundled_dir, bundled_base):
             source_dir = bundled_dir
             typer.echo(f"Using bundled blueprint directory: {bundled_dir}")
         else:
@@ -117,10 +160,17 @@ def install_executable(
     output_bin_name = blueprint_name
     output_bin_dir = paths.get_user_bin_dir()
     output_bin_path = output_bin_dir / output_bin_name
-    pyinstaller_workpath = paths.get_user_cache_dir_for_swarm() / "build" / blueprint_name
-    pyinstaller_specpath = paths.get_user_cache_dir_for_swarm() / "specs"
+    if not _path_is_under_root(output_bin_path, output_bin_dir):
+        typer.echo(f"Error: Install path escapes bin directory: {output_bin_path}", err=True)
+        raise typer.Exit(code=1)
+    cache_root = paths.get_user_cache_dir_for_swarm()
+    pyinstaller_workpath = cache_root / "build" / blueprint_name
+    pyinstaller_specpath = cache_root / "specs"
+    if not _path_is_under_root(pyinstaller_workpath, cache_root):
+        typer.echo(f"Error: Build path escapes cache directory: {pyinstaller_workpath}", err=True)
+        raise typer.Exit(code=1)
     pyinstaller_workpath.mkdir(parents=True, exist_ok=True)
-    (paths.get_user_cache_dir_for_swarm() / "specs").mkdir(parents=True, exist_ok=True)
+    pyinstaller_specpath.mkdir(parents=True, exist_ok=True)
 
     typer.echo(f"Installing blueprint '{blueprint_name}' as executable...")
     typer.echo(f"  Source: {source_dir}")
@@ -196,24 +246,40 @@ def launch(
     post: str = typer.Option(None, "--post", "-o", help="Comma-separated blueprint names to run after main task"),
     message: str = typer.Option(None, "--message", help="Message or prompt to pass through to the blueprint executable"),
 ):
+    blueprint_name = _require_safe_blueprint_segment(blueprint_name)
     user_bin_dir = paths.get_user_bin_dir()
     executable_path = user_bin_dir / blueprint_name
-    if not executable_path.is_file() or not os.access(executable_path, os.X_OK):
+    if (
+        not _path_is_under_root(executable_path, user_bin_dir)
+        or not executable_path.is_file()
+        or not os.access(executable_path, os.X_OK)
+    ):
         typer.echo(f"Error: Blueprint executable not found or not executable: {executable_path}")
         typer.echo(
             f"Ensure '{blueprint_name}' is installed using 'swarm-cli install-executable {blueprint_name}'."
         )
         raise typer.Exit(code=1)
 
+    def _safe_hook_exe(hook_name: str) -> Path | None:
+        safe = _safe_blueprint_segment(hook_name)
+        if safe is None:
+            typer.echo(f"Skipping unsafe hook name {hook_name!r}.", err=True)
+            return None
+        hook_path = user_bin_dir / safe
+        if not _path_is_under_root(hook_path, user_bin_dir):
+            typer.echo(f"Skipping hook path escape {hook_name!r}.", err=True)
+            return None
+        return hook_path
+
     extra: list[str] = []
     if pre:
         for bp_pre_name in [bp.strip() for bp in pre.split(",") if bp.strip()]:
-            pre_exe_path = user_bin_dir / bp_pre_name
-            if pre_exe_path.is_file() and os.access(pre_exe_path, os.X_OK):
+            pre_exe_path = _safe_hook_exe(bp_pre_name)
+            if pre_exe_path is not None and pre_exe_path.is_file() and os.access(pre_exe_path, os.X_OK):
                 cmd_pre = [str(pre_exe_path)] + extra
                 typer.echo(f"Invoking pre-hook '{bp_pre_name}' with: {' '.join(cmd_pre)}")
                 subprocess.run(cmd_pre)
-            else:
+            elif pre_exe_path is not None:
                 typer.echo(
                     f"Pre-hook executable '{bp_pre_name}' not found in {user_bin_dir}; skipping."
                 )
@@ -236,24 +302,32 @@ def launch(
 
     if listen:
         for listener_name in [bp.strip() for bp in listen.split(",") if bp.strip()]:
-            listener_exe_path = user_bin_dir / listener_name
-            if listener_exe_path.is_file() and os.access(listener_exe_path, os.X_OK):
+            listener_exe_path = _safe_hook_exe(listener_name)
+            if (
+                listener_exe_path is not None
+                and listener_exe_path.is_file()
+                and os.access(listener_exe_path, os.X_OK)
+            ):
                 listener_cmd = [str(listener_exe_path)]
                 typer.echo(f"Invoking listener '{listener_name}' with: {' '.join(listener_cmd)}")
                 subprocess.run(listener_cmd)
-            else:
+            elif listener_exe_path is not None:
                 typer.echo(
                     f"Listener executable '{listener_name}' not found in {user_bin_dir}; skipping."
                 )
 
     if post:
         for bp_post_name in [bp.strip() for bp in post.split(",") if bp.strip()]:
-            post_exe_path = user_bin_dir / bp_post_name
-            if post_exe_path.is_file() and os.access(post_exe_path, os.X_OK):
+            post_exe_path = _safe_hook_exe(bp_post_name)
+            if (
+                post_exe_path is not None
+                and post_exe_path.is_file()
+                and os.access(post_exe_path, os.X_OK)
+            ):
                 cmd_post = [str(post_exe_path)]
                 typer.echo(f"Invoking post-hook '{bp_post_name}' with: {' '.join(cmd_post)}")
                 subprocess.run(cmd_post)
-            else:
+            elif post_exe_path is not None:
                 typer.echo(
                     f"Post-hook executable '{bp_post_name}' not found in {user_bin_dir}; skipping."
                 )
@@ -1048,9 +1122,13 @@ def add_cmd(
     if not src.is_dir():
         typer.echo(f"Source directory not found: {src}", err=True)
         raise typer.Exit(code=1)
-    bp_name = name or src.name
-    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / bp_name
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    bp_name = _require_safe_blueprint_segment(name or src.name)
+    dest_root = paths.get_user_blueprints_dir()
+    dest = dest_root / bp_name
+    if not _path_is_under_root(dest, dest_root):
+        typer.echo(f"Error: Destination escapes blueprints directory: {dest}", err=True)
+        raise typer.Exit(code=1)
+    dest_root.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         _shutil.rmtree(dest)
     _shutil.copytree(src, dest)
@@ -1062,7 +1140,12 @@ def delete_cmd(
     blueprint_name: str = typer.Argument(..., help="Blueprint name to delete from user library"),
 ):
     """Delete a blueprint from the user blueprint library."""
-    dest = _Path.home() / ".local" / "share" / "swarm" / "blueprints" / blueprint_name
+    blueprint_name = _require_safe_blueprint_segment(blueprint_name)
+    dest_root = paths.get_user_blueprints_dir()
+    dest = dest_root / blueprint_name
+    if not _path_is_under_root(dest, dest_root):
+        typer.echo(f"Error: Delete path escapes blueprints directory: {dest}", err=True)
+        raise typer.Exit(code=1)
     if not dest.exists():
         typer.echo(f"Blueprint '{blueprint_name}' not found in user library", err=True)
         raise typer.Exit(code=1)
@@ -1075,9 +1158,12 @@ def uninstall_cmd(
     blueprint_name: str = typer.Argument(..., help="Blueprint executable to uninstall"),
 ):
     """Uninstall a compiled blueprint executable from the user bin directory."""
-    from swarm.core import paths as _paths
-    bin_dir = _paths.get_user_bin_dir()
+    blueprint_name = _require_safe_blueprint_segment(blueprint_name)
+    bin_dir = paths.get_user_bin_dir()
     exe = bin_dir / blueprint_name
+    if not _path_is_under_root(exe, bin_dir):
+        typer.echo(f"Error: Uninstall path escapes bin directory: {exe}", err=True)
+        raise typer.Exit(code=1)
     if not exe.exists():
         typer.echo(f"Executable '{blueprint_name}' not found in {bin_dir}", err=True)
         raise typer.Exit(code=1)
