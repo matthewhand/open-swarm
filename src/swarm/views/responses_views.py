@@ -703,6 +703,17 @@ def _run_background_response_body(
             if progress:
                 payload["progress"] = list(progress)
         existing = responses_store.load(response_id) or {}
+        # Cancel endpoint may persist status=cancelled while this worker is
+        # still finishing a chunk. Never resurrect a cancelled job via
+        # progress/completed/failed writes (false-success cancel).
+        existing_status = (existing.get("response") or {}).get("status")
+        if existing_status == "cancelled" and payload.get("status") != "cancelled":
+            logger.info(
+                "Skipping overwrite of cancelled response %s with status=%s",
+                response_id,
+                payload.get("status"),
+            )
+            return
         record = {
             "id": response_id,
             "object": "response",

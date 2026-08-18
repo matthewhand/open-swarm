@@ -81,6 +81,33 @@ def test_worker_honors_precancel():
         rv._clear_cancel(rid)
 
 
+@pytest.mark.django_db(transaction=True)
+def test_worker_does_not_overwrite_cancel_endpoint_status(monkeypatch):
+    """Cancel API may persist cancelled while the worker is still running.
+
+    Without a sticky-cancelled guard, the worker's terminal ``completed`` (or
+    progress ``in_progress``) write would resurrect the job — a false-success
+    cancel for pollers that already saw ``cancelled``.
+    """
+    rid = "resp_cancel_race1"
+    _save_state(rid, "in_progress")
+
+    async def _slow_then_done(bp, messages, cancel_check=None, on_progress=None):
+        # Simulate cancel landing mid-flight after the last cancel_check.
+        _save_state(rid, "cancelled", with_task=False)
+        return "should-not-persist", None
+
+    monkeypatch.setattr(rv, "_consume_blueprint", _slow_then_done)
+    # Do not pre-set the cancel flag — this is the store-status race only.
+    rv._run_background_response(
+        rid, "cancel_race", "chatbot", [{"role": "user", "content": "x"}], None, None
+    )
+    rec = responses_store.load(rid)
+    assert rec is not None
+    assert rec["response"]["status"] == "cancelled"
+    assert "should-not-persist" not in (rec["response"].get("output_text") or "")
+
+
 # --- restart resume --------------------------------------------------------- #
 
 @pytest.mark.django_db(transaction=True)
