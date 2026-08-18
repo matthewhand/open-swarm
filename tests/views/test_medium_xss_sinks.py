@@ -10,10 +10,18 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-TOAST_JS = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js" / "toast.js"
-SLACK_LOGIC = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js" / "slackLogic.js"
+REST_JS = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js"
+TOAST_JS = REST_JS / "toast.js"
+SLACK_LOGIC = REST_JS / "slackLogic.js"
+CHAT_LOGIC = REST_JS / "chatLogic.js"
+SIMPLE_LOGIC = REST_JS / "simpleLogic.js"
+MESSENGER_LOGIC = REST_JS / "messengerLogic.js"
 BLUEPRINT_CREATOR = ROOT / "src" / "swarm" / "templates" / "blueprint_creator.html"
 PROFILES = ROOT / "src" / "swarm" / "templates" / "profiles.html"
+
+_INNERHTML_MESSAGE_SINK = re.compile(
+    r"innerHTML\s*\+=\s*`<div class=\"(user|assistant|error)-message\">\$\{"
+)
 
 
 def _slice_after(source: str, marker: str, length: int = 1200) -> str:
@@ -61,16 +69,27 @@ def test_slack_logic_appends_messages_via_textcontent():
     source = SLACK_LOGIC.read_text(encoding="utf-8")
     assert "appendMessage" in source
     assert "textContent" in source
-    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"user-message\">\$\{", source) is None
-    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"assistant-message\">\$\{", source) is None
-    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"error-message\">\$\{", source) is None
+    assert _INNERHTML_MESSAGE_SINK.search(source) is None
 
 
 def test_chat_logic_exports_initializer_and_uses_textcontent():
     """ui.js imports initializeChatLogic — export must exist; chat lines use textContent."""
-    chat_logic = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js" / "chatLogic.js"
-    source = chat_logic.read_text(encoding="utf-8")
+    source = CHAT_LOGIC.read_text(encoding="utf-8")
     assert "export async function initializeChatLogic" in source
     assert "textContent" in source
-    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"user-message\">\$\{", source) is None
-    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"assistant-message\">\$\{", source) is None
+    assert _INNERHTML_MESSAGE_SINK.search(source) is None
+
+
+def test_simple_logic_appends_messages_via_textcontent():
+    """Demo simpleLogic.js must not sink chat/error strings into innerHTML."""
+    source = SIMPLE_LOGIC.read_text(encoding="utf-8")
+    assert "appendMessage" in source
+    assert "textContent" in source
+    assert _INNERHTML_MESSAGE_SINK.search(source) is None
+
+
+def test_messenger_logic_appends_messages_via_textcontent():
+    """Demo messengerLogic.js must not sink chat/error strings into innerHTML."""
+    source = MESSENGER_LOGIC.read_text(encoding="utf-8")
+    assert "textContent" in source
+    assert _INNERHTML_MESSAGE_SINK.search(source) is None
