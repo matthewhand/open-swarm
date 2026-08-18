@@ -62,8 +62,9 @@ Recaptured after `npm run build` on **2026-08-19**.
 
 *Mobile twin (`screenshots/mobile/landing.png`): stacked cards and the **SPA
 five-tab dock** (**Home · Chat · Blueprints · Teams · Sessions**; Home
-active) from App.tsx. Django operator pages still use Home · Blueprints ·
-Teams · Sessions · Settings — different chrome.*
+active) from App.tsx — **parked** at end of full-page PNG (not viewport-fixed).
+Django operator pages still use Home · Blueprints · Teams · Sessions ·
+Settings — different chrome.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -77,11 +78,12 @@ Teams · Sessions · Settings — different chrome.*
 waits for the connection-status badge. Desktop and mobile `spa-chat.png` both
 show the **Connected** shell with blueprint selector and empty-state prompts
 (“Connected and ready”). Mobile dock is
-**Home · Chat · Blueprints · Teams · Sessions** with **Chat** active. If the
-socket fails, the page also exposes a primary **Sign in** (returns to `/chat`)
-+ **Reconnect** alert (**Unavailable** — 4401 / unreachable; not these PNGs)
-that must not flex-shrink away in the fixed-height layout.
-Replies need a working LLM profile.*
+**Home · Chat · Blueprints · Teams · Sessions** with **Chat** active
+(**parked** at end of full-page PNG). If the socket fails, the page also
+exposes a primary **Sign in** (returns to `/chat`) + **Reconnect** alert
+(**Unavailable** — 4401 / unreachable; not these PNGs) that must not
+flex-shrink away in the fixed-height layout. Replies need a working LLM
+profile.*
 
 **What you can do:** pick a blueprint and stream replies. Prefer Django Team
 Launcher for scripted multi-agent runs.
@@ -149,6 +151,12 @@ Settings; Settings stays on SPA desktop top nav / gear). Mobile **Django**
 captures under `screenshots/mobile/` (operator twins + `spa-*` redirects) keep
 the Django five-tab bar. `spa-*` stems document bare-path **redirect landings**
 on that Django shell (sticky “Redirected: …” banner in the checked-in `spa-*` PNGs).
+
+**Mobile parked-dock artifact:** journey capture parks fixed bottom navs as
+`position:static` before full-page PNGs (avoids Chromium stitch overlay). Live
+UI docks stay viewport-fixed; mobile twins show the tab bar **after scrolled
+content** at the end of the PNG — not as a floating overlay. See
+[SCREENSHOTS.md](./SCREENSHOTS.md) § Mobile captures.
 
 ### Login — `/accounts/login/`
 
@@ -294,4 +302,6 @@ table stacked for narrow width; Django **five-tab** dock (**Settings** active
 ```
 
 Update [SCREENSHOTS.md](./SCREENSHOTS.md) “Captured” dates and captions if
-pages change. Mobile PNGs live under `docs/screenshots/mobile/`.
+pages change. Mobile PNGs live under `docs/screenshots/mobile/`. Capture still
+parks visible bottom docks as static for full-page stitch — captions must keep
+admitting that artifact (see SCREENSHOTS § Mobile captures).

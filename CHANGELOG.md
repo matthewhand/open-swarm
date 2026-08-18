@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **Mobile dock PNG honesty:** GUIDED_TOUR / SCREENSHOTS admit journey capture parks fixed bottom navs as `position:static` so full-page mobile PNGs show the tab bar after scrolled content (not a live viewport overlay) — locked by `tests/unit/test_screenshot_registry.py`
 - **Journey screenshots (2026-08-19):** regenerated desktop + mobile via `capture_user_journey.py`; captions/registry now match **Connected** `spa-chat`, **`fs_introspect`** launcher default, sticky **Redirected:** banners on `spa-*`, dashboard 0/45/45 + library 12 of 38, ADR-001 nav honesty (`tests/unit/test_screenshot_registry.py`)
 
 ### Fixed

@@ -41,6 +41,14 @@ but points readers at this tour.
 
 Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 
+**Parked-dock capture artifact:** `capture_user_journey.py` sets visible fixed
+bottom bars (Django `.os-bottom-nav`, SPA `nav.fixed.bottom-0`) to
+`position:static` before `full_page=True` so Chromium stitch does not paint the
+dock over mid-page content. Live UI keeps those docks **viewport-fixed**;
+checked-in mobile PNGs therefore show the tab bar **after scrolled page
+content** (end of the PNG), not floating over the viewport. Captions that name
+“dock / 5-tab bar” mean that parked strip.
+
 **Bottom nav honesty (as of these PNGs):**
 
 * **SPA** shell (`mobile/landing.png`, `mobile/spa-chat.png`) dock is
@@ -60,8 +68,8 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack (0/45/45); Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; SPA dock Home · Chat · Blueprints · Teams · Sessions (Home/Chat are SPA; rest Django hrefs — ADR-001). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
-| `mobile/spa-chat.png` | `/chat` | **Connected** + blueprint selector + empty-state prompts; SPA dock with **Chat** active. Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
+| `mobile/landing.png` | `/` | Stat cards stack (0/45/45); Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; SPA dock Home · Chat · Blueprints · Teams · Sessions (Home/Chat are SPA; rest Django hrefs — ADR-001); dock **parked** at end of full-page PNG. Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
+| `mobile/spa-chat.png` | `/chat` | **Connected** + blueprint selector + empty-state prompts; SPA dock with **Chat** active (**parked** at PNG end). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect landing with sticky **“Redirected: …”** banner; Team Launcher (`fs_introspect` selected); Django **5-tab** bar (Teams active). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect landing with sticky **“Redirected: …”** banner; single-column cards; Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect landing with sticky **“Redirected: …”** banner; Settings dashboard; Django **5-tab** (Settings active). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |

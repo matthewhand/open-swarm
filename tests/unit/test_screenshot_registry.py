@@ -175,6 +175,17 @@ def test_capture_script_parks_django_and_spa_mobile_bottom_navs():
     assert 'aria-label="Mobile primary"' in src or "Mobile primary" in src
 
 
+def test_docs_admit_parked_mobile_dock_artifact():
+    """Tour/registry must not imply mobile PNGs show a live viewport-fixed dock."""
+    shots = SCREENSHOTS_MD.read_text().lower()
+    tour = GUIDED_TOUR.read_text().lower()
+    assert "parked-dock" in shots or "parked dock" in shots
+    assert "position:static" in shots or "position: static" in shots
+    assert "after scrolled" in shots or "end of the png" in shots
+    assert "parked-dock" in tour or "parked" in tour
+    assert "viewport-fixed" in tour or "viewport fixed" in tour
+
+
 def test_capture_script_injects_redirect_banner_for_spa_stems():
     """spa-* redirect captures must be distinct from canonical pages (banner)."""
     src = CAPTURE_SCRIPT.read_text()
