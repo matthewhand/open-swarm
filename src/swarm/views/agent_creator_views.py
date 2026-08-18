@@ -496,9 +496,16 @@ def save_custom_agent(request):
             return JsonResponse({'success': False, 'error': banned}, status=400)
 
         # Save under XDG/user data dir so discovery (when enabled) can find it.
-        blueprint_id = agent_name.lower().replace(' ', '_')
+        # Must slugify: raw lower/space-replace allowed path traversal (../…).
+        blueprint_id = _safe_agent_blueprint_id(agent_name)
         user_blueprints_dir = paths.get_user_blueprints_dir()
-        agent_dir = user_blueprints_dir / blueprint_id
+        root = user_blueprints_dir.resolve()
+        agent_dir = (user_blueprints_dir / blueprint_id).resolve()
+        if agent_dir != root and root not in agent_dir.parents:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid agent name.',
+            }, status=400)
         agent_dir.mkdir(parents=True, exist_ok=True)
 
         # Write the blueprint file
@@ -615,6 +622,18 @@ def _slugify(name: str) -> str:
     slug = "".join(c.lower() if c.isalnum() else "-" for c in name.strip())
     slug = "-".join(filter(None, slug.split("-")))
     return slug or "swarm"
+
+
+def _safe_agent_blueprint_id(name: str) -> str:
+    """Single path-segment id for agent saves (spaces→_; no traversal).
+
+    Mirrors historical ``lower().replace(' ', '_')`` for normal names while
+    stripping ``/``, ``\\``, ``..``, and other non-alnum so the write stays
+    under ``get_user_blueprints_dir()``.
+    """
+    slug = "".join(c.lower() if c.isalnum() else "_" for c in name.strip())
+    slug = "_".join(filter(None, slug.split("_")))
+    return slug or "agent"
 
 
 def _pascal_case(name: str) -> str:

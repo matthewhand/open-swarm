@@ -108,6 +108,46 @@ class TestCreatorSavePath:
         assert body["blueprint_id"] == "enabled_agent"
         assert Path(body["path"]).exists()
 
+    def test_save_custom_agent_rejects_path_traversal_name(
+        self, tmp_path, monkeypatch
+    ):
+        """Agent names with ../ must not escape get_user_blueprints_dir()."""
+        data_dir = tmp_path / "swarm_data"
+        escape_target = tmp_path / "outside"
+        escape_target.mkdir()
+        monkeypatch.setenv("SWARM_USER_DATA_DIR", str(data_dir))
+        monkeypatch.chdir(tmp_path)
+
+        from swarm.core.paths import get_user_blueprints_dir
+        from swarm.views.agent_creator_views import _safe_agent_blueprint_id
+
+        expected_root = get_user_blueprints_dir().resolve()
+        # Relative climb out of blueprints/ into tmp_path/outside
+        evil_name = "../../../outside/pwned_agent"
+        assert ".." not in _safe_agent_blueprint_id(evil_name)
+        assert "/" not in _safe_agent_blueprint_id(evil_name)
+
+        client = _login_client()
+        resp = client.post(
+            "/agent-creator/save/",
+            data=json.dumps({
+                "name": evil_name,
+                "code": VALID_AGENT_CODE,
+                "description": "traversal probe",
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body.get("success") is True
+        saved = Path(body["path"]).resolve()
+        assert expected_root in saved.parents
+        assert not (escape_target / "pwned_agent").exists()
+        assert body["blueprint_id"] == _safe_agent_blueprint_id(evil_name)
+        assert ".." not in body["blueprint_id"]
+        assert "/" not in body["blueprint_id"]
+        assert "\\" not in body["blueprint_id"]
+
     def test_save_team_swarm_writes_under_user_blueprints_dir(
         self, tmp_path, monkeypatch
     ):
