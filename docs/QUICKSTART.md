@@ -21,8 +21,10 @@ Blueprints are modular agents or tools. To install Codey (a coding assistant):
 ```bash
 swarm-cli install codey
 ```
-- This downloads and registers the Codey blueprint.
-- The `codey` command will be installed to your local bin directory.
+- This **compiles** the Codey blueprint with PyInstaller into a local binary
+  (it does not download a package from the network).
+- The `codey` command is installed to your user bin directory
+  (`~/.local/bin` / XDG data).
 
 To list available blueprints:
 ```bash

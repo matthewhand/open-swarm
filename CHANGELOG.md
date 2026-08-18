@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - **Examples:** `docs/examples/moa-consensus-vs-team/`, `docs/examples/moa-orchestrator/`; demos `scripts/demo_moa_consensus_vs_team.py`, `scripts/trace_moa_champagne.py`
 - **`moa_orchestrator` blueprint**: scripted MoA→team via `run_moa_agents_orchestrator` → `run_moa_then_team` (`implementer`/`tester`/`docs`/`researcher` writes; no live openai-agents Runner by default; optional `build_moa_orchestrator_agents` for real Agents)
 - **Skip-to-main:** skip links on Django `base.html` + SPA `App`; decorative mobile dock icons `aria-hidden`
+- **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
@@ -21,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **QUICKSTART install wording:** `swarm-cli install` compiles via PyInstaller (does not download a package)
 - **Fake Django UI actions honesty:** My Blueprints “Simulate run (demo)” + banner; Settings Validate/path-check/env Export disabled as not implemented; Team Creator Validate marked demo-only
 - **`/v1/chat/completions` trailing slash:** slash twin so `…/completions/` no longer 404s
 - **Agent Creator Pro honesty:** warning banner + FEATURE_STATUS 🟡 — Pro page is preview-only (generate/validate/save routes unwired); canonical creator remains `/agent-creator/`

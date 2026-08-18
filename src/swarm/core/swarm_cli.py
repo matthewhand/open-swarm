@@ -922,20 +922,34 @@ def moa_init(
 
 @app.command(name="config")
 def config_cmd(
-    action: str = typer.Argument(..., help="list | add | remove"),
+    action: str = typer.Argument(..., help="list | add | remove | init"),
     section: str = typer.Option(None, "--section", help="llm or mcpServers"),
     name: str = typer.Option(None, "--name", help="profile or server name"),
     json_str: str = typer.Option(None, "--json", help="JSON string for add"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing config on init"),
 ):
     """Manage LLM profiles and MCP servers."""
     from swarm.core import paths as _paths
-    from swarm.core.config_loader import find_config_file
+    from swarm.core.config_loader import create_default_config, find_config_file
     if config:
         cfg_path = _Path(config)
     else:
         found = find_config_file()
         cfg_path = found if found else (_paths.get_user_config_dir_for_swarm() / "swarm_config.json")
+
+    if action == "init":
+        if cfg_path.is_file() and not force:
+            typer.echo(
+                f"Config already exists at {cfg_path}. Pass --force to overwrite, "
+                "or use `swarm-cli config add` to edit profiles.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        create_default_config(cfg_path)
+        typer.echo(f"Wrote default config to {cfg_path}")
+        return
+
     try:
         cfg = _json.loads(cfg_path.read_text()) if cfg_path.is_file() else {"llm": {}, "mcpServers": {}}
     except Exception:
@@ -974,7 +988,7 @@ def config_cmd(
             cfg_path.write_text(_json.dumps(cfg, indent=2))
             typer.echo(f"Removed '{name}' from {section}")
     else:
-        typer.echo(f"Unknown action '{action}'. Use: list, add, remove", err=True)
+        typer.echo(f"Unknown action '{action}'. Use: list, add, remove, init", err=True)
         raise typer.Exit(code=1)
 
 

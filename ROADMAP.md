@@ -220,13 +220,13 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   via `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` (default off).
 
 ### 4.2 Broken-but-shipped (erodes trust)
-- [ ] **`django_chat` is a stub** — `blueprints/django_chat/blueprint_django_chat.py:200-221`
-  never calls an LLM (`"[DjangoChat LLM] Would respond to: …"`). Implement or label demo.
-- [ ] **Web create→run loop is broken** — `save_custom_agent`/`save_team_swarm`
-  (`agent_creator_views.py:431-453,773-792`) and `blueprint_creator`
-  (`blueprint_library_views.py:473-530`) save to a relative `user_blueprints/` /
-  JSON catalog that discovery never scans (`views/utils.py`, XDG dir). Nothing
-  built in the web UI is runnable. Point saves at `get_user_blueprints_dir()`.
+- [x] **`django_chat` LLM stub** — `run()` now calls the configured OpenAI-compatible
+  profile (no more “Would respond to…” box). Still Django-context heavy.
+- [x] **Web create→run save path (Agent/Team Creator)** — `save_custom_agent` /
+  `save_team_swarm` write under `get_user_blueprints_dir()`; discovery remains
+  opt-in (`SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`). **Residual:** library
+  `blueprint_creator` still persists code only into the JSON catalog (not a
+  discoverable `.py` tree).
 - [ ] **Agent Creator Pro is non-functional clickware** — `/agent-creator-pro/`
   page + JS exist, but generate/validate/save routes are missing (JS POSTs 404).
   Honesty banner + FEATURE_STATUS 🟡 point users to `/agent-creator/`. Finish
@@ -240,15 +240,13 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   `A11y.test.tsx`. Dead `active`/`disabled` variant aliases remain low priority.
 
 ### 4.3 Docs-vs-reality (breaks onboarding)
-- [ ] **Docs instruct nonexistent CLI commands** — QUICKSTART (`swarm-cli llm add`,
-  `config add`, `config validate`) and CONFIGURATION.md (`configure`,
-  `list-config`, `set`, `config init`) reference commands the shipped
-  `swarm.core.swarm_cli:app` (`list`/`wizard`/`install`/`cli-agents`/`skills`/…)
-  does not have. The config loader's own error hints do too
-  (`config_loader.py:113,144,157`). Rewrite docs to the real commands (or wire a
-  `config`/`llm` group). [partially started: QUICKSTART §6/§7 fixed 2026-06-19]
-- [ ] **`install` misdescribed** — QUICKSTART §2 says "downloads"; it actually
-  runs PyInstaller to compile a binary (`swarm_cli.py` `install_executable`).
+- [x] **Docs + CLI `config` group** — QUICKSTART/CONFIGURATION use real
+  `swarm-cli config list|add|remove`; **`config init`** now ships (writes default
+  `swarm_config.json`, `--force` to overwrite). Residual: orphaned
+  `extensions/launchers/swarm_cli.py` still prints legacy `config add KEY VALUE`
+  help text.
+- [x] **`install` wording** — QUICKSTART §2 now says PyInstaller compile (not
+  “downloads”).
 - [ ] **swarm-cli dead-alias warnings** — see 4.4 (orphaned `extensions/cli/main.py`).
 
 ### 4.4 Dead code / parallel trees
@@ -259,8 +257,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 - [ ] **`extensions/cli/main.py` orphaned** — unreferenced; source of the
   "Execute function for alias 'X' not found" warnings (8/11 aliases lack
   `execute`). Delete. (supersedes §3.4b)
-- [ ] **Dead view+template:** `views/web_views.py:122` `blueprint_webpage` (no URL)
-  + its only template `templates/simple_blueprint_page.html`. Delete both.
+- [x] **Dead view+template:** `blueprint_webpage` + `simple_blueprint_page.html`
+  (+ `chat.html`) removed 0.5.2 — see FEATURE_STATUS / CHANGELOG.
 - [ ] **Unrendered `templates/chat.html`** (only a `routing.py:6` docstring) + ~8
   orphaned `templates/rest_mode/*` files. Delete.
 - [ ] **`stewie` ships a broken nested Django app** — `blueprints/stewie/{settings,views,serializers,models}.py`

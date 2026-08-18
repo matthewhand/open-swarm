@@ -6,6 +6,7 @@ Swarm supports both interactive and manual configuration. The recommended way to
 
 - **CLI (`swarm-cli config`):**
   - `swarm-cli config list [--section llm|mcpServers]` — view profiles / MCP servers.
+  - `swarm-cli config init [--force]` — write a default `swarm_config.json` (refuses to overwrite unless `--force`).
   - `swarm-cli config add --section llm|mcpServers --name <name> --json '<...>'` — add a profile or MCP server entry.
   - `swarm-cli config remove --section … --name …` — remove an entry.
   - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
@@ -124,7 +125,7 @@ directory search for a project-local `swarm_config.json`.)
 ## 5. CLI vs Manual Configuration
 
 - The `swarm-cli` is the recommended tool for config tasks:
-  - `swarm-cli config list` / `config add` / `config remove` (LLM profiles and MCP servers)
+  - `swarm-cli config init` / `config list` / `config add` / `config remove` (LLM profiles and MCP servers)
   - `swarm-cli moa-init` (merge default Mixture-of-Agents config block)
   - `swarm-cli cli-agents --init [--write]` (wire CLI fusion/MoA over installed CLIs)
 - Manual editing of `swarm_config.json` is fully supported for power users and automation.
