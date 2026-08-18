@@ -18,7 +18,7 @@ CHAT_LOGIC = REST_JS / "chatLogic.js"
 SIMPLE_LOGIC = REST_JS / "simpleLogic.js"
 MESSENGER_LOGIC = REST_JS / "messengerLogic.js"
 BLUEPRINT_MANAGER = REST_JS / "modules" / "blueprintManager.js"
-SESSION_EXPLORER = ROOT / "src" / "swarm" / "templates" / "session_explorer.html"
+SESSION_EXPLORER = ROOT / "src" / "swarm" / "static" / "js" / "session_explorer.js"
 BLUEPRINT_CREATOR = ROOT / "src" / "swarm" / "templates" / "blueprint_creator.html"
 PROFILES = ROOT / "src" / "swarm" / "templates" / "profiles.html"
 

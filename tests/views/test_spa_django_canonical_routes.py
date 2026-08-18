@@ -164,6 +164,8 @@ class TestUxShellTemplateContracts:
         assert response.status_code == 200
         html = response.content.decode()
         assert "se-list-scroll" in html
+        assert "session_explorer.js" in html
+        assert "<script>\n(function(){" not in html
 
     def test_agent_creator_progressive_disclosure(self, client):
         from django.contrib.auth.models import User

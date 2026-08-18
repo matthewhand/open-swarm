@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Teams Admin - Open Swarm{% endblock %}
 
@@ -192,16 +193,6 @@
     </div>
   </div>
 
-  <script>
-    const modal = document.getElementById('confirmDeleteModal');
-    if (modal) {
-      modal.addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
-        const teamId = button?.getAttribute('data-team-id') || '';
-        document.getElementById('deleteTeamId').textContent = teamId;
-        document.getElementById('deleteTeamIdInput').value = teamId;
-      });
-    }
-  </script>
+  <script src="{% static 'js/teams_admin.js' %}"></script>
 </div>
 {% endblock %}

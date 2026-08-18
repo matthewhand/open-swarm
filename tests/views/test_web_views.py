@@ -277,6 +277,7 @@ class TestTeamLauncherView:
         content = response.content.decode()
         assert "Team Launcher" in content
         assert "Output" in content
+        assert "teams_launch.js" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_launcher_disabled(self, mock_enabled, client):
@@ -313,7 +314,9 @@ class TestTeamAdminView:
         response = team_admin(request)
 
         assert response.status_code == 200
-        assert "Create Team" in response.content.decode()
+        content = response.content.decode()
+        assert "Create Team" in content
+        assert "teams_admin.js" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_admin_disabled(self, mock_enabled, test_user):
