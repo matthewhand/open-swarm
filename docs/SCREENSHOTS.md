@@ -47,7 +47,7 @@ paths still **redirect** to Django; `spa-*` captures keep the sticky
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
 | `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; dock Home · Blueprints · Teams · Sessions · Settings | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | Connected composer + blueprint selector; Home dock tab active (SPA chat is not a dock tab); no desktop “Disconnected — login required” banner | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | Login-gated / disconnected composer + blueprint selector; five-tab bar (chat is not its own dock tab) | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django Teams tab active | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Blueprints tab active | 2026-08-18 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Settings tab active | 2026-08-18 | current |

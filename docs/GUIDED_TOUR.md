@@ -51,12 +51,11 @@ replies, team launches) need an LLM profile configured (see
 
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
 **53**, Models **53** (API listings — the Blueprint Library’s discoverable
-catalog count can differ). Top nav on the capture: Home · Chat · Teams ·
-Blueprints · Builder · Creator · Settings. Quick Actions:
-**Launch Team**, **Browse Blueprints**, **Manage Teams**, **Settings**.
-Banner text points operators at Django trailing-slash paths for library,
-sessions, creators, and settings. Recaptured after `npm run build` on
-**2026-08-18** (mobile dock is Home · Blueprints · Teams · Sessions · Settings).*
+catalog count can differ). Top nav: **Home · Blueprints · Teams · Sessions ·
+Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**, **Manage
+Teams**, **Settings**. Banner text points operators at Django trailing-slash
+paths for library, sessions, creators, and settings. Recaptured after
+`npm run build` on **2026-08-18** (mobile dock uses the same five tabs).*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -100,13 +99,11 @@ separate SPA product).*
 
 ## 3. Django operator UI (canonical)
 
-Primary Django chrome: **Home · Blueprints · Teams · Sessions · Settings**,
-with GitHub under **More** (desktop). Django mobile uses that same five-tab
-bottom bar (no More/GitHub). SPA mobile captures (`landing`, `spa-chat`) still
-show the older seven-item dock **Home · Chat · Teams · Blueprints · Builder ·
-Creator · Settings** from stale `webui/frontend/dist`; after redirect, `spa-*`
-pages use the Django five-tab bar. Current `App.tsx` already matches Django’s
-five tabs — rebuild `dist` and recapture to align (see landing note above).
+Primary chrome (Django and rebuilt SPA): **Home · Blueprints · Teams ·
+Sessions · Settings**, with GitHub under **More** on Django desktop only.
+Mobile five-tab bottom bar uses the same labels (SPA Home stays on `/`; other
+tabs are Django `href`s). After bare-path redirects, `spa-*` captures show the
+Django shell plus the sticky “Redirected: …” banner.
 
 ### Login — `/accounts/login/`
 
