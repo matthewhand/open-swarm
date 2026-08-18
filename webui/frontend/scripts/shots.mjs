@@ -5,7 +5,8 @@ import { mkdirSync } from 'node:fs'
 const BASE = process.argv[2] || 'http://127.0.0.1:8011'
 const OUT = process.argv[3] || '/tmp/swarm_shots'
 mkdirSync(OUT, { recursive: true })
-const ROUTES = [['/', 'dashboard'], ['/blueprints', 'blueprints'], ['/builder', 'builder'], ['/chat', 'chat']]
+// Mounted SPA routes only — /builder is unmounted in App.tsx (* → /).
+const ROUTES = [['/', 'dashboard'], ['/blueprints', 'blueprints'], ['/chat', 'chat']]
 const THEMES = ['light', 'dark']
 
 const browser = await chromium.launch()

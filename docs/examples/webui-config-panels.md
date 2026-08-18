@@ -1,13 +1,21 @@
 # Builder config panels (web UI)
 
+> **Orphaned / historical (2026-08):** `BuilderPage` is **not mounted** in
+> `App.tsx` (`*` → `/`). These panels and screenshots document a leftover SPA
+> surface under `webui/frontend/src/pages/BuilderPage.tsx`. Day-to-day agent
+> creation is the Django operator UI at **`/agent-creator/`**. Pure helpers
+> (`inferenceProfile.ts`, `toolCapabilities.ts`, `skills.ts`) and unit tests
+> remain valid; Playwright `e2e/builder.spec.ts` is skipped until remount.
+
 Proof of the Builder UI panels that configure the decoupling features, each
 bound to `GET /v1/config-options/`. Built on the existing React + TanStack Query
-+ DaisyUI stack. 0 axe violations (full ruleset, light/dark, desktop/mobile).
++ DaisyUI stack. Historical axe runs reported 0 violations (full ruleset,
+light/dark, desktop/mobile) while `/builder` was mounted.
 
-**Current status:** all four config panels + the resolved-MCP badge are live,
-each header carries an accessible info tooltip. Green: **61 frontend unit
-(vitest) + 5 Playwright e2e**, **1186 backend**, **0 axe violations**. The
-per-section figures below are historical (state at that commit).
+**Status at last mount:** all four config panels + the resolved-MCP badge were
+live, each header with an accessible info tooltip. Figures below (vitest /
+Playwright / axe) are **historical** — they are not a claim that `/builder` is
+a live audited surface today.
 
 ![Builder — all config panels](../screenshots/webui/builder-all-panels-dark.png)
 
@@ -85,23 +93,12 @@ under Playwright. 6 files / 34 tests pass clean.
 
 ![Builder full page](../screenshots/webui/builder-dark.png)
 
-## Builder e2e (Playwright)
+## Builder e2e (Playwright) — skipped while unmounted
 
-`e2e/builder.spec.ts` route-mocks the API (deterministic, no backend) and drives
-the real panels:
-
-```
-✓ inference profile panel resolves to a CLI
-✓ tool capabilities panel resolves web_search to the non-auth duckduckgo
-✓ skills panel emits a request snippet on selection
-3 passed (2.9s)
-```
-
-Run with `npm run test:e2e` (opt-in; not in the default `npm test`, and vitest's
-`include` excludes `e2e/`). Asserts the inference panel resolves to a CLI, the
-tool-capabilities panel resolves `web_search → duckduckgo` (non-auth preferred)
-after selecting mandatory + duckduckgo, and the skills panel emits a
-`{"skill": ...}` request snippet on selection.
+`e2e/builder.spec.ts` historically route-mocked the API and drove the panels
+when `/builder` was mounted. It is **skipped** today (`test.skip`) because
+`App.tsx` has no `BuilderPage` route. Re-enable after remount; until then prefer
+Django `/agent-creator/` for operator creation flows.
 
 ## Bug-hunt: profile resolution declines when there's nothing to score
 

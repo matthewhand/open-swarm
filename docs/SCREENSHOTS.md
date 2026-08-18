@@ -101,18 +101,18 @@ see [Regenerating](#regenerating) below.
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
 | `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused | 2025-01-05 | legacy |
-| `webui/blueprint-tools-badge-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/builder-all-panels-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/builder-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/builder-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of builder-dark) | mixed | current |
-| `webui/inference-profile-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/inference-profile-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of inference-profile-dark) | mixed | current |
-| `webui/skills-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/skills-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of skills-dark) | mixed | current |
-| `webui/skills-preview-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/tool-capabilities-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
-| `webui/tool-capabilities-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of tool-capabilities-dark) | mixed | current |
-| `webui/trait-editor-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/blueprint-tools-badge-dark.png` | Orphaned SPA Builder panel (route unmounted) | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/builder-all-panels-dark.png` | Orphaned SPA Builder (`/builder` unmounted; use Django `/agent-creator/`) | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/builder-dark.png` | Orphaned SPA Builder page capture | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/builder-light.png` | Orphaned SPA Builder light twin | none (pair of builder-dark) | mixed | orphaned |
+| `webui/inference-profile-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/inference-profile-light.png` | Orphaned SPA Builder light twin | none (pair of inference-profile-dark) | mixed | orphaned |
+| `webui/skills-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/skills-light.png` | Orphaned SPA Builder light twin | none (pair of skills-dark) | mixed | orphaned |
+| `webui/skills-preview-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/tool-capabilities-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/tool-capabilities-light.png` | Orphaned SPA Builder light twin | none (pair of tool-capabilities-dark) | mixed | orphaned |
+| `webui/trait-editor-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
 | `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
 | `docs/screenshots/archive/session-explorer-detail.png` | Older Session detail still (superseded by current `session-detail.png`) | none (historical) | archived | archived |
 | `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none | archived | archived |

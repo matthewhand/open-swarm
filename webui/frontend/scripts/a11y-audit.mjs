@@ -13,7 +13,9 @@ const axePath = require.resolve('axe-core/axe.min.js')
 const axeSource = readFileSync(axePath, 'utf8')
 
 const BASE = process.argv[2] || 'http://127.0.0.1:8011'
-const ROUTES = ['/', '/chat', '/teams', '/blueprints', '/builder', '/agent-creator', '/settings']
+// Mounted SPA routes only (App.tsx). /builder and /agent-creator are unmounted
+// (* → /); operator creator UI is Django /agent-creator/.
+const ROUTES = ['/', '/chat', '/teams', '/blueprints', '/settings']
 const THEMES = ['light', 'dark']
 const VIEWPORTS = [
   { name: 'desktop', width: 1280, height: 900 },

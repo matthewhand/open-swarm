@@ -78,7 +78,7 @@ This is verified, shipped, and covered by an 1100+ test suite. Status marks:
 | **Inference profiles** — pick a backend by traits (intelligence/speed/cost), not brand | ✅ | `docs/examples/inference-profile-routing.md` |
 | **Skills** — Anthropic Agent-Skills `SKILL.md`, applied to any CLI via `skill=` | ✅ | `docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md` |
 | **Tool capabilities** — declare an abstract need, resolve to an MCP provider | 🟡 | `swarm/core/tool_capabilities.py` |
-| Web UI Builder + dashboard + live websocket chat | 🟡 | Django UI supported; React SPA approaching parity |
+| Web UI dashboard + live websocket chat | 🟡 | Django operator UI is canonical; SPA dashboard/chat live; SPA BuilderPage unmounted (orphaned) |
 | Opt-in cross-conversation **memory** (mem0) | 🟡 | wired, not yet validated against a live mem0 |
 
 ### Proof it actually works (captured live, this repo)

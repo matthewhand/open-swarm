@@ -1,16 +1,15 @@
 import { test, expect } from '@playwright/test'
 
-// Per-route smoke across the SPA. Each route must mount React (#root non-empty)
-// and throw NO uncaught JS errors. Backend is absent in preview, so /v1 fetch
-// failures (console errors / 502s) are tolerated — we only fail on pageerror.
+// Per-route smoke across mounted SPA routes (App.tsx). /builder and
+// /agent-creator are unmounted (* → /) — do not list them as live surfaces.
+// Backend is absent in preview, so /v1 fetch failures are tolerated — we only
+// fail on pageerror.
 const ROUTES = [
   '/',
   '/blueprints',
-  '/builder',
   '/chat',
   '/settings',
   '/teams',
-  '/agent-creator',
 ]
 
 for (const route of ROUTES) {

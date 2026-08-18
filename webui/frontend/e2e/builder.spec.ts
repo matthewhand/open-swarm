@@ -1,7 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
 
-// E2E for the Builder config panels. The preview build has no backend, so we
-// route-mock the API — making the test deterministic and backend-independent.
+// SKIPPED: BuilderPage is not mounted in App.tsx (`*` → `/`). These panels
+// still exist under src/pages/BuilderPage.tsx but /builder is not a live
+// surface. Operator agent creation is Django `/agent-creator/`.
+// Re-enable if/when Builder is remounted.
+test.skip(true, 'SPA /builder unmounted — App.tsx has no BuilderPage route')
+
+// Historical e2e for the Builder config panels (route-mocked API).
 
 const CONFIG_OPTIONS = {
   skills: [

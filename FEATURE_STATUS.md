@@ -59,13 +59,14 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | ❌ | Removed 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 2
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 2 · ❌ 1
 
 | Feature | Status | Evidence |
 |---|---|---|
 | DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; SPA leftovers still import these. |
 | TeamsPage | 🟡 | Live fetch from `/teams/export?format=json` (`TeamsPage.tsx` `loadTeams`); on error shows honest empty + alert (no demo rows). Launch links to SPA `/chat?blueprint=<team-id>`. Bare `/teams` redirects to Django Team Launcher — this page is a leftover SPA route, not the canonical UI. |
 | BlueprintsPage | 🟡 | Live fetch from `/v1/blueprints` (`BlueprintsPage.tsx`); on error shows honest empty + alert (no demo rows). Launch links to SPA `/chat?blueprint=<id>` (session auth required). Bare `/blueprints` redirects to Django Blueprint Library. |
+| BuilderPage / AgentCreatorPage | ❌ | **Unmounted.** `App.tsx` has no `/builder` or `/agent-creator` routes (`*` → `/`). Source remains under `src/pages/`; a11y/shots/e2e no longer treat them as live. Canonical creator UI is Django `/agent-creator/`. |
 | API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Caveat: chat needs a Django **session cookie** (Settings API bearer token does **not** auth websockets). Anonymous sockets close with code **4401**; journey `spa-chat.png` shows **Connected** after login when ASGI is up (Unavailable is the unauthenticated / unreachable path). |
 
 ## 6. Memory — 🔲 1 · 📋 2
