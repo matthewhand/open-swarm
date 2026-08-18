@@ -20,14 +20,6 @@ def _echo(prefix: str) -> dict:
     return {"cmd": [PY, "-c", f"import sys; print('{prefix}:' + sys.argv[1])", "{prompt}"]}
 
 
-@pytest.fixture(autouse=True)
-def _isolate_blueprint_cache():
-    from swarm.views import utils as view_utils
-    view_utils._blueprint_instance_cache.clear()
-    yield
-    view_utils._blueprint_instance_cache.clear()
-
-
 @pytest.fixture
 def hybrid_config(monkeypatch):
     cfg = {

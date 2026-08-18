@@ -29,8 +29,9 @@ except Exception:
     pass
 
 # --- Caching ---
-_blueprint_meta_cache = None # Cache for the {name: class} mapping
-_blueprint_instance_cache = {} # Simple instance cache for no-param blueprints
+# Cache blueprint class/metadata only — never live instances. Instances are
+# mutable (agents, params, run state) and must not be shared across requests.
+_blueprint_meta_cache = None  # Cache for the {name: class} mapping
 _dynamic_registry: dict[str, dict] = {}
 
 
@@ -157,13 +158,12 @@ def get_available_blueprints():
 # Removed _load_blueprint_class_sync
 
 async def get_blueprint_instance(blueprint_id: str, params: dict = None):
-    """Asynchronously gets an instance of a specific blueprint."""
-    logger.debug(f"Getting instance for blueprint: {blueprint_id} with params: {params}")
-    (blueprint_id, tuple(sorted(params.items())) if isinstance(params, dict) else params)
+    """Asynchronously gets a fresh instance of a specific blueprint.
 
-    if params is None and blueprint_id in _blueprint_instance_cache:
-         logger.debug(f"Returning cached instance for {blueprint_id}")
-         return _blueprint_instance_cache[blueprint_id]
+    Always instantiates per call so concurrent requests never share mutable
+    blueprint state.
+    """
+    logger.debug(f"Getting instance for blueprint: {blueprint_id} with params: {params}")
 
     available_blueprint_classes = await get_available_blueprints()
 
@@ -175,9 +175,7 @@ async def get_blueprint_instance(blueprint_id: str, params: dict = None):
     blueprint_class = blueprint_info['class_type']
 
     try:
-        # *** Instantiate the class WITHOUT the params argument ***
-        # If blueprints need params, they should handle it internally
-        # or the base class __init__ needs to accept **kwargs.
+        # Instantiate without params; blueprints that need them use set_params.
         instance = blueprint_class(blueprint_id=blueprint_id)
         # If it's a dynamic team blueprint and llm_profile is specified in registry, set it
         try:
@@ -188,12 +186,9 @@ async def get_blueprint_instance(blueprint_id: str, params: dict = None):
         except Exception:
             pass
         logger.info(f"Successfully instantiated blueprint: {blueprint_id}")
-        # Optionally pass params later if needed, e.g., instance.set_params(params) if such a method exists
         if hasattr(instance, 'set_params') and callable(instance.set_params):
-             instance.set_params(params) # Example of setting params after init
+             instance.set_params(params)
 
-        if params is None:
-             _blueprint_instance_cache[blueprint_id] = instance
         return instance
     except Exception as e:
         # Catch potential TypeError during instantiation too
