@@ -14,6 +14,8 @@ Idempotent and re-runnable:
 3. After the empty ``sessions`` list capture, seeds a minimal
    ``responses_store`` fixture (``resp_journey_seed``) so
    ``session-detail`` can screenshot ``/sessions/<id>/`` honestly.
+   Also isolates ``SWARM_USER_DATA_DIR`` so My Blueprints ignores host
+   custom agents under ``~/.local/share/OpenSwarm/…/blueprints/``.
 4. If a page redirects to a login form, creates a throwaway superuser via
    `manage.py shell -c` and logs in through the form, then retries.
 5. Writes a JSON capture manifest (status, final URL, PNG path) when
@@ -39,6 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -77,6 +80,14 @@ CAPTURE_RESPONSES_DIR = Path(
     os.environ.get(
         "CAPTURE_RESPONSES_DIR",
         str(Path(tempfile.gettempdir()) / f"open-swarm-capture-responses-{PORT}"),
+    )
+)
+# Isolate XDG user data so My Blueprints does not pick up host custom agents
+# under ~/.local/share/OpenSwarm/swarm/blueprints/ (SWARM_USER_DATA_DIR).
+CAPTURE_USER_DATA_DIR = Path(
+    os.environ.get(
+        "CAPTURE_USER_DATA_DIR",
+        str(Path(tempfile.gettempdir()) / f"open-swarm-capture-user-data-{PORT}"),
     )
 )
 # Fixed id matching responses_store._ID_RE; owner must be user:<ADMIN_USER>.
@@ -119,6 +130,7 @@ SERVER_ENV = {
     "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1",
     "SWARM_TEST_MODE": "1",
     "SWARM_RESPONSES_DIR": str(CAPTURE_RESPONSES_DIR),
+    "SWARM_USER_DATA_DIR": str(CAPTURE_USER_DATA_DIR),
     # Uncomment to exercise token auth instead of open dev access:
     # "API_AUTH_TOKEN": "local-journey-token",
 }
@@ -202,6 +214,13 @@ def reset_capture_responses_dir() -> None:
     if CAPTURE_RESPONSES_DIR.exists():
         shutil.rmtree(CAPTURE_RESPONSES_DIR)
     CAPTURE_RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def reset_capture_user_data_dir() -> None:
+    """Empty isolated SWARM_USER_DATA_DIR so My Blueprints ignores host customs."""
+    if CAPTURE_USER_DATA_DIR.exists():
+        shutil.rmtree(CAPTURE_USER_DATA_DIR)
+    CAPTURE_USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def seed_session_detail_fixture() -> None:
@@ -299,8 +318,26 @@ def login_if_needed(page) -> bool:
     return True
 
 
-def capture(page, slug: str, path: str, name: str,
-            screenshot_dir: Path) -> dict:
+def _spa_chat_status_is_terminal(text: str) -> bool:
+    """True when badge is Connected / Unavailable… / Disconnected (not Connecting…)."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    # Word-bounded Connected must not match Connecting…
+    return bool(
+        re.search(r"\b(Connected|Unavailable|Disconnected)\b", t, flags=re.I)
+    )
+
+
+def capture(
+    page,
+    slug: str,
+    path: str,
+    name: str,
+    screenshot_dir: Path,
+    *,
+    allow_connecting: bool = False,
+) -> dict:
     """Visit path, screenshot, return a manifest entry."""
     entry: dict = {
         "stem": slug,
@@ -334,7 +371,8 @@ def capture(page, slug: str, path: str, name: str,
         pass  # busy pages (polling) never go idle; capture anyway
     # spa-chat: wait for a *terminal* WS badge (word-bounded) so Connecting…
     # is not mistaken for Connected. Session login → Connected; anonymous /
-    # ASGI fail → Unavailable / Disconnected.
+    # ASGI fail → Unavailable / Disconnected. Default: FAIL (skip PNG) if the
+    # badge stays Connecting…; pass --allow-connecting to soft-accept.
     if slug == "spa-chat":
         try:
             page.wait_for_function(
@@ -346,13 +384,26 @@ def capture(page, slug: str, path: str, name: str,
                 timeout=SPA_CHAT_STATUS_TIMEOUT_MS,
             )
         except Exception:
-            pass  # still capture connecting/empty rather than abort
+            pass  # read badge below; may still hard-fail
         try:
             entry["connection_status"] = (
                 page.locator('[aria-label="Connection status"]').inner_text(timeout=2000).strip()
             )
         except Exception:
             entry["connection_status"] = ""
+        status_text = entry.get("connection_status") or ""
+        if not _spa_chat_status_is_terminal(status_text):
+            if allow_connecting:
+                entry["connection_status_soft"] = True
+            else:
+                shown = status_text or "(empty)"
+                entry["error"] = (
+                    f"spa-chat badge not terminal after "
+                    f"{SPA_CHAT_STATUS_TIMEOUT_MS}ms: {shown!r} "
+                    f"(want Connected/Unavailable/Disconnected; "
+                    f"pass --allow-connecting to soft-accept Connecting…)"
+                )
+                return entry
     page.wait_for_timeout(750)
     final_url = page.url
     entry["final_url"] = final_url
@@ -452,6 +503,21 @@ def main() -> int:
         default=os.environ.get("CAPTURE_MANIFEST", ""),
         help="write JSON capture manifest to this path (or set CAPTURE_MANIFEST)",
     )
+    parser.add_argument(
+        "--allow-connecting",
+        action="store_true",
+        help="soft-accept spa-chat while the badge still says Connecting… "
+             "(default: fail/skip that stem so docs never claim Connected for a "
+             "Connecting frame)",
+    )
+    parser.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        metavar="STEM",
+        help="capture only these page stem(s); repeatable (e.g. --only spa-chat). "
+             "session-detail still requires sessions when both are selected",
+    )
     args = parser.parse_args()
 
     try:
@@ -470,8 +536,10 @@ def main() -> int:
     require_frontend_dist()
     screenshot_dir.mkdir(parents=True, exist_ok=True)
     reset_capture_responses_dir()
+    reset_capture_user_data_dir()
     print(f"Starting Django dev server on port {PORT} ...")
     print(f"  [store    ] SWARM_RESPONSES_DIR={CAPTURE_RESPONSES_DIR}")
+    print(f"  [userdata ] SWARM_USER_DATA_DIR={CAPTURE_USER_DATA_DIR}")
     print(f"  [spa      ] {FRONTEND_DIST_INDEX.relative_to(REPO_ROOT)} present (ADR-001 / + /chat)")
     server = start_server()
     captured: list[tuple[str, str]] = []
@@ -491,7 +559,15 @@ def main() -> int:
                 print(f"  [auth     ] logged in as {ADMIN_USER}")
             except Exception as exc:
                 print(f"  [auth     ] anonymous capture (login failed: {exc})")
+            only = {s.strip() for s in (args.only or []) if s and s.strip()}
+            if only:
+                unknown = sorted(only - {stem for stem, _p, _n in PAGES})
+                if unknown:
+                    raise SystemExit(f"--only unknown stem(s): {', '.join(unknown)}")
+                print(f"  [filter   ] --only {', '.join(sorted(only))}")
             for slug, path, name in PAGES:
+                if only and slug not in only:
+                    continue
                 # Seed only after the empty list PNG so sessions.png stays empty-state.
                 if slug == "session-detail":
                     if not sessions_captured:
@@ -525,7 +601,14 @@ def main() -> int:
                         print(f"  [skipped ] {name:40s} {path} -- {entry['error']}")
                         continue
                 try:
-                    entry = capture(page, slug, path, name, screenshot_dir)
+                    entry = capture(
+                        page,
+                        slug,
+                        path,
+                        name,
+                        screenshot_dir,
+                        allow_connecting=bool(args.allow_connecting),
+                    )
                 except Exception as exc:  # never let one page kill the run
                     entry = {
                         "stem": slug,

@@ -208,37 +208,40 @@ dropdown option as desktop); Django **five-tab** dock (Teams active).*
 *Catalog of discoverable blueprints (`discover_blueprints()` — **Available:
 38** on this PNG). First paint paginates (**Showing 12 of 38 blueprints**)
 with **Show more**; denser cards and per-card MCP status badges (this capture
-still shows the checking spinner labeled **MCP**). Not the SPA’s API **45**
-and not `swarm-cli list`’s **31** dirs.*
+shows ready green checkmarks labeled **MCP**, not a checking spinner). Not
+the SPA’s API **45** and not `swarm-cli list`’s **31** dirs.*
 
 ![Blueprint library (mobile): stacked cards; Blueprints tab active](./screenshots/mobile/blueprint-library.png)
 
-*Mobile twin: paginated cards stack in a single column; Django **five-tab**
-dock (Blueprints active).*
+*Mobile twin: paginated cards stack in a single column (**12 of 38**); Django
+**five-tab** dock (Blueprints active).*
 
 ### My Blueprints — `/blueprint-library/my-blueprints/`
 
 ![Django my-blueprints personal library](./screenshots/my-blueprints.png)
 
-*Installed/custom collection (empty on a fresh library).*
+*Personal library from this capture host: Installed **0**, Custom Created
+**3** (**Agent A** / **Agent B** / **Agent C**, created Aug 18, 2026) plus a
+**Create a new blueprint** card — not an empty fresh library.*
 
-![My blueprints (mobile): empty-state CTAs; Blueprints tab active](./screenshots/mobile/my-blueprints.png)
+![My blueprints (mobile): three custom agents; Blueprints tab active](./screenshots/mobile/my-blueprints.png)
 
-*Mobile twin (`screenshots/mobile/my-blueprints.png`): empty personal library
-with **Create Agent** and **Browse Library** CTAs; Django **five-tab** dock
-(Blueprints active).*
+*Mobile twin (`screenshots/mobile/my-blueprints.png`): same Custom Created
+**3** stack (**Agent A** / **Agent B** / **Agent C**) with create CTA; Django
+**five-tab** dock (Blueprints active).*
 
 ### Agent Creator — `/agent-creator/`
 
-![Django agent creator: essentials form and code panel](./screenshots/agent-creator.png)
+![Django agent creator: Identity form and code panel](./screenshots/agent-creator.png)
 
-*Progressive disclosure: Identity essentials open; Persona/Tags optional
-collapsed. Generate / validate custom agent blueprints.*
+*Progressive disclosure: **1 Identity** open (name, description, special
+instructions); **2 Optional Persona** / **3 Optional Tags** collapsed.
+**Generate Blueprint** / **Validate** on the code panel.*
 
-![Agent creator (mobile): essentials accordion; Blueprints tab active](./screenshots/mobile/agent-creator.png)
+![Agent creator (mobile): Identity accordion; Blueprints tab active](./screenshots/mobile/agent-creator.png)
 
-*Mobile twin (`screenshots/mobile/agent-creator.png`): Identity essentials
-open in an accordion; **Generate Blueprint** / **Validate** actions; Django
+*Mobile twin (`screenshots/mobile/agent-creator.png`): **1 Identity** open in
+an accordion; **Generate Blueprint** / **Validate** actions; Django
 **five-tab** dock (Blueprints active).*
 
 ### Settings Dashboard — `/settings/`

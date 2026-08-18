@@ -223,32 +223,34 @@ empty until you launch.
 ![Blueprint library](./screenshots/blueprint-library.png)
 
 **Login required.** Browse discoverable blueprints with per-blueprint MCP
-status badges (async check; this capture still shows the checking spinner
-labeled **MCP** on each card). Summary tile **Available: 38** is
-`discover_blueprints()` (not `swarm-cli list`’s 31 dirs and not the SPA’s
-API **45**). The grid is **paginated** on first paint (**Showing 12 of 38
-blueprints** + **Show more**) so the catalog does not dump every card at
-once; installed / custom / category tiles reflect this environment.
-Add/remove, the creator form, and avatar generation are operator mutators
-and also require login.
+status badges (async check; this capture shows ready green checkmarks
+labeled **MCP** on each card, not a checking spinner). Summary tile
+**Available: 38** is `discover_blueprints()` (not `swarm-cli list`’s 31 dirs
+and not the SPA’s API **45**). The grid is **paginated** on first paint
+(**Showing 12 of 38 blueprints** + **Show more**) so the catalog does not
+dump every card at once; installed / custom / category tiles reflect this
+environment. Add/remove, the creator form, and avatar generation are
+operator mutators and also require login.
 
 ### My blueprints — `/blueprint-library/my-blueprints/`
 
 ![My blueprints](./screenshots/my-blueprints.png)
 
 **Login required.** Your personal collection of installed and custom
-blueprints. Shown in its empty state — a fresh environment with nothing added
-to the library yet.
+blueprints. This capture shows Installed **0** and Custom Created **3**
+(**Agent A** / **Agent B** / **Agent C**, created Aug 18, 2026) plus a
+**Create a new blueprint** card — host user-blueprints data, not an empty
+fresh library.
 
 ### Agent creator — `/agent-creator/`
 
 ![Agent creator](./screenshots/agent-creator.png)
 
 GET page is public; **generate / validate / save require login**. Build a
-custom agent persona with **progressive disclosure**: essentials (name,
-description, special instructions) open by default; Persona and Tags are
-optional collapsed sections. The right-hand panel generates, validates, and
-saves the resulting Python blueprint code.
+custom agent persona with **progressive disclosure**: **1 Identity** (name,
+description, special instructions) open by default; **2 Optional Persona**
+and **3 Optional Tags** collapsed. The right-hand panel **Generate Blueprint**
+/ **Validate** actions save the resulting Python blueprint code.
 
 ### Settings dashboard — `/settings/`
 

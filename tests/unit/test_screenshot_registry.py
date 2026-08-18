@@ -251,6 +251,11 @@ def test_capture_script_waits_for_connected_or_unavailable():
     assert "SPA_CHAT_STATUS_TIMEOUT_MS" in src
     assert "20_000" in src or "20000" in src
     assert "connection_status" in src
+    # Hard-fail Connecting… unless --allow-connecting (docs must not claim Connected).
+    assert "_spa_chat_status_is_terminal" in src
+    assert "--allow-connecting" in src
+    assert "allow_connecting" in src
+    assert "spa-chat badge not terminal" in src
 
 
 def test_capture_script_seeds_session_detail_after_sessions_list():
@@ -263,6 +268,9 @@ def test_capture_script_seeds_session_detail_after_sessions_list():
     assert stems.index("sessions") < stems.index("session-detail")
     assert "SESSION_DETAIL_ID" in src
     assert "SWARM_RESPONSES_DIR" in src
+    # Isolated XDG user data so My Blueprints ignores host custom agents.
+    assert "SWARM_USER_DATA_DIR" in src
+    assert "reset_capture_user_data_dir" in src
 
 
 def test_capture_script_requires_frontend_dist():
@@ -544,7 +552,7 @@ def test_guided_tour_embeds_mobile_spa_chat_when_captured():
 
 def test_spa_chat_checked_in_caption_hardclaims_connected_badge():
     """Checked-in spa-chat PNGs show Connected; docs must match on-disk fact."""
-    for path in (GUIDED_TOUR, SCREENSHOTS_MD):
+    for path in (GUIDED_TOUR, SCREENSHOTS_MD, USER_JOURNEY):
         text = path.read_text()
         # On-disk frames are Connected after journey login + healthy ASGI.
         assert "**Connected**" in text
@@ -553,3 +561,48 @@ def test_spa_chat_checked_in_caption_hardclaims_connected_badge():
         assert "Checked-in frame: **Connecting…" not in text
         assert "checked-in frames show **Connecting…" not in text.lower()
         assert "Connecting…" not in text
+
+
+def test_blueprint_library_caption_matches_ready_mcp_badges():
+    """blueprint-library.png shows ready MCP checkmarks, not a checking spinner."""
+    banned = (
+        "still shows the checking spinner",
+        "checking spinner labeled **MCP** on each card)",
+        "MCP badges (checking spinner)",
+    )
+    for path in (GUIDED_TOUR, USER_JOURNEY, SCREENSHOTS_MD):
+        text = path.read_text()
+        for phrase in banned:
+            assert phrase not in text, f"{path.name} must not claim: {phrase!r}"
+        assert "ready green checkmarks" in text or "MCP badges (ready green checkmarks)" in text, (
+            f"{path.name} must name ready MCP checkmarks on the library PNG"
+        )
+
+
+def test_my_blueprints_caption_matches_three_custom_agents():
+    """my-blueprints.png shows Custom Created 3 (Agent A/B/C), not empty CTAs."""
+    banned = (
+        "empty on a fresh library",
+        "empty personal library",
+        "Empty-state CTAs",
+        "nothing added to the library yet",
+        "often empty on fresh db",
+    )
+    for path in (GUIDED_TOUR, USER_JOURNEY, SCREENSHOTS_MD):
+        text = path.read_text()
+        for phrase in banned:
+            assert phrase not in text, f"{path.name} must not claim: {phrase!r}"
+        assert "Agent A" in text and "Agent B" in text and "Agent C" in text, (
+            f"{path.name} must name the three custom agents in my-blueprints.png"
+        )
+        assert "Custom Created" in text and "**3**" in text, (
+            f"{path.name} must name Custom Created **3**"
+        )
+
+
+def test_agent_creator_caption_names_identity_progressive_disclosure():
+    """agent-creator.png shows 1 Identity open; optional Persona/Tags collapsed."""
+    for path in (GUIDED_TOUR, USER_JOURNEY, SCREENSHOTS_MD):
+        text = path.read_text()
+        assert "**1 Identity**" in text, f"{path.name} must name **1 Identity**"
+        assert "Generate Blueprint" in text, f"{path.name} must name Generate Blueprint"
