@@ -242,12 +242,39 @@ class BlueprintCodeValidator:
 class AgentPersonaGenerator:
     """Generates agent persona code based on user specifications"""
 
-    def __init__(self):
-        # Same AsyncOpenAI stream pattern as library generate_blueprint_code
-        # (model_instance.chat_completion_stream does not exist — echo-only fiction).
-        self.base_template = '''"""
+    def generate_agent_code(self, agent_spec: dict[str, Any]) -> str:
+        """Emit a BlueprintBase async-generator template (AsyncOpenAI streaming)."""
+        class_name = self._sanitize_class_name(agent_spec.get("name", "CustomAgent"))
+        name = agent_spec.get("name", "Custom Agent")
+        description = agent_spec.get("description", "A custom AI agent")
+        personality = agent_spec.get("personality", "helpful and professional")
+        expertise = agent_spec.get("expertise", ["general assistance"])
+        if isinstance(expertise, list):
+            expertise_str = ", ".join(expertise)
+            expertise_list = expertise
+        else:
+            expertise_str = str(expertise)
+            expertise_list = [str(expertise)]
+        communication_style = agent_spec.get(
+            "communication_style", "clear and concise"
+        )
+        instructions = agent_spec.get(
+            "instructions", "Help the user with their request."
+        )
+        tags = agent_spec.get("tags", ["custom", "user-generated"])
+        blueprint_id = name.lower().replace(" ", "_")
+        persona_body = (
+            f"Personality: {personality}\n"
+            f"Expertise: {expertise_str}\n"
+            f"Communication Style: {communication_style}\n\n"
+            f"Instructions: {instructions}"
+        )
+
+        return f'''#!/usr/bin/env python3
+"""
 {description}
 """
+
 from __future__ import annotations
 
 import os
@@ -258,35 +285,50 @@ from openai import AsyncOpenAI
 
 from swarm.core.blueprint_base import BlueprintBase
 
+
 class {class_name}(BlueprintBase):
     """
     {description}
     """
 
     metadata: ClassVar[dict[str, Any]] = {{
-        "name": "{name}",
-        "description": "{description}",
+        "name": {repr(name)},
+        "description": {repr(description)},
         "version": "1.0.0",
         "author": "User Generated",
-        "tags": {tags},
+        "tags": {repr(tags)},
         "persona": {{
-            "personality": "{personality}",
-            "expertise": {expertise},
-            "communication_style": "{communication_style}"
-        }}
+            "personality": {repr(personality)},
+            "expertise": {repr(expertise_list)},
+            "communication_style": {repr(communication_style)},
+        }},
     }}
 
-    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+    def __init__(
+        self,
+        blueprint_id: str | None = None,
+        config_path: str | None = None,
+        **kwargs: Any,
+    ):
+        super().__init__(
+            blueprint_id or {repr(blueprint_id)},
+            config_path=config_path,
+            **kwargs,
+        )
+
+    async def run(
+        self, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """Yield OpenAI-style message chunks for /v1/chat/completions."""
         user_message = messages[-1].get("content", "") if messages else ""
-        persona_prompt = (
-            f"You are {name}, {description}\\n\\n"
-            f"Personality: {personality}\\n"
-            f"Expertise: {expertise_str}\\n"
-            f"Communication Style: {communication_style}\\n\\n"
-            f"Instructions: {instructions}"
-        )
-        system = {{"role": "system", "content": persona_prompt}}
+        system = {{
+            "role": "system",
+            "content": (
+                f"You are {{self.metadata.get('name')}}, "
+                f"{{self.metadata.get('description')}}\\n\\n"
+                + {repr(persona_body)}
+            ),
+        }}
         llm_messages = [system, *messages] if messages else [system]
 
         try:
@@ -350,37 +392,13 @@ class {class_name}(BlueprintBase):
             }}
 '''
 
-    def generate_agent_code(self, agent_spec: dict[str, Any]) -> str:
-        """Generate agent blueprint code from specification"""
-
-        # Sanitize class name
-        class_name = self._sanitize_class_name(agent_spec.get('name', 'CustomAgent'))
-
-        # Format expertise
-        expertise = agent_spec.get('expertise', ['general assistance'])
-        if isinstance(expertise, list):
-            expertise_str = ', '.join(expertise)
-        else:
-            expertise_str = str(expertise)
-
-        return self.base_template.format(
-            class_name=class_name,
-            name=agent_spec.get('name', 'Custom Agent'),
-            description=agent_spec.get('description', 'A custom AI agent'),
-            personality=agent_spec.get('personality', 'helpful and professional'),
-            expertise=repr(expertise),
-            expertise_str=expertise_str,
-            communication_style=agent_spec.get('communication_style', 'clear and concise'),
-            instructions=agent_spec.get('instructions', 'Help the user with their request.'),
-            tags=repr(agent_spec.get('tags', ['custom', 'user-generated']))
-        )
-
     def _sanitize_class_name(self, name: str) -> str:
         """Convert name to valid Python class name"""
         import re
-        clean_name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
+        clean_name = re.sub(r"[^a-zA-Z0-9\s]", "", name)
         words = clean_name.split()
-        return ''.join(word.capitalize() for word in words) + 'Blueprint'
+        return "".join(word.capitalize() for word in words) + "Blueprint"
+
 
 
 # Global instances
