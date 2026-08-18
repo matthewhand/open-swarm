@@ -263,8 +263,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   `core/blueprint_base.py` (919 lines, 35 methods — memory/approval/config all
   inlined). Extract `MemoryMixin`/`ApprovalMixin`/`ConfigResolver`; pull
   `CodeySpinner`/`DummyTool` into shared infra.
-- [ ] **Spinner reimplemented ≥13×** and **`ansi_box` duplicated & divergent**
-  (`utils/ansi_box.py` 23 lines vs `ux/ansi_box.py` 42). Consolidate to one `ux/`.
+- [x] **`ansi_box` duplication** — `utils/ansi_box.py` is a DeprecationWarning
+  shim re-exporting `ux/ansi_box` (callers moved to `ux` / `output_utils`).
 - [ ] **Blueprint metadata inconsistent** — `name`≠dirname in 9 blueprints;
   3 declaration styles (`ClassVar`, bare, `@property`); absent in `gawd`/`geese`/
   `whinge_surf`/`zeus`; no machine-readable `category`. Define a schema +
@@ -298,4 +298,5 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 - [x] **`/v1/teams/` honesty** — documented as LLM-profile alias registry
   (`id`/`description`/`llm_profile`), not a multi-agent team builder (OpenAPI +
   module docstring + FEATURE_STATUS).
-- [ ] **Zero test coverage:** `stewie`, `whinge_surf` (both have real `run()`).
+- [x] **Stewie coverage** — dedicated `tests/blueprints/test_stewie.py` + gap smoke;
+  `whinge_surf` empty husk removed (was not discoverable).

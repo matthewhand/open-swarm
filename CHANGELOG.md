@@ -24,8 +24,10 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 - **Stewie nested Django leftovers:** delete broken `apps`/`models`/`serializers`/`views`/`urls`/`settings` that imported nonexistent `blueprints.chc` and were never on `INSTALLED_APPS`; keep `blueprint_stewie.py`
+- **Empty blueprint husks:** remove `family_ties/` and `whinge_surf/` directories that contained only `__pycache__` (not discoverable)
 
 ### Fixed
+- **Stewie docs/tests honesty:** FEATURE_STATUS no longer claims nested Django / `blueprint_family_ties.py`; dedicated `tests/blueprints/test_stewie.py` covers `SWARM_TEST_MODE`
 - **Library create→run path:** `generate_blueprint_code` emits a BlueprintBase `AsyncGenerator` `run` (yields message chunks; no invalid `__main__`/`asyncio.run`); My Blueprints runner POSTs `/v1/chat/completions` and links to `/chat?blueprint=` + `/teams/launch/` (replaces client-side “Simulate run” demo)
 - **`swarm-cli config remove` missing target:** exits **1** (stderr) when the profile/server name is absent (was exit **0** after printing “not found”), matching `delete`/`uninstall`
 - **Custom blueprint DELETE missing-id:** `DELETE /v1/blueprints/custom/<id>/` now returns **404** when the id is absent (was **204**), matching GET/PATCH on the same resource and DELETE on `/v1/library/` + `/v1/teams/`

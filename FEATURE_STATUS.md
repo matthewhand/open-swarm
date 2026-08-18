@@ -111,13 +111,13 @@ Import check: every module below imported successfully via `uv run python -c "im
 | flock | 🟡 | Imports; has `test_basic.py` — but **not collected**: it lives in `src/swarm/blueprints/flock/` while `pytest.ini testpaths = tests` |
 | chucks_angels | 🟡 | Imports; same uncollected `test_basic.py` problem |
 | digitalbutlers | 🟡 | Imports; same uncollected `test_basic.py` problem |
-| whinge_surf | 🟡 | Imports; `llm_integration.py` backend added in commit `3f0ec3ea`; no dedicated tests |
+| whinge_surf | ❌ | Empty husk removed (dir had only `__pycache__`; no `blueprint_whinge_surf.py`) |
 | poets | 🟡 | Imports; `poets_cli.py`; no README, no tests |
 | gawd | 🟡 | Imports; `apps.py`; no README, no tests |
-| family_ties | 🟡 | Imports; single-file blueprint, no README/tests |
+| family_ties | ❌ | Empty husk removed (forwarder deleted earlier; dir had only `__pycache__`). Use `stewie`. |
 | dynamic_team | 🟡 | Imports; bare directory — no `__init__.py`, README, or tests |
 | whiskeytango_foxtrot | 🟡 | Imports; no README/tests |
-| stewie | 🟡 | Imports, has models/serializers/urls — but its blueprint module is literally named `blueprint_family_ties.py` (copy-paste from family_ties, never renamed): `src/swarm/blueprints/stewie/blueprint_family_ties.py` |
+| stewie | ✅ | `blueprint_stewie.py` discoverable; nested Django leftovers (`blueprints.chc`) deleted; `SWARM_TEST_MODE` path + gap smoke in `tests/blueprints/test_discoverable_gap_test_mode.py` / `test_stewie.py` |
 | chatbot, echocraft, mcp_demo, messenger, mission_improbable, monkai_magic, nebula_shellz, omniplex | ❌ | Removed in cleanup wave — `git status` shows `D src/swarm/blueprints/<each>/...` in the worktree at audit time; directories already gone from disk |
 | `blueprint_audit_status.json` | ❌ | Stale/fake metadata: `src/swarm/blueprints/blueprint_audit_status.json` marks deleted blueprints (echocraft, mcp_demo, chatbot) "working" and lists blueprints that don't exist at all (dilbot, gaggle, gatcha, divine_code, shell_demo, unapologetic_press) |
 
