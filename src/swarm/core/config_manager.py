@@ -6,8 +6,12 @@ import shutil
 import sys
 from typing import Any
 
-from swarm.extensions.cli.utils.prompt_user import prompt_user
 from swarm.settings import DEBUG
+
+
+def prompt_user(prompt: str) -> str:
+    """Prompt the user for input via CLI and return the response."""
+    return input(prompt + " ")
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)

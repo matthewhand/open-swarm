@@ -71,7 +71,7 @@ Repository = "https://github.com/matthewhand/open-swarm.git"
 Changelog = "https://github.com/matthewhand/open-swarm/blob/main/CHANGELOG.md"
 
 [project.scripts]
-swarm-api = "swarm.extensions.launchers.swarm_api:main"
+swarm-api = "swarm.core.swarm_api:main"
 swarm-cli = "swarm.core.swarm_cli:app"
 codey = "swarm.blueprints.codey.codey_cli:main"
 suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"

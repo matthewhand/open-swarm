@@ -29,8 +29,8 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 
 | Feature | Status | Evidence |
 |---|---|---|
-| `swarm-cli` | ✅ | Entry point `pyproject.toml [project.scripts]` → `swarm.core.swarm_cli:app`; `uv run swarm-cli --help` exits 0 (verified 2026-06-10) |
-| `swarm-api` | ✅ | → `swarm.extensions.launchers.swarm_api:main`; `--help` exits 0; launcher tests `tests/cli/test_launchers.py` pass |
+| `swarm-cli` | ✅ | Entry point `pyproject.toml [project.scripts]` → `swarm.core.swarm_cli:app`; `uv run swarm-cli --help` exits 0. Orphan argparse trees `extensions/cli` + `core/cli` deleted (ROADMAP §3.4b / §4.4). |
+| `swarm-api` | ✅ | → `swarm.core.swarm_api:main` (pyproject); thin deprecated `-m` shim at `swarm.extensions.launchers.swarm_api`; launcher tests `tests/cli/test_launchers.py` pass |
 | `codey` | ✅ | → `swarm.blueprints.codey.codey_cli:main`; `--help` exits 0 |
 | `suggestion` | ✅ | → `swarm.blueprints.suggestion.suggestion_cli:main`; `--help` exits 0 |
 

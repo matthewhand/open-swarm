@@ -9,7 +9,7 @@ from swarm.core.spinner import SwarmSpinner
 from swarm.core.output_utils import (
     print_search_progress_box,
 )
-from swarm.extensions.cli.utils.async_input import AsyncInputHandler
+from swarm.core.async_input import AsyncInputHandler
 
 # Early test-mode: simulate spinner output and exit for Codey CLI tests, only when executed as script and not requesting help
 if __name__ == "__main__" and os.environ.get("SWARM_TEST_MODE") and not any(arg in ("-h", "--help") for arg in sys.argv):

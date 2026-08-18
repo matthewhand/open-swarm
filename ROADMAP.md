@@ -174,9 +174,12 @@ not found or not callable. Skipping.` on every invocation (config, add, delete,
 edit-config, validate-env, validate-envvars, …). Only `list`, `wizard`, and
 `install` resolve cleanly; `swarm-cli config` errors `invalid choice`.
 
-- [ ] Prune the dead alias registrations (or wire their `execute` functions)
-- [ ] Silence the per-invocation warnings for unregistered aliases
-- [ ] Reconcile docs to the commands that actually work
+- [x] Prune the dead alias registrations — deleted orphan argparse trees
+  (`extensions/cli`, `core/cli`) that emitted those warnings; shipped entry is
+  Typer `swarm.core.swarm_cli:app` (no alias warnings)
+- [x] Silence the per-invocation warnings for unregistered aliases (tree gone)
+- [x] Reconcile docs to the commands that actually work (USERGUIDE / QUICKSTART
+  already match Typer; DEVELOPMENT.md entry-point note updated)
 
 ### 3.5b CLI Agent Fusion (v0.4.0 feature line)
 
@@ -248,16 +251,18 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   `.env` helper usage text now points at shipped `--section/--json` form.
 - [x] **`install` wording** — QUICKSTART §2 now says PyInstaller compile (not
   “downloads”).
-- [ ] **swarm-cli dead-alias warnings** — see 4.4 (orphaned `extensions/cli/main.py`).
+- [x] **swarm-cli dead-alias warnings** — see 4.4 (orphaned `extensions/cli` deleted).
 
 ### 4.4 Dead code / parallel trees
-- [ ] **`extensions/` vs `core/` parallel CLI trees (~700 LOC)** — `swarm-cli`→`core`,
-  `swarm-api`→`extensions.launchers` (opposite trees); two tests import the
-  non-shipped `extensions.launchers.swarm_cli`. Pick `core/`, repoint `swarm-api`,
-  delete `extensions/launchers` + `extensions/cli`.
-- [ ] **`extensions/cli/main.py` orphaned** — unreferenced; source of the
-  "Execute function for alias 'X' not found" warnings (8/11 aliases lack
-  `execute`). Delete. (supersedes §3.4b)
+- [x] **`extensions/` vs `core/` parallel CLI trees** — deleted orphan argparse
+  `extensions/cli` + unused `core/cli`; deleted non-shipped
+  `extensions.launchers.swarm_cli` / `swarm_wrapper`; `swarm-cli` and
+  `swarm-api` both point at `swarm.core.*` in pyproject. Thin deprecated
+  `extensions.launchers.swarm_api` shim retained for old `-m` imports.
+  Live helpers relocated: `prompt_user` → `core.config_manager`,
+  `AsyncInputHandler` → `core.async_input`.
+- [x] **`extensions/cli/main.py` orphaned** — deleted with the argparse tree
+  (supersedes §3.4b).
 - [x] **Dead view+template:** `blueprint_webpage` + `simple_blueprint_page.html`
   (+ `chat.html`) removed 0.5.2 — see FEATURE_STATUS / CHANGELOG.
 - [x] **Orphaned `templates/rest_mode/*`** — deleted unrouted `slackbot.html` /

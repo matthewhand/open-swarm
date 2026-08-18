@@ -82,19 +82,12 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 │       │   │   ├── blueprint_base.py
 │       │   │   ├── blueprint_discovery.py
 │       │   │   └── blueprint_utils.py
-│       │   ├── cli/                # swarm-cli implementation (CLI)
-│       │   │   ├── __init__.py
-│       │   │   ├── commands/       # Subcommands for blueprint/config management
-│       │   │   ├── main.py         # Typer app definition (likely invoked by launcher)
-│       │   │   └── utils.py
-│       │   ├── config/             # Configuration loading logic (used by both)
+│       │   ├── config/             # Deprecated shim → swarm.core.config_loader
 │       │   │   ├── __init__.py
 │       │   │   └── config_loader.py
-│       │   └── launchers/          # Entry points defined in pyproject.toml/setup.py (CLI/API)
+│       │   └── launchers/          # Deprecated swarm-api shim only (entry is core)
 │       │       ├── __init__.py
-│       │       ├── swarm_api.py    # Wrapper to launch Django API server (API)
-│       │       ├── swarm_cli.py    # Main entry point for swarm-cli (CLI)
-│       │       └── build_swarm_wrapper.py # Script using PyInstaller for `swarm-cli install` (CLI)
+│       │       └── swarm_api.py    # Re-exports swarm.core.swarm_api:main
 │       ├── management/             # Custom Django management commands (API)
 │       ├── migrations/             # Django database migrations (API)
 │       ├── models.py               # Django models (API, if any)
@@ -126,7 +119,10 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Location:**
     *   **`swarm-cli`:** Uses XDG paths (default: `~/.config/swarm/swarm_config.json`).
     *   **`swarm-api` (Docker):** Typically mounted from the host (e.g., `./swarm_config.json` mapped to `/app/swarm_config.json`).
-*   **Loading:** Handled by `swarm.extensions.config.config_loader`. It searches upwards from the current directory, then checks the default XDG path (primarily relevant for `swarm-cli`).
+*   **Loading:** Handled by `swarm.core.config_loader` (deprecated shim:
+    `swarm.extensions.config.config_loader`). It searches upwards from the
+    current directory, then checks the default XDG path (primarily relevant
+    for `swarm-cli`).
 *   **Structure:** Contains top-level keys like `llm` (for LLM profiles) and `mcpServers`.
 *   **Secrets:** Use environment variable placeholders (e.g., `"${OPENAI_API_KEY}"`) in `swarm_config.json` and define actual values in a `.env` file or the runtime environment.
 *   **Management:** Prefer `swarm-cli config list|add|remove` (see `USERGUIDE.md`), or edit the JSON file by hand.
@@ -157,7 +153,10 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Installation:** `pip install open-swarm`
 *   **Framework:** `typer`.
 *   **Entry Point:** Defined in `pyproject.toml` (`swarm-cli = "swarm.core.swarm_cli:app"`).
-*   **Commands:** `list`, `launch`, `install`, `install-executable` — implemented in `src/swarm/core/swarm_cli.py`. (A legacy CLI implementation also exists under `src/swarm/extensions/cli/`; consolidation is tracked in ROADMAP.md.)
+*   **Commands:** `list`, `launch`, `install`, `install-executable`, `config`,
+    `wizard`, `moa`, `cli-agents`, `skills`, … — implemented in
+    `src/swarm/core/swarm_cli.py` (Typer). The legacy argparse trees under
+    `extensions/cli` and `core/cli` were deleted (ROADMAP §3.4b / §4.4).
 *   **Installation (`swarm-cli install`):** Uses `PyInstaller` to create standalone executables from managed blueprints.
 *   **User Data Management:** Uses XDG paths (`platformdirs`).
 *   **ANSI/Styling & Terminal Support:** Use Rich's `Console` to detect terminal capabilities (`console.is_terminal` and `console.color_system`) and apply ANSI color/styling when supported, with graceful fallback.

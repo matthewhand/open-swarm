@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Removed
+- **Orphan argparse CLI trees:** delete `src/swarm/extensions/cli/` and unused `src/swarm/core/cli/` (dead-alias warning source); drop non-shipped `extensions.launchers.swarm_cli` / `swarm_wrapper`; relocate `AsyncInputHandler` → `swarm.core.async_input`, `prompt_user` → `swarm.core.config_manager`. `swarm-api` / `swarm-cli` both enter via `swarm.core.*` in pyproject; deprecated `extensions.launchers.swarm_api` shim kept for old `-m` imports. Tests that only covered the orphan trees removed.
 - **Agent Creator Pro leftovers:** delete unused `agent_creator_pro` view/template/JS/CSS; `/agent-creator-pro/` redirect to `/agent-creator/` retained
 - **SPA leftover mounts:** TeamsPage / BlueprintsPage / SettingsPage / BuilderPage / AgentCreatorPage no longer routed in `App.tsx` (sources under `webui/frontend/src/pages/_quarantine/` per ADR-001)
 - **Orphaned rest_mode templates:** delete unrouted `templates/rest_mode/` (`slackbot.html`, `message_ui.html`, components); static `rest_mode/js` retained for XSS regressions
