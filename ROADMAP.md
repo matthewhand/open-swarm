@@ -292,8 +292,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   (assertive for error/warning). Orphan Builder panels / AuthContext deleted.
 - [ ] **Modal triple focus/dismiss** — native `<dialog>` + `focus-trap-react` +
   manual backdrop math (`Modal.tsx:84-105`); pick one.
-- [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
-  (`:324`), no markdown/code rendering (`:301`).
+- [ ] **ChatPage gaps** — single-line composer remains; markdown bubbles +
+  auto-reconnect/backoff (skip 4401) landed.
 - [x] **BuilderPage / AgentCreatorPage / Teams / Blueprints / Settings SPA** —
   deleted (ADR-001); `App.tsx` mounts `/` + `/chat` only. Orphan Builder panel
   components + unused AuthContext deleted too; canonical creator is Django

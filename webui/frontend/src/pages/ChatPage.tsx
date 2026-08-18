@@ -17,11 +17,14 @@ import {
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import {
+  reconnectBackoffMs,
+  shouldAutoReconnect,
+  WS_AUTH_REQUIRED_CODE,
+} from '../lib/chatReconnect'
+import { renderSafeMarkdown } from '../lib/markdown'
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
-
-/** Matches swarm.consumers.WS_AUTH_REQUIRED_CODE (session gate). */
-const WS_AUTH_REQUIRED_CODE = 4401
 
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
@@ -68,6 +71,10 @@ const ChatPage = () => {
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
+  /** Consecutive auto-reconnect attempts since last successful open. */
+  const backoffAttemptRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intentionalCloseRef = useRef(false)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -123,20 +130,36 @@ const ChatPage = () => {
   // Connect (and reconnect on demand) to the chat websocket.
   useEffect(() => {
     let opened = false
+    intentionalCloseRef.current = false
     setStatus('connecting')
     setAuthRejected(false)
+
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
 
     let ws: WebSocket
     try {
       ws = new WebSocket(buildChatWsUrl(conversationIdRef.current))
     } catch {
       setStatus('failed')
+      const attempt = backoffAttemptRef.current
+      if (shouldAutoReconnect(1006, false, attempt)) {
+        const delay = reconnectBackoffMs(attempt)
+        backoffAttemptRef.current = attempt + 1
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null
+          setConnectAttempt((n) => n + 1)
+        }, delay)
+      }
       return
     }
     wsRef.current = ws
 
     ws.onopen = () => {
       opened = true
+      backoffAttemptRef.current = 0
       setStatus('open')
     }
     ws.onmessage = (event: MessageEvent) => {
@@ -151,9 +174,30 @@ const ChatPage = () => {
       const rejected = event.code === WS_AUTH_REQUIRED_CODE
       setAuthRejected(rejected)
       setStatus(opened ? 'closed' : 'failed')
+
+      const attempt = backoffAttemptRef.current
+      if (
+        shouldAutoReconnect(
+          event.code,
+          intentionalCloseRef.current,
+          attempt,
+        )
+      ) {
+        const delay = reconnectBackoffMs(attempt)
+        backoffAttemptRef.current = attempt + 1
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null
+          setConnectAttempt((n) => n + 1)
+        }, delay)
+      }
     }
 
     return () => {
+      intentionalCloseRef.current = true
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
       ws.onopen = null
       ws.onmessage = null
       ws.onclose = null
@@ -192,7 +236,14 @@ const ChatPage = () => {
     setInput('')
   }
 
-  const reconnect = () => setConnectAttempt((n) => n + 1)
+  const reconnect = () => {
+    backoffAttemptRef.current = 0
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    setConnectAttempt((n) => n + 1)
+  }
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape' && input.length > 0) {
@@ -416,17 +467,14 @@ const ChatPage = () => {
                   {message.role === 'user' ? 'You' : 'Assistant'}
                 </div>
                 <div
-                  className={`chat-bubble whitespace-pre-wrap ${
+                  className={`chat-bubble ${
                     message.role === 'user' ? 'chat-bubble-primary' : ''
                   }`}
                 >
-                  {message.text.length > 0 ? (
-                    message.text
-                  ) : message.streaming ? (
-                    <LoadingDots size="sm" />
-                  ) : (
-                    <span className="opacity-60">(empty response)</span>
-                  )}
+                  <ChatBubbleBody
+                    text={message.text}
+                    streaming={message.streaming}
+                  />
                 </div>
               </div>
             ))
@@ -457,6 +505,28 @@ const ChatPage = () => {
         </form>
       </div>
     </div>
+  )
+}
+
+function ChatBubbleBody({
+  text,
+  streaming,
+}: {
+  text: string
+  streaming: boolean
+}) {
+  if (text.length === 0) {
+    return streaming ? (
+      <LoadingDots size="sm" />
+    ) : (
+      <span className="opacity-60">(empty response)</span>
+    )
+  }
+  return (
+    <div
+      className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
+      dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
+    />
   )
 }
 

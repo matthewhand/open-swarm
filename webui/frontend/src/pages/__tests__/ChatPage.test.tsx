@@ -334,3 +334,100 @@ describe('ChatPage Send button honesty while streaming', () => {
     expect(document.querySelector('.chat-bubble .loading')).toBeTruthy()
   })
 })
+
+describe('ChatPage auto-reconnect backoff', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('reconnects with backoff after unexpected drop, and skips auth 4401', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    await act(async () => {
+      const ws = MockWebSocket.instances[0]!
+      ws.readyState = 3
+      ws.onclose?.(new CloseEvent('close', { code: 1006 }))
+    })
+
+    expect(MockWebSocket.instances).toHaveLength(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2)
+
+    // Auth gate must not auto-reconnect.
+    const authClient = MockWebSocket.instances.length
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.rejectAuth()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+    expect(MockWebSocket.instances.length).toBe(authClient)
+  })
+})
+
+describe('ChatPage markdown bubbles', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('renders assistant markdown (bold/code) in the bubble', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-md1" class="assistant-message"></div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-md1" hx-swap-oob="true" class="assistant-message">**hello** and `code`</div>',
+        }),
+      )
+    })
+
+    const bubble = document.querySelector('.chat-md')
+    expect(bubble).toBeTruthy()
+    expect(bubble?.innerHTML).toContain('<strong>hello</strong>')
+    expect(bubble?.innerHTML).toContain('<code>code</code>')
+  })
+})
