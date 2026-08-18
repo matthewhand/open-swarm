@@ -9,12 +9,14 @@ import logging
 import os
 import random
 import shlex
+import subprocess
 import sqlite3  # Use standard sqlite3 module
 import sys
 from pathlib import Path
 from typing import Any, ClassVar
 
 from swarm.core.blueprint_ux import BlueprintUXImproved
+from swarm.ux.ansi_box import ansi_box
 
 # Ensure src is in path for BlueprintBase import
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
