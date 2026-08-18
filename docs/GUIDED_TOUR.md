@@ -164,8 +164,8 @@ limit so the list does not balloon.*
 
 *Profiles detected from project and user config (openai, anthropic, google,
 ollama, lmstudio, openrouter, …) with Source and Enabled columns. Nested
-under **Settings → LLM profiles** in the primary nav (Settings dropdown
-active in this capture).*
+under **Settings → LLM profiles** (desktop Settings dropdown active; mobile
+Settings bottom tab active).*
 
 ---
 
