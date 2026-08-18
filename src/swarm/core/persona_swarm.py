@@ -409,6 +409,7 @@ async def run_hybrid_scripted(
 
     Proves write policy split: MoA participants never write; B implementer does.
     """
+    from swarm.core.moa.team import _default_fakes
     from swarm.core.moa.tools import consult_moa
 
     tools = WorkspaceTools(workspace)
@@ -424,16 +425,7 @@ async def run_hybrid_scripted(
     seats = list(moa_participants or ["analyst", "critic"])
     fakes = moa_fake_responses
     if moa_backend == "fake" and not fakes:
-        fakes = {
-            "analyst": (
-                f'{{"claim":"Proceed carefully: {question[:80]}",'
-                f'"confidence":0.85,"evidence":["rollback"]}}'
-            ),
-            "critic": (
-                f'{{"claim":"Proceed carefully and monitor: {question[:80]}",'
-                f'"confidence":0.8,"evidence":["metrics"]}}'
-            ),
-        }
+        fakes = _default_fakes(question, seats)
 
     # --- Step A: MoA consult (read-only) ---
     moa_payload = await consult_moa(
