@@ -55,26 +55,32 @@ catalog count can differ). Desktop top nav: **Home · Blueprints · Teams ·
 Sessions · Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**,
 **Manage Teams**, **Settings**. Banner text points operators at Django
 trailing-slash paths for library, sessions, creators, and settings.
-Recaptured after `npm run build` on **2026-08-18**. Mobile
-`screenshots/mobile/landing.png` uses the same **five-tab dock**
-(Home · Blueprints · Teams · Sessions · Settings; Home active) as App.tsx.*
+Recaptured after `npm run build` on **2026-08-18**.
+
+![SPA dashboard (mobile): same counts; five-tab dock Home active](./screenshots/mobile/landing.png)
+
+*Mobile twin (`screenshots/mobile/landing.png`): stacked cards and the same
+**five-tab dock** (Home · Blueprints · Teams · Sessions · Settings; Home
+active) as App.tsx.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
 ### Chat — `/chat` (React SPA)
 
-![SPA chat: disconnected websocket shell; login required; blueprint selector](./screenshots/spa-chat.png)
+![SPA chat: Unavailable / websocket-failed gate; Sign in CTA (no blueprint selector in this frame)](./screenshots/spa-chat.png)
 
-*SPA websocket chat (`/ws/…`) with blueprint selector. Desktop and mobile
-`spa-chat.png` both show **Unavailable** / “Websocket connection failed”
-with copy that the consumer requires an authenticated Django session
+*SPA websocket chat (`/ws/…`). This capture is the **Unavailable** /
+“Websocket connection failed” gate — authenticated session required
 (`/accounts/login/`), plus empty-state “Sign in if needed, then
-reconnect…”. Mobile dock is the **five-tab** bar (Home · Blueprints ·
-Teams · Sessions · Settings — Chat is SPA-only, not a dock tab). Replies
-also need a working LLM profile.*
+reconnect…”. The blueprint selector and Connected badge appear only after
+the websocket opens; they are **not** in this PNG. Desktop and mobile
+`spa-chat.png` match. Mobile dock is the **five-tab** bar (Home ·
+Blueprints · Teams · Sessions · Settings — Chat is SPA-only, not a dock
+tab). Replies also need a working LLM profile.*
 
-**What you can do:** log in, then pick a blueprint and stream replies. Prefer
-Django Team Launcher for scripted multi-agent runs.
+**What you can do:** log in and reconnect so the chat shell (including the
+blueprint selector) appears, then stream replies. Prefer Django Team
+Launcher for scripted multi-agent runs.
 
 ### Bare SPA entry URLs (redirect to Django)
 
@@ -129,8 +135,8 @@ banner.
 ![Django team launcher: blueprint dropdown, task box, output panel](./screenshots/teams-launch.png)
 
 *Select a team blueprint, enter a task, stream results. Capture shows
-**`fs_introspect`** selected and an empty output panel. Default do-path under
-Teams.*
+**`hybrid_team`** selected (first bundled option in the dropdown) and an
+empty output panel. Default do-path under Teams.*
 
 ### Blueprint Library — `/blueprint-library/`
 
@@ -168,6 +174,11 @@ sessions**, a **live** poll toggle, and “No sessions yet. Make a `POST
 /v1/responses` request and they'll appear here.” Per-status filter chips and
 the “Showing newest N of M (limit=50)” truncation banner appear only once
 sessions exist and the list is truncated — they are not in this PNG.*
+
+![Session explorer (mobile): same empty state; Sessions tab active](./screenshots/mobile/sessions.png)
+
+*Mobile twin: same empty-state chrome with the Django **five-tab** dock
+(Sessions active).*
 
 ### Session detail — `/sessions/resp_journey_seed/`
 

@@ -185,9 +185,10 @@ with any OpenAI client.
 ![Team launcher](./screenshots/teams-launch.png)
 
 Pick a team blueprint (the launcher lists bundled options such as
-`fs_introspect`, `hybrid_team`, `django_chat`, `persona_council`, … — the
-capture shows **`fs_introspect`** selected), type a task, and stream the
-team's output in the browser. The output panel is empty until you launch.
+`hybrid_team`, `fs_introspect`, `django_chat`, `persona_council`, … — the
+capture shows **`hybrid_team`** selected, the first dropdown option), type
+a task, and stream the team's output in the browser. The output panel is
+empty until you launch.
 
 ### Blueprint library — `/blueprint-library/`
 

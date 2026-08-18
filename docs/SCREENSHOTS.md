@@ -17,14 +17,14 @@ full-page PNGs.
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
 | `landing.png` | `/` (React SPA dashboard) | Counts 0/53/53; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; nav Home·Blueprints·Teams·Sessions·Settings (matches App.tsx) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
-| `spa-chat.png` | `/chat` (React SPA) | **Unavailable** / websocket failed gate; auth session required (`/accounts/login/`) — same gate as current `mobile/spa-chat.png` | GUIDED_TOUR.md | 2026-08-18 | current |
+| `spa-chat.png` | `/chat` (React SPA) | **Unavailable** / websocket failed gate + Sign in CTA; blueprint selector **not** in frame — same gate as `mobile/spa-chat.png` | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture + sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture + banner over Blueprint Library | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture + banner over Settings Dashboard | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect capture + banner over Agent Creator | GUIDED_TOUR.md | 2026-08-18 | current |
 | `login.png` | `/accounts/login/` (Django) | Sign-in form | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `teams.png` | `/teams/` (Django) | Teams Admin registration form + table | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
-| `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher; **`fs_introspect`** selected; empty output | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
+| `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher; **`hybrid_team`** selected (first dropdown option); empty output | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `blueprint-library.png` | `/blueprint-library/` (Django) | Catalog with search, pagination (Show more, 12 of 55), MCP badges (checking spinner) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library (often empty on fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `agent-creator.png` | `/agent-creator/` (Django) | Progressive-disclosure persona form + code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
@@ -56,7 +56,7 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **5-tab dock** Home · Blueprints · Teams · Sessions · Settings (Home active; matches App.tsx) | 2026-08-18 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **5-tab dock** Home · Blueprints · Teams · Sessions · Settings (Home active; matches App.tsx). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/spa-chat.png` | `/chat` | **Unavailable** / websocket-failed gate + Sign in CTA (matches desktop); **5-tab dock** (Chat is SPA-only, not a dock tab) | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django **5-tab** bar (Teams active) | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
@@ -64,12 +64,12 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 | `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect banner over Agent Creator; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/login.png` | `/accounts/login/` | Full-width login card (no bottom primary bar) | 2026-08-18 | current |
 | `mobile/teams.png` | `/teams/` | Django **5-tab** bar (Teams active); form wraps | 2026-08-18 | current |
-| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`fs_introspect`** selected; Django **5-tab** (Teams active) | 2026-08-18 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`hybrid_team`** selected (first dropdown option); Django **5-tab** (Teams active) | 2026-08-18 | current |
 | `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Django **5-tab** (Settings active) | 2026-08-18 | current |
-| `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle); Django **5-tab** (Sessions active) | 2026-08-18 | current |
+| `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle); Django **5-tab** (Sessions active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/session-detail.png` | `/sessions/resp_journey_seed/` | Seeded `hybrid_team` fixture Graph tab (same honesty as desktop — not a live run); Django **5-tab** (Sessions active) | 2026-08-18 | current |
 | `mobile/profiles.png` | `/profiles/` | Profiles table; Django **5-tab** (Settings active — profiles nest under Settings) | 2026-08-18 | current |
 
@@ -100,18 +100,18 @@ see [Regenerating](#regenerating) below.
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
 | `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused | 2025-01-05 | legacy |
-| `webui/blueprint-tools-badge-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/builder-all-panels-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/builder-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/builder-light.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/inference-profile-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/inference-profile-light.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/skills-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/skills-light.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/skills-preview-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/tool-capabilities-dark.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/tool-capabilities-light.png` | SPA builder / themed component capture | various | mixed | current |
-| `webui/trait-editor-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/blueprint-tools-badge-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/builder-all-panels-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/builder-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/builder-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of builder-dark) | mixed | current |
+| `webui/inference-profile-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/inference-profile-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of inference-profile-dark) | mixed | current |
+| `webui/skills-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/skills-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of skills-dark) | mixed | current |
+| `webui/skills-preview-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/tool-capabilities-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
+| `webui/tool-capabilities-light.png` | SPA builder light twin (a11y pair; dark embed used) | none (pair of tool-capabilities-dark) | mixed | current |
+| `webui/trait-editor-dark.png` | SPA builder / themed component capture | webui-config-panels.md | mixed | current |
 | `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
 | `docs/screenshots/archive/session-explorer-detail.png` | Older Session detail still (superseded by current `session-detail.png`) | none (historical) | archived | archived |
 | `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none | archived | archived |

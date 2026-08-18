@@ -186,12 +186,16 @@ def test_session_detail_caption_is_seeded_fixture_not_live_run():
 
 
 def test_user_journey_launcher_caption_matches_hybrid_team_default():
-    """teams-launch capture defaults to first option hybrid_team, not django_chat."""
-    text = USER_JOURNEY.read_text()
-    assert "hybrid_team" in text
-    # Must not claim django_chat is pre-selected in the capture.
-    assert "django_chat` is pre-selected" not in text
-    assert "django_chat is pre-selected" not in text
+    """teams-launch capture defaults to first option hybrid_team, not django_chat/fs_introspect."""
+    for path in (USER_JOURNEY, GUIDED_TOUR, SCREENSHOTS_MD):
+        text = path.read_text()
+        # Near the launcher capture, docs must name the selected blueprint honestly.
+        assert "hybrid_team" in text
+        # Must not claim a different blueprint is pre-selected in the PNG.
+        assert "django_chat` is pre-selected" not in text
+        assert "django_chat is pre-selected" not in text
+        assert "`fs_introspect`** selected" not in text
+        assert "**`fs_introspect`** selected" not in text
 
 
 def test_user_journey_screenshot_date_is_current_regeneration():
