@@ -193,13 +193,13 @@
           <div class="panel-header">
             <h3>Generated Code</h3>
             <div class="panel-actions">
-              <button class="btn btn-sm btn-outline-primary" onclick="validateCodePro()" id="validateBtnPro" disabled>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateCodePro()" id="validateBtnPro" disabled>
                 <i class="fas fa-check-circle"></i> Validate
               </button>
-              <button class="btn btn-sm btn-outline-info" onclick="previewAgent()" id="previewBtn" disabled>
+              <button type="button" class="btn btn-sm btn-outline-info" onclick="previewAgent()" id="previewBtn" disabled>
                 <i class="fas fa-eye"></i> Preview
               </button>
-              <button class="btn btn-sm btn-success" onclick="saveAgentPro()" id="saveBtnPro" disabled>
+              <button type="button" class="btn btn-sm btn-success" onclick="saveAgentPro()" id="saveBtnPro" disabled>
                 <i class="fas fa-save"></i> Save Agent
               </button>
             </div>
@@ -223,13 +223,13 @@
             <!-- Code Editor (when code is generated) -->
             <div id="codeEditor" style="display: none;">
               <div class="editor-toolbar">
-                <button class="btn btn-sm btn-outline-secondary" onclick="copyCode()">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyCode()">
                   <i class="fas fa-copy"></i> Copy
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="downloadCode()">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadCode()">
                   <i class="fas fa-download"></i> Download
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="formatCode()">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatCode()">
                   <i class="fas fa-magic"></i> Format
                 </button>
               </div>
@@ -253,7 +253,7 @@
           <div id="agentPreview" class="preview-panel" style="display: none;">
             <div class="preview-header">
               <h5>Agent Preview</h5>
-              <button class="btn btn-sm btn-outline-secondary" onclick="testAgent()">
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="testAgent()">
                 <i class="fas fa-play"></i> Test Agent
               </button>
             </div>

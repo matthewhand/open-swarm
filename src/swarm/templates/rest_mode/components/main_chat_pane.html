@@ -1,16 +1,16 @@
 {% load static %}
 <div class="main-pane">
     <div class="button-row">
-        <button class="input-button-subtle" aria-label="Toggle Chat History" id="chatHistoryToggleButtonVisible" style="display: none;">
+        <button type="button" class="input-button-subtle" aria-label="Toggle Chat History" id="chatHistoryToggleButtonVisible" style="display: none;">
             <img src="{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}" alt="Chat History">
         </button>
-        <button class="input-button-subtle" aria-label="Settings" id="settingsButton-main" style="display: none;">
+        <button type="button" class="input-button-subtle" aria-label="Settings" id="settingsButton-main" style="display: none;">
             <img src="{% static 'contrib/tabler-icons/settings.svg' %}" alt="Settings">
         </button>
-        <button class="input-button-subtle" aria-label="Search" id="searchButton-main" style="display: none;">
+        <button type="button" class="input-button-subtle" aria-label="Search" id="searchButton-main" style="display: none;">
             <img src="{% static 'contrib/tabler-icons/search.svg' %}" alt="Search">
         </button>
-        <button class="input-button-subtle" aria-label="New Chat" id="newChatButton-main" style="display: none;">
+        <button type="button" class="input-button-subtle" aria-label="New Chat" id="newChatButton-main" style="display: none;">
             <img src="{% static 'contrib/tabler-icons/message-chatbot.svg' %}" alt="New Chat"> New Chat
         </button>
     </div>
@@ -20,22 +20,22 @@
     <div class="form-container">
         <div class="dropdown-buttons-container">
             <select class="blueprint-dropdown" id="blueprintDropdown" aria-label="Select Blueprint"></select>
-            <button class="input-button upload-button" id="uploadButton" aria-label="Upload">
+            <button type="button" class="input-button upload-button" id="uploadButton" aria-label="Upload">
                 <img src="{% static 'contrib/tabler-icons/paperclip.svg' %}" alt="Upload">
             </button>
-            <button class="input-button upload-button" id="canvasToggleButton" aria-label="Toggle Canvas">
+            <button type="button" class="input-button upload-button" id="canvasToggleButton" aria-label="Toggle Canvas">
                 <img src="{% static 'contrib/tabler-icons/artboard.svg' %}" alt="Canvas">
             </button>
-            <button class="input-button" id="voiceRecordButton" aria-label="Record Voice">
+            <button type="button" class="input-button" id="voiceRecordButton" aria-label="Record Voice">
                 <img src="{% static 'contrib/tabler-icons/headset.svg' %}" alt="Record Voice">
             </button>
-            <button class="input-button upload-button" id="avatarToggleButton" aria-label="Toggle Avatar">
+            <button type="button" class="input-button upload-button" id="avatarToggleButton" aria-label="Toggle Avatar">
                 <img src="{% static 'contrib/tabler-icons/robot.svg' %}" alt="Avatar">
             </button>
         </div>
         <div class="send-container">
             <input type="text" id="userInput" class="rounded-input" placeholder="Type your message here...">
-            <button class="half-cut-button">Send</button>
+            <button type="button" class="half-cut-button">Send</button>
         </div>
     </div>
 </div>

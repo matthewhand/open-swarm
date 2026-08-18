@@ -7,7 +7,7 @@
             <img src="{{ blueprint.avatar_path }}" alt="" class="rounded-circle bp-avatar" style="object-fit:cover;">
             {% else %}
             <div class="rounded-circle bp-avatar bg-light d-flex align-items-center justify-content-center">
-                <i class="fas fa-robot text-muted"></i>
+                <i class="fas fa-robot text-muted" aria-hidden="true"></i>
             </div>
             {% endif %}
             <div class="flex-grow-1 min-w-0">
@@ -24,7 +24,7 @@
         <!-- compact meta: MCP status + a couple of tags -->
         <div class="d-flex align-items-center gap-2 mb-2" style="min-height:1.4rem;">
             <span id="mcp-status-{{ blueprint.id }}" class="badge bg-secondary" title="Checking MCP requirements...">
-                <i class="fas fa-spinner fa-spin me-1"></i>MCP
+                <i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>MCP
             </span>
             {% if blueprint.tags %}
             <small class="text-muted text-truncate">
@@ -36,17 +36,17 @@
         <!-- one primary action + an overflow menu for the rest -->
         <div class="mt-auto d-flex gap-2">
             {% if blueprint.installed %}
-            <button class="btn btn-outline-danger btn-sm flex-grow-1 btn-remove-blueprint" data-blueprint-id="{{ blueprint.id }}">
-                <i class="fas fa-minus me-1"></i>Remove
+            <button type="button" class="btn btn-outline-danger btn-sm flex-grow-1 btn-remove-blueprint" data-blueprint-id="{{ blueprint.id }}">
+                <i class="fas fa-minus me-1" aria-hidden="true"></i>Remove
             </button>
             {% else %}
-            <button class="btn btn-outline-success btn-sm flex-grow-1 btn-add-blueprint" data-blueprint-id="{{ blueprint.id }}">
-                <i class="fas fa-plus me-1"></i>Add to Library
+            <button type="button" class="btn btn-outline-success btn-sm flex-grow-1 btn-add-blueprint" data-blueprint-id="{{ blueprint.id }}">
+                <i class="fas fa-plus me-1" aria-hidden="true"></i>Add to Library
             </button>
             {% endif %}
             <div class="dropdown">
-                <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
-                    <i class="fas fa-ellipsis-h"></i>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions" title="More actions">
+                    <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><button class="dropdown-item btn-bp-preview" type="button" data-blueprint-id="{{ blueprint.id }}"><i class="fas fa-eye me-2"></i>Preview</button></li>

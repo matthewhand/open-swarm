@@ -5,21 +5,21 @@
     <div class="chat-history-header">
         <div>
             <!-- Toggle Chat History Button -->
-            <button class="input-button chat-history-button" id="chatHistoryToggleButton" aria-label="Toggle Chat History">
+            <button type="button" class="input-button chat-history-button" id="chatHistoryToggleButton" aria-label="Toggle Chat History">
                 <img src="{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}" alt="Collapse Chat History Pane">
             </button>
 
-            <button class="input-button upload-button" id="settingsToggleButton" aria-label="Toggle Settings">
+            <button type="button" class="input-button upload-button" id="settingsToggleButton" aria-label="Toggle Settings">
                 <img src="{% static 'contrib/tabler-icons/settings.svg' %}" alt="Settings">
             </button>
 
             <!-- Search Button -->
-            <button class="input-button search-button" title="Search" aria-label="Search Chats">
+            <button type="button" class="input-button search-button" title="Search" aria-label="Search Chats">
                 <img src="{% static 'contrib/tabler-icons/search.svg' %}" alt="Search">
             </button>
 
             <!-- New Chat Button -->
-            <button class="input-button new-chat-button" title="New Chat" aria-label="Start New Chat" onclick="window.location.href='{% url 'create_chat' %}'">
+            <button type="button" class="input-button new-chat-button" title="New Chat" aria-label="Start New Chat" onclick="window.location.href='{% url 'create_chat' %}'">
                 <img src="{% static 'contrib/tabler-icons/message-chatbot.svg' %}" alt="New Chat">
                  New Chat
             </button>
@@ -37,10 +37,10 @@
                     <div class="chat-item-tools">
                         <!-- Tag Buttons and Delete Button -->
                         <div class="chat-item-tags">
-                            <button class="tag-button" aria-label="Filter by Chat">Chat</button>
-                            <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
+                            <button type="button" class="tag-button" aria-label="Filter by Chat">Chat</button>
+                            <button type="button" class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
                             <!-- Delete Button -->
-                            <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat" onclick="if(confirm('Delete this chat?')){window.location.href='{% url 'delete_chat' conversation.conversation_id %}'};">
+                            <button type="button" class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat" onclick="if(confirm('Delete this chat?')){window.location.href='{% url 'delete_chat' conversation.conversation_id %}'};">
                                 <img src="{% static 'rest_mode/svg/trash.svg' %}" alt="Delete Chat">
                             </button>
                         </div>
