@@ -150,6 +150,14 @@ deferred to the release PR.
 
 ---
 
+## 12. MoA / consensus-then-team — ✅ (current shipped)
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Consensus → scripted team (Grok panel; no live Runner default) | ✅ | `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; live seats via `GrokParticipantBackend`; CLI `swarm-cli moa --team --workdir`; `moa_orchestrator` → `run_moa_agents_orchestrator` is scripted specialists by default — not a live openai-agents `Runner` (optional only via `build_moa_orchestrator_agents`). Docs: `docs/MOA.md`. |
+
+---
+
 ## Regeneration
 
 This doc decays fast (a cleanup wave was rewriting the tree while it was generated). Before acting on any row, re-verify:
