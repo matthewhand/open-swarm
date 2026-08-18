@@ -256,8 +256,7 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   (+ `chat.html`) removed 0.5.2 — see FEATURE_STATUS / CHANGELOG.
 - [ ] **Orphaned `templates/rest_mode/*` files** (~8). Delete or wire; `chat.html`
   already removed.
-- [ ] **`stewie` ships a broken nested Django app** — `blueprints/stewie/{settings,views,serializers,models}.py`
-  import a nonexistent `blueprints.chc`. Fix paths or delete.
+- [x] **`stewie` ships a broken nested Django app** — deleted dead `settings`/`views`/`serializers`/`models`/`urls`/`apps` (nonexistent `blueprints.chc`); kept `blueprint_stewie.py`
 
 ### 4.5 Structure
 - [ ] **God-modules:** `blueprints/codey/blueprint_codey.py` (1021 lines),

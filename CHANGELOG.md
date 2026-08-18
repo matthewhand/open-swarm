@@ -21,6 +21,9 @@ All notable changes to this project will be documented in this file.
 - **Session Explorer empty state:** recapture `sessions.png` (+ mobile) for owner-scoped copy (“only sessions you own”)
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
+### Removed
+- **Stewie nested Django leftovers:** delete broken `apps`/`models`/`serializers`/`views`/`urls`/`settings` that imported nonexistent `blueprints.chc` and were never on `INSTALLED_APPS`; keep `blueprint_stewie.py`
+
 ### Fixed
 - **Custom blueprint DELETE missing-id:** `DELETE /v1/blueprints/custom/<id>/` now returns **404** when the id is absent (was **204**), matching GET/PATCH on the same resource and DELETE on `/v1/library/` + `/v1/teams/`
 - **Blueprint discovery model-id pollution:** `metadata["name"]` display/class labels (e.g. `Chuck's Angels`, `ChatbotBlueprint`) are no longer registered as `/v1/models` ids; only programmatic slugs (`^[a-z0-9]+(?:[_-][a-z0-9]+)*$`) and explicit slug `aliases` become keys
