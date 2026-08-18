@@ -73,6 +73,64 @@ async def test_run_moa_cli_act_writes_via_orchestrator_only(tmp_path: Path):
     assert payload["act"] and payload["act"]["ok"]
     assert out.is_file()
     assert "do X" in out.read_text(encoding="utf-8")
+    # --act is not consensus_only; human formatter must expose ## Act.
+    assert payload["mode"] == "consensus_then_act"
+    text = format_moa_text(payload)
+    assert "MoA mode: consensus_then_act" in text
+    assert "## Act:" in text
+
+
+def test_swarm_cli_moa_act_human_shows_act_section(tmp_path: Path):
+    """--act human output must include ## Act and honest mode (not team text)."""
+    out = tmp_path / "moa_decision.md"
+    proc = _swarm_cli(
+        "moa",
+        "Document the decision",
+        "--backend",
+        "fake",
+        "--participants",
+        "alpha",
+        "--fake-responses",
+        "alpha=Ship with rate limits and clear rollback.",
+        "--act",
+        "--act-write",
+        str(out),
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert out.is_file()
+    human = proc.stdout
+    assert "## Act:" in human
+    assert "MoA mode: consensus_then_act" in human
+    # Must not be routed through format_team_text (no specialists block).
+    assert "## Specialists" not in human
+    assert "MoA mode: consensus_only" not in human
+
+
+def test_swarm_cli_moa_act_json_mode_honest(tmp_path: Path):
+    """--act --json stamps mode=consensus_then_act (not consensus_only)."""
+    out = tmp_path / "det.json.md"
+    proc = _swarm_cli(
+        "moa",
+        "Record determination",
+        "--backend",
+        "fake",
+        "--participants",
+        "a",
+        "--fake-responses",
+        "a=Prefer least privilege.",
+        "--act",
+        "--act-write",
+        str(out),
+        "--json",
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    data = json.loads(proc.stdout.strip()[proc.stdout.strip().find("{") :])
+    assert data["mode"] == "consensus_then_act"
+    assert data["act"] and data["act"]["ok"]
+    assert data["specialists"] == []
+    assert data["panel_wrote"] is False
 
 
 def test_grok_backend_build_command_is_readonly_framed():

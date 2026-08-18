@@ -566,6 +566,13 @@ def moa(
 
     if as_json:
         typer.echo(json.dumps(payload, indent=2))
+    elif (
+        payload.get("act")
+        or payload.get("mode") == "consensus_then_act"
+        or act
+    ):
+        # Orchestrator --act: opinions + determination + ## Act (not team text).
+        typer.echo(format_moa_text(payload))
     elif team or payload.get("mode") in ("consensus_only", "consensus_then_team"):
         from swarm.core.moa.team import format_team_text
 

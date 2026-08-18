@@ -172,8 +172,10 @@ A live openai-agents `Runner` is **not** the default for `moa_orchestrator`.
 ### Pure team path (no openai-agents)
 
 `TeamTask` is the canonical task type. CLI: `swarm-cli moa … --team --workdir …`
-(`--team-tasks`, mutually exclusive with `--act`). Without `--team`,
+(`--team-tasks`, mutually exclusive with `--act`). Without `--team`/`--act`,
 `swarm-cli moa --json` is `mode=consensus_only` (same serializer family).
+With `--act`, mode is `consensus_then_act` and human output uses the MoA
+formatter (includes an Act section).
 
 ```python
 from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team

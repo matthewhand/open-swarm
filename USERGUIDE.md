@@ -482,10 +482,11 @@ custom string) are implementer + tester + docs; default paths are `decision.md`,
 `test_notes.md`, `docs/ADR.md`, `research_notes.md`. Participant `--permission`
 is `approve-reads` or `deny-all` only (never `approve-all`).
 
-Without `--team`, `--json` reports `mode=consensus_only`. With `--team`,
-`mode=consensus_then_team`. Exit codes: `0` success; `1` runtime / soft team
-failure (unusable panel or specialist `ok=False` — payload still printed);
-`2` usage/validation; `5` write denied.
+Without `--team`/`--act`, `--json` reports `mode=consensus_only`. With
+`--act`, `mode=consensus_then_act` (human output includes an Act section).
+With `--team`, `mode=consensus_then_team`. Exit codes: `0` success; `1`
+runtime / soft team failure (unusable panel or specialist `ok=False` —
+payload still printed); `2` usage/validation; `5` write denied.
 
 Full model, backends, Python API, and honesty notes:
 [docs/MOA.md](./docs/MOA.md). Walkthroughs with captured runs:

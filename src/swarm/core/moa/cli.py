@@ -188,7 +188,9 @@ async def run_moa_cli(
         "writes": list(write_surface.writes),
         # Path A markers (parity with team_result_to_payload / --team JSON).
         # Panel seats never write; specialists only exist on consensus_then_team.
-        "mode": "consensus_only",
+        # --act is not consensus_only: stamp consensus_then_act so CLI human
+        # output routes to format_moa_text (## Act) instead of format_team_text.
+        "mode": "consensus_then_act" if act else "consensus_only",
         "specialists": [],
         "panel_wrote": False,
     }
@@ -204,6 +206,9 @@ async def run_moa_cli(
 
 def format_moa_text(payload: dict[str, Any]) -> str:
     lines: list[str] = []
+    mode = payload.get("mode")
+    if mode:
+        lines.append(f"MoA mode: {mode}")
     lines.append(f"MoA question: {payload.get('question', '')}")
     lines.append(f"backend={payload.get('backend')} permission={payload.get('permission')}")
     lines.append("")
