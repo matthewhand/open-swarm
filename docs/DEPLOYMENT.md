@@ -33,6 +33,13 @@ git checkout main && git pull --ff-only
 cp .env.example .env   # set DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, API_AUTH_TOKEN
                        # (production refuses to start without all three)
 
+# If the browser UI is served from a non-localhost origin (LAN IP, reverse
+# proxy hostname), add that exact origin to DJANGO_CSRF_TRUSTED_ORIGINS —
+# scheme + host + port, comma-separated. Defaults are only
+# http://localhost:8000 and http://127.0.0.1:8000. Example:
+#   DJANGO_CSRF_TRUSTED_ORIGINS=http://10.0.0.30:8000,https://swarm.example.com
+# Also include the host in DJANGO_ALLOWED_HOSTS (hostname only, no scheme).
+
 # which CLIs are installed AND authenticated on this host?
 swarm-cli cli-agents --check-auth
 

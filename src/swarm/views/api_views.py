@@ -1,7 +1,6 @@
 import logging
 import time
 
-# *** Import async_to_sync ***
 from asgiref.sync import async_to_sync
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
@@ -9,6 +8,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
+from swarm.services import github_topics_service as gh_service
+from swarm.settings import (
+    ENABLE_GITHUB_MARKETPLACE,
+    GITHUB_MARKETPLACE_ORG_ALLOWLIST,
+    GITHUB_MARKETPLACE_TOPICS,
+    GITHUB_TOKEN,
+)
+from swarm.views.blueprint_library_views import (
+    get_user_blueprint_library,
+    save_user_blueprint_library,
+)
+from swarm.views.utils import get_available_blueprints
+
+logger = logging.getLogger(__name__)
 
 # Shared request body for creating/updating a custom blueprint (documents the
 # OpenAPI requestBody so MCP/codegen clients know what fields to send).
@@ -26,21 +39,6 @@ _custom_blueprint_request = inline_serializer(
         "env_vars": serializers.ListField(child=serializers.CharField(), required=False),
     },
 )
-
-from swarm.services import github_topics_service as gh_service
-from swarm.settings import (
-    ENABLE_GITHUB_MARKETPLACE,
-    GITHUB_MARKETPLACE_ORG_ALLOWLIST,
-    GITHUB_MARKETPLACE_TOPICS,
-    GITHUB_TOKEN,
-)
-from swarm.views.blueprint_library_views import (
-    get_user_blueprint_library,
-    save_user_blueprint_library,
-)
-from swarm.views.utils import get_available_blueprints
-
-logger = logging.getLogger(__name__)
 
 # In-memory fallback registry used in tests to simulate persistence when
 # get_user_blueprint_library/save_user_blueprint_library are monkeypatched.
