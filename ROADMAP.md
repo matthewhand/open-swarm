@@ -226,10 +226,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   library `blueprint_creator` write under `get_user_blueprints_dir()` (plus JSON
   catalog for My Blueprints). Discovery remains opt-in
   (`SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`).
-- [ ] **Agent Creator Pro is non-functional clickware** — `/agent-creator-pro/`
-  page + JS exist, but generate/validate/save routes are missing (JS POSTs 404).
-  Honesty banner + FEATURE_STATUS 🟡 point users to `/agent-creator/`. Finish
-  wiring or hide behind a flag.
+- [x] **Agent Creator Pro clickware** — `/agent-creator-pro/` soft-redirects to
+  `/agent-creator/` (nav link removed). Leftover template/JS unused on disk.
 - [x] **Fake buttons honesty (Django UI):** My Blueprints runner labeled
   “Simulate run (demo)” with warning banner; Settings Validate/path-check/env
   Export disabled “(soon)”; Team Creator Validate marked demo. Still need real
@@ -240,10 +238,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 
 ### 4.3 Docs-vs-reality (breaks onboarding)
 - [x] **Docs + CLI `config` group** — QUICKSTART/CONFIGURATION use real
-  `swarm-cli config list|add|remove`; **`config init`** now ships (writes default
-  `swarm_config.json`, `--force` to overwrite). Residual: orphaned
-  `extensions/launchers/swarm_cli.py` still prints legacy `config add KEY VALUE`
-  help text.
+  `swarm-cli config list|add|remove|init`. Orphaned `extensions/launchers`
+  `.env` helper usage text now points at shipped `--section/--json` form.
 - [x] **`install` wording** — QUICKSTART §2 now says PyInstaller compile (not
   “downloads”).
 - [ ] **swarm-cli dead-alias warnings** — see 4.4 (orphaned `extensions/cli/main.py`).

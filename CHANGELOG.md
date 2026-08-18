@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Agent Creator Pro retired:** `/agent-creator-pro/` redirects to `/agent-creator/`; dropdown nav link removed (was unwired clickware)
 - **Blueprint AST sandbox Path.open write escape:** `Path(...).open('w')` / `p.open('wb')` put mode in the first positional arg (unlike builtin `open(file, mode)`), so write modes bypassed the open-ban; detect Path.open-style modes and reject them (keyword `mode=` was already caught)
 - **CLI blueprint name path traversal:** `swarm-cli add`/`delete`/`uninstall`/`install-executable`/`launch` reject `../` and multi-segment names so library/bin joins cannot `rmtree`/`unlink`/exec outside XDG roots; `add`/`delete` also use `get_user_blueprints_dir()` instead of a hardcoded `~/.local/share/swarm/blueprints`
 - **Blueprint AST sandbox getattr/runpy escapes:** reject `getattr(os, "system")` / `getattr(asyncio, "create_subprocess_*")` constant reflection that bypassed Attribute bans; ban `runpy` (code-loading peer of `importlib`)
@@ -31,8 +32,7 @@ All notable changes to this project will be documented in this file.
 - **QUICKSTART install wording:** `swarm-cli install` compiles via PyInstaller (does not download a package)
 - **Fake Django UI actions honesty:** My Blueprints “Simulate run (demo)” + banner; Settings Validate/path-check/env Export disabled as not implemented; Team Creator Validate marked demo-only
 - **`/v1/chat/completions` trailing slash:** slash twin so `…/completions/` no longer 404s
-- **Agent Creator Pro honesty:** warning banner + FEATURE_STATUS 🟡 — Pro page is preview-only (generate/validate/save routes unwired); canonical creator remains `/agent-creator/`
-- **Agent Creator Pro preview XSS:** escape personality/style/expertise/template (and template tooltip) before capability `innerHTML`
+- **Agent Creator Pro preview XSS:** escape personality/style/expertise/template (and template tooltip) before capability `innerHTML` (static leftovers; route now redirects)
 - **SPA DaisyUI Toast a11y:** `role="status"` + `aria-live` (assertive for error/warning); dismiss `type="button"`
 - **Chat WS streaming XSS:** HTMX OOB append chunks now `django.utils.html.escape` model/user text (blueprint + LiteLLM paths and TEST-MODE echo); final template swap was already escaped
 - **GitHub marketplace allowlist bypass:** client `org`/`topic` no longer replace configured allowlists; unknown values return **400** when lists are set (empty org allowlist remains intentionally unscoped)

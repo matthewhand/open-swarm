@@ -125,7 +125,14 @@ def _maybe_handle_config_add(argv: list[str]) -> bool:
             value = argv[3]
 
         if not key or value is None:
-            print("Usage: swarm-cli config add KEY VALUE\n   or: swarm-cli config add --key KEY --value VALUE", file=sys.stderr)
+            print(
+                "Usage (secrets .env helper in extensions launcher):\n"
+                "  swarm-cli config add KEY VALUE\n"
+                "  swarm-cli config add --key KEY --value VALUE\n"
+                "For LLM/MCP profiles use the shipped CLI:\n"
+                "  swarm-cli config add --section llm --name default --json '{...}'",
+                file=sys.stderr,
+            )
             # Non-zero to indicate misuse; tests will try alternative forms
             sys.exit(2)
 

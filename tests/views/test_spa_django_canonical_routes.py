@@ -214,27 +214,12 @@ class TestUxShellTemplateContracts:
         assert "onclick=" not in html
         assert "TEAM_CREATOR_ACTIONS" in html
 
-    def test_agent_creator_pro_optional_sections_collapsed(self, client):
-        from django.contrib.auth.models import User
-
-        user = User.objects.create_user(username="uxacp", password="ux-acp-pass")
-        client.force_login(user)
-        response = client.get("/agent-creator-pro/")
-        assert response.status_code == 200
-        html = response.content.decode()
-        assert "acp-optional" in html
-        assert "<details" in html
-        assert "Essentials" in html
-
-    def test_agent_creator_pro_honesty_banner_points_to_canonical(self, client):
-        """Pro page is preview-only — banner must not claim generate/save work."""
-        response = client.get("/agent-creator-pro/")
-        assert response.status_code == 200
-        html = response.content.decode()
-        assert "Preview UI only" in html
-        assert "/agent-creator/" in html
-        assert "agent-creator-pro/generate" in html
-        assert "not wired" in html.lower() or "404" in html
+    def test_agent_creator_pro_redirects_to_canonical(self, client):
+        """Unwired Pro UI soft-redirects to /agent-creator/ (preserve query)."""
+        response = client.get("/agent-creator-pro/?from=nav")
+        assert response.status_code in (301, 302)
+        assert response["Location"].endswith("/agent-creator/?from=nav") or \
+            response["Location"] == "/agent-creator/?from=nav"
 
     def test_my_blueprints_runner_is_labeled_demo_simulation(self, client):
         from django.contrib.auth.models import User

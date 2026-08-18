@@ -12,7 +12,6 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-from swarm.views.agent_creator_pro import agent_creator_pro_page
 from swarm.views.agent_creator_views import (
     agent_creator_page,
     generate_agent_code,
@@ -138,8 +137,13 @@ urlpatterns = [
     path("agent-creator/save/", save_custom_agent, name="save_custom_agent"),
     path("team-creator/", team_creator_page, name="team_creator"),
     path("team-creator/save/", save_team_swarm, name="save_team_swarm"),
-    # Agent Creator Pro endpoints
-    path("agent-creator-pro/", agent_creator_pro_page, name="agent_creator_pro"),
+    # Agent Creator Pro was unwired clickware (generate/validate/save 404).
+    # Keep the path as a soft redirect to the canonical creator.
+    path(
+        "agent-creator-pro/",
+        RedirectView.as_view(url="/agent-creator/", permanent=False, query_string=True),
+        name="agent_creator_pro",
+    ),
     # Settings Management endpoints
     path("settings/", settings_dashboard, name="settings_dashboard"),
     path("settings/api/", settings_api, name="settings_api"),
