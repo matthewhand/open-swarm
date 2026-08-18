@@ -47,7 +47,7 @@ paths still **redirect** to Django; `spa-*` captures keep the sticky
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
 | `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; dock Home · Blueprints · Teams · Sessions · Settings | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | Connected composer + blueprint selector; five-tab bar with Home active (SPA chat is not its own dock tab); no desktop “Disconnected — login required” banner | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector (django_chat); five-tab bar with Home active (SPA chat is not its own dock tab). Differs from desktop `spa-chat.png`, which shows the disconnected login gate | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django Teams tab active | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Blueprints tab active | 2026-08-18 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Settings tab active | 2026-08-18 | current |
@@ -98,7 +98,18 @@ see [Regenerating](#regenerating) below.
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
 | `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused | 2025-01-05 | legacy |
-| `docs/screenshots/webui/*` | Themed WebUI component captures | various | mixed | current |
+| `webui/blueprint-tools-badge-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/builder-all-panels-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/builder-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/builder-light.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/inference-profile-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/inference-profile-light.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/skills-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/skills-light.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/skills-preview-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/tool-capabilities-dark.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/tool-capabilities-light.png` | SPA builder / themed component capture | various | mixed | current |
+| `webui/trait-editor-dark.png` | SPA builder / themed component capture | various | mixed | current |
 | `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
 | `docs/screenshots/archive/session-explorer-detail.png` | Old session detail / delegation timeline still | SESSION_EXPLORER.md (archived; not in `PAGES`) | archived | archived |
 | `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none | archived | archived |

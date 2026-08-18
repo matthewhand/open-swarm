@@ -204,7 +204,7 @@ CLI Agent Fusion blueprints (wrap your installed agentic CLIs — see [docs/CLI_
 | `cli_orchestrator` | Cheap router CLI answers directly; escalates hard questions to a consensus panel |
 | `cli_map` | Decompose a task, distribute subtasks across worker CLIs, reduce to one answer |
 
-More live under `src/swarm/blueprints/` (see its README); some are demos or Django-app experiments of varying maturity. Scaffold a new compliant blueprint with `python3 scripts/scaffold_blueprint.py`.
+More live under `src/swarm/blueprints/` (see its README); some are demos or Django-app experiments of varying maturity. Scaffold a new team blueprint with `swarm-cli wizard` (or the Agent Creator in the web UI).
 
 ---
 
@@ -240,7 +240,7 @@ ruff check .                          # lint
 ```
 
 * Tests run keyless via `SWARM_TEST_MODE` — blueprints emit deterministic spinner/result-box output that the suite asserts against.
-* Blueprint UX standards (spinner sequences, ANSI/emoji result boxes) are codified in `docs/blueprint_standards.md` and checked by `scripts/check_ux_compliance.py` plus CI compliance workflows.
+* Blueprint UX standards (spinner sequences, ANSI/emoji result boxes) are checked by `scripts/check_ux_compliance.py` and `scripts/lint_blueprints.py` plus CI compliance workflows.
 * The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`); Django serves the built `dist/` automatically when present and falls back to the template UI otherwise. **The React UI is experimental** — see Roadmap.
 Documentation map:
 
@@ -278,6 +278,6 @@ MIT — see [LICENSE](LICENSE). Attribution and vendored-asset notices live in [
 
 ## Contributing
 
-Issues and PRs welcome. Before submitting: run the test suite, lint, and the blueprint compliance scripts (`scripts/check_ux_compliance.py`, `scripts/audit_blueprint_compliance.py`); CI enforces blueprint metadata and UX standards. See [DEVELOPMENT.md](./DEVELOPMENT.md) and [ROADMAP.md](./ROADMAP.md) for where help is most useful.
+Issues and PRs welcome. Before submitting: run the test suite, lint, and the blueprint compliance scripts (`scripts/check_ux_compliance.py`, `scripts/lint_blueprints.py`); CI enforces blueprint metadata and UX standards. See [DEVELOPMENT.md](./DEVELOPMENT.md) and [ROADMAP.md](./ROADMAP.md) for where help is most useful.
 
 Dev setup, test commands, and PR guidelines: [CONTRIBUTING.md](./CONTRIBUTING.md).

@@ -341,20 +341,20 @@ export const LoadingOverlay = ({
 }) => {
   if (!isLoading) return null;
 
+  // Non-blocking status region: do not use role="dialog"/aria-modal without a focus trap.
   return (
     <div
       className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${className}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={message}
+      role="status"
       aria-live="polite"
       aria-busy="true"
+      aria-label={message}
     >
       <div className="bg-base-100 p-6 rounded-lg shadow-xl text-center">
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-4" aria-hidden="true">
           <LoadingSpinner size="lg" color="primary" />
         </div>
-        <p className="text-lg font-medium" role="status">{message}</p>
+        <p className="text-lg font-medium">{message}</p>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { Input } from '../Input';
 import { Select } from '../Select';
 import { Textarea } from '../Textarea';
 import { Button } from '../Button';
-import { LoadingSpinner } from '../Loading';
+import { LoadingOverlay, LoadingSpinner } from '../Loading';
 
 describe('Modal Accessibility', () => {
   it('should use HTML5 dialog and sync state', () => {
@@ -76,6 +76,15 @@ describe('Async Loading Accessibility', () => {
     render(<LoadingSpinner />);
     const spinner = screen.getByRole('status');
     expect(spinner).toHaveAttribute('aria-label', 'Loading');
+  });
+
+  it('LoadingOverlay announces as status, not dialog', () => {
+    render(<LoadingOverlay message="Fetching data" />);
+    const overlay = screen.getByRole('status', { name: 'Fetching data' });
+    expect(overlay).toHaveAttribute('aria-live', 'polite');
+    expect(overlay).toHaveAttribute('aria-busy', 'true');
+    expect(overlay).not.toHaveAttribute('aria-modal');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('Button should announce busy state when loading', () => {
