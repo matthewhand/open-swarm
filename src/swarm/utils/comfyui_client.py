@@ -12,6 +12,47 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# Default ComfyUI output directory (overridable in tests).
+COMFYUI_OUTPUT_DIR = Path("/tmp/ComfyUI/output")
+
+
+def _safe_avatar_blueprint_slug(name: str) -> str:
+    """Single path-segment slug for avatar filenames (spaces→_; no traversal).
+
+    Mirrors ``_safe_agent_blueprint_id`` in agent_creator_views: normal names
+    stay readable while ``/``, ``\\``, ``..``, and other non-alnum are stripped.
+    """
+    slug = "".join(c.lower() if c.isalnum() else "_" for c in name.strip())
+    slug = "_".join(filter(None, slug.split("_")))
+    return slug or "agent"
+
+
+def _safe_comfyui_output_filename(filename: str) -> str | None:
+    """Basename-only ComfyUI output name; reject empty, ``..``, or absolute."""
+    if not filename or not isinstance(filename, str):
+        return None
+    raw = filename.strip()
+    if not raw or "\x00" in raw:
+        return None
+    normalized = raw.replace("\\", "/")
+    if normalized.startswith("/") or (len(raw) >= 2 and raw[1] == ":"):
+        return None
+    # Single path segment only — no directories or parent refs.
+    if "/" in normalized:
+        return None
+    name = Path(normalized).name
+    if not name or name != normalized or name in (".", ".."):
+        return None
+    return name
+
+
+def _is_under_root(path: Path, root: Path) -> bool:
+    """True if resolved ``path`` is ``root`` or a descendant."""
+    resolved = path.resolve()
+    root_resolved = root.resolve()
+    return resolved == root_resolved or root_resolved in resolved.parents
+
+
 class ComfyUIClient:
     """Client for interacting with ComfyUI API for image generation."""
 
@@ -249,23 +290,33 @@ class ComfyUIClient:
     def _save_avatar_image(self, filename: str, blueprint_name: str) -> str | None:
         """Save the generated image to avatar storage."""
         try:
-            # Get the image from ComfyUI output directory
-            comfyui_output = Path("/tmp/ComfyUI/output")  # Default ComfyUI output path
-            source_path = comfyui_output / filename
+            safe_filename = _safe_comfyui_output_filename(filename)
+            if not safe_filename:
+                logger.error("Rejected unsafe ComfyUI filename: %r", filename)
+                return None
+
+            comfyui_output = Path(COMFYUI_OUTPUT_DIR)
+            source_path = (comfyui_output / safe_filename).resolve()
+            if not _is_under_root(source_path, comfyui_output):
+                logger.error("ComfyUI source escaped output dir: %s", source_path)
+                return None
 
             if not source_path.exists():
                 logger.error(f"Generated image not found: {source_path}")
                 return None
 
-            # Create avatar filename
-            avatar_filename = f"{blueprint_name.lower().replace(' ', '_')}_avatar.png"
-            avatar_path = settings.AVATAR_STORAGE_PATH / avatar_filename
+            slug = _safe_avatar_blueprint_slug(blueprint_name)
+            avatar_filename = f"{slug}_avatar.png"
+            avatar_root = Path(settings.AVATAR_STORAGE_PATH)
+            avatar_path = (avatar_root / avatar_filename).resolve()
+            if not _is_under_root(avatar_path, avatar_root):
+                logger.error("Avatar path escaped storage root: %s", avatar_path)
+                return None
 
-            # Copy the image
             import shutil
+            avatar_root.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_path, avatar_path)
 
-            # Return the relative path for URL generation
             return f"{settings.AVATAR_URL_PREFIX}{avatar_filename}"
 
         except Exception as e:
