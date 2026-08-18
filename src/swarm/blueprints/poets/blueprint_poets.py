@@ -431,21 +431,29 @@ class PoetsBlueprint(BlueprintBase):
             agent_runner = dummy_agent_runner(instruction)
             async def with_watchdog(async_iter, timeout):
                 start = time.time()
-                async for chunk in async_iter:
-                    now = time.time()
-                    if now - start > timeout:
-                        logger.error(f"PoetsBlueprint.run exceeded {timeout}s watchdog limit. Aborting.")
-                        yield {"messages": [{"role": "assistant", "content": f"An error occurred: Operation timed out after {timeout} seconds."}]}
-                        return
-                    yield chunk
+                try:
+                    async for chunk in async_iter:
+                        now = time.time()
+                        if now - start > timeout:
+                            logger.error(f"PoetsBlueprint.run exceeded {timeout}s watchdog limit. Aborting.")
+                            yield {"messages": [{"role": "assistant", "content": f"An error occurred: Operation timed out after {timeout} seconds."}]}
+                            return
+                        yield chunk
+                finally:
+                    aclose = getattr(async_iter, "aclose", None)
+                    if aclose is not None:
+                        await aclose()
+            watchdog = with_watchdog(agent_runner, max_total_time)
             try:
-                async for chunk in with_watchdog(agent_runner, max_total_time):
+                async for chunk in watchdog:
                     result_chunks.append(chunk)
                     yield {"messages": [{"role": "assistant", "content": str(chunk)}]}
                     return  # yield first result and exit
             except Exception as e:
                 logger.error(f"Error in agent_runner: {e}", exc_info=True)
                 yield {"messages": [{"role": "assistant", "content": f"An error occurred: {e}"}]}
+            finally:
+                await watchdog.aclose()
             now = time.time()
             if now - last_spinner_time > spinner_yield_interval:
                 spinner_msg = self.ux.spinner(spinner_idx)
