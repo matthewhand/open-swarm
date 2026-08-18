@@ -42,7 +42,7 @@ These blueprints still use older patterns or have known issues and are being inc
 
 **Duplication reduction:** Common PatchedFunctionTool / DummyTool / file+shell tools now live in `src/swarm/blueprints/common/tool_utils.py` (imported by updated blueprints).
 
-See individual READMEs and `blueprint_audit_status.json` for details.
+See individual READMEs and [FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9 for details (`blueprint_audit_status.json` was deleted).
 
 | Blueprint Name          | CLI      | Description                                                  | Status                  |
 |-------------------------|----------|--------------------------------------------------------------|-------------------------|

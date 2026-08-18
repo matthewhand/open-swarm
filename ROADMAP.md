@@ -12,6 +12,12 @@ the older phase-based `TODO.md`. Per-feature evidence lives in
 [FEATURE_STATUS.md](./FEATURE_STATUS.md) (re-verify rows before acting — it
 goes stale fast).
 
+- [x] **v1 product cut (vocabulary / surface honesty)** — narrow terms to match
+  shipped code: [docs/GLOSSARY.md](./docs/GLOSSARY.md) (Blueprint vs `/v1/teams`
+  LLM-profile alias, Persona/MoA, CLI Fusion, Session, Operator UI vs SPA Chat)
+  + [docs/ADR-001-primary-ui.md](./docs/ADR-001-primary-ui.md) (Django operator
+  chrome; SPA keeps `/` + `/chat` only — do not remount Builder).
+
 ## Status legend
 
 | Mark | Meaning |
@@ -122,8 +128,8 @@ parity is reached.
   - [x] Vite + TypeScript + Tailwind/DaisyUI build setup; lockfile in sync
   - [x] BlueprintsPage wired to `/v1/blueprints/` (react-query; loading/error/empty states)
   - [x] Dashboard on live blueprint/model counts; fabricated stats removed
-  - [x] TeamsPage honestly reports the missing Teams API (no mock data)
-  - [x] **JSON Teams API** — `/v1/teams/` list/create/delete endpoints (`views/teams_api.py`, tested) and TeamsPage wired via react-query
+  - [x] TeamsPage live-fetches `/teams/export` (honest empty on error; leftover SPA route)
+  - [x] **JSON Teams API** — `/v1/teams/` list/create/delete over `teams.json` LLM-profile aliases (not a multi-agent team builder; see GLOSSARY)
   - [x] Auth flow: token entry in Settings, localStorage persistence, 401/403 banner — no login wall on auth-disabled deployments
   - [x] ChatPage built (blueprint selector, streaming UI, parser for the server's HTMx ws partials) — **blocked on backend ASGI routing** (see §2); shows an honest 'unavailable' state until then
   - [x] Agent-creator and settings pages (PR #80: generate/validate/save flow, custom-blueprint CRUD, server-settings/env panels with masking)

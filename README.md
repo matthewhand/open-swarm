@@ -135,8 +135,12 @@ Diagrams + sequence flows for every pattern: [docs/ORCHESTRATION_PATTERNS.md](do
 
 ## Core Concepts
 
+Vocabulary for the v1 cut: [docs/GLOSSARY.md](docs/GLOSSARY.md) · UI boundary: [docs/ADR-001-primary-ui.md](docs/ADR-001-primary-ui.md).
+
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
-* **Blueprints** — `BlueprintBase` subclasses defining a team: its agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
+* **Blueprints** — `BlueprintBase` subclasses defining a multi-agent (or single-agent) workflow: agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
+* **Team (`/v1/teams`)** — a dynamic **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`), also editable under Django `/teams/`. Appears as an OpenAI-compatible model id and proxies chat through `DynamicTeamBlueprint`. **Not** a multi-agent team builder — for that, author or run a Blueprint (or MoA / persona patterns).
+* **Persona / MoA** — two multi-agent styles: MoA = read-only consensus seats then orchestrator act (`swarm-cli moa`); Persona = openai-agents coordinator switching specialists (`persona_council` and most coding blueprints). See [docs/SWARM_WORKFLOWS.md](docs/SWARM_WORKFLOWS.md).
 * **MCP servers** — external tool providers (filesystem, search, databases, …) declared **in config, not code**; agents get their tools at runtime via the Model Context Protocol.
 * **CLI agents & fusion** — wrap your installed agentic CLIs (`grok`/`agent`, `claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API, and compose them four ways:
   * `model: "cli_agent"` — run a single CLI as one agent.
@@ -241,9 +245,10 @@ ruff check .                          # lint
 
 * Tests run keyless via `SWARM_TEST_MODE` — blueprints emit deterministic spinner/result-box output that the suite asserts against.
 * Blueprint UX standards (spinner sequences, ANSI/emoji result boxes) are checked by `scripts/check_ux_compliance.py` and `scripts/lint_blueprints.py` plus CI compliance workflows.
-* The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`). When `dist/` is built, `/` serves that SPA dashboard; without it, `/` falls back to Django templates. **Supported operator UI** is the Django trailing-slash pages (`/teams/`, `/blueprint-library/`, `/settings/`, …). The SPA is experimental — see Roadmap.
+* The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`). When `dist/` is built, `/` serves that SPA dashboard + `/chat`; without it, `/` falls back to Django templates. **Supported operator UI** is the Django trailing-slash pages (`/teams/`, `/blueprint-library/`, `/settings/`, …); SPA Chat is retained per [ADR-001](docs/ADR-001-primary-ui.md) — see Roadmap.
 Documentation map:
 
+* [docs/GLOSSARY.md](./docs/GLOSSARY.md) — v1 product vocabulary (Blueprint vs Team alias, MoA/Persona, Operator UI vs SPA Chat).
 * [USERGUIDE.md](./USERGUIDE.md) — task-oriented `swarm-cli` reference.
 * [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — runbook for deploying a CLI-wrapping OpenAI-compatible server (pull → configure → prove).
 * [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md) — screenshot-illustrated end-to-end story (install → CLI → web UI → API) with real transcripts.

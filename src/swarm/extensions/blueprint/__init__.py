@@ -1,16 +1,16 @@
-"""DEPRECATED shim package: use ``swarm.core`` instead.
+"""TOMBSTONE / DEPRECATED shim: use ``swarm.core`` instead.
 
-This package previously held a stale, import-broken copy of the blueprint
-framework (its ``__init__`` failed with a circular import, so nothing could
-import it). The live implementations are in ``swarm.core``:
+The old import-broken duplicate of the blueprint framework under this path is
+gone. This package is a compatibility re-export only (emits
+``DeprecationWarning``). Live implementations:
 
 - ``swarm.core.blueprint_base.BlueprintBase``
 - ``swarm.core.blueprint_discovery.discover_blueprints``
 - ``swarm.core.blueprint_utils.filter_blueprints``
 - ``swarm.core.spinner`` / ``swarm.core.slash_commands``
 
-This shim re-exports those symbols for backwards compatibility and will be
-removed in a future release (see ROADMAP.md for the sunset plan).
+Remove in a future release (ROADMAP.md §2.1 shim sunset). Do not add new
+callers or restore deleted ``blueprint_base.py`` internals here.
 """
 
 import warnings

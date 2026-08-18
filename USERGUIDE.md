@@ -13,16 +13,18 @@ here is verified against `swarm-cli --help`.
 > web UI (Playwright PNGs under `docs/screenshots/`);
 > [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) is the capture registry.
 >
-> **Web UI note:** day-to-day operator surfaces are the **Django** shell
+> **Web UI note:** day-to-day **operator UI** is the **Django** shell
 > (trailing-slash routes: `/blueprint-library/`, `/teams/launch/`,
-> `/sessions/`, `/settings/`, …). Most browse/admin pages
-> (`/blueprint-library/`, `/teams/`, `/sessions/`, `/settings/`) and
-> creator mutators require a Django login session; Team launcher
-> (`/teams/launch/`) and Agent Creator GET stay public. The React SPA at
-> `/` is a lightweight dashboard; bare paths redirect to Django —
-> `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`,
-> `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (not
-> leftover SPA shells). Regenerate tour images with
+> `/sessions/`, `/settings/`, … — [ADR-001](./docs/ADR-001-primary-ui.md)).
+> Most browse/admin pages (`/blueprint-library/`, `/teams/`, `/sessions/`,
+> `/settings/`) and creator mutators require a Django login session; Team
+> launcher (`/teams/launch/`) and Agent Creator GET stay public. The React
+> SPA keeps `/` (dashboard) and `/chat` (SPA Chat); bare paths redirect to
+> Django — `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`,
+> `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/`.
+> **`/v1/teams` / Django `/teams/`** register **LLM-profile aliases**
+> (`id`/`description`/`llm_profile`), not multi-agent team graphs — see
+> [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
 > `scripts/capture_user_journey.py`.
 
 ---
@@ -396,7 +398,8 @@ login probe. Full adapter schema and fusion modes:
 
 ## Team wizard (`swarm-cli wizard`)
 
-Scaffold a new team blueprint under your blueprints tree. Interactive by
+Scaffold a new **Blueprint** (multi-agent workflow source) under your
+blueprints tree — unrelated to `/v1/teams` LLM-profile aliases. Interactive by
 default; use `--non-interactive` in scripts/CI.
 
 ```bash

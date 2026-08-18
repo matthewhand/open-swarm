@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
+- **v1 product vocabulary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) + honesty sweeps (Blueprint vs `/v1/teams` LLM-profile alias; Operator UI vs SPA Chat); tombstone `swarm.extensions.blueprint` shim docs; confirm `blueprint_audit_status.json` gone; ROADMAP v1 cut → ADR-001 + glossary
 - **Settings dashboard dead-end honesty:** Validate Config / env Export use “(not available)” (not “(soon)”); unwired path-check buttons removed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
 - **MoA soft-fail honesty:** `format_team_text` no longer labels empty `--team` specialists as “consensus only”; CLI prints a `MoA team soft-fail:…` stderr line after the payload; USERGUIDE / TROUBLESHOOTING exit-1 wording aligned

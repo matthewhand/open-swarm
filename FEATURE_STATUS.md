@@ -23,7 +23,7 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | Blueprint execution (`BlueprintBase.run`) | ✅ | `src/swarm/core/blueprint_base.py` (772 lines); `tests/core/test_blueprint_execution_comprehensive.py`, `test_blueprint_base.py`, `test_blueprint_model_override.py` all pass |
 | openai-agents SDK integration | ✅ | `blueprint_base.py:39` `from agents import set_default_openai_client`; `:644-648` selects `OpenAIResponsesModel` vs `OpenAIChatCompletionsModel` per `api_mode`; agents created via `make_agent` (`:659-683`) |
 | Test suite health | ✅ | 673 passed / 2 skipped as of `4c7e1b28`. (At audit time: 560/621 with 59 order-dependent failures from the `urls.py:155` import bug — fixed in `f1fa20b1`) |
-| `swarm.extensions.blueprint` (legacy duplicate of core) | ❌ | Package does not import: `ImportError: cannot import name 'config_loader' … (circular import)` at `src/swarm/extensions/blueprint/__init__.py:12`; `extensions/blueprint/blueprint_base.py:7-8` still imports `from src.swarm.utils...` and `:18` `from swarm.core import Swarm` (class no longer exists). 562-line dead copy of `core/blueprint_base.py` |
+| `swarm.extensions.blueprint` (legacy path) | 🟡 | **Tombstoned deprecation shim** (not a live framework copy). `__init__.py` / `spinner` / `slash_commands` re-export `swarm.core` and emit `DeprecationWarning`; dead `blueprint_base.py` internals are gone (locked by `tests/unit/test_deprecation_shims.py`). Prefer `swarm.core.blueprint_base`. Sunset: ROADMAP §2.1. |
 
 ## 2. CLI — ✅ 4
 
@@ -42,17 +42,17 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | `/v1/chat/completions` SSE streaming | ✅ | `chat_views.py:128-162` `_handle_streaming` yields `text/event-stream` + `[DONE]`; `test_post_streaming_success` asserts Content-Type `text/event-stream` (`test_chat_views.py:214-241`) |
 | `/v1/models` | ✅ | `urls.py:56-57` → `OpenAIModelsView`; `tests/views/test_api_views.py::TestModelsListView` (5 tests) pass in isolation |
 | `/v1/blueprints` + custom CRUD | ✅ | `urls.py:58-61` (`BlueprintsListView`, `CustomBlueprintsView`, `CustomBlueprintDetailView`); 33 tests in `tests/views/test_api_views.py` incl. create/patch/delete custom blueprints |
-| `/v1/teams/` JSON Teams API | ✅ | `views/teams_api.py` list/create/delete over `teams.json`. **Honesty:** each team is an LLM-profile alias (`id`/`description`/`llm_profile`), not a multi-agent team builder; OpenAPI summaries say so. Tests: `tests/views/test_teams_api.py` |
+| `/v1/teams/` JSON Teams API | ✅ | `views/teams_api.py` list/create/delete over `teams.json`. **Honesty:** each team is an LLM-profile alias (`id`/`description`/`llm_profile`) via `DynamicTeamBlueprint` — **not** a multi-agent team builder; OpenAPI + [docs/GLOSSARY.md](./docs/GLOSSARY.md) say so. Tests: `tests/views/test_teams_api.py` |
 | WebSocket chat consumer | ✅ | ROUTED 2026-06-11: `swarm/asgi.py` (ProtocolTypeRouter + AuthMiddlewareStack + origin validator) + `swarm/routing.py` (`ws/ai-demo/<id>/`); daphne+channels in INSTALLED_APPS; session-cookie auth only (Settings API bearer does **not** auth WS); anonymous accept-then-close **4401**; tests in `tests/test_asgi_routing.py` / `tests/test_consumers.py` |
 
 ## 4. Web UI — Django templates + HTMx (operator UI) — ✅ 6 · ❌ 2
 
-Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` prefers the React SPA `dist/index.html` when built (`web_views.index`); bare `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`, `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (not the leftover SPA shells).
+Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` prefers the React SPA `dist/index.html` when built (`web_views.index`); SPA itself only mounts `/` + `/chat` ([ADR-001](docs/ADR-001-primary-ui.md)). Bare `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`, `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (quarantined SPA pages are not mounted).
 
 | Feature | Status | Evidence |
 |---|---|---|
 | Index/dashboard | ✅ | `web_views.index` serves SPA `dist/index.html` when present, else Django `index.html`; `tests/views/test_web_views.py::TestIndexView` |
-| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; renders `teams_launch.html` (`web_views.py`), `teams_admin.html`. **Auth:** `team_admin` + `teams_export` are `@login_required`; `team_launcher` stays public |
+| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; same `teams.json` LLM-profile alias registry as `/v1/teams/` (not a multi-agent builder — [GLOSSARY](./docs/GLOSSARY.md)). **Auth:** `team_admin` + `teams_export` are `@login_required`; `team_launcher` stays public |
 | Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py`. **Auth:** browse + add/remove/creator/avatar mutators are `@login_required` (CSRF on POSTs). **Creator:** POST writes under `get_user_blueprints_dir()` (+ JSON catalog); discovery opt-in via `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`. **Runner:** My Blueprints posts to `/v1/chat/completions` (+ links to `/chat?blueprint=` and `/teams/launch/`) |
 | Agent creator | ✅ | `/agent-creator/` + generate/validate/save in `views/agent_creator_views.py`. **Auth:** GET page is public; generate/validate/save mutators are `@login_required` |
 | Agent Creator Pro | ❌ | **Retired via redirect.** `/agent-creator-pro/` → `/agent-creator/` (query preserved). Nav link removed. Leftover template/JS remain on disk unused. |
@@ -61,15 +61,17 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | ❌ | Removed 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 2 · ❌ 1
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · ❌ 1
+
+Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) and `/chat`. Teams / Blueprints / Settings / Builder / AgentCreator pages are quarantined under `webui/frontend/src/pages/_quarantine/`. Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; SPA leftovers still import these. |
-| TeamsPage | 🟡 | Live fetch from `/teams/export?format=json` (`TeamsPage.tsx` `loadTeams`); on error shows honest empty + alert (no demo rows). Launch links to SPA `/chat?blueprint=<team-id>`. Bare `/teams` redirects to Django Team Launcher — this page is a leftover SPA route, not the canonical UI. |
-| BlueprintsPage | 🟡 | Live fetch from `/v1/blueprints` (`BlueprintsPage.tsx`); on error shows honest empty + alert (no demo rows). Launch links to SPA `/chat?blueprint=<id>` (session auth required). Bare `/blueprints` redirects to Django Blueprint Library. |
-| BuilderPage / AgentCreatorPage | ❌ | **Unmounted.** `App.tsx` has no `/builder` or `/agent-creator` routes (`*` → `/`). Source remains under `src/pages/`; a11y/shots/e2e no longer treat them as live. Canonical creator UI is Django `/agent-creator/`. |
-| API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Caveat: chat needs a Django **session cookie** (Settings API bearer token does **not** auth websockets). Anonymous sockets close with code **4401**; journey `spa-chat.png` shows **Connected** after login when ASGI is up (Unavailable is the unauthenticated / unreachable path). |
+| DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; dashboard + chat still use these. |
+| Dashboard (`/`) + Chat (`/chat`) | 🟡 | `App.tsx` routes only these two; nav/mobile dock SPA tabs are Home·Chat, with Django hrefs for Blueprints·Teams·Sessions·Settings. ChatPage WS via ASGI; needs Django **session cookie** (Settings API bearer does **not** auth websockets). Anonymous sockets close **4401**. |
+| TeamsPage / BlueprintsPage / SettingsPage | ❌ | **Quarantined** (`src/pages/_quarantine/`). Not mounted; `*` → `/`. Canonical UI: `/teams/launch/`, `/blueprint-library/`, `/settings/`. Bare paths redirect to Django. |
+| BuilderPage / AgentCreatorPage | ❌ | **Quarantined** (same folder). Do not remount. Canonical creator UI is Django `/agent-creator/`. |
+| API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Journey `spa-chat.png` shows **Connected** after login when ASGI is up. |
 
 ## 6. Memory — 🔲 1 · 📋 2
 
@@ -119,7 +121,7 @@ Import check: every module below imported successfully via `uv run python -c "im
 | whiskeytango_foxtrot | 🟡 | Imports; no README/tests |
 | stewie | ✅ | `blueprint_stewie.py` discoverable; nested Django leftovers (`blueprints.chc`) deleted; `SWARM_TEST_MODE` path + gap smoke in `tests/blueprints/test_discoverable_gap_test_mode.py` / `test_stewie.py` |
 | chatbot, echocraft, mcp_demo, messenger, mission_improbable, monkai_magic, nebula_shellz, omniplex | ❌ | Removed in cleanup wave — `git status` shows `D src/swarm/blueprints/<each>/...` in the worktree at audit time; directories already gone from disk |
-| `blueprint_audit_status.json` | ❌ | Stale/fake metadata: `src/swarm/blueprints/blueprint_audit_status.json` marks deleted blueprints (echocraft, mcp_demo, chatbot) "working" and lists blueprints that don't exist at all (dilbot, gaggle, gatcha, divine_code, shell_demo, unapologetic_press) |
+| `blueprint_audit_status.json` | ❌ → gone | **Deleted** (ROADMAP §2 naming debt). Do not restore; it marked removed blueprints as working. Status lives in this file + per-blueprint READMEs / tests. |
 
 ## 10. Security — ✅ 8 · 🟡 2
 
@@ -173,7 +175,7 @@ This doc decays fast (a cleanup wave was rewriting the tree while it was generat
 
 1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
-3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (expected to fail until removed/fixed).
+3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (deprecation shim — succeeds with `DeprecationWarning`; prefer `swarm.core`).
 4. **SPA leftovers:** `grep -rn "fetch\|mock\|simulated" webui/frontend/src/pages/` — Teams/Blueprints fetch live with honest empty/error (no demo fixtures); Launch routes to `/chat?blueprint=…`. Canonical operator UI is Django (bare SPA paths redirect).
 5. **Flags vs deps:** `grep -n "django-mcp-server\\|mcp_server" pyproject.toml docs/mcp_server_mode.md` — flag without a declared lockfile dependency stays 📋.
 6. **Resolved:** `urls.py` imports `re_path` from `django.urls` (Django 4+); the old `django.conf.urls` import bug is gone.
