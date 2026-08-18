@@ -357,6 +357,42 @@ class TestCsrfProtectionRestored:
         for view in (settings_dashboard, settings_api, environment_variables):
             assert not getattr(view, "csrf_exempt", False), view.__name__
 
+    def test_blueprint_library_mutators_not_csrf_exempt(self):
+        from swarm.views.blueprint_library_views import (
+            add_blueprint_to_library,
+            blueprint_creator,
+            generate_avatar,
+            remove_blueprint_from_library,
+        )
+        for view in (
+            add_blueprint_to_library,
+            remove_blueprint_from_library,
+            blueprint_creator,
+            generate_avatar,
+        ):
+            assert not getattr(view, "csrf_exempt", False), view.__name__
+
+    def test_blueprint_library_mutators_reject_missing_csrf(self):
+        """State-mutating blueprint-library POSTs must 403 without a CSRF token."""
+        from django.test import Client
+
+        client = Client(enforce_csrf_checks=True)
+        cases = (
+            ("/blueprint-library/add/codey/", {}),
+            ("/blueprint-library/remove/codey/", {}),
+            (
+                "/blueprint-library/creator/",
+                {"blueprint_name": "x", "description": "y"},
+            ),
+            (
+                "/blueprint-library/generate-avatar/codey/",
+                {"avatar_style": "professional"},
+            ),
+        )
+        for url, data in cases:
+            response = client.post(url, data)
+            assert response.status_code == 403, f"{url} returned {response.status_code}"
+
     def test_teams_admin_template_has_csrf_tokens(self):
         template = (
             REPO_ROOT / "src" / "swarm" / "templates" / "teams_admin.html"

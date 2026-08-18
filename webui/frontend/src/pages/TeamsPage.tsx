@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
 import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
+import { createTeam, deleteTeam } from '../lib/api';
 
 interface Team {
   id: string | number;
@@ -19,7 +20,7 @@ interface ApiTeam {
 }
 
 // Live teams come from backend dynamic registry via /teams/export (populated into /v1/models + blueprints too)
-// Create/delete use the available /teams/ endpoint (csrf_exempt form POST in web_views.team_admin -> register_dynamic_team which saves to teams.json)
+// Create/delete use CSRF-safe JSON API (/v1/teams/) rather than the session-CSRF /teams/ form admin.
 
 const statusColors: Record<string, 'success' | 'warning' | 'error'> = {
   active: 'success',
@@ -94,11 +95,7 @@ const TeamsPage = () => {
     setActionLoading(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append('action', 'delete');
-      fd.append('team_id', String(teamToDelete));
-      // /teams/ is csrf_exempt; form POST triggers deregister_dynamic_team + redirect (side-effect persists)
-      await fetch('/teams/', { method: 'POST', body: fd });
+      await deleteTeam(String(teamToDelete));
       setSuccessMsg(`Deleted ${teamToDelete}. Registry updated.`);
       await loadTeams();
     } catch (e) {
@@ -126,22 +123,18 @@ const TeamsPage = () => {
     setActionLoading(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append('team_name', formName.trim());
-      if (formDesc.trim()) fd.append('description', formDesc.trim());
-      if (formLlm.trim()) fd.append('llm_profile', formLlm.trim());
-      // No 'action' => add path in team_admin. Persists to teams.json + dynamic registry.
-      const res = await fetch('/teams/', { method: 'POST', body: fd });
-      if (!res.ok && res.status !== 200) {
-        throw new Error('Create POST returned non-ok (but may have side-effected)');
-      }
+      await createTeam({
+        name: formName.trim(),
+        ...(formDesc.trim() ? { description: formDesc.trim() } : {}),
+        ...(formLlm.trim() ? { llm_profile: formLlm.trim() } : {}),
+      });
       setShowCreateModal(false);
       setSuccessMsg(`Team "${formName}" created successfully. Appears in /v1/models and /teams/export.`);
       setFormName(''); setFormDesc(''); setFormLlm('');
       await loadTeams();
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : String(e);
-      setError(`Create failed via form POST: ${errorMessage}. (Registry change may require page reload or use /teams admin HTML.)`);
+      setError(`Create failed via /v1/teams/: ${errorMessage}. (Try refresh or the /teams admin HTML.)`);
     } finally {
       setActionLoading(false);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -391,7 +384,7 @@ const TeamsPage = () => {
             {actionLoading ? 'Creating...' : 'Create Team'}
           </Button>
         </div>
-        <div className="text-xs opacity-60 mt-2">Action uses available /teams/ endpoint (form POST). Refresh to see in other pages.</div>
+        <div className="text-xs opacity-60 mt-2">Action uses /v1/teams/ JSON API. Refresh to see in other pages.</div>
       </Modal>
 
       {/* Delete Confirmation Modal */}

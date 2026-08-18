@@ -9,7 +9,6 @@ from typing import Any
 from django.conf import settings as dj_settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.paths import get_user_config_dir_for_swarm
@@ -173,7 +172,6 @@ def save_user_blueprint_library(library: dict[str, Any]) -> bool:
         logger.error(f"Error saving blueprint library: {e}")
         return False
 
-@csrf_exempt
 def blueprint_library(request):
     """Main blueprint library page - browse and manage blueprints."""
     try:
@@ -240,7 +238,6 @@ def blueprint_library(request):
         logger.error(f"Error loading blueprint library: {e}")
         return HttpResponse("Error loading blueprint library", status=500)
 
-@csrf_exempt
 def blueprint_requirements_status(_request):
     """Return JSON with MCP requirements vs current configuration per blueprint."""
     try:
@@ -267,7 +264,6 @@ def blueprint_requirements_status(_request):
         logger.error(f"Error generating blueprint requirements status: {e}", exc_info=True)
         return JsonResponse({"error": "Internal server error"}, status=500)
 
-@csrf_exempt
 def add_blueprint_to_library(request, blueprint_name):
     """Add a blueprint to the user's library."""
     if request.method != "POST":
@@ -304,7 +300,6 @@ def add_blueprint_to_library(request, blueprint_name):
         logger.error(f"Error adding blueprint to library: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
 
-@csrf_exempt
 def remove_blueprint_from_library(request, blueprint_name):
     """Remove a blueprint from the user's library."""
     if request.method != "POST":
@@ -336,7 +331,6 @@ def remove_blueprint_from_library(request, blueprint_name):
         logger.error(f"Error removing blueprint from library: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
 
-@csrf_exempt
 def blueprint_creator(request):
     """LLM-powered blueprint creator form."""
     if request.method == "GET":
@@ -409,7 +403,6 @@ def blueprint_creator(request):
             logger.error(f"Error creating blueprint: {e}")
             return JsonResponse({"error": "Internal server error"}, status=500)
 
-@csrf_exempt
 def generate_avatar(request, blueprint_name):
     """Generate an avatar for an existing blueprint."""
     if request.method != "POST":
@@ -447,7 +440,6 @@ def generate_avatar(request, blueprint_name):
         logger.error(f"Error generating avatar: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
 
-@csrf_exempt
 def check_comfyui_status(_request):
     """Check if ComfyUI is available for avatar generation."""
     try:
@@ -524,7 +516,6 @@ if __name__ == "__main__":
 '''
     return template
 
-@csrf_exempt
 def my_blueprints(request):
     """Show user's installed and custom blueprints."""
     try:
