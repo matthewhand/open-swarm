@@ -111,7 +111,7 @@ see [Regenerating](#regenerating) below.
 | `webui/tool-capabilities-light.png` | SPA builder / themed component capture | various | mixed | current |
 | `webui/trait-editor-dark.png` | SPA builder / themed component capture | various | mixed | current |
 | `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
-| `docs/screenshots/archive/session-explorer-detail.png` | Old session detail / delegation timeline still | SESSION_EXPLORER.md (archived; not in `PAGES`) | archived | archived |
+| `docs/screenshots/archive/session-explorer-detail.png` | Session detail / delegation timeline (archived; optional recapture once a real seeded session exists — no detail stem in `PAGES`) | SESSION_EXPLORER.md | archived | archived |
 | `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none | archived | archived |
 | `docs/screenshots/archive/a11y-focus-ring.png` | Old a11y focus-ring still | none | archived | archived |
 

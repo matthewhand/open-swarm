@@ -7,6 +7,15 @@ claude-orchestrated parallel delegation — without leaving the browser.
 
 Open it at **`/sessions/`**.
 
+## Screenshots (what we have today)
+
+| View | PNG | Status |
+|---|---|---|
+| Session list | [`screenshots/sessions.png`](screenshots/sessions.png) | **Current** journey capture — fresh-db **empty state** only (`PAGES` stem `sessions`) |
+| Session detail | [`screenshots/archive/session-explorer-detail.png`](screenshots/archive/session-explorer-detail.png) | **Archived** still — **not** in `PAGES`; optional recapture only after a real seeded session exists |
+
+There is **no** current journey PNG of a populated list or of `/sessions/<id>/`. Do not invent or treat the archive detail still as a live empty-db capture.
+
 ## Session list
 
 ![Session Explorer — empty list (fresh db)](screenshots/sessions.png)
@@ -35,7 +44,16 @@ Sessions are listed newest-first.
 
 ## Session detail + delegation timeline
 
-![Session Explorer — detail view (archived capture)](screenshots/archive/session-explorer-detail.png)
+> **Screenshot status:** archived / optional recapture. The image below is an
+> older still under `docs/screenshots/archive/`. Journey capture only hits
+> `/sessions/` (empty), so a faithful detail PNG would need a seeded
+> `responses_store` record (real `progress` / delegations) — not fabricated UI.
+> Until that exists, treat the following as a description of the live page, not
+> as proof from a current capture.
+
+![Session Explorer — detail view (archived; optional recapture)](screenshots/archive/session-explorer-detail.png)
+
+On a populated session (`GET /sessions/<response_id>/`), the page shows:
 
 1. **Inter-agent communication graph** — a hub-and-spoke view of the run: the
    central `claude -p` **orchestration brain** with an edge to each delegated
@@ -64,8 +82,9 @@ so the timeline fills in live while a session is still running.
 | `GET /sessions/<response_id>/` | session detail + delegation timeline |
 | `GET /api/sessions/` | JSON feed (used by the live refresh) |
 
-> List view uses the current `sessions.png` capture from
-> [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py).
-> The detail/delegation graph still relies on an archived still under
-> `docs/screenshots/archive/` until a dedicated detail stem is added to the
-> capture script — do not treat that archive image as a live empty-db capture.
+> List view: current `sessions.png` from
+> [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py)
+> (`PAGES` stem `sessions` → `/sessions/`).
+> Detail/delegation graph: **archived only**
+> (`docs/screenshots/archive/session-explorer-detail.png`) — no detail stem in
+> `PAGES` yet; optional recapture when a real seeded session is available.
