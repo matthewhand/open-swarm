@@ -29,7 +29,7 @@ full-page PNGs.
 | `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library (often empty on fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `agent-creator.png` | `/agent-creator/` (Django) | Progressive-disclosure persona form + code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `settings.png` | `/settings/` (Django) | Settings dashboard with progress meter | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
-| `sessions.png` | `/sessions/` (Django) | Session Explorer empty state: 0 sessions, live toggle, POST /v1/responses CTA (captured before mid-run seed) | USER_JOURNEY.md, GUIDED_TOUR.md, SESSION_EXPLORER.md | 2026-08-18 | current |
+| `sessions.png` | `/sessions/` (Django) | Session Explorer empty state: 0 sessions, live toggle, owner-scoped copy (“No sessions for your account yet… only sessions you own”) + POST /v1/responses CTA (captured before mid-run seed) | USER_JOURNEY.md, GUIDED_TOUR.md, SESSION_EXPLORER.md | 2026-08-18 | current |
 | `session-detail.png` | `/sessions/resp_journey_seed/` (Django) | Session detail Graph tab: seeded `hybrid_team` fixture (`resp_journey_seed`) with orchestration/agent/auxiliary nodes — real template, synthetic JSON (**not** a live hybrid_team run) | USER_JOURNEY.md, GUIDED_TOUR.md, SESSION_EXPLORER.md | 2026-08-18 | current |
 | `profiles.png` | `/profiles/` (Django) | LLM profiles table (provider/model/source/enabled; Settings → LLM profiles active) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 
@@ -70,7 +70,7 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 | `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs (Create Agent / Browse Library); Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Django **5-tab** (Settings active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
-| `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle); Django **5-tab** (Sessions active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle + owner-scoped empty copy); Django **5-tab** (Sessions active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/session-detail.png` | `/sessions/resp_journey_seed/` | Seeded `hybrid_team` fixture Graph tab (same honesty as desktop — not a live run); Django **5-tab** (Sessions active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/profiles.png` | `/profiles/` | Profiles table; Django **5-tab** (Settings active — profiles nest under Settings). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 

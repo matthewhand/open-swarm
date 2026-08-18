@@ -27,13 +27,14 @@ for history only.
 
 ![Session Explorer — empty list (fresh db)](screenshots/sessions.png)
 
-The current `sessions.png` capture is a **fresh-db empty state**: **0
-sessions**, a **live** auto-refresh toggle, and a CTA to create sessions via
-`POST /v1/responses`. Per-status filter chips (`completed` / `in_progress` /
-`failed` / …) and the “Showing newest N of M (limit=50)” truncation banner are
-**not** in this PNG — they appear only once sessions exist (and when the list
-is truncated). Journey capture keeps the list empty on purpose: it seeds the
-detail fixture *after* this PNG is taken.
+The current `sessions.png` capture is a **fresh-db empty state** (**login
+required**, owner-scoped): **0 sessions**, a **live** auto-refresh toggle, and
+“No sessions for your account yet… This list shows only sessions you own”
+with a `POST /v1/responses` CTA. Per-status filter chips (`completed` /
+`in_progress` / `failed` / …) and the “Showing newest N of M (limit=50)”
+truncation banner are **not** in this PNG — they appear only once sessions
+exist (and when the list is truncated). Journey capture keeps the list empty
+on purpose: it seeds the detail fixture *after* this PNG is taken.
 
 When the store is populated, the same page also shows:
 
