@@ -68,15 +68,17 @@ Teams · Sessions · Settings — different chrome.*
 
 ### Chat — `/chat` (React SPA)
 
-![SPA chat: Connected websocket shell with blueprint selector](./screenshots/spa-chat.png)
+![SPA chat: Unavailable / websocket-failed gate; Sign in CTA (no blueprint selector in this frame)](./screenshots/spa-chat.png)
 
-*SPA websocket chat (`/ws/…`). Journey capture logs in as `journey-admin`, so
-desktop and mobile `spa-chat.png` show the **Connected** shell with blueprint
-selector and empty-state prompts (not the anonymous Unavailable gate). Mobile
-dock is **Home · Chat · Blueprints · Teams · Sessions** with **Chat** active.
-Replies also need a working LLM profile.*
+*SPA websocket chat (`/ws/…`). Journey capture logs in as `journey-admin` up
+front, but desktop and mobile `spa-chat.png` still show the **Unavailable** /
+“Websocket connection failed” gate with a Sign in CTA — the WS fails closed in
+this capture env, so the blueprint selector is **not** in frame. Mobile dock is
+**Home · Chat · Blueprints · Teams · Sessions** (Chat is SPA-only). Replies also
+need a working LLM profile once the socket stays up.*
 
-**What you can do:** pick a blueprint and stream replies. Prefer Django Team
+**What you can do:** log in and reconnect so the chat shell (including the
+blueprint selector) appears, then stream replies. Prefer Django Team
 Launcher for scripted multi-agent runs.
 
 ### Bare SPA entry URLs (redirect to Django)
