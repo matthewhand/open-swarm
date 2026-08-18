@@ -153,6 +153,8 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 
 Django operator templates still ship **inline `<script>` blocks** (creators, library, teams, sessions) and many **`style=""` attributes**. Until those move to external JS/CSS, prod CSP keeps `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`. That blocks third-party script/style hosts while remaining compatible with the current templates. Prefer extracting inline scripts over adding more `'unsafe-*'` directives.
 
+**Extraction started:** `settings_dashboard.html` page logic now lives in `static/js/settings_dashboard.js` (loaded via `{% static %}`); server data stays in a `json_script` island. Other operator pages and inline `style=""` remain; CSP policy is unchanged until more pages are extracted.
+
 ---
 
 ## Quick operator checklist

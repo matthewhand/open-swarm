@@ -3,6 +3,7 @@
 It previously did `let settingsData = {{ settings_groups|safe }}` — an XSS vector
 (unescaped server values in a <script>) that also rendered invalid JS (a raw
 Python dict). The fix uses Django's `json_script`, which HTML-escapes the JSON.
+Page logic lives in static/js/settings_dashboard.js (not an inline <script>).
 
 A later residual put path/env values into onclick="fn('{{ value }}')". Django
 HTML escaping is not enough there: browsers decode &#x27; before running the
@@ -13,6 +14,7 @@ read autoescaped data-* attributes instead.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import django
 import pytest
@@ -21,6 +23,15 @@ django.setup()
 from django.contrib.auth import get_user_model  # noqa: E402
 from django.template import Context, Engine  # noqa: E402
 from django.test import Client  # noqa: E402
+
+_SETTINGS_JS = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "swarm"
+    / "static"
+    / "js"
+    / "settings_dashboard.js"
+)
 
 
 @pytest.mark.django_db
@@ -34,9 +45,11 @@ def test_settings_dashboard_uses_json_script_not_safe_filter():
     assert resp.status_code == 200
     html = resp.content.decode()
 
-    # The safe, escaped data island is present and consumed via JSON.parse.
+    # The safe, escaped data island is present; page JS is external.
     assert 'id="swarm-settings-data"' in html
-    assert "JSON.parse(document.getElementById" in html
+    assert "settings_dashboard.js" in html
+    js = _SETTINGS_JS.read_text(encoding="utf-8")
+    assert "JSON.parse(document.getElementById" in js
     # The old unescaped injection is gone.
     assert "settings_groups|safe" not in html
     assert "let settingsData = {" not in html
@@ -66,6 +79,7 @@ def test_settings_dashboard_avoids_onclick_js_string_interpolation():
     client = Client()
     client.login(username="u3", password="p")
     html = client.get("/settings/").content.decode()
+    js = _SETTINGS_JS.read_text(encoding="utf-8")
 
     assert "btn-view-object" in html
     assert "btn-copy-env" in html
@@ -76,11 +90,11 @@ def test_settings_dashboard_avoids_onclick_js_string_interpolation():
     assert "copyEnvVar('" not in html
     assert "toggleGroup('" not in html
     # Toast/env rendering must use textContent, not message-in-innerHTML.
-    assert "text.textContent = message" in html
-    assert "keyEl.textContent = key" in html
+    assert "text.textContent = message" in js
+    assert "keyEl.textContent = key" in js
     # Live region so screen readers hear toasts that already use textContent.
-    assert 'setAttribute(\'aria-live\'' in html or 'setAttribute("aria-live"' in html
-    assert "aria-atomic" in html
+    assert 'setAttribute(\'aria-live\'' in js or 'setAttribute("aria-live"' in js
+    assert "aria-atomic" in js
 
 
 @pytest.mark.django_db
