@@ -22,11 +22,28 @@ def test_source_unknown_blueprint_404(client):
 
 @pytest.mark.django_db
 def test_source_rejects_path_traversal(client):
-    # A traversal attempt resolves outside the blueprint dir -> 404, never served.
+    # Traversal outside the blueprint dir must 404 — never fall back to primary.
     resp = client.get("/v1/blueprints/cli_fusion/source", {"file": "../../settings.py"})
+    assert resp.status_code == 404
+    assert "error" in resp.json()
+
+
+@pytest.mark.django_db
+def test_source_missing_file_returns_404(client):
+    """Explicit ?file= for a missing name is 404, not a silent primary fallback."""
+    resp = client.get("/v1/blueprints/cli_fusion/source", {"file": "does_not_exist.py"})
+    assert resp.status_code == 404
+    assert resp.json()["error"] == "file not found: does_not_exist.py"
+
+
+@pytest.mark.django_db
+def test_source_selects_requested_file(client):
+    resp = client.get("/v1/blueprints/cli_fusion/source", {"file": "README.md"})
     assert resp.status_code == 200
-    # the requested out-of-dir file is ignored; it falls back to the primary
-    assert resp.json()["selected"] == "blueprint_cli_fusion.py"
+    data = resp.json()
+    assert data["selected"] == "README.md"
+    assert data["primary"] == "blueprint_cli_fusion.py"
+    assert len(data["content"]) > 0
 
 
 @pytest.mark.django_db

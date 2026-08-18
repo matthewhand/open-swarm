@@ -489,9 +489,19 @@ class BlueprintSourceView(APIView):
         target = primary
         req_name = request.query_params.get("file")
         if req_name:
+            # Explicit file request must resolve inside this blueprint dir.
+            # Do not fall back to primary with 200 — that is a false success.
             cand = (bp_dir / req_name).resolve()
-            if cand.is_file() and cand.parent == bp_dir and cand.suffix in self._ALLOWED_SUFFIXES:
-                target = cand
+            if not (
+                cand.is_file()
+                and cand.parent == bp_dir
+                and cand.suffix in self._ALLOWED_SUFFIXES
+            ):
+                return Response(
+                    {"error": f"file not found: {req_name}"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            target = cand
         try:
             content = target.read_text(encoding="utf-8", errors="replace")[:200_000]
         except OSError:
