@@ -34,12 +34,17 @@ def _png_embeds(md_text: str) -> set[str]:
 
 
 def _non_archive_screenshot_pngs() -> list[Path]:
-    """Every PNG under docs/screenshots/ except intentional archive/."""
-    return sorted(
-        p
-        for p in SCREENSHOTS_DIR.rglob("*.png")
-        if "archive" not in p.relative_to(SCREENSHOTS_DIR).parts
-    )
+    """Every PNG under docs/screenshots/ except archive/ and ephemeral _* crops."""
+    out: list[Path] = []
+    for p in SCREENSHOTS_DIR.rglob("*.png"):
+        rel_parts = p.relative_to(SCREENSHOTS_DIR).parts
+        if "archive" in rel_parts:
+            continue
+        # Ephemeral OCR crops: docs/screenshots/_*/… or any _*.png basename.
+        if any(part.startswith("_") for part in rel_parts):
+            continue
+        out.append(p)
+    return sorted(out)
 
 
 def _registry_rel(path: Path) -> str:
