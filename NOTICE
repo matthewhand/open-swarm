@@ -43,3 +43,7 @@ their own licenses:
 * Tabler Icons (src/swarm/static/contrib/tabler-icons/)
   Copyright (c) 2020-2024 Paweł Kuna. MIT License.
   https://github.com/tabler/tabler-icons
+* htmx v1.9.12 (src/swarm/static/htmx/htmx.min.js,
+  src/swarm/static/js/htmx.min.js)
+  Copyright (c) 2020 Big Sky Software. BSD 2-Clause License.
+  https://github.com/bigskysoftware/htmx
