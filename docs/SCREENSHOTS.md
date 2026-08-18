@@ -17,7 +17,7 @@ full-page PNGs.
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
 | `landing.png` | `/` (React SPA dashboard) | Counts 0/55/55; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; desktop top nav Home·Chat·Blueprints·Teams·Sessions·Settings (SPA routes `/` + `/chat` only per ADR-001; rebuild `dist/` then recapture if dock/nav lag) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
-| `spa-chat.png` | `/chat` (React SPA) | **Connected** shell after journey login (session cookie); blueprint selector + empty-state prompts. Unavailable Sign-in CTA is for close **4401** / no session; unreachable badge is ASGI/network — not Settings API token | GUIDED_TOUR.md | 2026-08-18 | current |
+| `spa-chat.png` | `/chat` (React SPA) | Checked-in frame: **Connecting…** badge after journey login (session cookie); blueprint selector + empty-state prompts. Capture waits for **Connected** when ASGI is healthy. Unavailable Sign-in CTA is for close **4401** / no session; unreachable badge is ASGI/network — not Settings API token | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Django redirect landing (SPA no longer mounts `/teams`; ADR-001). Current PNG is Team Launcher after redirect; `capture_user_journey.py` injects sticky “Redirected: …” banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Django redirect landing (SPA unmounted `/blueprints`; ADR-001); banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
 | `spa-settings.png` | `/settings` → **`/settings/`** | Django redirect landing (SPA unmounted `/settings`; ADR-001); banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
@@ -52,15 +52,16 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
   Settings** (no Chat tab; chat stays SPA-only).
 * Bare `/teams` `/blueprints` `/settings` `/agent-creator` **redirect** to
   Django; `spa-*` stems are redirect captures (not live SPA pages).
-* Desktop and mobile `spa-chat.png` both show the **Connected** composer after
-  the journey script logs in as `journey-admin` (blueprint selector + prompts).
-  When the websocket fails, ChatPage also renders a shrink-safe **Sign in** /
+* Desktop and mobile `spa-chat.png` checked-in frames show **Connecting…**
+  after the journey script logs in as `journey-admin` (blueprint selector +
+  prompts). Regen waits for **Connected** when ASGI is healthy. When the
+  websocket fails, ChatPage also renders a shrink-safe **Sign in** /
   **Reconnect** alert (covered by unit tests; not the frame in these PNGs).
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
 | `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; SPA dock Home · Chat · Blueprints · Teams · Sessions (Home/Chat are SPA; rest Django hrefs — ADR-001). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector; SPA dock with **Chat** active | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | Checked-in frame: **Connecting…** + blueprint selector; SPA dock with **Chat** active. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect landing: Team Launcher (`hybrid_team` selected); Django **5-tab** bar (Teams active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect landing: single-column cards; Django **5-tab** (Blueprints active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect landing: Settings dashboard; Django **5-tab** (Settings active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
@@ -98,27 +99,51 @@ Regenerate (real captures only) via
 `docs/demo/captures/scene{1,2,3,4}.txt` (and `raw_*.txt`) from live commands —
 see [Regenerating](#regenerating) below.
 
+## Skills walkthrough (`docs/screenshots/skills/`)
+
+Terminal stills from live CLI proof scripts (via
+`webui/frontend/scripts/term-shot.mjs`). Paths in embeds are relative to each
+markdown file under `docs/`.
+
+| File | What it shows | Used in | Captured | Status |
+| --- | --- | --- | --- | --- |
+| `skills/01-skills-list.png` | `swarm-cli skills` listing (name, assets, description) | SKILLS_AND_CONSENSUS_WALKTHROUGH.md | mixed | current |
+| `skills/02-skills-show.png` | `swarm-cli skills --show` full `SKILL.md` dump | SKILLS_AND_CONSENSUS_WALKTHROUGH.md | mixed | current |
+| `skills/03-skill-portable.png` | Same skill across gemini/claude/grok (`prove_skill_across_clis`) | SKILLS_AND_CONSENSUS_WALKTHROUGH.md | mixed | current |
+| `skills/04-asset-toolcall.png` | Bundled-asset skill staging + execution (`counting-lines`) | SKILLS_AND_CONSENSUS_WALKTHROUGH.md | mixed | current |
+| `skills/05-consensus.png` | 3-CLI consensus split (REST vs GraphQL) | SKILLS_AND_CONSENSUS_WALKTHROUGH.md | mixed | current |
+| `skills/06-inference-profile.png` | Intent→backend routing table (`demo_inference_profile`) | examples/inference-profile-routing.md | mixed | current |
+| `skills/07-tool-capabilities.png` | Capability→MCP provider resolution demo | examples/tool-capabilities.md | mixed | current |
+
+## Historical SPA Builder (`docs/screenshots/webui/`)
+
+Orphaned `/builder` stills (ADR-001 unmounted the SPA Builder; day-to-day
+creation is Django `/agent-creator/`). Dark panels remain embedded in the
+historical example doc; light twins are **registry-only** (not embedded).
+
+| File | What it shows | Used in | Captured | Status |
+| --- | --- | --- | --- | --- |
+| `webui/blueprint-tools-badge-dark.png` | Resolved tools (MCP) badge on Builder source card | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/builder-all-panels-dark.png` | Full Builder with all config panels | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/builder-dark.png` | Builder full-page capture (dark) | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/builder-light.png` | Builder full-page light twin | none (registry-only light twin) | mixed | orphaned |
+| `webui/inference-profile-dark.png` | Inference profile panel (dark) | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/inference-profile-light.png` | Inference profile panel light twin | none (registry-only light twin) | mixed | orphaned |
+| `webui/skills-dark.png` | Skills picker panel (dark) | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/skills-light.png` | Skills picker panel light twin | none (registry-only light twin) | mixed | orphaned |
+| `webui/skills-preview-dark.png` | Skills picker with SKILL.md preview | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/tool-capabilities-dark.png` | Tool capabilities / MCP panel (dark) | examples/webui-config-panels.md (historical) | mixed | orphaned |
+| `webui/tool-capabilities-light.png` | Tool capabilities panel light twin | none (registry-only light twin) | mixed | orphaned |
+| `webui/trait-editor-dark.png` | Per-model trait editor panel | examples/webui-config-panels.md (historical) | mixed | orphaned |
+
 ## Other images in the repo
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused | 2025-01-05 | legacy |
-| `webui/blueprint-tools-badge-dark.png` | Orphaned SPA Builder panel (route unmounted) | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/builder-all-panels-dark.png` | Orphaned SPA Builder (`/builder` unmounted; use Django `/agent-creator/`) | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/builder-dark.png` | Orphaned SPA Builder page capture | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/builder-light.png` | Orphaned SPA Builder light twin | none (pair of builder-dark) | mixed | orphaned |
-| `webui/inference-profile-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/inference-profile-light.png` | Orphaned SPA Builder light twin | none (pair of inference-profile-dark) | mixed | orphaned |
-| `webui/skills-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/skills-light.png` | Orphaned SPA Builder light twin | none (pair of skills-dark) | mixed | orphaned |
-| `webui/skills-preview-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/tool-capabilities-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
-| `webui/tool-capabilities-light.png` | Orphaned SPA Builder light twin | none (pair of tool-capabilities-dark) | mixed | orphaned |
-| `webui/trait-editor-dark.png` | Orphaned SPA Builder panel | webui-config-panels.md (historical) | mixed | orphaned |
-| `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
-| `docs/screenshots/archive/session-explorer-detail.png` | Older Session detail still (superseded by current `session-detail.png`) | none (historical) | archived | archived |
-| `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none | archived | archived |
-| `docs/screenshots/archive/a11y-focus-ring.png` | Old a11y focus-ring still | none | archived | archived |
+| `assets/images/20250105-Open-Swarm-HTML-Page.png` | Old HTML landing | unused (legacy; outside `docs/screenshots/`) | 2025-01-05 | legacy |
+| `docs/screenshots/archive/session-explorer-detail.png` | Older Session detail still (superseded by current `session-detail.png`) | none (intentional archive) | archived | archived |
+| `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none (intentional archive) | archived | archived |
+| `docs/screenshots/archive/a11y-focus-ring.png` | Old a11y focus-ring still | none (intentional archive) | archived | archived |
 
 ## Regenerating
 

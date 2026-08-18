@@ -33,6 +33,40 @@ def _png_embeds(md_text: str) -> set[str]:
     return found
 
 
+def _non_archive_screenshot_pngs() -> list[Path]:
+    """Every PNG under docs/screenshots/ except intentional archive/."""
+    return sorted(
+        p
+        for p in SCREENSHOTS_DIR.rglob("*.png")
+        if "archive" not in p.relative_to(SCREENSHOTS_DIR).parts
+    )
+
+
+def _registry_rel(path: Path) -> str:
+    return path.relative_to(SCREENSHOTS_DIR).as_posix()
+
+
+def _docs_png_embed_targets() -> set[str]:
+    """Relative paths under docs/screenshots/ that markdown under docs/ (+ README) embeds."""
+    embed_re = re.compile(r"!\[[^\]]*\]\(([^)]+\.png)\)")
+    found: set[str] = set()
+    md_files = list((REPO / "docs").rglob("*.md")) + [REPO / "README.md"]
+    for path in md_files:
+        if not path.is_file():
+            continue
+        text = path.read_text(errors="ignore")
+        for m in embed_re.finditer(text):
+            rel = m.group(1)
+            if rel.startswith("http"):
+                continue
+            target = (path.parent / rel).resolve()
+            try:
+                found.add(target.relative_to(SCREENSHOTS_DIR.resolve()).as_posix())
+            except ValueError:
+                continue
+    return found
+
+
 def _ast_str(node: ast.AST) -> str | None:
     """Constant string, or the literal prefix of an f-string / JoinedStr."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -251,3 +285,101 @@ def test_auth_summary_csp_has_no_style_residual():
     assert "style-src self; no unsafe-inline" in text or (
         "script-src/style-src self" in text and "no unsafe-inline" in text
     )
+
+
+def test_every_non_archive_png_listed_in_registry():
+    """Every PNG under docs/screenshots/ (except archive/) must appear in SCREENSHOTS.md."""
+    registry = SCREENSHOTS_MD.read_text()
+    missing = []
+    for path in _non_archive_screenshot_pngs():
+        rel = _registry_rel(path)
+        # Accept `skills/foo.png`, `webui/foo.png`, `mobile/foo.png`, or bare basename.
+        if rel not in registry and path.name not in registry:
+            missing.append(rel)
+    assert not missing, f"PNGs missing from SCREENSHOTS.md registry: {missing}"
+
+
+def test_skills_glob_not_a_substitute_for_per_file_rows():
+    """Do not lump skills stills as skills/* — each file needs its own Used-in row."""
+    registry = SCREENSHOTS_MD.read_text()
+    assert "`docs/screenshots/skills/*`" not in registry
+    assert "`skills/*`" not in registry
+    for path in sorted((SCREENSHOTS_DIR / "skills").glob("*.png")):
+        assert f"`skills/{path.name}`" in registry, f"missing skills row for {path.name}"
+
+
+def test_webui_pngs_have_per_file_registry_rows():
+    registry = SCREENSHOTS_MD.read_text()
+    for path in sorted((SCREENSHOTS_DIR / "webui").glob("*.png")):
+        assert f"`webui/{path.name}`" in registry, f"missing webui row for {path.name}"
+
+
+def test_non_archive_pngs_embedded_or_marked_registry_only():
+    """Orphans must be honest: embedded in docs, or Used-in none/registry-only."""
+    registry = SCREENSHOTS_MD.read_text()
+    embeds = _docs_png_embed_targets()
+    dishonest = []
+    for path in _non_archive_screenshot_pngs():
+        rel = _registry_rel(path)
+        if rel in embeds:
+            continue
+        # Find the registry table row that mentions this file.
+        row = None
+        for line in registry.splitlines():
+            if f"`{rel}`" in line or (
+                "/" not in rel and f"`{path.name}`" in line and line.strip().startswith("|")
+            ):
+                row = line
+                break
+        if row is None:
+            dishonest.append(f"{rel}: no registry row")
+            continue
+        used_ok = any(m in row.lower() for m in ("none", "registry-only", "unused"))
+        # Light twins / historical orphans are allowed; claiming a live Used-in without embed is not.
+        if not used_ok:
+            dishonest.append(f"{rel}: not embedded and Used-in is not registry-only/none ({row})")
+    assert not dishonest, "registry honesty gaps:\n" + "\n".join(dishonest)
+
+
+def test_skills_and_webui_doc_embeds_resolve_on_disk():
+    """Captions in skills/webui docs must point at real files (no broken paths)."""
+    embed_re = re.compile(r"!\[[^\]]*\]\(([^)]+\.png)\)")
+    docs = [
+        REPO / "docs" / "SKILLS_AND_CONSENSUS_WALKTHROUGH.md",
+        REPO / "docs" / "examples" / "webui-config-panels.md",
+        REPO / "docs" / "examples" / "inference-profile-routing.md",
+        REPO / "docs" / "examples" / "tool-capabilities.md",
+    ]
+    missing = []
+    for path in docs:
+        text = path.read_text()
+        for m in embed_re.finditer(text):
+            rel = m.group(1)
+            if rel.startswith("http"):
+                continue
+            target = (path.parent / rel).resolve()
+            if not target.is_file():
+                missing.append(f"{path.name}: {rel}")
+    assert not missing, f"broken screenshot embeds: {missing}"
+
+
+def test_guided_tour_embeds_mobile_spa_chat_when_captured():
+    """High-value mobile spa-chat orphan must be embedded once the PNG exists."""
+    if not (SCREENSHOTS_DIR / "mobile" / "spa-chat.png").is_file():
+        pytest.skip("mobile/spa-chat.png not captured yet")
+    text = GUIDED_TOUR.read_text()
+    assert "mobile/spa-chat.png" in text, (
+        "GUIDED_TOUR.md must embed screenshots/mobile/spa-chat.png when captured"
+    )
+
+
+def test_spa_chat_checked_in_caption_does_not_hardclaim_connected_badge():
+    """Checked-in spa-chat PNGs show Connecting…; docs must not claim Connected as on-disk fact."""
+    for path in (GUIDED_TOUR, SCREENSHOTS_MD):
+        text = path.read_text()
+        # Ban the old hard claim that checked-in frames are Connected.
+        assert "both show the **Connected**" not in text
+        assert "**Connected** composer + blueprint selector" not in text
+        assert "**Connected** shell after journey login" not in text
+        # Honest language for the checked-in frame.
+        assert "Connecting…" in text or "Connecting" in text

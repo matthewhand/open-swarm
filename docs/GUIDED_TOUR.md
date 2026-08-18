@@ -69,15 +69,18 @@ Teams · Sessions · Settings — different chrome.*
 
 ### Chat — `/chat` (React SPA)
 
-![SPA chat (desktop): Connected websocket shell with blueprint selector](./screenshots/spa-chat.png)
+![SPA chat (desktop): Connecting… badge, blueprint selector, empty-state prompts](./screenshots/spa-chat.png)
 
-*SPA websocket chat (`/ws/…`). Journey capture logs in as `journey-admin`, so
-desktop and mobile `spa-chat.png` show the **Connected** shell with blueprint
-selector and empty-state prompts. Mobile dock is **Home · Chat · Blueprints ·
-Teams · Sessions** with **Chat** active. If the socket fails, the page also
-exposes a primary **Sign in** (returns to `/chat`) + **Reconnect** alert that
-must not flex-shrink away in the fixed-height layout. Replies need a working
-LLM profile.*
+![SPA chat (mobile): Connecting… badge; SPA dock with Chat active](./screenshots/mobile/spa-chat.png)
+
+*SPA websocket chat (`/ws/…`). Journey capture logs in as `journey-admin` and
+waits for the connection-status badge; when ASGI is healthy the badge becomes
+**Connected**. The **checked-in** desktop and mobile `spa-chat.png` frames still
+show **Connecting…** (blueprint selector + empty-state prompts). Mobile dock is
+**Home · Chat · Blueprints · Teams · Sessions** with **Chat** active. If the
+socket fails, the page also exposes a primary **Sign in** (returns to `/chat`)
++ **Reconnect** alert that must not flex-shrink away in the fixed-height layout.
+Replies need a working LLM profile.*
 
 **What you can do:** pick a blueprint and stream replies. Prefer Django Team
 Launcher for scripted multi-agent runs.

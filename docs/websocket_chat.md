@@ -55,8 +55,9 @@ Notes:
 | **Unavailable — websocket unreachable** | Socket never opened (ASGI down, wrong host, origin denied) |
 
 Journey capture (`scripts/capture_user_journey.py`) logs in as `journey-admin`
-before `/chat`, then waits for the connection-status badge so `spa-chat.png`
-shows **Connected** when the local ASGI stack is healthy.
+before `/chat`, then waits for the connection-status badge so a healthy regen
+of `spa-chat.png` shows **Connected**. The **checked-in** desktop/mobile frames
+may still show **Connecting…** if the wait raced; see [SCREENSHOTS.md](./SCREENSHOTS.md).
 
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).
