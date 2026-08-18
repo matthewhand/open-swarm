@@ -11,11 +11,11 @@ Open it at **`/sessions/`**.
 
 | View | PNG | Status |
 |---|---|---|
-| Session list | [`screenshots/sessions.png`](screenshots/sessions.png) | **Current** journey capture — fresh-db **empty state** only (`PAGES` stem `sessions`) |
-| Session detail | [`screenshots/session-detail.png`](screenshots/session-detail.png) | **Current** journey capture — `PAGES` stem `session-detail`; seeded `responses_store` fixture (`resp_journey_seed`) so Graph / timeline tabs render |
+| Session list | [`screenshots/sessions.png`](screenshots/sessions.png) | **Current** journey capture — fresh-db **empty state** only (`PAGES` stem `sessions`); mobile twin `screenshots/mobile/sessions.png` |
+| Session detail | [`screenshots/session-detail.png`](screenshots/session-detail.png) | **Current** journey capture — `PAGES` stem `session-detail`; seeded `responses_store` fixture (`resp_journey_seed`) so Graph / timeline tabs render; mobile twin `screenshots/mobile/session-detail.png` |
 
 There is **no** current journey PNG of a *populated* list (many live sessions).
-The detail PNG is the real Django `/sessions/<id>/` UI against a capture-script
+The detail PNGs are the real Django `/sessions/<id>/` UI against a capture-script
 seed, not a fabricated mockup and not a live `POST /v1/responses` run.
 
 An older still remains under

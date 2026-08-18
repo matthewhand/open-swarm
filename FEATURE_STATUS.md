@@ -57,14 +57,14 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | `simple_blueprint_page.html` | ❌ | Only renderer is `web_views.py:121-140` `blueprint_webpage()`, which is **not routed** — `blueprint_webpage` absent from `urls.py`. Dead view + dead template |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · ❌ 3
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 2
 
 | Feature | Status | Evidence |
 |---|---|---|
-| DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`, but consumed only by mock pages below |
-| TeamsPage | ❌ | Potemkin: hardcoded fixture only — `src/pages/TeamsPage.tsx:6` `const mockTeams = [...]`, `:48` `useState(mockTeams)`; zero `fetch`/`axios` calls in file |
-| BlueprintsPage | ❌ | Potemkin: `src/pages/BlueprintsPage.tsx:6` `const mockBlueprints = [...]`, `:70` `useState(mockBlueprints)`; no network calls, no `useEffect` data load |
-| API / auth / websocket integration | 🟡 | UPDATED 2026-06-11: typed api client (`src/lib/api.ts`), react-query on /v1/blueprints//models//teams/, token auth UX (SettingsPage + 401 banner), ChatPage speaking the ws protocol — ws blocked on missing backend ASGI routing (honest fallback shown) |
+| DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; SPA leftovers still import these. |
+| TeamsPage | 🟡 | Live fetch from `/teams/export?format=json` (`TeamsPage.tsx` `loadTeams`); demo fixture only on error. Bare `/teams` redirects to Django Team Launcher — this page is a leftover SPA route, not the canonical UI. |
+| BlueprintsPage | 🟡 | Live fetch from `/v1/blueprints` (`BlueprintsPage.tsx`); demo fixture only on error. **Launch button is still simulated** (timeout + UI message, no real `/v1/chat/completions`). Bare `/blueprints` redirects to Django Blueprint Library. |
+| API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Caveat: chat requires a logged-in session cookie; unauthenticated frames show the Unavailable / login gate (see `spa-chat.png`). |
 
 ## 6. Memory — 🔲 1 · 📋 2
 
@@ -79,8 +79,8 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | Feature | Status | Evidence |
 |---|---|---|
 | MCP client (agents consume MCP servers) | ✅ | `src/swarm/extensions/mcp/mcp_client.py:23` `MCPClient` (list_tools/call/resources) imports cleanly; blueprints pass `mcp_servers` into SDK agents — e.g. `blueprints/jeeves/blueprint_jeeves.py:61,226-245` filters `duckduckgo-search`/`home-assistant` servers per sub-agent; `required_mcp_servers` metadata at `:182` |
-| MCP server provider (blueprints as tools) | 🟡 | `src/swarm/mcp/provider.py:84-137` `call_tool` now really instantiates and runs blueprints (starts/stops required MCP servers, `_run_blueprint_sync` at `:206`); tests `tests/mcp/test_provider_execute.py`, `test_provider.py`, `test_provider_edge_cases.py` pass. Caveat: docstring at `provider.py:38` still says real execution "is a TODO" (stale), and the provider is only reachable via the unshipped server below |
-| MCP server mount (`ENABLE_MCP_SERVER`) | 📋 | `settings.py:165-171` appends `django_mcp_server` to INSTALLED_APPS, `urls.py:139` mounts `mcp/` — but `django_mcp_server` is **not declared anywhere in pyproject.toml** (grep: no match); `mcp/integration.py:20-23` import-guards it and returns 0 tools when absent. Flag without a dependency |
+| MCP server provider (blueprints as tools) | 🟡 | `src/swarm/mcp/provider.py` `call_tool` instantiates and runs blueprints for real (docstring + tests `tests/mcp/test_provider_execute.py`, `test_provider.py`, `test_provider_edge_cases.py`). Caveat: reachable mainly via MCP server mount below (still optional/unshipped on clean install). |
+| MCP server mount (`ENABLE_MCP_SERVER`) | 📋 | `settings.py` adds `mcp_server` (the import name from the `django-mcp-server` dist) when the module is importable; docs in `docs/mcp_server_mode.md`. **Not** a declared `pyproject.toml` dependency (manual `pip install django-mcp-server`); flag without lockfile dep stays 📋. Blueprint→tool bridge still needs MCPToolset port (ROADMAP §3.3). |
 
 ## 8. Feature-flagged integrations — ✅ 1 · 🗑 2
 
@@ -162,9 +162,9 @@ deferred to the release PR.
 
 This doc decays fast (a cleanup wave was rewriting the tree while it was generated). Before acting on any row, re-verify:
 
-1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation to separate real breakage from the `urls.py:155` ordering bug.
+1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
 3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (expected to fail until removed/fixed).
-4. **Potemkin check (SPA):** `grep -rn "mock\|fetch\|axios" webui/frontend/src/pages/` — rows flip from ❌ only when real API calls replace the `mock*` constants.
-5. **Flags vs deps:** `grep -n "django_mcp_server" pyproject.toml` — a flag without a declared dependency stays 📋.
-6. **Known bug to re-check first:** `src/swarm/urls.py:155` (`from django.conf.urls import re_path` — invalid on Django ≥4.0; fix is `from django.urls import re_path`).
+4. **SPA leftovers:** `grep -rn "fetch\|mock\|simulated" webui/frontend/src/pages/` — Teams/Blueprints now fetch live; Blueprints launch remains simulated. Canonical operator UI is Django (bare SPA paths redirect).
+5. **Flags vs deps:** `grep -n "django-mcp-server\\|mcp_server" pyproject.toml docs/mcp_server_mode.md` — flag without a declared lockfile dependency stays 📋.
+6. **Resolved:** `urls.py` imports `re_path` from `django.urls` (Django 4+); the old `django.conf.urls` import bug is gone.
