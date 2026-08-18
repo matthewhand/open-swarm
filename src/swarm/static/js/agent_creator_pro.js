@@ -692,7 +692,7 @@ class AgentCreatorPro {
                 <strong class="me-auto">${this.getToastTitle(type)}</strong>
                 <button type="button" class="btn-close" onclick="this.parentElement.parentElement.remove()"></button>
             </div>
-            <div class="toast-body">${message}</div>
+            <div class="toast-body">${this.escapeHtml(message)}</div>
         `;
         
         container.appendChild(toast);
