@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Card, Alert, Badge, LoadingSpinner, Modal, ConfirmModal } from '../components/DaisyUI';
-import { Users, Plus, Edit, Trash2, Search, Play } from 'lucide-react';
+import { Users, Plus, Trash2, Search, Play } from 'lucide-react';
 import { createTeam, deleteTeam } from '../lib/api';
 
 interface Team {
@@ -67,15 +68,14 @@ const TeamsPage = () => {
         });
         setTeams(list);
       } else {
-        throw new Error('Export API failed');
+        throw new Error(`HTTP ${res.status}`);
       }
     } catch (e) {
-      setError('Failed to load live teams from /teams/export. Using fallback demo (check backend ENABLE_WEBUI and dynamic registry).');
-      // Fallback demo only on error
-      setTeams([
-        { id: 'code-review', name: 'Code Review Team', description: 'Automated code review and quality assurance (demo)', status: 'active', members: 4, created: '2024-01-15', llm_profile: 'default' },
-        { id: 'docs-squad', name: 'Documentation Squad', description: 'Technical writing and documentation generation (demo)', status: 'idle', members: 3, created: '2024-02-20', llm_profile: 'default' },
-      ]);
+      const detail = e instanceof Error ? e.message : String(e);
+      setError(
+        `Could not load teams from /teams/export (${detail}). Use /teams/launch/ or check ENABLE_WEBUI and the dynamic registry.`,
+      );
+      setTeams([]);
     } finally {
       setLoading(false);
     }
@@ -141,14 +141,8 @@ const TeamsPage = () => {
     }
   };
 
-  const handleLaunch = (team: Team) => {
-    const modelId = typeof team.id === 'string' ? team.id : team.name.toLowerCase().replace(/\s+/g, '-');
-    // Real launch uses the team id as model in the OpenAI compatible endpoint.
-    // Streaming supported server-side: POST /v1/chat/completions { "model": "...", "messages": [...], "stream": true }
-    // Auth: pass Authorization: Bearer <token> (from SWARM_API_KEY or equiv) or X-API-Key when enabled.
-    setSuccessMsg(`Launch: use model="${modelId}" with /v1/chat/completions (stream=true supported in backend chat_views). See Settings for auth notes.`);
-    setTimeout(() => setSuccessMsg(null), 6000);
-  };
+  const teamModelId = (team: Team) =>
+    typeof team.id === 'string' ? team.id : team.name.toLowerCase().replace(/\s+/g, '-');
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -158,7 +152,7 @@ const TeamsPage = () => {
             <Users className="h-8 w-8" aria-hidden="true" />
             Team Management
           </h1>
-          <p className="text-gray-500 mt-1">Create and manage your AI teams (live from backend dynamic registry)</p>
+          <p className="text-base-content/70 mt-1">Create and manage AI teams from the live dynamic registry</p>
         </div>
         <div className="flex gap-2 mt-4 lg:mt-0">
           <Button variant="primary" onClick={openCreate} disabled={actionLoading}>
@@ -178,13 +172,19 @@ const TeamsPage = () => {
           <a className="link font-semibold" href="/teams/launch/">
             /teams/launch/
           </a>
-          . Bare <code>/teams</code> redirects there when served by Django.
+          . Bare <code>/teams</code> redirects there when served by Django. Launch opens SPA chat with the team model id preselected (session login required); API clients use{' '}
+          <code>/v1/chat/completions</code> with that model id.
         </span>
       </Alert>
 
       {error && (
         <Alert type="error" role="alert" className="mb-4">
-          {error}
+          <div className="space-y-2 text-sm">
+            <p>{error}</p>
+            <a className="link font-semibold" href="/teams/launch/">
+              Open /teams/launch/
+            </a>
+          </div>
         </Alert>
       )}
       {successMsg && (
@@ -230,13 +230,14 @@ const TeamsPage = () => {
       </Card>
 
       {loading && (
-        <div className="flex justify-center py-8" aria-live="polite" aria-busy="true">
+        <div className="flex justify-center py-8" aria-live="polite" aria-busy="true" role="status">
           <LoadingSpinner />
+          <span className="sr-only">Loading teams</span>
         </div>
       )}
 
-      {/* Teams Grid (live or fallback) */}
-      {!loading && (
+      {/* Teams Grid */}
+      {!loading && filteredTeams.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredTeams.map((team) => (
             <Card key={team.id} bordered className="hover:shadow-lg transition-shadow">
@@ -245,54 +246,51 @@ const TeamsPage = () => {
                   <Badge type={statusColors[team.status]}>
                     {team.status.charAt(0).toUpperCase() + team.status.slice(1)}
                   </Badge>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="btn-xs"
-                      title="Edit (demo)"
-                      aria-label={`Edit ${team.name}`}
-                    >
-                      <Edit className="h-3 w-3" aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="btn-xs"
-                      onClick={() => setTeamToDelete(team.id)}
-                      disabled={actionLoading}
-                      aria-label={`Delete ${team.name}`}
-                    >
-                      <Trash2 className="h-3 w-3" aria-hidden="true" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="btn-xs"
+                    onClick={() => setTeamToDelete(team.id)}
+                    disabled={actionLoading}
+                    aria-label={`Delete ${team.name}`}
+                  >
+                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                  </Button>
                 </div>
 
                 <h2 className="card-title mb-1">{team.name}</h2>
-                <p className="text-sm text-gray-500 mb-1">{team.description}</p>
-                {team.llm_profile && <div className="text-xs text-gray-400 mb-2">LLM: {team.llm_profile}</div>}
+                <p className="text-sm text-base-content/70 mb-1">{team.description}</p>
+                {team.llm_profile && <div className="text-xs text-base-content/50 mb-2">LLM: {team.llm_profile}</div>}
 
                 <div className="divider my-2"></div>
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Members:</span>
+                    <span className="text-base-content/70">Members:</span>
                     <span className="font-medium">{team.members}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Created:</span>
+                    <span className="text-base-content/70">Created:</span>
                     <span className="font-medium">{team.created}</span>
                   </div>
                 </div>
 
                 <div className="card-actions justify-end mt-4">
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={() => handleLaunch(team)} disabled={actionLoading}>
+                  <a
+                    className="btn btn-outline btn-sm"
+                    href="/teams/launch/"
+                    aria-label={`Manage ${team.name} in Django launcher`}
+                  >
+                    Manage
+                  </a>
+                  <Link
+                    className="btn btn-primary btn-sm"
+                    to={`/chat?blueprint=${encodeURIComponent(teamModelId(team))}`}
+                    aria-label={`Open chat with team ${team.name}`}
+                  >
                     <Play className="h-4 w-4 mr-1" aria-hidden="true" />
                     Launch
-                  </Button>
+                  </Link>
                 </div>
               </div>
             </Card>
@@ -304,16 +302,28 @@ const TeamsPage = () => {
       {!loading && filteredTeams.length === 0 && (
         <Card bordered className="text-center py-12" role="status">
           <div className="mb-4">
-            <Users className="h-16 w-16 mx-auto text-gray-400" aria-hidden="true" />
+            <Users className="h-16 w-16 mx-auto text-base-content/40" aria-hidden="true" />
           </div>
-          <h3 className="text-xl font-semibold mb-2">No teams found</h3>
-          <p className="text-gray-500 mb-4">
-            {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started (persists via backend)'}
+          <h3 className="text-xl font-semibold mb-2">
+            {error ? 'Teams unavailable' : 'No teams found'}
+          </h3>
+          <p className="text-base-content/70 mb-4">
+            {searchTerm
+              ? 'No teams match your search criteria'
+              : error
+                ? 'Nothing listed until /teams/export responds.'
+                : 'Create your first team to get started (persists via backend)'}
           </p>
-          <Button variant="primary" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-            Create Team
-          </Button>
+          {error ? (
+            <a className="btn btn-primary" href="/teams/launch/">
+              Open Django launcher
+            </a>
+          ) : (
+            <Button variant="primary" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+              Create Team
+            </Button>
+          )}
         </Card>
       )}
 
@@ -323,8 +333,8 @@ const TeamsPage = () => {
         onClose={() => setShowCreateModal(false)}
         title="Create New Team"
       >
-        <p className="text-gray-500 mb-4 text-sm">
-          Creates a dynamic team via backend POST (persisted to teams.json; appears immediately in /v1/models &amp; /v1/blueprints).
+        <p className="text-base-content/70 mb-4 text-sm">
+          Creates a dynamic team via /v1/teams/ (persisted to teams.json; appears immediately in /v1/models &amp; /v1/blueprints).
         </p>
 
         <div className="space-y-4">
@@ -343,7 +353,7 @@ const TeamsPage = () => {
               required
               autoFocus
             />
-            <div className="text-xs text-gray-400 mt-1">Becomes the model id (alphanumeric + dashes).</div>
+            <div className="text-xs text-base-content/50 mt-1">Becomes the model id (alphanumeric + dashes).</div>
           </div>
 
           <div>
@@ -397,12 +407,13 @@ const TeamsPage = () => {
         confirmVariant="error"
       >
         <p>Are you sure you want to delete team "{teamToDelete}"?</p>
-        <p className="text-sm text-gray-500 mt-2">This action will call the backend to remove the team from the registry.</p>
+        <p className="text-sm text-base-content/70 mt-2">This action will call the backend to remove the team from the registry.</p>
       </ConfirmModal>
 
       {actionLoading && (
-        <div className="fixed bottom-4 right-4" aria-live="polite" aria-busy="true">
+        <div className="fixed bottom-4 right-4" aria-live="polite" aria-busy="true" role="status">
           <LoadingSpinner />
+          <span className="sr-only">Working</span>
         </div>
       )}
     </div>

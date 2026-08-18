@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
+import { Link } from 'react-router-dom';
+import { Card, Alert, Badge, LoadingSpinner } from '../components/DaisyUI';
 import { Book, Search, Eye, Play, ArchiveX } from 'lucide-react';
 
 interface Blueprint {
@@ -17,9 +18,8 @@ export default function BlueprintsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [launchResult, setLaunchResult] = useState<string | null>(null);
 
-  // Load real (or demo) blueprints from backend API
+  // Live list from /v1/blueprints — never invent demo rows on failure.
   useEffect(() => {
     const fetchBlueprints = async () => {
       setLoading(true);
@@ -55,15 +55,14 @@ export default function BlueprintsPage() {
             };
           }));
         } else {
-          throw new Error('API not available');
+          throw new Error(`HTTP ${res.status}`);
         }
       } catch (e) {
-        setError('Using demo data (backend /v1/blueprints not reachable in this env)');
-        setBlueprints([
-          {id:'codey', name:'Codey', description:'Code generation & review assistant', category:'Development', version:'1.2', installed:true, featured:true},
-          {id:'chatbot', name:'Chatbot', description:'General conversation agent', category:'General', version:'1.0'},
-          {id:'geese', name:'Geese', description:'Collaborative writing team', category:'Writing', version:'0.9'},
-        ]);
+        const detail = e instanceof Error ? e.message : String(e);
+        setError(
+          `Could not load blueprints from /v1/blueprints (${detail}). Open the Django library or check that the API is running.`,
+        );
+        setBlueprints([]);
       } finally {
         setLoading(false);
       }
@@ -76,18 +75,6 @@ export default function BlueprintsPage() {
     (b.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleLaunch = async (bp: Blueprint) => {
-    setLaunchResult(`Attempting launch of ${bp.name}...`);
-    try {
-      // Example: could call a launch or chat endpoint
-      await new Promise(r => setTimeout(r, 800));
-      setLaunchResult(`Launched ${bp.name} (simulated via UI - real launch would use CLI or /v1/chat/completions)`);
-    } catch {
-      setLaunchResult(`Launch request sent for ${bp.name}`);
-    }
-    setTimeout(() => setLaunchResult(null), 4000);
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -95,7 +82,7 @@ export default function BlueprintsPage() {
           <Book className="h-8 w-8" aria-hidden="true" />
           Blueprint Library
         </h1>
-        <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
+        <p className="text-base-content/70">Browse discoverable blueprints from the live API</p>
       </div>
 
       <Alert type="info" role="status" className="mb-4">
@@ -104,24 +91,24 @@ export default function BlueprintsPage() {
           <a className="link font-semibold" href="/blueprint-library/">
             /blueprint-library/
           </a>
-          . Bare <code>/blueprints</code> redirects there when served by Django.
+          . Bare <code>/blueprints</code> redirects there when served by Django. Launch opens SPA chat with the blueprint preselected (session login required).
         </span>
       </Alert>
 
       {error && (
         <Alert type="warning" role="alert" className="mb-4">
-          {error}
-        </Alert>
-      )}
-      {launchResult && (
-        <Alert type="success" role="status" className="mb-4">
-          {launchResult}
+          <div className="space-y-2 text-sm">
+            <p>{error}</p>
+            <a className="link font-semibold" href="/blueprint-library/">
+              Open /blueprint-library/
+            </a>
+          </div>
         </Alert>
       )}
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" aria-hidden="true" />
+          <Search className="h-4 w-4 absolute left-3 top-3 text-base-content/40" aria-hidden="true" />
           <label htmlFor="blueprints-search" className="sr-only">
             Search blueprints
           </label>
@@ -137,18 +124,28 @@ export default function BlueprintsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true">
+        <div className="flex justify-center py-12" aria-live="polite" aria-busy="true" role="status">
           <LoadingSpinner />
+          <span className="sr-only">Loading blueprints</span>
         </div>
       ) : filtered.length === 0 ? (
         <Card bordered className="text-center py-12" role="status">
           <div className="mb-4">
-            <ArchiveX className="h-16 w-16 mx-auto text-gray-400" aria-hidden="true" />
+            <ArchiveX className="h-16 w-16 mx-auto text-base-content/40" aria-hidden="true" />
           </div>
-          <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
-          <p className="text-gray-500 mb-4">
-            {searchTerm ? 'No blueprints match your search criteria.' : 'No blueprints available.'}
+          <h3 className="text-xl font-semibold mb-2">
+            {error ? 'Blueprints unavailable' : 'No blueprints found'}
+          </h3>
+          <p className="text-base-content/70 mb-4">
+            {searchTerm
+              ? 'No blueprints match your search criteria.'
+              : error
+                ? 'Nothing listed until /v1/blueprints responds.'
+                : 'No blueprints available from the API yet.'}
           </p>
+          <a className="btn btn-primary btn-sm" href="/blueprint-library/">
+            Open Django library
+          </a>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -161,7 +158,7 @@ export default function BlueprintsPage() {
                 </div>
 
                 <h3 className="card-title mb-2">{blueprint.name}</h3>
-                <p className="text-sm text-gray-500 mb-4">{blueprint.description}</p>
+                <p className="text-sm text-base-content/70 mb-4">{blueprint.description}</p>
 
                 <div className="text-xs mb-3">
                   <Badge type="info" size="sm">{blueprint.category || 'General'}</Badge>
@@ -169,14 +166,22 @@ export default function BlueprintsPage() {
                 </div>
 
                 <div className="card-actions justify-end">
-                  <Button variant="outline" size="sm" aria-label={`Details for ${blueprint.name}`}>
+                  <a
+                    className="btn btn-outline btn-sm"
+                    href="/blueprint-library/"
+                    aria-label={`Details for ${blueprint.name} in Django library`}
+                  >
                     <Eye className="h-4 w-4 mr-1" aria-hidden="true" />
                     Details
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={() => handleLaunch(blueprint)} aria-label={`Launch ${blueprint.name}`}>
+                  </a>
+                  <Link
+                    className="btn btn-primary btn-sm"
+                    to={`/chat?blueprint=${encodeURIComponent(blueprint.id)}`}
+                    aria-label={`Open chat with ${blueprint.name}`}
+                  >
                     <Play className="h-4 w-4 mr-1" aria-hidden="true" />
                     Launch
-                  </Button>
+                  </Link>
                 </div>
               </div>
             </Card>
@@ -185,7 +190,7 @@ export default function BlueprintsPage() {
       )}
 
       <div className="mt-6 text-xs opacity-60">
-        Data source: /v1/blueprints (or demo). Use swarm-cli for full install/launch.
+        Data source: /v1/blueprints. Use swarm-cli or /teams/launch/ for install and team launch.
       </div>
     </div>
   );

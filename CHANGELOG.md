@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - **Session detail journey capture:** mid-run seed of `resp_journey_seed` so `session-detail.png` shows Graph/timeline; embeds in USER_JOURNEY / GUIDED_TOUR / SESSION_EXPLORER with seeded-fixture honesty (synthetic JSON, not a live hybrid_team run)
 
 ### Fixed
+- **SPA honesty:** Teams/Blueprints pages no longer invent demo rows on API failure — empty + alert with Django deep-links; Launch is a real `/chat?blueprint=…` link (not a simulated timeout)
+- **Mobile dock:** Chat tab + `aria-current` for SPA routes; Settings remains on the top-bar icon
+- **GitHub marketplace UI:** non-OK `/marketplace/github/…` responses surface an honest empty/error; repo “View” links allow only `http:`/`https:` hrefs
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
 - **CLI MoA test XDG isolation:** `swarm-cli moa` subprocess dogfood tests pin `HOME` / `XDG_*` / `SWARM_USER_DATA_DIR` under a temp tree so host broken-cache layouts cannot break CI
 - **LoadingOverlay a11y:** `role="status"` instead of a fake modal without a focus trap

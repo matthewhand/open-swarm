@@ -64,8 +64,8 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | Feature | Status | Evidence |
 |---|---|---|
 | DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; SPA leftovers still import these. |
-| TeamsPage | 🟡 | Live fetch from `/teams/export?format=json` (`TeamsPage.tsx` `loadTeams`); demo fixture only on error. Bare `/teams` redirects to Django Team Launcher — this page is a leftover SPA route, not the canonical UI. |
-| BlueprintsPage | 🟡 | Live fetch from `/v1/blueprints` (`BlueprintsPage.tsx`); demo fixture only on error. **Launch button is still simulated** (timeout + UI message, no real `/v1/chat/completions`). Bare `/blueprints` redirects to Django Blueprint Library. |
+| TeamsPage | 🟡 | Live fetch from `/teams/export?format=json` (`TeamsPage.tsx` `loadTeams`); on error shows honest empty + alert (no demo rows). Launch links to SPA `/chat?blueprint=<team-id>`. Bare `/teams` redirects to Django Team Launcher — this page is a leftover SPA route, not the canonical UI. |
+| BlueprintsPage | 🟡 | Live fetch from `/v1/blueprints` (`BlueprintsPage.tsx`); on error shows honest empty + alert (no demo rows). Launch links to SPA `/chat?blueprint=<id>` (session auth required). Bare `/blueprints` redirects to Django Blueprint Library. |
 | API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Caveat: chat requires a logged-in session cookie; unauthenticated frames show the Unavailable / login gate (see `spa-chat.png`). |
 
 ## 6. Memory — 🔲 1 · 📋 2
@@ -167,6 +167,6 @@ This doc decays fast (a cleanup wave was rewriting the tree while it was generat
 1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
 3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (expected to fail until removed/fixed).
-4. **SPA leftovers:** `grep -rn "fetch\|mock\|simulated" webui/frontend/src/pages/` — Teams/Blueprints now fetch live; Blueprints launch remains simulated. Canonical operator UI is Django (bare SPA paths redirect).
+4. **SPA leftovers:** `grep -rn "fetch\|mock\|simulated" webui/frontend/src/pages/` — Teams/Blueprints fetch live with honest empty/error (no demo fixtures); Launch routes to `/chat?blueprint=…`. Canonical operator UI is Django (bare SPA paths redirect).
 5. **Flags vs deps:** `grep -n "django-mcp-server\\|mcp_server" pyproject.toml docs/mcp_server_mode.md` — flag without a declared lockfile dependency stays 📋.
 6. **Resolved:** `urls.py` imports `re_path` from `django.urls` (Django 4+); the old `django.conf.urls` import bug is gone.

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, PlusCircle, History } from 'lucide-react'
+import { Home, Settings, Bot, Book, Users, PlusCircle, History, MessageSquare } from 'lucide-react'
 import { Button, Card, Alert, Badge } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
@@ -55,7 +55,7 @@ function App() {
                   {darkMode ? 'Light' : 'Dark'}
                 </button>
                 <a href="/settings/" className="btn btn-ghost btn-sm" aria-label="Settings">
-                  <Settings className="h-5 w-5" />
+                  <Settings className="h-5 w-5" aria-hidden="true" />
                 </a>
               </div>
             </div>
@@ -81,10 +81,10 @@ function App() {
           aria-label="Mobile primary"
         >
           <MobileTab to="/" icon={<Home className="h-5 w-5" />} label="Home" />
+          <MobileTab to="/chat" icon={<MessageSquare className="h-5 w-5" />} label="Chat" />
           <MobileTab href="/blueprint-library/" icon={<Book className="h-5 w-5" />} label="Blueprints" />
           <MobileTab href="/teams/launch/" icon={<Users className="h-5 w-5" />} label="Teams" />
           <MobileTab href="/sessions/" icon={<History className="h-5 w-5" />} label="Sessions" />
-          <MobileTab href="/settings/" icon={<Settings className="h-5 w-5" />} label="Settings" />
         </nav>
       </div>
     </Router>
@@ -118,22 +118,27 @@ function MobileTab({
 }) {
   const { pathname } = useLocation()
   const target = href || to || '/'
-  const active = to === '/' ? pathname === '/' : false
-  const className = `flex flex-col items-center justify-center flex-1 gap-0.5 text-xs ${
+  // SPA routes use exact/prefix match; Django href tabs are never "current" in the SPA router.
+  const active = to
+    ? to === '/'
+      ? pathname === '/'
+      : pathname === to || pathname.startsWith(`${to}/`)
+    : false
+  const className = `flex flex-col items-center justify-center flex-1 gap-0.5 text-xs min-w-0 px-1 ${
     active ? 'text-primary font-semibold' : 'text-base-content/70'
   }`
   if (href) {
     return (
       <a href={href} className={className}>
         <span aria-hidden="true">{icon}</span>
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
       </a>
     )
   }
   return (
     <Link to={target} className={className} aria-current={active ? 'page' : undefined}>
       <span aria-hidden="true">{icon}</span>
-      <span>{label}</span>
+      <span className="truncate">{label}</span>
     </Link>
   )
 }
