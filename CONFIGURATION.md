@@ -264,8 +264,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_API_KEY` | Legacy alias for `API_AUTH_TOKEN` (used if the latter is unset). | none |
 | `API_AUTH_TOKENS` / `SWARM_API_KEYS` | Optional comma-separated list of additional (or sole) accepted Bearer secrets. Merged with the single-token vars; each key maps to a distinct ownership principal (`token:<sha256-prefix>`). | none |
 | `ENABLE_API_AUTH` | Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Auto-on when any API auth token is set. | prod: on |
-| `SWARM_SECURE_COOKIES` | When `DEBUG=False`, force `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE`. Default **on** in production; set `false` for HTTP-only staging. | prod: true |
-| `DJANGO_X_FRAME_OPTIONS` | Clickjacking header when `DEBUG=False` (Django `XFrameOptionsMiddleware`). | `DENY` |
+| `SWARM_SECURE_COOKIES` | When `DEBUG=False`, force `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE`. Default **on** in production; set `false` for HTTP-only staging. (No effect when `DEBUG=True` — cookies stay non-Secure for local HTTP.) | prod: true |
+| `DJANGO_X_FRAME_OPTIONS` | Env override for `X_FRAME_OPTIONS`, read **only** when `DEBUG=False`. `XFrameOptionsMiddleware` is always installed; Django’s default is already `DENY` in debug and prod. **No CSP** header is configured. | `DENY` |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
 | `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
 | `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |

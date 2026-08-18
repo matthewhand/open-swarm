@@ -125,8 +125,12 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   --check-auth` on the host.
 - **Server refuses to start** → in production (`DJANGO_DEBUG` not true) you must
   set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, and `API_AUTH_TOKEN`.
-  Production also enables secure cookies + `X-Content-Type-Options` / `X-Frame-Options`
-  (opt out of secure cookies with `SWARM_SECURE_COOKIES=false` for HTTP staging).
+  Production also **forces secure cookies** (`SESSION_COOKIE_SECURE` /
+  `CSRF_COOKIE_SECURE`; opt out with `SWARM_SECURE_COOKIES=false` for HTTP staging).
+  `X-Content-Type-Options: nosniff` and `X-Frame-Options` (default `DENY`) are
+  Django defaults from always-on `SecurityMiddleware` / `XFrameOptionsMiddleware`
+  in **both** debug and production — the prod settings block only reasserts them
+  (and honors `DJANGO_X_FRAME_OPTIONS`). There is **no** Content-Security-Policy (CSP).
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
 - **gemini slow / stalls** → the free `oauth-personal` tier throttles the pro
   model heavily; the flash default answers in seconds. Use a paid `GEMINI_API_KEY`

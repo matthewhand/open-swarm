@@ -310,8 +310,11 @@ LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 
 # --- Production security defaults ---
-# Applied when DEBUG is False (production). Tests force DJANGO_DEBUG=true via
-# TESTING, so this block does not affect the suite. Explicit env overrides:
+# When DEBUG is False: force Secure cookies (the only DEBUG-gated cookie change)
+# and reassert Django's already-default nosniff + X-Frame-Options (DENY), with
+# optional DJANGO_X_FRAME_OPTIONS override. SecurityMiddleware and
+# XFrameOptionsMiddleware are always installed; there is no CSP. Tests force
+# DJANGO_DEBUG=true via TESTING, so this block does not affect the suite.
 #   SWARM_SECURE_COOKIES=false  → allow non-HTTPS cookies (HTTP staging)
 #   DJANGO_X_FRAME_OPTIONS      → override frame policy (default DENY)
 # API_AUTH_TOKEN is already required in production via get_enforced_api_auth_token().
