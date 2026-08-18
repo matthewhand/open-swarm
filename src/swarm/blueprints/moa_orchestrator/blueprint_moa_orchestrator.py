@@ -116,7 +116,24 @@ class MoAOrchestratorBlueprint(BlueprintBase):
         if not participants:
             participants = ["analyst", "critic"]
         fake = settings.get("fake_responses")
-        workdir = self._params.get("workdir") or self._params.get("cwd") or "."
+        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+
+        try:
+            workdir = str(
+                resolve_confined_workdir(
+                    self._params.get("workdir") or self._params.get("cwd"),
+                    create=True,
+                )
+            )
+        except WorkdirEscapeError as e:
+            msg = str(e)
+            yield {
+                "messages": [{"role": "assistant", "content": msg}],
+                "role": "assistant",
+                "content": msg,
+                "final": True,
+            }
+            return
         tasks = self._parse_tasks()
 
         result = await run_moa_agents_orchestrator(

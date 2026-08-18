@@ -21,12 +21,40 @@ PARAM_PRESET = "preset"      # fusion: named preset
 PARAM_JUDGE = "judge"        # fusion: judge adapter/profile
 PARAM_TIMEOUT = "timeout"    # override adapter timeout (seconds)
 PARAM_WORKDIR = "workdir"    # working directory for the CLI(s)
+PARAM_CWD = "cwd"            # alias for workdir (MoA / hybrid twins)
 PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
 PARAM_FALLBACK = "fallback"  # single-CLI: explicit ordered failover list
 PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
 PARAM_CONSENSUS = "consensus"  # single-CLI: per-request consensus override (bool/int/list/dict)
 PARAM_SKILL = "skill"        # apply a named skill's instructions to the prompt
 PARAM_PROFILE = "profile"    # desired inference traits {intelligence,speed,cost} 0..1
+
+
+def resolve_workdir(
+    params: dict[str, Any] | None,
+    *,
+    create: bool = True,
+    required: bool = False,
+) -> str | None:
+    """Resolve ``params['workdir']`` / ``params['cwd']`` under the workspaces root.
+
+    Confines client-supplied paths so WorkspaceTools and sandbox-bypassing CLIs
+    cannot write outside ``SWARM_WORKSPACES_DIR`` / XDG ``workspaces/``. Blank
+    or missing values yield a fresh per-run directory when *required* is true;
+    otherwise ``None`` (callers that only optionally set a cwd keep prior
+    behavior). Raises :class:`~swarm.core.workdir.WorkdirEscapeError` on escape.
+    """
+    from swarm.core.workdir import resolve_confined_workdir
+
+    params = params or {}
+    raw = params.get(PARAM_WORKDIR)
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        raw = params.get(PARAM_CWD)
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        if not required:
+            return None
+        return str(resolve_confined_workdir(None, create=create))
+    return str(resolve_confined_workdir(raw, create=create))
 
 
 def render_prompt(messages: list[dict[str, Any]]) -> str:

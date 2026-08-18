@@ -107,7 +107,13 @@ class CliOrchestratorBlueprint(BlueprintBase):
             )
             return
 
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
 
         # 1. Single routing inference.
         yield support.progress_chunk(f"_Routing with `{router}` (single inference)…_")

@@ -425,6 +425,18 @@ def moa(
     team_soft_fail_msg: str | None = None
 
     try:
+        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+
+        # Confine client/CLI paths under SWARM_WORKSPACES_DIR (or allow escape).
+        try:
+            if workdir and str(workdir).strip():
+                workdir = str(resolve_confined_workdir(workdir, create=True))
+            if cwd and str(cwd).strip():
+                cwd = str(resolve_confined_workdir(cwd, create=True))
+        except WorkdirEscapeError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(code=2) from e
+
         fakes = parse_fake_responses(fake_responses) if fake_responses else None
         if backend == "fake" and not fakes:
             # Sensible demo defaults so `swarm-cli moa "…"` works out of the box.

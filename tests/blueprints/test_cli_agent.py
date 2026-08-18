@@ -219,13 +219,14 @@ async def test_blueprint_metadata_profile_drives_selection(monkeypatch):
     assert _final_content(chunks) == "SPEEDY: x"
 
 
-async def test_blueprint_stages_skill_assets_into_workdir(tmp_path):
+async def test_blueprint_stages_skill_assets_into_workdir(tmp_path, monkeypatch):
     # The bundled counting-lines skill ships count.py; running with a workdir
     # must stage it so a write-mode CLI could execute it.
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(tmp_path))
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
-    bp.set_params({"cli": "echo", "skill": "counting-lines", "workdir": str(tmp_path)})
+    bp.set_params({"cli": "echo", "skill": "counting-lines", "workdir": "skill-wd"})
     await _collect(bp.run([{"role": "user", "content": "count lines in foo.txt"}]))
-    assert (tmp_path / "count.py").is_file()
+    assert (tmp_path / "skill-wd" / "count.py").is_file()
 
 
 async def test_blueprint_no_agents_configured():

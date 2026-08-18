@@ -221,13 +221,21 @@ class CliRecurseBlueprint(BlueprintBase):
             )
             return
 
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
+
         ctx = SimpleNamespace(
             decomposer=registry.get(decomposer),
             solver=registry.get(solver),
             synthesizer=registry.get(synthesizer),
             max_depth=self._int("max_depth", params, DEFAULT_MAX_DEPTH, HARD_DEPTH_CAP),
             max_subproblems=self._int("max_subproblems", params, DEFAULT_MAX_SUBPROBLEMS, 12),
-            workdir=params.get(support.PARAM_WORKDIR),
+            workdir=workdir,
             backends=set(),
             leaves=[0],  # mutable counter shared across the tree
         )

@@ -16,6 +16,12 @@ from swarm.core.moa.cli import (
 from tests.xdg_isolation import run_swarm_cli
 
 
+@pytest.fixture(autouse=True)
+def _allow_absolute_cli_workdir(monkeypatch):
+    """CLI tests use absolute tmp_path workdirs (local power-user path)."""
+    monkeypatch.setenv("ALLOW_UNRESTRICTED_WORKDIR", "true")
+
+
 def test_parse_fake_responses_pairs_and_json():
     assert parse_fake_responses("a=one||b=two") == {"a": "one", "b": "two"}
     assert parse_fake_responses('{"x": "hi"}') == {"x": "hi"}

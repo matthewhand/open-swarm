@@ -119,7 +119,13 @@ class CliPipelineBlueprint(BlueprintBase):
             )
             return
 
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
         names = ", ".join(n for n, _ in stages)
         yield support.progress_chunk(f"_Pipeline of {len(stages)} stage(s): {names}…_")
 

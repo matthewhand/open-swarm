@@ -129,7 +129,13 @@ class CliRoundtableBlueprint(BlueprintBase):
             )
             return
 
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
         rounds = self._rounds(params)
         sem = asyncio.Semaphore(MAX_CONCURRENCY)
         yield support.progress_chunk(

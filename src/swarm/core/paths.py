@@ -102,6 +102,12 @@ def ensure_swarm_directories_exist():
     _safe_mkdir(get_user_bin_dir())
     _safe_mkdir(get_user_cache_dir_for_swarm())
     _safe_mkdir(get_user_config_dir_for_swarm())
+    try:
+        from swarm.core.workdir import get_workspaces_dir
+
+        _safe_mkdir(get_workspaces_dir())
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

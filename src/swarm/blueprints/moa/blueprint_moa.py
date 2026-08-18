@@ -124,11 +124,29 @@ class MoABlueprint(BlueprintBase):
             backend=self._backend(),
             participant_permission=self._permission(),
         )
+        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+
+        raw_cwd = self._params.get("workdir") or self._params.get("cwd")
+        try:
+            cwd = (
+                str(resolve_confined_workdir(raw_cwd, create=True))
+                if raw_cwd is not None and str(raw_cwd).strip()
+                else None
+            )
+        except WorkdirEscapeError as e:
+            msg = str(e)
+            yield {
+                "messages": [{"role": "assistant", "content": msg}],
+                "role": "assistant",
+                "content": msg,
+                "final": True,
+            }
+            return
         # Determination always orchestrator-side (default synthesizer or inject later).
         result = await orch.run(
             question,
             participants,
-            cwd=self._params.get("workdir") or self._params.get("cwd"),
+            cwd=cwd,
             act=bool(self._params.get("act")),
             action=self._params.get("action"),
         )

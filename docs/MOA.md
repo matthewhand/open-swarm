@@ -119,8 +119,10 @@ swarm-cli moa "Review the design" --backend acpx \
 swarm-cli moa "Document the decision" --backend fake --act \
   --act-write ./moa_decision.md
 
-# Consensus then scripted team (no openai-agents; specialists write under --workdir)
-swarm-cli moa "Ship rate limiting?" --backend fake --team \
+# Consensus then scripted team (no openai-agents; specialists write under --workdir).
+# Absolute paths outside SWARM_WORKSPACES_DIR need ALLOW_UNRESTRICTED_WORKDIR=true
+# (local power users); otherwise use a relative name under the workspaces root.
+ALLOW_UNRESTRICTED_WORKDIR=true swarm-cli moa "Ship rate limiting?" --backend fake --team \
   --workdir /tmp/moa-team \
   --team-tasks 'implementer:Apply|tester:Verify|docs:ADR' \
   --json -v

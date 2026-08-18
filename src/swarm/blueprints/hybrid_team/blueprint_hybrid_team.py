@@ -411,7 +411,13 @@ class HybridTeamBlueprint(BlueprintBase):
 
         registry = support.apply_overrides(support.build_registry(self._config), params)
         grok_name, panel_names, judge_name = self._resolve(params, registry)
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
 
         # ---- 1. orchestration: plan + (optional) claude-driven delegations  #
         yield support.progress_chunk("_Coordinator reasoning (REST step)…_")

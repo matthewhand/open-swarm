@@ -251,7 +251,7 @@ solves that by giving each panelist its own working copy — see
 | `isolate` | cli_fusion | Override `isolate_workdir` for this request (`true`/`false`). |
 | `show_analysis` | cli_fusion | Override the analysis footer. |
 | `timeout` | both | Override every adapter's timeout for this request. |
-| `workdir` | both | Working directory for the CLI(s). |
+| `workdir` | both | Working directory for the CLI(s). Confined under `SWARM_WORKSPACES_DIR` / XDG `workspaces/` (relative paths OK; absolute outside the root rejected unless `ALLOW_UNRESTRICTED_WORKDIR=true`). |
 
 ---
 

@@ -146,7 +146,13 @@ class CliPlannerBlueprint(BlueprintBase):
             yield support.message_chunk("No worker CLIs are configured for cli_planner.", final=True)
             return
 
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
         max_rounds = self._max_rounds(params)
 
         # 1. Initial plan → the ledger of open subtasks.

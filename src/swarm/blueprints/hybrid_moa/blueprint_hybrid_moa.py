@@ -80,7 +80,21 @@ class HybridMoABlueprint(BlueprintBase):
         if isinstance(participants, str):
             participants = [p.strip() for p in participants.split(",") if p.strip()]
         fake = settings.get("fake_responses")
-        workdir = self._params.get("workdir") or self._params.get("cwd") or "."
+        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+
+        try:
+            workdir = str(
+                resolve_confined_workdir(
+                    self._params.get("workdir") or self._params.get("cwd"),
+                    create=True,
+                )
+            )
+        except WorkdirEscapeError as e:
+            yield {
+                "messages": [{"role": "assistant", "content": str(e)}],
+                "final": True,
+            }
+            return
         seed = {}
         notes_path = Path(workdir) / "notes.txt"
         if notes_path.is_file():

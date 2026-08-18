@@ -70,9 +70,17 @@ class CliAgentBlueprint(BlueprintBase):
         # Optional skill: `skill=<name>` prepends a discovered skill's
         # instructions to the prompt (portable across whichever CLI runs) and
         # stages any bundled assets into the workdir for write-mode CLIs.
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
+
         if params.get(support.PARAM_SKILL):
             prompt, applied = support.apply_skill_to_prompt(
-                prompt, params, workdir=params.get(support.PARAM_WORKDIR)
+                prompt, params, workdir=workdir
             )
             if applied:
                 yield support.progress_chunk(f"_Applying skill `{applied}`…_")
@@ -116,8 +124,6 @@ class CliAgentBlueprint(BlueprintBase):
                 final=True,
             )
             return
-
-        workdir = params.get(support.PARAM_WORKDIR)
 
         # Consensus agents: if the selected agent is designated as a consensus
         # agent (or the request asks for consensus), calling it runs a PANEL

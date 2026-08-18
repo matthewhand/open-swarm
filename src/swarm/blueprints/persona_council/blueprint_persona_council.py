@@ -183,7 +183,13 @@ class PersonaCouncilBlueprint(BlueprintBase):
             )
             return
 
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
         sem = asyncio.Semaphore(MAX_CONCURRENCY)
         names = ", ".join(p["name"] for p in personas)
         yield support.progress_chunk(

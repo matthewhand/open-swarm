@@ -184,10 +184,11 @@ async def test_all_panel_fail_reports_no_consensus():
     assert "no consensus reached" in final
 
 
-async def test_workdir_uses_run_consensus_path(tmp_path):
+async def test_workdir_uses_run_consensus_path(tmp_path, monkeypatch):
     # Passing a workdir takes the run_consensus branch; still deterministic.
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(tmp_path))
     bp = HybridTeamBlueprint(config=_config())
-    bp.set_params({"workdir": str(tmp_path)})
+    bp.set_params({"workdir": "team-wd"})
     final = _final_content(await _collect(bp.run([{"role": "user", "content": "hi"}])))
     assert "[rest-plan] hi" in final
     assert ("A:" in final) or ("B:" in final)

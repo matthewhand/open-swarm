@@ -127,7 +127,13 @@ class CliMapBlueprint(BlueprintBase):
             )
             return
 
-        workdir = params.get(support.PARAM_WORKDIR)
+        from swarm.core.workdir import WorkdirEscapeError
+
+        try:
+            workdir = support.resolve_workdir(params)
+        except WorkdirEscapeError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
         max_items = self._max_items(params)
 
         # 1. Decompose — explicit items, else the planner.

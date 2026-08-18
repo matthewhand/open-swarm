@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Workdir confinement:** `params.workdir` / `params.cwd` (hybrid_moa, moa_orchestrator, cli_fusion_support consumers) and `swarm-cli moa --workdir`/`--cwd` resolve under `SWARM_WORKSPACES_DIR` / XDG `workspaces/`; absolute escapes rejected unless `ALLOW_UNRESTRICTED_WORKDIR=true`. Unset write workdirs get a per-run temp under that root.
 - **Library blueprint_creator XDG save:** POST writes `blueprint_<id>.py` under `get_user_blueprints_dir()` (slug-safe) in addition to the JSON catalog, with the same discovery-opt-in message as Agent Creator
 - **Filesystem toolset read cap:** `read(..., start_line/end_line)`, `head`, and `tail` now honor `max_read_bytes` (previously only full-file `read` was capped, so line-range peeks could return unbounded content)
 - **QUICKSTART install wording:** `swarm-cli install` compiles via PyInstaller (does not download a package)
