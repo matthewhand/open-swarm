@@ -64,6 +64,15 @@ class TestAssertSafeBlueprintSource:
         with pytest.raises(ValueError, match=r"importlib"):
             assert_safe_blueprint_source("import importlib\n")
 
+    def test_runpy_fails(self):
+        """runpy.run_path executes arbitrary files — same class as importlib."""
+        with pytest.raises(ValueError, match=r"runpy"):
+            assert_safe_blueprint_source("import runpy\nrunpy.run_path('/tmp/evil.py')\n")
+
+    def test_from_runpy_import_fails(self):
+        with pytest.raises(ValueError, match=r"runpy"):
+            assert_safe_blueprint_source("from runpy import run_module\n")
+
     @pytest.mark.parametrize(
         "src,match",
         [
@@ -103,6 +112,32 @@ class TestAssertSafeBlueprintSource:
     def test_os_system_fails(self):
         with pytest.raises(ValueError, match=r"os\.system"):
             assert_safe_blueprint_source("import os\nos.system('id')\n")
+
+    def test_getattr_os_system_fails(self):
+        """getattr(os, \"system\") must not bypass the os.system Attribute ban."""
+        with pytest.raises(ValueError, match=r"getattr\(os, 'system'\)"):
+            assert_safe_blueprint_source(
+                "import os\ngetattr(os, 'system')('id')\n"
+            )
+
+    def test_getattr_os_open_fails(self):
+        with pytest.raises(ValueError, match=r"getattr\(os, 'open'\)"):
+            assert_safe_blueprint_source(
+                "import os\ngetattr(os, 'open')('/tmp/x', os.O_WRONLY)\n"
+            )
+
+    def test_getattr_asyncio_create_subprocess_fails(self):
+        with pytest.raises(ValueError, match=r"getattr\(asyncio,"):
+            assert_safe_blueprint_source(
+                "import asyncio\ngetattr(asyncio, 'create_subprocess_exec')('id')\n"
+            )
+
+    def test_getattr_benign_still_ok(self):
+        """Non-banned getattr(os, …) and ordinary getattr remain allowed."""
+        assert_safe_blueprint_source(
+            "import os\npath = getattr(os, 'environ', {})\n"
+            "result = object()\ncontent = getattr(result, 'final_output', '')\n"
+        )
 
     def test_os_remove_fails(self):
         with pytest.raises(ValueError, match=r"os\.remove"):

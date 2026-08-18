@@ -23,6 +23,8 @@ BANNED_MODULES: Final[frozenset[str]] = frozenset(
         "socket",
         "pickle",
         "importlib",
+        # run_path / run_module execute arbitrary files — same class as importlib
+        "runpy",
         "multiprocessing",
         "shutil",
         "pty",
@@ -360,6 +362,11 @@ def _check_call(node: ast.Call) -> None:
             f"(line {getattr(node, 'lineno', '?')})"
         )
 
+    # getattr(os, "system") / getattr(asyncio, "create_subprocess_exec") bypass
+    # Attribute-node bans when the attr name is a string constant — reject those.
+    if name == "getattr":
+        _check_getattr_escape(node)
+
     # os.* / asyncio.* owner checks before builtin open() so ``os.open`` is
     # banned outright and does not fall through to read-mode open() logic.
     if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
@@ -399,6 +406,36 @@ def _check_call(node: ast.Call) -> None:
                 f"Banned Path.{attr} in user blueprint "
                 f"(line {getattr(node, 'lineno', '?')})"
             )
+
+
+def _check_getattr_escape(node: ast.Call) -> None:
+    """Reject ``getattr(os, "system")`` / ``getattr(asyncio, "…")`` constant escapes.
+
+    Direct ``os.system`` is already banned via Attribute checks; reflection with
+    a literal attribute name must not reopen those APIs. Dynamic attribute names
+    (variables / expressions) are left to runtime policy, matching open(mode=).
+    """
+    if len(node.args) < 2:
+        return
+    owner_node, attr_node = node.args[0], node.args[1]
+    if not isinstance(owner_node, ast.Name):
+        return
+    if not isinstance(attr_node, ast.Constant) or not isinstance(attr_node.value, str):
+        return
+    owner = owner_node.id
+    attr = attr_node.value
+    if owner == "os" and attr in _BANNED_OS_ATTRS:
+        raise ValueError(
+            f"Banned getattr(os, {attr!r}) in user blueprint "
+            f"(line {getattr(node, 'lineno', '?')})"
+        )
+    if owner == "asyncio" and (
+        attr in _BANNED_ASYNCIO_ATTRS or attr in BANNED_CALL_NAMES
+    ):
+        raise ValueError(
+            f"Banned getattr(asyncio, {attr!r}) in user blueprint "
+            f"(line {getattr(node, 'lineno', '?')})"
+        )
 
 
 def _check_open_call(node: ast.Call) -> None:
