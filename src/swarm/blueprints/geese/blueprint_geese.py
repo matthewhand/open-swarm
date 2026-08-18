@@ -56,7 +56,8 @@ if src_path not in sys.path:
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
-    from agents.models.interface import Model
+    # Model probed for optional openai-agents; OpenAIChatCompletionsModel used at runtime.
+    from agents.models.interface import Model  # noqa: F401
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
 

@@ -22,7 +22,8 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    # Runner/Tool/function_tool probed for optional openai-agents; Agent/Model used at runtime.
+    from agents import Agent, Runner, Tool, function_tool  # noqa: F401
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI

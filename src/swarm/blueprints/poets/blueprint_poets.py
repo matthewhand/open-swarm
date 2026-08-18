@@ -23,7 +23,8 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 try:
-    from agents import Agent, Runner, Tool, function_tool
+    # Runner/Tool probed for optional openai-agents; used symbols keep runtime behavior.
+    from agents import Agent, Runner, Tool, function_tool  # noqa: F401
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
