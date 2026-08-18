@@ -64,6 +64,31 @@ class TestAssertSafeBlueprintSource:
         with pytest.raises(ValueError, match=r"importlib"):
             assert_safe_blueprint_source("import importlib\n")
 
+    @pytest.mark.parametrize(
+        "src,match",
+        [
+            ("import urllib\n", r"urllib"),
+            ("import urllib.request\n", r"urllib"),
+            ("from urllib.request import urlopen\n", r"urllib"),
+            ("import http\n", r"http"),
+            ("import http.client\n", r"http"),
+            ("from http.client import HTTPConnection\n", r"http"),
+            ("import httpx\n", r"httpx"),
+            ("from httpx import Client\n", r"httpx"),
+            ("import requests\n", r"requests"),
+            ("from requests import get\n", r"requests"),
+            ("import aiohttp\n", r"aiohttp"),
+            ("from aiohttp import ClientSession\n", r"aiohttp"),
+            ("import urllib3\n", r"urllib3"),
+            ("import websockets\n", r"websockets"),
+            ("import ftplib\n", r"ftplib"),
+            ("import smtplib\n", r"smtplib"),
+        ],
+    )
+    def test_http_network_client_imports_fail(self, src, match):
+        with pytest.raises(ValueError, match=match):
+            assert_safe_blueprint_source(src)
+
     def test_dunder_import_fails(self):
         with pytest.raises(ValueError, match=r"__import__"):
             assert_safe_blueprint_source("__import__('os')\n")

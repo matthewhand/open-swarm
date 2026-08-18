@@ -15,6 +15,7 @@ from typing import Final
 
 # Top-level modules that must never appear in user blueprint imports.
 # Focused on process/network escape and code-loading primitives.
+# Root match covers submodules (e.g. ``urllib`` bans ``urllib.request``).
 BANNED_MODULES: Final[frozenset[str]] = frozenset(
     {
         "subprocess",
@@ -29,6 +30,24 @@ BANNED_MODULES: Final[frozenset[str]] = frozenset(
         "signal",
         "code",
         "codeop",
+        # HTTP / network clients (SSRF / secret exfil)
+        "urllib",
+        "urllib3",
+        "http",
+        "httpx",
+        "requests",
+        "aiohttp",
+        "httplib2",
+        "httpcore",
+        "websockets",
+        "websocket",
+        "ftplib",
+        "smtplib",
+        "poplib",
+        "imaplib",
+        "telnetlib",
+        "xmlrpc",
+        "pycurl",
     }
 )
 
