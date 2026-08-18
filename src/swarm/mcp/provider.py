@@ -196,8 +196,14 @@ class BlueprintMCPProvider:
             process = None
             for attempt in range(3):
                 try:
+                    # DEVNULL: never PIPE without a reader (child can block on full buffers).
                     process = subprocess.Popen(
-                        cmd, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                        cmd,
+                        env=env,
+                        cwd=cwd,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
                     time.sleep(1)  # Brief wait to check if process starts
                     if process.poll() is None:  # Process is still running
@@ -226,19 +232,41 @@ class BlueprintMCPProvider:
             logger.info(f"Started MCP server '{server_name}' with PID {process.pid}")
         return started_servers
 
+    @staticmethod
+    def _close_process_pipes(proc: subprocess.Popen) -> None:
+        """Close stdin/stdout/stderr if present so wait() cannot hang on unread PIPE data."""
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is None:
+                continue
+            try:
+                stream.close()
+            except Exception:
+                pass
+
     def _stop_started_servers(self, started_servers: list) -> None:
         """Stop previously started MCP servers."""
         for s in started_servers:
+            proc = s.get("process")
+            name = s.get("name", "?")
+            pid = s.get("pid", "?")
+            if proc is None:
+                continue
             try:
-                logger.info(f"Stopping MCP server '{s['name']}' (PID {s['pid']})")
-                s['process'].terminate()
-                s['process'].wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning(f"Force killing MCP server '{s['name']}' (PID {s['pid']})")
-                s['process'].kill()
-                s['process'].wait()
+                logger.info(f"Stopping MCP server '{name}' (PID {pid})")
+                # Unblock any PIPE-backed child before/while signaling exit.
+                self._close_process_pipes(proc)
+                if proc.poll() is None:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        logger.warning(f"Force killing MCP server '{name}' (PID {pid})")
+                        proc.kill()
+                        proc.wait(timeout=5)
             except Exception as e:
-                logger.error(f"Error stopping MCP server '{s['name']}': {e}")
+                logger.error(f"Error stopping MCP server '{name}': {e}")
+            finally:
+                self._close_process_pipes(proc)
 
     def _run_blueprint_sync(self, blueprint_instance, messages: list[dict], mcp_servers: list, blueprint_name: str = "unknown") -> dict[str, Any]:
         """Run blueprint synchronously and collect async output."""

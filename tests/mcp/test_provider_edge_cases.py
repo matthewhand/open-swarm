@@ -133,6 +133,8 @@ def test_stop_mcp_server_timeout_kill(monkeypatch):
     # Mock process that times out on terminate
     mock_process = Mock()
     mock_process.pid = 12345
+    mock_process.poll.return_value = None  # still running
+    mock_process.stdin = mock_process.stdout = mock_process.stderr = None
     mock_process.terminate = Mock()
     mock_process.wait.side_effect = [subprocess.TimeoutExpired("cmd", 5), None]  # First call times out, second succeeds
     mock_process.kill = Mock()
@@ -143,6 +145,83 @@ def test_stop_mcp_server_timeout_kill(monkeypatch):
 
     mock_process.terminate.assert_called_once()
     mock_process.kill.assert_called_once()
+
+
+def test_stop_mcp_server_closes_pipes(monkeypatch):
+    """Stop path must close stdout/stderr so unread PIPE data cannot block wait()."""
+    fake_discovered = {
+        "test_bp": {
+            "metadata": {"name": "Test", "description": "Test blueprint"},
+            "class_type": Mock()
+        }
+    }
+
+    from swarm.mcp import provider as prov
+    monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
+
+    p = prov.BlueprintMCPProvider(blueprint_dir="ignored")
+
+    stdout = Mock()
+    stderr = Mock()
+    mock_process = Mock()
+    mock_process.pid = 12345
+    mock_process.poll.return_value = None
+    mock_process.stdin = None
+    mock_process.stdout = stdout
+    mock_process.stderr = stderr
+    mock_process.terminate = Mock()
+    mock_process.wait.return_value = 0
+
+    p._stop_started_servers([{"name": "pipe_server", "process": mock_process, "pid": 12345}])
+
+    stdout.close.assert_called()
+    stderr.close.assert_called()
+    mock_process.terminate.assert_called_once()
+
+
+def test_start_and_stop_chatty_subprocess_no_pipe_deadlock(monkeypatch):
+    """Chatty child must not deadlock: start uses DEVNULL; stop closes/terminates cleanly."""
+    import sys
+    import time as real_time
+
+    fake_discovered = {
+        "test_bp": {
+            "metadata": {"name": "Test", "description": "Test blueprint"},
+            "class_type": Mock()
+        }
+    }
+
+    from swarm.mcp import provider as prov
+    monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
+    # Shorten the 1s startup probe without skipping process spawn.
+    orig_sleep = real_time.sleep
+    monkeypatch.setattr(prov.time, "sleep", lambda s: orig_sleep(min(float(s), 0.05)))
+
+    p = prov.BlueprintMCPProvider(blueprint_dir="ignored")
+    # Python that floods stdout/stderr then sleeps until signaled.
+    p._mcp_config = {
+        "chatty": {
+            "name": "chatty",
+            "command": sys.executable,
+            "args": [
+                "-c",
+                "import sys,time\n"
+                "for _ in range(20000):\n"
+                "    sys.stdout.write('x'*100); sys.stderr.write('y'*100)\n"
+                "sys.stdout.flush(); sys.stderr.flush()\n"
+                "time.sleep(30)\n",
+            ],
+            "env": {},
+        }
+    }
+
+    started = p._start_required_mcp_servers(["chatty"])
+    assert len(started) == 1
+    proc = started[0]["process"]
+    assert proc.poll() is None
+    # Would hang forever with undrained PIPE once OS pipe buffer fills.
+    p._stop_started_servers(started)
+    assert proc.poll() is not None
 
 
 def test_stop_mcp_server_exception_during_stop(monkeypatch):
@@ -162,6 +241,8 @@ def test_stop_mcp_server_exception_during_stop(monkeypatch):
     # Mock process that raises exception
     mock_process = Mock()
     mock_process.pid = 12345
+    mock_process.poll.return_value = None
+    mock_process.stdin = mock_process.stdout = mock_process.stderr = None
     mock_process.terminate = Mock(side_effect=PermissionError("Access denied"))
 
     started_servers = [{"name": "protected_server", "process": mock_process, "pid": 12345}]
@@ -665,12 +746,16 @@ def test_start_mcp_server_success(monkeypatch):
         assert started[0]["name"] == "good_server"
         assert started[0]["pid"] == 54321
 
-        # Verify Popen was called with correct args
+        # Verify Popen was called with correct args (DEVNULL — never undrained PIPE)
+        import subprocess
         call_args = mock_popen.call_args
         assert call_args[0][0] == ["test-cmd", "--port", "8080"]
         assert call_args[1]["cwd"] == "/tmp"
         assert call_args[1]["env"]["FOO"] == "bar"
         assert "OPENAI_API_KEY" not in call_args[1]["env"]
+        assert call_args[1]["stdin"] is subprocess.DEVNULL
+        assert call_args[1]["stdout"] is subprocess.DEVNULL
+        assert call_args[1]["stderr"] is subprocess.DEVNULL
 
 
 def test_start_mcp_server_retry_then_success(monkeypatch):
