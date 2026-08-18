@@ -125,25 +125,40 @@ class FilesystemToolset:
             )
 
     # ---- read-side operations -------------------------------------------
+    def _read_text_capped(self, rp: Path) -> tuple[str, bool, int]:
+        """Read at most ``max_read_bytes`` from *rp*.
+
+        Returns ``(text, truncated, size)``. Cap applies to all read paths
+        (full file, line range, head) so callers cannot bypass the size limit.
+        """
+        size = rp.stat().st_size
+        with rp.open("rb") as f:
+            raw = f.read(self.max_read_bytes + 1)
+        truncated = len(raw) > self.max_read_bytes or size > self.max_read_bytes
+        text = raw[: self.max_read_bytes].decode("utf-8", errors="replace")
+        return text, truncated, size
+
     def read(self, path: str, *, start_line: int | None = None, end_line: int | None = None) -> str:
         """Read a text file. With ``start_line``/``end_line`` (1-based, inclusive)
-        return just that slice — handy for peeking at a region of a large log."""
+        return just that slice — handy for peeking at a region of a large log.
+
+        Always respects ``max_read_bytes`` (line-range / head cannot bypass it).
+        """
         self._require(READONLY, READWRITE)
         rp = self._resolve(path)
         if not rp.is_file():
             raise FilesystemError(f"not a file: {rp}")
-        size = rp.stat().st_size
-        data = rp.read_text(encoding="utf-8", errors="replace")
+        data, truncated, size = self._read_text_capped(rp)
         if start_line is not None or end_line is not None:
             lines = data.splitlines()
             s = max(1, int(start_line or 1))
             e = min(len(lines), int(end_line or len(lines)))
             sliced = lines[s - 1 : e]
-            self._audit("read", str(rp), True, f"lines {s}-{e}/{len(lines)}")
-            return "\n".join(f"{s + i}: {ln}" for i, ln in enumerate(sliced))
-        truncated = len(data.encode("utf-8", "replace")) > self.max_read_bytes
-        if truncated:
-            data = data[: self.max_read_bytes]
+            out = "\n".join(f"{s + i}: {ln}" for i, ln in enumerate(sliced))
+            if truncated:
+                out = f"{out}\n…[truncated]" if out else "…[truncated]"
+            self._audit("read", str(rp), True, f"lines {s}-{e}/{len(lines)} truncated={truncated}")
+            return out
         self._audit("read", str(rp), True, f"{size}b truncated={truncated}")
         return data + ("\n…[truncated]" if truncated else "")
 
@@ -152,16 +167,41 @@ class FilesystemToolset:
         return self.read(path, start_line=1, end_line=max(1, int(n)))
 
     def tail(self, path: str, n: int = 50) -> str:
-        """Last *n* lines (numbered) — the go-to for log inspection."""
+        """Last *n* lines (numbered) — the go-to for log inspection.
+
+        Reads at most ``max_read_bytes`` from the end of the file so a huge log
+        cannot bypass the size cap.
+        """
         self._require(READONLY, READWRITE)
         rp = self._resolve(path)
         if not rp.is_file():
             raise FilesystemError(f"not a file: {rp}")
-        lines = rp.read_text(encoding="utf-8", errors="replace").splitlines()
+        size = rp.stat().st_size
+        with rp.open("rb") as f:
+            if size > self.max_read_bytes:
+                f.seek(size - self.max_read_bytes)
+                raw = f.read(self.max_read_bytes)
+                truncated = True
+            else:
+                raw = f.read()
+                truncated = False
+        text = raw.decode("utf-8", errors="replace")
+        lines = text.splitlines()
+        # Seeking mid-file may leave a partial first line; drop it when capped.
+        if truncated and len(lines) > 1:
+            lines = lines[1:]
         n = max(1, int(n))
         start = max(0, len(lines) - n)
-        self._audit("tail", str(rp), True, f"last {len(lines) - start}/{len(lines)}")
-        return "\n".join(f"{start + i + 1}: {ln}" for i, ln in enumerate(lines[start:]))
+        shown = lines[start:]
+        if truncated:
+            # Absolute lineno unknown without a full scan; number within window.
+            out = "\n".join(f"{i + 1}: {ln}" for i, ln in enumerate(shown))
+            out = f"{out}\n…[truncated]" if out else "…[truncated]"
+            self._audit("tail", str(rp), True, f"last {len(shown)} (byte-capped)")
+            return out
+        out = "\n".join(f"{start + i + 1}: {ln}" for i, ln in enumerate(shown))
+        self._audit("tail", str(rp), True, f"last {len(shown)}/{len(lines)}")
+        return out
 
     def grep(self, pattern: str, path: str, *, max_matches: int = 200, ignore_case: bool = True) -> str:
         """Regex-search a file (or every file under a dir) for *pattern*; return

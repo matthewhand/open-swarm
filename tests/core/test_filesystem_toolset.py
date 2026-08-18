@@ -63,6 +63,28 @@ def test_read_size_cap(sandbox):
     assert "truncated" in out and len(out) < 5000
 
 
+def test_read_line_range_respects_max_read_bytes(sandbox):
+    """Line-range / head must not bypass max_read_bytes (regression)."""
+    big = sandbox / "many_lines.txt"
+    big.write_text("\n".join(f"line{i}" for i in range(5000)), encoding="utf-8")
+    fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)], max_read_bytes=80)
+    ranged = fs.read(str(big), start_line=1, end_line=4000)
+    assert "truncated" in ranged
+    assert len(ranged.encode("utf-8")) < 5000
+    headed = fs.head(str(big), n=4000)
+    assert "truncated" in headed
+    assert len(headed.encode("utf-8")) < 5000
+
+
+def test_tail_respects_max_read_bytes(sandbox):
+    big = sandbox / "huge_log.txt"
+    big.write_text("\n".join(f"line{i}" for i in range(5000)), encoding="utf-8")
+    fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)], max_read_bytes=80)
+    out = fs.tail(str(big), n=4000)
+    assert "truncated" in out
+    assert len(out.encode("utf-8")) < 5000
+
+
 def test_request_cannot_escalate_to_readwrite(sandbox):
     # config grants readonly; a per-request override asking for readwrite is ignored.
     cfg = {"filesystem": {"permission": "readonly", "allowed_paths": [str(sandbox)]}}

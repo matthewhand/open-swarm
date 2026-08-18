@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Filesystem toolset read cap:** `read(..., start_line/end_line)`, `head`, and `tail` now honor `max_read_bytes` (previously only full-file `read` was capped, so line-range peeks could return unbounded content)
 - **QUICKSTART install wording:** `swarm-cli install` compiles via PyInstaller (does not download a package)
 - **Fake Django UI actions honesty:** My Blueprints “Simulate run (demo)” + banner; Settings Validate/path-check/env Export disabled as not implemented; Team Creator Validate marked demo-only
 - **`/v1/chat/completions` trailing slash:** slash twin so `…/completions/` no longer 404s
