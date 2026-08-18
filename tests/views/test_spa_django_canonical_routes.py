@@ -197,10 +197,22 @@ class TestUxShellTemplateContracts:
         assert 'data-action="validate-code"' in html
         assert 'data-action="save-agent"' in html
         assert "onclick=" not in html
-        assert "AGENT_CREATOR_ACTIONS" in html
+        assert "agent_creator.js" in html
+        assert "<script>\nlet generatedCode" not in html
+        from pathlib import Path
+        ac_js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "agent_creator.js"
+        ).read_text(encoding="utf-8")
+        assert "AGENT_CREATOR_ACTIONS" in ac_js
 
     def test_team_creator_uses_data_action_not_onclick(self, client):
         from django.contrib.auth.models import User
+        from pathlib import Path
 
         user = User.objects.create_user(username="uxteam", password="ux-team-pass")
         client.force_login(user)
@@ -212,9 +224,20 @@ class TestUxShellTemplateContracts:
         assert 'data-action="clear-team"' in html
         assert 'data-action="validate-team"' in html
         assert 'data-action="save-team"' in html
-        assert 'data-action="remove-member"' in html
         assert "onclick=" not in html
-        assert "TEAM_CREATOR_ACTIONS" in html
+        assert "team_creator.js" in html
+        assert 'id="team-creator-profiles"' in html
+        assert "<script>\nlet teamMemberCount" not in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "team_creator.js"
+        ).read_text(encoding="utf-8")
+        assert "TEAM_CREATOR_ACTIONS" in js
+        assert 'data-action="remove-member"' in js
 
     def test_agent_creator_pro_redirects_to_canonical(self, client):
         """Unwired Pro UI soft-redirects to /agent-creator/ (preserve query)."""
@@ -256,6 +279,7 @@ class TestUxShellTemplateContracts:
 
     def test_team_creator_validate_marked_unavailable(self, client):
         from django.contrib.auth.models import User
+        from pathlib import Path
 
         user = User.objects.create_user(username="uxtd", password="ux-td-pass")
         client.force_login(user)
@@ -265,4 +289,12 @@ class TestUxShellTemplateContracts:
         assert "Validate (not available)" in html
         assert "Validate (demo)" not in html
         assert "Preview Draft" in html
-        assert "no server-side team validation" in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "team_creator.js"
+        ).read_text(encoding="utf-8")
+        assert "no server-side team validation" in js

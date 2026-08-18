@@ -4,7 +4,7 @@ showTeamMessage / showMessage previously interpolated `message` into innerHTML.
 Call sites pass swarm names, server errors, and paths — a DOM XSS vector.
 
 Agent Creator Pro static JS was deleted (route redirects to `/agent-creator/`);
-XSS coverage for creators is the live team + agent creator templates.
+XSS coverage for creators is the live team + agent creator static JS.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-TEAM_CREATOR = ROOT / "src" / "swarm" / "templates" / "team_creator.html"
-AGENT_CREATOR = ROOT / "src" / "swarm" / "templates" / "agent_creator.html"
+TEAM_CREATOR = ROOT / "src" / "swarm" / "static" / "js" / "team_creator.js"
+AGENT_CREATOR = ROOT / "src" / "swarm" / "static" / "js" / "agent_creator.js"
 
 
 def _slice_after(source: str, marker: str, length: int = 900) -> str:
