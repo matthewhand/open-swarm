@@ -15,10 +15,13 @@ here is verified against `swarm-cli --help`.
 >
 > **Web UI note:** day-to-day operator surfaces are the **Django** shell
 > (trailing-slash routes: `/blueprint-library/`, `/teams/launch/`,
-> `/sessions/`, `/settings/`, …). The React SPA at `/` is a lightweight
-> dashboard; bare `/teams`, `/blueprints`, `/settings`, and `/agent-creator`
-> redirect to those Django pages. Regenerate tour images with
-> `scripts/capture_user_journey.py`.
+> `/sessions/`, `/settings/`, …). Most browse/admin pages
+> (`/blueprint-library/`, `/teams/`, `/sessions/`, `/settings/`) and
+> creator mutators require a Django login session; Team launcher
+> (`/teams/launch/`) and Agent Creator GET stay public. The React SPA at
+> `/` is a lightweight dashboard; bare `/teams`, `/blueprints`,
+> `/settings`, and `/agent-creator` redirect to those Django pages.
+> Regenerate tour images with `scripts/capture_user_journey.py`.
 
 ---
 

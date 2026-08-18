@@ -215,10 +215,11 @@ to the library yet.
 
 ![Agent creator](./screenshots/agent-creator.png)
 
-Build a custom agent persona with **progressive disclosure**: essentials
-(name, description, special instructions) open by default; Persona and Tags
-are optional collapsed sections. The right-hand panel generates, validates,
-and saves the resulting Python blueprint code.
+GET page is public; **generate / validate / save require login**. Build a
+custom agent persona with **progressive disclosure**: essentials (name,
+description, special instructions) open by default; Persona and Tags are
+optional collapsed sections. The right-hand panel generates, validates, and
+saves the resulting Python blueprint code.
 
 ### Settings dashboard — `/settings/`
 
@@ -235,13 +236,14 @@ configuration.
 ![Login page](./screenshots/login.png)
 
 The login form. Both `/accounts/login/` and `/login/` are wired to the
-`custom_login` view. Logging in unlocks the Django operator shell —
-Teams admin/export, Blueprint library / My blueprints / creator mutators,
+`custom_login` view (CSRF required on POST; `next` is restricted to rooted
+same-origin paths). Logging in unlocks the Django operator shell — Teams
+admin/export, Blueprint library / My blueprints / creator mutators,
 Settings, Sessions — and the SPA chat websocket (anonymous chat connections
 are rejected). Public without a session: landing SPA, Team launcher
-(`/teams/launch/`), LLM profiles (`/profiles/`), and the login form itself.
-Journey capture and e2e visual suites log in through this form when a page
-redirects.
+(`/teams/launch/`), LLM profiles (`/profiles/`), Agent Creator GET
+(`/agent-creator/`), and the login form itself. Journey capture and e2e
+visual suites log in through this form when a page redirects.
 
 ### Session explorer — `/sessions/`
 

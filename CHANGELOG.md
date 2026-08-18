@@ -27,6 +27,11 @@ All notable changes to this project will be documented in this file.
 - **LoadingOverlay a11y:** `role="status"` instead of a fake modal without a focus trap
 - **Template XSS residual:** `onclick="fn('{{ … }}')"` JS-string breakout → `data-*` handlers (settings dashboard, blueprint cards / my blueprints)
 
+### Security
+- **Operator session gates:** require login for teams admin/export and blueprint library browse + mutators (aligned with Settings/Sessions)
+- **CSRF on login:** `custom_login` POST is no longer `@csrf_exempt`
+- **Login open redirect:** post-login `next` accepts only rooted same-origin paths; rejects `//evil`, backslash tricks, absolute/external URLs
+
 ### Removed
 - **Leftover `@csrf_exempt` on GET-only WebUI views:** `index`, `team_launcher`, `teams_export`, and unrouted `serve_swarm_config` in `web_views.py` (decorator was pointless on GET; token-auth chat/responses APIs unchanged)
 - **Dead `swarm.views.github_views`:** unrouted legacy marketplace helpers including `csrf_exempt` POST “install” stubs; live GitHub discovery remains `MarketplaceGitHub*` in `api_views` + `github_topics_service`

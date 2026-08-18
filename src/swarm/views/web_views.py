@@ -33,6 +33,37 @@ from .utils import (
 
 logger = setup_logger(__name__)
 
+_DEFAULT_POST_LOGIN_REDIRECT = "/chatbot/"
+
+
+def _safe_post_login_redirect(request, next_url: str | None) -> str:
+    """Return a same-origin path redirect, else the post-login default.
+
+    Stricter than Django's url_has_allowed_host_and_scheme alone: only relative
+    paths that start with a single ``/`` are accepted. Rejects scheme-relative
+    (``//evil``), backslash tricks (``\\\\``, ``/\\\\evil``), absolute URLs,
+    and bare relative segments (``chatbot/``).
+    """
+    fallback = _DEFAULT_POST_LOGIN_REDIRECT
+    if next_url is None:
+        return fallback
+    candidate = next_url.strip()
+    if not candidate:
+        return fallback
+    # Header / parser footguns before Django's host/scheme check.
+    if any(ch in candidate for ch in ("\\", "\r", "\n", "\t", "\x00")):
+        return fallback
+    if "://" in candidate or not candidate.startswith("/") or candidate.startswith("//"):
+        return fallback
+    if not url_has_allowed_host_and_scheme(
+        url=candidate,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return fallback
+    return candidate
+
+
 def _get_frontend_path():
     """Get the path to the built frontend assets."""
     # Check common build output directories
@@ -128,15 +159,10 @@ def custom_login(request):
         if user is not None:
             # User authenticated successfully
             login(request, user)
-            next_url = request.GET.get("next", "/chatbot/") # Default redirect
-            # Security: Validate the 'next' URL to prevent open redirects
-            if not url_has_allowed_host_and_scheme(
-                url=next_url,
-                allowed_hosts={request.get_host()},
-                require_https=request.is_secure(),
-            ):
-                logger.warning(f"Invalid 'next' URL detected: '{next_url}'. Falling back to default.")
-                next_url = "/chatbot/"
+            raw_next = request.GET.get("next", _DEFAULT_POST_LOGIN_REDIRECT)
+            next_url = _safe_post_login_redirect(request, raw_next)
+            if next_url != (raw_next or "").strip():
+                logger.warning(f"Invalid 'next' URL detected: '{raw_next}'. Falling back to default.")
 
             logger.info(f"User '{username}' logged in successfully. Redirecting to '{next_url}'.")
             return redirect(next_url)
@@ -159,15 +185,12 @@ def custom_login(request):
                         test_user.save()
                         logger.info("Created dev-only 'testuser' account.")
                     login(request, test_user, backend='django.contrib.auth.backends.ModelBackend')
-                    next_url = request.GET.get("next", "/chatbot/")
-                    # Security: validate the 'next' URL to prevent open redirects
-                    if not url_has_allowed_host_and_scheme(
-                        url=next_url,
-                        allowed_hosts={request.get_host()},
-                        require_https=request.is_secure(),
-                    ):
-                        logger.warning(f"Invalid 'next' URL detected during auto-login: '{next_url}'. Falling back to default.")
-                        next_url = "/chatbot/"
+                    raw_next = request.GET.get("next", _DEFAULT_POST_LOGIN_REDIRECT)
+                    next_url = _safe_post_login_redirect(request, raw_next)
+                    if next_url != (raw_next or "").strip():
+                        logger.warning(
+                            f"Invalid 'next' URL detected during auto-login: '{raw_next}'. Falling back to default."
+                        )
                     logger.info("Auto-logged in as 'testuser' (dev-only convenience). Redirecting.")
                     return redirect(next_url)
                 except Exception as auto_login_err:

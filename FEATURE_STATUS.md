@@ -51,10 +51,10 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | Feature | Status | Evidence |
 |---|---|---|
 | Index/dashboard | ✅ | `web_views.index` serves SPA `dist/index.html` when present, else Django `index.html`; `tests/views/test_web_views.py::TestIndexView` |
-| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; renders `teams_launch.html` (`web_views.py`), `teams_admin.html` |
-| Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py` |
-| Agent creator (+ pro) | ✅ | `/agent-creator/` + generate/validate/save in `views/agent_creator_views.py`; `agent_creator_pro.py` |
-| Settings dashboard | ✅ | `/settings/` → `views/settings_views.py` renders `settings_dashboard.html` |
+| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; renders `teams_launch.html` (`web_views.py`), `teams_admin.html`. **Auth:** `team_admin` + `teams_export` are `@login_required`; `team_launcher` stays public |
+| Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py`. **Auth:** browse + add/remove/creator/avatar mutators are `@login_required` (CSRF on POSTs) |
+| Agent creator (+ pro) | ✅ | `/agent-creator/` + generate/validate/save in `views/agent_creator_views.py`; `agent_creator_pro.py`. **Auth:** GET page is public; generate/validate/save mutators are `@login_required` |
+| Settings dashboard | ✅ | `/settings/` → `views/settings_views.py` renders `settings_dashboard.html` (`@login_required`) |
 | `chat.html` | ❌ | Dead template — zero references: `grep -rn "chat.html" src/swarm --include="*.py"` returns nothing (only `templates/chat.html` itself, which contains the repo's only htmx attrs) |
 | `simple_blueprint_page.html` | ❌ | Only renderer is `web_views.py:121-140` `blueprint_webpage()`, which is **not routed** — `blueprint_webpage` absent from `urls.py`. Dead view + dead template |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
@@ -118,13 +118,16 @@ Import check: every module below imported successfully via `uv run python -c "im
 | chatbot, echocraft, mcp_demo, messenger, mission_improbable, monkai_magic, nebula_shellz, omniplex | ❌ | Removed in cleanup wave — `git status` shows `D src/swarm/blueprints/<each>/...` in the worktree at audit time; directories already gone from disk |
 | `blueprint_audit_status.json` | ❌ | Stale/fake metadata: `src/swarm/blueprints/blueprint_audit_status.json` marks deleted blueprints (echocraft, mcp_demo, chatbot) "working" and lists blueprints that don't exist at all (dilbot, gaggle, gatcha, divine_code, shell_demo, unapologetic_press) |
 
-## 10. Security — ✅ 4 · 🟡 2
+## 10. Security — ✅ 7 · 🟡 2
 
 | Feature | Status | Evidence |
 |---|---|---|
 | Codey command-injection fix | ✅ | `blueprint_codey.py:933-937` parses with `shlex.split` instead of shell string (commit `2e2ee426` "Fix Command Injection in Codey blueprint") |
 | Sensitive-data redaction | ✅ | `swarm/utils/redact.py`; settings dashboard/API via `redact_settings_groups` + `json_script`; tests `tests/core/test_redact_sensitive_data.py`, `tests/unit/test_redact*.py` |
 | API auth (static token / session) | 🟡 | `StaticTokenAuthentication` + multi-token (`API_AUTH_TOKEN`/`API_AUTH_TOKENS` / `SWARM_API_KEY(S)`); prod (`DEBUG=False`) refuses boot without a token unless `SWARM_ALLOW_NO_AUTH`. Caveat: with `DJANGO_DEBUG=true` and no token, `ENABLE_API_AUTH` is false (open API) and `SwarmConfig` logs a serve-time warning (`apps.py` `_warn_if_api_auth_disabled`) |
+| Operator session gates (Django WebUI) | ✅ | `@login_required` on teams admin/export, blueprint library browse+mutators, settings, sessions, creator mutators; public without session: landing SPA, `/teams/launch/`, `/profiles/`, agent-creator GET, login form. CSRF required on `custom_login` POST + library mutators (not `@csrf_exempt`) |
+| Login open-redirect hardening | ✅ | `web_views._safe_post_login_redirect`: relative rooted paths only + `url_has_allowed_host_and_scheme`; rejects `//evil`, `\\`, absolute/external, bare relatives; `tests/views/test_web_views_security.py` |
+| Creator toast DOM XSS escapes | ✅ | `team_creator.html` / `agent_creator_pro.js` escape untrusted names/errors/paths before `innerHTML`; `tests/views/test_creator_toast_xss.py` |
 | User-blueprint AST sandbox | ✅ | `blueprint_sandbox.py` (default on; opt out `SWARM_USER_BLUEPRINT_SANDBOX=false`); discovery opt-in `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`; creator saves `@login_required` + banned-snippet/AST gate |
 | ChatMessage tenancy + prod security headers | ✅ | `message_views.py` scopes list to `conversation__student=request.user` when `ENABLE_API_AUTH`; token-only → empty qs. Prod-only (`DEBUG=False`): secure cookies (`SWARM_SECURE_COOKIES`). Always-on (Django defaults + middleware, debug and prod): `SECURE_CONTENT_TYPE_NOSNIFF`, `X_FRAME_OPTIONS=DENY` (prod block reasserts / `DJANGO_X_FRAME_OPTIONS`). **No CSP.** Browser honesty: `swarm.core.browser_tools` + TROUBLESHOOTING §7 (no fake playwright success). |
 | `SWARM_TEST_MODE` | 🟡 | Works as designed for tests (dummy LLM paths e.g. `blueprint_jeeves.py:276`; `swarm_cli.py:97` installs a bash shim instead of a PyInstaller binary). Caveat: a single env var globally swaps real behavior for canned output — if leaked into prod, responses are fake with no warning |
