@@ -16,11 +16,12 @@ All notable changes to this project will be documented in this file.
 - **MoA soft-fail honesty:** `format_team_text` no longer labels empty `--team` specialists as “consensus only”; CLI prints a `MoA team soft-fail:…` stderr line after the payload; USERGUIDE / TROUBLESHOOTING exit-1 wording aligned
 - **Docs polish:** journey screenshots regenerated (2026-08-18) + caption/registry honesty; MoA troubleshooting; FEATURE_STATUS MoA team-path row; `cli-and-api.gif` refreshed from `SWARM_TEST_MODE` captures (optional `moa --team` scene)
 - **Session detail journey capture:** mid-run seed of `resp_journey_seed` so `session-detail.png` shows Graph/timeline; embeds in USER_JOURNEY / GUIDED_TOUR / SESSION_EXPLORER with seeded-fixture honesty (synthetic JSON, not a live hybrid_team run)
-- **SPA vs Django mobile docks:** recapture after Chat dock; docs distinguish SPA **Home · Chat · Blueprints · Teams · Sessions** from Django **… · Settings**; desktop `spa-chat.png` is Unavailable, mobile may be Connected
+- **SPA vs Django mobile docks:** recapture after Chat dock; docs distinguish SPA **Home · Chat · Blueprints · Teams · Sessions** from Django **… · Settings**; journey `spa-chat.png` is Connected post-login
 
 ### Fixed
 - **SPA honesty:** Teams/Blueprints pages no longer invent demo rows on API failure — empty + alert with Django deep-links; Launch is a real `/chat?blueprint=…` link (not a simulated timeout)
 - **Mobile dock:** Chat tab + `aria-current` for SPA routes; Settings remains on the top-bar icon
+- **Chat Unavailable CTA layout:** Sign-in/Reconnect alert uses `shrink-0` so the fixed-height chat column cannot collapse it
 - **GitHub marketplace UI:** non-OK `/marketplace/github/…` responses surface an honest empty/error; repo “View” links allow only `http:`/`https:` hrefs
 - **rest_mode / creator DOM XSS:** escape toast/creator messages; sanitize marked HTML via `htmlSafe.js` allowlist; gate profiles `base_url` href to http(s); slackbot `slackLogic.js` uses `textContent`; static regression tests
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import

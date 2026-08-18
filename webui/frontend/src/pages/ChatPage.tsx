@@ -284,7 +284,11 @@ const ChatPage = () => {
       </div>
 
       {blueprintMissingFromList && (
-        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+        <Alert
+          type="warning"
+          icon={<AlertCircle className="h-5 w-5" />}
+          className="shrink-0"
+        >
           <div className="space-y-1 text-sm">
             <span className="font-medium">
               Blueprint <code>{selectedBlueprint}</code> from the URL is not in
@@ -299,9 +303,14 @@ const ChatPage = () => {
         </Alert>
       )}
 
-      {/* Fallback when the websocket is unavailable */}
+      {/* Fallback when the websocket is unavailable.
+          shrink-0: fixed-height flex column otherwise collapses this CTA. */}
       {(status === 'failed' || status === 'closed') && (
-        <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+        <Alert
+          type="error"
+          icon={<AlertCircle className="h-5 w-5" />}
+          className="shrink-0"
+        >
           <div className="space-y-2">
             <span className="font-medium">
               {status === 'failed'

@@ -178,6 +178,10 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     )
     expect(screen.getByRole('button', { name: /Reconnect/i })).toBeInTheDocument()
     expect(screen.getByText(/Unavailable — sign in required/i)).toBeInTheDocument()
+    // Fixed-height chat column must not flex-shrink the Unavailable CTA away.
+    const unavailableCopy = screen.getByText(/Websocket unavailable/i)
+    const unavailableAlert = unavailableCopy.closest('[role="alert"]')
+    expect(unavailableAlert?.className).toMatch(/shrink-0/)
   })
 
   it('clears the composer draft on Escape', async () => {
