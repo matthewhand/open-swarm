@@ -16,8 +16,8 @@ full-page PNGs.
 
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
-| `landing.png` | `/` (React SPA dashboard) | Counts 0/53/53; Quick Actions **New Team / Browse Blueprints / Open Chat / Configure**; API online | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
-| `spa-chat.png` | `/chat` (React SPA) | Websocket chat shell + blueprint selector; “Disconnected — login required for websocket” | GUIDED_TOUR.md | 2026-08-18 | current |
+| `landing.png` | `/` (React SPA dashboard) | Counts 0/53/53; Quick Actions **Launch Team / Manage Teams / Settings**; older SPA chrome Home·Chat·Teams·Blueprints·Builder·Creator·Settings (stale `dist` vs App.tsx) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
+| `spa-chat.png` | `/chat` (React SPA) | Websocket chat + blueprint selector; “Disconnected — login required for websocket” (older SPA chrome) | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture + sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture + banner over Blueprint Library | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture + banner over Settings Dashboard | GUIDED_TOUR.md | 2026-08-18 | current |
@@ -25,7 +25,7 @@ full-page PNGs.
 | `login.png` | `/accounts/login/` (Django) | Sign-in form | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `teams.png` | `/teams/` (Django) | Teams Admin registration form + table | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher; **`fs_introspect`** selected; empty output | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
-| `blueprint-library.png` | `/blueprint-library/` (Django) | Catalog with search, pagination (Show more), MCP badges | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
+| `blueprint-library.png` | `/blueprint-library/` (Django) | Catalog with search, pagination (Show more, 12 of 55), MCP badges (checking spinner) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library (often empty on fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `agent-creator.png` | `/agent-creator/` (Django) | Progressive-disclosure persona form + code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `settings.png` | `/settings/` (Django) | Settings dashboard with progress meter | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
@@ -48,8 +48,8 @@ five-tab bar).
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions New Team / Browse Blueprints / Open Chat / Configure; SPA dock (7 items) | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | Blueprint selector + composer; SPA dock (no desktop-style “Disconnected — login required” banner in this PNG) | 2026-08-18 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Manage Teams / Settings**; SPA dock Home · Chat · Teams · Blueprints · Builder · Creator · Settings | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | Connected composer + blueprint selector; Chat dock tab active (no desktop “Disconnected — login required” banner) | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django Teams tab active | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Blueprints tab active | 2026-08-18 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Settings tab active | 2026-08-18 | current |

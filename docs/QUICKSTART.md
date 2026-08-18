@@ -134,6 +134,29 @@ swarm-cli config add --section llm --name local --json \
   '{"provider":"openai","model":"gpt-4o","base_url":"https://api.your-endpoint.com/v1","api_key":"${OPENAI_API_KEY}"}'
 ```
 
+For a local OpenAI-compatible gateway that advertises role model slugs
+(`orchestration` / `delegation` / `auxiliary`) — for example
+`http://127.0.0.1:4000/v1` (adjust host/port) — put the host and a placeholder
+key in the environment, then register one profile per slug. Full JSON example,
+trait tags for `inference_profile` routing, and the `hybrid_team` role vs
+gateway-slug distinction live in
+[USERGUIDE.md — Local OpenAI-compatible gateway](../USERGUIDE.md#local-openai-compatible-gateway-role-model-slugs):
+
+```bash
+export LITELLM_BASE_URL=http://127.0.0.1:4000/v1
+export LITELLM_API_KEY=sk-local-placeholder   # any non-empty value if keyless
+# Do not set LITELLM_MODEL — that overrides every profile's model.
+
+swarm-cli config add --section llm --name orchestration --json \
+  '{"provider":"openai","model":"orchestration","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","intelligence":0.95}'
+swarm-cli config add --section llm --name delegation --json \
+  '{"provider":"openai","model":"delegation","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","intelligence":0.7,"cost":0.4}'
+swarm-cli config add --section llm --name auxiliary --json \
+  '{"provider":"openai","model":"auxiliary","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","speed":0.9,"cost":0.9}'
+
+export DEFAULT_LLM=orchestration
+```
+
 ### c. Check or Edit LLM Config
 
 ```bash
@@ -202,6 +225,9 @@ See [MOA.md](./MOA.md).
   {"llm": {"openai_default": {"provider": "openai", "model": "gpt-4o",
     "base_url": "https://api.openai.com/v1", "api_key": "${OPENAI_API_KEY}"}}}
   ```
+- Role-slug gateway example (`orchestration` / `delegation` / `auxiliary` on
+  `LITELLM_BASE_URL`): see [§3b](#b-use-a-custom-endpoint-or-model) and
+  [USERGUIDE.md](../USERGUIDE.md#local-openai-compatible-gateway-role-model-slugs).
 - For the agentic CLIs, generate the `cli_agents` block from what's installed:
   `swarm-cli cli-agents --init --write`.
 - See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [CONFIGURATION.md](../CONFIGURATION.md) for the full schema.

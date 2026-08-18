@@ -159,8 +159,10 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
 serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
 teams/blueprints/models counts come from the API (this capture: 0 / 53 / 53).
-Quick Actions on the capture read **New Team**, **Browse Blueprints**,
-**Open Chat**, **Configure**. Bare `/teams`, `/blueprints`, `/settings`, and
+Quick Actions on the capture read **Launch Team**, **Manage Teams**,
+**Settings** (current `App.tsx` also includes Browse Blueprints and
+Django-aligned nav Home · Blueprints · Teams · Sessions · Settings — rebuild
+`dist` and recapture to align). Bare `/teams`, `/blueprints`, `/settings`, and
 `/agent-creator` **redirect** to Django (`/teams/launch/`,
 `/blueprint-library/`, `/settings/`, `/agent-creator/`) — `spa-*.png`
 captures document those redirect landings. Experimental SPA chat remains at
@@ -191,11 +193,11 @@ team's output in the browser. The output panel is empty until you launch.
 
 ![Blueprint library](./screenshots/blueprint-library.png)
 
-Browse discoverable blueprints with per-blueprint MCP requirement badges
-(e.g. "MCP: OK" / "MCP: Missing") from your local environment. The grid is
-**paginated** on first paint (Show more) so the catalog does not dump every
-card at once; summary tiles reflect available / installed / custom /
-category counts for this environment.
+Browse discoverable blueprints with per-blueprint MCP status badges (async
+check; this capture still shows the checking spinner labeled **MCP** on each
+card). The grid is **paginated** on first paint (Show more — e.g. 12 of 55)
+so the catalog does not dump every card at once; summary tiles reflect
+available / installed / custom / category counts for this environment.
 
 ### My blueprints — `/blueprint-library/my-blueprints/`
 

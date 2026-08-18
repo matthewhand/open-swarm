@@ -48,3 +48,25 @@ def test_settings_dashboard_escapes_script_in_json_island():
     assert start != -1
     island = html[start : html.find("</script>", start)]
     assert "</script" not in island.replace("\\u003c", "")  # only escaped form allowed
+
+
+@pytest.mark.django_db
+def test_settings_dashboard_progress_meter_and_section_headings():
+    """Progress meter exposes valuetext + labelledby; section h2s preserve heading order."""
+    User = get_user_model()
+    User.objects.create_user(username="u3", password="p")
+    client = Client()
+    client.login(username="u3", password="p")
+    html = client.get("/settings/").content.decode()
+
+    assert 'role="progressbar"' in html
+    assert 'aria-valuetext="' in html
+    assert 'aria-labelledby="config-progress-label"' in html
+    assert 'id="config-progress-label"' in html
+    assert 'aria-valuemin="0"' in html
+    assert 'aria-valuemax="100"' in html
+    assert 'settings configured' in html
+
+    assert '<h1 class="dashboard-title">Settings Dashboard</h1>' in html
+    assert '<h2 class="visually-hidden">Quick actions</h2>' in html
+    assert '<h2 class="visually-hidden">Settings groups</h2>' in html

@@ -256,13 +256,106 @@ environment at load time. You **must** set the corresponding environment
 variables — `export` them or put them in a `.env` file in your working
 directory.
 
+### Local OpenAI-compatible gateway (role model slugs)
+
+Some local gateways (LiteLLM, LM Studio, custom proxies) expose OpenAI-style
+`/v1` and advertise role-oriented **model ids**. One common layout — verified
+against a local OpenAI-compatible `/v1/models` listing — is:
+
+| Gateway model id (`model`) | Typical use |
+| --- | --- |
+| `orchestration` | planning / coordination |
+| `delegation` | mid-tier worker / handoff work |
+| `auxiliary` | fast / cheap polish, tests, simple steps |
+
+Point named LLM **profiles** at that host with env vars (no secrets in JSON).
+`provider: "openai"` means “OpenAI-compatible client”, not the OpenAI cloud.
+`base_url` must include `/v1`.
+
+```bash
+# .env or shell — endpoint only; use any non-empty placeholder if the gateway is keyless
+export LITELLM_BASE_URL=http://127.0.0.1:4000/v1
+export LITELLM_API_KEY=sk-local-placeholder
+# Leave LITELLM_MODEL unset: a global model override defeats per-profile routing.
+export DEFAULT_LLM=orchestration
+```
+
+```json
+{
+    "llm": {
+        "orchestration": {
+            "provider": "openai",
+            "model": "orchestration",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
+            "intelligence": 0.95,
+            "description": "Gateway slug orchestration — planning / coordination."
+        },
+        "delegation": {
+            "provider": "openai",
+            "model": "delegation",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
+            "intelligence": 0.7,
+            "cost": 0.4,
+            "description": "Gateway slug delegation — mid-tier worker steps."
+        },
+        "auxiliary": {
+            "provider": "openai",
+            "model": "auxiliary",
+            "base_url": "${LITELLM_BASE_URL}",
+            "api_key": "${LITELLM_API_KEY}",
+            "speed": 0.9,
+            "cost": 0.9,
+            "description": "Gateway slug auxiliary — fast / cheap steps."
+        }
+    },
+    "settings": {
+        "default_llm_profile": "orchestration"
+    }
+}
+```
+
+Or register the same profiles with the CLI:
+
+```bash
+swarm-cli config add --section llm --name orchestration --json \
+  '{"provider":"openai","model":"orchestration","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","intelligence":0.95}'
+swarm-cli config add --section llm --name delegation --json \
+  '{"provider":"openai","model":"delegation","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","intelligence":0.7,"cost":0.4}'
+swarm-cli config add --section llm --name auxiliary --json \
+  '{"provider":"openai","model":"auxiliary","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","speed":0.9,"cost":0.9}'
+```
+
+**Honest notes:**
+
+* Profile **names** are config keys; the gateway **slug** is the `model` field.
+  Matching names (`orchestration` → `orchestration`) is convenient but optional.
+* The `intelligence` / `speed` / `cost` tags are optional capability axes. Only
+  tagged profiles participate in `inference_profile` scoring (used by blueprints
+  such as `hybrid_team`). Untagged profiles are still selectable via
+  `DEFAULT_LLM` / `settings.default_llm_profile` / an explicit profile name.
+* `hybrid_team` step **roles** are `orchestration` / `agent` / `auxiliary` (not
+  `delegation`). If you want that blueprint’s mid-tier (`agent`) role to hit the
+  gateway’s `delegation` slug, keep a tagged profile whose `model` is
+  `delegation` (as above) so scoring can pick it; the profile key may be
+  `delegation` or anything else.
+* Change the host by editing `LITELLM_BASE_URL` only — do not hard-code keys in
+  `swarm_config.json`.
+
+Quickstart custom-endpoint steps:
+[docs/QUICKSTART.md §3](./docs/QUICKSTART.md#3-configure-your-llm-provider).
+Full schema: [CONFIGURATION.md](./CONFIGURATION.md).
+
 ### Selecting an LLM profile
 
 Choose which profile a run uses via the `DEFAULT_LLM` environment variable
 (defaults to `default`):
 
 ```bash
-export DEFAULT_LLM=ollama_example
+export DEFAULT_LLM=ollama_example          # from the example above
+# or, with the local gateway profiles:
+# export DEFAULT_LLM=orchestration
 swarm-cli launch codey --message "Test Llama3 performance"
 ```
 

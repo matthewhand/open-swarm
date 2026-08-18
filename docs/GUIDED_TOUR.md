@@ -51,11 +51,14 @@ replies, team launches) need an LLM profile configured (see
 
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
 **53**, Models **53** (API listings — the Blueprint Library’s discoverable
-catalog count can differ). Quick Actions on the capture: **New Team**,
-**Browse Blueprints**, **Open Chat**, **Configure**. Banner text states that
-full library, sessions, creators, and settings live on Django trailing-slash
-paths. (Current `webui/frontend` source labels those buttons Launch Team /
-Manage Teams / Settings — rebuild `dist` and recapture `landing` to align.)*
+catalog count can differ). Top nav on the capture: Home · Chat · Teams ·
+Blueprints · Builder · Creator · Settings. Quick Actions on the capture:
+**Launch Team**, **Manage Teams**, **Settings**. Banner text states that full
+library, sessions, creators, and settings live on Django trailing-slash paths.
+**Stale `webui/frontend/dist` vs `App.tsx`:** current source already uses
+Django-aligned chrome (Home · Blueprints · Teams · Sessions · Settings) and
+Quick Actions Launch Team / Browse Blueprints / Manage Teams / Settings —
+rebuild `dist`, then recapture `landing` (+ `mobile/landing`) to align.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -64,8 +67,8 @@ Manage Teams / Settings — rebuild `dist` and recapture `landing` to align.)*
 ![SPA chat: disconnected websocket shell; login required; blueprint selector](./screenshots/spa-chat.png)
 
 *SPA websocket chat (`/ws/…`) with blueprint selector. Capture shows the
-anonymous/disconnected state: “Disconnected — login required for websocket,”
-connection-closed notice, and a login-gated composer. The consumer rejects
+anonymous/disconnected state: “Disconnected — login required for websocket”
+and a login-gated composer (“Log in to send messages”). The consumer rejects
 anonymous sessions; replies also need a working LLM profile.*
 
 **What you can do:** log in, then pick a blueprint and stream replies. Prefer
@@ -99,11 +102,13 @@ separate SPA product).*
 
 ## 3. Django operator UI (canonical)
 
-Primary chrome: **Home · Blueprints · Teams · Sessions · Settings**, with
-GitHub under **More** (desktop). Mobile uses a fixed five-tab bottom bar with
-the same labels (no More/GitHub). The SPA shell at `/` and `/chat` reuses
-that bar: Home → `/`; Blueprints / Teams / Sessions / Settings → Django
-`href`s (`/blueprint-library/`, `/teams/launch/`, `/sessions/`, `/settings/`).
+Primary Django chrome: **Home · Blueprints · Teams · Sessions · Settings**,
+with GitHub under **More** (desktop). Django mobile uses that same five-tab
+bottom bar (no More/GitHub). SPA mobile captures (`landing`, `spa-chat`) still
+show the older seven-item dock **Home · Chat · Teams · Blueprints · Builder ·
+Creator · Settings** from stale `webui/frontend/dist`; after redirect, `spa-*`
+pages use the Django five-tab bar. Current `App.tsx` already matches Django’s
+five tabs — rebuild `dist` and recapture to align (see landing note above).
 
 ### Login — `/accounts/login/`
 
@@ -129,8 +134,9 @@ Teams.*
 
 ![Django blueprint library: stats, search, paginated cards, Show more](./screenshots/blueprint-library.png)
 
-*Catalog of discoverable blueprints. First paint paginates (e.g. 12 of N)
-with **Show more**; denser cards and MCP status badges.*
+*Catalog of discoverable blueprints. First paint paginates (e.g. 12 of 55)
+with **Show more**; denser cards and per-card MCP status badges (this capture
+still shows the checking spinner labeled **MCP**).*
 
 ### My Blueprints — `/blueprint-library/my-blueprints/`
 

@@ -30,15 +30,22 @@
 
     <!-- Progress Bar -->
     <div class="configuration-progress">
-      <div class="config-progress-track" role="progressbar" aria-valuenow="{{ stats.completion_rate }}" aria-valuemin="0" aria-valuemax="100" aria-label="Configuration progress">
-        <div class="config-progress-fill" style="width: {{ stats.completion_rate }}%"></div>
+      <div class="config-progress-track"
+           role="progressbar"
+           aria-valuenow="{{ stats.completion_rate }}"
+           aria-valuemin="0"
+           aria-valuemax="100"
+           aria-valuetext="{{ stats.configured }} of {{ stats.total }} settings configured"
+           aria-labelledby="config-progress-label">
+        <div class="config-progress-fill" style="width: {{ stats.completion_rate }}%" aria-hidden="true"></div>
       </div>
-      <div class="progress-text">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
+      <div class="progress-text" id="config-progress-label">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
     </div>
   </div>
 
   <!-- Quick Actions -->
   <div class="mb-3">
+    <h2 class="visually-hidden">Quick actions</h2>
     <div class="d-flex flex-wrap gap-2">
       <button type="button" class="btn btn-primary" onclick="exportSettings()">
         <i class="fas fa-download" aria-hidden="true"></i> Export Settings
@@ -58,7 +65,7 @@
 
   <!-- Settings Groups -->
   <div>
-    <h2 class="visually-hidden">Setting groups</h2>
+    <h2 class="visually-hidden">Settings groups</h2>
     <div class="settings-grid">
       {% for group_id, group in settings_groups.items %}
       <div class="settings-group" id="group-{{ group_id }}">
