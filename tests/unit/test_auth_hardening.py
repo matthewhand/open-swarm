@@ -376,11 +376,15 @@ class TestCsrfProtectionRestored:
         ):
             assert not getattr(view, "csrf_exempt", False), view.__name__
 
+    @pytest.mark.django_db
     def test_blueprint_library_mutators_reject_missing_csrf(self):
-        """State-mutating blueprint-library POSTs must 403 without a CSRF token."""
+        """Authenticated POSTs still 403 without a CSRF token (login ≠ CSRF bypass)."""
+        from django.contrib.auth.models import User
         from django.test import Client
 
         client = Client(enforce_csrf_checks=True)
+        User.objects.create_user(username="csrf-bplib", password="csrf-pass")
+        assert client.login(username="csrf-bplib", password="csrf-pass")
         cases = (
             ("/blueprint-library/add/codey/", {}),
             ("/blueprint-library/remove/codey/", {}),

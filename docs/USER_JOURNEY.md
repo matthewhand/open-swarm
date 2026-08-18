@@ -175,10 +175,11 @@ surface either way.
 
 ![Teams admin](./screenshots/teams.png)
 
-Register named teams that become OpenAI-compatible *models*. The "Registered
-Teams" table is empty here because this is a fresh development database. Once
-added, a team appears in `/v1/models` and can be used as the `model` field
-with any OpenAI client.
+**Login required** (same operator session as Settings / Sessions). Register
+named teams that become OpenAI-compatible *models*. The "Registered Teams"
+table is empty here because this is a fresh development database. Once added,
+a team appears in `/v1/models` and can be used as the `model` field with any
+OpenAI client. Export at `/teams/export` is also login-gated.
 
 ### Team launcher — `/teams/launch/`
 
@@ -194,18 +195,21 @@ empty until you launch.
 
 ![Blueprint library](./screenshots/blueprint-library.png)
 
-Browse discoverable blueprints with per-blueprint MCP status badges (async
-check; this capture still shows the checking spinner labeled **MCP** on each
-card). The grid is **paginated** on first paint (Show more — e.g. 12 of 55)
-so the catalog does not dump every card at once; summary tiles reflect
-available / installed / custom / category counts for this environment.
+**Login required.** Browse discoverable blueprints with per-blueprint MCP
+status badges (async check; this capture still shows the checking spinner
+labeled **MCP** on each card). The grid is **paginated** on first paint
+(Show more — e.g. 12 of 55) so the catalog does not dump every card at once;
+summary tiles reflect available / installed / custom / category counts for
+this environment. Add/remove, the creator form, and avatar generation are
+operator mutators and also require login.
 
 ### My blueprints — `/blueprint-library/my-blueprints/`
 
 ![My blueprints](./screenshots/my-blueprints.png)
 
-Your personal collection of installed and custom blueprints. Shown in its
-empty state — a fresh environment with nothing added to the library yet.
+**Login required.** Your personal collection of installed and custom
+blueprints. Shown in its empty state — a fresh environment with nothing added
+to the library yet.
 
 ### Agent creator — `/agent-creator/`
 
@@ -220,28 +224,34 @@ and saves the resulting Python blueprint code.
 
 ![Settings dashboard](./screenshots/settings.png)
 
-Configuration management grouped by category (Django, Swarm core, auth, LLM
-providers, blueprints/agents, MCP servers, database, logging, performance, UI
-features), with a configuration-progress meter and import/export of the
-environment. Values shown are this dev machine's local configuration.
+**Login required.** Configuration management grouped by category (Django,
+Swarm core, auth, LLM providers, blueprints/agents, MCP servers, database,
+logging, performance, UI features), with a configuration-progress meter and
+import/export of the environment. Values shown are this dev machine's local
+configuration.
 
 ### Login page — `/accounts/login/`
 
 ![Login page](./screenshots/login.png)
 
 The login form. Both `/accounts/login/` and `/login/` are wired to the
-`custom_login` view. Logging in enables authenticated operator pages and the
-SPA chat websocket session — the chat consumer rejects anonymous connections.
+`custom_login` view. Logging in unlocks the Django operator shell —
+Teams admin/export, Blueprint library / My blueprints / creator mutators,
+Settings, Sessions — and the SPA chat websocket (anonymous chat connections
+are rejected). Public without a session: landing SPA, Team launcher
+(`/teams/launch/`), LLM profiles (`/profiles/`), and the login form itself.
+Journey capture and e2e visual suites log in through this form when a page
+redirects.
 
 ### Session explorer — `/sessions/`
 
 ![Session explorer: empty list, 0 sessions, live toggle](./screenshots/sessions.png)
 
-Fresh-db empty state: **0 sessions**, a **live** auto-refresh toggle, and
-“No sessions yet. Make a `POST /v1/responses` request and they'll appear
-here.” Status filter chips and the newest-N truncation banner show once
-sessions exist (and when the list is truncated to the default limit of 50).
-See also [GUIDED_TOUR.md](./GUIDED_TOUR.md) and
+**Login required.** Fresh-db empty state: **0 sessions**, a **live**
+auto-refresh toggle, and “No sessions yet. Make a `POST /v1/responses`
+request and they'll appear here.” Status filter chips and the newest-N
+truncation banner show once sessions exist (and when the list is truncated
+to the default limit of 50). See also [GUIDED_TOUR.md](./GUIDED_TOUR.md) and
 [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).
 
 ### Session detail — `/sessions/resp_journey_seed/`

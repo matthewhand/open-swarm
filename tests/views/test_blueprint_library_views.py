@@ -35,6 +35,22 @@ def request_factory():
     return RequestFactory()
 
 
+def _as_user(request, user):
+    """Attach an authenticated user for @login_required views under RequestFactory."""
+    request.user = user
+    if not hasattr(request, "session"):
+        request.session = {}
+    return request
+
+
+def _as_anonymous(request):
+    """Attach AnonymousUser for login-redirect assertions."""
+    request.user = AnonymousUser()
+    if not hasattr(request, "session"):
+        request.session = {}
+    return request
+
+
 @pytest.fixture
 def mock_blueprints_discovered():
     """Sample discovered blueprints metadata."""
@@ -98,6 +114,7 @@ def mock_active_config():
 # Tests for blueprint_library view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestBlueprintLibraryView:
     """Tests for the main blueprint library page."""
 
@@ -109,7 +126,8 @@ class TestBlueprintLibraryView:
         mock_discover,
         request_factory,
         mock_blueprints_discovered,
-        mock_blueprint_library
+        mock_blueprint_library,
+        test_user
     ):
         """Test successful GET request to blueprint library."""
         from swarm.views.blueprint_library_views import blueprint_library
@@ -119,6 +137,7 @@ class TestBlueprintLibraryView:
 
         request = request_factory.get("/blueprints/library/")
         request.session = {"dark_mode": True}
+        _as_user(request, test_user)
 
         response = blueprint_library(request)
 
@@ -133,7 +152,8 @@ class TestBlueprintLibraryView:
         self,
         mock_get_library,
         mock_discover,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test blueprint library with no blueprints discovered."""
         from swarm.views.blueprint_library_views import blueprint_library
@@ -143,6 +163,7 @@ class TestBlueprintLibraryView:
 
         request = request_factory.get("/blueprints/library/")
         request.session = {"dark_mode": True}
+        _as_user(request, test_user)
 
         response = blueprint_library(request)
 
@@ -156,7 +177,8 @@ class TestBlueprintLibraryView:
         self,
         mock_get_library,
         mock_discover,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test blueprint library handles errors gracefully."""
         from swarm.views.blueprint_library_views import blueprint_library
@@ -165,6 +187,7 @@ class TestBlueprintLibraryView:
 
         request = request_factory.get("/blueprints/library/")
         request.session = {}
+        _as_user(request, test_user)
 
         response = blueprint_library(request)
 
@@ -177,7 +200,8 @@ class TestBlueprintLibraryView:
         mock_get_library,
         mock_discover,
         request_factory,
-        mock_blueprints_discovered
+        mock_blueprints_discovered,
+        test_user
     ):
         """Test blueprint library shows installed status correctly."""
         from swarm.views.blueprint_library_views import blueprint_library
@@ -190,10 +214,23 @@ class TestBlueprintLibraryView:
 
         request = request_factory.get("/blueprints/library/")
         request.session = {"dark_mode": True}
+        _as_user(request, test_user)
 
         response = blueprint_library(request)
 
         assert response.status_code == 200
+
+    def test_blueprint_library_anonymous_redirects_to_login(self, request_factory):
+        """Anonymous browse is redirected to login (not 200)."""
+        from swarm.views.blueprint_library_views import blueprint_library
+
+        request = request_factory.get("/blueprint-library/")
+        _as_anonymous(request)
+
+        response = blueprint_library(request)
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
 
 
 # =============================================================================
@@ -281,6 +318,7 @@ class TestBlueprintRequirementsStatus:
 # Tests for add_blueprint_to_library view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestAddBlueprintToLibrary:
     """Tests for adding a blueprint to the user's library."""
 
@@ -293,7 +331,8 @@ class TestAddBlueprintToLibrary:
         mock_get_library,
         mock_discover,
         request_factory,
-        mock_blueprints_discovered
+        mock_blueprints_discovered,
+        test_user
     ):
         """Test successfully adding a blueprint to library."""
         from swarm.views.blueprint_library_views import add_blueprint_to_library
@@ -303,6 +342,7 @@ class TestAddBlueprintToLibrary:
         mock_save.return_value = True
 
         request = request_factory.post("/blueprints/add/codey/")
+        _as_user(request, test_user)
 
         response = add_blueprint_to_library(request, "codey")
 
@@ -315,7 +355,8 @@ class TestAddBlueprintToLibrary:
     def test_add_blueprint_not_found(
         self,
         mock_discover,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test adding a non-existent blueprint returns 404."""
         from swarm.views.blueprint_library_views import add_blueprint_to_library
@@ -323,6 +364,7 @@ class TestAddBlueprintToLibrary:
         mock_discover.return_value = {}
 
         request = request_factory.post("/blueprints/add/nonexistent/")
+        _as_user(request, test_user)
 
         response = add_blueprint_to_library(request, "nonexistent")
 
@@ -330,11 +372,12 @@ class TestAddBlueprintToLibrary:
         data = json.loads(response.content)
         assert "error" in data
 
-    def test_add_blueprint_wrong_method(self, request_factory):
+    def test_add_blueprint_wrong_method(self, request_factory, test_user):
         """Test adding blueprint with wrong HTTP method."""
         from swarm.views.blueprint_library_views import add_blueprint_to_library
 
         request = request_factory.get("/blueprints/add/codey/")
+        _as_user(request, test_user)
 
         response = add_blueprint_to_library(request, "codey")
 
@@ -349,7 +392,8 @@ class TestAddBlueprintToLibrary:
         mock_get_library,
         mock_discover,
         request_factory,
-        mock_blueprints_discovered
+        mock_blueprints_discovered,
+        test_user
     ):
         """Test adding a blueprint that's already installed."""
         from swarm.views.blueprint_library_views import add_blueprint_to_library
@@ -358,6 +402,7 @@ class TestAddBlueprintToLibrary:
         mock_get_library.return_value = {"installed": ["codey"], "custom": []}
 
         request = request_factory.post("/blueprints/add/codey/")
+        _as_user(request, test_user)
 
         response = add_blueprint_to_library(request, "codey")
 
@@ -375,7 +420,8 @@ class TestAddBlueprintToLibrary:
         mock_get_library,
         mock_discover,
         request_factory,
-        mock_blueprints_discovered
+        mock_blueprints_discovered,
+        test_user
     ):
         """Test adding blueprint when save fails."""
         from swarm.views.blueprint_library_views import add_blueprint_to_library
@@ -385,6 +431,7 @@ class TestAddBlueprintToLibrary:
         mock_save.return_value = False
 
         request = request_factory.post("/blueprints/add/codey/")
+        _as_user(request, test_user)
 
         response = add_blueprint_to_library(request, "codey")
 
@@ -392,11 +439,24 @@ class TestAddBlueprintToLibrary:
         data = json.loads(response.content)
         assert data["error"] == "Failed to save library"
 
+    def test_add_blueprint_anonymous_redirects_to_login(self, request_factory):
+        """Anonymous mutators are redirected to login (not 200)."""
+        from swarm.views.blueprint_library_views import add_blueprint_to_library
+
+        request = request_factory.post("/blueprint-library/add/codey/")
+        _as_anonymous(request)
+
+        response = add_blueprint_to_library(request, "codey")
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
+
 
 # =============================================================================
 # Tests for remove_blueprint_from_library view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestRemoveBlueprintFromLibrary:
     """Tests for removing a blueprint from the user's library."""
 
@@ -406,7 +466,8 @@ class TestRemoveBlueprintFromLibrary:
         self,
         mock_save,
         mock_get_library,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test successfully removing a blueprint from library."""
         from swarm.views.blueprint_library_views import remove_blueprint_from_library
@@ -415,6 +476,7 @@ class TestRemoveBlueprintFromLibrary:
         mock_save.return_value = True
 
         request = request_factory.post("/blueprints/remove/codey/")
+        _as_user(request, test_user)
 
         response = remove_blueprint_from_library(request, "codey")
 
@@ -423,11 +485,12 @@ class TestRemoveBlueprintFromLibrary:
         assert data["success"] is True
         assert "removed from library" in data["message"]
 
-    def test_remove_blueprint_wrong_method(self, request_factory):
+    def test_remove_blueprint_wrong_method(self, request_factory, test_user):
         """Test removing blueprint with wrong HTTP method."""
         from swarm.views.blueprint_library_views import remove_blueprint_from_library
 
         request = request_factory.get("/blueprints/remove/codey/")
+        _as_user(request, test_user)
 
         response = remove_blueprint_from_library(request, "codey")
 
@@ -439,7 +502,8 @@ class TestRemoveBlueprintFromLibrary:
     def test_remove_blueprint_not_in_library(
         self,
         mock_get_library,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test removing a blueprint that's not in library."""
         from swarm.views.blueprint_library_views import remove_blueprint_from_library
@@ -447,6 +511,7 @@ class TestRemoveBlueprintFromLibrary:
         mock_get_library.return_value = {"installed": ["gawd"], "custom": []}
 
         request = request_factory.post("/blueprints/remove/codey/")
+        _as_user(request, test_user)
 
         response = remove_blueprint_from_library(request, "codey")
 
@@ -461,7 +526,8 @@ class TestRemoveBlueprintFromLibrary:
         self,
         mock_save,
         mock_get_library,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test removing blueprint when save fails."""
         from swarm.views.blueprint_library_views import remove_blueprint_from_library
@@ -470,6 +536,7 @@ class TestRemoveBlueprintFromLibrary:
         mock_save.return_value = False
 
         request = request_factory.post("/blueprints/remove/codey/")
+        _as_user(request, test_user)
 
         response = remove_blueprint_from_library(request, "codey")
 
@@ -477,20 +544,34 @@ class TestRemoveBlueprintFromLibrary:
         data = json.loads(response.content)
         assert data["error"] == "Failed to save library"
 
+    def test_remove_blueprint_anonymous_redirects_to_login(self, request_factory):
+        """Anonymous remove is redirected to login (not 200)."""
+        from swarm.views.blueprint_library_views import remove_blueprint_from_library
+
+        request = request_factory.post("/blueprint-library/remove/codey/")
+        _as_anonymous(request)
+
+        response = remove_blueprint_from_library(request, "codey")
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
+
 
 # =============================================================================
 # Tests for blueprint_creator view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestBlueprintCreator:
     """Tests for the blueprint creator form."""
 
-    def test_blueprint_creator_get(self, request_factory):
+    def test_blueprint_creator_get(self, request_factory, test_user):
         """Test GET request to blueprint creator."""
         from swarm.views.blueprint_library_views import blueprint_creator
 
         request = request_factory.get("/blueprints/creator/")
         request.session = {"dark_mode": True}
+        _as_user(request, test_user)
 
         response = blueprint_creator(request)
 
@@ -506,7 +587,8 @@ class TestBlueprintCreator:
         mock_save,
         mock_get_library,
         mock_generate_code,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test successful POST to create a blueprint."""
         from swarm.views.blueprint_library_views import blueprint_creator
@@ -528,6 +610,7 @@ class TestBlueprintCreator:
             }
         )
         request.session = {}
+        _as_user(request, test_user)
 
         response = blueprint_creator(request)
 
@@ -536,7 +619,7 @@ class TestBlueprintCreator:
         assert data["success"] is True
         assert "created successfully" in data["message"]
 
-    def test_blueprint_creator_post_missing_name(self, request_factory):
+    def test_blueprint_creator_post_missing_name(self, request_factory, test_user):
         """Test POST with missing blueprint name."""
         from swarm.views.blueprint_library_views import blueprint_creator
 
@@ -548,6 +631,7 @@ class TestBlueprintCreator:
             }
         )
         request.session = {}
+        _as_user(request, test_user)
 
         response = blueprint_creator(request)
 
@@ -555,7 +639,7 @@ class TestBlueprintCreator:
         data = json.loads(response.content)
         assert "error" in data
 
-    def test_blueprint_creator_post_missing_description(self, request_factory):
+    def test_blueprint_creator_post_missing_description(self, request_factory, test_user):
         """Test POST with missing description."""
         from swarm.views.blueprint_library_views import blueprint_creator
 
@@ -567,6 +651,7 @@ class TestBlueprintCreator:
             }
         )
         request.session = {}
+        _as_user(request, test_user)
 
         response = blueprint_creator(request)
 
@@ -584,7 +669,8 @@ class TestBlueprintCreator:
         mock_save,
         mock_get_library,
         mock_generate_code,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test POST to create a blueprint with avatar generation."""
         from swarm.views.blueprint_library_views import blueprint_creator
@@ -608,6 +694,7 @@ class TestBlueprintCreator:
             }
         )
         request.session = {}
+        _as_user(request, test_user)
 
         response = blueprint_creator(request)
 
@@ -624,7 +711,8 @@ class TestBlueprintCreator:
         mock_save,
         mock_get_library,
         mock_generate_code,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test POST when save fails."""
         from swarm.views.blueprint_library_views import blueprint_creator
@@ -643,6 +731,7 @@ class TestBlueprintCreator:
             }
         )
         request.session = {}
+        _as_user(request, test_user)
 
         response = blueprint_creator(request)
 
@@ -650,19 +739,33 @@ class TestBlueprintCreator:
         data = json.loads(response.content)
         assert data["error"] == "Failed to save blueprint"
 
+    def test_blueprint_creator_anonymous_redirects_to_login(self, request_factory):
+        """Anonymous creator access is redirected to login (not 200)."""
+        from swarm.views.blueprint_library_views import blueprint_creator
+
+        request = request_factory.get("/blueprint-library/creator/")
+        _as_anonymous(request)
+
+        response = blueprint_creator(request)
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
+
 
 # =============================================================================
 # Tests for generate_avatar view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestGenerateAvatar:
     """Tests for avatar generation."""
 
-    def test_generate_avatar_wrong_method(self, request_factory):
+    def test_generate_avatar_wrong_method(self, request_factory, test_user):
         """Test avatar generation with wrong HTTP method."""
         from swarm.views.blueprint_library_views import generate_avatar
 
         request = request_factory.get("/blueprints/avatar/codey/")
+        _as_user(request, test_user)
 
         response = generate_avatar(request, "codey")
 
@@ -674,12 +777,14 @@ class TestGenerateAvatar:
     def test_generate_avatar_blueprint_not_found(
         self,
         mock_comfyui,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test avatar generation for non-existent blueprint."""
         from swarm.views.blueprint_library_views import generate_avatar
 
         request = request_factory.post("/blueprints/avatar/nonexistent/")
+        _as_user(request, test_user)
 
         response = generate_avatar(request, "nonexistent")
 
@@ -691,7 +796,8 @@ class TestGenerateAvatar:
     def test_generate_avatar_success(
         self,
         mock_comfyui,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test successful avatar generation."""
         from swarm.views.blueprint_library_views import generate_avatar, BLUEPRINT_METADATA
@@ -704,6 +810,7 @@ class TestGenerateAvatar:
             "/blueprints/avatar/codey/",
             {"avatar_style": "professional"}
         )
+        _as_user(request, test_user)
 
         response = generate_avatar(request, blueprint_name)
 
@@ -716,7 +823,8 @@ class TestGenerateAvatar:
     def test_generate_avatar_failure(
         self,
         mock_comfyui,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test avatar generation failure."""
         from swarm.views.blueprint_library_views import generate_avatar, BLUEPRINT_METADATA
@@ -728,12 +836,25 @@ class TestGenerateAvatar:
             "/blueprints/avatar/codey/",
             {"avatar_style": "professional"}
         )
+        _as_user(request, test_user)
 
         response = generate_avatar(request, blueprint_name)
 
         assert response.status_code == 500
         data = json.loads(response.content)
         assert "error" in data
+
+    def test_generate_avatar_anonymous_redirects_to_login(self, request_factory):
+        """Anonymous avatar generation is redirected to login (not 200)."""
+        from swarm.views.blueprint_library_views import generate_avatar
+
+        request = request_factory.post("/blueprint-library/generate-avatar/codey/")
+        _as_anonymous(request)
+
+        response = generate_avatar(request, "codey")
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
 
 
 # =============================================================================
@@ -799,6 +920,7 @@ class TestCheckComfyUIStatus:
 # Tests for my_blueprints view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestMyBlueprints:
     """Tests for the user's blueprints page."""
 
@@ -807,7 +929,8 @@ class TestMyBlueprints:
         self,
         mock_get_library,
         request_factory,
-        mock_blueprint_library
+        mock_blueprint_library,
+        test_user
     ):
         """Test successful my blueprints page load."""
         from swarm.views.blueprint_library_views import my_blueprints
@@ -816,6 +939,7 @@ class TestMyBlueprints:
 
         request = request_factory.get("/blueprints/my/")
         request.session = {"dark_mode": True}
+        _as_user(request, test_user)
 
         response = my_blueprints(request)
 
@@ -826,7 +950,8 @@ class TestMyBlueprints:
     def test_my_blueprints_empty(
         self,
         mock_get_library,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test my blueprints with empty library."""
         from swarm.views.blueprint_library_views import my_blueprints
@@ -835,6 +960,7 @@ class TestMyBlueprints:
 
         request = request_factory.get("/blueprints/my/")
         request.session = {"dark_mode": True}
+        _as_user(request, test_user)
 
         response = my_blueprints(request)
 
@@ -845,7 +971,8 @@ class TestMyBlueprints:
     def test_my_blueprints_error(
         self,
         mock_get_library,
-        request_factory
+        request_factory,
+        test_user
     ):
         """Test my blueprints handles errors gracefully."""
         from swarm.views.blueprint_library_views import my_blueprints
@@ -854,10 +981,23 @@ class TestMyBlueprints:
 
         request = request_factory.get("/blueprints/my/")
         request.session = {}
+        _as_user(request, test_user)
 
         response = my_blueprints(request)
 
         assert response.status_code == 500
+
+    def test_my_blueprints_anonymous_redirects_to_login(self, request_factory):
+        """Anonymous my-blueprints browse is redirected to login (not 200)."""
+        from swarm.views.blueprint_library_views import my_blueprints
+
+        request = request_factory.get("/blueprint-library/my-blueprints/")
+        _as_anonymous(request)
+
+        response = my_blueprints(request)
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
 
 
 # =============================================================================

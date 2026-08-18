@@ -296,17 +296,19 @@ class TestTeamLauncherView:
 # Tests for team_admin view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestTeamAdminView:
     """Tests for the team admin view."""
 
     @patch("swarm.views.web_views._webui_enabled", return_value=True)
     @patch("swarm.views.web_views._profiles_ctx", return_value={})
-    def test_team_admin_enabled(self, mock_profiles, mock_enabled, client):
+    def test_team_admin_enabled(self, mock_profiles, mock_enabled, test_user):
         """When enabled, renders the real Team Admin template."""
         from swarm.views.web_views import team_admin
 
         factory = RequestFactory()
         request = factory.get("/teams/")
+        request.user = test_user
 
         response = team_admin(request)
 
@@ -314,16 +316,32 @@ class TestTeamAdminView:
         assert "Create Team" in response.content.decode()
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
-    def test_team_admin_disabled(self, mock_enabled, client):
+    def test_team_admin_disabled(self, mock_enabled, test_user):
         """Test team admin when webui is disabled returns 404."""
         from swarm.views.web_views import team_admin
 
         factory = RequestFactory()
         request = factory.get("/teams/")
+        request.user = test_user
 
         response = team_admin(request)
 
         assert response.status_code == 404
+
+    def test_team_admin_anonymous_redirects_to_login(self):
+        """Anonymous callers are redirected to login (not 200)."""
+        from django.contrib.auth.models import AnonymousUser
+
+        from swarm.views.web_views import team_admin
+
+        factory = RequestFactory()
+        request = factory.get("/teams/")
+        request.user = AnonymousUser()
+
+        response = team_admin(request)
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url
 
 
 # =============================================================================
@@ -350,11 +368,12 @@ class TestProfilesPageView:
 # Tests for teams_export view
 # =============================================================================
 
+@pytest.mark.django_db
 class TestTeamsExportView:
     """Tests for the teams export view."""
 
     @patch("swarm.views.web_views.load_dynamic_registry")
-    def test_teams_export_json(self, mock_registry, client):
+    def test_teams_export_json(self, mock_registry, test_user):
         """Test teams export returns JSON by default."""
         mock_registry.return_value = {"team1": {"llm_profile": "default"}}
 
@@ -362,6 +381,7 @@ class TestTeamsExportView:
 
         factory = RequestFactory()
         request = factory.get("/teams/export")
+        request.user = test_user
 
         response = teams_export(request)
 
@@ -370,7 +390,7 @@ class TestTeamsExportView:
         assert "team1" in data
 
     @patch("swarm.views.web_views.load_dynamic_registry")
-    def test_teams_export_csv(self, mock_registry, client):
+    def test_teams_export_csv(self, mock_registry, test_user):
         """Test teams export returns CSV when requested."""
         mock_registry.return_value = {"team1": {"llm_profile": "default", "description": "Test team"}}
 
@@ -378,8 +398,24 @@ class TestTeamsExportView:
 
         factory = RequestFactory()
         request = factory.get("/teams/export?format=csv")
+        request.user = test_user
 
         response = teams_export(request)
 
         assert response.status_code == 200
         assert "text/csv" in response["Content-Type"]
+
+    def test_teams_export_anonymous_redirects_to_login(self):
+        """Anonymous export is redirected to login (not 200)."""
+        from django.contrib.auth.models import AnonymousUser
+
+        from swarm.views.web_views import teams_export
+
+        factory = RequestFactory()
+        request = factory.get("/teams/export")
+        request.user = AnonymousUser()
+
+        response = teams_export(request)
+
+        assert response.status_code in (301, 302)
+        assert "/login" in response.url

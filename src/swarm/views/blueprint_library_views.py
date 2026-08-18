@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from django.conf import settings as dj_settings
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 
@@ -172,8 +173,9 @@ def save_user_blueprint_library(library: dict[str, Any]) -> bool:
         logger.error(f"Error saving blueprint library: {e}")
         return False
 
+@login_required
 def blueprint_library(request):
-    """Main blueprint library page - browse and manage blueprints."""
+    """Main blueprint library page - browse and manage blueprints (authenticated)."""
     try:
         # Get available blueprints
         discovered_metadata = discover_blueprints(BLUEPRINT_DIRECTORY)
@@ -264,8 +266,9 @@ def blueprint_requirements_status(_request):
         logger.error(f"Error generating blueprint requirements status: {e}", exc_info=True)
         return JsonResponse({"error": "Internal server error"}, status=500)
 
+@login_required
 def add_blueprint_to_library(request, blueprint_name):
-    """Add a blueprint to the user's library."""
+    """Add a blueprint to the user's library (authenticated)."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
 
@@ -300,8 +303,9 @@ def add_blueprint_to_library(request, blueprint_name):
         logger.error(f"Error adding blueprint to library: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
 
+@login_required
 def remove_blueprint_from_library(request, blueprint_name):
-    """Remove a blueprint from the user's library."""
+    """Remove a blueprint from the user's library (authenticated)."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
 
@@ -331,8 +335,9 @@ def remove_blueprint_from_library(request, blueprint_name):
         logger.error(f"Error removing blueprint from library: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
 
+@login_required
 def blueprint_creator(request):
-    """LLM-powered blueprint creator form."""
+    """LLM-powered blueprint creator form (authenticated)."""
     if request.method == "GET":
         context = {
             "categories": BLUEPRINT_CATEGORIES,
@@ -403,8 +408,9 @@ def blueprint_creator(request):
             logger.error(f"Error creating blueprint: {e}")
             return JsonResponse({"error": "Internal server error"}, status=500)
 
+@login_required
 def generate_avatar(request, blueprint_name):
-    """Generate an avatar for an existing blueprint."""
+    """Generate an avatar for an existing blueprint (authenticated)."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
 
@@ -516,8 +522,9 @@ if __name__ == "__main__":
 '''
     return template
 
+@login_required
 def my_blueprints(request):
-    """Show user's installed and custom blueprints."""
+    """Show user's installed and custom blueprints (authenticated)."""
     try:
         library = get_user_blueprint_library()
         installed = library.get("installed", [])

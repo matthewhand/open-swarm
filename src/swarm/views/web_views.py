@@ -9,6 +9,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -240,8 +241,9 @@ def team_launcher(request):
     return render(request, "teams_launch.html", context)
 
 
+@login_required
 def team_admin(request):
-    """Simple admin page to list and add dynamic teams.
+    """Simple admin page to list and add dynamic teams (authenticated).
 
     Note: deliberately NOT @csrf_exempt — this view mutates state on POST and
     its forms in teams_admin.html include {% csrf_token %}.
@@ -390,9 +392,10 @@ def _profiles_ctx():
     return {"profiles": profiles}
 
 
+@login_required
 @csrf_exempt
 def teams_export(request):
-    """Export the dynamic team registry as JSON or CSV."""
+    """Export the dynamic team registry as JSON or CSV (authenticated)."""
     reg = load_dynamic_registry()
     fmt = request.GET.get("format", "json").lower()
     if fmt == "csv":
