@@ -36,6 +36,28 @@ class ChatMessageViewSet(ModelViewSet):
         # Token-only or anonymous with auth on: chat is session-oriented.
         return qs.none()
 
+    def _enforce_conversation_ownership(self, conversation, *, on_violation):
+        """Stamp null student or refuse foreign conversations for session users.
+
+        Returns early when auth is off or the requester is not a session user.
+        ``on_violation`` is called before raising PermissionDenied (e.g. delete
+        a just-created row).
+        """
+        if not getattr(settings, 'ENABLE_API_AUTH', False):
+            return
+        user = getattr(self.request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return
+        if conversation.student_id is None:
+            conversation.student = user
+            conversation.save(update_fields=['student'])
+        elif conversation.student_id != user.id:
+            on_violation()
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                "Cannot add messages to another user's conversation."
+            )
+
     def perform_create(self, serializer):
         """Create a message; stamp conversation.student for session users.
 
@@ -45,23 +67,30 @@ class ChatMessageViewSet(ModelViewSet):
         queryset already hides those rows from list/retrieve.
         """
         message = serializer.save()
-        if not getattr(settings, 'ENABLE_API_AUTH', False):
-            return
-        user = getattr(self.request, 'user', None)
-        if user is None or not user.is_authenticated:
-            return
-        conversation = message.conversation
-        if conversation.student_id is None:
-            conversation.student = user
-            conversation.save(update_fields=['student'])
-        elif conversation.student_id != user.id:
-            # Should not happen if clients only post to own conversations;
-            # delete the just-created row and surface a permission error.
-            message.delete()
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied(
-                "Cannot add messages to another user's conversation."
-            )
+        self._enforce_conversation_ownership(
+            message.conversation,
+            on_violation=message.delete,
+        )
+
+    def perform_update(self, serializer):
+        """Update a message; refuse reassignment to another user's conversation.
+
+        Mirrors perform_create ownership checks. Conversation is also read-only
+        on update in the serializer; this still guards FK moves and stamps
+        null-student conversations.
+        """
+        original_conversation = serializer.instance.conversation
+
+        def revert_conversation():
+            if message.conversation_id != original_conversation.conversation_id:
+                message.conversation = original_conversation
+                message.save(update_fields=['conversation'])
+
+        message = serializer.save()
+        self._enforce_conversation_ownership(
+            message.conversation,
+            on_violation=revert_conversation,
+        )
 
     @extend_schema(summary="List all chat messages")
     def list(self, request, *args, **kwargs):

@@ -102,3 +102,10 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         model = ChatMessage
         fields = '__all__'
 
+    def get_fields(self):
+        fields = super().get_fields()
+        # Immutable after create — blocks IDOR via conversation FK reassignment.
+        if self.instance is not None:
+            fields['conversation'].read_only = True
+        return fields
+

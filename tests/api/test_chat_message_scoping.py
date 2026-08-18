@@ -129,3 +129,37 @@ class TestChatMessageScoping:
         assert response.status_code == 201, getattr(response, "data", response.content)
         conv.refresh_from_db()
         assert conv.student_id == alice.id
+
+    def test_cannot_patch_message_into_other_users_conversation(self):
+        """IDOR: user A must not move a message into user B's conversation."""
+        alice = User.objects.create_user(username="patch_alice", password="x")
+        bob = User.objects.create_user(username="patch_bob", password="x")
+        conv_alice = ChatConversation.objects.create(
+            conversation_id="conv-patch-alice", student=alice
+        )
+        conv_bob = ChatConversation.objects.create(
+            conversation_id="conv-patch-bob", student=bob
+        )
+        msg = ChatMessage.objects.create(
+            conversation=conv_alice, sender="user", content="alice-msg"
+        )
+        factory = APIRequestFactory()
+        request = factory.patch(
+            f"/v1/chat-messages/{msg.pk}/",
+            {"conversation": conv_bob.conversation_id, "content": "moved?"},
+            format="json",
+        )
+        force_authenticate(request, user=alice)
+        view = ChatMessageViewSet.as_view({"patch": "partial_update"})
+        with override_settings(ENABLE_API_AUTH=True, SWARM_API_KEY=TOKEN):
+            response = view(request, pk=msg.pk)
+        msg.refresh_from_db()
+        assert msg.conversation_id == conv_alice.conversation_id
+        # Read-only conversation: update may succeed but must ignore FK move.
+        # Foreign-conversation rejection surfaces as 403.
+        assert response.status_code in (200, 403), getattr(
+            response, "data", response.content
+        )
+        if response.status_code == 200:
+            assert response.data["conversation"] == conv_alice.conversation_id
+            assert msg.content == "moved?"
