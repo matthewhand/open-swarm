@@ -516,13 +516,15 @@ class TestCustomBlueprintDetailView:
     def test_delete_custom_blueprint_not_found(
         self, mock_get_library, mock_save_library, api_client, mock_blueprint_library
     ):
-        """Test deleting a non-existent custom blueprint returns 204."""
+        """Missing custom blueprint DELETE must 404 (same as GET/PATCH and /v1/library/)."""
         mock_get_library.return_value = mock_blueprint_library
         mock_save_library.return_value = True
 
         response = api_client.delete("/v1/blueprints/custom/nonexistent/")
 
-        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json().get("error") == "not found"
+        mock_save_library.assert_not_called()
 
     @patch("swarm.views.api_views.save_user_blueprint_library")
     @patch("swarm.views.api_views.get_user_blueprint_library")

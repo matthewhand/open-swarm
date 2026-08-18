@@ -318,7 +318,8 @@ class CustomBlueprintDetailView(APIView):
     def delete(self, request, blueprint_id: str, *_args, **_kwargs):
         lib, items, item = self._load(blueprint_id)
         if not item:
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            # Match GET/PATCH on this resource and DELETE on /v1/library/ + /v1/teams/.
+            return Response({"error": "not found"}, status=status.HTTP_404_NOT_FOUND)
         items = [i for i in items if i.get("id") != blueprint_id]
         lib["custom"] = items
         if not save_user_blueprint_library(lib):
