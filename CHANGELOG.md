@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
+- **Blueprints README honesty:** inventory lists only discoverable dirs + GLOSSARY links; remove stale EchoCraft/Nebula/MissionImprobable/WhingeSurf/… rows
 - **CSP prep — library/session pages:** extract `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail` inline scripts to `static/js/` (`{% static %}`); AUTH.md extraction progress updated
 - **CSP prep — creator pages:** extract `agent_creator` / `team_creator` inline scripts to `static/js/` (`{% static %}`); team profiles via `json_script` island; AUTH.md extraction progress updated
 - **ADR-001 SPA finish:** delete `webui/frontend/src/pages/_quarantine/` (no remount bait); drop Builder/Settings e2e stubs; VISION/FEATURE_STATUS/ROADMAP align — SPA stays `/` + `/chat` only. Rebuild `dist/` after pull (`npm run build` — gitignored).
@@ -33,6 +34,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Removed
+- **Empty `swarm.extensions.config` package:** delete leftover `__init__.py` after config_loader shim sunset; tests lock `ModuleNotFoundError`
 - **Empty blueprint husks:** delete non-discoverable dirs with no `blueprint_*.py` (`flock`, `digitalbutlers`, `echocraft`, `mcp_demo`, `mission_improbable`, `monkai_magic`, `nebula_shellz`, `omniplex`); FEATURE_STATUS §9 curated to match live discovery (chatbot stays ✅)
 - **Remaining consolidation deprecation shims (ROADMAP §2.1):** delete `extensions/config/config_loader`, `blueprints/common/spinner`, `ux/spinner`, `utils/ansi_box`, and `extensions/launchers/swarm_api`; import `swarm.core.config_loader`, `swarm.core.spinner`, `swarm.ux.ansi_box` / `swarm.core.output_utils.ansi_box`, and `swarm.core.swarm_api` instead. `tests/unit/test_deprecation_shims.py` now asserts `ModuleNotFoundError`.
 - **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`

@@ -16,7 +16,9 @@ import pytest
 _GONE = (
     "swarm.blueprints.common.spinner",
     "swarm.ux.spinner",
+    "swarm.extensions.config",
     "swarm.extensions.config.config_loader",
+    "swarm.extensions.config.config_manager",
     "swarm.utils.ansi_box",
     "swarm.extensions.launchers.swarm_api",
     "swarm.extensions.blueprint",
@@ -25,7 +27,6 @@ _GONE = (
     "swarm.extensions.blueprint.blueprint_base",
     "swarm.extensions.blueprint.agent_utils",
     "swarm.extensions.blueprint.django_utils",
-    "swarm.extensions.config.config_manager",
 )
 
 

@@ -45,7 +45,7 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | `/v1/teams/` JSON Teams API | ✅ | `views/teams_api.py` list/create/delete over `teams.json`. **Honesty:** each team is an LLM-profile alias (`id`/`description`/`llm_profile`) via `DynamicTeamBlueprint` — **not** a multi-agent team builder; OpenAPI + [docs/GLOSSARY.md](./docs/GLOSSARY.md) say so. Tests: `tests/views/test_teams_api.py` |
 | WebSocket chat consumer | ✅ | ROUTED 2026-06-11: `swarm/asgi.py` (ProtocolTypeRouter + AuthMiddlewareStack + origin validator) + `swarm/routing.py` (`ws/ai-demo/<id>/`); daphne+channels in INSTALLED_APPS; session-cookie auth only (Settings API bearer does **not** auth WS); anonymous accept-then-close **4401**; tests in `tests/test_asgi_routing.py` / `tests/test_consumers.py` |
 
-## 4. Web UI — Django templates + HTMx (operator UI) — ✅ 6 · 🗑 1 · ❌ 1
+## 4. Web UI — Django templates + HTMx (operator UI) — ✅ 6 · 🗑 2
 
 Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` prefers the React SPA `dist/index.html` when built (`web_views.index`); SPA itself only mounts `/` + `/chat` ([ADR-001](docs/ADR-001-primary-ui.md)). Bare `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`, `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (deleted SPA operator pages are not remounted).
 
@@ -58,7 +58,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | Agent Creator Pro | 🗑 removed | **Deleted** (was unwired clickware). `/agent-creator-pro/` soft-redirects to `/agent-creator/` (query preserved). View/template/JS/CSS removed; redirect kept in `urls.py`. |
 | Settings dashboard | ✅ | `/settings/` → `views/settings_views.py` renders `settings_dashboard.html` (`@login_required`). Export Settings / Refresh / Environment Variables work; Validate Config + env Export stay disabled “(not available)”; path-check buttons removed (were unwired) |
 | Session Explorer | ✅ | `/sessions/` + `/sessions/<id>/` + `/api/sessions/` in `views/session_explorer.py` (`@login_required`). With `ENABLE_API_AUTH`, operator bridge also shows configured `token:<sha256-prefix>` sessions to the web login; foreign `user:…` hidden; REST IDOR unchanged (`explorer_owner_allows`) |
-| `chat.html` / `simple_blueprint_page.html` | ❌ | Removed 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
+| `chat.html` / `simple_blueprint_page.html` | 🗑 removed | Deleted 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
 ## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 3

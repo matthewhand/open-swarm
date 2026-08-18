@@ -1,84 +1,75 @@
 # Blueprints Overview
 
-This directory contains example blueprints for the Open Swarm framework, showcasing agent coordination, external data handling, database operations, and more via parody-themed agent teams. Each blueprint achieves a practical outcome while demonstrating specific framework capabilities. Blueprints are generally ordered by complexity.
+Discoverable `BlueprintBase` packages under this tree (OpenAI-compatible `model`
+ids). Vocabulary: [docs/GLOSSARY.md](../../../docs/GLOSSARY.md) (Blueprint vs
+`/v1/teams` **LLM-profile alias**). Status evidence:
+[FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9.
+
+Shared helpers live in `common/` (not a blueprint). Empty husk directories without
+`blueprint_*.py` were deleted — do not restore.
 
 ## Two workflow families
 
-See **[docs/SWARM_WORKFLOWS.md](../../../docs/SWARM_WORKFLOWS.md)** for the full taxonomy.
+See **[docs/SWARM_WORKFLOWS.md](../../../docs/SWARM_WORKFLOWS.md)**.
 
 | Model | What it is | Write policy | Entry points |
 |-------|------------|--------------|--------------|
-| **A. Orchestrated consensus (MoA)** | Subagents opine; orchestrator decides | Subagents **read-only**; orchestrator acts | `moa/`, `swarm-cli moa`, `swarm.core.moa` |
-| **B. Persona / agent-as-tool swarm** | Coordinator switches specialists via `openai-agents` | Specialists **read/write** tools | Most blueprints below (codey, rue_code, geese, zeus, …) |
+| **A. Orchestrated consensus (MoA)** | Subagents opine; orchestrator decides | Subagents **read-only**; orchestrator acts | `moa/`, `moa_orchestrator/`, `hybrid_moa/`, `swarm-cli moa`, `swarm.core.moa` |
+| **B. Persona / agent-as-tool swarm** | Coordinator switches specialists via `openai-agents` | Specialists **read/write** tools | Most other dirs below (codey, rue_code, geese, zeus, persona_council, …) |
 
-Most table entries below are **model B**. **Model A** is the `moa` blueprint (and legacy `cli_fusion` / `cli_ensemble` aliases that now mean read-only MoA only).
+Legacy name **CLI Fusion** still appears as blueprint/alias ids (`cli_fusion`,
+`cli_ensemble`, …); prefer **MoA** for read-only consensus ([GLOSSARY](../../../docs/GLOSSARY.md)).
 
-## Refactored Blueprints (Using `BlueprintBase`)
+## Discoverable packages (2026-08-18)
 
-These blueprints have been updated to use the `BlueprintBase` class, `openai-agents` library conventions (like `Agent`, `@function_tool`, agent-as-tool delegation), and standardized configuration loading.
+Canonical directory names (each has `blueprint_<name>.py`). Discovery also
+registers aliases (e.g. `moa` ← `cli_fusion` / `ensemble`; `dynamic_team` ←
+`dynamic-team`; `hybrid_moa` ← `moa_hybrid`).
 
-| Blueprint Name                  | CLI (`uv run ...`) Example Instruction                | What it Demonstrates                                                           | Key Features                                                              | Tags                  | MCP Servers Used (Examples) |
-|---------------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------|---------------------------------------------------------------------------|-----------------------|-----------------------------|
-| **EchoCraft**                   | `--instruction "Repeat this message"`                 | Simplest blueprint, direct input echo                                          | Basic `BlueprintBase` structure, Agent `process` override                 |                       | None                        |
-| **Suggestion**                  | `--instruction "Topic: AI Ethics"`                    | Generating structured JSON output                                              | Agent `output_type=TypedDict`, JSON mode                                  |                       | None                        |
-| **Chatbot**                     | `--instruction "Tell me a joke"`                      | Basic single-agent conversation                                                | Standard `Agent` interaction with LLM                                     |                       | None                        |
-| **BurntNoodles**                | `--instruction "Check git status"`                    | Coordinating Git & testing tasks via function tools & agent delegation       | `@function_tool` for CLI commands, Agent-as-tool delegation             |                       | None                        |
-| **RueCode**                     | `--instruction "Refactor this python code..."`        | Multi-agent code generation/refactoring workflow                             | Agent-as-tool delegation, specialized agent roles (Coordinator, Code, etc.) | software-development  | memory                      |
-| **NebulaShellzzar**             | `--instruction "List files in /tmp"`                  | Matrix-themed sysadmin/coding tasks with delegation                        | Agent-as-tool delegation, `@function_tool` for shell/code analysis    |                       | memory                      |
-| **DilbotUniverse (SQLite)**     | `--instruction "Start the SDLC"`                      | Comedic SDLC simulation, instructions loaded from SQLite                     | Agent-as-tool delegation, SQLite integration for dynamic prompts          |                       | sqlite                      |
-| **Stewie**                      | `--instruction "Create WP post titled 'Hello'..."`    | Coordinating WordPress operations via MCP                                    | Agent-as-tool delegation, specialized agent using specific MCP (WP)     |                       | server-wp-mcp               |
-| **MissionImprobable (SQLite)**  | `--instruction "Use RollinFumble to run 'pwd'"`       | Spy-themed ops, instructions from SQLite, multi-level delegation             | Agent-as-tool delegation, SQLite integration, MCP usage (fs, shell, mem)  |                       | memory, filesystem, mcp-shell |
-| **WhiskeyTangoFoxtrot**         | `--instruction "Find free vector DBs"`                | Hierarchical agents tracking services using DB & web search                | Multi-level agent delegation, SQLite, various search/scrape/doc MCPs    |                       | sqlite, brave-search, mcp-npx-fetch, mcp-doc-forge, filesystem |
-| **Zeus**                        | `--instruction "Design user auth API"`                | Replacement for DivineOps/DivineCode/DivineAss, large-scale SW dev coordination (Design, Implement, DB, DevOps, Docs)      | Complex delegation, wide range of MCP usage (search, shell, db, fs...)  | software-development  | memory, filesystem, mcp-shell, sqlite, sequential-thinking, brave-search |
-| **WhingeSurf**                  | `--instruction "Analyze blueprint code"`              | Self-analyzing/auto-improving blueprint, meta-agent demo                   | Code analysis, self-improvement, UX/ANSI output, meta-agent logic        | software-development  | None                        |
-| **Gaggle**                      | `--instruction "Write story: cat library"`            | Collaborative story writing (Planner, Writer, Editor)                        | Agent-as-tool delegation, function tools for writing steps                |                       | None                        |
-| **MonkaiMagic**                 | `--instruction "List AWS S3 buckets"`                 | Cloud operations (AWS, Fly, Vercel) via direct CLI function tools          | `@function_tool` for external CLIs, agent-as-tool delegation            |                       | mcp-shell (for Sandy)       |
-| **UnapologeticPress (SQLite)**  | `--instruction "Write poem: city rain"`               | Collaborative poetry writing by distinct "poet" agents, SQLite instructions | Agent-as-tool (all-to-all), SQLite, broad MCP usage                       |                       | Various (see blueprint)     |
-| **Omniplex**                    | `--instruction "Use filesystem to read README.md"`    | Dynamically routes tasks based on MCP server type (npx, uvx, other)      | Dynamic agent/tool creation based on available MCPs                     |                       | Dynamic (all available)     |
+### MoA / hybrid / orchestration
 
-## WIP / Needs Refactoring
+| Dir | Notes |
+|-----|--------|
+| `moa` | Read-only mixture-of-agents; aliases include `cli_fusion`, `cli_ensemble`, `ensemble`, `fusion`, `mixture_of_agents` |
+| `moa_orchestrator` | MoA then scripted team path; aliases `moa-orch`, `agents_moa` |
+| `hybrid_moa` | Hybrid consensus; aliases `moa_hybrid`, `hybrid-consensus` |
+| `hybrid_team` / `hybrid_swarm` | Hybrid team / swarm variants |
+| `cli_agent` / `cli_map` / `cli_orchestrator` / `cli_pipeline` / `cli_planner` / `cli_recurse` / `cli_roundtable` | CLI-wrapping strategy family (also `cli_fusion` / `cli_ensemble` **packages** remain as thin entry points) |
+| `fs_introspect` | Filesystem introspection demo |
+| `persona_council` | Persona / agent-as-tool council |
 
-These blueprints still use older patterns or have known issues and are being incrementally improved (many now use BlueprintBase).
+### Persona demos & utilities
 
-**Duplication reduction:** Common PatchedFunctionTool / DummyTool / file+shell tools now live in `src/swarm/blueprints/common/tool_utils.py` (imported by updated blueprints).
+| Dir | Notes |
+|-----|--------|
+| `chatbot` | Minimal single-agent chat |
+| `suggestion` | Structured JSON suggestion (`suggestion` CLI) |
+| `codey` | Coding workflow (`codey` CLI) |
+| `rue_code` | Multi-agent code workflow |
+| `jeeves` | MCP-aware butler demo |
+| `geese` | Multi-agent writing/research |
+| `zeus` | Large software-dev coordination (`zeus` CLI) |
+| `stewie` | WordPress/MCP-oriented demo |
+| `poets` | Poet swarm (`poets_cli.py`) |
+| `gawd` | Django-ish demo package |
+| `whiskeytango_foxtrot` | Hierarchical search/ops demo |
+| `chucks_angels` | Minimal experimental coordination |
+| `django_chat` | Django-integrated chat (needs Django setup) |
+| `dynamic_team` | Backing implementation for `/v1/teams` **LLM-profile aliases** (not a multi-agent builder) |
 
-See individual READMEs and [FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9 for details (`blueprint_audit_status.json` was deleted).
+## Removed / do not expect on disk
 
-| Blueprint Name          | CLI      | Description                                                  | Status                  |
-|-------------------------|----------|--------------------------------------------------------------|-------------------------|
-| chucks_angels           | chuck    | Chuck Norris style coordination (minimal)                    | Minimal / Experimental  |
-| django_chat             | djchat   | Django-integrated (early load fix applied)                   | Partial                 |
-| codey/rue/jeeves/poets etc. | various | Tool dupe reduction + metadata (see common/tool_utils)      | Partial (improving)     |
+Former stubs or husks with no live `blueprint_*.py` (including EchoCraft,
+BurntNoodles, NebulaShellz, MissionImprobable, WhingeSurf, Gaggle, MonkaiMagic,
+Omniplex, Dilbot, UnapologeticPress, flock, digitalbutlers, messenger, …) are
+**gone**. Historical mentions elsewhere are archival only.
 
-Empty husk dirs (`flock`, `digitalbutlers`, `echocraft`, `mcp_demo`, …) were
-**deleted** — they had no `blueprint_*.py`. See [FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9.
+## Configuration & running
 
-## Configuration (`swarm_config.json`)
-
-The framework uses a central `swarm_config.json` file (usually in the project root) to define:
-
-*   **`llm`**: Profiles for different language models (provider, model name, API keys via `${ENV_VAR}`, base URL, etc.).
-*   **`mcpServers`**: Definitions for starting external MCP servers. Each entry includes:
-    *   `command`: The command to run (e.g., `npx`, `uvx`, `python`, `docker`). Can be a string or list.
-    *   `args`: A list of arguments for the command.
-    *   `env`: A dictionary of environment variables to set for the server process.
-    *   `cwd`: (Optional) Working directory for the server process.
-    *   `description`: (Optional) A human-readable description of the server's function.
-    *   `startup_timeout`: (Optional) Seconds to wait for the server to start and connect (default: 30).
-*   **`blueprints`**: Optional section for blueprint-specific overrides (e.g., default profile, max calls).
-*   **`defaults`**: Global default settings (e.g., `default_markdown_cli`).
-
-## Environment Variables
-
-Many blueprints or their required MCP servers depend on environment variables (e.g., API keys). These should ideally be set in a `.env` file in the project root. `BlueprintBase` will automatically load this file. See individual blueprint metadata (`env_vars`) or `swarm_config.json` for potentially required variables. The `BlueprintBase` will warn if variables listed in a blueprint's `metadata["env_vars"]` are not set.
-
-## Running Blueprints (Development)
-
-Use `uv run python <path_to_blueprint.py> --instruction "Your instruction"`
-
-Common flags:
-*   `--debug`: Enable detailed DEBUG logging.
-*   `--quiet`: Suppress most logs, print only final output.
-*   `--config-path`: Specify a different config file location.
-*   `--profile`: Use a specific LLM profile from the config.
-*   `--markdown` / `--no-markdown`: Force markdown rendering on/off.
+- Config: `swarm_config.json` (`llm` profiles, `mcpServers`, optional
+  `blueprints` overrides) — [CONFIGURATION.md](../../../CONFIGURATION.md) /
+  [docs/SWARM_CONFIG.md](../../../docs/SWARM_CONFIG.md).
+- Dev run: `uv run python src/swarm/blueprints/<dir>/blueprint_<dir>.py --instruction "…"`
+  (or `swarm-cli launch <id>` / OpenAI client `model: "<id>"`).
+- Flags: `--debug`, `--quiet`, `--config-path`, `--profile`, `--markdown` /
+  `--no-markdown`.
