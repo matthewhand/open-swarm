@@ -422,6 +422,7 @@ def moa(
 
     # Soft --team failures still print payload, then exit 1.
     team_exit_code = 0
+    team_soft_fail_msg: str | None = None
 
     try:
         fakes = parse_fake_responses(fake_responses) if fake_responses else None
@@ -490,6 +491,20 @@ def moa(
                 write_moa_trace(trace, payload)
             if team_cli_failed(result):
                 team_exit_code = 1
+                # Reason string is echoed after the payload (see below).
+                if not result.specialist_results:
+                    team_soft_fail_msg = (
+                        "MoA team soft-fail: panel unusable; specialists skipped "
+                        "(payload printed; exit 1)."
+                    )
+                else:
+                    failed = [
+                        s.persona for s in result.specialist_results if not s.ok
+                    ]
+                    team_soft_fail_msg = (
+                        "MoA team soft-fail: specialist ok=False "
+                        f"({', '.join(failed)}) (payload printed; exit 1)."
+                    )
         elif act:
             # Orchestrator-owned single write still uses run_moa_cli.
             payload = asyncio.run(
@@ -559,6 +574,9 @@ def moa(
         typer.echo(format_moa_text(payload))
 
     if team_exit_code:
+        # Logger warnings may be invisible without -v; always explain soft-fail.
+        if team_soft_fail_msg:
+            typer.echo(team_soft_fail_msg, err=True)
         raise typer.Exit(code=team_exit_code)
 
 

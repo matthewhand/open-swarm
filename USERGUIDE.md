@@ -481,7 +481,8 @@ custom string) are implementer + tester + docs; default paths are `decision.md`,
 is `approve-reads` or `deny-all` only (never `approve-all`).
 
 Without `--team`, `--json` reports `mode=consensus_only`. With `--team`,
-`mode=consensus_then_team`. Exit codes: `0` success; `1` runtime failure;
+`mode=consensus_then_team`. Exit codes: `0` success; `1` runtime / soft team
+failure (unusable panel or specialist `ok=False` — payload still printed);
 `2` usage/validation; `5` write denied.
 
 Full model, backends, Python API, and honesty notes:
@@ -542,6 +543,10 @@ operator shell screenshot tour see
 *   **`swarm-cli moa` usage errors (exit 2):** `--team` requires
     `--workdir`; `--workdir` without `--team` is rejected; `--team` and
     `--act` cannot be combined. Use `--cwd` only for panel read context.
+*   **`swarm-cli moa --team` soft-fail (exit 1, payload printed):** unusable
+    panel skips specialists; or a specialist returns `ok=False`. Inspect
+    `--json` / `-v` or the stderr soft-fail line. See
+    [docs/TROUBLESHOOTING.md §8](./docs/TROUBLESHOOTING.md#8-moa--swarm-cli-moa-common-failures).
 *   **CLI agents missing / unauthenticated:** run
     `swarm-cli cli-agents --check-auth` (or `--init --write` for a starter
     config). Each CLI authenticates itself; Open Swarm does not proxy their

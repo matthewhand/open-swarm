@@ -533,9 +533,14 @@ def format_team_text(payload: dict[str, Any]) -> str:
     lines.append((det or "(none)").strip())
     lines.append("")
     specs = payload.get("specialists") or []
-    if mode == "consensus_only" or not specs:
+    if mode == "consensus_only":
         lines.append("## Specialists")
         lines.append("(none — consensus only; no team writes)")
+    elif not specs:
+        # Soft panel fail or explicit empty --team-tasks: mode stays
+        # consensus_then_team; do not claim "consensus only".
+        lines.append("## Specialists")
+        lines.append("(none — no specialists ran; no team writes)")
     else:
         lines.append("## Specialists (R/W team)")
         for s in specs:

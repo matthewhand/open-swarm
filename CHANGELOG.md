@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
+- **MoA soft-fail honesty:** `format_team_text` no longer labels empty `--team` specialists as “consensus only”; CLI prints a `MoA team soft-fail:…` stderr line after the payload; USERGUIDE / TROUBLESHOOTING exit-1 wording aligned
 - **Docs polish:** journey screenshots regenerated (2026-08-18) + caption/registry honesty; MoA troubleshooting; FEATURE_STATUS MoA team-path row; `cli-and-api.gif` refreshed from `SWARM_TEST_MODE` captures (optional `moa --team` scene)
 - **Session detail journey capture:** mid-run seed of `resp_journey_seed` so `session-detail.png` shows Graph/timeline; embeds in USER_JOURNEY / GUIDED_TOUR / SESSION_EXPLORER with seeded-fixture honesty (synthetic JSON, not a live hybrid_team run)
 - **SPA vs Django mobile docks:** recapture after Chat dock; docs distinguish SPA **Home · Chat · Blueprints · Teams · Sessions** from Django **… · Settings**; desktop `spa-chat.png` is Unavailable, mobile may be Connected

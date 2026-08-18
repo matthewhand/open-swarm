@@ -676,6 +676,8 @@ def test_swarm_cli_moa_team_unusable_panel_exit_1(tmp_path: Path):
         xdg_root=tmp_path / "xdg",
     )
     assert proc.returncode == 1, proc.stderr + proc.stdout
+    assert "soft-fail" in proc.stderr.lower()
+    assert "panel unusable" in proc.stderr.lower()
     out = proc.stdout.strip()
     start = out.find("{")
     assert start >= 0, out
@@ -710,6 +712,8 @@ def test_swarm_cli_moa_team_specialist_ok_false_exit_1(tmp_path: Path):
         xdg_root=tmp_path / "xdg",
     )
     assert proc.returncode == 1, proc.stderr + proc.stdout
+    assert "soft-fail" in proc.stderr.lower()
+    assert "wizard" in proc.stderr
     out = proc.stdout.strip()
     start = out.find("{")
     assert start >= 0, out

@@ -707,6 +707,12 @@ async def test_empty_specialist_tasks_skips_default_implementer(tmp_path: Path):
     assert not (ws / impl_path).exists()
     # Orchestrator-owned determination artifact is independent of specialists.
     assert (ws / "moa_determination.md").is_file()
+    text = format_team_text(
+        team_result_to_payload(result, question="Empty specialist list?")
+    )
+    assert "MoA mode: consensus_then_team" in text
+    assert "(none — no specialists ran; no team writes)" in text
+    assert "(none — consensus only; no team writes)" not in text
 
 
 @pytest.mark.asyncio
@@ -794,6 +800,11 @@ async def test_soft_panel_failure_skips_specialists_and_determination(tmp_path: 
     assert not (ws / "moa_determination.md").exists()
     assert not (ws / "decision.md").exists()
     assert not (ws / "test_notes.md").exists()
+    # Text summary must keep mode=consensus_then_team — not claim "consensus only".
+    text = format_team_text(team_result_to_payload(result, question="Should we proceed?"))
+    assert "MoA mode: consensus_then_team" in text
+    assert "(none — no specialists ran; no team writes)" in text
+    assert "(none — consensus only; no team writes)" not in text
 
 
 @pytest.mark.asyncio
@@ -861,7 +872,8 @@ async def test_team_result_to_payload_and_format_consensus_only():
     assert "Question: Rate limit?" in text
     assert "## Determination (orchestrator)" in text
     assert "## Specialists" in text
-    assert "consensus only" in text.lower() or "(none" in text
+    assert "(none — consensus only; no team writes)" in text
+    assert "no specialists ran" not in text
     assert "## Writes" in text
     assert "(none)" in text
     assert "panel_wrote=False" in text
