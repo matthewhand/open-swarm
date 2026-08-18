@@ -279,7 +279,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `ENABLE_API_AUTH` | **Django setting** (not an env toggle): auto-on when any API auth token is set at startup. Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Also enables the Session Explorer operator bridge for token-owned rows. | on iff token(s) set |
 | `SWARM_SECURE_COOKIES` | When `DEBUG=False`, force `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE`. Default **on** in production; set `false` for HTTP-only staging. (No effect when `DEBUG=True` — cookies stay non-Secure for local HTTP.) | prod: true |
 | `DJANGO_X_FRAME_OPTIONS` | Env override for `X_FRAME_OPTIONS`, read **only** when `DEBUG=False`. `XFrameOptionsMiddleware` is always installed; Django’s default is already `DENY` in debug and prod. | `DENY` |
-| `SWARM_CSP` | When `DEBUG=False`, enable `Content-Security-Policy` via `ContentSecurityPolicyMiddleware` (`self` + residual `'unsafe-inline'` for Django templates; vendored Bootstrap/Prism/FA; no CDN). Set `false` to omit the header. | prod: on |
+| `SWARM_CSP` | When `DEBUG=False`, enable `Content-Security-Policy` via `ContentSecurityPolicyMiddleware` (`script-src 'self'`; residual `style-src 'unsafe-inline'` for Django template `<style>` / `style=""`; vendored Bootstrap/Prism/FA; no CDN). Set `false` to omit the header. | prod: on |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
 | `ALLOW_TESTUSER_AUTOLOGIN` | Dev-only auto-login (debug only, random password). | `false` |
 | `HOST` / `PORT` | Bind address/port for the server. | `0.0.0.0` / `8000` |

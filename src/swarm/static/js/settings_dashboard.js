@@ -160,6 +160,20 @@ function showToast(message, type = 'info') {
   }, 5000);
 }
 
+const SETTINGS_DASHBOARD_ACTIONS = {
+  'export-settings': exportSettings,
+  'refresh-settings': refreshSettings,
+  'view-environment': viewEnvironment,
+  'copy-object-content': copyObjectContent,
+};
+
+document.querySelector('.settings-page')?.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-action]');
+  if (!btn || !event.currentTarget.contains(btn)) return;
+  const handler = SETTINGS_DASHBOARD_ACTIONS[btn.getAttribute('data-action')];
+  if (typeof handler === 'function') handler();
+});
+
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.group-header[data-group-id]').forEach((header) => {
     const groupId = header.dataset.groupId;

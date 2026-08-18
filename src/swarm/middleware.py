@@ -14,7 +14,7 @@ class ContentSecurityPolicyMiddleware:
     """Attach Content-Security-Policy when settings.CONTENT_SECURITY_POLICY is set.
 
     Production (DEBUG=False) enables a self-centric policy; see docs/AUTH.md §7
-    for residual 'unsafe-inline' needs on Django operator templates.
+    for residual style-src 'unsafe-inline' on Django operator templates.
     """
 
     def __init__(self, get_response):

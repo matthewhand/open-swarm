@@ -136,3 +136,14 @@ async function checkComfyUIStatus() {
 function resetForm() {
     document.getElementById('blueprintCreatorForm').reset();
 }
+
+const BLUEPRINT_CREATOR_ACTIONS = {
+    'reset-form': resetForm,
+};
+
+document.querySelector('.container')?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-action]');
+    if (!btn || !event.currentTarget.contains(btn)) return;
+    const handler = BLUEPRINT_CREATOR_ACTIONS[btn.getAttribute('data-action')];
+    if (typeof handler === 'function') handler();
+});

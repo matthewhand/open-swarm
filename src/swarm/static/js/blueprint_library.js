@@ -74,9 +74,24 @@ function clearBlueprintSearch() {
     filterBlueprints();
 }
 
-document.addEventListener('DOMContentLoaded', filterBlueprints);
+const BLUEPRINT_LIBRARY_ACTIONS = {
+    'show-more-blueprints': showMoreBlueprints,
+    'clear-blueprint-search': clearBlueprintSearch,
+    'load-github-marketplace': loadGithubMarketplace,
+};
+
+document.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-action]');
+    if (!btn) return;
+    const handler = BLUEPRINT_LIBRARY_ACTIONS[btn.getAttribute('data-action')];
+    if (typeof handler === 'function') handler();
+});
 
 document.addEventListener('DOMContentLoaded', function() {
+    const search = document.getElementById('bpSearch');
+    if (search) search.addEventListener('input', filterBlueprints);
+    filterBlueprints();
+
     // Fetch MCP compliance for all blueprints and update badges
     fetch('/blueprint-library/requirements/')
       .then(resp => resp.json())

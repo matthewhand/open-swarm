@@ -299,6 +299,78 @@ class TestUxShellTemplateContracts:
         assert "onclick=\"exportEnvVars()\"" not in html
         assert "onclick=\"checkPath(" not in html
 
+    def test_settings_dashboard_uses_data_action_not_onclick(self, client):
+        from django.contrib.auth.models import User
+        from pathlib import Path
+
+        user = User.objects.create_user(username="uxset2", password="ux-set-pass")
+        client.force_login(user)
+        response = client.get("/settings/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'data-action="export-settings"' in html
+        assert 'data-action="refresh-settings"' in html
+        assert 'data-action="view-environment"' in html
+        assert 'data-action="copy-object-content"' in html
+        assert "onclick=" not in html
+        assert "settings_dashboard.js" in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "settings_dashboard.js"
+        ).read_text(encoding="utf-8")
+        assert "SETTINGS_DASHBOARD_ACTIONS" in js
+
+    def test_blueprint_library_uses_data_action_not_onclick(self, client):
+        from django.contrib.auth.models import User
+        from pathlib import Path
+
+        user = User.objects.create_user(username="uxbplib", password="ux-bp-pass")
+        client.force_login(user)
+        response = client.get("/blueprint-library/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'data-action="show-more-blueprints"' in html
+        assert 'data-action="clear-blueprint-search"' in html
+        assert "onclick=" not in html
+        assert "oninput=" not in html
+        assert "blueprint_library.js" in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "blueprint_library.js"
+        ).read_text(encoding="utf-8")
+        assert "BLUEPRINT_LIBRARY_ACTIONS" in js
+        assert 'data-action="load-github-marketplace"' in html or "load-github-marketplace" in js
+
+    def test_blueprint_creator_uses_data_action_not_onclick(self, client):
+        from django.contrib.auth.models import User
+        from pathlib import Path
+
+        user = User.objects.create_user(username="uxbpcr", password="ux-bp-pass")
+        client.force_login(user)
+        response = client.get("/blueprint-library/creator/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'data-action="reset-form"' in html
+        assert "onclick=" not in html
+        assert "blueprint_creator.js" in html
+        js = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "static"
+            / "js"
+            / "blueprint_creator.js"
+        ).read_text(encoding="utf-8")
+        assert "BLUEPRINT_CREATOR_ACTIONS" in js
+
     def test_team_creator_validate_marked_unavailable(self, client):
         from django.contrib.auth.models import User
         from pathlib import Path

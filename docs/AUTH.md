@@ -47,7 +47,7 @@ Related: [DEPLOYMENT.md](./DEPLOYMENT.md) · [CONFIGURATION.md](../CONFIGURATION
   Workdir: params.workdir/cwd under SWARM_WORKSPACES_DIR
            (ALLOW_UNRESTRICTED_WORKDIR opt-in escape)
   Blueprints: user discovery opt-in; AST sandbox (not OS sandbox)
-  Browser: CSRF on login + HTML mutators; prod CSP (self + unsafe-inline)
+  Browser: CSRF on login + HTML mutators; prod CSP (script-src self; style residual)
 ```
 
 ---
@@ -147,13 +147,13 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Must include scheme+host(+port) for every UI origin (LAN/proxy too). |
 | Secure cookies | When `DEBUG=False`, `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` default on; opt out with `SWARM_SECURE_COOKIES=false` for HTTP staging. |
 | Always-on headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options` (default `DENY`; prod may override via `DJANGO_X_FRAME_OPTIONS`). |
-| **CSP** | When `DEBUG=False`, `ContentSecurityPolicyMiddleware` sets `Content-Security-Policy` from `CONTENT_SECURITY_POLICY` (opt out with `SWARM_CSP=false`). Policy is self-centric: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, `font-src 'self'`, `img-src 'self' data: blob:`, `connect-src 'self' ws: wss:` (websocket chat). **No CDN hosts.** Operator UI assets (Bootstrap, Prism, Font Awesome, marked) are vendored under `src/swarm/static/contrib/` and loaded via `{% static %}`. |
+| **CSP** | When `DEBUG=False`, `ContentSecurityPolicyMiddleware` sets `Content-Security-Policy` from `CONTENT_SECURITY_POLICY` (opt out with `SWARM_CSP=false`). Policy is self-centric: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, `font-src 'self'`, `img-src 'self' data: blob:`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `connect-src 'self' ws: wss:` (websocket chat). **No CDN hosts.** Operator UI assets (Bootstrap, Prism, Font Awesome, marked) are vendored under `src/swarm/static/contrib/` and loaded via `{% static %}`. |
 
 ### Residual inline needs
 
-Django operator templates have moved page logic out of inline `<script>` blocks; residual CSP friction is mainly **`style=""` attributes** and a few **inline `onclick=` handlers** (e.g. library search/show-more, creator reset). Until those move to external CSS / `data-action` delegation, prod CSP keeps `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`. That blocks third-party script/style hosts while remaining compatible with the current templates. Prefer extracting inline handlers/styles over adding more `'unsafe-*'` directives.
+Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone**, so prod CSP drops `'unsafe-inline'` from **`script-src`** (`script-src 'self'` only). Residual friction is **`<style>` blocks and `style=""` attributes**, so **`style-src` still allows `'unsafe-inline'`** until those move to external CSS. Prefer extracting inline styles over adding more `'unsafe-*'` directives.
 
-**Extraction progress:** page logic now lives under `static/js/` and loads via `{% static %}` for `settings_dashboard` (`json_script` data island), `teams_launch`, `session_explorer` (feed/limit via `data-*` on `#se-app`), `teams_admin`, `agent_creator`, `team_creator` (`json_script` profiles island), `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator` (form `action` / `data-create-url`), and `session_detail` (`json_script` delegations island). Inline `style=""` and leftover `onclick=` stay; CSP policy is unchanged until those are cleaned up.
+**Extraction progress:** `settings_dashboard`, `teams_launch`, `session_explorer`, `teams_admin`, `agent_creator`, `team_creator`, `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail` load external JS. High-traffic actions use `data-action` (creators, settings quick actions, library search/show-more/GitHub, creator reset).
 
 ---
 
@@ -163,4 +163,4 @@ Django operator templates have moved page logic out of inline `<script>` blocks;
 2. Point OpenAI clients at `/v1` with `Authorization: Bearer $API_AUTH_TOKEN`.
 3. Sign in at `/login/` for WebUI, Session Explorer, and websocket chat (session ≠ API token).
 4. Keep `ALLOW_UNRESTRICTED_WORKDIR` and `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` off unless you intentionally widen trust.
-5. Expect prod CSP (`self` + residual `'unsafe-inline'`); rely on CSRF + frame/nosniff + auth gates above. Use `SWARM_CSP=false` only to disable the header.
+5. Expect prod CSP (`script-src 'self'`; residual `style-src 'unsafe-inline'`); rely on CSRF + frame/nosniff + auth gates above. Use `SWARM_CSP=false` only to disable the header.

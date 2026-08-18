@@ -151,8 +151,9 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   Django defaults from always-on `SecurityMiddleware` / `XFrameOptionsMiddleware`
   in **both** debug and production — the prod settings block only reasserts them
   (and honors `DJANGO_X_FRAME_OPTIONS`). Production also sets a minimal
-  Content-Security-Policy (`self` + residual `'unsafe-inline'` for Django
-  templates; no CDN). Opt out with `SWARM_CSP=false`. See [AUTH.md](./AUTH.md) §7.
+  Content-Security-Policy (`script-src 'self'`; residual `style-src 'unsafe-inline'`
+  for Django template styles; no CDN). Opt out with `SWARM_CSP=false`. See
+  [AUTH.md](./AUTH.md) §7.
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
 - **SPA chat “Unavailable — sign in required” / WS close 4401** → no Django
   session cookie. Sign in via `/accounts/login/` (CSRF required on POST);

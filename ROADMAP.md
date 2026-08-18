@@ -300,9 +300,11 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 - [x] **Django operator UI offline + CSP** — Bootstrap 5.3.3, Prism, Font Awesome
   vendored under `src/swarm/static/contrib/`; `base.html` + rest_mode marked use
   `{% static %}` / relative imports (no CDN). Prod (`DEBUG=False`) sets a minimal
-  CSP (`ContentSecurityPolicyMiddleware`; residual `'unsafe-inline'` documented in
-  AUTH.md §7). Remaining legacy polish: `profiles.html` DaisyUI-on-Bootstrap
-  mismatch; richer `title`/`head` blocks — decide retire-vs-migrate.
+  CSP (`ContentSecurityPolicyMiddleware`; `script-src 'self'`, residual
+  `style-src 'unsafe-inline'` documented in AUTH.md §7). Remaining legacy polish:
+  `profiles.html` DaisyUI-on-Bootstrap mismatch; richer `title`/`head` blocks —
+  decide retire-vs-migrate; extract inline `<style>` / `style=""` to drop style
+  unsafe-inline.
 - [ ] **Django legacy surface polish** — `profiles.html` DaisyUI classes on a
   Bootstrap base (unstyled); `base.html` head/title block gaps.
 

@@ -323,9 +323,10 @@ CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 #   SWARM_CSP=false             → skip Content-Security-Policy header
 # API_AUTH_TOKEN is already required in production via get_enforced_api_auth_token().
 #
-# Residual CSP inline needs (documented in docs/AUTH.md §7): Django templates
-# still use inline <script> blocks and style="" attributes, so script-src /
-# style-src allow 'unsafe-inline'. CDN hosts are not allowed.
+# Residual CSP inline needs (documented in docs/AUTH.md §7): page JS is external
+# under static/js/ (data-action delegation), so script-src is 'self' only.
+# Templates still use <style> blocks and style="" attributes, so style-src
+# keeps 'unsafe-inline' temporarily. CDN hosts are not allowed.
 _SWARM_CSP_POLICY = (
     "default-src 'self'; "
     "base-uri 'self'; "
@@ -335,7 +336,7 @@ _SWARM_CSP_POLICY = (
     "img-src 'self' data: blob:; "
     "font-src 'self'; "
     "style-src 'self' 'unsafe-inline'; "
-    "script-src 'self' 'unsafe-inline'; "
+    "script-src 'self'; "
     "connect-src 'self' ws: wss:"
 )
 CONTENT_SECURITY_POLICY = None  # set below when DEBUG=False (unless SWARM_CSP=false)

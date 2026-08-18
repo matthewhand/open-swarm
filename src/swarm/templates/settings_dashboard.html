@@ -47,13 +47,13 @@
   <div class="mb-3">
     <h2 class="visually-hidden">Quick actions</h2>
     <div class="d-flex flex-wrap gap-2">
-      <button type="button" class="btn btn-primary" onclick="exportSettings()">
+      <button type="button" class="btn btn-primary" data-action="export-settings">
         <i class="fas fa-download" aria-hidden="true"></i> Export Settings
       </button>
-      <button type="button" class="btn btn-outline-secondary" onclick="refreshSettings()">
+      <button type="button" class="btn btn-outline-secondary" data-action="refresh-settings">
         <i class="fas fa-sync" aria-hidden="true"></i> Refresh
       </button>
-      <button type="button" class="btn btn-outline-info" onclick="viewEnvironment()">
+      <button type="button" class="btn btn-outline-info" data-action="view-environment">
         <i class="fas fa-list" aria-hidden="true"></i> Environment Variables
       </button>
       <button type="button" class="btn btn-outline-secondary" disabled
@@ -201,7 +201,7 @@
           <pre id="objectContent"><code class="language-json"></code></pre>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" onclick="copyObjectContent()">
+          <button type="button" class="btn btn-outline-secondary" data-action="copy-object-content">
             <i class="fas fa-copy" aria-hidden="true"></i> Copy
           </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
