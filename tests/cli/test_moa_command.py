@@ -86,6 +86,61 @@ async def test_run_moa_cli_act_writes_via_orchestrator_only(tmp_path: Path):
     assert "## Act:" in text
 
 
+@pytest.mark.asyncio
+async def test_run_moa_cli_act_defaults_to_moa_determination_md(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """--act without --act-write must actually create moa_determination.md.
+
+    Previously RecordingWriteSurface was updated and ActResult claimed a write,
+    but the file was never opened unless act_write_path was set.
+    """
+    monkeypatch.chdir(tmp_path)
+    claimed = tmp_path / "moa_determination.md"
+    assert not claimed.exists()
+    payload = await run_moa_cli(
+        "q",
+        ["a"],
+        backend="fake",
+        fake_responses={"a": "ship it"},
+        act=True,
+        action="record determination",
+        act_write_path=None,
+    )
+    assert payload["act"] and payload["act"]["ok"]
+    assert payload["act"]["detail"] == "wrote moa_determination.md"
+    assert "moa_determination.md" in (payload["act"].get("side_effects") or [])
+    assert claimed.is_file()
+    body = claimed.read_text(encoding="utf-8")
+    assert "ship it" in body
+    assert "Action: record determination" in body
+    assert payload["writes"] and payload["writes"][0][0] == "moa_determination.md"
+
+
+def test_swarm_cli_moa_act_without_act_write_creates_default_file(tmp_path: Path):
+    """CLI ``--act`` alone persists cwd/moa_determination.md (not a phantom write)."""
+    work = tmp_path / "cwd"
+    work.mkdir()
+    proc = _swarm_cli(
+        "moa",
+        "Document the decision",
+        "--backend",
+        "fake",
+        "--participants",
+        "alpha",
+        "--fake-responses",
+        "alpha=Ship with rate limits.",
+        "--act",
+        cwd=str(work),
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    out = work / "moa_determination.md"
+    assert out.is_file(), proc.stdout + proc.stderr
+    assert "Ship with rate limits" in out.read_text(encoding="utf-8")
+    assert "## Act:" in proc.stdout
+
+
 def test_swarm_cli_moa_act_human_shows_act_section(tmp_path: Path):
     """--act human output must include ## Act and honest mode (not team text)."""
     out = tmp_path / "moa_decision.md"
@@ -152,9 +207,10 @@ def _swarm_cli(
     *args: str,
     env: dict | None = None,
     xdg_root: Path | None = None,
+    cwd: Path | str | None = None,
 ):
     """Invoke Typer ``swarm-cli`` in a subprocess with isolated XDG dirs."""
-    return run_swarm_cli(*args, xdg_root=xdg_root, overrides=env)
+    return run_swarm_cli(*args, xdg_root=xdg_root, overrides=env, cwd=cwd)
 
 
 def test_swarm_cli_moa_subprocess_fake(tmp_path: Path):

@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **MoA `--act` phantom write:** `run_moa_cli` with `--act` and no `--act-write` now actually creates `moa_determination.md` (previously only `RecordingWriteSurface` + `ActResult` claimed the write)
 - **Fly HTTP health check:** re-enable `[[http_service.checks]]` GET `/health` in `fly.toml` (was disabled 2026-06-20 while the image lacked the route); live `open-swarm.fly.dev/health` returns 200 `{"status":"ok"}`
 - **SPA Chat Send honesty:** composer Send no longer shows a loading spinner while an assistant reply streams (progress stays on the bubble); avoids a false busy state on an enabled control
 - **Library-generated blueprints echo-only run:** `generate_blueprint_code` no longer calls nonexistent `model.chat_completion_stream`; uses `AsyncOpenAI` + `chat.completions.create(stream=True)` (DjangoChat/DynamicTeam pattern) with an explicit warned echo fallback

@@ -123,16 +123,16 @@ async def run_moa_cli(
     write_surface = RecordingWriteSurface()
 
     async def act_fn(determination, action_text: str) -> ActResult:
+        # Default filename when --act is set without --act-write.
         path = act_write_path or "moa_determination.md"
         content = (
             f"# MoA determination\n\nAction: {action_text}\n\n"
             f"{determination.answer}\n"
         )
-        # Only orchestrator path may write.
+        # Only orchestrator path may write; always persist (not record-only).
         write_surface.write(path, content)
-        if act_write_path:
-            with open(act_write_path, "w", encoding="utf-8") as f:
-                f.write(content)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
         return ActResult(ok=True, detail=f"wrote {path}", side_effects=[path])
 
     orch = MoAOrchestrator(
