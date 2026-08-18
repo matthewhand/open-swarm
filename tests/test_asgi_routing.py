@@ -121,12 +121,18 @@ class TestWebsocketGating:
     @pytest.mark.django_db
     @pytest.mark.asyncio
     async def test_anonymous_connection_rejected(self):
-        """No session cookie -> AnonymousUser -> consumer closes."""
+        """No session cookie -> accept then close with WS_AUTH_REQUIRED_CODE."""
+        from swarm.consumers import WS_AUTH_REQUIRED_CODE
+
         communicator = WebsocketCommunicator(
             application, WS_PATH, headers=VALID_ORIGIN_HEADERS
         )
+        # Accept-then-close so browsers see close code 4401 (not opaque 1006).
         connected, _ = await communicator.connect()
-        assert not connected
+        assert connected
+        close_event = await communicator.receive_output(timeout=1)
+        assert close_event["type"] == "websocket.close"
+        assert close_event["code"] == WS_AUTH_REQUIRED_CODE
         await communicator.disconnect()
 
     @pytest.mark.django_db

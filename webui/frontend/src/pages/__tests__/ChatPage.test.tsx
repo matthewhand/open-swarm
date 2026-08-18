@@ -18,7 +18,7 @@ class MockWebSocket {
   send = vi.fn()
   close = vi.fn(() => {
     this.readyState = 3
-    this.onclose?.(new Event('close'))
+    this.onclose?.(new CloseEvent('close', { code: 1000 }))
   })
 
   constructor(_url: string) {
@@ -30,9 +30,19 @@ class MockWebSocket {
     this.onopen?.(new Event('open'))
   }
 
-  failBeforeOpen() {
+  /** Simulate handshake/network failure before onopen (opaque browser 1006). */
+  failBeforeOpen(code = 1006) {
     this.readyState = 3
-    this.onclose?.(new Event('close'))
+    this.onclose?.(new CloseEvent('close', { code }))
+  }
+
+  /** Simulate DjangoChatConsumer auth gate (accept then close 4401). */
+  rejectAuth() {
+    this.open()
+    this.readyState = 3
+    this.onclose?.(
+      new CloseEvent('close', { code: 4401, reason: 'authentication required' }),
+    )
   }
 }
 
@@ -164,11 +174,11 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     expect(composer).not.toBeDisabled()
   })
 
-  it('shows a Sign-in CTA with next=/chat when the websocket fails', async () => {
+  it('shows session-cookie Sign-in CTA when the server closes with 4401', async () => {
     renderChat('/chat?blueprint=hybrid_team')
 
     await act(async () => {
-      MockWebSocket.instances[0]?.failBeforeOpen()
+      MockWebSocket.instances[0]?.rejectAuth()
     })
 
     const signIn = await screen.findByRole('link', { name: /Sign in/i })
@@ -177,11 +187,29 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
       `/accounts/login/?next=${encodeURIComponent('/chat?blueprint=hybrid_team')}`,
     )
     expect(screen.getByRole('button', { name: /Reconnect/i })).toBeInTheDocument()
-    expect(screen.getByText(/Unavailable — sign in required/i)).toBeInTheDocument()
+    const statusRegion = screen.getByRole('status', { name: 'Connection status' })
+    expect(statusRegion).toHaveTextContent(/Unavailable — sign in required/i)
+    expect(screen.getByText(/session cookie/i)).toBeInTheDocument()
+    expect(screen.getByText(/bearer token under Settings/i)).toBeInTheDocument()
     // Fixed-height chat column must not flex-shrink the Unavailable CTA away.
-    const unavailableCopy = screen.getByText(/Websocket unavailable/i)
-    const unavailableAlert = unavailableCopy.closest('[role="alert"]')
+    const unavailableAlert = screen
+      .getAllByRole('alert')
+      .find((el) => /sign in required/i.test(el.textContent || ''))
     expect(unavailableAlert?.className).toMatch(/shrink-0/)
+  })
+
+  it('does not blame login when the socket never opens (ASGI/network)', async () => {
+    renderChat()
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.failBeforeOpen()
+    })
+
+    expect(
+      await screen.findByText(/Unavailable — websocket unreachable/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/ALLOWED_HOSTS/i)).toBeInTheDocument()
+    expect(screen.queryByText(/session cookie/i)).not.toBeInTheDocument()
   })
 
   it('clears the composer draft on Escape', async () => {

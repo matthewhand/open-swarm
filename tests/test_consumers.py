@@ -135,14 +135,21 @@ class TestConnect:
 
     @pytest.mark.asyncio
     async def test_connect_unauthenticated_closes(self, mock_scope_unauthenticated):
-        """Unauthenticated user should have connection closed."""
+        """Unauthenticated user is accept-then-closed with WS_AUTH_REQUIRED_CODE."""
+        from swarm.consumers import WS_AUTH_REQUIRED_CODE
+
         consumer = DjangoChatConsumer()
         consumer.scope = mock_scope_unauthenticated
-        
-        with patch.object(consumer, 'close', new_callable=AsyncMock) as mock_close:
-            await consumer.connect()
-            
-            mock_close.assert_called_once()
+
+        with patch.object(consumer, 'accept', new_callable=AsyncMock) as mock_accept:
+            with patch.object(consumer, 'close', new_callable=AsyncMock) as mock_close:
+                await consumer.connect()
+
+                mock_accept.assert_called_once()
+                mock_close.assert_called_once_with(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
 
     @pytest.mark.asyncio
     async def test_connect_sets_conversation_id(self, consumer, mock_scope):
@@ -703,7 +710,9 @@ class TestWebsocketIntegration:
     @pytest.mark.django_db
     @pytest.mark.asyncio
     async def test_unauthenticated_connection_rejected(self):
-        """Unauthenticated WebSocket connection should be closed."""
+        """Unauthenticated WebSocket is accepted then closed with 4401."""
+        from swarm.consumers import WS_AUTH_REQUIRED_CODE
+
         communicator = WebsocketCommunicator(
             DjangoChatConsumer.as_asgi(),
             "/ws/chat/test-conv/",
@@ -713,12 +722,13 @@ class TestWebsocketIntegration:
         communicator.scope["url_route"] = {
             "kwargs": {"conversation_id": "test-conv"}
         }
-        
+
         connected, _ = await communicator.connect()
-        
-        # Should not connect (unauthenticated)
-        assert not connected
-        
+        assert connected
+        close_event = await communicator.receive_output(timeout=1)
+        assert close_event["type"] == "websocket.close"
+        assert close_event["code"] == WS_AUTH_REQUIRED_CODE
+
         await communicator.disconnect()
 
     @pytest.mark.django_db

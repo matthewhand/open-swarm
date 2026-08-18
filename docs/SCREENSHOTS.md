@@ -17,7 +17,7 @@ full-page PNGs.
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
 | `landing.png` | `/` (React SPA dashboard) | Counts 0/55/55; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; desktop top nav Home·Blueprints·Teams·Sessions·Settings (matches App.tsx) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
-| `spa-chat.png` | `/chat` (React SPA) | **Connected** shell after journey login; blueprint selector + empty-state prompts (Unavailable Sign-in/Reconnect alert is code-path only when WS fails) | GUIDED_TOUR.md | 2026-08-18 | current |
+| `spa-chat.png` | `/chat` (React SPA) | **Connected** shell after journey login (session cookie); blueprint selector + empty-state prompts. Unavailable Sign-in CTA is for close **4401** / no session; unreachable badge is ASGI/network — not Settings API token | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture + sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture + banner over Blueprint Library | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture + banner over Settings Dashboard | GUIDED_TOUR.md | 2026-08-18 | current |

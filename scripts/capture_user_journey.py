@@ -294,6 +294,20 @@ def capture(page, slug: str, path: str, name: str,
         page.wait_for_load_state("networkidle", timeout=10000)
     except Exception:
         pass  # busy pages (polling) never go idle; capture anyway
+    # spa-chat: wait for WS Connected vs Unavailable so the PNG matches auth
+    # reality (session login → Connected; anonymous/ASGI fail → Unavailable).
+    if slug == "spa-chat":
+        try:
+            page.wait_for_function(
+                """() => {
+                  const el = document.querySelector('[aria-label="Connection status"]');
+                  const t = (el && el.textContent) || '';
+                  return /Connected|Unavailable|Disconnected/i.test(t);
+                }""",
+                timeout=8000,
+            )
+        except Exception:
+            pass  # still capture connecting/empty rather than abort
     page.wait_for_timeout(750)
     final_url = page.url
     entry["final_url"] = final_url

@@ -18,6 +18,11 @@ AsyncOpenAI = None
 # In-memory conversation storage (populated lazily)
 IN_MEMORY_CONVERSATIONS = {}
 
+# Custom close code for anonymous connects (HTTP 401 analogue). Accept-then-close
+# so browsers receive a CloseEvent with this code instead of opaque 1006.
+WS_AUTH_REQUIRED_CODE = 4401
+
+
 class DjangoChatConsumer(AsyncWebsocketConsumer):
     """Websocket chat consumer.
 
@@ -27,6 +32,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     set via the ws URL query string (``?blueprint=<id>``); a per-message
     ``blueprint`` field overrides it. When neither is given, the legacy
     behaviour (server-configured OpenAI model) is preserved.
+
+    Auth is Django **session** only (``AuthMiddlewareStack`` cookie). A
+    Settings-page API bearer token does not authenticate this socket.
     """
 
     async def connect(self):
@@ -40,7 +48,12 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             self.messages = await self.fetch_conversation(self.conversation_id)
             await self.accept()
         else:
-            await self.close()
+            # Accept first so the client sees close code 4401 (not 1006).
+            await self.accept()
+            await self.close(
+                code=WS_AUTH_REQUIRED_CODE,
+                reason="authentication required",
+            )
 
     async def disconnect(self, close_code):
         if self.user.is_authenticated:

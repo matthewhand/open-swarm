@@ -20,6 +20,9 @@ import {
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 
+/** Matches swarm.consumers.WS_AUTH_REQUIRED_CODE (session gate). */
+const WS_AUTH_REQUIRED_CODE = 4401
+
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
@@ -57,6 +60,8 @@ const ChatPage = () => {
     () => searchParams.get('blueprint') ?? '',
   )
   const [connectAttempt, setConnectAttempt] = useState(0)
+  /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
+  const [authRejected, setAuthRejected] = useState(false)
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(newConversationId())
@@ -119,6 +124,7 @@ const ChatPage = () => {
   useEffect(() => {
     let opened = false
     setStatus('connecting')
+    setAuthRejected(false)
 
     let ws: WebSocket
     try {
@@ -138,8 +144,12 @@ const ChatPage = () => {
         handleWsEvent(parseChatWsMessage(event.data))
       }
     }
-    ws.onclose = () => {
+    ws.onclose = (event: CloseEvent) => {
       if (wsRef.current === ws) wsRef.current = null
+      // Auth gate: consumer accept-then-closes with 4401 (session cookie missing).
+      // Never-opened failures are usually ASGI/network/origin — not "use API token".
+      const rejected = event.code === WS_AUTH_REQUIRED_CODE
+      setAuthRejected(rejected)
       setStatus(opened ? 'closed' : 'failed')
     }
 
@@ -278,7 +288,7 @@ const ChatPage = () => {
             </label>
           )}
           <div className="pb-1">
-            <ConnectionBadge status={status} />
+            <ConnectionBadge status={status} authRejected={authRejected} />
           </div>
         </div>
       </div>
@@ -313,16 +323,30 @@ const ChatPage = () => {
         >
           <div className="space-y-2">
             <span className="font-medium">
-              {status === 'failed'
-                ? 'Websocket unavailable.'
-                : 'Websocket connection closed.'}
+              {authRejected
+                ? 'Websocket unavailable — sign in required.'
+                : status === 'failed'
+                  ? 'Websocket unavailable.'
+                  : 'Websocket connection closed.'}
             </span>
             <p className="text-sm">
-              Live chat runs over the backend websocket (served by{' '}
-              <code>manage.py runserver</code>, daphne or any ASGI server via{' '}
-              <code>swarm.asgi:application</code>). The chat consumer only
-              accepts authenticated Django sessions. Sign in, then reconnect.
-              Message history above is kept when present.
+              {authRejected ? (
+                <>
+                  Live chat authenticates with a Django{' '}
+                  <strong>session cookie</strong> (form login), not the API
+                  bearer token under Settings. Sign in, then reconnect.
+                  Message history above is kept when present.
+                </>
+              ) : (
+                <>
+                  Live chat runs over the backend websocket (served by{' '}
+                  <code>manage.py runserver</code>, daphne or any ASGI server
+                  via <code>swarm.asgi:application</code>). If you are already
+                  signed in, check that ASGI is serving <code>/ws/</code> and
+                  your Origin matches <code>ALLOWED_HOSTS</code>, then
+                  reconnect. Message history above is kept when present.
+                </>
+              )}
             </p>
             <div className="flex flex-wrap gap-2">
               <a href={signInHref} className="btn btn-sm btn-primary">
@@ -363,7 +387,9 @@ const ChatPage = () => {
                     ? 'Send a message below, or try one of these:'
                     : status === 'connecting'
                       ? 'Hang tight — this usually takes a moment.'
-                      : 'Sign in if needed, then reconnect to start chatting.'}
+                      : authRejected
+                        ? 'Sign in with a Django session, then reconnect.'
+                        : 'Sign in if needed, confirm ASGI is up, then reconnect.'}
                 </p>
               </div>
               {status === 'open' && (
@@ -439,21 +465,34 @@ const ChatPage = () => {
   )
 }
 
-function connectionStatusLabel(status: ConnectionStatus): string {
+function connectionStatusLabel(
+  status: ConnectionStatus,
+  authRejected: boolean,
+): string {
   switch (status) {
     case 'connecting':
       return 'Connecting…'
     case 'open':
       return 'Connected'
     case 'closed':
-      return 'Disconnected — login required'
+      return authRejected
+        ? 'Unavailable — sign in required'
+        : 'Disconnected'
     case 'failed':
-      return 'Unavailable — sign in required'
+      return authRejected
+        ? 'Unavailable — sign in required'
+        : 'Unavailable — websocket unreachable'
   }
 }
 
-function ConnectionBadge({ status }: { status: ConnectionStatus }) {
-  const label = connectionStatusLabel(status)
+function ConnectionBadge({
+  status,
+  authRejected,
+}: {
+  status: ConnectionStatus
+  authRejected: boolean
+}) {
+  const label = connectionStatusLabel(status, authRejected)
   return (
     <span
       role="status"

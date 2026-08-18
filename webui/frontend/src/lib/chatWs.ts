@@ -20,9 +20,10 @@
  *   3. stream chunk:     <div hx-swap-oob="beforeend:#message-response-<hex>">{chunk}</div>
  *   4. final message:    <div id="message-response-<hex>" hx-swap-oob="true" ...>{full text}</div>
  *
- * The consumer requires an authenticated Django session (it closes the
- * socket otherwise) and the server must run under ASGI with Channels for the
- * /ws/ route to exist at all.
+ * The consumer requires an authenticated Django **session cookie**
+ * (AuthMiddlewareStack). Settings API bearer tokens do not authenticate
+ * websockets. Anonymous connects are accept-then-closed with code 4401.
+ * The server must run under ASGI with Channels for the /ws/ route to exist.
  */
 
 export type ChatWsEvent =
