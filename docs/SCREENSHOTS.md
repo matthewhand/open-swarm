@@ -16,8 +16,8 @@ full-page PNGs.
 
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
-| `landing.png` | `/` (React SPA dashboard) | Counts 0/53/53; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; nav Home·Blueprints·Teams·Sessions·Settings (matches App.tsx) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
-| `spa-chat.png` | `/chat` (React SPA) | **Unavailable** / websocket failed gate + Sign in CTA; blueprint selector **not** in frame — same gate as `mobile/spa-chat.png` | GUIDED_TOUR.md | 2026-08-18 | current |
+| `landing.png` | `/` (React SPA dashboard) | Counts 0/55/55; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; desktop top nav Home·Blueprints·Teams·Sessions·Settings (matches App.tsx) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
+| `spa-chat.png` | `/chat` (React SPA) | **Connected** shell after journey login; blueprint selector + empty-state prompts (matches `mobile/spa-chat.png`) | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture + sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture + banner over Blueprint Library | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture + banner over Settings Dashboard | GUIDED_TOUR.md | 2026-08-18 | current |
@@ -43,21 +43,21 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 
 **Bottom nav honesty (as of these PNGs):**
 
-* **Django** operator pages and the **SPA** shell (`mobile/landing.png`,
-  `mobile/spa-chat.png`) use the same five-tab bar
-  **Home · Blueprints · Teams · Sessions · Settings** (matches App.tsx).
+* **SPA** shell (`mobile/landing.png`, `mobile/spa-chat.png`) dock is
+  **Home · Chat · Blueprints · Teams · Sessions** (matches App.tsx — Settings
+  is desktop top-nav / gear only, not in the SPA mobile dock).
+* **Django** operator pages keep **Home · Blueprints · Teams · Sessions ·
+  Settings** (no Chat tab; chat stays SPA-only).
 * Bare SPA paths still **redirect** to Django; `spa-*` redirect captures keep
-  the sticky “Redirected: …” banner over the Django landing (five-tab bar).
-* Desktop and mobile `spa-chat.png` both show the **Unavailable** /
-  websocket-failed gate with a Sign in link (`/accounts/login/`). A prior
-  mobile frame sometimes showed **Connected** when an older session cookie
-  survived; the current journey capture authenticates up front but the chat
-  WS still fails closed in this env, so both viewports match.
+  the sticky “Redirected: …” banner over the Django landing (Django five-tab).
+* Desktop and mobile `spa-chat.png` both show the **Connected** composer after
+  the journey script logs in as `journey-admin` (blueprint selector visible).
+  Anonymous / failed-WS frames are **not** what these PNGs show.
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **5-tab dock** Home · Blueprints · Teams · Sessions · Settings (Home active; matches App.tsx). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | **Unavailable** / websocket-failed gate + Sign in CTA (matches desktop); **5-tab dock** (Chat is SPA-only, not a dock tab) | 2026-08-18 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **SPA 5-tab dock** Home · Chat · Blueprints · Teams · Sessions (Home active; matches App.tsx). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector; **SPA 5-tab dock** with **Chat** active | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django **5-tab** bar (Teams active) | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Django **5-tab** (Settings active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |

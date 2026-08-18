@@ -50,36 +50,33 @@ replies, team launches) need an LLM profile configured (see
 ![SPA dashboard: live team/blueprint/model counts, quick actions, API reachable](./screenshots/landing.png)
 
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
-**53**, Models **53** (API listings — the Blueprint Library’s discoverable
+**55**, Models **55** (API listings — the Blueprint Library’s discoverable
 catalog count can differ). Desktop top nav: **Home · Blueprints · Teams ·
 Sessions · Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**,
 **Manage Teams**, **Settings**. Banner text points operators at Django
 trailing-slash paths for library, sessions, creators, and settings.
 Recaptured after `npm run build` on **2026-08-18**.
 
-![SPA dashboard (mobile): same counts; five-tab dock Home active](./screenshots/mobile/landing.png)
+![SPA dashboard (mobile): same counts; SPA dock Home · Chat · Blueprints · Teams · Sessions](./screenshots/mobile/landing.png)
 
-*Mobile twin (`screenshots/mobile/landing.png`): stacked cards and the same
-**five-tab dock** (Home · Blueprints · Teams · Sessions · Settings; Home
-active) as App.tsx.*
+*Mobile twin (`screenshots/mobile/landing.png`): stacked cards and the **SPA
+five-tab dock** (**Home · Chat · Blueprints · Teams · Sessions**; Home
+active) from App.tsx. Django operator pages still use Home · Blueprints ·
+Teams · Sessions · Settings — different chrome.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
 ### Chat — `/chat` (React SPA)
 
-![SPA chat: Unavailable / websocket-failed gate; Sign in CTA (no blueprint selector in this frame)](./screenshots/spa-chat.png)
+![SPA chat: Connected websocket shell with blueprint selector](./screenshots/spa-chat.png)
 
-*SPA websocket chat (`/ws/…`). This capture is the **Unavailable** /
-“Websocket connection failed” gate — authenticated session required
-(`/accounts/login/`), plus empty-state “Sign in if needed, then
-reconnect…”. The blueprint selector and Connected badge appear only after
-the websocket opens; they are **not** in this PNG. Desktop and mobile
-`spa-chat.png` match. Mobile dock is the **five-tab** bar (Home ·
-Blueprints · Teams · Sessions · Settings — Chat is SPA-only, not a dock
-tab). Replies also need a working LLM profile.*
+*SPA websocket chat (`/ws/…`). Journey capture logs in as `journey-admin`, so
+desktop and mobile `spa-chat.png` show the **Connected** shell with blueprint
+selector and empty-state prompts (not the anonymous Unavailable gate). Mobile
+dock is **Home · Chat · Blueprints · Teams · Sessions** with **Chat** active.
+Replies also need a working LLM profile.*
 
-**What you can do:** log in and reconnect so the chat shell (including the
-blueprint selector) appears, then stream replies. Prefer Django Team
+**What you can do:** pick a blueprint and stream replies. Prefer Django Team
 Launcher for scripted multi-agent runs.
 
 ### Bare SPA entry URLs (redirect to Django)
@@ -116,13 +113,14 @@ active).*
 
 ## 3. Django operator UI (canonical)
 
-Primary chrome for **Django** (and the rebuilt SPA desktop top nav / mobile
-dock): **Home · Blueprints · Teams · Sessions · Settings**, with GitHub under
-**More** on Django desktop only. Mobile **Django** and **SPA** captures under
-`screenshots/mobile/` (including `landing.png`, `spa-chat.png`,
-`spa-settings.png`, and the operator twins below) use that same five-tab
-bottom bar (matches App.tsx). After bare-path redirects, `spa-*` captures show
-the Django shell (five-tab) plus the sticky “Redirected: …” banner.
+Primary chrome for **Django** (and the SPA **desktop** top nav): **Home ·
+Blueprints · Teams · Sessions · Settings**, with GitHub under **More** on
+Django desktop only. The SPA **mobile** dock differs — **Home · Chat ·
+Blueprints · Teams · Sessions** (Chat instead of Settings; Settings stays on
+desktop top nav / gear). Mobile **Django** captures under `screenshots/mobile/`
+(operator twins + `spa-*` redirects) keep the Django five-tab bar. After
+bare-path redirects, `spa-*` captures show the Django shell plus the sticky
+“Redirected: …” banner.
 
 ### Login — `/accounts/login/`
 
