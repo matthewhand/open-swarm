@@ -1069,10 +1069,11 @@ def config_cmd(
             raise typer.Exit(code=1)
         removed = cfg.get(section, {}).pop(name, None)
         if removed is None:
-            typer.echo(f"'{name}' not found in {section}")
-        else:
-            cfg_path.write_text(_json.dumps(cfg, indent=2))
-            typer.echo(f"Removed '{name}' from {section}")
+            # Match delete/uninstall: missing target must fail the process.
+            typer.echo(f"'{name}' not found in {section}", err=True)
+            raise typer.Exit(code=1)
+        cfg_path.write_text(_json.dumps(cfg, indent=2))
+        typer.echo(f"Removed '{name}' from {section}")
     else:
         typer.echo(f"Unknown action '{action}'. Use: list, add, remove, init", err=True)
         raise typer.Exit(code=1)

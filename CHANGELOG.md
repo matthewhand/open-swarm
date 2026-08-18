@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - **Stewie nested Django leftovers:** delete broken `apps`/`models`/`serializers`/`views`/`urls`/`settings` that imported nonexistent `blueprints.chc` and were never on `INSTALLED_APPS`; keep `blueprint_stewie.py`
 
 ### Fixed
+- **`swarm-cli config remove` missing target:** exits **1** (stderr) when the profile/server name is absent (was exit **0** after printing “not found”), matching `delete`/`uninstall`
 - **Custom blueprint DELETE missing-id:** `DELETE /v1/blueprints/custom/<id>/` now returns **404** when the id is absent (was **204**), matching GET/PATCH on the same resource and DELETE on `/v1/library/` + `/v1/teams/`
 - **Blueprint discovery model-id pollution:** `metadata["name"]` display/class labels (e.g. `Chuck's Angels`, `ChatbotBlueprint`) are no longer registered as `/v1/models` ids; only programmatic slugs (`^[a-z0-9]+(?:[_-][a-z0-9]+)*$`) and explicit slug `aliases` become keys
 - **Agent Creator Pro retired:** `/agent-creator-pro/` redirects to `/agent-creator/`; dropdown nav link removed (was unwired clickware)
