@@ -1,9 +1,47 @@
 import argparse
+import re
 import shutil
 import zipfile
 from pathlib import Path
 
 from swarm.core import paths  # Assuming paths.py is accessible
+
+
+def _zip_member_destination(target_dir: Path, member: zipfile.ZipInfo) -> Path:
+    """
+    Resolve the extraction path for a zip member and ensure it stays under target_dir.
+
+    Rejects absolute paths and parent-directory references (Zip Slip).
+    """
+    name = member.filename
+    if not name or name.endswith("\x00") or "\x00" in name:
+        raise ValueError(f"Unsafe zip member path: {name!r}")
+
+    member_path = Path(name)
+    if member_path.is_absolute() or name.startswith(("/", "\\")) or ".." in member_path.parts:
+        raise ValueError(f"Unsafe zip member path: {name!r}")
+
+    # Windows-style absolute paths (e.g. C:\\...) on non-Windows hosts
+    if len(name) >= 2 and name[1] == ":" and name[0].isalpha():
+        raise ValueError(f"Unsafe zip member path: {name!r}")
+
+    dest = (target_dir / member_path).resolve()
+    target_resolved = target_dir.resolve()
+    try:
+        dest.relative_to(target_resolved)
+    except ValueError as exc:
+        raise ValueError(f"Zip member escapes target directory: {name!r}") from exc
+    return dest
+
+
+def _safe_extract_zip(zip_ref: zipfile.ZipFile, target_dir: Path) -> None:
+    """Extract zip members one-by-one after validating each path stays under target_dir."""
+    target_dir = target_dir.resolve()
+    members = zip_ref.infolist()
+    for member in members:
+        _zip_member_destination(target_dir, member)
+    for member in members:
+        zip_ref.extract(member, target_dir)
 
 
 def execute(args: argparse.Namespace):
@@ -26,8 +64,6 @@ def execute(args: argparse.Namespace):
     # If source_path is a file like 'my_bp.py', blueprint_name = 'my_bp'
     # If source_path is a dir like './my_blueprint_project', blueprint_name = 'my_blueprint_project'
     blueprint_name = source_path.stem if source_path.is_file() else source_path.name
-
-    import re
 
     # Validate blueprint_name for directory safety
     invalid_pattern = re.compile(r'[\\/:*?"<>|]')
@@ -68,21 +104,16 @@ def execute(args: argparse.Namespace):
             print(f"Blueprint directory '{source_path.name}' copied to '{target_blueprint_dir}'")
         elif source_path.is_file():
             if source_path.suffix == '.zip':
-                # Extract .zip file to target directory
+                # Extract .zip file to target directory (Zip Slip–safe)
                 target_blueprint_dir.mkdir(parents=True, exist_ok=True)
                 with zipfile.ZipFile(source_path, 'r') as zip_ref:
-                    zip_ref.extractall(target_blueprint_dir)
+                    _safe_extract_zip(zip_ref, target_blueprint_dir)
                 print(f"Blueprint archive '{source_path.name}' extracted to '{target_blueprint_dir}'")
             else:
                 # Handle other files (like .py)
                 target_blueprint_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_path, target_blueprint_dir / source_path.name)
                 print(f"Blueprint file '{source_path.name}' copied to '{target_blueprint_dir / source_path.name}'")
-        # elif source_path.is_file() and source_path.suffix == '.zip':
-        #     print(f"Extracting blueprint from zip file '{source_path.name}' to '{target_blueprint_dir}'")
-        #     target_blueprint_dir.mkdir(parents=True, exist_ok=True)
-        #     with zipfile.ZipFile(source_path, 'r') as zip_ref:
-        #         zip_ref.extractall(target_blueprint_dir)
         else:
             print(f"Error: Source path '{source_path}' is not a recognized type (directory, .py file). ZIP support pending.")
             return
