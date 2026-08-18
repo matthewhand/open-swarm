@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
 - **CLI MoA test XDG isolation:** `swarm-cli moa` subprocess dogfood tests pin `HOME` / `XDG_*` / `SWARM_USER_DATA_DIR` under a temp tree so host broken-cache layouts cannot break CI
 - **LoadingOverlay a11y:** `role="status"` instead of a fake modal without a focus trap
+- **Template XSS residual:** `onclick="fn('{{ … }}')"` JS-string breakout → `data-*` handlers (settings dashboard, blueprint cards / my blueprints)
 
 ## [0.5.4] — 2026-06-19
 
