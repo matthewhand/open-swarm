@@ -27,7 +27,7 @@
         {% if api_auth_enabled %}
         <div class="col-12">
           <label for="tokenInput" class="form-label">API Token (Bearer) — saved locally</label>
-          <input id="tokenInput" class="form-control" placeholder="Paste token for API auth" />
+          <input id="tokenInput" class="form-control" type="password" autocomplete="off" placeholder="Paste token for API auth" />
           <div class="form-text">Saved in browser localStorage as 'swarm_api_token'.</div>
         </div>
         {% endif %}
@@ -36,12 +36,12 @@
           <textarea id="instruction" class="form-control" rows="4" placeholder="Describe the task for the team…"></textarea>
         </div>
         <div class="col-12 d-flex align-items-center gap-2">
-          <button id="launchBtn" class="btn btn-primary">
-            <span class="launch-label"><i class="fas fa-rocket me-1"></i>Launch</span>
-            <span class="launch-spinner" style="display:none;"><i class="fas fa-spinner fa-spin me-1"></i>Launching…</span>
+          <button type="button" id="launchBtn" class="btn btn-primary">
+            <span class="launch-label"><i class="fas fa-rocket me-1" aria-hidden="true"></i>Launch</span>
+            <span class="launch-spinner" style="display:none;"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Launching…</span>
           </button>
-          <button id="clearBtn" class="btn btn-outline-secondary">Clear Output</button>
-          <span id="launchError" class="text-danger small ms-1" style="display:none;"></span>
+          <button type="button" id="clearBtn" class="btn btn-outline-secondary">Clear Output</button>
+          <span id="launchError" class="text-danger small ms-1" style="display:none;" role="alert"></span>
         </div>
       </div>
     </div>
@@ -52,11 +52,11 @@
     <div class="card-header d-flex align-items-center gap-2">
       <i class="fas fa-stream text-muted"></i>
       <span>Output</span>
-      <span id="streamStatus" class="os-chip ms-auto" style="display:none;"><span class="live-dot"></span>Streaming…</span>
+      <span id="streamStatus" class="os-chip ms-auto" style="display:none;" role="status"><span class="live-dot" aria-hidden="true"></span>Streaming…</span>
     </div>
     <div class="card-body p-0">
-      <div id="outputEmpty" class="os-empty">
-        <div class="os-empty-icon"><i class="fas fa-stream"></i></div>
+      <div id="outputEmpty" class="os-empty" role="status">
+        <div class="os-empty-icon" aria-hidden="true"><i class="fas fa-stream"></i></div>
         Output will stream here once you launch a team.
       </div>
       <pre id="output" class="mb-0 p-3" style="display:none; min-height: 220px; white-space: pre-wrap; overflow:auto; background: var(--os-well); border-radius: 0 0 var(--os-radius) var(--os-radius);"></pre>

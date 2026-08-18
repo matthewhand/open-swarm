@@ -16,7 +16,6 @@ def get_cache():
     returns a DummyCache instance.
     """
     try:
-        import django
         from django.conf import settings
         from django.core.cache import cache as django_cache
         from django.core.exceptions import ImproperlyConfigured

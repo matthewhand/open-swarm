@@ -19,17 +19,17 @@ def execute_command_safe(
 ) -> subprocess.CompletedProcess:
     """
     Execute a command safely without shell=True vulnerability.
-    
+
     Args:
         command: Command as list of arguments or string to parse
         timeout: Timeout in seconds
         capture_output: Capture stdout and stderr
         text: Return output as string (True) or bytes (False)
         check: Raise CalledProcessError if command fails
-        
+
     Returns:
         CompletedProcess with result
-        
+
     Raises:
         ValueError: If command is empty or invalid
         subprocess.TimeoutExpired: If command times out
@@ -73,16 +73,16 @@ def execute_command_with_fallback(
 ) -> Tuple[subprocess.CompletedProcess, bool]:
     """
     Execute command with fallback for compatibility.
-    
+
     Args:
         command: Command as list or string
         timeout: Timeout in seconds
         capture_output: Capture stdout and stderr
         text: Return output as string
-        
+
     Returns:
         Tuple of (result, used_fallback)
-        
+
     Note:
         First tries safe execution, falls back to shell=True only if necessary
         for compatibility with complex shell features (not recommended)
@@ -113,10 +113,10 @@ def execute_command_with_fallback(
 def validate_command_safety(command: List[str] | str) -> bool:
     """
     Validate command for security best practices.
-    
+
     Args:
         command: Command to validate
-        
+
     Returns:
         True if command appears safe, False if potential issues found
     """
@@ -152,10 +152,10 @@ def validate_command_safety(command: List[str] | str) -> bool:
 def sanitize_environment(env: Optional[dict] = None) -> dict:
     """
     Sanitize environment variables for subprocess execution.
-    
+
     Args:
         env: Optional environment dict to sanitize
-        
+
     Returns:
         Sanitized environment dictionary
     """
@@ -180,7 +180,7 @@ def sanitize_environment(env: Optional[dict] = None) -> dict:
 class SecureCommandExecutor:
     """
     Context manager for secure command execution.
-    
+
     Provides additional safety checks and logging.
     """
 

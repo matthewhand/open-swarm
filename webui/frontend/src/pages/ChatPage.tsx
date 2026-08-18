@@ -207,11 +207,10 @@ const ChatPage = () => {
                 <span
                   className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
                   data-tip="Sent with every message — the selected blueprint generates the reply. Choose “Server default model” to use the server-configured model instead."
+                  role="img"
+                  aria-label="Blueprint selection note"
                 >
-                  <Info
-                    className="h-3.5 w-3.5 opacity-60"
-                    aria-label="Blueprint selection note"
-                  />
+                  <Info className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
                 </span>
               </div>
               <select
@@ -255,12 +254,15 @@ const ChatPage = () => {
             <p className="text-sm">
               Live chat runs over the backend websocket (served by{' '}
               <code>manage.py runserver</code>, daphne or any ASGI server via{' '}
-              <code>swarm.asgi:application</code>), and the chat consumer only
-              accepts authenticated Django sessions. Your message history
-              above is kept; reconnect when the server is available.
+              <code>swarm.asgi:application</code>). The chat consumer only
+              accepts authenticated Django sessions — sign in via{' '}
+              <a href="/accounts/login/" className="link">
+                /accounts/login/
+              </a>
+              , then reconnect. Message history above is kept when present.
             </p>
             <Button size="sm" variant="ghost" onClick={reconnect}>
-              <RefreshCw className="h-4 w-4 mr-1" />
+              <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
               Reconnect
             </Button>
           </div>
@@ -278,7 +280,7 @@ const ChatPage = () => {
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <MessageSquare className="h-10 w-10 opacity-20" />
+              <MessageSquare className="h-10 w-10 opacity-20" aria-hidden="true" />
               <div>
                 <p className="font-medium text-base-content/70">
                   {status === 'open'
@@ -292,7 +294,7 @@ const ChatPage = () => {
                     ? 'Send a message below, or try one of these:'
                     : status === 'connecting'
                       ? 'Hang tight — this usually takes a moment.'
-                      : 'No messages yet — reconnect to start chatting.'}
+                      : 'Sign in if needed, then reconnect to start chatting.'}
                 </p>
               </div>
               {status === 'open' && (
@@ -360,7 +362,7 @@ const ChatPage = () => {
             {isStreaming ? (
               <LoadingSpinner size="sm" className="mr-1" />
             ) : (
-              <Send className="h-4 w-4 mr-1" />
+              <Send className="h-4 w-4 mr-1" aria-hidden="true" />
             )}
             Send
           </Button>
@@ -382,7 +384,7 @@ function ConnectionBadge({ status }: { status: ConnectionStatus }) {
     case 'open':
       return <Badge type="success">Connected</Badge>
     case 'closed':
-      return <Badge type="error">Disconnected</Badge>
+      return <Badge type="error">Disconnected — login required</Badge>
     case 'failed':
       return <Badge type="error">Unavailable</Badge>
   }

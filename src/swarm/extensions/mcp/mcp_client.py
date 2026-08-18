@@ -205,10 +205,10 @@ class MCPClient:
     async def get_resource(self, resource_uri: str) -> Any:
         """
         Retrieve a specific resource from the MCP server.
-        
+
         Args:
             resource_uri (str): The URI of the resource to retrieve.
-        
+
         Returns:
             Any: The resource retrieval response.
         """

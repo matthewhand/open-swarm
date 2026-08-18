@@ -66,13 +66,13 @@ Recaptured after `npm run build` on **2026-08-18**. Mobile
 ![SPA chat: disconnected websocket shell; login required; blueprint selector](./screenshots/spa-chat.png)
 
 *SPA websocket chat (`/ws/…`) with blueprint selector. **Desktop**
-`spa-chat.png` shows the anonymous/disconnected gate: “Disconnected — login
-required for websocket” and “Log in to send messages”. **Mobile**
-`screenshots/mobile/spa-chat.png` is a different frame: **Connected**
-composer with blueprint `django_chat` selected, and the **five-tab dock**
-(Home · Blueprints · Teams · Sessions · Settings; Chat is SPA-only, not a
-dock tab). The consumer rejects anonymous sessions; replies also need
-a working LLM profile.*
+`spa-chat.png` (anonymous capture) shows **Unavailable** / “Websocket
+connection failed” with copy that the consumer requires an authenticated
+Django session (`/accounts/login/`), plus empty-state “Sign in if needed,
+then reconnect…”. **Mobile** `screenshots/mobile/spa-chat.png` can differ
+(Connected composer when the session cookie survives); dock is the
+**five-tab** bar (Home · Blueprints · Teams · Sessions · Settings — Chat is
+SPA-only, not a dock tab). Replies also need a working LLM profile.*
 
 **What you can do:** log in, then pick a blueprint and stream replies. Prefer
 Django Team Launcher for scripted multi-agent runs.
