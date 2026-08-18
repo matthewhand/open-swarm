@@ -365,7 +365,45 @@ def print_operation_box(*args, **kwargs):
             from rich import box as rich_box
             console.print(Panel(box_content, title=title, style=style, box=rich_box.ROUNDED))
         else:
-            display_operation_box(*args, **kwargs)
+            # Map legacy kwargs (e.g. results=) to display_operation_box's signature.
+            mapped = dict(kwargs)
+            results = mapped.pop("results", None)
+            if results is not None and "content" not in mapped:
+                if isinstance(results, list):
+                    mapped["content"] = "\n".join(str(r) for r in results)
+                else:
+                    mapped["content"] = str(results)
+            for drop in (
+                "result_type",
+                "summary",
+                "operation_type",
+                "search_mode",
+                "border",
+                "op_start",
+            ):
+                mapped.pop(drop, None)
+            if len(args) >= 2:
+                display_operation_box(*args, **{
+                    k: v for k, v in mapped.items()
+                    if k in (
+                        "style", "result_count", "params", "op_type",
+                        "progress_line", "total_lines", "spinner_state", "emoji",
+                    )
+                })
+            else:
+                title = mapped.pop("title", None) or mapped.pop("op_type", None) or "Operation"
+                content = mapped.pop("content", "")
+                display_operation_box(
+                    title,
+                    content,
+                    **{
+                        k: v for k, v in mapped.items()
+                        if k in (
+                            "style", "result_count", "params", "op_type",
+                            "progress_line", "total_lines", "spinner_state", "emoji",
+                        )
+                    },
+                )
     except ImportError:
         # Fallback to basic print if operation_box_utils is not available
         print(f"Operation Box: {args[0] if args else 'No title'}")

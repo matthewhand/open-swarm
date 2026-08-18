@@ -66,7 +66,7 @@ class ChatbotBlueprint(BlueprintBase):
 
     """A simple conversational chatbot agent."""
     metadata: ClassVar[dict[str, Any]] = {
-        "name": "ChatbotBlueprint",
+        "name": "chatbot",
         "title": "Simple Chatbot",
         "description": "A basic conversational agent that responds to user input.",
         "version": "1.1.0", # Refactored version
@@ -216,13 +216,15 @@ Use them responsibly when the user asks for file or system operations.
         """Main execution entry point for the Chatbot blueprint."""
         from swarm.core.output_utils import print_search_progress_box
         logger.info("ChatbotBlueprint run method called.")
-        instruction = messages[-1].get("content", "") if messages else ""
+        raw = messages[-1].get("content", "") if messages else ""
+        instruction = raw.strip() if isinstance(raw, str) else raw
         if not instruction:
             border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
             spinner_state = "Generating..."
+            greeting = "Hello! How can I help you?"
             print_search_progress_box(
-                op_type="Chatbot Error",
-                results=["I need a user message to proceed."],
+                op_type="Chatbot Greeting",
+                results=[greeting],
                 params=None,
                 result_type="chat",
                 summary="No user message provided",
@@ -233,7 +235,7 @@ Use them responsibly when the user asks for file or system operations.
                 total_lines=None,
                 border=border
             )
-            yield {"messages": [{"role": "assistant", "content": "I need a user message to proceed."}]}
+            yield {"messages": [{"role": "assistant", "content": greeting}], "final": True}
             return
         border = '╔' if os.environ.get('SWARM_TEST_MODE') else None
         spinner_state = "Generating..."
@@ -255,7 +257,7 @@ Use them responsibly when the user asks for file or system operations.
                 next((m.get("content", "") for m in reversed(instruction) if m.get("role") == "user"), "")
                 if isinstance(instruction, list) else str(instruction)
             )
-            yield {"messages": [{"role": "assistant", "content": f"You said: {user_text}"}]}
+            yield {"messages": [{"role": "assistant", "content": f"You said: {user_text}"}], "final": True}
             return
         # Spinner/UX enhancement: cycle through spinner states and show 'Taking longer than expected' (with variety)
         spinner_states = [

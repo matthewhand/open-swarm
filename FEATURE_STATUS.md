@@ -102,7 +102,7 @@ names (Blueprint vs `/v1/teams` LLM-profile alias). Empty husk dirs (no
 
 | Feature | Status | Evidence |
 |---|---|---|
-| codey | ✅ | CLI (`codey --help`); command-injection fix `blueprint_codey.py` (`shlex.split`). Caveat: `pytest.ini` still `--ignore-glob tests/blueprints/test_codey_*.py` |
+| codey | ✅ | CLI (`codey --help`); command-injection fix `blueprint_codey.py` (`shlex.split`). `tests/blueprints/test_codey_basic.py` re-enabled (SWARM_TEST_MODE) |
 | suggestion | ✅ | CLI (`suggestion --help`); discoverable |
 | rue_code | ✅ | Discoverable; `tests/unit/blueprints/rue_code/test_rue_code_tools.py`; README + `rue_code_cli.py` |
 | stewie | ✅ | Discoverable; `tests/blueprints/test_stewie.py` + gap smoke; nested Django leftovers gone |
