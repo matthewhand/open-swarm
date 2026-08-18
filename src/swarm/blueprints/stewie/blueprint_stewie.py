@@ -58,44 +58,35 @@ brian_instructions = (
 
 # --- Define the Blueprint ---
 class StewieBlueprint(BlueprintBase):
-    def __init__(self, blueprint_id: str = "stewie", config=None, config_path=None, **kwargs):
-        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
-        self.blueprint_id = blueprint_id
-        self.config_path = config_path
-        self._config = config if config is not None else {}
-        self._llm_profile_name = None
-        self._llm_profile_data = None
-        self._markdown_output = None
-        # Add other attributes as needed for Stewie
-        # ...
+    """Manages WordPress content with a Stewie agent team using the `server-wp-mcp` server."""
 
-    def __init__(self, blueprint_id: str, config_path: Path | None = None, **kwargs):
-        import os
-        # Try to force config_path to the correct file if not set
-        if config_path is None:
-            # Try CWD first (containerized runs may mount config here)
-            cwd_path = os.path.abspath(os.path.join(os.getcwd(), 'swarm_config.json'))
+    def __init__(
+        self,
+        blueprint_id: str = "stewie",
+        config=None,
+        config_path: Path | None = None,
+        **kwargs,
+    ):
+        # Prefer an explicit in-memory config (tests / API); otherwise locate swarm_config.json.
+        if config is None and config_path is None:
+            cwd_path = os.path.abspath(os.path.join(os.getcwd(), "swarm_config.json"))
             if os.path.exists(cwd_path):
                 config_path = cwd_path
             else:
-                # Fallback to project root relative to blueprint
-                default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../swarm_config.json'))
+                default_path = os.path.abspath(
+                    os.path.join(os.path.dirname(__file__), "../../../../swarm_config.json")
+                )
                 if os.path.exists(default_path):
                     config_path = default_path
                 else:
-                    # Final fallback: try /mnt/models/open-swarm-mcp/swarm_config.json (where the file is present)
-                    mnt_path = '/mnt/models/open-swarm-mcp/swarm_config.json'
+                    mnt_path = "/mnt/models/open-swarm-mcp/swarm_config.json"
                     if os.path.exists(mnt_path):
                         config_path = mnt_path
-        super().__init__(blueprint_id, config_path=config_path, **kwargs)
-        # Force config reload using BlueprintBase fallback logic
-        # Patch: assign config to _config and always use self._config
-        self._config = self._load_configuration()
-        import pprint
-        print(f"[STEWIE DEBUG] Loaded config from: {config_path}")
-        pprint.pprint(self._config)
+        super().__init__(blueprint_id, config=config, config_path=config_path, **kwargs)
+        # Do not clobber a config the base already loaded (django_chat-style bug).
+        if self._config is None:
+            self._config = {}
 
-    """Manages WordPress content with a Stewie agent team using the `server-wp-mcp` server."""
     metadata: ClassVar[dict[str, Any]] = {
         "name": "StewieBlueprint", # Standardized name
         "title": "Stewie / ChaosCrew WP Manager",
@@ -121,15 +112,26 @@ class StewieBlueprint(BlueprintBase):
         logger.debug(f"Creating new Model instance for profile '{profile_name}'.")
         # Try both config styles: llm[profile_name] and llm['profiles'][profile_name]
         profile_data = None
-        llm_config = self._config.get("llm", {})
+        llm_config = self._config.get("llm", {}) or {}
         logger.debug(f"[STEWIE DEBUG] llm config keys: {list(llm_config.keys())}")
-        if "profiles" in llm_config:
+        if "profiles" in llm_config and isinstance(llm_config["profiles"], dict):
             profile_data = llm_config["profiles"].get(profile_name)
         if not profile_data:
-            profile_data = llm_config.get(profile_name)
-        if not profile_data:
-            # Try fallback to default
+            profile_data = llm_config.get(profile_name) if profile_name != "profiles" else None
+        if not profile_data and profile_name and profile_name != "default":
+            # Named miss: warn then fall back to default (CONFIGURATION.md)
+            nested = llm_config.get("profiles") if isinstance(llm_config.get("profiles"), dict) else {}
+            available = [k for k in list(llm_config.keys()) + list(nested.keys()) if k != "profiles"]
+            logger.warning(
+                "LLM profile %r not found in config; falling back to 'default'. Available: %s",
+                profile_name,
+                available,
+            )
+            profile_data = llm_config.get("default") or nested.get("default")
+        elif not profile_data:
             profile_data = llm_config.get("default")
+            if not profile_data and isinstance(llm_config.get("profiles"), dict):
+                profile_data = llm_config["profiles"].get("default")
         if not profile_data:
             logger.critical(f"LLM profile '{profile_name}' (or 'default') not found in config. llm_config keys: {list(llm_config.keys())}")
             raise ValueError(f"Missing LLM profile configuration for '{profile_name}' or 'default'.")

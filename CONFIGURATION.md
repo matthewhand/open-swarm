@@ -105,7 +105,8 @@ directory search for a project-local `swarm_config.json`.)
 - **MCP Servers:** The `mcpServers` section defines available MCP servers, their endpoints, and credentials.
 - **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 - **Fallbacks:**
-  - If a requested model is not configured, the system falls back to the default and prints a warning.
+  - If a **named** model/profile is requested and missing, the system logs a **warning** and falls back to `settings.default_llm_profile` (else `default`). This is never silent.
+  - Unspecified profile (no name requested) quietly uses the documented default chain — that quiet path is intentional.
   - If config is missing, a default config is generated (uses OpenAI endpoint).
 
 ---
@@ -114,11 +115,14 @@ directory search for a project-local `swarm_config.json`.)
 
 1. **Locate and load** `swarm_config.json` (prefer XDG, fallback to cwd/project).
 2. **Substitute environment variables** for any `${...}` values.
-3. **Select the active LLM profile** from `settings.default_llm_profile`, unless overridden by a blueprint or CLI argument.
+3. **Select the active LLM profile** from `settings.default_llm_profile`, unless overridden by a blueprint (`llm_profile` / `default_model`) or CLI/`DEFAULT_LLM`.
 4. **Blueprints:**
-    - Use their own `default_model` if set in config.
+    - Use their own `default_model` / `llm_profile` if set in config.
     - May specify a model per agent/task within their own logic.
-5. **If a requested model/profile is missing,** fall back to the default and print a warning.
+5. **If a requested model/profile is missing:**
+    - Resolution (`_resolve_llm_profile` / runtime): **warning** + fall back to `settings.default_llm_profile` or `default`.
+    - Active profile property (`BlueprintBase.llm_profile`): **raises** a clear error (fail-loud for callers that need a real profile).
+    - Optional lookup (`get_llm_profile(name)`): **warning** + empty dict `{}`.
 
 ---
 
@@ -154,7 +158,7 @@ masks any value whose **key** matches a sensitive name (e.g. `api_key`,
 ## 7. Troubleshooting
 
 - **Missing config:** Default file is generated, warning printed.
-- **Missing model:** Fallback to default, warning printed.
+- **Missing / typo model profile:** Warning printed, then fallback to `settings.default_llm_profile` or `default` (check logs for `LLM profile '…' not found`). The `llm_profile` property raises instead of returning empty data.
 - **Missing API key:** Error raised if not found after env substitution.
 - **Cost not shown:** Add `pricing` section to the model profile.
 

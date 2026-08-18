@@ -304,9 +304,19 @@ def load_full_configuration(
         logger.debug(f"Merged BP '{blueprint_class_name}' settings. Keys: {list(blueprint_settings.keys())}")
 
     # 4. Determine and merge profile settings
-    # Priority: CLI > Blueprint Specific > Base Defaults > "default"
-    profile_in_bp_settings = blueprint_settings.get("default_profile")
-    profile_in_base_defaults = base_config.get("defaults", {}).get("default_profile")
+    # Priority: CLI > Blueprint Specific > Base Defaults / settings > "default"
+    # Honor documented default_model / llm_profile aliases, not only default_profile.
+    profile_in_bp_settings = (
+        blueprint_settings.get("default_profile")
+        or blueprint_settings.get("default_model")
+        or blueprint_settings.get("llm_profile")
+    )
+    settings_block = base_config.get("settings") or {}
+    profile_in_base_defaults = (
+        base_config.get("defaults", {}).get("default_profile")
+        or (settings_block.get("default_llm_profile") if isinstance(settings_block, dict) else None)
+        or (settings_block.get("default_llm") if isinstance(settings_block, dict) else None)
+    )
     profile_to_use = profile_override or profile_in_bp_settings or profile_in_base_defaults or "default"
     logger.debug(f"Using profile: '{profile_to_use}'")
     profile_settings = base_config.get("profiles", {}).get(profile_to_use, {})
@@ -314,7 +324,23 @@ def load_full_configuration(
         final_config.update(profile_settings)
         logger.debug(f"Merged profile '{profile_to_use}'. Keys: {list(profile_settings.keys())}")
     elif profile_to_use != "default" and (profile_override or profile_in_bp_settings or profile_in_base_defaults):
-        logger.warning(f"Profile '{profile_to_use}' requested but not found.")
+        # Runtime named profiles (legacy `profiles` map) and llm profile ids both
+        # count; warn whenever the requested name is unknown in either place.
+        llm_section = base_config.get("llm") or {}
+        llm_known = profile_to_use in llm_section or (
+            isinstance(llm_section.get("profiles"), dict)
+            and profile_to_use in llm_section["profiles"]
+        )
+        if not llm_known:
+            logger.warning(
+                "Profile %r requested but not found in profiles/llm; falling back without profile overlay.",
+                profile_to_use,
+            )
+        else:
+            logger.debug(
+                "Profile %r is an llm profile id (no legacy profiles overlay).",
+                profile_to_use,
+            )
 
     # 5. Merge CLI overrides (highest priority)
     if cli_config_overrides:

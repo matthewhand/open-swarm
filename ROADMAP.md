@@ -291,10 +291,11 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 ### 4.7 API + tests
 - [x] **`/v1/responses` trailing-slash twins** — `…/responses/`, detail, and cancel
   now resolve (same pattern as `/v1/blueprints` / `/v1/teams`).
-- [ ] **Silent model fallback** — unknown `default_model` silently uses `default`
-  (`config_loader.py:303-304`, DEBUG-only log). Warn or 400.
-  *(Note: missing named profiles already `logger.warning` in*
-  *`load_configuration_and_prepare` / `get_resolved_llm_profile`.)*
+- [x] **Silent model fallback** — unknown `default_model` / named profile silently
+  used `default` or `{}`. Now honors `blueprints[].default_model` /
+  `settings.default_llm_profile`, warns on miss (Stewie + `get_llm_profile` +
+  resolve path); `llm_profile` property stays fail-loud
+  (`tests/core/test_fallback_to_default_model.py`, stewie / blueprint_base tests).
 - [x] **`/v1/teams/` honesty** — documented as LLM-profile alias registry
   (`id`/`description`/`llm_profile`), not a multi-agent team builder (OpenAPI +
   module docstring + FEATURE_STATUS).

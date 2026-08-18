@@ -44,3 +44,39 @@ async def test_test_mode_echoes_instruction():
     assert "[TEST-MODE]" in text
     assert "ping" in text
     assert "Stewie" in text or "deuce" in text.lower()
+
+
+def test_unknown_llm_profile_warns_then_falls_back(monkeypatch):
+    """Named miss must warn (not silent {}); default profile still used."""
+    import logging
+    from unittest.mock import MagicMock, patch
+
+    config = {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": "gpt-mock",
+                "api_key": "k",
+            }
+        },
+        "llm_profile": "default",
+    }
+    bp = StewieBlueprint(blueprint_id="stewie", config=config)
+    warned: list[str] = []
+    original = logging.Logger.warning
+
+    def _capture(self, msg, *args, **kwargs):
+        warned.append(msg % args if args else str(msg))
+        return original(self, msg, *args, **kwargs)
+
+    monkeypatch.setattr(logging.Logger, "warning", _capture)
+    with patch(
+        "swarm.blueprints.stewie.blueprint_stewie.OpenAIChatCompletionsModel",
+        return_value=MagicMock(name="model"),
+    ), patch(
+        "swarm.blueprints.stewie.blueprint_stewie.AsyncOpenAI",
+        return_value=MagicMock(name="client"),
+    ):
+        model = bp._get_model_instance("not-a-real-profile")
+    assert model is not None
+    assert any("not-a-real-profile" in w and "falling back" in w.lower() for w in warned)

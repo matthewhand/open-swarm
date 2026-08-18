@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Silent LLM profile fallback:** honor `blueprints[].default_model` / `settings.default_llm_profile`; **warn** (never silent) when a requested profile is missing, then fall back. `get_llm_profile` and Stewie warn on named misses; `llm_profile` stays fail-loud. Docs aligned in CONFIGURATION.md.
+
+
 ### Added
 - **Pure MoA team path (no openai-agents):** `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; INFO logs on `moa.collect` / `moa.team` (champagne trace)
 - **`swarm-cli moa --team --workdir`**: consensus then scripted specialists (`--team-tasks`, `-v` INFO logs); mutually exclusive with `--act`

@@ -96,16 +96,31 @@ class TestBlueprintBase(TestCase):
 
     def test_llm_profile_resolution_explicit(self):
         """Test LLM profile resolution with explicit profile"""
-        config = self.test_config.copy()
-        config['llm_profile'] = 'custom'
+        config = {
+            'llm': {
+                'default': self.test_config['llm']['default'],
+                'custom': {'provider': 'openai', 'model': 'gpt-4', 'api_key': 'k'},
+            },
+            'settings': self.test_config['settings'],
+            'blueprints': {},
+            'llm_profile': 'custom',
+        }
         blueprint = ConcreteBlueprint(self.blueprint_id, config=config)
         profile_name = blueprint._resolve_llm_profile()
         assert profile_name == 'custom'
 
     def test_llm_profile_resolution_programmatic_override(self):
         """Test LLM profile resolution with programmatic override"""
-        blueprint = ConcreteBlueprint(self.blueprint_id, config=self.test_config)
-        blueprint._llm_profile_name = 'override'
+        config = {
+            'llm': {
+                'default': self.test_config['llm']['default'],
+                'override': {'provider': 'openai', 'model': 'gpt-4', 'api_key': 'k'},
+            },
+            'settings': self.test_config['settings'],
+            'blueprints': {},
+        }
+        blueprint = ConcreteBlueprint(self.blueprint_id, config=config)
+        blueprint.llm_profile_name = 'override'
         profile_name = blueprint._resolve_llm_profile()
         assert profile_name == 'override'
 
@@ -166,6 +181,23 @@ class TestBlueprintBase(TestCase):
         blueprint = ConcreteBlueprint(self.blueprint_id, config=self.test_config)
         profile = blueprint.get_llm_profile('nonexistent')
         assert profile == {}
+
+    def test_get_llm_profile_missing_name_warns(self):
+        """Named miss must warn (CONFIGURATION.md); still returns {} for optional lookup."""
+        import logging
+
+        blueprint = ConcreteBlueprint(self.blueprint_id, config=self.test_config)
+        warned: list[str] = []
+        original = logging.Logger.warning
+
+        def _capture(self, msg, *args, **kwargs):
+            warned.append(msg % args if args else str(msg))
+            return original(self, msg, *args, **kwargs)
+
+        with patch.object(logging.Logger, "warning", _capture):
+            profile = blueprint.get_llm_profile("typo-profile")
+        assert profile == {}
+        assert any("typo-profile" in w and "not found" in w.lower() for w in warned)
 
     def test_should_output_markdown_blueprint_specific(self):
         """Test should_output_markdown with blueprint-specific setting"""
