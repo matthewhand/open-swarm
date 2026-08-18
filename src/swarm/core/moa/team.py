@@ -509,7 +509,7 @@ def validate_team_payload(
         issues.append("moa must be dict")
     else:
         # Soft check: nested keys should be a subset of known CLI shape.
-        unknown = set(moa.keys()) - MOA_NESTED_PAYLOAD_KEYS
+        _unknown = set(moa.keys()) - MOA_NESTED_PAYLOAD_KEYS
         # Allow extra nested keys without failing (forward-compat); only types matter.
         det = moa.get("determination")
         if det is not None and not isinstance(det, dict):

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, PlusCircle } from 'lucide-react'
+import { Home, Settings, Bot, Book, Users, PlusCircle, History } from 'lucide-react'
 import { Button, Card, Alert, Badge } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
@@ -77,7 +77,7 @@ function App() {
           <MobileTab to="/" icon={<Home className="h-5 w-5" />} label="Home" />
           <MobileTab href="/blueprint-library/" icon={<Book className="h-5 w-5" />} label="Blueprints" />
           <MobileTab href="/teams/launch/" icon={<Users className="h-5 w-5" />} label="Teams" />
-          <MobileTab href="/sessions/" icon={<PlusCircle className="h-5 w-5" />} label="Sessions" />
+          <MobileTab href="/sessions/" icon={<History className="h-5 w-5" />} label="Sessions" />
           <MobileTab href="/settings/" icon={<Settings className="h-5 w-5" />} label="Settings" />
         </nav>
       </div>
