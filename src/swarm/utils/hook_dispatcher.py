@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 
 class Hook(Protocol):
@@ -54,7 +57,7 @@ class Dispatcher:
         self._run_phase(self.post_hooks, context, "post")
 
     # Internal helpers
-    def _run_phase(self, hooks: list[Hook], ctx: dict, _phase: str) -> None:
+    def _run_phase(self, hooks: list[Hook], ctx: dict, phase: str) -> None:
         # Insertion order is deterministic in Python 3.7+, so we only need to support
         # potential future variations; we keep the toggle for clarity and tests.
         ordered = list(hooks)
@@ -67,8 +70,8 @@ class Dispatcher:
             try:
                 fn(ctx)
             except Exception:
-                # Hooks should not crash the dispatcher; swallow to keep pipeline robust.
-                # If desired, integrate logging here.
+                # Hooks must not crash the dispatcher; log and continue.
+                logger.exception("Hook %r failed during %s phase", fn, phase)
                 continue
 
 
