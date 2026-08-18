@@ -1,0 +1,97 @@
+{% load static %}
+<div class="settings-dialog" id="settingsDialog">
+    <button type="button" class="dialog-close-btn" id="closeSettingsDialog">
+        <img src="{% static 'rest_mode/svg/close.svg' %}" alt="Close Settings Dialog">
+    </button>
+    <div class="settings-container scrollable-container">
+        <h2>⚙️ Settings</h2>
+
+        <!-- User Interface Section -->
+        <div class="settings-container-section">
+            <h3 id="uiConfigToggle" class="collapsible-toggle">🖌️ User Interface <span>▼</span></h3>
+            <div id="uiConfiguration" class="collapsible-content hidden">
+                <!-- Dark Mode -->
+                <div class="toggle-title">
+                    <label for="darkModeToggle">🌙 Dark Mode:</label>
+                    <div id="darkModeToggle" class="svg-toggle" data-state="off">
+                        <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                    </div>
+                </div>
+
+                <!-- Colour -->
+                <div class="theme-dropdown">
+                    <label for="colorSelect">🎨&nbsp;Colour:</label><select id="colorSelect">
+                        <option value="corporate">Corporate</option>
+                        <option value="pastel">Pastel</option>
+                        <option value="tropical">Tropical</option>
+                    </select>
+                </div>
+
+                <!-- Layout -->
+                <div class="theme-dropdown">
+                    <label for="layoutSelect">🖥️&nbsp;Layout:</label>
+                    <select id="layoutSelect">
+                        <option value="messenger-layout">Messenger</option>
+                        <option value="mobile-layout">Mobile</option>
+                        <option value="minimalist-layout">Minimalist</option>
+                    </select>
+                </div>
+
+                <!-- Mobile UI Master Toggle -->
+                <div class="settings-container-section">
+                    <h4 id="mobileUIToggleTitle" class="collapsible-toggle">📱 Mobile UI <span>▼</span></h4>
+                    <div id="mobileUIConfiguration" class="collapsible-content hidden">
+                        <!-- Master Toggle -->
+                        <div class="toggle-title">
+                            <label for="mobileUIToggle">Enable Mobile UI:</label>
+                            <div id="mobileUIToggle" class="svg-toggle" data-state="off">
+                                <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                            </div>
+                        </div>
+                        <!-- Nested Toggles -->
+                        <div id="mobileUIOptions" class="nested-container">
+                            <div class="nested-toggle">
+                                <label for="alwaysVisibleButtonsToggle">Always Visible Buttons:</label>
+                                <div id="alwaysVisibleButtonsToggle" class="svg-toggle" data-state="off">
+                                    <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                                </div>
+                            </div>
+                            <div class="nested-toggle">
+                                <label for="revealTopBarToggle">Reveal Top Bar When Up Scroll:</label>
+                                <div id="revealTopBarToggle" class="svg-toggle" data-state="off">
+                                    <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                                </div>
+                            </div>
+                            <div class="nested-toggle">
+                                <label for="swipeLeftSettingsToggle">Swipe Left for Settings:</label>
+                                <div id="swipeLeftSettingsToggle" class="svg-toggle" data-state="off">
+                                    <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                                </div>
+                            </div>
+                            <div class="nested-toggle">
+                                <label for="swipeRightChatHistoryToggle">Swipe Right for Chat History:</label>
+                                <div id="swipeRightChatHistoryToggle" class="svg-toggle" data-state="off">
+                                    <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                                </div>
+                            </div>
+                            <div class="nested-toggle">
+                                <label for="swipeDownControlsToggle">Swipe Down for Controls:</label>
+                                <div id="swipeDownControlsToggle" class="svg-toggle" data-state="off">
+                                    <img src="{% static 'rest_mode/svg/toggle_off.svg' %}" alt="Toggle Off">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LLM Configuration -->
+        <div class="settings-container-section">
+            <h3 id="llmConfigToggle" class="collapsible-toggle">🧠 LLM Configuration <span>▼</span></h3>
+            <div id="llmConfiguration" class="collapsible-content hidden">
+                <p>Loading LLM configurations...</p>
+            </div>
+        </div>
+    </div>
+</div>

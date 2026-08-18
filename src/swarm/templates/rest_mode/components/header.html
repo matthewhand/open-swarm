@@ -1,0 +1,45 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Open-Swarm Chat</title>
+
+    <!-- CSRF Token -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+
+    <!-- Base CSS -->
+    <link rel="stylesheet" href="{% static 'rest_mode/css/base.css' %}">
+    <link id="colorThemeLink" rel="stylesheet" href="{% static 'rest_mode/css/colors/corporate.css' %}">
+    <link id="layoutThemeLink" rel="stylesheet" href="{% static 'rest_mode/css/layouts/messenger-layout.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/chat-history.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/chat.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/general.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/messages.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_mode/css/settings.css' %}">
+
+    <!-- Inline Script to Apply Settings from localStorage -->
+    <script>
+        (function () {
+            // Default values
+            const defaultSettings = {
+                colorTheme: 'corporate',
+                layoutTheme: 'messenger-layout',
+                darkMode: true,
+                mobileLayout: false
+            };
+
+            // Load settings from localStorage or use defaults
+            const colorTheme = localStorage.getItem('selectedColor') || defaultSettings.colorTheme;
+            const layoutTheme = localStorage.getItem('selectedLayout') || defaultSettings.layoutTheme;
+            const darkMode = localStorage.getItem('darkMode') === 'true' || defaultSettings.darkMode;
+
+            // Apply settings
+            document.documentElement.setAttribute('data-theme-color', colorTheme);
+            document.documentElement.setAttribute('data-theme-layout', layoutTheme);
+            document.documentElement.setAttribute('data-theme-dark', darkMode);
+        })();
+    </script>
+</head>

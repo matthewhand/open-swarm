@@ -1,0 +1,30 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include 'rest_mode/components/header.html' %}
+    <link rel="stylesheet" href="{% static 'rest_mode/css/slack.css' %}">
+    <script>
+        window.STATIC_URLS = {
+            layoutSidebarLeftExpand: "{% static 'contrib/tabler-icons/layout-sidebar-left-expand.svg' %}",
+            layoutSidebarLeftCollapse: "{% static 'contrib/tabler-icons/layout-sidebar-left-collapse.svg' %}"
+        };
+    </script>
+</head>
+<body>
+    {% include 'rest_mode/components/top_bar.html' %}
+    <div class="container" data-theme-color="corporate" data-theme-dark="false" data-theme-layout="slack-layout">
+        <div class="side-panes channel-pane" id="channelPane">
+            <h2>Channels</h2>
+            <ul id="channelList" class="channel-list"></ul>
+        </div>
+        <div class="vertical-divider" id="divider-left"></div>
+        <div class="main-pane">
+            {% include 'rest_mode/components/main_chat_pane.html' %}
+        </div>
+        <div id="toastContainer"></div>
+    </div>
+    <script type="module" src="{% static 'contrib/markedjs/marked.min.js' %}"></script>
+    <script type="module" src="{% static 'rest_mode/js/slackLogic.js' %}" defer></script>
+</body>
+</html>
