@@ -8,6 +8,8 @@ rather than a mock.
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
 import sys
 import time
 
@@ -427,3 +429,47 @@ async def test_stream_run_json_parse_streams_raw_but_parses_final():
     deltas, result = await _collect_stream(adapter)
     assert result.ok and result.text == "deep"  # final value is parsed
     assert "deep" in "".join(deltas)  # deltas are the raw JSON document
+
+
+async def test_stream_run_early_aclose_terminates_child(tmp_path):
+    """Breaking out of async for (aclose) must kill the CLI process group."""
+    pidfile = tmp_path / "child.pid"
+    # Write pid, emit one line, then hang — simulates a long-running agent CLI.
+    code = (
+        "import os, sys, time\n"
+        f"open({str(pidfile)!r}, 'w').write(str(os.getpid()))\n"
+        "sys.stdout.write('ping\\n'); sys.stdout.flush()\n"
+        "time.sleep(60)\n"
+    )
+    adapter = CliAdapter.from_config(
+        "slow", {"cmd": [PY, "-c", code, "{prompt}"], "timeout": 120.0}
+    )
+    gen = adapter.stream_run("x")
+    first = await gen.__anext__()
+    assert first.delta and "ping" in first.delta
+
+    pid = None
+    for _ in range(50):
+        if pidfile.exists():
+            raw = pidfile.read_text().strip()
+            if raw.isdigit():
+                pid = int(raw)
+                break
+        await asyncio.sleep(0.05)
+    assert pid is not None, "child never wrote its pid"
+    os.kill(pid, 0)  # still alive before cancel
+
+    await gen.aclose()
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        await asyncio.sleep(0.05)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    pytest.fail(f"child pid={pid} still alive after stream_run.aclose()")

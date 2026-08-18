@@ -12,7 +12,7 @@ Design notes
   argument or on stdin, so there is no shell-injection surface.
 * **Lifecycle.** Every launch runs in its own process *session*
   (``start_new_session=True``) so a hung or runaway agent — and any children it
-  spawned — can be killed as a group on timeout.
+  spawned — can be killed as a group on timeout, ``aclose``, or cancel.
 * **Config-driven.** Adapters are described as plain dicts (see
   :meth:`CliAdapter.from_config`) so adding a new CLI is a config edit, not code.
 """
@@ -401,75 +401,89 @@ class CliAdapter:
         timed_out = False
         deadline = start + cfg.timeout
         assert proc.stdout is not None
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                timed_out = True
-                break
-            try:
-                blob = await asyncio.wait_for(proc.stdout.read(4096), timeout=remaining)
-            except asyncio.TimeoutError:
-                timed_out = True
-                break
-            if not blob:  # EOF
-                break
-            text = decoder.decode(blob)
-            if text:
-                out_parts.append(text)
-                yield CliStreamChunk(delta=text)
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    break
+                try:
+                    blob = await asyncio.wait_for(proc.stdout.read(4096), timeout=remaining)
+                except asyncio.TimeoutError:
+                    timed_out = True
+                    break
+                if not blob:  # EOF
+                    break
+                text = decoder.decode(blob)
+                if text:
+                    out_parts.append(text)
+                    yield CliStreamChunk(delta=text)
 
-        tail = decoder.decode(b"", final=True)
-        if tail:
-            out_parts.append(tail)
-            yield CliStreamChunk(delta=tail)
+            tail = decoder.decode(b"", final=True)
+            if tail:
+                out_parts.append(tail)
+                yield CliStreamChunk(delta=tail)
 
-        duration = time.monotonic() - start
-        stdout = "".join(out_parts)
+            duration = time.monotonic() - start
+            stdout = "".join(out_parts)
 
-        if timed_out:
-            await self._terminate(proc)
-            stderr_task.cancel()
+            if timed_out:
+                await self._terminate(proc)
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
+                stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
+                yield CliStreamChunk(
+                    final=True,
+                    result=CliResult(
+                        name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                        duration=duration, timed_out=True, stderr=stderr.strip(),
+                        error=f"timed out after {cfg.timeout}s",
+                    ),
+                )
+                return
+
+            await proc.wait()
             try:
                 await stderr_task
             except asyncio.CancelledError:
                 pass
             stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
+
+            if proc.returncode != 0:
+                yield CliStreamChunk(
+                    final=True,
+                    result=CliResult(
+                        name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                        duration=duration, stderr=stderr.strip(),
+                        error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
+                    ),
+                )
+                return
+
+            text, parse_error = self._parse_output(stdout)
             yield CliStreamChunk(
                 final=True,
                 result=CliResult(
-                    name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                    duration=duration, timed_out=True, stderr=stderr.strip(),
-                    error=f"timed out after {cfg.timeout}s",
+                    name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
+                    parse_error=parse_error, stderr=stderr.strip(),
                 ),
             )
-            return
-
-        await proc.wait()
-        try:
-            await stderr_task
-        except asyncio.CancelledError:
-            pass
-        stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
-
-        if proc.returncode != 0:
-            yield CliStreamChunk(
-                final=True,
-                result=CliResult(
-                    name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                    duration=duration, stderr=stderr.strip(),
-                    error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
-                ),
-            )
-            return
-
-        text, parse_error = self._parse_output(stdout)
-        yield CliStreamChunk(
-            final=True,
-            result=CliResult(
-                name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
-                parse_error=parse_error, stderr=stderr.strip(),
-            ),
-        )
+        finally:
+            # SSE disconnect / aclose / CancelledError — same path as timeout.
+            # shield so a cancel during cleanup still lets killpg + wait finish.
+            try:
+                await asyncio.shield(self._terminate(proc))
+            except asyncio.CancelledError:
+                pass
+            if not stderr_task.done():
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
 
     # Always-passed vars so a locked-down CLI can still run and resolve itself.
     _ESSENTIAL_ENV = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM")

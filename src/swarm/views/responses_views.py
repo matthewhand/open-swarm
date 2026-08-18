@@ -427,6 +427,7 @@ class ResponsesView(APIView):
         async def event_stream():
             full_text_parts: list[str] = []
             backend_meta = None
+            async_generator = None
             try:
                 async_generator = blueprint_instance.run(messages, stream=True)
                 async for chunk in async_generator:
@@ -465,6 +466,14 @@ class ResponsesView(APIView):
                 }
                 yield f"data: {json.dumps(error_event)}\n\n"
                 yield "data: [DONE]\n\n"
+            finally:
+                # Client disconnect / aclose — push GeneratorExit into blueprint so
+                # CliAdapter.stream_run can _terminate orphaned CLI subprocesses.
+                if async_generator is not None and hasattr(async_generator, "aclose"):
+                    try:
+                        await async_generator.aclose()
+                    except Exception:
+                        pass
 
         return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
 

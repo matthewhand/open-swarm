@@ -238,6 +238,7 @@ class ChatCompletionsView(APIView):
             start_time = time.time()
             chunk_index = 0
             backend_meta = None
+            async_generator = None
             try:
                 logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()...")
                 async_generator = blueprint_instance.run(messages, stream=True)
@@ -273,6 +274,14 @@ class ChatCompletionsView(APIView):
                 error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
                 yield f"data: {json.dumps(error_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
+            finally:
+                # Client disconnect / aclose — push GeneratorExit into blueprint so
+                # CliAdapter.stream_run can _terminate orphaned CLI subprocesses.
+                if async_generator is not None and hasattr(async_generator, "aclose"):
+                    try:
+                        await async_generator.aclose()
+                    except Exception:
+                        pass
         return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
 
     # --- Restore Custom dispatch method (wrapping perform_authentication) ---
