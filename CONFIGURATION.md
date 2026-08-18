@@ -36,7 +36,9 @@ directory search for a project-local `swarm_config.json`.)
 
 > Paths and all environment variables (`SWARM_CONFIG_PATH`, `SWARM_RESPONSES_DIR`,
 > server/auth/feature flags, provider keys) are consolidated in one place:
-> **[Environment Variables](#environment-variables)** below.
+> **[Environment Variables](#environment-variables)** below. Auth & trust model
+> (Bearer vs session, WS, Explorer bridge, workdir, blueprint sandbox):
+> **[docs/AUTH.md](./docs/AUTH.md)**.
 
 ---
 
@@ -137,6 +139,10 @@ directory search for a project-local `swarm_config.json`.)
 ---
 
 ## 6. Security & Redaction
+
+Operator-facing auth/trust (API Bearer, Django session, websockets, Session
+Explorer bridge, workdir confinement, user-blueprint AST sandbox, CSRF / no
+CSP) is documented in **[docs/AUTH.md](./docs/AUTH.md)**.
 
 - All sensitive config values (API keys, tokens) are redacted in logs.
 - Never log full secrets.
@@ -257,7 +263,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `XDG_DATA_HOME` | Base for state data (responses store). | `~/.local/share` |
 | `SWARM_WORKSPACES_DIR` / `WORKSPACES_DIR` | Root for per-request `params.workdir` / `params.cwd` and `swarm-cli moa --workdir` / `--cwd`. Relative paths resolve here; absolute paths outside this root are rejected unless unrestricted (below). | `$XDG_DATA_HOME/…/swarm/workspaces` (via `SWARM_USER_DATA_DIR` / platformdirs) |
 | `ALLOW_UNRESTRICTED_WORKDIR` | When `true`/`1`/`yes`, allow absolute workdirs outside `SWARM_WORKSPACES_DIR` (local CLI power users writing under `/tmp/…` or a repo checkout). Keep **off** for API servers. | `false` |
-| `SWARM_BLUEPRINT_PATHS` | Extra blueprint roots scanned **in addition** to the bundled set (os.pathsep-separated). The user data blueprints dir (`$XDG_DATA_HOME/swarm/blueprints`) is always scanned too. Bundled blueprints win on name collision. | unset |
+| `SWARM_BLUEPRINT_PATHS` | Extra blueprint roots scanned **in addition** to the bundled set (os.pathsep-separated). The user data blueprints dir is included **only when** `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY=true` (default off). Bundled blueprints win on name collision. | unset |
 
 ### Server, security & auth
 
@@ -270,7 +276,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. Primary when set. **Required in production** (`DEBUG=False`) unless `SWARM_ALLOW_NO_AUTH=true` — server refuses to start without any token. | none |
 | `SWARM_API_KEY` | Legacy alias for `API_AUTH_TOKEN` (used if the latter is unset). | none |
 | `API_AUTH_TOKENS` / `SWARM_API_KEYS` | Optional comma-separated list of additional (or sole) accepted Bearer secrets. Merged with the single-token vars; each key maps to a distinct ownership principal (`token:<sha256-prefix>`). When API auth is on, Session Explorer also shows those token-owned sessions to a logged-in Django operator (REST IDOR stays same-principal). | none |
-| `ENABLE_API_AUTH` | Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Auto-on when any API auth token is set. Also enables the Session Explorer operator bridge for token-owned rows. | prod: on |
+| `ENABLE_API_AUTH` | **Django setting** (not an env toggle): auto-on when any API auth token is set at startup. Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Also enables the Session Explorer operator bridge for token-owned rows. | on iff token(s) set |
 | `SWARM_SECURE_COOKIES` | When `DEBUG=False`, force `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE`. Default **on** in production; set `false` for HTTP-only staging. (No effect when `DEBUG=True` — cookies stay non-Secure for local HTTP.) | prod: true |
 | `DJANGO_X_FRAME_OPTIONS` | Env override for `X_FRAME_OPTIONS`, read **only** when `DEBUG=False`. `XFrameOptionsMiddleware` is always installed; Django’s default is already `DENY` in debug and prod. **No CSP** header is configured. | `DENY` |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |

@@ -125,6 +125,8 @@ Import check: every module below imported successfully via `uv run python -c "im
 
 ## 10. Security — ✅ 8 · 🟡 2
 
+Coherent operator map: **[docs/AUTH.md](./docs/AUTH.md)** (Bearer `token:` principals + REST IDOR, Django session / WS 4401, Explorer bridge, workdir confinement, user-blueprint AST sandbox, CSRF / no CSP).
+
 | Feature | Status | Evidence |
 |---|---|---|
 | Codey command-injection fix | ✅ | `blueprint_codey.py:933-937` parses with `shlex.split` instead of shell string (commit `2e2ee426` "Fix Command Injection in Codey blueprint") |

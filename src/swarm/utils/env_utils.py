@@ -257,8 +257,16 @@ def is_enable_admin() -> bool:
 
 
 def is_enable_api_auth() -> bool:
-    """Check if API auth is enabled."""
-    return os.getenv('ENABLE_API_AUTH', 'true').lower() in ('true', '1', 't', 'yes', 'y')
+    """Whether API auth would be on given current token env.
+
+    Django ``settings.ENABLE_API_AUTH`` is derived at import from whether any
+    ``API_AUTH_TOKEN`` / ``API_AUTH_TOKENS`` / ``SWARM_API_KEY(S)`` is set — not
+    from an ``ENABLE_API_AUTH`` environment toggle. Prefer
+    ``django.conf.settings.ENABLE_API_AUTH`` at runtime. This helper mirrors the
+    token-derived rule for non-Django callers (``SWARM_ALLOW_NO_AUTH`` clears
+    tokens and therefore returns false).
+    """
+    return bool(get_api_auth_token())
 
 
 def is_comfyui_enabled() -> bool:

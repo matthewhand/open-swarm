@@ -4,6 +4,10 @@ A runbook for standing up Open Swarm so it exposes an **OpenAI-compatible API**
 (`/v1/chat/completions`, `/v1/responses`, `/v1/models`, OpenAPI at `/api/schema/`)
 that wraps your installed agentic CLIs (grok, claude, gemini, codex, opencode).
 
+For the full auth & trust map (Bearer vs Django session, websocket 4401,
+Session Explorer operator bridge, workdir confinement, blueprint AST sandbox,
+CSRF / no CSP), see **[AUTH.md](./AUTH.md)**.
+
 ## 0. Prerequisites — the CLIs must be installed *where the server runs*
 
 The fusion blueprints shell out to the CLIs as subprocesses, so each CLI you
@@ -80,7 +84,8 @@ owners stay hidden. REST `/v1/responses` IDOR remains strict same-principal.
 
 Websocket chat on the same ASGI process needs a Django **session cookie**
 (form login). The API Bearer token does **not** authenticate websockets;
-anonymous sockets accept-then-close with code **4401**.
+anonymous sockets accept-then-close with code **4401**. Details and diagram:
+[AUTH.md](./AUTH.md).
 
 > **Single worker preferred for inflight limits.** Async `/v1/responses`
 > inflight limits are **process-local**; cooperative cancel is shared via the
