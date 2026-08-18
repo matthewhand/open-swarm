@@ -8,7 +8,7 @@ Covers:
 - blueprint selection: message field, connection default, override,
   unknown-blueprint error partial
 - fetch_conversation: cache hit, DB hit, DoesNotExist
-- save_conversation: create/update
+- save_conversation: create/update, idempotent replace on repeat save
 - delete_conversation: existing, missing
 """
 
@@ -614,10 +614,58 @@ class TestSaveConversation:
             ).count()
             == num_messages
         )
-        # get_or_create + bulk_create should stay well below one query per message.
+        # get_or_create + delete + bulk_create should stay well below one query per message.
         assert len(ctx.captured_queries) < num_messages
 
         IN_MEMORY_CONVERSATIONS.pop("bulk-conv-123", None)
+
+    @pytest.mark.django_db
+    def test_save_conversation_idempotent_on_repeat(self, test_user):
+        """Saving the same transcript twice must keep count at N, not 2N."""
+        from swarm.models import ChatMessage
+
+        consumer = DjangoChatConsumer()
+        consumer.user = test_user
+        conv_id = "idempotent-conv-123"
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+
+        save_sync = DjangoChatConsumer.__dict__["save_conversation"].func
+        save_sync(consumer, conv_id, messages)
+        assert (
+            ChatMessage.objects.filter(
+                conversation__conversation_id=conv_id
+            ).count()
+            == len(messages)
+        )
+        assert IN_MEMORY_CONVERSATIONS[conv_id] == messages
+
+        # Simulate reconnect → disconnect with the same in-memory transcript.
+        save_sync(consumer, conv_id, messages)
+        assert (
+            ChatMessage.objects.filter(
+                conversation__conversation_id=conv_id
+            ).count()
+            == len(messages)
+        )
+        assert IN_MEMORY_CONVERSATIONS[conv_id] == messages
+
+        # Growing transcript replaces prior rows rather than appending.
+        messages_grown = messages + [
+            {"role": "assistant", "content": "Doing well."},
+        ]
+        save_sync(consumer, conv_id, messages_grown)
+        qs = ChatMessage.objects.filter(
+            conversation__conversation_id=conv_id
+        ).order_by("timestamp")
+        assert qs.count() == len(messages_grown)
+        assert [m.content for m in qs] == [m["content"] for m in messages_grown]
+        assert IN_MEMORY_CONVERSATIONS[conv_id] == messages_grown
+
+        IN_MEMORY_CONVERSATIONS.pop(conv_id, None)
 
 
 # =============================================================================

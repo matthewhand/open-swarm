@@ -291,23 +291,28 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_conversation(self, conversation_id, new_messages):
+        """Replace DB messages with the current in-memory transcript.
+
+        Disconnect always persists the full transcript. Without clearing
+        prior rows, reconnect → disconnect would bulk_create duplicates.
         """
-        Save messages to the DB and update in-memory cache.
-        """
-        chat, _ = ChatConversation.objects.get_or_create(conversation_id=conversation_id, student=self.user)
+        chat, _ = ChatConversation.objects.get_or_create(
+            conversation_id=conversation_id, student=self.user
+        )
 
         chat_messages = [
             ChatMessage(
                 conversation=chat,
                 sender=message["role"],
-                content=message["content"]
+                content=message["content"],
             )
             for message in new_messages
         ]
+        # Idempotent replace: delete then insert current transcript.
+        ChatMessage.objects.filter(conversation=chat).delete()
         ChatMessage.objects.bulk_create(chat_messages)
 
-        # Sync in-memory store
-        IN_MEMORY_CONVERSATIONS[conversation_id] = new_messages
+        IN_MEMORY_CONVERSATIONS[conversation_id] = list(new_messages)
 
     @database_sync_to_async
     def delete_conversation(self, conversation_id):

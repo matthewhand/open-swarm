@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - **Session Explorer empty state:** recapture `sessions.png` (+ mobile) for owner-scoped copy (“only sessions you own”)
 
 ### Fixed
+- **Chat WS history duplication:** `save_conversation` deletes existing `ChatMessage` rows before `bulk_create` so reconnect → disconnect does not double the transcript
 - **`make dev` live-reload:** `docker-compose.dev.yml` now overrides CMD to `uvicorn --reload` (workers=1) instead of claiming Django runserver autoreload; drop stale hatchling-irrelevant `open_swarm.egg-info` anonymous volume
 - **Chat websocket auth messaging:** anonymous connects accept-then-close with code **4401**; SPA distinguishes session-required vs ASGI/unreachable and clarifies session cookie ≠ Settings API token; journey capture waits for the Connected/Unavailable badge
 - **rest_mode chatLogic ESM:** export `initializeChatLogic` for `ui.js` (was a broken import); demo chat helpers append via `textContent`
