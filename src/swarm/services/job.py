@@ -18,9 +18,7 @@ RE_NON_ALPHANUMERIC = re.compile(r'[^a-zA-Z0-9]')
 
 # Import secure subprocess utilities
 from src.swarm.services.secure_subprocess import (
-    execute_command_safe,
-    validate_command_safety,
-    SecureCommandExecutor
+    validate_command_safety
 )
 
 # Define a path for storing job metadata and outputs

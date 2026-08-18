@@ -97,7 +97,7 @@ def execute_command_with_fallback(
             check=False
         )
         return result, False  # False = did not use fallback
-    except (ValueError, subprocess.CalledProcessError) as e:
+    except (ValueError, subprocess.CalledProcessError):
         # Only use shell=True as last resort for compatibility
         # This should be rare and documented
         result = subprocess.run(

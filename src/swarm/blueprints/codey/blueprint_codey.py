@@ -25,7 +25,6 @@ from swarm.core.output_utils import (
     get_spinner_state,
     pretty_print_response,
     print_operation_box,
-    print_search_progress_box,  # bare for any direct references or legacy call paths
     print_search_progress_box as _print_search_progress_box,
 )
 
@@ -449,7 +448,6 @@ class CodeyBlueprint(BlueprintBase):
         return linus_corvalds
 
     async def _original_run(self, messages: list[dict], **_kwargs):
-        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
         self.audit_logger.log_event(
             "completion", {"event": "start", "messages": messages}
         )
@@ -847,7 +845,6 @@ class CodeyBlueprint(BlueprintBase):
         return matches
 
     async def _run_non_interactive(self, instruction: str, **_kwargs):
-        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
         logger = logging.getLogger(__name__)
         import time
 

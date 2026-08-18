@@ -25,7 +25,6 @@ import pytz
 from agents import Runner, function_tool
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
-from swarm.core.output_utils import get_spinner_state
 
 
 # --- Unified Operation/Result Box for UX ---
@@ -57,7 +56,7 @@ class JeevesSpinner:
         pass
 
 try:
-    from agents import Agent, Tool, function_tool
+    from agents import Agent, function_tool
     from agents.mcp import MCPServer
     from agents.models.interface import Model
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
@@ -271,7 +270,6 @@ class JeevesBlueprint(BlueprintBase):
         return jeeves_agent
 
     async def run(self, messages: list[dict[str, Any]], **kwargs):
-        op_start = time.monotonic()
         instruction = messages[-1]["content"] if messages else ""
         # --- Test Mode Spinner Output ---
         if os.environ.get('SWARM_TEST_MODE'):
@@ -441,7 +439,6 @@ class JeevesBlueprint(BlueprintBase):
         for state in JeevesSpinner.SPINNER_STATES:
             print(f"[SPINNER] {state}")
         print(f"[SPINNER] {JeevesSpinner.LONG_WAIT_MSG}")
-        time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py"}
@@ -475,7 +472,6 @@ class JeevesBlueprint(BlueprintBase):
         for state in JeevesSpinner.SPINNER_STATES:
             print(f"[SPINNER] {state}")
         print(f"[SPINNER] {JeevesSpinner.LONG_WAIT_MSG}")
-        time.monotonic()
         py_files = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
         total_files = len(py_files)
         params = {"query": query, "directory": directory, "filetypes": ".py", "semantic": True}

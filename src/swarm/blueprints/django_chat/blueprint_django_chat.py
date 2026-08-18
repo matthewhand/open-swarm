@@ -11,7 +11,7 @@ import os
 import sys
 import threading
 import time
-from typing import Any, ClassVar
+from typing import Any
 
 # Ensure src path + django settings VERY EARLY (fixes django_chat settings load issues on import/discovery)
 _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))

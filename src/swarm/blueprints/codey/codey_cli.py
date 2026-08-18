@@ -20,7 +20,6 @@ if __name__ == "__main__" and os.environ.get("SWARM_TEST_MODE") and not any(arg 
     sys.exit(0)
 
 def main():
-    from swarm.core.output_utils import print_search_progress_box  # ensure in scope
     parser = argparse.ArgumentParser(description="Codey CLI - Approval Workflow Demo")
     parser.add_argument('--message', type=str, help='Message to send to the agent (alternative to positional prompt)')
     parser.add_argument('-a', '--approval', nargs='?', const=True, default=False, help='Require approval before executing actions; optionally specify policy (e.g., suggest)')
