@@ -47,7 +47,7 @@ live on PyPI (`pip install open-swarm`). Highlights since the 2026-06-11 snapsho
 - [x] **First tagged release + PyPI publish** (was §3.6 open).
 - [x] **Memory configuration documented** in CONFIGURATION.md §9 (mem0 default) (was §3.2 open).
 
-Still open (see below + new items): SPA↔Django parity, MCP-server dependency,
+Still open (see below + new items): MCP-server dependency,
 letta/langmem backends, blueprint ecosystem curation, deprecation-shim sunset,
 and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
 "not found or not callable" — only `list`/`wizard`/`install` work cleanly).
@@ -119,22 +119,22 @@ The consolidation left 7 import shims emitting `DeprecationWarning`
 
 ### 3.1 React/DaisyUI SPA (`webui/frontend`)
 
-Status: build/type-check green, real API data, no mock data — but feature
-coverage is thin. The Django templates/HTMx UI remains the supported UI until
-parity is reached.
+Status: **ADR-001 accepted** — Django trailing-slash UI is canonical; SPA mounts
+**only** `/` (dashboard) + `/chat`. Leftover Teams/Blueprints/Settings/Builder/
+AgentCreator sources live under `webui/frontend/src/pages/_quarantine/` (not
+imported). Do **not** remount them; SPA↔Django parity is **rejected** as a v1 goal.
 
-- [ ] React SPA reaches functional parity with Django UI
+- [x] SPA scope cut to Dashboard + Chat (ADR-001)
   - [x] Component library (13 DaisyUI/React components)
   - [x] Vite + TypeScript + Tailwind/DaisyUI build setup; lockfile in sync
-  - [x] BlueprintsPage wired to `/v1/blueprints/` (react-query; loading/error/empty states)
-  - [x] Dashboard on live blueprint/model counts; fabricated stats removed
-  - [x] TeamsPage live-fetches `/teams/export` (honest empty on error; leftover SPA route)
-  - [x] **JSON Teams API** — `/v1/teams/` list/create/delete over `teams.json` LLM-profile aliases (not a multi-agent team builder; see GLOSSARY)
-  - [x] Auth flow: token entry in Settings, localStorage persistence, 401/403 banner — no login wall on auth-disabled deployments
-  - [x] ChatPage built (blueprint selector, streaming UI, parser for the server's HTMx ws partials) — **blocked on backend ASGI routing** (see §2); shows an honest 'unavailable' state until then
-  - [x] Agent-creator and settings pages (PR #80: generate/validate/save flow, custom-blueprint CRUD, server-settings/env panels with masking)
-  - [ ] Replace Django template pages page-by-page once each SPA page is wired
+  - [x] Dashboard on live blueprint/model/team counts; fabricated stats removed
+  - [x] ChatPage (blueprint selector, WS via ASGI; session-cookie auth; 4401 when anonymous)
+  - [x] Leftover SPA pages quarantined (`_quarantine/`); e2e/a11y/shots = `/` + `/chat` only
+  - [x] Bare `/teams` `/blueprints` `/settings` `/agent-creator` redirect to Django
+  - [x] **JSON Teams API** — `/v1/teams/` LLM-profile aliases (see GLOSSARY) — Django UI owns CRUD chrome
   - [x] Resolved npm audit advisories: vite 5 → 8 (PR #84), 0 vulnerabilities
+  - [ ] ChatPage polish (reconnect, markdown composer) — see §4.6
+  - [ ] ~~Replace Django template pages page-by-page~~ — **superseded by ADR-001**
 
 ### 3.2 Memory integration (mem0 / letta / langmem)
 
@@ -288,9 +288,9 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   manual backdrop math (`Modal.tsx:84-105`); pick one.
 - [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
   (`:324`), no markdown/code rendering (`:301`).
-- [x] **BuilderPage / AgentCreatorPage** — unmounted from `App.tsx` (`*` → `/`);
-  leftover sources under `src/pages/`; canonical creator is Django `/agent-creator/`
-  (see FEATURE_STATUS). Prior “read-only Builder / plain textarea” notes are stale.
+- [x] **BuilderPage / AgentCreatorPage / Teams / Blueprints / Settings SPA** —
+  quarantined under `src/pages/_quarantine/` (ADR-001); `App.tsx` mounts `/` +
+  `/chat` only. Canonical creator is Django `/agent-creator/`.
 - [ ] **Django legacy surface off-brand/broken** — Bootstrap CDN (offline breaks),
   `profiles.html` uses DaisyUI classes on a Bootstrap base (unstyled),
   `base.html` missing `title`/`head` blocks. Decide retire-vs-migrate.

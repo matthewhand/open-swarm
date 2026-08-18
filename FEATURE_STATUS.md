@@ -68,7 +68,7 @@ Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) a
 | Feature | Status | Evidence |
 |---|---|---|
 | DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; dashboard + chat still use these. |
-| Dashboard (`/`) + Chat (`/chat`) | 🟡 | `App.tsx` routes only these two; nav/mobile dock SPA tabs are Home·Chat, with Django hrefs for Blueprints·Teams·Sessions·Settings. ChatPage WS via ASGI; needs Django **session cookie** (Settings API bearer does **not** auth websockets). Anonymous sockets close **4401**. |
+| Dashboard (`/`) + Chat (`/chat`) | 🟡 | `App.tsx` routes only these two; desktop nav Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings); mobile dock Home·Chat + Django hrefs (Blueprints·Teams·Sessions). ChatPage WS via ASGI; needs Django **session cookie** (bearer does **not** auth websockets). Anonymous sockets close **4401**. |
 | TeamsPage / BlueprintsPage / SettingsPage | ❌ | **Quarantined** (`src/pages/_quarantine/`). Not mounted; `*` → `/`. Canonical UI: `/teams/launch/`, `/blueprint-library/`, `/settings/`. Bare paths redirect to Django. |
 | BuilderPage / AgentCreatorPage | ❌ | **Quarantined** (same folder). Do not remount. Canonical creator UI is Django `/agent-creator/`. |
 | API / auth / websocket integration | 🟡 | Typed api client (`src/lib/api.ts`), react-query on blueprints/models, ChatPage speaks the ws protocol via ASGI (`swarm/asgi.py` + `AuthMiddlewareStack`). Journey `spa-chat.png` shows **Connected** after login when ASGI is up. |
@@ -176,6 +176,6 @@ This doc decays fast (a cleanup wave was rewriting the tree while it was generat
 1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
 3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (deprecation shim — succeeds with `DeprecationWarning`; prefer `swarm.core`).
-4. **SPA leftovers:** `grep -rn "fetch\|mock\|simulated" webui/frontend/src/pages/` — Teams/Blueprints fetch live with honest empty/error (no demo fixtures); Launch routes to `/chat?blueprint=…`. Canonical operator UI is Django (bare SPA paths redirect).
+4. **SPA scope:** `App.tsx` routes only `/` + `/chat`; leftovers under `src/pages/_quarantine/` (excluded from vitest/tsc). Canonical operator UI is Django (bare SPA paths redirect).
 5. **Flags vs deps:** `grep -n "django-mcp-server\\|mcp_server" pyproject.toml docs/mcp_server_mode.md` — flag without a declared lockfile dependency stays 📋.
 6. **Resolved:** `urls.py` imports `re_path` from `django.urls` (Django 4+); the old `django.conf.urls` import bug is gone.
