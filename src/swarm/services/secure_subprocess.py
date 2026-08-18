@@ -71,43 +71,21 @@ def execute_command_with_fallback(
     capture_output: bool = True,
     text: bool = True
 ) -> Tuple[subprocess.CompletedProcess, bool]:
+    """Run ``execute_command_safe``; never fall back to ``shell=True``.
+
+    Historical name retained for callers. A previous implementation caught
+    parse/exec failures and re-ran via ``shell=True``, which reintroduced
+    command injection. Failures now propagate; the second tuple element is
+    always ``False`` (no shell fallback).
     """
-    Execute command with fallback for compatibility.
-
-    Args:
-        command: Command as list or string
-        timeout: Timeout in seconds
-        capture_output: Capture stdout and stderr
-        text: Return output as string
-
-    Returns:
-        Tuple of (result, used_fallback)
-
-    Note:
-        First tries safe execution, falls back to shell=True only if necessary
-        for compatibility with complex shell features (not recommended)
-    """
-    try:
-        # Try safe execution first
-        result = execute_command_safe(
-            command,
-            timeout=timeout,
-            capture_output=capture_output,
-            text=text,
-            check=False
-        )
-        return result, False  # False = did not use fallback
-    except (ValueError, subprocess.CalledProcessError):
-        # Only use shell=True as last resort for compatibility
-        # This should be rare and documented
-        result = subprocess.run(
-            command if isinstance(command, str) else " ".join(command),
-            shell=True,  # Fallback - document why this is needed
-            capture_output=capture_output,
-            text=text,
-            timeout=timeout
-        )
-        return result, True  # True = used fallback
+    result = execute_command_safe(
+        command,
+        timeout=timeout,
+        capture_output=capture_output,
+        text=text,
+        check=False,
+    )
+    return result, False
 
 
 def validate_command_safety(command: List[str] | str) -> bool:
@@ -191,12 +169,10 @@ class SecureCommandExecutor:
         self.used_fallback = False
 
     def execute(self, command: List[str] | str, **kwargs) -> subprocess.CompletedProcess:
-        """Execute command with security checks."""
-        # Validate before execution
+        """Execute command with security checks (shell=False only)."""
         if not validate_command_safety(command):
             raise ValueError(f"Unsafe command detected: {command}")
 
-        # Execute with safety
         result, used_fallback = execute_command_with_fallback(
             command,
             timeout=self.timeout,
@@ -206,10 +182,6 @@ class SecureCommandExecutor:
         self.last_command = command
         self.last_result = result
         self.used_fallback = used_fallback
-
-        if used_fallback:
-            logger.warning(f"Used shell=True fallback for: {command}")
-
         return result
 
     def get_last_command(self) -> Optional[List[str] | str]:
@@ -221,10 +193,5 @@ class SecureCommandExecutor:
         return self.last_result
 
     def did_use_fallback(self) -> bool:
-        """Check if fallback was used."""
+        """Always False — shell=True fallback was removed (fail closed)."""
         return self.used_fallback
-
-
-# Import at module level for convenience
-import logging
-logger = logging.getLogger(__name__)
