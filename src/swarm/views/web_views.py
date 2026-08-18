@@ -13,7 +13,6 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.csrf import csrf_exempt
 
 # Import config loader if needed, or assume config is loaded elsewhere
 # Import the function to discover blueprints dynamically
@@ -89,7 +88,6 @@ def _ensure_frontend_built():
 
     return None
 
-@csrf_exempt
 def index(request):
     """Render the main index page with dynamically discovered blueprint options."""
     # Try to serve static frontend first if available
@@ -196,9 +194,11 @@ DEFAULT_CONFIG = {
     "blueprints": {}
 }
 
-@csrf_exempt # Usually not needed for GET, but doesn't hurt
 def serve_swarm_config(_request):
-    """Serve the main swarm configuration file (swarm_config.json) as JSON."""
+    """Serve the main swarm configuration file (swarm_config.json) as JSON.
+
+    Unrouted helper retained for direct/unit tests; csrf_exempt was pointless on GET.
+    """
     # Construct path relative to Django settings.BASE_DIR
     config_path = Path(settings.BASE_DIR) / "swarm_config.json"
     logger.debug(f"Attempting to serve swarm config from: {config_path}")
@@ -224,7 +224,6 @@ def _webui_enabled() -> bool:
     return is_enable_webui()
 
 
-@csrf_exempt
 def team_launcher(request):
     """
     Render a minimal Team Launcher UI that allows selecting a blueprint (team),
@@ -393,7 +392,6 @@ def _profiles_ctx():
 
 
 @login_required
-@csrf_exempt
 def teams_export(request):
     """Export the dynamic team registry as JSON or CSV (authenticated)."""
     reg = load_dynamic_registry()

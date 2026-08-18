@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - **Template XSS residual:** `onclick="fn('{{ … }}')"` JS-string breakout → `data-*` handlers (settings dashboard, blueprint cards / my blueprints)
 
 ### Removed
+- **Leftover `@csrf_exempt` on GET-only WebUI views:** `index`, `team_launcher`, `teams_export`, and unrouted `serve_swarm_config` in `web_views.py` (decorator was pointless on GET; token-auth chat/responses APIs unchanged)
 - **Dead `swarm.views.github_views`:** unrouted legacy marketplace helpers including `csrf_exempt` POST “install” stubs; live GitHub discovery remains `MarketplaceGitHub*` in `api_views` + `github_topics_service`
 
 ## [0.5.4] — 2026-06-19
