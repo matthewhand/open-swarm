@@ -220,7 +220,7 @@ DEFAULT_CONFIG = {
 def serve_swarm_config(_request):
     """Serve the main swarm configuration file (swarm_config.json) as JSON.
 
-    Unrouted helper retained for direct/unit tests; csrf_exempt was pointless on GET.
+    Unrouted helper retained for direct/unit tests (GET-only).
     """
     # Construct path relative to Django settings.BASE_DIR
     config_path = Path(settings.BASE_DIR) / "swarm_config.json"

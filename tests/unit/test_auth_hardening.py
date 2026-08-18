@@ -49,6 +49,39 @@ class TestGetApiAuthToken:
         assert env_utils.get_api_auth_token() is None
 
 
+class TestIsEnableApiAuth:
+    """``is_enable_api_auth`` mirrors token-derived ``ENABLE_API_AUTH`` (docs/AUTH.md).
+
+    It is not an ``ENABLE_API_AUTH`` env toggle — tokens on ⇒ true; unset or
+    ``SWARM_ALLOW_NO_AUTH`` ⇒ false.
+    """
+
+    def test_true_when_token_set(self, monkeypatch):
+        monkeypatch.delenv("SWARM_ALLOW_NO_AUTH", raising=False)
+        monkeypatch.setenv("API_AUTH_TOKEN", "tok-a")
+        monkeypatch.delenv("ENABLE_API_AUTH", raising=False)
+        assert env_utils.is_enable_api_auth() is True
+
+    def test_false_when_tokens_unset(self, monkeypatch):
+        monkeypatch.delenv("SWARM_ALLOW_NO_AUTH", raising=False)
+        for key in (
+            "API_AUTH_TOKEN",
+            "SWARM_API_KEY",
+            "API_AUTH_TOKENS",
+            "SWARM_API_KEYS",
+        ):
+            monkeypatch.delenv(key, raising=False)
+        # Leftover env toggle must not flip the helper on.
+        monkeypatch.setenv("ENABLE_API_AUTH", "true")
+        assert env_utils.is_enable_api_auth() is False
+
+    def test_false_when_allow_no_auth(self, monkeypatch):
+        monkeypatch.setenv("SWARM_ALLOW_NO_AUTH", "true")
+        monkeypatch.setenv("API_AUTH_TOKEN", "tok-a")
+        monkeypatch.setenv("ENABLE_API_AUTH", "true")
+        assert env_utils.is_enable_api_auth() is False
+
+
 class TestGetEnforcedApiAuthToken:
     def test_returns_token_when_set(self, monkeypatch):
         monkeypatch.setenv("API_AUTH_TOKEN", "tok-a")

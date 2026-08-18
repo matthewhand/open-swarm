@@ -21,7 +21,7 @@
  *   4. final message:    <div id="message-response-<hex>" hx-swap-oob="true" ...>{full text}</div>
  *
  * The consumer requires an authenticated Django **session cookie**
- * (AuthMiddlewareStack). Settings API bearer tokens do not authenticate
+ * (AuthMiddlewareStack). REST API bearer tokens do not authenticate
  * websockets. Anonymous connects are accept-then-closed with code 4401.
  * The server must run under ASGI with Channels for the /ws/ route to exist.
  */

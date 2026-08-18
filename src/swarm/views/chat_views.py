@@ -490,10 +490,9 @@ class ChatCompletionsView(APIView):
 # Simple Django Views (Example for Web UI - if ENABLE_WEBUI=True)
 # ==============================================================================
 
-@method_decorator(csrf_exempt, name='dispatch') # Apply csrf_exempt if needed
-@method_decorator(login_required, name='dispatch') # Require login
+@method_decorator(login_required, name='dispatch')
 class IndexView(View):
-    """ Renders the main chat interface page. """
+    """Renders the main chat interface page (GET-only; no csrf_exempt)."""
     def get(self, request):
         """ Handles GET requests to render the index page. """
         # Assuming get_available_blueprints is sync safe

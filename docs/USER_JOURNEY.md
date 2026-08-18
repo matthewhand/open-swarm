@@ -240,7 +240,8 @@ The login form. Both `/accounts/login/` and `/login/` are wired to the
 same-origin paths). Logging in unlocks the Django operator shell — Teams
 admin/export, Blueprint library / My blueprints / creator mutators,
 Settings, Sessions — and the SPA chat websocket (anonymous chat connections
-are rejected). Public without a session: landing SPA, Team launcher
+close **4401**). Session cookie ≠ REST Bearer; full map in
+[AUTH.md](./AUTH.md). Public without a session: landing SPA, Team launcher
 (`/teams/launch/`), LLM profiles (`/profiles/`), Agent Creator GET
 (`/agent-creator/`), and the login form itself. Journey capture and e2e
 visual suites log in through this form when a page redirects.

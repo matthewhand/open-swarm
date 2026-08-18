@@ -146,7 +146,9 @@ bare-path redirects, `spa-*` captures show the Django shell plus the sticky
 
 ![Django login: username/password form](./screenshots/login.png)
 
-*Sign-in form for authenticated operator pages (sessions, settings, creators).*
+*Sign-in form for authenticated operator pages (sessions, settings, creators)
+and SPA chat websockets. Session cookie ≠ REST Bearer — see
+[AUTH.md](./AUTH.md).*
 
 ![Login (mobile): full-width sign-in card](./screenshots/mobile/login.png)
 

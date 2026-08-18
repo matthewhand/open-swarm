@@ -22,6 +22,8 @@ here is verified against `swarm-cli --help`.
 > SPA keeps `/` (dashboard) and `/chat` (SPA Chat); bare paths redirect to
 > Django — `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`,
 > `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/`.
+> Session vs Bearer, websocket **4401**, and Explorer bridge:
+> **[docs/AUTH.md](./docs/AUTH.md)**.
 > **`/v1/teams` / Django `/teams/`** register **LLM-profile aliases**
 > (`id`/`description`/`llm_profile`), not multi-agent team graphs — see
 > [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with

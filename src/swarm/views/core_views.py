@@ -9,8 +9,6 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.forms import AuthenticationForm  # Use standard auth form
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.csrf import csrf_exempt
-
 # Assuming blueprint discovery happens elsewhere and results are available if needed
 # from .utils import blueprints_metadata # Or however metadata is accessed
 # Use the current config loader
@@ -92,9 +90,8 @@ def serve_swarm_config(_request):
 # --- Potentially other core API views if needed ---
 # Example: A view to list available blueprints (might duplicate CLI list command logic)
 
-@csrf_exempt # If POST is needed and no CSRF token available from UI
 def list_available_blueprints_api(_request):
-     """API endpoint to list discoverable blueprints."""
+     """API endpoint to list discoverable blueprints (GET-only; no csrf_exempt)."""
      # Re-use discovery logic if possible, or adapt from CLI
      from swarm.core.blueprint_discovery import discover_blueprints
      try:

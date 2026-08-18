@@ -190,7 +190,7 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     const statusRegion = screen.getByRole('status', { name: 'Connection status' })
     expect(statusRegion).toHaveTextContent(/Unavailable — sign in required/i)
     expect(screen.getByText(/session cookie/i)).toBeInTheDocument()
-    expect(screen.getByText(/bearer token under Settings/i)).toBeInTheDocument()
+    expect(screen.getByText(/REST API bearer token/i)).toBeInTheDocument()
     // Fixed-height chat column must not flex-shrink the Unavailable CTA away.
     const unavailableAlert = screen
       .getAllByRole('alert')

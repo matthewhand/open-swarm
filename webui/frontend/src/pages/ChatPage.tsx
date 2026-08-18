@@ -239,10 +239,11 @@ const ChatPage = () => {
                   <>
                     {' '}
                     (authentication failed —{' '}
-                    <a href="/settings/" className="link">
-                      set an API token
-                    </a>
-                    )
+                    <a href={signInHref} className="link">
+                      sign in
+                    </a>{' '}
+                    for a Django session, or send{' '}
+                    <code>Authorization: Bearer</code> for REST)
                   </>
                 ) : (
                   ` (${blueprintsQuery.error.message})`
@@ -333,9 +334,9 @@ const ChatPage = () => {
               {authRejected ? (
                 <>
                   Live chat authenticates with a Django{' '}
-                  <strong>session cookie</strong> (form login), not the API
-                  bearer token under Settings. Sign in, then reconnect.
-                  Message history above is kept when present.
+                  <strong>session cookie</strong> (form login), not a REST
+                  API bearer token. Sign in, then reconnect. Message history
+                  above is kept when present.
                 </>
               ) : (
                 <>
