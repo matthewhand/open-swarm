@@ -24,7 +24,7 @@
     if(totalEl && total != null) totalEl.textContent = total;
     var banner = document.getElementById('se-trunc-banner');
     if(banner){
-      banner.style.display = truncated ? '' : 'none';
+      banner.classList.toggle('os-hide', !truncated);
       var shownEl = document.getElementById('se-shown');
       var totBan = document.getElementById('se-total-banner');
       var limEl = document.getElementById('se-limit-label');
@@ -64,13 +64,13 @@
     var visible = 0;
     document.querySelectorAll('#se-list .se-card').forEach(function(c){
       var show = (!currentFilter || c.getAttribute('data-status') === currentFilter);
-      c.style.display = show ? '' : 'none';
+      c.classList.toggle('os-hide', !show);
       if(show) visible++;
     });
     var filterEmpty = document.getElementById('se-filter-empty');
     var hasCards = document.querySelectorAll('#se-list .se-card').length > 0;
     if(filterEmpty){
-      filterEmpty.style.display = (hasCards && currentFilter && visible === 0) ? '' : 'none';
+      filterEmpty.classList.toggle('os-hide', !(hasCards && currentFilter && visible === 0));
     }
   }
   function selectFilter(chip){
@@ -99,7 +99,7 @@
     fetch(url, {headers:{'Accept':'application/json'}})
       .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
       .then(function(d){
-        if(errEl){ errEl.style.display='none'; } setLive('');
+        if(errEl){ errEl.classList.add('os-hide'); } setLive('');
         render(d || {}); applyFilter();
         listEl.setAttribute('aria-busy','false');
       })
@@ -107,11 +107,11 @@
         setLive('stalled'); listEl.setAttribute('aria-busy','false');
         if(errEl){
           errEl.textContent = '⚠ Live refresh failed (' + (e && e.message || 'network error') + ') — showing last data, retrying…';
-          errEl.style.display = '';
+          errEl.classList.remove('os-hide');
         }
       });
   }
-  if(live){ live.addEventListener('change', function(){ if(live.checked){ poll(); } else { setLive(''); if(errEl) errEl.style.display='none'; } }); }
+  if(live){ live.addEventListener('change', function(){ if(live.checked){ poll(); } else { setLive(''); if(errEl) errEl.classList.add('os-hide'); } }); }
   applyFilter();
   setInterval(poll, 3000);
 })();

@@ -234,7 +234,7 @@ function displayTeamValidation(validation) {
     }
 
     container.innerHTML = html;
-    resultsDiv.style.display = 'block';
+    resultsDiv.classList.remove('os-hide');
 }
 
 function validateTeamCode() {
@@ -285,7 +285,7 @@ function clearTeamForm() {
             <p>Configure your swarm and click "Preview Draft" for a client-side sketch, or "Save Swarm" for the real blueprint.</p>
         </div>
     `;
-    document.getElementById('teamValidationResults').style.display = 'none';
+    document.getElementById('teamValidationResults').classList.add('os-hide');
     teamMemberCount = 0;
     generatedTeamCode = '';
     teamValidationResult = null;

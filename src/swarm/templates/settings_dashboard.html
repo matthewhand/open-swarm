@@ -37,7 +37,7 @@
            aria-valuemax="100"
            aria-valuetext="{{ stats.configured }} of {{ stats.total }} settings configured"
            aria-labelledby="config-progress-label">
-        <div class="config-progress-fill" style="width: {{ stats.completion_rate }}%" aria-hidden="true"></div>
+        <div class="config-progress-fill" data-pct="{{ stats.completion_rate }}" aria-hidden="true"></div>
       </div>
       <div class="progress-text" id="config-progress-label">Configuration Progress: {{ stats.configured }}/{{ stats.total }} settings configured</div>
     </div>
@@ -187,7 +187,7 @@
               </div>
             </div>
             {% empty %}
-            <div class="os-empty p-4" role="status" style="grid-column:1/-1;">No settings in this group.</div>
+            <div class="os-empty p-4 settings-empty-row" role="status">No settings in this group.</div>
             {% endfor %}
           </div>
         </div>

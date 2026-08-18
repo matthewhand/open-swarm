@@ -4,7 +4,7 @@
 
 <div class="sd-wrap">
   <p><a href="{% url 'session-explorer' %}">&larr; All sessions</a></p>
-  <h2 style="margin:.2rem 0;">Session <span class="sd-id">{{ session.id }}</span></h2>
+  <h2 class="sd-title">Session <span class="sd-id">{{ session.id }}</span></h2>
   <div class="sd-meta">
     <span class="badge-status st-{{ session.status|default:'unknown' }}">{{ session.status|default:'unknown' }}</span>
     &nbsp; model <strong>{{ session.model|default:'—' }}</strong>
@@ -27,8 +27,8 @@
     {% if delegations %}
     <div class="tab-pane fade show active" id="sd-graph" role="tabpanel">
       {{ delegations|json_script:"deleg-data" }}
-      <div id="agent-graph" style="overflow-x:auto;"></div>
-      <div class="sd-meta" style="margin-top:.4rem;">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
+      <div id="agent-graph"></div>
+      <div class="sd-meta sd-graph-hint">claude <code>-p</code> orchestration brain → role-routed sub-agents (edge/node colour = status)</div>
     </div>
     <div class="tab-pane fade" id="sd-timeline" role="tabpanel">
       <ul class="tl">
@@ -37,7 +37,7 @@
             <span class="node {{ d.status }}"></span>
             <span class="role">{{ d.role }}</span>
             {% if d.model_used %}<span class="model">· {{ d.model_used }}</span>{% endif %}
-            <span class="badge-status st-{{ d.status }}" style="margin-left:.4rem;">{{ d.status }}</span>
+            <span class="badge-status st-{{ d.status }}">{{ d.status }}</span>
             {% if d.task %}<div class="task">{{ d.task }}</div>{% endif %}
             {% if d.result %}<div class="result">→ {{ d.result }}</div>{% endif %}
             {% if d.error %}<div class="error">✗ {{ d.error }}</div>{% endif %}

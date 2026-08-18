@@ -8,7 +8,7 @@
      data-limit="{{ limit }}">
   <div class="se-head">
     <div>
-      <h1 class="h3" style="margin:0;">Session Explorer</h1>
+      <h1 class="h3">Session Explorer</h1>
       <div class="se-meta">Stateful <code>/v1/responses</code> sessions &middot; delegation timelines</div>
     </div>
     <div class="se-chips" role="group" aria-label="Filter sessions by status">
@@ -16,20 +16,19 @@
       {% for status, n in status_counts.items %}
         <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}" aria-hidden="true"></span>&nbsp;{{ status }}: <span class="se-status-n" data-status="{{ status }}">{{ n }}</span></span>
       {% endfor %}
-      <label class="se-chip" for="se-live" style="cursor:pointer;">
+      <label class="se-chip se-live-label" for="se-live">
         <span class="se-live-dot" id="se-live-dot" aria-hidden="true"></span>
         <input type="checkbox" id="se-live" checked aria-label="Auto-refresh session list"> live
       </label>
     </div>
   </div>
 
-  <div id="se-trunc-banner" class="alert alert-secondary py-2 px-3 mb-3" role="status"
-       {% if not truncated %}style="display:none;"{% endif %}>
+  <div id="se-trunc-banner" class="alert alert-secondary py-2 px-3 mb-3{% if not truncated %} os-hide{% endif %}" role="status">
     Showing newest <strong id="se-shown">{{ shown }}</strong> of <strong id="se-total-banner">{{ total }}</strong> sessions
     (limit=<span id="se-limit-label">{{ limit }}</span>). Open a session for detail; use the API for full export.
   </div>
 
-  <div class="se-error" id="se-error" role="alert" aria-live="assertive"></div>
+  <div class="se-error os-hide" id="se-error" role="alert" aria-live="assertive"></div>
 
   <div id="se-list" class="se-list-scroll" aria-live="polite" aria-busy="false">
     {% for s in sessions %}
@@ -57,7 +56,7 @@
       </div>
     {% endfor %}
   </div>
-  <div id="se-filter-empty" class="se-empty" style="display:none;" role="status" aria-live="polite">No sessions match this filter.</div>
+  <div id="se-filter-empty" class="se-empty os-hide" role="status" aria-live="polite">No sessions match this filter.</div>
 </div>
 
 <script src="{% static 'js/session_explorer.js' %}"></script>

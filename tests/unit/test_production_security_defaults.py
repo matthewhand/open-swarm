@@ -17,7 +17,7 @@ _SWARM_CSP_POLICY = (
     "form-action 'self'; "
     "img-src 'self' data: blob:; "
     "font-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
+    "style-src 'self'; "
     "script-src 'self'; "
     "connect-src 'self' ws: wss:"
 )
@@ -57,9 +57,9 @@ class TestProductionSecurityDefaults:
         assert out["CSRF_COOKIE_SECURE"] is True
         assert out["CONTENT_SECURITY_POLICY"] == _SWARM_CSP_POLICY
         assert "cdn." not in out["CONTENT_SECURITY_POLICY"]
-        # style-src still needs residual unsafe-inline; script-src does not.
-        assert "style-src 'self' 'unsafe-inline'" in out["CONTENT_SECURITY_POLICY"]
+        assert "style-src 'self'" in out["CONTENT_SECURITY_POLICY"]
         assert "script-src 'self'" in out["CONTENT_SECURITY_POLICY"]
+        assert "style-src 'self' 'unsafe-inline'" not in out["CONTENT_SECURITY_POLICY"]
         assert "script-src 'self' 'unsafe-inline'" not in out["CONTENT_SECURITY_POLICY"]
 
     def test_secure_cookies_opt_out(self):

@@ -122,8 +122,8 @@
         <div class="tab-pane fade show active" id="all" role="tabpanel" aria-labelledby="all-tab">
             <!-- Live name search over the local blueprints -->
             <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
-                <div class="position-relative" style="flex:1 1 320px; max-width:440px;">
-                    <i class="fas fa-search position-absolute text-muted" aria-hidden="true" style="left:.85rem; top:50%; transform:translateY(-50%);"></i>
+                <div class="position-relative bp-search-wrap">
+                    <i class="fas fa-search position-absolute text-muted bp-search-icon" aria-hidden="true"></i>
                     <input type="text" id="bpSearch" class="form-control ps-5" placeholder="Search blueprints by name…" aria-label="Search blueprints by name" autocomplete="off">
                 </div>
                 <span class="os-meta" id="bpSearchCount" aria-live="polite"></span>
@@ -137,13 +137,13 @@
                     {% endfor %}
                 {% endfor %}
             </div>
-            <div class="text-center mt-3 mb-2" id="bpShowMoreWrap" style="display:none;">
+            <div class="text-center mt-3 mb-2 os-hide" id="bpShowMoreWrap">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="bpShowMore" data-action="show-more-blueprints">
                     Show more blueprints
                 </button>
                 <div class="os-meta mt-1" id="bpPageMeta"></div>
             </div>
-            <div id="bpSearchEmpty" class="os-empty" style="display:none;" role="status">
+            <div id="bpSearchEmpty" class="os-empty os-hide" role="status">
                 <div class="os-empty-icon"><i class="fas fa-magnifying-glass" aria-hidden="true"></i></div>
                 <div class="mb-2">No blueprints match your search.</div>
                 <p class="os-meta mb-3">Try a shorter name, or clear the filter to see the full catalog.</p>
@@ -151,7 +151,7 @@
                     <i class="fas fa-times me-1" aria-hidden="true"></i>Clear search
                 </button>
             </div>
-            <div id="bpLibraryEmpty" class="os-empty" {% if total_available %}style="display:none;"{% endif %} role="status">
+            <div id="bpLibraryEmpty" class="os-empty{% if total_available %} os-hide{% endif %}" role="status">
                 <div class="os-empty-icon"><i class="fas fa-cube" aria-hidden="true"></i></div>
                 <div class="mb-2">No blueprints available yet.</div>
                 <p class="os-meta mb-0"><a href="{% url 'blueprint_creator' %}">Create a custom blueprint</a> to get started.</p>
@@ -185,21 +185,21 @@
                 <div class="d-flex flex-wrap align-items-end gap-2">
                     <div>
                         <label class="form-label visually-hidden" for="ghSearch">Search GitHub marketplace</label>
-                        <input type="text" id="ghSearch" class="form-control" placeholder="Search by name..." style="min-width: 240px;">
+                        <input type="text" id="ghSearch" class="form-control gh-search-input" placeholder="Search by name...">
                     </div>
                     <button type="button" class="btn btn-outline-primary" data-action="load-github-marketplace" aria-label="Search GitHub marketplace"><i class="fas fa-search" aria-hidden="true"></i></button>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <div>
                         <label class="form-label visually-hidden" for="ghType">Result type</label>
-                        <select id="ghType" class="form-select form-select-sm" style="width: 190px;">
+                        <select id="ghType" class="form-select form-select-sm gh-type-select">
                             <option value="blueprints" selected>Type: Blueprints</option>
                             <option value="mcp-configs">Type: MCP Templates</option>
                         </select>
                     </div>
                     <div>
                         <label class="form-label visually-hidden" for="ghSort">Sort by</label>
-                        <select id="ghSort" class="form-select form-select-sm" style="width: 180px;">
+                        <select id="ghSort" class="form-select form-select-sm gh-sort-select">
                             <option value="stars" selected>Sort: Stars</option>
                             <option value="updated">Sort: Updated</option>
                             <option value="created">Sort: Created</option>
@@ -208,18 +208,18 @@
                     </div>
                     <div>
                         <label class="form-label visually-hidden" for="ghOrder">Sort order</label>
-                        <select id="ghOrder" class="form-select form-select-sm" style="width: 140px;">
+                        <select id="ghOrder" class="form-select form-select-sm gh-order-select">
                             <option value="desc" selected>Desc</option>
                             <option value="asc">Asc</option>
                         </select>
                     </div>
                 </div>
             </div>
-            <div id="ghLoading" class="os-empty" style="display:none;" role="status" aria-live="polite" aria-busy="true">
+            <div id="ghLoading" class="os-empty os-hide" role="status" aria-live="polite" aria-busy="true">
                 <div class="os-empty-icon"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i></div>
                 Loading GitHub marketplace…
             </div>
-            <div id="ghEmpty" class="os-empty" style="display:none;" role="status">
+            <div id="ghEmpty" class="os-empty os-hide" role="status">
                 <div class="os-empty-icon"><i class="fab fa-github" aria-hidden="true"></i></div>
                 <div class="mb-2" id="ghEmptyTitle">No marketplace results.</div>
                 <p class="os-meta mb-0" id="ghEmptyHint">Try a different search or sort order.</p>

@@ -4,7 +4,7 @@
         <!-- Identity: avatar + name + difficulty -->
         <div class="d-flex align-items-start gap-2 mb-2">
             {% if blueprint.avatar_path %}
-            <img src="{{ blueprint.avatar_path }}" alt="" class="rounded-circle bp-avatar" style="object-fit:cover;">
+            <img src="{{ blueprint.avatar_path }}" alt="" class="rounded-circle bp-avatar">
             {% else %}
             <div class="rounded-circle bp-avatar bg-light d-flex align-items-center justify-content-center">
                 <i class="fas fa-robot text-muted" aria-hidden="true"></i>
@@ -22,7 +22,7 @@
         <p class="card-text bp-desc flex-grow-1">{{ blueprint.description }}</p>
 
         <!-- compact meta: MCP status + a couple of tags -->
-        <div class="d-flex align-items-center gap-2 mb-2" style="min-height:1.4rem;">
+        <div class="d-flex align-items-center gap-2 mb-2 bp-card-meta">
             <span id="mcp-status-{{ blueprint.id }}" class="badge bg-secondary" title="Checking MCP requirements...">
                 <i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>MCP
             </span>

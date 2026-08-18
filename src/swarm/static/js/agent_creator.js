@@ -107,7 +107,7 @@ function displayValidation(validation) {
     }
 
     container.innerHTML = html;
-    resultsDiv.style.display = 'block';
+    resultsDiv.classList.remove('os-hide');
 }
 
 function validateCode() {
@@ -188,12 +188,12 @@ function clearForm() {
     document.getElementById('codeContainer').innerHTML = `
         <div class="ac-empty">
             <i class="fas fa-code" aria-hidden="true"></i>
-            <p style="margin:0;">No code generated yet</p>
+            <p>No code generated yet</p>
             <div class="os-meta">Fill out the form and click <strong>Generate Agent Code</strong> — the Python blueprint will appear here.</div>
             <div class="ac-skeleton" aria-hidden="true"><div></div><div></div><div></div><div></div><div></div></div>
         </div>
     `;
-    document.getElementById('validationResults').style.display = 'none';
+    document.getElementById('validationResults').classList.add('os-hide');
     document.getElementById('validateBtn').disabled = true;
     document.getElementById('saveBtn').disabled = true;
     generatedCode = '';

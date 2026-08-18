@@ -147,13 +147,13 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Must include scheme+host(+port) for every UI origin (LAN/proxy too). |
 | Secure cookies | When `DEBUG=False`, `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` default on; opt out with `SWARM_SECURE_COOKIES=false` for HTTP staging. |
 | Always-on headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options` (default `DENY`; prod may override via `DJANGO_X_FRAME_OPTIONS`). |
-| **CSP** | When `DEBUG=False`, `ContentSecurityPolicyMiddleware` sets `Content-Security-Policy` from `CONTENT_SECURITY_POLICY` (opt out with `SWARM_CSP=false`). Policy is self-centric: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, `font-src 'self'`, `img-src 'self' data: blob:`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `connect-src 'self' ws: wss:` (websocket chat). **No CDN hosts.** Operator UI assets (Bootstrap, Prism, Font Awesome, marked) are vendored under `src/swarm/static/contrib/` and loaded via `{% static %}`. |
+| **CSP** | When `DEBUG=False`, `ContentSecurityPolicyMiddleware` sets `Content-Security-Policy` from `CONTENT_SECURITY_POLICY` (opt out with `SWARM_CSP=false`). Policy is self-centric: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, `font-src 'self'`, `img-src 'self' data: blob:`, `script-src 'self'`, `style-src 'self'`, `connect-src 'self' ws: wss:` (websocket chat). **No CDN hosts. No `'unsafe-inline'`.** Operator UI assets (Bootstrap, Prism, Font Awesome, marked) are vendored under `src/swarm/static/contrib/` and loaded via `{% static %}`. |
 
-### Residual inline needs
+### Inline extraction (complete for operator templates)
 
-Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone**, so prod CSP drops `'unsafe-inline'` from **`script-src`** (`script-src 'self'` only). **Inline `<style>` blocks are gone** (aggregated into `static/css/operator.css`, linked from `base.html` and the standalone login page). Residual friction is **`style=""` attributes**, so **`style-src` still allows `'unsafe-inline'`** until those move to classes/external CSS. Prefer extracting inline styles over adding more `'unsafe-*'` directives.
+Django operator page logic lives under `static/js/` (`{% static %}` + `data-action` / `data-*` delegation; `json_script` data islands where needed). **Inline `onclick=` / `oninput=` handlers are gone** → `script-src 'self'`. **Inline `<style>` blocks and `style=""` attributes are gone** from `src/swarm/templates/` (classes in `static/css/operator.css`; dynamic progress width via `data-pct` + CSSOM; visibility via `.os-hide`). HTMX's default indicator `<style>` inject is disabled (`htmx.config.includeIndicatorStyles = false` in `base.html`); equivalent rules live in `operator.css`. Prefer classes/external CSS over adding `'unsafe-*'` directives.
 
-**Extraction progress:** `settings_dashboard`, `teams_launch`, `session_explorer`, `teams_admin`, `agent_creator`, `team_creator`, `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail` load external JS. High-traffic actions use `data-action` (creators, settings quick actions, library search/show-more/GitHub, creator reset).
+**Pages on external JS:** `settings_dashboard`, `teams_launch`, `session_explorer`, `teams_admin`, `agent_creator`, `team_creator`, `blueprint_library` (+ `blueprint_card`), `my_blueprints`, `blueprint_creator`, and `session_detail`. High-traffic actions use `data-action` (creators, settings quick actions, library search/show-more/GitHub, creator reset).
 
 ---
 
@@ -163,4 +163,4 @@ Django operator page logic lives under `static/js/` (`{% static %}` + `data-acti
 2. Point OpenAI clients at `/v1` with `Authorization: Bearer $API_AUTH_TOKEN`.
 3. Sign in at `/login/` for WebUI, Session Explorer, and websocket chat (session ≠ API token).
 4. Keep `ALLOW_UNRESTRICTED_WORKDIR` and `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` off unless you intentionally widen trust.
-5. Expect prod CSP (`script-src 'self'`; residual `style-src 'unsafe-inline'`); rely on CSRF + frame/nosniff + auth gates above. Use `SWARM_CSP=false` only to disable the header.
+5. Expect prod CSP (`script-src 'self'`; `style-src 'self'`); rely on CSRF + frame/nosniff + auth gates above. Use `SWARM_CSP=false` only to disable the header.

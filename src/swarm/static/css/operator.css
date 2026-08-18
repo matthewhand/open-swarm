@@ -319,7 +319,7 @@
   .se-filter { cursor:pointer; user-select:none; }
   .se-filter.active { outline:2px solid var(--os-accent); }
   .se-filter:focus-visible { outline:2px solid var(--os-link); outline-offset:2px; }
-  .se-error { display:none; background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
+  .se-error { background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
               border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem; }
   .se-live-dot { width:.5rem; height:.5rem; border-radius:50%; background:#22c55e; display:inline-block;
                  margin-right:.35rem; vertical-align:middle; transition:background .2s; }
@@ -697,3 +697,175 @@
   .ta-grid { display:grid; grid-template-columns: minmax(320px, 430px) 1fr; gap:1rem; align-items:start; }
   @media (max-width: 820px) { .ta-grid { grid-template-columns: 1fr; } }
   .ta-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .ta-head .h3 { margin: 0; }
+  .ta-table { margin: 0; }
+
+/* HTMX indicators (htmx.config.includeIndicatorStyles = false under CSP). */
+.htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+.htmx-request .htmx-indicator { opacity: 1; transition: opacity 200ms ease-in; }
+.htmx-request.htmx-indicator { opacity: 1; transition: opacity 200ms ease-in; }
+
+/* === former template style="" attrs (CSP style-src 'self') === */
+.os-hide { display: none !important; }
+.os-m-0 { margin: 0; }
+.os-mb-sm { margin: 0 0 .5rem; }
+.os-mt-xs { margin-top: .4rem; }
+.os-ms-xs { margin-left: .4rem; }
+.os-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.os-toast {
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  min-width: 300px;
+}
+
+.ac-head .h3 { margin: 0; }
+.ac-empty p { margin: 0; }
+#validationResults { margin-top: .75rem; }
+
+.bp-avatar { object-fit: cover; }
+.bp-card-meta { min-height: 1.4rem; }
+.bp-search-wrap { flex: 1 1 320px; max-width: 440px; }
+.bp-search-icon {
+  left: .85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.gh-search-input { min-width: 240px; }
+.gh-type-select { width: 190px; }
+.gh-sort-select { width: 180px; }
+.gh-order-select { width: 140px; }
+
+.sd-title { margin: .2rem 0; }
+.sd-graph-hint { margin-top: .4rem; }
+.tl .badge-status { margin-left: .4rem; }
+
+.se-head .h3 { margin: 0; }
+.se-live-label { cursor: pointer; }
+
+.tl-output {
+  display: block;
+  min-height: 220px;
+  white-space: pre-wrap;
+  overflow: auto;
+  background: var(--os-well);
+  border-radius: 0 0 var(--os-radius) var(--os-radius);
+}
+.tl-output.os-hide { display: none !important; }
+#streamStatus { display: inline-flex; align-items: center; gap: .35rem; }
+#streamStatus.os-hide { display: none !important; }
+#launchError { display: inline; }
+#launchError.os-hide { display: none !important; }
+.launch-spinner { display: inline; }
+.launch-spinner.os-hide { display: none !important; }
+.launch-label.os-hide { display: none !important; }
+
+.mb-output {
+  min-height: 300px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.settings-empty-row { grid-column: 1 / -1; }
+.config-progress-fill[data-pct="0"] { width: 0%; }
+.config-progress-fill[data-pct="1"] { width: 1%; }
+.config-progress-fill[data-pct="2"] { width: 2%; }
+.config-progress-fill[data-pct="3"] { width: 3%; }
+.config-progress-fill[data-pct="4"] { width: 4%; }
+.config-progress-fill[data-pct="5"] { width: 5%; }
+.config-progress-fill[data-pct="6"] { width: 6%; }
+.config-progress-fill[data-pct="7"] { width: 7%; }
+.config-progress-fill[data-pct="8"] { width: 8%; }
+.config-progress-fill[data-pct="9"] { width: 9%; }
+.config-progress-fill[data-pct="10"] { width: 10%; }
+.config-progress-fill[data-pct="11"] { width: 11%; }
+.config-progress-fill[data-pct="12"] { width: 12%; }
+.config-progress-fill[data-pct="13"] { width: 13%; }
+.config-progress-fill[data-pct="14"] { width: 14%; }
+.config-progress-fill[data-pct="15"] { width: 15%; }
+.config-progress-fill[data-pct="16"] { width: 16%; }
+.config-progress-fill[data-pct="17"] { width: 17%; }
+.config-progress-fill[data-pct="18"] { width: 18%; }
+.config-progress-fill[data-pct="19"] { width: 19%; }
+.config-progress-fill[data-pct="20"] { width: 20%; }
+.config-progress-fill[data-pct="21"] { width: 21%; }
+.config-progress-fill[data-pct="22"] { width: 22%; }
+.config-progress-fill[data-pct="23"] { width: 23%; }
+.config-progress-fill[data-pct="24"] { width: 24%; }
+.config-progress-fill[data-pct="25"] { width: 25%; }
+.config-progress-fill[data-pct="26"] { width: 26%; }
+.config-progress-fill[data-pct="27"] { width: 27%; }
+.config-progress-fill[data-pct="28"] { width: 28%; }
+.config-progress-fill[data-pct="29"] { width: 29%; }
+.config-progress-fill[data-pct="30"] { width: 30%; }
+.config-progress-fill[data-pct="31"] { width: 31%; }
+.config-progress-fill[data-pct="32"] { width: 32%; }
+.config-progress-fill[data-pct="33"] { width: 33%; }
+.config-progress-fill[data-pct="34"] { width: 34%; }
+.config-progress-fill[data-pct="35"] { width: 35%; }
+.config-progress-fill[data-pct="36"] { width: 36%; }
+.config-progress-fill[data-pct="37"] { width: 37%; }
+.config-progress-fill[data-pct="38"] { width: 38%; }
+.config-progress-fill[data-pct="39"] { width: 39%; }
+.config-progress-fill[data-pct="40"] { width: 40%; }
+.config-progress-fill[data-pct="41"] { width: 41%; }
+.config-progress-fill[data-pct="42"] { width: 42%; }
+.config-progress-fill[data-pct="43"] { width: 43%; }
+.config-progress-fill[data-pct="44"] { width: 44%; }
+.config-progress-fill[data-pct="45"] { width: 45%; }
+.config-progress-fill[data-pct="46"] { width: 46%; }
+.config-progress-fill[data-pct="47"] { width: 47%; }
+.config-progress-fill[data-pct="48"] { width: 48%; }
+.config-progress-fill[data-pct="49"] { width: 49%; }
+.config-progress-fill[data-pct="50"] { width: 50%; }
+.config-progress-fill[data-pct="51"] { width: 51%; }
+.config-progress-fill[data-pct="52"] { width: 52%; }
+.config-progress-fill[data-pct="53"] { width: 53%; }
+.config-progress-fill[data-pct="54"] { width: 54%; }
+.config-progress-fill[data-pct="55"] { width: 55%; }
+.config-progress-fill[data-pct="56"] { width: 56%; }
+.config-progress-fill[data-pct="57"] { width: 57%; }
+.config-progress-fill[data-pct="58"] { width: 58%; }
+.config-progress-fill[data-pct="59"] { width: 59%; }
+.config-progress-fill[data-pct="60"] { width: 60%; }
+.config-progress-fill[data-pct="61"] { width: 61%; }
+.config-progress-fill[data-pct="62"] { width: 62%; }
+.config-progress-fill[data-pct="63"] { width: 63%; }
+.config-progress-fill[data-pct="64"] { width: 64%; }
+.config-progress-fill[data-pct="65"] { width: 65%; }
+.config-progress-fill[data-pct="66"] { width: 66%; }
+.config-progress-fill[data-pct="67"] { width: 67%; }
+.config-progress-fill[data-pct="68"] { width: 68%; }
+.config-progress-fill[data-pct="69"] { width: 69%; }
+.config-progress-fill[data-pct="70"] { width: 70%; }
+.config-progress-fill[data-pct="71"] { width: 71%; }
+.config-progress-fill[data-pct="72"] { width: 72%; }
+.config-progress-fill[data-pct="73"] { width: 73%; }
+.config-progress-fill[data-pct="74"] { width: 74%; }
+.config-progress-fill[data-pct="75"] { width: 75%; }
+.config-progress-fill[data-pct="76"] { width: 76%; }
+.config-progress-fill[data-pct="77"] { width: 77%; }
+.config-progress-fill[data-pct="78"] { width: 78%; }
+.config-progress-fill[data-pct="79"] { width: 79%; }
+.config-progress-fill[data-pct="80"] { width: 80%; }
+.config-progress-fill[data-pct="81"] { width: 81%; }
+.config-progress-fill[data-pct="82"] { width: 82%; }
+.config-progress-fill[data-pct="83"] { width: 83%; }
+.config-progress-fill[data-pct="84"] { width: 84%; }
+.config-progress-fill[data-pct="85"] { width: 85%; }
+.config-progress-fill[data-pct="86"] { width: 86%; }
+.config-progress-fill[data-pct="87"] { width: 87%; }
+.config-progress-fill[data-pct="88"] { width: 88%; }
+.config-progress-fill[data-pct="89"] { width: 89%; }
+.config-progress-fill[data-pct="90"] { width: 90%; }
+.config-progress-fill[data-pct="91"] { width: 91%; }
+.config-progress-fill[data-pct="92"] { width: 92%; }
+.config-progress-fill[data-pct="93"] { width: 93%; }
+.config-progress-fill[data-pct="94"] { width: 94%; }
+.config-progress-fill[data-pct="95"] { width: 95%; }
+.config-progress-fill[data-pct="96"] { width: 96%; }
+.config-progress-fill[data-pct="97"] { width: 97%; }
+.config-progress-fill[data-pct="98"] { width: 98%; }
+.config-progress-fill[data-pct="99"] { width: 99%; }
+.config-progress-fill[data-pct="100"] { width: 100%; }

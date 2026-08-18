@@ -132,10 +132,12 @@ async function viewEnvironment() {
   }
 }
 
+// Progress fill width comes from operator.css
+// `.config-progress-fill[data-pct="N"]` rules (CSP: no element.style).
+
 function showToast(message, type = 'info') {
   const toast = document.createElement('div');
-  toast.className = `alert alert-${type} position-fixed`;
-  toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+  toast.className = `alert alert-${type} position-fixed os-toast`;
   // textContent keeps the message XSS-safe; announce it for assistive tech.
   const assertive = type === 'danger' || type === 'error' || type === 'warning';
   toast.setAttribute('role', assertive ? 'alert' : 'status');

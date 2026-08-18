@@ -13,32 +13,32 @@
 
   // Show the output pre (hide the empty-state placeholder)
   function showOutput() {
-    if (outputEmpty) outputEmpty.style.display = 'none';
-    output.style.display = 'block';
+    if (outputEmpty) outputEmpty.classList.add('os-hide');
+    output.classList.remove('os-hide');
   }
   // Reset back to the empty-state placeholder
   function resetOutput() {
     output.textContent = '';
-    output.style.display = 'none';
-    if (outputEmpty) outputEmpty.style.display = '';
+    output.classList.add('os-hide');
+    if (outputEmpty) outputEmpty.classList.remove('os-hide');
   }
   // Inline validation instead of blocking alert()s
   function showError(msg) {
     if (!launchError) return;
     launchError.textContent = msg;
-    launchError.style.display = msg ? 'inline' : 'none';
+    launchError.classList.toggle('os-hide', !msg);
   }
   // Toggle the Launch button between idle and in-flight states
   function setLaunching(on) {
     launchBtn.disabled = on;
     const label = launchBtn.querySelector('.launch-label');
     const spin = launchBtn.querySelector('.launch-spinner');
-    if (label) label.style.display = on ? 'none' : 'inline';
-    if (spin) spin.style.display = on ? 'inline' : 'none';
+    if (label) label.classList.toggle('os-hide', on);
+    if (spin) spin.classList.toggle('os-hide', !on);
   }
   function setStatus(visible) {
     const statusEl = sel('streamStatus');
-    if (statusEl) statusEl.style.display = visible ? 'inline-flex' : 'none';
+    if (statusEl) statusEl.classList.toggle('os-hide', !visible);
   }
 
   // Load/save token if present

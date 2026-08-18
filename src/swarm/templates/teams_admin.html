@@ -7,7 +7,7 @@
 <div class="ta-wrap">
   <div class="ta-head">
     <div>
-      <h1 class="h3" style="margin:0;">Teams Admin</h1>
+      <h1 class="h3">Teams Admin</h1>
       <div class="os-meta">Register teams as OpenAI-compatible models &middot; callable at <code>/v1/chat/completions</code></div>
     </div>
     <span class="os-chip"><strong>{{ teams|length }}</strong>&nbsp;team{{ teams|length|pluralize }}</span>
@@ -58,7 +58,7 @@
       <div class="card-header">Registered Teams</div>
       <div class="card-body">
         {% if teams %}
-        <table class="table table-sm align-middle" style="margin:0;">
+        <table class="table table-sm align-middle ta-table">
           <caption class="visually-hidden">Registered teams</caption>
           <thead>
             <tr>

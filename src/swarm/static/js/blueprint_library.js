@@ -12,15 +12,15 @@ function applyBlueprintVisibility() {
     items.forEach(el => {
         const match = !q || (el.dataset.bpName || '').includes(q);
         if (!match) {
-            el.style.display = 'none';
+            el.classList.add('os-hide');
             return;
         }
         matchCount++;
         if (rendered < bpVisibleLimit) {
-            el.style.display = '';
+            el.classList.remove('os-hide');
             rendered++;
         } else {
-            el.style.display = 'none';
+            el.classList.add('os-hide');
         }
     });
     const countEl = document.getElementById('bpSearchCount');
@@ -32,16 +32,16 @@ function applyBlueprintVisibility() {
     const emptyEl = document.getElementById('bpSearchEmpty');
     const libraryEmpty = document.getElementById('bpLibraryEmpty');
     const noCatalog = items.length === 0;
-    if (emptyEl) emptyEl.style.display = (!noCatalog && matchCount === 0) ? '' : 'none';
-    if (libraryEmpty) libraryEmpty.style.display = noCatalog ? '' : 'none';
+    if (emptyEl) emptyEl.classList.toggle('os-hide', !(!noCatalog && matchCount === 0));
+    if (libraryEmpty) libraryEmpty.classList.toggle('os-hide', !noCatalog);
     const moreWrap = document.getElementById('bpShowMoreWrap');
     const meta = document.getElementById('bpPageMeta');
     if (moreWrap) {
         const hasMore = matchCount > bpVisibleLimit;
-        moreWrap.style.display = hasMore || (matchCount > BP_PAGE_SIZE) ? '' : 'none';
+        moreWrap.classList.toggle('os-hide', !(hasMore || (matchCount > BP_PAGE_SIZE)));
         const btn = document.getElementById('bpShowMore');
         if (btn) {
-            btn.style.display = hasMore ? '' : 'none';
+            btn.classList.toggle('os-hide', !hasMore);
             btn.textContent = hasMore
                 ? 'Show more (' + Math.min(BP_PAGE_SIZE, matchCount - bpVisibleLimit) + ')'
                 : 'Show more blueprints';
@@ -200,10 +200,10 @@ async function loadGithubMarketplace() {
     const emptyTitle = document.getElementById('ghEmptyTitle');
     const emptyHint = document.getElementById('ghEmptyHint');
     if (container) container.innerHTML = '';
-    if (empty) empty.style.display = 'none';
+    if (empty) empty.classList.add('os-hide');
     if (emptyTitle) emptyTitle.textContent = 'No marketplace results.';
     if (emptyHint) emptyHint.textContent = 'Try a different search or sort order.';
-    if (loading) loading.style.display = '';
+    if (loading) loading.classList.remove('os-hide');
     try {
         const q = encodeURIComponent(document.getElementById('ghSearch')?.value || '');
         const sort = document.getElementById('ghSort')?.value || 'stars';
@@ -225,15 +225,15 @@ async function loadGithubMarketplace() {
                 container.appendChild(col);
             });
         }
-        if (empty) empty.style.display = items.length ? 'none' : '';
+        if (empty) empty.classList.toggle('os-hide', !!items.length);
     } catch (e) {
         console.error('GitHub marketplace load failed', e);
         if (emptyTitle) emptyTitle.textContent = 'Could not load marketplace results.';
         if (emptyHint) emptyHint.textContent = 'Check ENABLE_GITHUB_MARKETPLACE, GitHub rate limits, and your network, then try again.';
-        if (empty) empty.style.display = '';
+        if (empty) empty.classList.remove('os-hide');
         if (container) container.innerHTML = '';
     } finally {
-        if (loading) loading.style.display = 'none';
+        if (loading) loading.classList.add('os-hide');
     }
 }
 

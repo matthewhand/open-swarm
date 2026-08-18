@@ -11,6 +11,8 @@
     <link href="{% static 'css/operator.css' %}" rel="stylesheet">
     <script src="{% static 'contrib/bootstrap/bootstrap.bundle.min.js' %}"></script>
     <script src="{% static 'js/htmx.min.js' %}"></script>
+    {# External: avoid HTMX <style> inject under style-src 'self' (see htmx_csp.js). #}
+    <script src="{% static 'js/htmx_csp.js' %}"></script>
     <link rel="stylesheet" href="{% static 'contrib/fontawesome/css/all.min.css' %}">
     <link rel="stylesheet" href="{% static 'contrib/prism/prism-tomorrow.min.css' %}">
     <script defer src="{% static 'contrib/prism/prism.min.js' %}"></script>

@@ -323,10 +323,10 @@ CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 #   SWARM_CSP=false             → skip Content-Security-Policy header
 # API_AUTH_TOKEN is already required in production via get_enforced_api_auth_token().
 #
-# Residual CSP inline needs (documented in docs/AUTH.md §7): page JS is external
-# under static/js/ (data-action delegation), so script-src is 'self' only.
-# Template <style> blocks moved to static/css/operator.css; residual style=""
-# attributes still need style-src 'unsafe-inline'. CDN hosts are not allowed.
+# CSP (documented in docs/AUTH.md §7): page JS under static/js/ (data-action
+# delegation), styles in static/css/operator.css — no 'unsafe-inline' for
+# script-src or style-src. HTMX indicator CSS is in operator.css with
+# includeIndicatorStyles disabled in base.html. CDN hosts are not allowed.
 _SWARM_CSP_POLICY = (
     "default-src 'self'; "
     "base-uri 'self'; "
@@ -335,7 +335,7 @@ _SWARM_CSP_POLICY = (
     "form-action 'self'; "
     "img-src 'self' data: blob:; "
     "font-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
+    "style-src 'self'; "
     "script-src 'self'; "
     "connect-src 'self' ws: wss:"
 )
