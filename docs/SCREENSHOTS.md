@@ -17,7 +17,7 @@ full-page PNGs.
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
 | `landing.png` | `/` (React SPA dashboard) | Counts 0/53/53; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; nav Home·Blueprints·Teams·Sessions·Settings (matches App.tsx) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
-| `spa-chat.png` | `/chat` (React SPA) | Websocket chat + blueprint selector; “Disconnected — login required for websocket”; same App.tsx chrome | GUIDED_TOUR.md | 2026-08-18 | current |
+| `spa-chat.png` | `/chat` (React SPA) | **Disconnected** login gate (“login required for websocket” / “Log in to send messages”); differs from `mobile/spa-chat.png` (Connected composer) | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect capture + sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect capture + banner over Blueprint Library | GUIDED_TOUR.md | 2026-08-18 | current |
 | `spa-settings.png` | `/settings` → **`/settings/`** | Redirect capture + banner over Settings Dashboard | GUIDED_TOUR.md | 2026-08-18 | current |
@@ -39,28 +39,38 @@ but points readers at this tour.
 ## Mobile captures (`docs/screenshots/mobile/`)
 
 Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
-Django pages and the SPA shell (`/` / `/chat`) share the five-item bottom bar
-**Home · Blueprints · Teams · Sessions · Settings** (matches App.tsx). Bare SPA
-paths still **redirect** to Django; `spa-*` captures keep the sticky
-“Redirected: …” banner over the Django landing (with the same five-tab bar).
+
+**Bottom nav honesty (as of these PNGs):**
+
+* **Django** operator pages use the five-tab bar
+  **Home · Blueprints · Teams · Sessions · Settings**.
+* **SPA** shell captures (`mobile/landing.png`, `mobile/spa-chat.png`) still
+  show the older seven-item dock
+  **Home · Chat · Builder · Blueprints · Teams · Creator · Settings** — not yet
+  recaptured to the five-tab chrome. Do not claim they match App.tsx’s current
+  five tabs until regenerated.
+* Bare SPA paths still **redirect** to Django; `spa-*` redirect captures keep
+  the sticky “Redirected: …” banner over the Django landing (five-tab bar).
+* Desktop `spa-chat.png` = **Disconnected** login gate; `mobile/spa-chat.png` =
+  **Connected** composer (different session/auth state — not the same frame).
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; dock Home · Blueprints · Teams · Sessions · Settings | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector (django_chat); five-tab bar with Home active (SPA chat is not its own dock tab). Differs from desktop `spa-chat.png`, which shows the disconnected login gate | 2026-08-18 | current |
-| `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django Teams tab active | 2026-08-18 | current |
-| `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Blueprints tab active | 2026-08-18 | current |
-| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Settings tab active | 2026-08-18 | current |
-| `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect banner over Agent Creator; Blueprints tab active | 2026-08-18 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **older 7-item dock** Home · Chat · Builder · Blueprints · Teams · Creator · Settings (Home active) | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector (`django_chat`); **older 7-item dock** with Chat active. Differs from desktop `spa-chat.png` (disconnected login gate) | 2026-08-18 | current |
+| `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django **5-tab** bar (Teams active) | 2026-08-18 | current |
+| `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
+| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Django **5-tab** (Settings active) | 2026-08-18 | current |
+| `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect banner over Agent Creator; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/login.png` | `/accounts/login/` | Full-width login card (no bottom primary bar) | 2026-08-18 | current |
-| `mobile/teams.png` | `/teams/` | Bottom primary tabs (Teams active); form wraps | 2026-08-18 | current |
-| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`fs_introspect`** selected; Teams tab active | 2026-08-18 | current |
-| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack; Blueprints tab active | 2026-08-18 | current |
-| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs; Blueprints tab active | 2026-08-18 | current |
-| `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; Blueprints tab active | 2026-08-18 | current |
-| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Settings tab active | 2026-08-18 | current |
-| `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle); Sessions tab active | 2026-08-18 | current |
-| `mobile/profiles.png` | `/profiles/` | Profiles table; Settings tab active (profiles nest under Settings) | 2026-08-18 | current |
+| `mobile/teams.png` | `/teams/` | Django **5-tab** bar (Teams active); form wraps | 2026-08-18 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`fs_introspect`** selected; Django **5-tab** (Teams active) | 2026-08-18 | current |
+| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
+| `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
+| `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
+| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Django **5-tab** (Settings active) | 2026-08-18 | current |
+| `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle); Django **5-tab** (Sessions active) | 2026-08-18 | current |
+| `mobile/profiles.png` | `/profiles/` | Profiles table; Django **5-tab** (Settings active — profiles nest under Settings) | 2026-08-18 | current |
 
 Regenerate with:
 

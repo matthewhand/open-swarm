@@ -51,11 +51,14 @@ replies, team launches) need an LLM profile configured (see
 
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
 **53**, Models **53** (API listings — the Blueprint Library’s discoverable
-catalog count can differ). Top nav: **Home · Blueprints · Teams · Sessions ·
-Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**, **Manage
-Teams**, **Settings**. Banner text points operators at Django trailing-slash
-paths for library, sessions, creators, and settings. Recaptured after
-`npm run build` on **2026-08-18** (mobile dock uses the same five tabs).*
+catalog count can differ). Desktop top nav: **Home · Blueprints · Teams ·
+Sessions · Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**,
+**Manage Teams**, **Settings**. Banner text points operators at Django
+trailing-slash paths for library, sessions, creators, and settings.
+Recaptured after `npm run build` on **2026-08-18**. Mobile
+`screenshots/mobile/landing.png` still shows the **older seven-item dock**
+(Home · Chat · Builder · Blueprints · Teams · Creator · Settings) — not yet
+recaptured to the five-tab chrome.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -63,10 +66,13 @@ paths for library, sessions, creators, and settings. Recaptured after
 
 ![SPA chat: disconnected websocket shell; login required; blueprint selector](./screenshots/spa-chat.png)
 
-*SPA websocket chat (`/ws/…`) with blueprint selector. Capture shows the
-anonymous/disconnected state: “Disconnected — login required for websocket”
-and a login-gated composer (“Log in to send messages”). The consumer rejects
-anonymous sessions; replies also need a working LLM profile.*
+*SPA websocket chat (`/ws/…`) with blueprint selector. **Desktop**
+`spa-chat.png` shows the anonymous/disconnected gate: “Disconnected — login
+required for websocket” and “Log in to send messages”. **Mobile**
+`screenshots/mobile/spa-chat.png` is a different frame: **Connected**
+composer with blueprint `django_chat` selected, and the same older seven-item
+dock (Chat active). The consumer rejects anonymous sessions; replies also need
+a working LLM profile.*
 
 **What you can do:** log in, then pick a blueprint and stream replies. Prefer
 Django Team Launcher for scripted multi-agent runs.
@@ -99,11 +105,14 @@ separate SPA product).*
 
 ## 3. Django operator UI (canonical)
 
-Primary chrome (Django and rebuilt SPA): **Home · Blueprints · Teams ·
-Sessions · Settings**, with GitHub under **More** on Django desktop only.
-Mobile five-tab bottom bar uses the same labels (SPA Home stays on `/`; other
-tabs are Django `href`s). After bare-path redirects, `spa-*` captures show the
-Django shell plus the sticky “Redirected: …” banner.
+Primary chrome for **Django** (and the rebuilt SPA desktop top nav):
+**Home · Blueprints · Teams · Sessions · Settings**, with GitHub under
+**More** on Django desktop only. Mobile **Django** pages use that same
+five-tab bottom bar. Mobile **SPA** captures (`landing.png`, `spa-chat.png`
+under `screenshots/mobile/`) still show the older seven-item dock
+(Home · Chat · Builder · Blueprints · Teams · Creator · Settings) until
+recaptured. After bare-path redirects, `spa-*` captures show the Django
+shell (five-tab) plus the sticky “Redirected: …” banner.
 
 ### Login — `/accounts/login/`
 
