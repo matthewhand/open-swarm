@@ -36,7 +36,10 @@ class BlueprintFunctionTool:
         blueprints = discover_blueprints(str(base_dir))
         if self.name not in blueprints:
             raise ValueError(f"Blueprint '{self.name}' not found")
-        bp_cls = blueprints[self.name]
+        info = blueprints[self.name]
+        bp_cls = info["class_type"] if isinstance(info, dict) else info
+        if bp_cls is None:
+            raise ValueError(f"Blueprint class not found for '{self.name}'")
         instance = bp_cls(blueprint_id=self.name)
         last_content = ''
         async def runner():
