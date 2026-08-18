@@ -156,7 +156,7 @@ parity is reached.
 ### 3.5 Blueprint ecosystem rationalization (17 remaining blueprints)
 
 - [x] Delete the 8 orphaned blueprints (done 2026-06-10)
-- [ ] Curate a flagship set — candidates: `codey`, `geese`, `jeeves`, `zeus`, `suggestion`, `whinge_surf`, `rue_code`, `poets`
+- [ ] Curate a flagship set — candidates: `codey`, `geese`, `jeeves`, `zeus`, `suggestion`, `rue_code`, `poets`, `stewie`
 - [ ] Test coverage for retained blueprints (most still lack collected tests; see §2 blueprint-test-collection item)
 - [ ] Demote or archive non-flagship blueprints to an examples/contrib area
 - [ ] Restore or formally drop legacy CLI commands old docs reference (`wizard`, `config`, `add`)
@@ -254,8 +254,9 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   `execute`). Delete. (supersedes §3.4b)
 - [x] **Dead view+template:** `blueprint_webpage` + `simple_blueprint_page.html`
   (+ `chat.html`) removed 0.5.2 — see FEATURE_STATUS / CHANGELOG.
-- [ ] **Orphaned `templates/rest_mode/*` files** (~8). Delete or wire; `chat.html`
-  already removed.
+- [x] **Orphaned `templates/rest_mode/*`** — deleted unrouted `slackbot.html` /
+  `message_ui.html` + components (static `rest_mode/js` kept for XSS regression
+  coverage). `chat.html` already removed.
 - [x] **`stewie` ships a broken nested Django app** — deleted dead `settings`/`views`/`serializers`/`models`/`urls`/`apps` (nonexistent `blueprints.chc`); kept `blueprint_stewie.py`
 
 ### 4.5 Structure
@@ -267,8 +268,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   shim re-exporting `ux/ansi_box` (callers moved to `ux` / `output_utils`).
 - [ ] **Blueprint metadata inconsistent** — `name`≠dirname in 9 blueprints;
   3 declaration styles (`ClassVar`, bare, `@property`); absent in `gawd`/`geese`/
-  `whinge_surf`/`zeus`; no machine-readable `category`. Define a schema +
-  discovery-time validator (CI-enforced).
+  `zeus`; no machine-readable `category`. Define a schema + discovery-time
+  validator (CI-enforced). (`whinge_surf` husk removed.)
 - [ ] **`urls.py` REST inconsistency** — hand-duplicated slash/no-slash route
   pairs, mixed CBV/FBV, 4 auth styles. Adopt a DRF router for `v1/*` resources.
 - [ ] **9 `cli_*` deliberation blueprints overlap** — a strategy family as 9

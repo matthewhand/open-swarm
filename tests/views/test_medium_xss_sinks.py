@@ -68,7 +68,7 @@ def test_profiles_base_url_href_gated_to_http_https():
 
 
 def test_slack_logic_appends_messages_via_textcontent():
-    """slackbot.html still loads slackLogic.js — must not sink raw strings into innerHTML."""
+    """Legacy rest_mode slackLogic.js (template removed) must use textContent, not innerHTML."""
     source = SLACK_LOGIC.read_text(encoding="utf-8")
     assert "appendMessage" in source
     assert "textContent" in source
