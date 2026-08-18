@@ -79,6 +79,61 @@ class TestAssertSafeBlueprintSource:
         with pytest.raises(ValueError, match=r"os\.system"):
             assert_safe_blueprint_source("import os\nos.system('id')\n")
 
+    def test_os_remove_fails(self):
+        with pytest.raises(ValueError, match=r"os\.remove"):
+            assert_safe_blueprint_source("import os\nos.remove('/tmp/x')\n")
+
+    def test_os_unlink_fails(self):
+        with pytest.raises(ValueError, match=r"os\.unlink"):
+            assert_safe_blueprint_source("import os\nos.unlink('/tmp/x')\n")
+
+    def test_os_rename_fails(self):
+        with pytest.raises(ValueError, match=r"os\.rename"):
+            assert_safe_blueprint_source("import os\nos.rename('/tmp/a', '/tmp/b')\n")
+
+    def test_from_os_import_remove_fails(self):
+        with pytest.raises(ValueError, match=r"os\.remove"):
+            assert_safe_blueprint_source("from os import remove\n")
+
+    def test_path_write_text_fails(self):
+        with pytest.raises(ValueError, match=r"write_text"):
+            assert_safe_blueprint_source(
+                "from pathlib import Path\nPath('/tmp/x').write_text('evil')\n"
+            )
+
+    def test_path_unlink_fails(self):
+        with pytest.raises(ValueError, match=r"unlink"):
+            assert_safe_blueprint_source(
+                "from pathlib import Path\np = Path('/tmp/x')\np.unlink()\n"
+            )
+
+    def test_path_write_bytes_fails(self):
+        with pytest.raises(ValueError, match=r"write_bytes"):
+            assert_safe_blueprint_source(
+                "from pathlib import Path\nPath('/tmp/x').write_bytes(b'x')\n"
+            )
+
+    def test_path_ctor_rename_fails(self):
+        with pytest.raises(ValueError, match=r"Path\.rename"):
+            assert_safe_blueprint_source(
+                "from pathlib import Path\nPath('/tmp/a').rename('/tmp/b')\n"
+            )
+
+    def test_path_read_only_ok(self):
+        """Path import and read-only methods remain allowed."""
+        src = """
+from pathlib import Path
+p = Path('/tmp/x')
+text = p.read_text()
+exists = p.exists()
+parent = p.parent
+name = p.name
+"""
+        assert_safe_blueprint_source(src)
+
+    def test_str_replace_still_ok(self):
+        assert_safe_blueprint_source("s = 'ab'.replace('a', 'c')\n")
+
     def test_builtins_name_fails(self):
         with pytest.raises(ValueError, match=r"__builtins__"):
             assert_safe_blueprint_source("getattr(__builtins__, 'eval')\n")
@@ -101,7 +156,6 @@ from swarm.core.blueprint_base import BlueprintBase
     def test_syntax_error_raises_value_error(self):
         with pytest.raises(ValueError, match=r"syntax"):
             assert_safe_blueprint_source("def (\n")
-
 
 class TestSandboxEnabledEnv:
     def test_default_true(self, monkeypatch):

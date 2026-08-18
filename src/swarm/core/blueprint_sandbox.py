@@ -85,6 +85,87 @@ _WRITE_OPEN_MODES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# pathlib.Path (and similar) mutation methods.  Importing Path remains allowed
+# for read-only use (read_text, exists, iterdir, …).  Attr-based so both
+# ``Path(...).write_text`` and ``p.write_text`` are caught.  Do not include
+# generic names like ``replace`` (str.replace) or ``remove`` (list.remove).
+_BANNED_PATH_MUTATION_ATTRS: Final[frozenset[str]] = frozenset(
+    {
+        "write_text",
+        "write_bytes",
+        "unlink",
+        "touch",
+        "mkdir",
+        "rmdir",
+        "chmod",
+        "symlink_to",
+        "hardlink_to",
+    }
+)
+
+# os.* process / FS mutation APIs (owner must be the name ``os``).
+_BANNED_OS_ATTRS: Final[frozenset[str]] = frozenset(
+    {
+        "system",
+        "popen",
+        "exec",
+        "execl",
+        "execle",
+        "execlp",
+        "execlpe",
+        "execv",
+        "execve",
+        "execvp",
+        "execvpe",
+        "spawnl",
+        "spawnle",
+        "spawnlp",
+        "spawnlpe",
+        "spawnv",
+        "spawnve",
+        "spawnvp",
+        "spawnvpe",
+        "fork",
+        "forkpty",
+        "remove",
+        "unlink",
+        "rename",
+        "renames",
+        "replace",
+        "mkdir",
+        "makedirs",
+        "rmdir",
+        "removedirs",
+        "chmod",
+        "chown",
+        "lchmod",
+        "lchown",
+        "symlink",
+        "link",
+        "truncate",
+    }
+)
+
+# Path / PurePath constructors used to detect ``Path(...).rename`` style calls.
+_PATH_CTOR_NAMES: Final[frozenset[str]] = frozenset(
+    {
+        "Path",
+        "PurePath",
+        "PosixPath",
+        "WindowsPath",
+        "PurePosixPath",
+        "PureWindowsPath",
+    }
+)
+
+# Path methods whose names collide with common non-FS APIs (e.g. str.replace).
+_BANNED_PATH_OWNED_MUTATION_ATTRS: Final[frozenset[str]] = frozenset(
+    {
+        "rename",
+        "replace",
+    }
+)
+
 
 def sandbox_enabled() -> bool:
     """Return whether the user-blueprint sandbox gate is active (default on)."""
@@ -116,6 +197,16 @@ def _check_node(node: ast.AST) -> None:
     if isinstance(node, ast.ImportFrom):
         if node.module:
             _reject_module(node.module, node)
+            # ``from os import remove`` / ``from os.path import ...`` — only
+            # block dangerous names pulled directly from ``os``.
+            mod_root = node.module.split(".", 1)[0]
+            if mod_root == "os" and node.module == "os":
+                for alias in node.names:
+                    if alias.name in _BANNED_OS_ATTRS:
+                        raise ValueError(
+                            f"Banned import of os.{alias.name} in user blueprint "
+                            f"(line {getattr(node, 'lineno', '?')})"
+                        )
         for alias in node.names:
             # ``from . import subprocess`` when module is relative/None
             root = alias.name.split(".", 1)[0]
@@ -168,6 +259,20 @@ def _call_func_name(node: ast.Call) -> str | None:
     return None
 
 
+def _is_path_ctor_receiver(func: ast.Attribute) -> bool:
+    """True when the attribute is clearly on a Path/PurePath constructor result."""
+    val = func.value
+    if isinstance(val, ast.Name) and val.id in _PATH_CTOR_NAMES:
+        return True
+    if isinstance(val, ast.Attribute) and val.attr in _PATH_CTOR_NAMES:
+        return True
+    if isinstance(val, ast.Call):
+        ctor = _call_func_name(val)
+        if ctor in _PATH_CTOR_NAMES:
+            return True
+    return False
+
+
 def _check_call(node: ast.Call) -> None:
     name = _call_func_name(node)
     if name is None:
@@ -190,35 +295,33 @@ def _check_call(node: ast.Call) -> None:
         _check_open_call(node)
         return
 
-    # os.system / os.popen / os.exec*
-    if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-        owner = node.func.value.id
+    if isinstance(node.func, ast.Attribute):
         attr = node.func.attr
-        if owner == "os" and attr in (
-            "system",
-            "popen",
-            "exec",
-            "execl",
-            "execle",
-            "execlp",
-            "execlpe",
-            "execv",
-            "execve",
-            "execvp",
-            "execvpe",
-            "spawnl",
-            "spawnle",
-            "spawnlp",
-            "spawnlpe",
-            "spawnv",
-            "spawnve",
-            "spawnvp",
-            "spawnvpe",
-            "fork",
-            "forkpty",
+
+        # os.system / os.remove / os.rename / … (before generic Path attr bans
+        # so messages stay ``os.unlink`` rather than bare ``unlink``)
+        if isinstance(node.func.value, ast.Name):
+            owner = node.func.value.id
+            if owner == "os" and attr in _BANNED_OS_ATTRS:
+                raise ValueError(
+                    f"Banned call to os.{attr} in user blueprint "
+                    f"(line {getattr(node, 'lineno', '?')})"
+                )
+
+        # pathlib.Path mutation (unique method names — safe to match by attr)
+        if attr in _BANNED_PATH_MUTATION_ATTRS:
+            raise ValueError(
+                f"Banned filesystem mutation call {attr!r} in user blueprint "
+                f"(line {getattr(node, 'lineno', '?')})"
+            )
+
+        # Path.rename / Path.replace — only when receiver is clearly a Path ctor
+        # (avoid false positives on str.replace / custom rename helpers)
+        if attr in _BANNED_PATH_OWNED_MUTATION_ATTRS and _is_path_ctor_receiver(
+            node.func
         ):
             raise ValueError(
-                f"Banned call to os.{attr} in user blueprint "
+                f"Banned Path.{attr} in user blueprint "
                 f"(line {getattr(node, 'lineno', '?')})"
             )
 
