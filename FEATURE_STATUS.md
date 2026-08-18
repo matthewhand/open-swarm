@@ -125,7 +125,7 @@ Import check: every module below imported successfully via `uv run python -c "im
 
 ## 10. Security — ✅ 8 · 🟡 2
 
-Coherent operator map: **[docs/AUTH.md](./docs/AUTH.md)** (Bearer `token:` principals + REST IDOR, Django session / WS 4401, Explorer bridge, workdir confinement, user-blueprint AST sandbox, CSRF / no CSP).
+Coherent operator map: **[docs/AUTH.md](./docs/AUTH.md)** (Bearer `token:` principals + REST IDOR, Django session / WS 4401, Explorer bridge, workdir confinement, user-blueprint AST sandbox, CSRF / prod CSP).
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -137,7 +137,7 @@ Coherent operator map: **[docs/AUTH.md](./docs/AUTH.md)** (Bearer `token:` princ
 | Login open-redirect hardening | ✅ | `web_views._safe_post_login_redirect`: relative rooted paths only + `url_has_allowed_host_and_scheme`; rejects `//evil`, `\\`, absolute/external, bare relatives; `tests/views/test_web_views_security.py` |
 | Creator toast DOM XSS escapes | ✅ | Live `team_creator.html` / `agent_creator.html` escape untrusted names/errors/paths before `innerHTML`; `tests/views/test_creator_toast_xss.py` (Pro JS deleted with the clickware surface) |
 | User-blueprint AST sandbox | ✅ | `blueprint_sandbox.py` (default on; opt out `SWARM_USER_BLUEPRINT_SANDBOX=false`); discovery opt-in `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`; creator saves `@login_required` + banned-snippet/AST gate |
-| ChatMessage tenancy + prod security headers | ✅ | `message_views.py` scopes list to `conversation__student=request.user` when `ENABLE_API_AUTH`; token-only → empty qs. Prod-only (`DEBUG=False`): secure cookies (`SWARM_SECURE_COOKIES`). Always-on (Django defaults + middleware, debug and prod): `SECURE_CONTENT_TYPE_NOSNIFF`, `X_FRAME_OPTIONS=DENY` (prod block reasserts / `DJANGO_X_FRAME_OPTIONS`). **No CSP.** Browser honesty: `swarm.core.browser_tools` + TROUBLESHOOTING §7 (no fake playwright success). |
+| ChatMessage tenancy + prod security headers | ✅ | `message_views.py` scopes list to `conversation__student=request.user` when `ENABLE_API_AUTH`; token-only → empty qs. Prod-only (`DEBUG=False`): secure cookies (`SWARM_SECURE_COOKIES`); minimal CSP via `ContentSecurityPolicyMiddleware` (`SWARM_CSP=false` to opt out; residual `'unsafe-inline'` — AUTH.md §7). Always-on (Django defaults + middleware, debug and prod): `SECURE_CONTENT_TYPE_NOSNIFF`, `X_FRAME_OPTIONS=DENY` (prod block reasserts / `DJANGO_X_FRAME_OPTIONS`). Operator UI assets self-hosted under `static/contrib/`. Browser honesty: `swarm.core.browser_tools` + TROUBLESHOOTING §7 (no fake playwright success). |
 | `SWARM_TEST_MODE` | 🟡 | Works as designed for tests (dummy LLM paths e.g. `blueprint_jeeves.py:276`; `swarm_cli.py:97` installs a bash shim instead of a PyInstaller binary). Caveat: a single env var globally swaps real behavior for canned output — if leaked into prod, responses are fake with no warning |
 
 ---

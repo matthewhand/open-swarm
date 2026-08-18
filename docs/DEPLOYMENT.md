@@ -6,7 +6,7 @@ that wraps your installed agentic CLIs (grok, claude, gemini, codex, opencode).
 
 For the full auth & trust map (Bearer vs Django session, websocket 4401,
 Session Explorer operator bridge, workdir confinement, blueprint AST sandbox,
-CSRF / no CSP), see **[AUTH.md](./AUTH.md)**.
+CSRF / prod CSP), see **[AUTH.md](./AUTH.md)**.
 
 ## 0. Prerequisites — the CLIs must be installed *where the server runs*
 
@@ -150,7 +150,9 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   `X-Content-Type-Options: nosniff` and `X-Frame-Options` (default `DENY`) are
   Django defaults from always-on `SecurityMiddleware` / `XFrameOptionsMiddleware`
   in **both** debug and production — the prod settings block only reasserts them
-  (and honors `DJANGO_X_FRAME_OPTIONS`). There is **no** Content-Security-Policy (CSP).
+  (and honors `DJANGO_X_FRAME_OPTIONS`). Production also sets a minimal
+  Content-Security-Policy (`self` + residual `'unsafe-inline'` for Django
+  templates; no CDN). Opt out with `SWARM_CSP=false`. See [AUTH.md](./AUTH.md) §7.
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
 - **SPA chat “Unavailable — sign in required” / WS close 4401** → no Django
   session cookie. Sign in via `/accounts/login/` (CSRF required on POST);

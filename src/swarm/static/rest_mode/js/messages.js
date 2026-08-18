@@ -1,8 +1,7 @@
 import { debugLog } from './debug.js';
 import { enableSlidingToolbar } from './ui.js';
 import { escapeHtml, sanitizeMarkdownHtml } from './htmlSafe.js';
-// import { marked } from '../../contrib/markedjs/marked.min.js';
-import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+import { marked } from '../../contrib/markedjs/marked.esm.js';
 
 let quickPrompts = ["What is Open-Swarm?", "Explain the architecture.", "How do I set up a new blueprint?"];
 

@@ -296,9 +296,14 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 - [x] **BuilderPage / AgentCreatorPage / Teams / Blueprints / Settings SPA** —
   deleted (ADR-001); `App.tsx` mounts `/` + `/chat` only. Canonical creator is
   Django `/agent-creator/`.
-- [ ] **Django legacy surface off-brand/broken** — Bootstrap CDN (offline breaks),
-  `profiles.html` uses DaisyUI classes on a Bootstrap base (unstyled),
-  `base.html` missing `title`/`head` blocks. Decide retire-vs-migrate.
+- [x] **Django operator UI offline + CSP** — Bootstrap 5.3.3, Prism, Font Awesome
+  vendored under `src/swarm/static/contrib/`; `base.html` + rest_mode marked use
+  `{% static %}` / relative imports (no CDN). Prod (`DEBUG=False`) sets a minimal
+  CSP (`ContentSecurityPolicyMiddleware`; residual `'unsafe-inline'` documented in
+  AUTH.md §7). Remaining legacy polish: `profiles.html` DaisyUI-on-Bootstrap
+  mismatch; richer `title`/`head` blocks — decide retire-vs-migrate.
+- [ ] **Django legacy surface polish** — `profiles.html` DaisyUI classes on a
+  Bootstrap base (unstyled); `base.html` head/title block gaps.
 
 ### 4.7 API + tests
 - [x] **`/v1/responses` trailing-slash twins** — `…/responses/`, detail, and cancel

@@ -159,6 +159,8 @@ MIDDLEWARE = [
     'swarm.middleware.AsyncAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # CSP header when CONTENT_SECURITY_POLICY is set (prod DEBUG=False block).
+    'swarm.middleware.ContentSecurityPolicyMiddleware',
 ]
 
 ROOT_URLCONF = 'swarm.urls'
@@ -310,14 +312,34 @@ LOGOUT_REDIRECT_URL = '/'
 CSRF_TRUSTED_ORIGINS = get_django_csrf_trusted_origins()
 
 # --- Production security defaults ---
-# When DEBUG is False: force Secure cookies (the only DEBUG-gated cookie change)
-# and reassert Django's already-default nosniff + X-Frame-Options (DENY), with
-# optional DJANGO_X_FRAME_OPTIONS override. SecurityMiddleware and
-# XFrameOptionsMiddleware are always installed; there is no CSP. Tests force
-# DJANGO_DEBUG=true via TESTING, so this block does not affect the suite.
+# When DEBUG is False: force Secure cookies (the only DEBUG-gated cookie change),
+# reassert Django's already-default nosniff + X-Frame-Options (DENY), with
+# optional DJANGO_X_FRAME_OPTIONS override, and enable a minimal CSP for the
+# self-hosted Django operator UI (Bootstrap/Prism/Font Awesome under static/).
+# SecurityMiddleware and XFrameOptionsMiddleware are always installed.
+# Tests force DJANGO_DEBUG=true via TESTING, so this block does not affect the suite.
 #   SWARM_SECURE_COOKIES=false  → allow non-HTTPS cookies (HTTP staging)
 #   DJANGO_X_FRAME_OPTIONS      → override frame policy (default DENY)
+#   SWARM_CSP=false             → skip Content-Security-Policy header
 # API_AUTH_TOKEN is already required in production via get_enforced_api_auth_token().
+#
+# Residual CSP inline needs (documented in docs/AUTH.md §7): Django templates
+# still use inline <script> blocks and style="" attributes, so script-src /
+# style-src allow 'unsafe-inline'. CDN hosts are not allowed.
+_SWARM_CSP_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "img-src 'self' data: blob:; "
+    "font-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "connect-src 'self' ws: wss:"
+)
+CONTENT_SECURITY_POLICY = None  # set below when DEBUG=False (unless SWARM_CSP=false)
+
 if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = os.getenv("DJANGO_X_FRAME_OPTIONS", "DENY")
@@ -330,6 +352,9 @@ if not DEBUG:
         _secure_cookies = True
     SESSION_COOKIE_SECURE = _secure_cookies
     CSRF_COOKIE_SECURE = _secure_cookies
+    _csp_env = os.getenv("SWARM_CSP", "").strip().lower()
+    if _csp_env not in ("false", "0", "no", "n", "off"):
+        CONTENT_SECURITY_POLICY = _SWARM_CSP_POLICY
 
 
 # --- ComfyUI Configuration for Avatar Generation ---

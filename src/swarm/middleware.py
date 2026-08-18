@@ -3,10 +3,30 @@ import asyncio  # Import asyncio
 import logging
 
 from asgiref.sync import sync_to_async
+from django.conf import settings
 from django.utils.decorators import sync_and_async_middleware
 from django.utils.functional import SimpleLazyObject
 
 logger = logging.getLogger(__name__)
+
+
+class ContentSecurityPolicyMiddleware:
+    """Attach Content-Security-Policy when settings.CONTENT_SECURITY_POLICY is set.
+
+    Production (DEBUG=False) enables a self-centric policy; see docs/AUTH.md §7
+    for residual 'unsafe-inline' needs on Django operator templates.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        policy = getattr(settings, "CONTENT_SECURITY_POLICY", None)
+        if policy and "Content-Security-Policy" not in response:
+            response["Content-Security-Policy"] = policy
+        return response
+
 
 # Mark the middleware as compatible with both sync and async views
 @sync_and_async_middleware

@@ -47,7 +47,7 @@ Related: [DEPLOYMENT.md](./DEPLOYMENT.md) · [CONFIGURATION.md](../CONFIGURATION
   Workdir: params.workdir/cwd under SWARM_WORKSPACES_DIR
            (ALLOW_UNRESTRICTED_WORKDIR opt-in escape)
   Blueprints: user discovery opt-in; AST sandbox (not OS sandbox)
-  Browser: CSRF on login + HTML mutators; no CSP today
+  Browser: CSRF on login + HTML mutators; prod CSP (self + unsafe-inline)
 ```
 
 ---
@@ -139,7 +139,7 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 
 ---
 
-## 7. CSRF, cookies, headers (no CSP)
+## 7. CSRF, cookies, headers (prod CSP)
 
 | Control | Behavior |
 |---|---|
@@ -147,7 +147,11 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Must include scheme+host(+port) for every UI origin (LAN/proxy too). |
 | Secure cookies | When `DEBUG=False`, `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` default on; opt out with `SWARM_SECURE_COOKIES=false` for HTTP staging. |
 | Always-on headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options` (default `DENY`; prod may override via `DJANGO_X_FRAME_OPTIONS`). |
-| **CSP** | **Not configured today.** There is no Content-Security-Policy header. |
+| **CSP** | When `DEBUG=False`, `ContentSecurityPolicyMiddleware` sets `Content-Security-Policy` from `CONTENT_SECURITY_POLICY` (opt out with `SWARM_CSP=false`). Policy is self-centric: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, `font-src 'self'`, `img-src 'self' data: blob:`, `connect-src 'self' ws: wss:` (websocket chat). **No CDN hosts.** Operator UI assets (Bootstrap, Prism, Font Awesome, marked) are vendored under `src/swarm/static/contrib/` and loaded via `{% static %}`. |
+
+### Residual inline needs
+
+Django operator templates still ship **inline `<script>` blocks** (creators, library, teams, sessions) and many **`style=""` attributes**. Until those move to external JS/CSS, prod CSP keeps `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`. That blocks third-party script/style hosts while remaining compatible with the current templates. Prefer extracting inline scripts over adding more `'unsafe-*'` directives.
 
 ---
 
@@ -157,4 +161,4 @@ Important trust bound: this is a **static AST filter**, **not an OS sandbox**. I
 2. Point OpenAI clients at `/v1` with `Authorization: Bearer $API_AUTH_TOKEN`.
 3. Sign in at `/login/` for WebUI, Session Explorer, and websocket chat (session ≠ API token).
 4. Keep `ALLOW_UNRESTRICTED_WORKDIR` and `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` off unless you intentionally widen trust.
-5. Expect no CSP; rely on CSRF + frame/nosniff defaults + auth gates above.
+5. Expect prod CSP (`self` + residual `'unsafe-inline'`); rely on CSRF + frame/nosniff + auth gates above. Use `SWARM_CSP=false` only to disable the header.

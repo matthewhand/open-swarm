@@ -9,9 +9,23 @@ import os
 from unittest.mock import patch
 
 
+_SWARM_CSP_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "img-src 'self' data: blob:; "
+    "font-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "connect-src 'self' ws: wss:"
+)
+
+
 def _apply_prod_secure_defaults(debug: bool, env: dict[str, str] | None = None) -> dict:
     """Mirror of the settings.py production security block."""
-    out: dict = {}
+    out: dict = {"CONTENT_SECURITY_POLICY": None}
     env = env or {}
     if not debug:
         out["SECURE_CONTENT_TYPE_NOSNIFF"] = True
@@ -23,12 +37,17 @@ def _apply_prod_secure_defaults(debug: bool, env: dict[str, str] | None = None) 
             secure = True
         out["SESSION_COOKIE_SECURE"] = secure
         out["CSRF_COOKIE_SECURE"] = secure
+        csp_env = env.get("SWARM_CSP", "").strip().lower()
+        if csp_env not in ("false", "0", "no", "n", "off"):
+            out["CONTENT_SECURITY_POLICY"] = _SWARM_CSP_POLICY
     return out
 
 
 class TestProductionSecurityDefaults:
     def test_debug_true_sets_nothing(self):
-        assert _apply_prod_secure_defaults(debug=True) == {}
+        assert _apply_prod_secure_defaults(debug=True) == {
+            "CONTENT_SECURITY_POLICY": None
+        }
 
     def test_production_sets_headers_and_secure_cookies(self):
         out = _apply_prod_secure_defaults(debug=False, env={})
@@ -36,6 +55,9 @@ class TestProductionSecurityDefaults:
         assert out["X_FRAME_OPTIONS"] == "DENY"
         assert out["SESSION_COOKIE_SECURE"] is True
         assert out["CSRF_COOKIE_SECURE"] is True
+        assert out["CONTENT_SECURITY_POLICY"] == _SWARM_CSP_POLICY
+        assert "cdn." not in out["CONTENT_SECURITY_POLICY"]
+        assert "'unsafe-inline'" in out["CONTENT_SECURITY_POLICY"]
 
     def test_secure_cookies_opt_out(self):
         out = _apply_prod_secure_defaults(
@@ -43,6 +65,10 @@ class TestProductionSecurityDefaults:
         )
         assert out["SESSION_COOKIE_SECURE"] is False
         assert out["CSRF_COOKIE_SECURE"] is False
+
+    def test_csp_opt_out(self):
+        out = _apply_prod_secure_defaults(debug=False, env={"SWARM_CSP": "false"})
+        assert out["CONTENT_SECURITY_POLICY"] is None
 
     def test_x_frame_options_override(self):
         out = _apply_prod_secure_defaults(
