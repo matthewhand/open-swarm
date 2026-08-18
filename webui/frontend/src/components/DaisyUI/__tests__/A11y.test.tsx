@@ -5,6 +5,7 @@ import { Input } from '../Input';
 import { Select } from '../Select';
 import { Textarea } from '../Textarea';
 import { Button } from '../Button';
+import { Alert } from '../Alert';
 import { LoadingOverlay, LoadingSpinner } from '../Loading';
 
 describe('Modal Accessibility', () => {
@@ -68,6 +69,46 @@ describe('Form Control Accessibility', () => {
 
     expect(textarea).toHaveAttribute('aria-invalid', 'true');
     expect(textarea).toHaveAttribute('aria-describedby', error.id);
+  });
+});
+
+describe('Alert Accessibility', () => {
+  it('uses role="status" for info and success by default', () => {
+    const { rerender } = render(<Alert type="info">Heads up</Alert>);
+    expect(screen.getByRole('status')).toHaveTextContent('Heads up');
+
+    rerender(<Alert type="success">Saved</Alert>);
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+  });
+
+  it('uses role="alert" for warning and error by default', () => {
+    const { rerender } = render(<Alert type="warning">Careful</Alert>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Careful');
+
+    rerender(<Alert type="error">Failed</Alert>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed');
+  });
+
+  it('marks decorative icons as aria-hidden', () => {
+    render(
+      <Alert type="error" icon={<span data-testid="alert-icon">!</span>}>
+        Boom
+      </Alert>,
+    );
+    expect(screen.getByTestId('alert-icon').parentElement).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+  });
+
+  it('allows an explicit role override', () => {
+    render(
+      <Alert type="error" role="status">
+        Soft error
+      </Alert>,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Soft error');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
 

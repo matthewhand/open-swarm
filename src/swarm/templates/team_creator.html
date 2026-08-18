@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4" id="teamCreator">
   <h2 class="mb-3"><span aria-hidden="true">🐝</span> Swarm Creator</h2>
   <p class="text-muted">Build multi-bot swarms with custom coordination logic</p>
 
@@ -37,13 +37,13 @@
             </div>
             
             <div class="d-grid gap-2 mt-3">
-              <button type="button" class="btn btn-outline-primary" onclick="addTeamMember()">
+              <button type="button" class="btn btn-outline-primary" data-action="add-member">
                 ➕ Add Bot
               </button>
-              <button type="button" class="btn btn-primary" onclick="generateTeamCode()">
+              <button type="button" class="btn btn-primary" data-action="generate-team">
                 🔧 Generate Swarm Blueprint
               </button>
-              <button type="button" class="btn btn-outline-secondary" onclick="clearTeamForm()">
+              <button type="button" class="btn btn-outline-secondary" data-action="clear-team">
                 Clear Form
               </button>
             </div>
@@ -58,10 +58,10 @@
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5>Generated Swarm Blueprint</h5>
           <div>
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateTeamCode()" id="validateTeamBtn" disabled>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-action="validate-team" id="validateTeamBtn" disabled>
               ✅ Validate
             </button>
-            <button type="button" class="btn btn-sm btn-success" onclick="saveTeam()" id="saveTeamBtn" disabled>
+            <button type="button" class="btn btn-sm btn-success" data-action="save-team" id="saveTeamBtn" disabled>
               💾 Save Swarm
             </button>
           </div>
@@ -125,39 +125,39 @@ function addTeamMember() {
         <div class="border rounded p-3 mb-3" id="member-${teamMemberCount}">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h6>Team Member ${teamMemberCount}</h6>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeMember(${teamMemberCount})">
+                <button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-member" data-member-id="${teamMemberCount}">
                     ✕ Remove
                 </button>
             </div>
             
             <div class="row">
                 <div class="col-md-6">
-                    <label class="form-label">Agent Name *</label>
-                    <input type="text" class="form-control member-name" name="member_name_${teamMemberCount}" required>
+                    <label class="form-label" for="member_name_${teamMemberCount}">Agent Name *</label>
+                    <input type="text" class="form-control member-name" id="member_name_${teamMemberCount}" name="member_name_${teamMemberCount}" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Role/Specialization</label>
-                    <input type="text" class="form-control member-role" name="member_role_${teamMemberCount}" 
+                    <label class="form-label" for="member_role_${teamMemberCount}">Role/Specialization</label>
+                    <input type="text" class="form-control member-role" id="member_role_${teamMemberCount}" name="member_role_${teamMemberCount}" 
                            placeholder="e.g., Writer, Researcher, Analyst">
                 </div>
             </div>
             
             <div class="mt-2">
-                <label class="form-label">Description</label>
-                <textarea class="form-control member-description" name="member_description_${teamMemberCount}" rows="2"
+                <label class="form-label" for="member_description_${teamMemberCount}">Description</label>
+                <textarea class="form-control member-description" id="member_description_${teamMemberCount}" name="member_description_${teamMemberCount}" rows="2"
                           placeholder="What does this team member do?"></textarea>
             </div>
             
             <div class="mt-2">
-                <label class="form-label">System Prompt</label>
-                <textarea class="form-control member-instructions" name="member_instructions_${teamMemberCount}" rows="3"
+                <label class="form-label" for="member_instructions_${teamMemberCount}">System Prompt</label>
+                <textarea class="form-control member-instructions" id="member_instructions_${teamMemberCount}" name="member_instructions_${teamMemberCount}" rows="3"
                           placeholder="System prompt for this bot (role, behavior, constraints)"></textarea>
             </div>
             
             <div class="row mt-2">
                 <div class="col-md-6">
-                    <label class="form-label">Model Profile</label>
-                    <select class="form-select member-model" name="member_model_${teamMemberCount}">
+                    <label class="form-label" for="member_model_${teamMemberCount}">Model Profile</label>
+                    <select class="form-select member-model" id="member_model_${teamMemberCount}" name="member_model_${teamMemberCount}">
                         {% if profiles %}
                           {% for profile in profiles %}
                             <option value="{{ profile }}">{{ profile }}</option>
@@ -168,8 +168,8 @@ function addTeamMember() {
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Tools/Functions (comma-separated)</label>
-                    <input type="text" class="form-control member-tools" name="member_tools_${teamMemberCount}"
+                    <label class="form-label" for="member_tools_${teamMemberCount}">Tools/Functions (comma-separated)</label>
+                    <input type="text" class="form-control member-tools" id="member_tools_${teamMemberCount}" name="member_tools_${teamMemberCount}"
                            placeholder="e.g., read_file, write_file, list_files, execute_shell_command">
                 </div>
             </div>
@@ -460,6 +460,26 @@ function collectTeamData() {
         agents: members
     };
 }
+
+const TEAM_CREATOR_ACTIONS = {
+    'add-member': addTeamMember,
+    'generate-team': generateTeamCode,
+    'clear-team': clearTeamForm,
+    'validate-team': validateTeamCode,
+    'save-team': saveTeam,
+};
+
+document.getElementById('teamCreator')?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-action]');
+    if (!btn || !event.currentTarget.contains(btn)) return;
+    const action = btn.getAttribute('data-action');
+    if (action === 'remove-member') {
+        removeMember(btn.getAttribute('data-member-id'));
+        return;
+    }
+    const handler = TEAM_CREATOR_ACTIONS[action];
+    if (typeof handler === 'function') handler();
+});
 
 // Initialize with one team member
 document.addEventListener('DOMContentLoaded', function() {

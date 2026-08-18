@@ -51,6 +51,8 @@ const ChatPage = () => {
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(newConversationId())
   const listEndRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLInputElement | null>(null)
+  const prevStatusRef = useRef<ConnectionStatus>('connecting')
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -138,6 +140,16 @@ const ChatPage = () => {
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ block: 'end' })
   }, [messages])
+
+  // After a user-initiated reconnect succeeds, move focus to the composer so
+  // keyboard users can type immediately (skip initial page-load connect).
+  useEffect(() => {
+    const wasOpen = prevStatusRef.current === 'open'
+    prevStatusRef.current = status
+    if (status === 'open' && !wasOpen && connectAttempt > 0) {
+      composerRef.current?.focus()
+    }
+  }, [status, connectAttempt])
 
   const canSend =
     status === 'open' && input.trim().length > 0
@@ -346,6 +358,7 @@ const ChatPage = () => {
           className="flex gap-2 border-t border-base-300 p-3"
         >
           <input
+            ref={composerRef}
             type="text"
             className="input input-bordered input-sm h-10 flex-1"
             placeholder={

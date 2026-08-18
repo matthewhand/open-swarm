@@ -181,6 +181,39 @@ class TestUxShellTemplateContracts:
         # Essentials open
         assert 'id="acc-identity" class="accordion-collapse collapse show"' in html
 
+    def test_agent_creator_uses_data_action_not_onclick(self, client):
+        """Static creator actions bind via data-action delegation (no inline onclick)."""
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(username="uxac2", password="ux-ac-pass")
+        client.force_login(user)
+        response = client.get("/agent-creator/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'data-action="generate-agent"' in html
+        assert 'data-action="clear-form"' in html
+        assert 'data-action="validate-code"' in html
+        assert 'data-action="save-agent"' in html
+        assert "onclick=" not in html
+        assert "AGENT_CREATOR_ACTIONS" in html
+
+    def test_team_creator_uses_data_action_not_onclick(self, client):
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(username="uxteam", password="ux-team-pass")
+        client.force_login(user)
+        response = client.get("/team-creator/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'data-action="add-member"' in html
+        assert 'data-action="generate-team"' in html
+        assert 'data-action="clear-team"' in html
+        assert 'data-action="validate-team"' in html
+        assert 'data-action="save-team"' in html
+        assert 'data-action="remove-member"' in html
+        assert "onclick=" not in html
+        assert "TEAM_CREATOR_ACTIONS" in html
+
     def test_agent_creator_pro_optional_sections_collapsed(self, client):
         from django.contrib.auth.models import User
 
