@@ -389,6 +389,26 @@ login probe. Full adapter schema and fusion modes:
 
 ---
 
+## Team wizard (`swarm-cli wizard`)
+
+Scaffold a new team blueprint under your blueprints tree. Interactive by
+default; use `--non-interactive` in scripts/CI.
+
+```bash
+swarm-cli wizard
+swarm-cli wizard --non-interactive \
+  --name my_team \
+  --role "planner:Break work into steps" \
+  --role "implementer:Apply changes" \
+  --output-dir ./src/swarm/blueprints
+```
+
+`--no-shortcut` skips installing a CLI launcher symlink. Full flags:
+`swarm-cli wizard --help`. Also covered in
+[docs/QUICKSTART.md](./docs/QUICKSTART.md).
+
+---
+
 ## Skills (`swarm-cli skills`)
 
 List reusable `SKILL.md` capabilities under the project's `skills/` directory

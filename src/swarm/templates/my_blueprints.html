@@ -113,14 +113,14 @@
 
                             <!-- One primary action + an overflow menu for the rest -->
                             <div class="mt-auto d-flex gap-2">
-                                <button class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
+                                <button type="button" class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
                                         data-blueprint-id="{{ blueprint.id }}"
                                         data-blueprint-name="{{ blueprint.name }}">
-                                    <i class="fas fa-play me-1"></i>Run
+                                    <i class="fas fa-play me-1" aria-hidden="true"></i>Run
                                 </button>
                                 <div class="dropdown">
-                                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
-                                        <i class="fas fa-ellipsis-h"></i>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions" title="More actions">
+                                        <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><button class="dropdown-item" type="button" onclick="previewBlueprint('{{ blueprint.id }}')"><i class="fas fa-eye me-2"></i>Preview</button></li>
@@ -171,15 +171,15 @@
 
                             <!-- One primary action + an overflow menu for the rest -->
                             <div class="mt-auto d-flex gap-2">
-                                <button class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
+                                <button type="button" class="btn btn-primary btn-sm flex-grow-1 btn-run-blueprint"
                                         data-blueprint-id="{{ blueprint.id }}"
                                         data-blueprint-name="{{ blueprint.name }}"
                                         data-blueprint-code="{{ blueprint.code|escape }}">
-                                    <i class="fas fa-play me-1"></i>Run
+                                    <i class="fas fa-play me-1" aria-hidden="true"></i>Run
                                 </button>
                                 <div class="dropdown">
-                                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
-                                        <i class="fas fa-ellipsis-h"></i>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions" title="More actions">
+                                        <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><button class="dropdown-item" type="button" onclick="editBlueprint('{{ blueprint.id }}')"><i class="fas fa-edit me-2"></i>Edit</button></li>
@@ -259,11 +259,11 @@
                     <div class="col-md-4">
                         <label class="form-label">Actions</label>
                         <div class="d-grid gap-2">
-                            <button class="btn btn-primary" id="runBlueprintBtn">
-                                <i class="fas fa-play me-1"></i>Run
+                            <button type="button" class="btn btn-primary" id="runBlueprintBtn">
+                                <i class="fas fa-play me-1" aria-hidden="true"></i>Run
                             </button>
-                            <button class="btn btn-outline-secondary" id="clearOutputBtn">
-                                <i class="fas fa-eraser me-1"></i>Clear Output
+                            <button type="button" class="btn btn-outline-secondary" id="clearOutputBtn">
+                                <i class="fas fa-eraser me-1" aria-hidden="true"></i>Clear Output
                             </button>
                         </div>
                     </div>
@@ -462,7 +462,7 @@ function runBlueprint() {
         if (runBtn) {
             runBtn.disabled = false;
             runBtn.removeAttribute('aria-busy');
-            runBtn.innerHTML = '<i class="fas fa-play me-1"></i>Run';
+            runBtn.innerHTML = '<i class="fas fa-play me-1" aria-hidden="true"></i>Run';
         }
     }, 2000);
 }
