@@ -7,6 +7,7 @@ from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.template.loader import render_to_string
+from django.utils.html import escape
 
 from swarm.models import ChatConversation, ChatMessage
 
@@ -30,6 +31,19 @@ def _conversation_cache_key(user, conversation_id):
     if user_id is None:
         user_id = getattr(user, "id", None)
     return (user_id, conversation_id)
+
+
+def _oob_append_html(contents_div_id: str, text: str) -> str:
+    """HTMX OOB append chunk with HTML-escaped body text.
+
+    Streaming replies previously interpolated model/user text into raw HTML,
+    so a payload like ``<img onerror=…>`` executed before the final escaped
+    template swap replaced the node.
+    """
+    return (
+        f'<div hx-swap-oob="beforeend:#{contents_div_id}">'
+        f"{escape(text)}</div>"
+    )
 
 
 class DjangoChatConsumer(AsyncWebsocketConsumer):
@@ -131,8 +145,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 return
             instruction = self.messages[-1]["content"] if self.messages else ""
             canned = f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'" if blueprint_id == "jeeves" else f"[TEST-MODE] {blueprint_id} at your service. You said: '{instruction}'"
-            chunk_html = f'<div hx-swap-oob="beforeend:#{contents_div_id}">{canned}</div>'
-            await self.send(text_data=chunk_html)
+            await self.send(text_data=_oob_append_html(contents_div_id, canned))
             self.messages.append({"role": "assistant", "content": canned})
             final_html = render_to_string(
                 "websocket_partials/final_system_message.html",
@@ -189,8 +202,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return
 
         full_message = final_message["content"]
-        chunk_html = f'<div hx-swap-oob="beforeend:#{contents_div_id}">{full_message}</div>'
-        await self.send(text_data=chunk_html)
+        await self.send(text_data=_oob_append_html(contents_div_id, full_message))
 
         self.messages.append(
             {
@@ -279,8 +291,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             message_chunk = chunk.choices[0].delta.content
             if message_chunk:
                 full_message += message_chunk
-                chunk_html = f'<div hx-swap-oob="beforeend:#{contents_div_id}">{message_chunk}</div>'
-                await self.send(text_data=chunk_html)
+                await self.send(
+                    text_data=_oob_append_html(contents_div_id, message_chunk)
+                )
 
         self.messages.append(
             {

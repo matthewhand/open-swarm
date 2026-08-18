@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - **Session Explorer empty state:** recapture `sessions.png` (+ mobile) for owner-scoped copy (“only sessions you own”)
 
 ### Fixed
+- **Chat WS streaming XSS:** HTMX OOB append chunks now `django.utils.html.escape` model/user text (blueprint + LiteLLM paths and TEST-MODE echo); final template swap was already escaped
 - **Session Explorer attribute XSS:** live-poll `esc()` now escapes `"`/`'` used in `data-status`/`title`/`class` (status/role breakout)
 - **rest_mode blueprintManager XSS:** escape API `id`/`title`/`description` via `htmlSafe.js` before dialog/dropdown/metadata `innerHTML`
 - **`/v1/responses` trailing slash:** slash twins for create/detail/cancel (no more 404 on `…/responses/`)

@@ -453,6 +453,54 @@ class TestBlueprintSelection:
                 }
 
     @pytest.mark.asyncio
+    async def test_blueprint_reply_escapes_html_in_oob_chunk(self, consumer, monkeypatch):
+        """Streaming OOB chunks must HTML-escape model text (DOM XSS)."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        payload = '<img src=x onerror="alert(1)">'
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        async def fake_run(messages, **kwargs):
+            yield {"messages": [{"role": "assistant", "content": payload}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("jeeves", "message-response-xss")
+
+                frames = [
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                ]
+                assert len(frames) == 2
+                assert "<img" not in frames[0]
+                assert "&lt;img src=x onerror=" in frames[0]
+                assert "&quot;alert(1)&quot;" in frames[0]
+                # History keeps the raw model text; only the HTML wire format escapes.
+                assert consumer.messages[-1]["content"] == payload
+
+    @pytest.mark.asyncio
+    async def test_test_mode_reflects_user_text_escaped(self, consumer, monkeypatch):
+        """TEST-MODE canned replies echo the user message and must escape it."""
+        monkeypatch.setenv("SWARM_TEST_MODE", "1")
+        payload = '<script>alert(1)</script>'
+        consumer.messages = [{"role": "user", "content": payload}]
+
+        with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+            await consumer.respond_with_blueprint("jeeves", "message-response-xss")
+
+            frames = [
+                call.kwargs.get("text_data") or call.args[0]
+                for call in mock_send.await_args_list
+            ]
+            oob = frames[0]
+            assert "<script>" not in oob
+            assert "&lt;script&gt;" in oob
+            assert consumer.messages[-1]["content"].startswith("[TEST-MODE]")
+
+    @pytest.mark.asyncio
     async def test_blueprint_run_failure_sends_error_partial(self, consumer, monkeypatch):
         """Exceptions from blueprint.run() surface as an error partial."""
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
