@@ -13,6 +13,7 @@ Nothing here describes the current system — for that, start at
 | Document | Era | What it captured | Superseded by |
 |---|---|---|---|
 | [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) | 2026-06 | Snapshot of the FOSS-cleanup implementation wave | [ROADMAP.md](../../ROADMAP.md), [FEATURE_STATUS.md](../../FEATURE_STATUS.md) |
+| [FEATURE_STATUS_2026-06-10.md](./FEATURE_STATUS_2026-06-10.md) | 2026-06-10 | Point-in-time feature evidence audit during the cleanup wave | [FEATURE_STATUS.md](../../FEATURE_STATUS.md) (live board) |
 | [2026-06-cleanup-commit-log.txt](./2026-06-cleanup-commit-log.txt) | 2026-06 | Raw commit log of the cleanup wave (PRs #80–#85) | git history |
 
 ## Related historical documents kept in place

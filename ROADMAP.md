@@ -8,9 +8,10 @@ blueprints (reusable multi-agent workflows), a Django REST API
 a web UI.
 
 This roadmap is the single source of truth for project status. It supersedes
-the older phase-based `TODO.md`. Per-feature evidence lives in
-[FEATURE_STATUS.md](./FEATURE_STATUS.md) (re-verify rows before acting — it
-goes stale fast).
+the older phase-based `TODO.md`. Per-feature evidence lives in the live
+[FEATURE_STATUS.md](./FEATURE_STATUS.md) board (re-verify a row before acting
+if it looks wrong; the 2026-06-10 audit is in
+[docs/archive/FEATURE_STATUS_2026-06-10.md](./docs/archive/FEATURE_STATUS_2026-06-10.md)).
 
 - [x] **v1 product cut (vocabulary / surface honesty)** — narrow terms to match
   shipped code: [docs/GLOSSARY.md](./docs/GLOSSARY.md) (Blueprint vs `/v1/teams`

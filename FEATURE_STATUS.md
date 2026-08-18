@@ -1,17 +1,12 @@
-# Feature Status Audit
+# Feature Status
 
-> ⚠️ **Historical audit (2026-06-10).** Point-in-time evidence snapshot; it has
-> drifted — the project has since shipped v0.4.x–**v0.5.1** on PyPI (CLI Agent
-> Fusion, async `/v1/responses`, persona councils, recursion, community-blueprint
-> discovery). For **current** status see [ROADMAP.md §0](./ROADMAP.md) and
-> [CHANGELOG.md](./CHANGELOG.md). Rows below are lineage, not live state.
+> **Live status board** — per-feature evidence for what is shipped, partial, or
+> planned. Last updated: **2026-08-18**. Nested checklist:
+> [ROADMAP.md](./ROADMAP.md); release notes: [CHANGELOG.md](./CHANGELOG.md).
+> The original 2026-06-10 point-in-time audit is archived at
+> [docs/archive/FEATURE_STATUS_2026-06-10.md](./docs/archive/FEATURE_STATUS_2026-06-10.md).
 
-**Date:** 2026-06-10
-**Baseline:** working tree on top of commit `720a08ae` ("fix(packaging): repair uv resolution…"), generated **during** the cleanup wave — 8 blueprint packages and legacy modules (`swarm/repl`, `swarm/agent`, `swarm/llm`, …) are deleted in the worktree but not yet committed. Re-verify before acting (see Regeneration at bottom).
-**Test run (this audit):** 621 collected — **560 passed, 59 failed, 2 skipped** (`uv run pytest -q`). All 59 failures were in `tests/views/` + `tests/mcp/test_mcp_urls.py`, order-dependent, root-caused to the SPA-fallback bug in `src/swarm/urls.py:155`.
-**Update (same day, post-audit):** the `urls.py` bug was fixed in `f1fa20b1` and the suite is green again — **673 passed, 2 skipped** as of `4c7e1b28` (includes salvaged archive tests and new memory-integration tests). Rows below referencing the urls.py failure are retained as audit history; the bug itself is FIXED.
-
-Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded (exists, not wired) · 📋 planned (flags/docs only) · ❌ broken/fake/dead
+Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded (exists, not wired) · 📋 planned (flags/docs only) · ❌ broken/fake/dead · 🗑 removed
 
 ---
 
@@ -169,7 +164,7 @@ deferred to the release PR.
 
 ## Regeneration
 
-This doc decays fast (a cleanup wave was rewriting the tree while it was generated). Before acting on any row, re-verify:
+Before treating a questionable row as authoritative, re-verify and update this file:
 
 1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.

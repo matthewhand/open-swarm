@@ -264,7 +264,7 @@ Documentation map:
 
 ## Roadmap / Unfinished Features
 
-Detailed nested progress lives in [ROADMAP.md](./ROADMAP.md); per-feature evidence in [FEATURE_STATUS.md](./FEATURE_STATUS.md). The honest short list of what is **not** done:
+Detailed nested progress lives in [ROADMAP.md](./ROADMAP.md); live per-feature evidence in [FEATURE_STATUS.md](./FEATURE_STATUS.md). The honest short list of what is **not** done:
 
 - [x] **SPA scope (ADR-001)** — `/` + `/chat` only; Django trailing-slash UI is canonical (SPA↔Django parity rejected for v1)
 - [ ] **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly and [docs/mcp_server_mode.md](./docs/mcp_server_mode.md) documents real adoption options

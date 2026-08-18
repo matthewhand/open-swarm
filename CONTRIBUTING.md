@@ -82,7 +82,7 @@ under `tests/blueprints/`.
   of what changed and why.
 - **Be honest in docs**: this project is mid-cleanup; do not document
   features as working unless they are (see `FEATURE_STATUS.md` for the
-  current evidence-based audit).
+  live evidence board).
 
 ## Where help is wanted
 
