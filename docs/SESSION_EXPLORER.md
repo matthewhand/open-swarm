@@ -12,9 +12,15 @@ Open it at **`/sessions/`**.
 | View | PNG | Status |
 |---|---|---|
 | Session list | [`screenshots/sessions.png`](screenshots/sessions.png) | **Current** journey capture — fresh-db **empty state** only (`PAGES` stem `sessions`) |
-| Session detail | [`screenshots/archive/session-explorer-detail.png`](screenshots/archive/session-explorer-detail.png) | **Archived** still — **not** in `PAGES`; optional recapture only after a real seeded session exists |
+| Session detail | [`screenshots/session-detail.png`](screenshots/session-detail.png) | **Current** journey capture — `PAGES` stem `session-detail`; seeded `responses_store` fixture (`resp_journey_seed`) so Graph / timeline tabs render |
 
-There is **no** current journey PNG of a populated list or of `/sessions/<id>/`. Do not invent or treat the archive detail still as a live empty-db capture.
+There is **no** current journey PNG of a *populated* list (many live sessions).
+The detail PNG is the real Django `/sessions/<id>/` UI against a capture-script
+seed, not a fabricated mockup and not a live `POST /v1/responses` run.
+
+An older still remains under
+[`screenshots/archive/session-explorer-detail.png`](screenshots/archive/session-explorer-detail.png)
+for history only.
 
 ## Session list
 
@@ -25,7 +31,8 @@ sessions**, a **live** auto-refresh toggle, and a CTA to create sessions via
 `POST /v1/responses`. Per-status filter chips (`completed` / `in_progress` /
 `failed` / …) and the “Showing newest N of M (limit=50)” truncation banner are
 **not** in this PNG — they appear only once sessions exist (and when the list
-is truncated).
+is truncated). Journey capture keeps the list empty on purpose: it seeds the
+detail fixture *after* this PNG is taken.
 
 When the store is populated, the same page also shows:
 
@@ -44,14 +51,16 @@ Sessions are listed newest-first.
 
 ## Session detail + delegation timeline
 
-> **Screenshot status:** archived / optional recapture. The image below is an
-> older still under `docs/screenshots/archive/`. Journey capture only hits
-> `/sessions/` (empty), so a faithful detail PNG would need a seeded
-> `responses_store` record (real `progress` / delegations) — not fabricated UI.
-> Until that exists, treat the following as a description of the live page, not
-> as proof from a current capture.
+![Session Explorer — detail view (seeded journey capture)](screenshots/session-detail.png)
 
-![Session Explorer — detail view (archived; optional recapture)](screenshots/archive/session-explorer-detail.png)
+> **Screenshot honesty:** `session-detail.png` is produced by
+> [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py): after
+> the empty list capture, the script writes a minimal `hybrid_team`-shaped
+> record into an isolated `SWARM_RESPONSES_DIR` (`resp_journey_seed`, owned by
+> the throwaway `journey-admin` principal) and screenshots
+> `GET /sessions/resp_journey_seed/`. The Graph / tabs / chrome are the live
+> template — only the JSON record is synthetic. This is **not** proof of a
+> live multi-model run.
 
 On a populated session (`GET /sessions/<response_id>/`), the page shows:
 
@@ -84,7 +93,8 @@ so the timeline fills in live while a session is still running.
 
 > List view: current `sessions.png` from
 > [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py)
-> (`PAGES` stem `sessions` → `/sessions/`).
-> Detail/delegation graph: **archived only**
-> (`docs/screenshots/archive/session-explorer-detail.png`) — no detail stem in
-> `PAGES` yet; optional recapture when a real seeded session is available.
+> (`PAGES` stem `sessions` → `/sessions/`, empty isolated store).
+> Detail/delegation graph: current `session-detail.png` (`PAGES` stem
+> `session-detail` → `/sessions/resp_journey_seed/` after mid-run seed).
+> Archive still:
+> `docs/screenshots/archive/session-explorer-detail.png` (historical only).

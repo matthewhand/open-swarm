@@ -29,7 +29,8 @@ full-page PNGs.
 | `my-blueprints.png` | `/blueprint-library/my-blueprints/` (Django) | Personal library (often empty on fresh db) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `agent-creator.png` | `/agent-creator/` (Django) | Progressive-disclosure persona form + code panel | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `settings.png` | `/settings/` (Django) | Settings dashboard with progress meter | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
-| `sessions.png` | `/sessions/` (Django) | Session Explorer empty state: 0 sessions, live toggle, POST /v1/responses CTA | USER_JOURNEY.md, GUIDED_TOUR.md, SESSION_EXPLORER.md | 2026-08-18 | current |
+| `sessions.png` | `/sessions/` (Django) | Session Explorer empty state: 0 sessions, live toggle, POST /v1/responses CTA (captured before mid-run seed) | USER_JOURNEY.md, GUIDED_TOUR.md, SESSION_EXPLORER.md | 2026-08-18 | current |
+| `session-detail.png` | `/sessions/resp_journey_seed/` (Django) | Session detail Graph tab: seeded `hybrid_team` fixture (`resp_journey_seed`) with orchestration/agent/auxiliary nodes — real template, synthetic JSON | SESSION_EXPLORER.md | 2026-08-18 | current |
 | `profiles.png` | `/profiles/` (Django) | LLM profiles table (provider/model/source/enabled; Settings → LLM profiles active) | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 
 The "Used in" column is verified by grepping the docs for
@@ -109,7 +110,7 @@ see [Regenerating](#regenerating) below.
 | `webui/tool-capabilities-light.png` | SPA builder / themed component capture | various | mixed | current |
 | `webui/trait-editor-dark.png` | SPA builder / themed component capture | various | mixed | current |
 | `docs/screenshots/skills/*` | Skills walkthrough stills | SKILLS docs | mixed | current |
-| `docs/screenshots/archive/session-explorer-detail.png` | Session detail / delegation timeline (archived; optional recapture once a real seeded session exists — no detail stem in `PAGES`) | SESSION_EXPLORER.md | archived | archived |
+| `docs/screenshots/archive/session-explorer-detail.png` | Older Session detail still (superseded by current `session-detail.png`) | none (historical) | archived | archived |
 | `docs/screenshots/archive/session-explorer-list.png` | Superseded list still (replaced by `sessions.png`) | none | archived | archived |
 | `docs/screenshots/archive/a11y-focus-ring.png` | Old a11y focus-ring still | none | archived | archived |
 
@@ -127,9 +128,12 @@ CAPTURE_MANIFEST=/tmp/capture-manifest.json .venv/bin/python scripts/capture_use
 ```
 
 The script starts its own dev server on port 8321
-(`DJANGO_DEBUG=true ENABLE_WEBUI=true`), migrates, logs in a throwaway
-superuser, captures every page in `PAGES`, overwrites PNGs, skips (never
-fakes) 4xx/5xx, then stops the server. SPA routes need `webui/frontend/dist/`.
+(`DJANGO_DEBUG=true ENABLE_WEBUI=true`), uses an isolated
+`SWARM_RESPONSES_DIR` (empty for `sessions.png`), migrates, logs in a
+throwaway superuser, captures every page in `PAGES`, mid-run seeds
+`resp_journey_seed` before `session-detail.png`, overwrites PNGs, skips
+(never fakes) 4xx/5xx, then stops the server. SPA routes need
+`webui/frontend/dist/`.
 
 After regenerating, update captions in
 [USER_JOURNEY.md](./USER_JOURNEY.md) and [GUIDED_TOUR.md](./GUIDED_TOUR.md) if

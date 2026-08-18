@@ -4,17 +4,21 @@
 Idempotent and re-runnable:
 
 1. Starts the Django dev server itself on a dedicated port (8321) with the
-   env it needs (DJANGO_DEBUG=true, ENABLE_WEBUI=true), waits for readiness.
+   env it needs (DJANGO_DEBUG=true, ENABLE_WEBUI=true,
+   isolated SWARM_RESPONSES_DIR), waits for readiness.
 2. Visits each page in the user journey with Playwright (Chromium,
    1280x800) and saves full-page PNGs to docs/screenshots/<kebab>.png,
    overwriting any previous capture. With --mobile, emulates an iPhone-14
    class device (390x844, dpr 2, touch) and writes to
    docs/screenshots/mobile/<kebab>.png instead.
-3. If a page redirects to a login form, creates a throwaway superuser via
+3. After the empty ``sessions`` list capture, seeds a minimal
+   ``responses_store`` fixture (``resp_journey_seed``) so
+   ``session-detail`` can screenshot ``/sessions/<id>/`` honestly.
+4. If a page redirects to a login form, creates a throwaway superuser via
    `manage.py shell -c` and logs in through the form, then retries.
-4. Writes a JSON capture manifest (status, final URL, PNG path) when
+5. Writes a JSON capture manifest (status, final URL, PNG path) when
    ``CAPTURE_MANIFEST`` is set, or to ``--manifest PATH``.
-5. Kills the server and prints a captured/skipped summary.
+6. Kills the server and prints a captured/skipped summary.
 
 Pages that return 4xx/5xx are skipped and reported -- never faked.
 
@@ -34,8 +38,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -54,10 +60,21 @@ MOBILE_VIEWPORT = {"width": 390, "height": 844}
 ADMIN_USER = "journey-admin"
 ADMIN_PASS = "journey-pass-8321"
 
+# Isolated responses store so capture never pollutes ~/.local/share/swarm/responses
+# and so `sessions` stays empty until we seed for session-detail.
+CAPTURE_RESPONSES_DIR = Path(
+    os.environ.get(
+        "CAPTURE_RESPONSES_DIR",
+        str(Path(tempfile.gettempdir()) / f"open-swarm-capture-responses-{PORT}"),
+    )
+)
+# Fixed id matching responses_store._ID_RE; owner must be user:<ADMIN_USER>.
+SESSION_DETAIL_ID = "resp_journey_seed"
+
 # (output filename stem, path, human name)
 # SCREENSHOTS.md tracks every capture produced here.
-# Session detail (`/sessions/<id>/`) is intentionally omitted: a fresh capture
-# DB has no sessions, so SESSION_EXPLORER.md keeps an archived detail still.
+# `sessions` is captured against an empty store; `session-detail` is seeded
+# mid-run (after the list PNG) so /sessions/<id>/ shows real Graph/timeline UI.
 PAGES = [
     # Landing remains the React SPA shell (demoted operator chrome → Django hrefs).
     ("landing", "/", "Landing page (React SPA dashboard)"),
@@ -76,6 +93,11 @@ PAGES = [
     ("agent-creator", "/agent-creator/", "Agent creator (Django)"),
     ("settings", "/settings/", "Settings dashboard (Django)"),
     ("sessions", "/sessions/", "Session explorer (Django)"),
+    (
+        "session-detail",
+        f"/sessions/{SESSION_DETAIL_ID}/",
+        "Session explorer detail (seeded fixture)",
+    ),
     ("profiles", "/profiles/", "LLM profiles (Django)"),
 ]
 
@@ -85,6 +107,7 @@ SERVER_ENV = {
     "DJANGO_SECRET_KEY": os.environ.get("DJANGO_SECRET_KEY", "journey-capture-secret"),
     "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1",
     "SWARM_TEST_MODE": "1",
+    "SWARM_RESPONSES_DIR": str(CAPTURE_RESPONSES_DIR),
     # Uncomment to exercise token auth instead of open dev access:
     # "API_AUTH_TOKEN": "local-journey-token",
 }
@@ -129,6 +152,90 @@ def ensure_superuser() -> None:
         cwd=REPO_ROOT, env=env, check=True,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
+    subprocess.run(
+        [PYTHON, "manage.py", "shell", "-c", code],
+        cwd=REPO_ROOT, env=env, check=True,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+
+def reset_capture_responses_dir() -> None:
+    """Start each run with an empty isolated responses store (empty list PNG)."""
+    if CAPTURE_RESPONSES_DIR.exists():
+        shutil.rmtree(CAPTURE_RESPONSES_DIR)
+    CAPTURE_RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def seed_session_detail_fixture() -> None:
+    """Persist a minimal hybrid_team-shaped record for /sessions/<id>/ capture.
+
+    Must run *after* the empty ``sessions`` list screenshot so that PNG stays
+    an honest empty-state capture. Owner matches the throwaway login principal
+    (``user:journey-admin``); Session Explorer always filters via owner_allows.
+    """
+    # Progress shape mirrors live hybrid_team async progress (role/status/
+    # model_used/task/result) so Graph + Delegation timeline tabs render.
+    code = f"""
+from swarm.core import responses_store
+import time
+rid = {SESSION_DETAIL_ID!r}
+owner = "user:{ADMIN_USER}"
+responses_store.save({{
+    "id": rid,
+    "object": "response",
+    "owner": owner,
+    "response": {{
+        "id": rid,
+        "model": "hybrid_team",
+        "status": "completed",
+        "created_at": int(time.time()) - 90,
+        "output_text": (
+            "Seeded capture fixture: orchestration finished; "
+            "agent + auxiliary delegations completed."
+        ),
+        "execution_ms": 1842,
+        "usage": {{"total_tokens": 1280}},
+        "progress": [
+            {{
+                "role": "orchestration",
+                "status": "completed",
+                "model_used": "claude -p",
+                "task": "Plan and route sub-tasks",
+                "result": "Delegated to agent + auxiliary",
+            }},
+            {{
+                "role": "agent",
+                "status": "completed",
+                "model_used": "gpt-4o",
+                "task": "Implement the feature",
+                "result": "Patch applied",
+            }},
+            {{
+                "role": "auxiliary",
+                "status": "completed",
+                "model_used": "gpt-4o-mini",
+                "task": "Summarize findings",
+                "result": "Summary ready",
+            }},
+        ],
+    }},
+    "messages": [
+        {{
+            "role": "user",
+            "content": "Ship a small hybrid_team demo for the Session Explorer screenshot.",
+        }},
+        {{
+            "role": "assistant",
+            "content": (
+                "Seeded capture fixture: orchestration finished; "
+                "agent + auxiliary delegations completed."
+            ),
+        }},
+    ],
+}})
+print("seeded", rid)
+"""
+    env = {**os.environ, **SERVER_ENV}
     subprocess.run(
         [PYTHON, "manage.py", "shell", "-c", code],
         cwd=REPO_ROOT, env=env, check=True,
@@ -296,7 +403,9 @@ def main() -> int:
         context_kwargs.update(device_scale_factor=2, is_mobile=True, has_touch=True)
 
     screenshot_dir.mkdir(parents=True, exist_ok=True)
+    reset_capture_responses_dir()
     print(f"Starting Django dev server on port {PORT} ...")
+    print(f"  [store    ] SWARM_RESPONSES_DIR={CAPTURE_RESPONSES_DIR}")
     server = start_server()
     captured: list[tuple[str, str]] = []
     skipped: list[tuple[str, str]] = []
@@ -315,6 +424,23 @@ def main() -> int:
             except Exception as exc:
                 print(f"  [auth     ] anonymous capture (login failed: {exc})")
             for slug, path, name in PAGES:
+                # Seed after empty list capture so sessions.png stays empty-state.
+                if slug == "session-detail":
+                    try:
+                        seed_session_detail_fixture()
+                        print(f"  [seed     ] {SESSION_DETAIL_ID} → {CAPTURE_RESPONSES_DIR}")
+                    except Exception as exc:
+                        entry = {
+                            "stem": slug,
+                            "path": path,
+                            "name": name,
+                            "ok": False,
+                            "error": f"seed failed: {exc}",
+                        }
+                        entries.append(entry)
+                        skipped.append((f"{name} ({path})", entry["error"]))
+                        print(f"  [skipped ] {name:40s} {path} -- {entry['error']}")
+                        continue
                 try:
                     entry = capture(page, slug, path, name, screenshot_dir)
                 except Exception as exc:  # never let one page kill the run
