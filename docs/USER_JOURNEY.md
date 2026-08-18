@@ -11,8 +11,9 @@ Where a page shows demo, placeholder, or empty-state data, the caption says so.
 > Screenshots last regenerated **2026-08-19** with Playwright
 > (`scripts/capture_user_journey.py`) against a live local server. Captures
 > reflect that environment’s data (empty states and login-gated chat are
-> called out in captions). Terminal transcripts below were captured
-> 2026-06-10 on `main`.
+> called out in captions). The `swarm-cli list` transcript below was
+> refreshed **2026-08-19** (fresh XDG dirs); other CLI blocks further down
+> remain older canned captures from `main`.
 
 > **Documentation map:** [USERGUIDE.md](../USERGUIDE.md) is the `swarm-cli`
 > reference, this file is the end-to-end story,
@@ -38,8 +39,10 @@ This guide uses the project virtualenv directly (`.venv/bin/...`); if you use
 
 ## 2. Meet the CLI
 
-Open Swarm ships agent teams as **blueprints**. `swarm-cli list` shows what is
-bundled and what you have installed:
+Open Swarm ships agent teams as **blueprints**. `swarm-cli list` inventories
+**package directories** under `src/swarm/blueprints/` plus any installed
+executables / user sources (fresh checkout below — **31** bundled rows,
+including the non-runnable `common` helpers folder):
 
 ```text
 $ .venv/bin/swarm-cli list
@@ -48,29 +51,50 @@ $ .venv/bin/swarm-cli list
 Try 'swarm-cli install-executable <blueprint_name>' or see 'swarm-cli list --available'.
 
 --- Bundled Blueprints (available from package) ---
-- django_chat (entry: apps.py)
-- gawd (entry: apps.py)
-- family_ties (entry: blueprint_family_ties.py)
-- geese (entry: geese_memory_objects.py)
+- fs_introspect (entry: blueprint_fs_introspect.py)
+- hybrid_swarm (entry: blueprint_hybrid_swarm.py)
+- django_chat (entry: blueprint_django_chat.py)
+- cli_planner (entry: blueprint_cli_planner.py)
+- hybrid_team (entry: blueprint_hybrid_team.py)
+- moa (entry: blueprint_moa.py)
+- cli_fusion (entry: blueprint_cli_fusion.py)
+- cli_recurse (entry: blueprint_cli_recurse.py)
+- gawd (entry: blueprint_gawd.py)
+- cli_pipeline (entry: blueprint_cli_pipeline.py)
+- geese (entry: geese_cli.py)
 - dynamic_team (entry: blueprint_dynamic_team.py)
 - poets (entry: poets_cli.py)
-- flock (entry: blueprint_flock.py)
-- stewie (entry: apps.py)
-- rue_code (entry: blueprint_rue_code.py)
+- cli_agent (entry: blueprint_cli_agent.py)
+- stewie (entry: blueprint_stewie.py)
+- rue_code (entry: rue_code_cli.py)
 - chucks_angels (entry: blueprint_chucks_angels.py)
-- digitalbutlers (entry: blueprint_digitalbutlers.py)
-- jeeves (entry: blueprint_jeeves.py)
-- zeus (entry: apps.py)
+- persona_council (entry: blueprint_persona_council.py)
+- cli_map (entry: blueprint_cli_map.py)
+- moa_orchestrator (entry: blueprint_moa_orchestrator.py)
+- chatbot (entry: blueprint_chatbot.py)
+- jeeves (entry: jeeves_cli.py)
+- cli_orchestrator (entry: blueprint_cli_orchestrator.py)
+- zeus (entry: zeus_cli.py)
 - common (entry: progress.py)
-- whiskeytango_foxtrot (entry: apps.py)
+- whiskeytango_foxtrot (entry: blueprint_whiskeytango_foxtrot.py)
 - suggestion (entry: suggestion_cli.py)
-- codey (entry: blueprint_codey.py)
-- whinge_surf (entry: blueprint_whinge_surf.py)
+- codey (entry: codey_cli.py)
+- hybrid_moa (entry: blueprint_hybrid_moa.py)
+- cli_ensemble (entry: blueprint_cli_ensemble.py)
+- cli_roundtable (entry: blueprint_cli_roundtable.py)
 
 --- User Blueprint Sources (in /home/user/.local/share/swarm/blueprints) ---
 (No user blueprint sources found in /home/user/.local/share/swarm/blueprints)
 You can add blueprints by copying their source folders to this directory.
 ```
+
+Those **31** CLI rows are **not** the same count as the web UI:
+
+| Surface | What it counts | This regen |
+| --- | --- | --- |
+| `swarm-cli list` (Bundled) | Package dirs under `src/swarm/blueprints/` (includes non-discoverable `common`) | **31** |
+| Blueprint Library `/blueprint-library/` | `discover_blueprints()` keys (canonical ids + discovery aliases such as `ensemble` / `dynamic-team`) | **38** available; first paint **12 of 38** (`blueprint-library.png`) |
+| SPA dashboard `/` | `/v1/blueprints` + `/v1/models` after `apply_blueprint_aliases` adds synthetic `swarm_*` model ids | Teams **0** / Blueprints **45** / Models **45** (`landing.png`) |
 
 ### Try a blueprint without an API key (`SWARM_TEST_MODE`)
 
@@ -158,8 +182,10 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
 serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
-teams/blueprints/models counts come from the API (this capture: 0 / 45 / 45).
-Top nav is **Home · Chat · Blueprints · Teams · Sessions · Settings**
+teams/blueprints/models counts come from `/v1/teams`, `/v1/blueprints`, and
+`/v1/models` (this capture: **0 / 45 / 45** — matches `landing.png`; **not**
+the 31 CLI dirs or the library’s 38 discoverable keys; see the bridge table in
+§2). Top nav is **Home · Chat · Blueprints · Teams · Sessions · Settings**
 (matches `landing.png` / `App.tsx`). Quick Actions: **Launch Team**,
 **Browse Blueprints**, **Manage Teams**, **Settings** (recaptured after
 `npm run build` on **2026-08-19**). Bare `/teams`, `/blueprints`,
@@ -198,11 +224,13 @@ empty until you launch.
 
 **Login required.** Browse discoverable blueprints with per-blueprint MCP
 status badges (async check; this capture still shows the checking spinner
-labeled **MCP** on each card). The grid is **paginated** on first paint
-(Show more — e.g. 12 of 38) so the catalog does not dump every card at once;
-summary tiles reflect available / installed / custom / category counts for
-this environment. Add/remove, the creator form, and avatar generation are
-operator mutators and also require login.
+labeled **MCP** on each card). Summary tile **Available: 38** is
+`discover_blueprints()` (not `swarm-cli list`’s 31 dirs and not the SPA’s
+API **45**). The grid is **paginated** on first paint (**Showing 12 of 38
+blueprints** + **Show more**) so the catalog does not dump every card at
+once; installed / custom / category tiles reflect this environment.
+Add/remove, the creator form, and avatar generation are operator mutators
+and also require login.
 
 ### My blueprints — `/blueprint-library/my-blueprints/`
 
@@ -229,8 +257,10 @@ saves the resulting Python blueprint code.
 **Login required.** Configuration management grouped by category (Django,
 Swarm core, auth, LLM providers, blueprints/agents, MCP servers, database,
 logging, performance, UI features), with a configuration-progress meter and
-import/export of the environment. Values shown are this dev machine's local
-configuration.
+import/export of the environment. This fresh-db capture shows the empty
+meter — **No settings configured** / **0 of 0** — not a populated local
+config; section tiles (LLM Providers, Secrets, Logging, …) and **0 profiles**
+are still reachable from here.
 
 ### Login page — `/accounts/login/`
 

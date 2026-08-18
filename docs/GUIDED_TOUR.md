@@ -50,8 +50,12 @@ replies, team launches) need an LLM profile configured (see
 ![SPA dashboard: live team/blueprint/model counts, quick actions, API reachable](./screenshots/landing.png)
 
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
-**45**, Models **45** (API listings — the Blueprint Library’s discoverable
-catalog count can differ; library PNG shows 38). Desktop top nav:
+**45**, Models **45** from `/v1/teams` + `/v1/blueprints` + `/v1/models`
+(matches `landing.png`). Those API totals include discovery aliases **plus**
+synthetic `swarm_*` ids from `apply_blueprint_aliases` — they are **not**
+`swarm-cli list`’s **31** package dirs (includes non-runnable `common`) and
+**not** the Blueprint Library’s **38** `discover_blueprints()` keys (library
+PNG: Available **38**, Showing **12 of 38**). Desktop top nav:
 **Home · Chat · Blueprints · Teams · Sessions · Settings** (matches
 `landing.png` / `App.tsx`). Quick Actions: **Launch Team**, **Browse
 Blueprints**, **Manage Teams**, **Settings**. Banner text points operators at
@@ -129,7 +133,8 @@ cards after `/blueprints` → `/blueprint-library/`; Django **five-tab** dock
 ![Bare /settings redirect (mobile): Settings; Settings tab active](./screenshots/mobile/spa-settings.png)
 
 *Mobile twin (`screenshots/mobile/spa-settings.png`): Settings Dashboard after
-`/settings` → `/settings/`; Django **five-tab** dock (Settings active).*
+`/settings` → `/settings/` (empty meter **No settings configured** / **0 of 0**
+under the redirect banner); Django **five-tab** dock (Settings active).*
 
 ![Bare /agent-creator redirects to Django Agent Creator](./screenshots/spa-agent-creator.png)
 
@@ -200,9 +205,11 @@ dropdown option as desktop); Django **five-tab** dock (Teams active).*
 
 ![Django blueprint library: stats, search, paginated cards, Show more](./screenshots/blueprint-library.png)
 
-*Catalog of discoverable blueprints. First paint paginates (e.g. 12 of 38)
+*Catalog of discoverable blueprints (`discover_blueprints()` — **Available:
+38** on this PNG). First paint paginates (**Showing 12 of 38 blueprints**)
 with **Show more**; denser cards and per-card MCP status badges (this capture
-still shows the checking spinner labeled **MCP**).*
+still shows the checking spinner labeled **MCP**). Not the SPA’s API **45**
+and not `swarm-cli list`’s **31** dirs.*
 
 ![Blueprint library (mobile): stacked cards; Blueprints tab active](./screenshots/mobile/blueprint-library.png)
 
@@ -236,14 +243,17 @@ open in an accordion; **Generate Blueprint** / **Validate** actions; Django
 
 ### Settings Dashboard — `/settings/`
 
-![Django settings dashboard: progress meter and configuration sections](./screenshots/settings.png)
+![Django settings dashboard: empty meter No settings configured / 0 of 0](./screenshots/settings.png)
 
-*Full env/config operator surface (deeper than the SPA settings stub).*
+*Full env/config operator surface (deeper than the SPA settings stub). Fresh-db
+capture: empty progress meter **No settings configured** / **0 of 0** (not a
+populated local config); category tiles + LLM profiles (**0 profiles**) still
+link through.*
 
-![Settings dashboard (mobile): tiles wrap; Settings tab active](./screenshots/mobile/settings.png)
+![Settings dashboard (mobile): empty 0 of 0 meter; Settings tab active](./screenshots/mobile/settings.png)
 
-*Mobile twin: dashboard tiles wrap; Django **five-tab** dock (Settings
-active).*
+*Mobile twin: same empty meter (**No settings configured** / **0 of 0**);
+dashboard tiles wrap; Django **five-tab** dock (Settings active).*
 
 ### Session Explorer — `/sessions/`
 

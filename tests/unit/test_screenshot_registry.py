@@ -325,6 +325,82 @@ def test_user_journey_launcher_caption_matches_fs_introspect_default():
         assert "**`hybrid_team`** selected (first bundled" not in text
 
 
+def test_tour_docs_bridge_cli_list_vs_library_vs_landing_counts():
+    """Captions must not equate swarm-cli list dirs with library/SPA totals."""
+    journey = USER_JOURNEY.read_text()
+    guided = GUIDED_TOUR.read_text()
+    registry = SCREENSHOTS_MD.read_text()
+
+    # Stale deleted husks must not appear in the journey CLI list transcript.
+    for banned in ("family_ties", "whinge_surf", "digitalbutlers", "flock"):
+        assert f"- {banned} " not in journey and f"- {banned} (" not in journey, (
+            f"USER_JOURNEY.md swarm-cli list must not list deleted husk {banned!r}"
+        )
+
+    # PNG-honest regen numbers stay named.
+    assert "0 / 45 / 45" in journey or "0/45/45" in journey or "**0 / 45 / 45**" in journey
+    assert "12 of 38" in journey and "12 of 38" in guided
+    assert "0/45/45" in registry or "**0/45/45**" in registry
+
+    # Explicit bridge: three surfaces differ (CLI dirs ≠ library discovery ≠ API).
+    for path, text in (
+        (USER_JOURNEY, journey),
+        (GUIDED_TOUR, guided),
+        (SCREENSHOTS_MD, registry),
+    ):
+        flat = " ".join(text.split())
+        assert "31" in flat and "38" in flat and "45" in flat, (
+            f"{path.name} must mention CLI 31 / library 38 / API 45 count bridge"
+        )
+        assert "swarm-cli list" in flat or "`swarm-cli list`" in text
+        assert "hybrid_team` selected (first" not in text
+        # teams-launch.png itself is not the seeded hybrid_team session fixture.
+        assert "teams-launch.png` shows hybrid_team" not in text
+        assert "teams-launch.png shows **`hybrid_team`**" not in text
+
+
+def test_settings_caption_matches_empty_meter_not_populated_local_config():
+    """settings.png shows empty meter: No settings configured / 0 of 0."""
+    banned = (
+        "Values shown are this dev machine's local configuration",
+        "Values shown are this machine's local configuration",
+        "Settings dashboard with progress meter",
+        "with a filled progress meter",
+        "progress meter showing configured",
+    )
+    for path in (USER_JOURNEY, GUIDED_TOUR, SCREENSHOTS_MD):
+        text = path.read_text()
+        for phrase in banned:
+            assert phrase not in text, f"{path.name} must not claim: {phrase!r}"
+        # Honest empty-state markers required in each tour/registry doc.
+        assert "No settings configured" in text, (
+            f"{path.name} must name the empty Settings meter copy"
+        )
+        assert "0 of 0" in text, f"{path.name} must name the empty 0 of 0 meter"
+        # Must not describe settings.png as a filled/populated meter without negation.
+        assert re.search(
+            r"(?i)settings\.png[^\n]{0,120}\bpopulated\b(?![^\n]{0,40}\bnot\b)",
+            text,
+        ) is None or "not a populated" in text or "not populated" in text
+        assert "settings.png" in text
+
+
+def test_session_detail_remains_seeded_hybrid_team_distinct_from_launcher():
+    """session-detail may be hybrid_team-shaped seed; teams-launch is fs_introspect."""
+    for path in (USER_JOURNEY, GUIDED_TOUR, SCREENSHOTS_MD):
+        text = path.read_text()
+        assert "resp_journey_seed" in text
+        assert "hybrid_team" in text
+        assert "seeded" in text.lower()
+        # Launcher default and session seed must stay distinct in captions.
+        assert "**`fs_introspect`** selected" in text or "`fs_introspect`** selected" in text
+        # Must not say the launcher PNG is the hybrid_team seed.
+        assert not re.search(
+            r"(?i)teams-launch\.png[^\n]{0,80}hybrid_team[^\n]{0,40}selected",
+            text,
+        ), f"{path.name}: teams-launch must not claim hybrid_team selected"
+
+
 def test_user_journey_screenshot_date_is_current_regeneration():
     text = USER_JOURNEY.read_text()
     assert "2026-08-19" in text
