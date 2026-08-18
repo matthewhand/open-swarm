@@ -292,3 +292,45 @@ describe('ChatPage blueprint query-param honesty', () => {
     expect(screen.queryByText(/not in the discoverable list/i)).not.toBeInTheDocument()
   })
 })
+
+describe('ChatPage Send button honesty while streaming', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps a real Send control (no busy spinner) while an assistant reply streams', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-abc123" class="assistant-message"></div></div>',
+        }),
+      )
+    })
+
+    const send = screen.getByRole('button', { name: /^Send$/i })
+    expect(send).not.toHaveAttribute('aria-busy', 'true')
+    expect(send.querySelector('[data-testid="loading-spinner"]')).toBeNull()
+    // Streaming progress lives on the message bubble, not a fake Send busy state.
+    expect(document.querySelector('.chat-bubble .loading')).toBeTruthy()
+  })
+})

@@ -201,8 +201,6 @@ const ChatPage = () => {
     }
   }
 
-  const isStreaming = messages.some((m) => m.streaming)
-
   const composerPlaceholder =
     status === 'open'
       ? 'Type a message…'
@@ -453,11 +451,7 @@ const ChatPage = () => {
             aria-label="Chat message"
           />
           <Button type="submit" variant="primary" disabled={!canSend}>
-            {isStreaming ? (
-              <LoadingSpinner size="sm" className="mr-1" />
-            ) : (
-              <Send className="h-4 w-4 mr-1" aria-hidden="true" />
-            )}
+            <Send className="h-4 w-4 mr-1" aria-hidden="true" />
             Send
           </Button>
         </form>
