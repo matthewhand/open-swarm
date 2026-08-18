@@ -52,6 +52,9 @@ BANNED_MODULES: Final[frozenset[str]] = frozenset(
 )
 
 # Builtins / free names that must not be called.
+# Also includes distinctive asyncio process/network escapes so both
+# ``asyncio.create_subprocess_exec`` and ``from asyncio import …`` call sites
+# are caught via ``_call_func_name`` (attr or bare name).
 BANNED_CALL_NAMES: Final[frozenset[str]] = frozenset(
     {
         "eval",
@@ -59,6 +62,15 @@ BANNED_CALL_NAMES: Final[frozenset[str]] = frozenset(
         "compile",
         "__import__",
         "breakpoint",
+        "create_subprocess_exec",
+        "create_subprocess_shell",
+        "open_connection",
+        "open_unix_connection",
+        "start_server",
+        "start_unix_server",
+        # AbstractEventLoop process APIs (``loop.subprocess_exec``)
+        "subprocess_exec",
+        "subprocess_shell",
     }
 )
 
@@ -123,6 +135,8 @@ _BANNED_PATH_MUTATION_ATTRS: Final[frozenset[str]] = frozenset(
 )
 
 # os.* process / FS mutation APIs (owner must be the name ``os``).
+# ``open`` / ``write`` / ``writev`` / ``pwrite`` / ``fdopen`` block low-level
+# write escapes that bypass the builtin ``open(..., 'w')`` ban.
 _BANNED_OS_ATTRS: Final[frozenset[str]] = frozenset(
     {
         "system",
@@ -162,6 +176,31 @@ _BANNED_OS_ATTRS: Final[frozenset[str]] = frozenset(
         "symlink",
         "link",
         "truncate",
+        "open",
+        "write",
+        "writev",
+        "pwrite",
+        "fdopen",
+    }
+)
+
+# asyncio.* process / network escapes (owner must be the name ``asyncio``).
+# Overlaps BANNED_CALL_NAMES for ``asyncio.X``; also covers less-distinctive
+# names (``create_connection``) that are only banned on the asyncio module.
+_BANNED_ASYNCIO_ATTRS: Final[frozenset[str]] = frozenset(
+    {
+        "create_subprocess_exec",
+        "create_subprocess_shell",
+        "open_connection",
+        "open_unix_connection",
+        "start_server",
+        "start_unix_server",
+        "create_connection",
+        "create_server",
+        "create_unix_connection",
+        "create_unix_server",
+        "create_datagram_endpoint",
+        "connect_accepted_socket",
     }
 )
 
@@ -225,6 +264,17 @@ def _check_node(node: ast.AST) -> None:
                         raise ValueError(
                             f"Banned import of os.{alias.name} in user blueprint "
                             f"(line {getattr(node, 'lineno', '?')})"
+                        )
+            # ``from asyncio import create_subprocess_exec`` / open_connection
+            if node.module == "asyncio":
+                for alias in node.names:
+                    if (
+                        alias.name in _BANNED_ASYNCIO_ATTRS
+                        or alias.name in BANNED_CALL_NAMES
+                    ):
+                        raise ValueError(
+                            f"Banned import of asyncio.{alias.name} in user "
+                            f"blueprint (line {getattr(node, 'lineno', '?')})"
                         )
         for alias in node.names:
             # ``from . import subprocess`` when module is relative/None
@@ -310,22 +360,28 @@ def _check_call(node: ast.Call) -> None:
             f"(line {getattr(node, 'lineno', '?')})"
         )
 
+    # os.* / asyncio.* owner checks before builtin open() so ``os.open`` is
+    # banned outright and does not fall through to read-mode open() logic.
+    if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+        owner = node.func.value.id
+        attr = node.func.attr
+        if owner == "os" and attr in _BANNED_OS_ATTRS:
+            raise ValueError(
+                f"Banned call to os.{attr} in user blueprint "
+                f"(line {getattr(node, 'lineno', '?')})"
+            )
+        if owner == "asyncio" and attr in _BANNED_ASYNCIO_ATTRS:
+            raise ValueError(
+                f"Banned call to asyncio.{attr} in user blueprint "
+                f"(line {getattr(node, 'lineno', '?')})"
+            )
+
     if name == "open":
         _check_open_call(node)
         return
 
     if isinstance(node.func, ast.Attribute):
         attr = node.func.attr
-
-        # os.system / os.remove / os.rename / … (before generic Path attr bans
-        # so messages stay ``os.unlink`` rather than bare ``unlink``)
-        if isinstance(node.func.value, ast.Name):
-            owner = node.func.value.id
-            if owner == "os" and attr in _BANNED_OS_ATTRS:
-                raise ValueError(
-                    f"Banned call to os.{attr} in user blueprint "
-                    f"(line {getattr(node, 'lineno', '?')})"
-                )
 
         # pathlib.Path mutation (unique method names — safe to match by attr)
         if attr in _BANNED_PATH_MUTATION_ATTRS:

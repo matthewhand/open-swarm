@@ -120,6 +120,79 @@ class TestAssertSafeBlueprintSource:
         with pytest.raises(ValueError, match=r"os\.remove"):
             assert_safe_blueprint_source("from os import remove\n")
 
+    def test_os_open_fails(self):
+        """os.open bypasses builtin open() write-mode ban — reject entirely."""
+        with pytest.raises(ValueError, match=r"os\.open"):
+            assert_safe_blueprint_source(
+                "import os\nfd = os.open('/tmp/x', os.O_WRONLY | os.O_CREAT)\n"
+            )
+
+    def test_os_write_fails(self):
+        with pytest.raises(ValueError, match=r"os\.write"):
+            assert_safe_blueprint_source("import os\nos.write(1, b'x')\n")
+
+    def test_from_os_import_open_fails(self):
+        with pytest.raises(ValueError, match=r"os\.open"):
+            assert_safe_blueprint_source("from os import open\n")
+
+    def test_from_os_import_write_fails(self):
+        with pytest.raises(ValueError, match=r"os\.write"):
+            assert_safe_blueprint_source("from os import write\n")
+
+    @pytest.mark.parametrize(
+        "src,match",
+        [
+            (
+                "import asyncio\nasyncio.create_subprocess_exec('id')\n",
+                r"create_subprocess_exec",
+            ),
+            (
+                "import asyncio\nasyncio.create_subprocess_shell('id')\n",
+                r"create_subprocess_shell",
+            ),
+            (
+                "import asyncio\nasyncio.open_connection('127.0.0.1', 80)\n",
+                r"open_connection",
+            ),
+            (
+                "import asyncio\nasyncio.open_unix_connection('/tmp/s')\n",
+                r"open_unix_connection",
+            ),
+            (
+                "import asyncio\nasyncio.start_server(lambda: None, '127.0.0.1', 0)\n",
+                r"start_server",
+            ),
+            (
+                "import asyncio\nasyncio.create_connection(lambda: None, '127.0.0.1', 80)\n",
+                r"asyncio\.create_connection",
+            ),
+            (
+                "from asyncio import create_subprocess_exec\n",
+                r"asyncio\.create_subprocess_exec",
+            ),
+            (
+                "from asyncio import open_connection\n",
+                r"asyncio\.open_connection",
+            ),
+            (
+                "loop = object()\nloop.subprocess_exec(None, 'id')\n",
+                r"subprocess_exec",
+            ),
+        ],
+    )
+    def test_asyncio_process_network_escapes_fail(self, src, match):
+        with pytest.raises(ValueError, match=match):
+            assert_safe_blueprint_source(src)
+
+    def test_asyncio_sleep_and_run_still_ok(self):
+        src = """
+import asyncio
+async def main():
+    await asyncio.sleep(0)
+asyncio.run(main())
+"""
+        assert_safe_blueprint_source(src)
+
     def test_path_write_text_fails(self):
         with pytest.raises(ValueError, match=r"write_text"):
             assert_safe_blueprint_source(
