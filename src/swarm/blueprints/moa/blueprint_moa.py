@@ -124,15 +124,17 @@ class MoABlueprint(BlueprintBase):
             backend=self._backend(),
             participant_permission=self._permission(),
         )
-        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+        from swarm.core.workdir import (
+            WorkdirEscapeError,
+            cleanup_run_workdir,
+            is_auto_workdir_request,
+            resolve_confined_workdir,
+        )
 
         raw_cwd = self._params.get("workdir") or self._params.get("cwd")
+        auto_cwd = is_auto_workdir_request(raw_cwd)
         try:
-            cwd = (
-                str(resolve_confined_workdir(raw_cwd, create=True))
-                if raw_cwd is not None and str(raw_cwd).strip()
-                else None
-            )
+            cwd = str(resolve_confined_workdir(raw_cwd, create=True))
         except WorkdirEscapeError as e:
             msg = str(e)
             yield {
@@ -142,38 +144,42 @@ class MoABlueprint(BlueprintBase):
                 "final": True,
             }
             return
-        # Determination always orchestrator-side (default synthesizer or inject later).
-        result = await orch.run(
-            question,
-            participants,
-            cwd=cwd,
-            act=bool(self._params.get("act")),
-            action=self._params.get("action"),
-        )
-        det = result.determination
-        answer = det.answer if det else "No determination."
-        ok_names = [o.name for o in result.ok_opinions]
-        meta = {
-            "moa": True,
-            # system_fingerprint uses backends=… (orchestrator-owned panel that answered)
-            "backends": ok_names,
-            "participants": [o.name for o in result.opinions],
-            "ok_participants": ok_names,
-            "act": bool(result.act_result),
-        }
-        message = {"role": "assistant", "content": answer}
-        # ChatCompletionsView accepts {messages: [...]} final shape + meta side-channel.
-        yield {
-            "messages": [message],
-            "role": "assistant",
-            "content": answer,
-            "final": True,
-            "meta": meta,
-            "opinions": [
-                {"name": o.name, "ok": o.ok, "text": o.text, "error": o.error}
-                for o in result.opinions
-            ],
-        }
+        try:
+            # Determination always orchestrator-side (default synthesizer or inject later).
+            result = await orch.run(
+                question,
+                participants,
+                cwd=cwd,
+                act=bool(self._params.get("act")),
+                action=self._params.get("action"),
+            )
+            det = result.determination
+            answer = det.answer if det else "No determination."
+            ok_names = [o.name for o in result.ok_opinions]
+            meta = {
+                "moa": True,
+                # system_fingerprint uses backends=… (orchestrator-owned panel that answered)
+                "backends": ok_names,
+                "participants": [o.name for o in result.opinions],
+                "ok_participants": ok_names,
+                "act": bool(result.act_result),
+            }
+            message = {"role": "assistant", "content": answer}
+            # ChatCompletionsView accepts {messages: [...]} final shape + meta side-channel.
+            yield {
+                "messages": [message],
+                "role": "assistant",
+                "content": answer,
+                "final": True,
+                "meta": meta,
+                "opinions": [
+                    {"name": o.name, "ok": o.ok, "text": o.text, "error": o.error}
+                    for o in result.opinions
+                ],
+            }
+        finally:
+            if auto_cwd:
+                cleanup_run_workdir(cwd)
 
 
 # Legacy model ids are registered via metadata["aliases"] only (no class aliases —

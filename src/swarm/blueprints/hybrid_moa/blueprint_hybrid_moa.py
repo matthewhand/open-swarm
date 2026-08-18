@@ -80,48 +80,54 @@ class HybridMoABlueprint(BlueprintBase):
         if isinstance(participants, str):
             participants = [p.strip() for p in participants.split(",") if p.strip()]
         fake = settings.get("fake_responses")
-        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+        from swarm.core.workdir import (
+            WorkdirEscapeError,
+            cleanup_run_workdir,
+            is_auto_workdir_request,
+            resolve_confined_workdir,
+        )
 
+        raw_workdir = self._params.get("workdir") or self._params.get("cwd")
+        auto_workdir = is_auto_workdir_request(raw_workdir)
         try:
-            workdir = str(
-                resolve_confined_workdir(
-                    self._params.get("workdir") or self._params.get("cwd"),
-                    create=True,
-                )
-            )
+            workdir = str(resolve_confined_workdir(raw_workdir, create=True))
         except WorkdirEscapeError as e:
             yield {
                 "messages": [{"role": "assistant", "content": str(e)}],
                 "final": True,
             }
             return
-        seed = {}
-        notes_path = Path(workdir) / "notes.txt"
-        if notes_path.is_file():
-            seed = None  # use existing workspace
-        else:
-            seed = {"notes.txt": question[:2000]}
+        try:
+            seed = {}
+            notes_path = Path(workdir) / "notes.txt"
+            if notes_path.is_file():
+                seed = None  # use existing workspace
+            else:
+                seed = {"notes.txt": question[:2000]}
 
-        result = await run_hybrid_scripted(
-            workdir,
-            question,
-            seed_files=seed,
-            moa_backend=backend,
-            moa_participants=list(participants),
-            moa_fake_responses=dict(fake) if isinstance(fake, dict) else None,
-        )
-        content = result.final or (result.steps[0].output if result.steps else "")
-        meta = {
-            "hybrid_moa": True,
-            "moa": True,
-            "backends": list(participants),
-            "writes": list(result.writes),
-            "steps": [s.persona for s in result.steps],
-        }
-        yield {
-            "messages": [{"role": "assistant", "content": content}],
-            "role": "assistant",
-            "content": content,
-            "final": True,
-            "meta": meta,
-        }
+            result = await run_hybrid_scripted(
+                workdir,
+                question,
+                seed_files=seed,
+                moa_backend=backend,
+                moa_participants=list(participants),
+                moa_fake_responses=dict(fake) if isinstance(fake, dict) else None,
+            )
+            content = result.final or (result.steps[0].output if result.steps else "")
+            meta = {
+                "hybrid_moa": True,
+                "moa": True,
+                "backends": list(participants),
+                "writes": list(result.writes),
+                "steps": [s.persona for s in result.steps],
+            }
+            yield {
+                "messages": [{"role": "assistant", "content": content}],
+                "role": "assistant",
+                "content": content,
+                "final": True,
+                "meta": meta,
+            }
+        finally:
+            if auto_workdir:
+                cleanup_run_workdir(workdir)

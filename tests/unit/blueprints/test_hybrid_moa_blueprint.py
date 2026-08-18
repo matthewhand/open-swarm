@@ -55,3 +55,40 @@ async def test_hybrid_moa_rejects_workdir_outside_root(tmp_path: Path, monkeypat
     content = chunks[-1]["messages"][0]["content"]
     assert "outside the workspaces root" in content
     assert not (tmp_path / "escape").exists()
+
+
+@pytest.mark.asyncio
+async def test_hybrid_moa_cleans_auto_workdir(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+    bp = HybridMoABlueprint(blueprint_id="hybrid_moa")
+    bp._config = {
+        "moa": {
+            "backend": "fake",
+            "participants": ["analyst"],
+            "fake_responses": {"analyst": '{"claim":"ok","confidence":1}'},
+        }
+    }
+    bp.set_params({"backend": "fake"})
+    async for _ in bp.run([{"role": "user", "content": "cleanup me"}]):
+        pass
+    leftover = [p for p in root.iterdir() if p.is_dir() and p.name.startswith("run-")]
+    assert leftover == []
+
+
+@pytest.mark.asyncio
+async def test_hybrid_moa_keeps_user_workdir(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+    bp = HybridMoABlueprint(blueprint_id="hybrid_moa")
+    bp._config = {
+        "moa": {
+            "backend": "fake",
+            "participants": ["analyst"],
+            "fake_responses": {"analyst": '{"claim":"ok","confidence":1}'},
+        }
+    }
+    bp.set_params({"backend": "fake", "workdir": "keep-this"})
+    async for _ in bp.run([{"role": "user", "content": "keep workspace"}]):
+        pass
+    assert (root / "keep-this").is_dir()

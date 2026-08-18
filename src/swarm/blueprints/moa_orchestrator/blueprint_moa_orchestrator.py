@@ -116,15 +116,17 @@ class MoAOrchestratorBlueprint(BlueprintBase):
         if not participants:
             participants = ["analyst", "critic"]
         fake = settings.get("fake_responses")
-        from swarm.core.workdir import WorkdirEscapeError, resolve_confined_workdir
+        from swarm.core.workdir import (
+            WorkdirEscapeError,
+            cleanup_run_workdir,
+            is_auto_workdir_request,
+            resolve_confined_workdir,
+        )
 
+        raw_workdir = self._params.get("workdir") or self._params.get("cwd")
+        auto_workdir = is_auto_workdir_request(raw_workdir)
         try:
-            workdir = str(
-                resolve_confined_workdir(
-                    self._params.get("workdir") or self._params.get("cwd"),
-                    create=True,
-                )
-            )
+            workdir = str(resolve_confined_workdir(raw_workdir, create=True))
         except WorkdirEscapeError as e:
             msg = str(e)
             yield {
@@ -134,48 +136,52 @@ class MoAOrchestratorBlueprint(BlueprintBase):
                 "final": True,
             }
             return
-        tasks = self._parse_tasks()
+        try:
+            tasks = self._parse_tasks()
 
-        result = await run_moa_agents_orchestrator(
-            workdir,
-            question,
-            specialist_tasks=tasks,
-            seed_files={"notes.txt": question[:2000]},
-            moa_backend=backend,
-            moa_participants=list(participants),
-            moa_fake_responses=dict(fake) if isinstance(fake, dict) else None,
-        )
+            result = await run_moa_agents_orchestrator(
+                workdir,
+                question,
+                specialist_tasks=tasks,
+                seed_files={"notes.txt": question[:2000]},
+                moa_backend=backend,
+                moa_participants=list(participants),
+                moa_fake_responses=dict(fake) if isinstance(fake, dict) else None,
+            )
 
-        # Human-readable summary of the full orchestration
-        lines = [
-            "# MoA Agents Orchestrator",
-            "",
-            "## Consensus (read-only panel)",
-            result.determination or "(empty)",
-            "",
-            "## Specialist tasks",
-        ]
-        for s in result.specialist_results:
-            status = "ok" if s.ok else "FAIL"
-            lines.append(f"### {s.persona} [{status}]")
-            lines.append(s.output[:2000] if s.output else "(no output)")
-            lines.append("")
-        content = "\n".join(lines)
-        meta = {
-            "moa_orchestrator": True,
-            "moa": True,
-            "backends": list(participants),
-            "specialists": [s.persona for s in result.specialist_results],
-            "writes": list(result.writes),
-            "specialist_purposes": sorted(SPECIALIST_PURPOSES),
-            "specialists_ok": all(s.ok for s in result.specialist_results)
-            if result.specialist_results
-            else True,
-        }
-        yield {
-            "messages": [{"role": "assistant", "content": content}],
-            "role": "assistant",
-            "content": content,
-            "final": True,
-            "meta": meta,
-        }
+            # Human-readable summary of the full orchestration
+            lines = [
+                "# MoA Agents Orchestrator",
+                "",
+                "## Consensus (read-only panel)",
+                result.determination or "(empty)",
+                "",
+                "## Specialist tasks",
+            ]
+            for s in result.specialist_results:
+                status = "ok" if s.ok else "FAIL"
+                lines.append(f"### {s.persona} [{status}]")
+                lines.append(s.output[:2000] if s.output else "(no output)")
+                lines.append("")
+            content = "\n".join(lines)
+            meta = {
+                "moa_orchestrator": True,
+                "moa": True,
+                "backends": list(participants),
+                "specialists": [s.persona for s in result.specialist_results],
+                "writes": list(result.writes),
+                "specialist_purposes": sorted(SPECIALIST_PURPOSES),
+                "specialists_ok": all(s.ok for s in result.specialist_results)
+                if result.specialist_results
+                else True,
+            }
+            yield {
+                "messages": [{"role": "assistant", "content": content}],
+                "role": "assistant",
+                "content": content,
+                "final": True,
+                "meta": meta,
+            }
+        finally:
+            if auto_workdir:
+                cleanup_run_workdir(workdir)
