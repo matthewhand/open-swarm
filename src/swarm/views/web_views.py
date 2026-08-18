@@ -119,7 +119,6 @@ def index(request):
     return render(request, "index.html", context)
 
 
-@csrf_exempt
 def custom_login(request):
     """Handle custom login at /accounts/login/, redirecting to 'next' URL on success."""
     if request.method == "POST":

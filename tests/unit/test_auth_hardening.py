@@ -348,6 +348,10 @@ class TestCsrfProtectionRestored:
         from swarm.views.web_views import team_admin
         assert not getattr(team_admin, "csrf_exempt", False)
 
+    def test_custom_login_not_csrf_exempt(self):
+        from swarm.views.web_views import custom_login
+        assert not getattr(custom_login, "csrf_exempt", False)
+
     def test_settings_views_not_csrf_exempt(self):
         from swarm.views.settings_views import (
             environment_variables,
@@ -392,6 +396,32 @@ class TestCsrfProtectionRestored:
         for url, data in cases:
             response = client.post(url, data)
             assert response.status_code == 403, f"{url} returned {response.status_code}"
+
+    @pytest.mark.django_db
+    def test_custom_login_rejects_missing_csrf(self, monkeypatch):
+        """Login POST without CSRF token must 403 and must not establish a session.
+
+        Even with ALLOW_TESTUSER_AUTOLOGIN + DEBUG, CSRF failure must reject
+        before the view runs — no testuser auto-login side effect.
+        """
+        from django.contrib.auth.models import User
+        from django.test import Client
+
+        monkeypatch.setenv("ALLOW_TESTUSER_AUTOLOGIN", "true")
+        monkeypatch.setenv("DJANGO_DEBUG", "true")
+        users_before = User.objects.count()
+        had_testuser = User.objects.filter(username="testuser").exists()
+
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            "/login/",
+            {"username": "nobody", "password": "wrong"},
+        )
+        assert response.status_code == 403
+        assert "_auth_user_id" not in client.session
+        assert User.objects.count() == users_before
+        if not had_testuser:
+            assert not User.objects.filter(username="testuser").exists()
 
     def test_teams_admin_template_has_csrf_tokens(self):
         template = (
