@@ -244,10 +244,13 @@ class TestUxShellTemplateContracts:
         response = client.get("/settings/")
         assert response.status_code == 200
         html = response.content.decode()
-        assert "Validate Config (soon)" in html
-        assert "Export (soon)" in html
+        assert "Validate Config (not available)" in html
+        assert "Export (not available)" in html
+        assert "(soon)" not in html
+        assert "btn-check-path" not in html
         assert "onclick=\"validateConfiguration()\"" not in html
         assert "onclick=\"exportEnvVars()\"" not in html
+        assert "onclick=\"checkPath(" not in html
 
     def test_team_creator_validate_marked_demo(self, client):
         from django.contrib.auth.models import User

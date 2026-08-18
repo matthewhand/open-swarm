@@ -68,7 +68,7 @@ def test_settings_dashboard_avoids_onclick_js_string_interpolation():
     html = client.get("/settings/").content.decode()
 
     assert "btn-view-object" in html
-    assert "btn-check-path" in html or "btn-copy-env" in html
+    assert "btn-copy-env" in html
     assert 'data-group-id="' in html
     assert re.search(r"""onclick\s*=\s*["'][^"']*\{\{""", html) is None
     assert "checkPath('" not in html

@@ -230,8 +230,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   `/agent-creator/` (nav link removed). Leftover template/JS unused on disk.
 - [x] **My Blueprints runner wired:** posts `/v1/chat/completions` with blueprint
   id + CTAs to `/chat?blueprint=` and `/teams/launch/` (replaces Simulate-run
-  demo). Settings Validate/path-check/env Export still disabled “(soon)”; Team
-  Creator Validate still marked demo.
+  demo). Settings Validate + env Export labeled “(not available)”; path-check
+  buttons removed; Team Creator Validate still marked demo.
 - [x] **SPA `loading` button spinner (DaisyUI 5)** — `Button.tsx` renders
   `loading loading-spinner` + `aria-busy`; covered by `Button.test.tsx` /
   `A11y.test.tsx`. Dead `active`/`disabled` variant aliases remain low priority.

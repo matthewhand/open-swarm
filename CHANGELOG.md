@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
+- **Settings dashboard dead-end honesty:** Validate Config / env Export use “(not available)” (not “(soon)”); unwired path-check buttons removed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
 - **MoA soft-fail honesty:** `format_team_text` no longer labels empty `--team` specialists as “consensus only”; CLI prints a `MoA team soft-fail:…` stderr line after the payload; USERGUIDE / TROUBLESHOOTING exit-1 wording aligned
 - **Docs polish:** journey screenshots regenerated (2026-08-18) + caption/registry honesty; MoA troubleshooting; FEATURE_STATUS MoA team-path row; `cli-and-api.gif` refreshed from `SWARM_TEST_MODE` captures (optional `moa --team` scene)
