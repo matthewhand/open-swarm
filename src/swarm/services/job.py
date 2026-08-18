@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 RE_NON_ALPHANUMERIC = re.compile(r'[^a-zA-Z0-9]')
 
 # Import secure subprocess utilities
-from src.swarm.services.secure_subprocess import (
+from swarm.services.secure_subprocess import (
     validate_command_safety
 )
 
@@ -30,6 +30,41 @@ JOB_OUTPUTS_DIR = SWARM_JOB_DATA_DIR / "outputs"
 # Ensure directories exist
 SWARM_JOB_DATA_DIR.mkdir(parents=True, exist_ok=True)
 JOB_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _is_under_job_outputs(path: Path | str) -> bool:
+    """True if resolved ``path`` is under ``JOB_OUTPUTS_DIR`` (no escapes)."""
+    try:
+        resolved = Path(path).expanduser().resolve()
+        root = JOB_OUTPUTS_DIR.expanduser().resolve()
+        if resolved == root:
+            return True
+        if hasattr(resolved, "is_relative_to"):
+            return resolved.is_relative_to(root)
+        return os.path.commonpath([str(resolved), str(root)]) == str(root)
+    except (OSError, ValueError):
+        return False
+
+
+def _validated_output_file_path(path: Path | str | None, job_id: str) -> Path:
+    """Return a job log path confined under ``JOB_OUTPUTS_DIR``.
+
+    Rejects absolute or relative paths that resolve outside the outputs root
+    so poisoned metadata cannot point at arbitrary files.
+    """
+    if path is None or (isinstance(path, str) and not path.strip()):
+        return (JOB_OUTPUTS_DIR / f"{job_id}.log").resolve()
+    candidate = Path(path).expanduser()
+    # Resolve for confinement check; may not exist yet for new jobs.
+    try:
+        resolved = candidate.resolve()
+    except OSError as e:
+        raise ValueError(f"invalid output_file_path: {path!r}") from e
+    if not _is_under_job_outputs(resolved):
+        raise ValueError(
+            f"output_file_path must be under {JOB_OUTPUTS_DIR.resolve()}, got: {path}"
+        )
+    return resolved
 
 @dataclass
 class Job:
@@ -55,9 +90,8 @@ class Job:
         # Ensure command_str is populated if not provided
         if not self.command_str and self.command_list:
             self.command_str = shlex.join(self.command_list)
-        # Ensure output_file_path is set based on id
-        if not self.output_file_path:
-            self.output_file_path = JOB_OUTPUTS_DIR / f"{self.id}.log"
+        # Confine output_file_path under JOB_OUTPUTS_DIR (reject escapes).
+        self.output_file_path = _validated_output_file_path(self.output_file_path, self.id)
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes the job to a dictionary for persistence, excluding runtime handles."""
@@ -76,16 +110,23 @@ class Job:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> 'Job':
-        """Deserializes a job from a dictionary."""
+        """Deserializes a job from a dictionary.
+
+        Raises:
+            ValueError: If ``output_file_path`` resolves outside ``JOB_OUTPUTS_DIR``.
+        """
         output_file_path_str = data.get("output_file_path")
+        # Validate before construction so poisoned metadata fails closed.
+        job_id = data["id"]
+        validated_path = _validated_output_file_path(output_file_path_str, job_id)
         return cls(
-            id=data["id"],
+            id=job_id,
             command_list=data.get("command_list", []),
             command_str=data.get("command_str", ""),
             status=data.get("status", "UNKNOWN"),
             pid=data.get("pid"),
             exit_code=data.get("exit_code"),
-            output_file_path=Path(output_file_path_str) if output_file_path_str else None,
+            output_file_path=validated_path,
             tracking_label=data.get("tracking_label"),
             created_at=data.get("created_at", time.time()),
             updated_at=data.get("updated_at", time.time()),
@@ -132,7 +173,15 @@ class DefaultJobService:
                     with JOBS_METADATA_FILE.open("r") as f:
                         loaded_data = json.load(f)
                         for job_id, job_data in loaded_data.items():
-                            job = Job.from_dict(job_data)
+                            try:
+                                job = Job.from_dict(job_data)
+                            except ValueError as e:
+                                logger.error(
+                                    "Skipping job %s with invalid output_file_path: %s",
+                                    job_id,
+                                    e,
+                                )
+                                continue
                             # Jobs loaded from disk are not actively running unless re-monitored.
                             # If status was RUNNING, it's likely stale. Mark as UNKNOWN or check.
                             if job.status == "RUNNING":
@@ -156,6 +205,18 @@ class DefaultJobService:
             logger.error(f"Job {job.id} cannot be monitored: process handle or output file path is missing.")
             job.status = "FAILED"
             job.exit_code = -1 # Indicate internal error
+            job.updated_at = time.time()
+            self._save_jobs_to_disk()
+            return
+
+        if not _is_under_job_outputs(job.output_file_path):
+            logger.error(
+                "Job %s output_file_path escapes JOB_OUTPUTS_DIR: %s",
+                job.id,
+                job.output_file_path,
+            )
+            job.status = "FAILED"
+            job.exit_code = -1
             job.updated_at = time.time()
             self._save_jobs_to_disk()
             return
@@ -287,16 +348,25 @@ class DefaultJobService:
             The full log content as a string, or an empty string if not found/no output.
         """
         job = self.get_status(job_id)
-        if job and job.output_file_path and job.output_file_path.exists():
-            try:
-                with job.output_file_path.open("r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
-                if max_chars is not None and len(content) > max_chars:
-                    return content[-max_chars:]
-                return content
-            except Exception as e:
-                logger.error(f"Error reading output file for job {job_id}: {e}", exc_info=True)
-                return f"[Error reading output file: {e}]"
+        if job and job.output_file_path:
+            if not _is_under_job_outputs(job.output_file_path):
+                logger.error(
+                    "Refusing to read job %s log outside JOB_OUTPUTS_DIR: %s",
+                    job_id,
+                    job.output_file_path,
+                )
+                return "[Error reading output file: path escapes job outputs directory]"
+            if job.output_file_path.exists():
+                try:
+                    with job.output_file_path.open("r", encoding="utf-8", errors="replace") as f:
+                        content = f.read()
+                    if max_chars is not None and len(content) > max_chars:
+                        return content[-max_chars:]
+                    return content
+                except Exception as e:
+                    logger.error(f"Error reading output file for job {job_id}: {e}", exc_info=True)
+                    return f"[Error reading output file: {e}]"
+            return "[No output file found or job not started/completed]"
         elif job:
             return "[No output file found or job not started/completed]"
         logger.warning(f"Full log requested for non-existent job ID {job_id}")
@@ -385,11 +455,18 @@ class DefaultJobService:
             for job_id in job_ids_to_prune:
                 job = self._jobs.pop(job_id, None)
                 if job and job.output_file_path and job.output_file_path.exists():
-                    try:
-                        job.output_file_path.unlink() # Delete associated log file
-                        logger.debug(f"Deleted output file for pruned job {job_id}: {job.output_file_path}")
-                    except OSError as e:
-                        logger.error(f"Error deleting output file for pruned job {job_id}: {e}", exc_info=True)
+                    if not _is_under_job_outputs(job.output_file_path):
+                        logger.error(
+                            "Refusing to delete job %s log outside JOB_OUTPUTS_DIR: %s",
+                            job_id,
+                            job.output_file_path,
+                        )
+                    else:
+                        try:
+                            job.output_file_path.unlink()  # Delete associated log file
+                            logger.debug(f"Deleted output file for pruned job {job_id}: {job.output_file_path}")
+                        except OSError as e:
+                            logger.error(f"Error deleting output file for pruned job {job_id}: {e}", exc_info=True)
                 if job:
                     pruned_ids.append(job_id)
                     logger.info(f"Pruned job {job_id} with status {job.status}.")

@@ -13,7 +13,13 @@ import pytest
 import time
 
 # Import the module under test
-from swarm.services.job import Job, DefaultJobService
+from swarm.services.job import (
+    JOB_OUTPUTS_DIR,
+    Job,
+    DefaultJobService,
+    _is_under_job_outputs,
+    _validated_output_file_path,
+)
 
 
 # =============================================================================
@@ -41,6 +47,7 @@ def job_service(mock_job_data_dir):
 @pytest.fixture
 def sample_job_dict():
     """Return a sample job dictionary for serialization tests."""
+    output_path = str((JOB_OUTPUTS_DIR / "test_job_1234567890123.log").resolve())
     return {
         "id": "test_job_1234567890123",
         "command_list": ["echo", "hello", "world"],
@@ -48,7 +55,7 @@ def sample_job_dict():
         "status": "RUNNING",
         "pid": 12345,
         "exit_code": None,
-        "output_file_path": "/tmp/test_job.log",
+        "output_file_path": output_path,
         "tracking_label": "test_job",
         "created_at": 1234567890.123,
         "updated_at": 1234567890.123,
@@ -80,7 +87,7 @@ class TestJob:
         """Test creating a job with all parameters."""
         created_at = time.time() - 3600
         updated_at = time.time() - 1800
-        output_path = Path("/tmp/test_output.log")
+        output_path = (JOB_OUTPUTS_DIR / "test_output.log").resolve()
 
         job = Job(
             id="test_job",
@@ -143,6 +150,7 @@ class TestJob:
         assert job.pid is None
         assert job.exit_code is None
         assert job.output_file_path is not None
+        assert _is_under_job_outputs(job.output_file_path)
         assert job.tracking_label is None
         assert isinstance(job.created_at, float)
         assert isinstance(job.updated_at, float)
@@ -156,6 +164,45 @@ class TestJob:
         # Test output_file_path generation
         job2 = Job(id="test_job_123", command_list=["echo", "test"])
         assert "test_job_123" in str(job2.output_file_path)
+        assert _is_under_job_outputs(job2.output_file_path)
+
+    @pytest.mark.parametrize(
+        "evil_path",
+        [
+            "/tmp/evil.log",
+            "/etc/passwd",
+            "../../../../etc/passwd",
+            "/var/log/syslog",
+        ],
+    )
+    def test_job_rejects_outside_output_path(self, evil_path):
+        """Constructor and from_dict must reject paths outside JOB_OUTPUTS_DIR."""
+        with pytest.raises(ValueError, match="output_file_path must be under"):
+            Job(id="evil_job", command_list=["echo", "x"], output_file_path=Path(evil_path))
+
+        with pytest.raises(ValueError, match="output_file_path must be under"):
+            Job.from_dict(
+                {
+                    "id": "evil_job",
+                    "command_list": ["echo", "x"],
+                    "output_file_path": evil_path,
+                }
+            )
+
+    def test_job_rejects_relative_traversal_under_outputs(self, mock_job_data_dir):
+        """Paths that resolve via .. out of the outputs dir are rejected."""
+        from swarm.services import job as job_mod
+
+        escape = job_mod.JOB_OUTPUTS_DIR / ".." / "escape.log"
+        with pytest.raises(ValueError, match="output_file_path must be under"):
+            Job(id="trav", command_list=["echo"], output_file_path=escape)
+
+    def test_validated_output_defaults_under_outputs(self, mock_job_data_dir):
+        from swarm.services import job as job_mod
+
+        path = _validated_output_file_path(None, "abc")
+        assert path.parent == job_mod.JOB_OUTPUTS_DIR.resolve()
+        assert path.name == "abc.log"
 
 
 # =============================================================================
@@ -465,6 +512,70 @@ class TestDefaultJobService:
         pruned_ids = job_service.prune_completed()
         assert len(pruned_ids) == 1
         assert job_id in pruned_ids
+
+    def test_get_full_log_refuses_path_escape(self, job_service, tmp_path):
+        """get_full_log must not read files outside JOB_OUTPUTS_DIR."""
+        job = Job(id="escape_log", command_list=["echo", "hi"])
+        outside = tmp_path / "outside_secret.log"
+        outside.write_text("secret-contents")
+        # Bypass constructor validation (simulates poisoned in-memory state).
+        job.output_file_path = outside
+
+        with patch.object(job_service, "get_status", return_value=job):
+            log = job_service.get_full_log("escape_log")
+
+        assert "secret-contents" not in log
+        assert "escapes" in log.lower() or "Error reading output file" in log
+
+    def test_prune_completed_refuses_path_escape_unlink(self, job_service, tmp_path):
+        """prune_completed must not unlink files outside JOB_OUTPUTS_DIR."""
+        job = Job(id="escape_prune", command_list=["echo", "hi"])
+        job.status = "COMPLETED"
+        outside = tmp_path / "do_not_delete.log"
+        outside.write_text("keep me")
+        job.output_file_path = outside
+        job_service._jobs[job.id] = job
+
+        pruned = job_service.prune_completed()
+
+        assert job.id in pruned
+        assert outside.exists()
+        assert outside.read_text() == "keep me"
+
+    def test_load_skips_poisoned_output_path(self, job_service, mock_job_data_dir):
+        """Disk load skips entries whose output_file_path escapes the outputs dir."""
+        metadata = {
+            "good_job": {
+                "id": "good_job",
+                "command_list": ["echo", "ok"],
+                "command_str": "echo ok",
+                "status": "COMPLETED",
+                "pid": None,
+                "exit_code": 0,
+                "output_file_path": str((mock_job_data_dir / "outputs" / "good_job.log").resolve()),
+                "tracking_label": None,
+                "created_at": time.time(),
+                "updated_at": time.time(),
+            },
+            "evil_job": {
+                "id": "evil_job",
+                "command_list": ["echo", "x"],
+                "command_str": "echo x",
+                "status": "COMPLETED",
+                "pid": None,
+                "exit_code": 0,
+                "output_file_path": "/tmp/pwned.log",
+                "tracking_label": None,
+                "created_at": time.time(),
+                "updated_at": time.time(),
+            },
+        }
+        with (mock_job_data_dir / "jobs_metadata.json").open("w") as f:
+            json.dump(metadata, f)
+
+        loaded = DefaultJobService()
+        assert loaded.get_status("good_job") is not None
+        assert loaded.get_status("evil_job") is None
 
 
 # =============================================================================
