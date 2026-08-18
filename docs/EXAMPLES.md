@@ -9,7 +9,8 @@ Base URL in examples: `http://localhost:8000/v1` (swap for your host). Add
 `-H "Authorization: Bearer $TOKEN"` if you enabled auth.
 
 > The bundled blueprints are **examples of a composition system** — you assemble
-> your own personas, teams, and consensus rules via config or the web Builder.
+> your own personas, teams, and consensus rules via config or Django
+> [`/agent-creator/`](../FEATURE_STATUS.md) (the SPA Builder route is unmounted).
 > Architecture + diagrams: [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md).
 
 ---

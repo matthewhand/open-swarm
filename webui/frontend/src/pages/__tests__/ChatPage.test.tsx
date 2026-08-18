@@ -265,6 +265,8 @@ describe('ChatPage blueprint query-param honesty', () => {
     const honesty = await screen.findByRole('alert')
     expect(honesty).toHaveTextContent(/not in the discoverable list/i)
     expect(honesty).toHaveTextContent('just_launched_team')
+    expect(honesty).toHaveTextContent(/reply errors/i)
+    expect(honesty).toHaveTextContent(/does not fall back to the default model/i)
   })
 
   it('does not warn when the ?blueprint= id is discoverable', async () => {

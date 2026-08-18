@@ -11,7 +11,8 @@ All diagrams are GitHub-rendered Mermaid. Backends shown (`gemini`, `claude`,
 
 > **The bundled blueprints are *examples*, not the product.** Open Swarm is a
 > **composition system**: you define your own personas and teams (via config or
-> the web Builder) and choose *how* consensus is invoked. The patterns below are
+> Django [`/agent-creator/`](../FEATURE_STATUS.md); the SPA Builder route is
+> unmounted) and choose *how* consensus is invoked. The patterns below are
 > the architectural primitives you compose from — see
 > [Composing your own](#composing-your-own) and
 > [Consensus invocation: always vs gated](#consensus-invocation--always-vs-gated).
@@ -37,7 +38,7 @@ assemble teams**. A team is three choices:
 
 ```mermaid
 flowchart LR
-    U[You — config or web Builder] --> P[Pick personas]
+    U[You — config or Django /agent-creator/] --> P[Pick personas]
     P --> B[Pick backends per persona]
     B --> S{Pick a consensus strategy}
     S --> A1[single — cli_agent]
@@ -383,7 +384,7 @@ code.
 | A planner to drive specialists toward a goal | `cli_planner` |
 | An LLM that reasons, then reaches for CLI personas + consensus | `hybrid_team` / `hybrid_swarm` |
 | Consensus from diverse expert lenses, not redundant runs | `persona_council` (`params.council`) |
-| Your own personas + your own consensus rule | the web Builder / a config preset |
+| Your own personas + your own consensus rule | config preset / Django `/agent-creator/` (SPA Builder unmounted) |
 
 See [VISION.md](./VISION.md) for how these fit the larger picture, and
 [CLI_FUSION.md](./CLI_FUSION.md) for configuration of the built blueprints.

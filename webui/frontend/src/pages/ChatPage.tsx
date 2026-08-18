@@ -306,8 +306,8 @@ const ChatPage = () => {
             </span>
             <p>
               It stays selected so chat can still request it (for example a
-              just-launched team). If the server does not recognise the id, it
-              may fall back to its default model.
+              just-launched team). If the server does not recognise the id, the
+              reply errors — it does not fall back to the default model.
             </p>
           </div>
         </Alert>
