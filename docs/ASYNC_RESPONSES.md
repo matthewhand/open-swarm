@@ -108,10 +108,17 @@ aliases) unless `SWARM_ALLOW_NO_AUTH=true`. With debug and no token, the API is
 open and the process logs a serve-time warning — set a Bearer token before
 exposing the server on a network.
 
+**Retention:** the file-backed store does not auto-expire. Operators can prune
+terminal records with `swarm.core.responses_store.prune_expired(max_age_days=N)`
+(or set `SWARM_RESPONSES_MAX_AGE_DAYS` and call with no arg). Active
+`queued` / `in_progress` rows are never removed. See
+[CONFIGURATION.md](../CONFIGURATION.md) and [ORACLE_DEPLOY.md](./ORACLE_DEPLOY.md).
+
 **Still missing (next)**
 - **TLS** — plain HTTP today (front with a reverse proxy for HTTPS).
 - **Hard cancel** — cancellation is cooperative; a single long in-flight CLI call isn't killed mid-call.
 - **Cloud** — the CLIs are host-bound (OAuth/file-login); a cloud instance must re-auth them on its host.
 - **Durable queue** — resume re-runs from stored input (at-least-once); not an exactly-once persistent job queue.
+- **Automatic prune schedule** — helper exists; wire a boot/cron hook if you want hands-off retention.
 
 See [VISION.md](./VISION.md) and [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) for the blueprints you can task this way.

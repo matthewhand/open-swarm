@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 
 
 ### Added
+- **Responses store prune:** `swarm.core.responses_store.prune_expired` deletes terminal records older than `max_age_days` / `SWARM_RESPONSES_MAX_AGE_DAYS` (skips `queued`/`in_progress`; not automatic — operator/cron); notes in CONFIGURATION.md, ASYNC_RESPONSES.md, ORACLE_DEPLOY.md
 - **SPA build wiring (ADR-001):** `make frontend` → `scripts/build_frontend.sh` (`npm ci` + verify `dist/index.html`); multi-stage `Dockerfile` bakes `webui/frontend/dist` for Docker/Fly; CI `frontend` job in `python-pytest.yml` runs the same script. After pull: `make frontend` (DEPLOYMENT.md / webui/README)
 - **Settings credential checklist:** compact AUTH.md callout on `/settings/` (Chat/WS = session; `/v1/*` = Bearer or session; Explorer token bridge when API auth on; link to repo `docs/AUTH.md` — not served in-app)
 - **Auth operator golden path:** `tests/api/test_auth_operator_golden_path.py` — with `ENABLE_API_AUTH`, session + Bearer `POST /v1/responses` stamp owners; Session Explorer bridge lists both for the web login; REST IDOR stays same-principal (bridge ≠ API privilege)

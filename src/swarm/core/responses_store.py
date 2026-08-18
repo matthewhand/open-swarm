@@ -17,12 +17,19 @@ import json
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 # resp ids we mint look like ``resp_<uuid>``; restrict to a safe charset so a
 # caller-supplied id can never traverse out of the store dir.
 _ID_RE = re.compile(r"^resp_[A-Za-z0-9_-]{1,128}$")
+
+#: Env override for :func:`prune_expired` when ``max_age_days`` is omitted.
+ENV_RESPONSES_MAX_AGE_DAYS = "SWARM_RESPONSES_MAX_AGE_DAYS"
+
+#: Statuses that must never be age-pruned (live or restart-resumable work).
+_ACTIVE_STATUSES = frozenset({"queued", "in_progress"})
 
 
 def _store_dir() -> Path:
@@ -141,3 +148,79 @@ def delete(response_id: str, *, base_dir: Path | None = None) -> bool:
         return True
     except OSError:
         return False
+
+
+def _max_age_days_from_env() -> float | None:
+    raw = (os.environ.get(ENV_RESPONSES_MAX_AGE_DAYS) or "").strip()
+    if not raw:
+        return None
+    try:
+        days = float(raw)
+    except ValueError:
+        return None
+    return days if days > 0 else None
+
+
+def prune_expired(
+    *,
+    max_age_days: float | None = None,
+    base_dir: Path | None = None,
+    now: float | None = None,
+) -> list[str]:
+    """Delete terminal response records older than ``max_age_days``.
+
+    The file store has no automatic TTL — operators (or a cron) should call this
+    periodically. Safe defaults:
+
+    - Never deletes ``queued`` / ``in_progress`` records (live or resumable).
+    - Age comes from ``response.created_at`` / ``started_at`` (unix seconds),
+      else the file mtime (corrupt / partial records).
+    - ``max_age_days`` must be ``> 0``. When omitted, reads
+      ``SWARM_RESPONSES_MAX_AGE_DAYS``; unset / invalid → no-op (``[]``).
+    - Deletes only via :func:`delete` (same id charset / path guard).
+
+    Returns the deleted response ids. Best-effort; per-file errors are skipped.
+    """
+    age_days = max_age_days if max_age_days is not None else _max_age_days_from_env()
+    if age_days is None:
+        return []
+    age_days = float(age_days)
+    if age_days <= 0:
+        return []
+    base = base_dir or _store_dir()
+    if not base.is_dir():
+        return []
+    cutoff = (time.time() if now is None else float(now)) - (age_days * 86400.0)
+    deleted: list[str] = []
+    try:
+        paths = list(base.glob("resp_*.json"))
+    except OSError:
+        return []
+    for path in paths:
+        rid = path.stem
+        if not _ID_RE.match(rid):
+            continue
+        status: str | None = None
+        ts: float | None = None
+        try:
+            with open(path) as f:
+                record = json.load(f)
+            resp = record.get("response") or {}
+            status = resp.get("status")
+            raw_ts = resp.get("created_at") or resp.get("started_at")
+            if raw_ts is not None:
+                ts = float(raw_ts)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+        if status in _ACTIVE_STATUSES:
+            continue
+        if ts is None:
+            try:
+                ts = path.stat().st_mtime
+            except OSError:
+                continue
+        if ts > cutoff:
+            continue
+        if delete(rid, base_dir=base):
+            deleted.append(rid)
+    return deleted

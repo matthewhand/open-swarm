@@ -98,5 +98,9 @@ etc. (every write endpoint's body is documented).
   use `--insecure`-free serving via `swarm-api`/daphne if you serve the web UI.
 - Persist `SWARM_RESPONSES_DIR` (async task state) on durable storage so queued
   tasks survive restarts (the worker resumes in-progress tasks on boot).
+- The responses store has **no automatic TTL**. Disk can grow with completed
+  sessions; periodically call `swarm.core.responses_store.prune_expired`
+  (optional `SWARM_RESPONSES_MAX_AGE_DAYS`, or pass `max_age_days=…`). Prune
+  never deletes `queued` / `in_progress` records.
 - For an internal layer that already gates access (e.g. cloud OAuth proxy), you
   may run without a token by setting `SWARM_ALLOW_NO_AUTH=true` instead.
