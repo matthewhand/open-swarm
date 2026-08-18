@@ -65,6 +65,61 @@ def _is_within(child: Path, root: Path) -> bool:
         return False
 
 
+def _resolve_roots(paths: list[str] | None) -> list[Path]:
+    """Resolve allow-list roots; fall back to ``DEFAULT_ROOTS`` when empty."""
+    raw = list(paths or []) or list(FilesystemToolset.DEFAULT_ROOTS)
+    roots: list[Path] = []
+    for p in raw:
+        try:
+            roots.append(Path(p).expanduser().resolve())
+        except Exception:  # pragma: no cover - defensive
+            logger.warning("filesystem toolset: skipping unresolvable root %r", p)
+    return roots
+
+
+def _clamp_allowed_paths(
+    cfg_paths: list[str] | None,
+    override_paths: Any,
+) -> list[str]:
+    """Keep only override paths that sit under a configured root (no widening)."""
+    cfg_list = list(cfg_paths or [])
+    if override_paths is None:
+        return cfg_list
+    if isinstance(override_paths, (str, os.PathLike)):
+        override_paths = [override_paths]
+    else:
+        try:
+            override_paths = list(override_paths)
+        except TypeError:
+            return cfg_list
+    cfg_roots = _resolve_roots(cfg_list)
+    narrowed: list[str] = []
+    for p in override_paths:
+        try:
+            rp = Path(p).expanduser().resolve()
+        except Exception:
+            continue
+        if any(_is_within(rp, root) or rp == root for root in cfg_roots):
+            narrowed.append(str(rp))
+    # Empty / all-rejected overrides must not fall through to DEFAULT_ROOTS widening.
+    return narrowed if narrowed else cfg_list
+
+
+def _clamp_limit(cfg_val: Any, override_val: Any, default: int) -> int:
+    """Overrides may only lower a numeric cap, never raise it above config."""
+    try:
+        ceiling = int(default if cfg_val is None else cfg_val)
+    except (TypeError, ValueError):
+        ceiling = default
+    if override_val is None:
+        return ceiling
+    try:
+        requested = int(override_val)
+    except (TypeError, ValueError):
+        return ceiling
+    return min(requested, ceiling)
+
+
 _NOISE_DIRS = {"__pycache__", ".git", "node_modules", ".pytest_cache", ".mypy_cache", ".venv"}
 
 
@@ -357,22 +412,37 @@ class FilesystemToolset:
 
         Recognised keys: ``permission``, ``allowed_paths``, ``max_read_bytes``,
         ``max_write_bytes``, ``max_list_entries``, ``audit``. ``overrides`` (e.g.
-        per-request params) take precedence but can NEVER escalate permission
-        above what config already granted (``none`` < ``readonly`` < ``readwrite``).
+        per-request params) take precedence but can NEVER escalate: permission
+        rank is clamped (``none`` < ``readonly`` < ``readwrite``),
+        ``allowed_paths`` may only narrow under configured roots, and numeric
+        caps may only be lowered.
         """
-        block = dict(((config or {}).get(section)) or {})
-        block.update({k: v for k, v in (overrides or {}).items() if v is not None})
-        cfg_perm = (((config or {}).get(section)) or {}).get("permission", READONLY) or READONLY
+        cfg_block = dict(((config or {}).get(section)) or {})
+        ov = {k: v for k, v in (overrides or {}).items() if v is not None}
+        block = {**cfg_block, **ov}
+
+        cfg_perm = cfg_block.get("permission", READONLY) or READONLY
         req_perm = block.get("permission", cfg_perm) or cfg_perm
         # Clamp: overrides may only de-escalate, never gain rights.
         if _LEVEL_RANK.get(req_perm, -1) > _LEVEL_RANK.get(cfg_perm, -1):
             req_perm = cfg_perm
+
+        allowed = _clamp_allowed_paths(
+            cfg_block.get("allowed_paths") or [],
+            ov.get("allowed_paths") if "allowed_paths" in ov else None,
+        )
         return cls(
             permission=req_perm or READONLY,
-            allowed_paths=block.get("allowed_paths") or [],
-            max_read_bytes=int(block.get("max_read_bytes", 1_000_000)),
-            max_write_bytes=int(block.get("max_write_bytes", 1_000_000)),
-            max_list_entries=int(block.get("max_list_entries", 2000)),
+            allowed_paths=allowed,
+            max_read_bytes=_clamp_limit(
+                cfg_block.get("max_read_bytes", 1_000_000), ov.get("max_read_bytes"), 1_000_000
+            ),
+            max_write_bytes=_clamp_limit(
+                cfg_block.get("max_write_bytes", 1_000_000), ov.get("max_write_bytes"), 1_000_000
+            ),
+            max_list_entries=_clamp_limit(
+                cfg_block.get("max_list_entries", 2000), ov.get("max_list_entries"), 2000
+            ),
             audit=bool(block.get("audit", True)),
         )
 

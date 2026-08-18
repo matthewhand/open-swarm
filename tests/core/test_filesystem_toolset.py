@@ -115,6 +115,41 @@ def test_request_may_deescalate_permission(sandbox):
     assert fs.read(str(sandbox / "a.txt")) == "hello"
 
 
+def test_request_cannot_widen_allowed_paths_to_root(sandbox):
+    """Per-request allowed_paths must not expand beyond configured roots."""
+    cfg = {"filesystem": {"permission": "readonly", "allowed_paths": [str(sandbox)]}}
+    fs = FilesystemToolset.from_config(cfg, overrides={"allowed_paths": ["/"]})
+    assert fs._roots == [sandbox.resolve()]
+    with pytest.raises(PathNotAllowed):
+        fs.read("/etc/passwd")
+    assert fs.read(str(sandbox / "a.txt")) == "hello"
+
+
+def test_request_may_narrow_allowed_paths(sandbox):
+    """Overrides may restrict access to a subdirectory of a configured root."""
+    cfg = {"filesystem": {"permission": "readonly", "allowed_paths": [str(sandbox)]}}
+    sub = sandbox / "sub"
+    fs = FilesystemToolset.from_config(cfg, overrides={"allowed_paths": [str(sub)]})
+    assert fs.read(str(sub / "b.txt")) == "world"
+    with pytest.raises(PathNotAllowed):
+        fs.read(str(sandbox / "a.txt"))
+
+
+def test_request_cannot_raise_max_read_bytes(sandbox):
+    """Overrides may lower max_read_bytes but never raise it above config."""
+    cfg = {
+        "filesystem": {
+            "permission": "readonly",
+            "allowed_paths": [str(sandbox)],
+            "max_read_bytes": 100,
+        }
+    }
+    fs = FilesystemToolset.from_config(cfg, overrides={"max_read_bytes": 10_000_000})
+    assert fs.max_read_bytes == 100
+    fs_low = FilesystemToolset.from_config(cfg, overrides={"max_read_bytes": 50})
+    assert fs_low.max_read_bytes == 50
+
+
 def test_not_a_file(sandbox):
     fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)])
     with pytest.raises(FilesystemError):
