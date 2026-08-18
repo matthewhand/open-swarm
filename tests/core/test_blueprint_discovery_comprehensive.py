@@ -30,7 +30,7 @@ class TestBlueprintDiscoveryComprehensive:
             metadata = blueprint_info['metadata']
             assert 'name' in metadata, f"Blueprint {name} missing name in metadata"
             assert 'description' in metadata, f"Blueprint {name} missing description in metadata"
-            # Note: The metadata name may differ from the key (e.g., "Chuck's Angels" vs "chucks_angels")
+            # metadata["name"] may be a display label; only slug names become keys
 
     def test_discover_blueprints_handles_malformed_blueprints_gracefully(self):
         """Test that discovery gracefully handles malformed or incomplete blueprints."""

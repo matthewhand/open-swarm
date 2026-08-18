@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Blueprint discovery model-id pollution:** `metadata["name"]` display/class labels (e.g. `Chuck's Angels`, `ChatbotBlueprint`) are no longer registered as `/v1/models` ids; only programmatic slugs (`^[a-z0-9]+(?:[_-][a-z0-9]+)*$`) and explicit slug `aliases` become keys
 - **Agent Creator Pro retired:** `/agent-creator-pro/` redirects to `/agent-creator/`; dropdown nav link removed (was unwired clickware)
 - **Blueprint AST sandbox Path.open write escape:** `Path(...).open('w')` / `p.open('wb')` put mode in the first positional arg (unlike builtin `open(file, mode)`), so write modes bypassed the open-ban; detect Path.open-style modes and reject them (keyword `mode=` was already caught)
 - **CLI blueprint name path traversal:** `swarm-cli add`/`delete`/`uninstall`/`install-executable`/`launch` reject `../` and multi-segment names so library/bin joins cannot `rmtree`/`unlink`/exec outside XDG roots; `add`/`delete` also use `get_user_blueprints_dir()` instead of a hardcoded `~/.local/share/swarm/blueprints`

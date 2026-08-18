@@ -78,6 +78,60 @@ def test_discover_blueprints_docstring_fallback_and_name_default(tmp_path: Path)
     assert meta.get("description") == "Docstring description should be used when metadata lacks it."
 
 
+def test_display_metadata_name_is_not_registered_as_model_id(tmp_path: Path):
+    """Display/class metadata names must not pollute discovery keys /v1/models ids."""
+    bp_root = tmp_path / "blueprints"
+    fancy = bp_root / "fancy_team"
+    fancy.mkdir(parents=True)
+    (fancy / "blueprint_fancy_team.py").write_text(
+        textwrap.dedent(
+            '''
+            from swarm.core.blueprint_base import BlueprintBase
+
+            class FancyTeamBlueprint(BlueprintBase):
+                metadata = {
+                    "name": "Fancy Team's Blueprint",
+                    "description": "Display name must stay metadata-only.",
+                    "version": "0.1.0",
+                }
+            '''
+        )
+    )
+    slug_alias = bp_root / "slug_team"
+    slug_alias.mkdir(parents=True)
+    (slug_alias / "blueprint_slug_team.py").write_text(
+        textwrap.dedent(
+            '''
+            from swarm.core.blueprint_base import BlueprintBase
+
+            class SlugTeamBlueprint(BlueprintBase):
+                metadata = {
+                    "name": "slug-team",
+                    "description": "Programmatic slug may be a model id alias.",
+                    "version": "0.1.0",
+                }
+            '''
+        )
+    )
+
+    discovered = discover_blueprints(str(bp_root))
+    assert "fancy_team" in discovered
+    assert "Fancy Team's Blueprint" not in discovered
+    assert "slug_team" in discovered
+    assert "slug-team" in discovered
+
+
+def test_repo_discovery_skips_display_and_class_metadata_names():
+    """Live blueprints keep display/class labels out of model-id keys."""
+    discovered = discover_blueprints("src/swarm/blueprints")
+    assert "chucks_angels" in discovered
+    assert "Chuck's Angels" not in discovered
+    assert "chatbot" in discovered
+    assert "ChatbotBlueprint" not in discovered
+    assert "dynamic_team" in discovered
+    assert "dynamic-team" in discovered  # intentional programmatic slug alias
+
+
 def test_discover_supports_deprecated_and_status_flags(tmp_path: Path):
     """Test that deprecated and status metadata are extracted (for future filtering/warnings)."""
     bp_root = tmp_path / "blueprints"

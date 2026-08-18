@@ -2,11 +2,16 @@ import importlib
 import importlib.util
 import inspect
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
+
+# Programmatic model-id / alias form (dir names, dynamic-team, hybrid-consensus).
+# Rejects display names ("Chuck's Angels") and class names ("ChatbotBlueprint").
+_MODEL_ID_RE = re.compile(r"^[a-z0-9]+(?:[_-][a-z0-9]+)*$")
 
 try:
     from swarm.core.blueprint_base import BlueprintBase
@@ -272,16 +277,34 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None, *, san
                                 key = str(alias).strip()
                                 if not key or key in blueprints:
                                     continue
+                                if not _MODEL_ID_RE.fullmatch(key):
+                                    logger.debug(
+                                        "Skipping non-slug alias %r for %r",
+                                        key,
+                                        blueprint_key_name,
+                                    )
+                                    continue
                                 blueprints[key] = found_bp_class_details
                                 logger.debug(
                                     "Registered blueprint alias %r → %r",
                                     key,
                                     blueprint_key_name,
                                 )
-                        # Canonical metadata name (if distinct from directory)
+                        # metadata["name"] is often a display/class label; only
+                        # promote it to a model id when it is a programmatic slug.
                         meta_name = str(full_meta.get("name") or "").strip()
-                        if meta_name and meta_name not in blueprints:
+                        if (
+                            meta_name
+                            and meta_name not in blueprints
+                            and _MODEL_ID_RE.fullmatch(meta_name)
+                        ):
                             blueprints[meta_name] = found_bp_class_details
+                        elif meta_name and meta_name not in blueprints:
+                            logger.debug(
+                                "Skipping non-slug metadata name %r as model id for %r",
+                                meta_name,
+                                blueprint_key_name,
+                            )
 
                 if not found_bp_class_details:
                     logger.warning(f"No BlueprintBase subclass found directly defined in module: {module_import_path}")
