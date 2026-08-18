@@ -98,31 +98,26 @@ Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) a
 | Wagtail marketplace CMS | 🗑 removed | Dropped 2026-06-11 (ROADMAP §3.4): `swarm/marketplace/` app, `ENABLE_WAGTAIL` flag/settings/urls, wagtail/taggit/modelcluster pins, and the Wagtail-backed `/marketplace/blueprints/` + `/marketplace/mcp-configs/` endpoints deleted. GitHub-topics discovery (row above) is the replacement |
 | SAML IdP | 🗑 removed | Dropped 2026-06-11 (ROADMAP §3.4): `ENABLE_SAML_IDP` flag, `SAML_IDP_*` settings plumbing, `/idp/` mount, env getters, and `tests/unit/test_settings_saml.py` deleted; `djangosaml2idp` was never a declared dependency |
 
-## 9. Blueprints (post-cleanup survivors) — ✅ 3 · 🟡 14 · ❌ 2
+## 9. Blueprints (discoverable) — ✅ 5 · 🟡 many · 🗑 husks gone
 
-Import check: every module below imported successfully via `uv run python -c "import swarm.blueprints.<x>.<mod>"` on 2026-06-10 unless noted.
+Re-verified 2026-08-18: `discover_blueprints('src/swarm/blueprints')` registers
+**38** model ids (canonical dirs + aliases). Prefer [docs/GLOSSARY.md](./docs/GLOSSARY.md)
+names (Blueprint vs `/v1/teams` LLM-profile alias). Empty husk dirs (no
+`blueprint_*.py`) were deleted this pulse — do not restore.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| codey | ✅ | CLI entry point verified (`codey --help`); command-injection fix `blueprint_codey.py:933-937` (`shlex.split`, commit `2e2ee426`). Caveat: its basic tests are excluded from CI — `pytest.ini addopts --ignore-glob tests/blueprints/test_codey_*.py` |
-| suggestion | ✅ | CLI entry point verified (`suggestion --help`); `blueprint_suggestion.py` imports clean |
-| rue_code | ✅ | Imports; dedicated collected tests `tests/unit/blueprints/rue_code/test_rue_code_tools.py` pass; has README + `rue_code_cli.py` |
-| jeeves | 🟡 | Imports; README, CLI, MCP-aware agents (`blueprint_jeeves.py:226-245`); caveat: no dedicated collected tests; `SWARM_TEST_MODE` short-circuit at `:276` returns canned output |
-| geese | 🟡 | Imports; richest structure (4 agent modules, prompts, memory objects, README); caveat: no dedicated collected tests; actively being modified in cleanup wave |
-| zeus | 🟡 | Imports; `zeus_cli.py` + `apps.py`; no dedicated tests |
-| django_chat | 🟡 | Imports only after `django.setup()` (verified) — unusable outside Django context; has views/urls/templates; no dedicated tests |
-| flock | 🟡 | Imports; has `test_basic.py` — but **not collected**: it lives in `src/swarm/blueprints/flock/` while `pytest.ini testpaths = tests` |
-| chucks_angels | 🟡 | Imports; same uncollected `test_basic.py` problem |
-| digitalbutlers | 🟡 | Imports; same uncollected `test_basic.py` problem |
-| whinge_surf | ❌ | Empty husk removed (dir had only `__pycache__`; no `blueprint_whinge_surf.py`) |
-| poets | 🟡 | Imports; `poets_cli.py`; no README, no tests |
-| gawd | 🟡 | Imports; `apps.py`; no README, no tests |
-| family_ties | ❌ | Empty husk removed (forwarder deleted earlier; dir had only `__pycache__`). Use `stewie`. |
-| dynamic_team | 🟡 | Imports; bare directory — no `__init__.py`, README, or tests |
-| whiskeytango_foxtrot | 🟡 | Imports; no README/tests |
-| stewie | ✅ | `blueprint_stewie.py` discoverable; nested Django leftovers (`blueprints.chc`) deleted; `SWARM_TEST_MODE` path + gap smoke in `tests/blueprints/test_discoverable_gap_test_mode.py` / `test_stewie.py` |
-| chatbot, echocraft, mcp_demo, messenger, mission_improbable, monkai_magic, nebula_shellz, omniplex | ❌ | Removed in cleanup wave — `git status` shows `D src/swarm/blueprints/<each>/...` in the worktree at audit time; directories already gone from disk |
-| `blueprint_audit_status.json` | ❌ → gone | **Deleted** (ROADMAP §2 naming debt). Do not restore; it marked removed blueprints as working. Status lives in this file + per-blueprint READMEs / tests. |
+| codey | ✅ | CLI (`codey --help`); command-injection fix `blueprint_codey.py` (`shlex.split`). Caveat: `pytest.ini` still `--ignore-glob tests/blueprints/test_codey_*.py` |
+| suggestion | ✅ | CLI (`suggestion --help`); discoverable |
+| rue_code | ✅ | Discoverable; `tests/unit/blueprints/rue_code/test_rue_code_tools.py`; README + `rue_code_cli.py` |
+| stewie | ✅ | Discoverable; `tests/blueprints/test_stewie.py` + gap smoke; nested Django leftovers gone |
+| chatbot | ✅ | Discoverable (`blueprint_chatbot.py`); `tests/blueprints/test_chatbot.py` — **not** removed (prior ❌ row was stale) |
+| jeeves | 🟡 | Discoverable; README + CLI + MCP-aware agents; `SWARM_TEST_MODE` short-circuit; spinner/box tests |
+| geese / zeus / poets / gawd / whiskeytango_foxtrot / chucks_angels / dynamic_team | 🟡 | Discoverable; thin or no dedicated collected coverage (zeus has CLI; dynamic_team backs `/v1/teams` aliases) |
+| django_chat | 🟡 | Discoverable only after Django setup; views/urls/templates; config tests |
+| MoA / hybrid / persona / CLI-fusion family | 🟡 | Discoverable: `moa`, `moa_orchestrator`, `hybrid_moa`, `hybrid_team`, `hybrid_swarm`, `persona_council`, `cli_*`, `fs_introspect` — see FEATURE_STATUS / ROADMAP MoA rows + `tests/blueprints/test_cli_*.py` |
+| Empty husks | 🗑 removed | Deleted dirs with no `blueprint_*.py`: `flock`, `digitalbutlers`, `echocraft`, `mcp_demo`, `mission_improbable`, `monkai_magic`, `nebula_shellz`, `omniplex` (plus earlier `whinge_surf` / `family_ties` / `messenger`). API tests that named `echocraft` as a mocked model id are unaffected. |
+| `blueprint_audit_status.json` | 🗑 gone | Deleted earlier; do not restore. Status lives here + per-blueprint READMEs / tests. |
 
 ## 10. Security — ✅ 8 · 🟡 2
 

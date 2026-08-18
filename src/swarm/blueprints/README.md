@@ -48,10 +48,10 @@ See individual READMEs and [FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9 f
 |-------------------------|----------|--------------------------------------------------------------|-------------------------|
 | chucks_angels           | chuck    | Chuck Norris style coordination (minimal)                    | Minimal / Experimental  |
 | django_chat             | djchat   | Django-integrated (early load fix applied)                   | Partial                 |
-| flock                   | flock    | Group orchestration (stub)                                   | Stub                    |
-| messenger               | msg      | UI template only (stub in discovery)                         | Stub                    |
-| digitalbutlers          | butlers  | Assistant stub                                               | Stub                    |
 | codey/rue/jeeves/poets etc. | various | Tool dupe reduction + metadata (see common/tool_utils)      | Partial (improving)     |
+
+Empty husk dirs (`flock`, `digitalbutlers`, `echocraft`, `mcp_demo`, …) were
+**deleted** — they had no `blueprint_*.py`. See [FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9.
 
 ## Configuration (`swarm_config.json`)
 

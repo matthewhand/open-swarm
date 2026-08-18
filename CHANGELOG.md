@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Removed
+- **Empty blueprint husks:** delete non-discoverable dirs with no `blueprint_*.py` (`flock`, `digitalbutlers`, `echocraft`, `mcp_demo`, `mission_improbable`, `monkai_magic`, `nebula_shellz`, `omniplex`); FEATURE_STATUS §9 curated to match live discovery (chatbot stays ✅)
 - **Remaining consolidation deprecation shims (ROADMAP §2.1):** delete `extensions/config/config_loader`, `blueprints/common/spinner`, `ux/spinner`, `utils/ansi_box`, and `extensions/launchers/swarm_api`; import `swarm.core.config_loader`, `swarm.core.spinner`, `swarm.ux.ansi_box` / `swarm.core.output_utils.ansi_box`, and `swarm.core.swarm_api` instead. `tests/unit/test_deprecation_shims.py` now asserts `ModuleNotFoundError`.
 - **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`
 - **`swarm.extensions.blueprint` deprecation shim:** delete the package (`__init__` / `spinner` / `slash_commands`); import `swarm.core.blueprint_base`, `swarm.core.spinner`, and `swarm.core.slash_commands` instead.

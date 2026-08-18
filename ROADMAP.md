@@ -48,7 +48,7 @@ live on PyPI (`pip install open-swarm`). Highlights since the 2026-06-11 snapsho
 - [x] **Memory configuration documented** in CONFIGURATION.md §9 (mem0 default) (was §3.2 open).
 
 Still open (see below + new items): MCP-server dependency,
-letta/langmem backends, blueprint ecosystem curation,
+letta/langmem backends, deeper blueprint ecosystem curation (coverage/metadata),
 and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
 "not found or not callable" — only `list`/`wizard`/`install` work cleanly).
 
