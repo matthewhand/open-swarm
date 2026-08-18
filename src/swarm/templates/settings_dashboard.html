@@ -43,6 +43,19 @@
     </div>
   </div>
 
+  <!-- Credential checklist (matches docs/AUTH.md; docs are not served in-app) -->
+  <div class="alert alert-info py-2 px-3 mb-3" role="status">
+    <strong>Credentials</strong>
+    <ul class="mb-1 mt-1 ps-3">
+      <li><strong>Chat / WebSocket</strong> — Django session login only (Bearer does not auth WS).</li>
+      <li><strong>API <code>/v1/*</code></strong> — Bearer token, or session where <code>HasValidTokenOrSession</code> applies.</li>
+      <li><strong>Session Explorer</strong> — with API auth on, may also list token-owned sessions (operator bridge; REST IDOR stays same-principal).</li>
+    </ul>
+    <span class="os-meta">Full map: see <code>docs/AUTH.md</code> in the repo, or
+      <a href="https://github.com/matthewhand/open-swarm/blob/main/docs/AUTH.md" rel="noopener noreferrer" target="_blank">GitHub</a>.
+    </span>
+  </div>
+
   <!-- Quick Actions -->
   <div class="mb-3">
     <h2 class="visually-hidden">Quick actions</h2>

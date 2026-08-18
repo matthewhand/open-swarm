@@ -117,7 +117,18 @@ def test_settings_dashboard_progress_meter_and_section_headings():
     assert '<h1 class="dashboard-title">Settings Dashboard</h1>' in html
     assert '<h2 class="visually-hidden">Quick actions</h2>' in html
     assert '<h2 class="visually-hidden">Settings groups</h2>' in html
-    assert ".group-header:focus-visible" in html
+    assert "Credentials" in html
+    assert "docs/AUTH.md" in html
+    # Focus ring lives in operator.css (CSP: no inline template <style>).
+    operator_css = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "swarm"
+        / "static"
+        / "css"
+        / "operator.css"
+    ).read_text(encoding="utf-8")
+    assert ".group-header:focus-visible" in operator_css
 
 
 def test_data_attr_keeps_quote_payload_out_of_js_handler_source():
