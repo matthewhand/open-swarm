@@ -1,6 +1,15 @@
 """Tests for GET /v1/blueprints/<id>/tools (capability -> MCP provider resolution)."""
 
 import pytest
+from django.urls import resolve
+
+
+def test_blueprint_tools_and_config_options_urls_accept_trailing_slash():
+    """Slash + no-slash twins (same pattern as /v1/responses and /v1/chat/completions)."""
+    assert resolve("/v1/blueprints/cli_fusion/tools").url_name == "blueprint-tools"
+    assert resolve("/v1/blueprints/cli_fusion/tools/").url_name == "blueprint-tools-slash"
+    assert resolve("/v1/config-options").url_name == "config-options-api-no-slash"
+    assert resolve("/v1/config-options/").url_name == "config-options-api"
 
 
 @pytest.fixture(autouse=True)

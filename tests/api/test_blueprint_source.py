@@ -1,6 +1,15 @@
 """Tests for the read-only blueprint source endpoint (GET /v1/blueprints/<id>/source)."""
 
 import pytest
+from django.urls import resolve
+
+
+def test_blueprint_source_and_cli_agents_urls_accept_trailing_slash():
+    """Slash + no-slash twins (same pattern as /v1/responses and /v1/chat/completions)."""
+    assert resolve("/v1/blueprints/cli_fusion/source").url_name == "blueprint-source"
+    assert resolve("/v1/blueprints/cli_fusion/source/").url_name == "blueprint-source-slash"
+    assert resolve("/v1/cli-agents").url_name == "cli-agents-api-no-slash"
+    assert resolve("/v1/cli-agents/").url_name == "cli-agents-api"
 
 
 @pytest.mark.django_db
