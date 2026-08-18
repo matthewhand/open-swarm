@@ -23,7 +23,7 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | Blueprint execution (`BlueprintBase.run`) | ✅ | `src/swarm/core/blueprint_base.py` (772 lines); `tests/core/test_blueprint_execution_comprehensive.py`, `test_blueprint_base.py`, `test_blueprint_model_override.py` all pass |
 | openai-agents SDK integration | ✅ | `blueprint_base.py:39` `from agents import set_default_openai_client`; `:644-648` selects `OpenAIResponsesModel` vs `OpenAIChatCompletionsModel` per `api_mode`; agents created via `make_agent` (`:659-683`) |
 | Test suite health | ✅ | 673 passed / 2 skipped as of `4c7e1b28`. (At audit time: 560/621 with 59 order-dependent failures from the `urls.py:155` import bug — fixed in `f1fa20b1`) |
-| `swarm.extensions.blueprint` (legacy path) | 🟡 | **Tombstoned deprecation shim** (not a live framework copy). `__init__.py` / `spinner` / `slash_commands` re-export `swarm.core` and emit `DeprecationWarning`; dead `blueprint_base.py` internals are gone (locked by `tests/unit/test_deprecation_shims.py`). Prefer `swarm.core.blueprint_base`. Sunset: ROADMAP §2.1. |
+| `swarm.extensions.blueprint` (legacy path) | 🗑 removed | Package deleted (no warn-once shim). Import `swarm.core.blueprint_base` / `swarm.core.blueprint_discovery` / `swarm.core.spinner` / `swarm.core.slash_commands`. Locked gone by `tests/unit/test_deprecation_shims.py`. Remaining shims: ROADMAP §2.1. |
 
 ## 2. CLI — ✅ 4
 
@@ -61,7 +61,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | ❌ | Removed 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 3
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 2
 
 Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) and `/chat`. Teams / Blueprints / Settings / Builder / AgentCreator SPA pages were **deleted** (not quarantined for remount). Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app.
 
@@ -177,7 +177,7 @@ This doc decays fast (a cleanup wave was rewriting the tree while it was generat
 
 1. **Tests:** `uv run pytest -q` (full counts) and re-run any failing file in isolation.
 2. **Entry points:** `uv run swarm-cli --help && uv run swarm-api --help && uv run codey --help && uv run suggestion --help`.
-3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.extensions.blueprint` (deprecation shim — succeeds with `DeprecationWarning`; prefer `swarm.core`).
+3. **Imports:** `uv run python -c "import swarm.blueprints.<name>.blueprint_<name>"` per blueprint; `import swarm.core.blueprint_base` (canonical). `swarm.extensions.blueprint` must raise `ModuleNotFoundError`.
 4. **SPA scope:** `App.tsx` routes only `/` + `/chat`; leftover operator SPA pages deleted (ADR-001). Canonical operator UI is Django (bare SPA paths redirect).
 5. **Flags vs deps:** `grep -n "django-mcp-server\\|mcp_server" pyproject.toml docs/mcp_server_mode.md` — flag without a declared lockfile dependency stays 📋.
 6. **Resolved:** `urls.py` imports `re_path` from `django.urls` (Django 4+); the old `django.conf.urls` import bug is gone.

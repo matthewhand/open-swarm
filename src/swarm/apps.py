@@ -40,16 +40,8 @@ class SwarmConfig(AppConfig):
         # instantiation here.
         logger.info("Swarm AppConfig ready.")
 
-        # If you need to ensure blueprint modules are loaded early, you could
-        # potentially just import the main blueprint discovery module here,
-        # but calling discover_blueprints and registering URLs is better done elsewhere.
-        # from swarm.extensions.blueprint import blueprint_discovery
-        # logger.debug("Ensured blueprint discovery module is loaded.")
-
-        # Removed blueprint discovery and URL registration loop from here.
-        # This will now rely on discover_blueprints being called where needed (e.g.,
-        # in list_models view)
-        # and register_django_components being called by BlueprintBase.__init__.
+        # Blueprint discovery / URL registration happen where needed (e.g. list_models),
+        # not at AppConfig.ready().
 
         # Ensure necessary environment variables for Django are set if not already
         if not os.environ.get("DJANGO_SETTINGS_MODULE"):

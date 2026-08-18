@@ -6,7 +6,7 @@ Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.
 
 ## Blueprint
 
-A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (not the deprecated `swarm.extensions.blueprint` shim).
+A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed).
 
 ## Team (dynamic / `/v1/teams`)
 

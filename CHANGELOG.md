@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **ADR-001 SPA finish:** delete `webui/frontend/src/pages/_quarantine/` (no remount bait); drop Builder/Settings e2e stubs; VISION/FEATURE_STATUS/ROADMAP align — SPA stays `/` + `/chat` only. Rebuild `dist/` after pull (`npm run build` — gitignored).
 - **ADR-001 SPA route cut:** React SPA mounts only `/` + `/chat`; Teams/Blueprints/Settings/Builder/AgentCreator pages were first quarantined then deleted; e2e/a11y/shots limited to live stems; nav/dock link out to Django for operator chrome.
-- **v1 product vocabulary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) + honesty sweeps (Blueprint vs `/v1/teams` LLM-profile alias; Operator UI vs SPA Chat); tombstone `swarm.extensions.blueprint` shim docs; confirm `blueprint_audit_status.json` gone; ROADMAP v1 cut → ADR-001 + glossary
+- **v1 product vocabulary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) + honesty sweeps (Blueprint vs `/v1/teams` LLM-profile alias; Operator UI vs SPA Chat); confirm `blueprint_audit_status.json` gone; ROADMAP v1 cut → ADR-001 + glossary
 - **Settings dashboard dead-end honesty:** Validate Config / env Export use “(not available)” (not “(soon)”); unwired path-check buttons removed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
 - **MoA soft-fail honesty:** `format_team_text` no longer labels empty `--team` specialists as “consensus only”; CLI prints a `MoA team soft-fail:…` stderr line after the payload; USERGUIDE / TROUBLESHOOTING exit-1 wording aligned
@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Removed
+- **`swarm.extensions.blueprint` deprecation shim:** delete the package (`__init__` / `spinner` / `slash_commands`); import `swarm.core.blueprint_base`, `swarm.core.spinner`, and `swarm.core.slash_commands` instead. Remaining consolidation shims tracked in ROADMAP §2.1.
 - **Orphan argparse CLI trees:** delete `src/swarm/extensions/cli/` and unused `src/swarm/core/cli/` (dead-alias warning source); drop non-shipped `extensions.launchers.swarm_cli` / `swarm_wrapper`; relocate `AsyncInputHandler` → `swarm.core.async_input`, `prompt_user` → `swarm.core.config_manager`. `swarm-api` / `swarm-cli` both enter via `swarm.core.*` in pyproject; deprecated `extensions.launchers.swarm_api` shim kept for old `-m` imports. Tests that only covered the orphan trees removed.
 - **Agent Creator Pro leftovers:** delete unused `agent_creator_pro` view/template/JS/CSS; `/agent-creator-pro/` redirect to `/agent-creator/` retained
 - **SPA leftover pages:** TeamsPage / BlueprintsPage / SettingsPage / BuilderPage / AgentCreatorPage deleted from the SPA tree (ADR-001); `App.tsx` mounts `/` + `/chat` only

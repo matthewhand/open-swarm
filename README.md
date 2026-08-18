@@ -266,10 +266,10 @@ Documentation map:
 
 Detailed nested progress lives in [ROADMAP.md](./ROADMAP.md); per-feature evidence in [FEATURE_STATUS.md](./FEATURE_STATUS.md). The honest short list of what is **not** done:
 
-- [ ] **React SPA full parity with the Django UI** — `/` serves a lightweight SPA dashboard when `dist/` is built (experimental `/chat`); operator work stays on Django trailing-slash routes until per-page parity is complete
+- [x] **SPA scope (ADR-001)** — `/` + `/chat` only; Django trailing-slash UI is canonical (SPA↔Django parity rejected for v1)
 - [ ] **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly and [docs/mcp_server_mode.md](./docs/mcp_server_mode.md) documents real adoption options
 - [ ] **Memory** — mem0 is wired into the agent loop (opt-in) and documented in [CONFIGURATION.md](./CONFIGURATION.md), but not yet validated against a live mem0 end-to-end; letta/langmem are placeholders
-- [ ] **Deprecation-shim sunset** — 7 import shims from the consolidation get removed in the release after v0.3.x
+- [ ] **Deprecation-shim sunset** — `swarm.extensions.blueprint` removed; remaining consolidation shims (`config_loader`, spinner, `ansi_box`) tracked in ROADMAP §2.1
 - [ ] **CLI fusion follow-ups** — the `cli_agent`/`cli_fusion` blueprints work end-to-end ([docs/CLI_FUSION.md](./docs/CLI_FUSION.md)); next: extract the panel→judge→synthesize loop into a reusable `swarm.core.cli_fusion` service for the websocket/CLI front-ends, and add opt-in git-worktree isolation for write-mode panels
 
 ## Acknowledgements & Attribution

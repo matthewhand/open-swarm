@@ -48,7 +48,7 @@ live on PyPI (`pip install open-swarm`). Highlights since the 2026-06-11 snapsho
 - [x] **Memory configuration documented** in CONFIGURATION.md §9 (mem0 default) (was §3.2 open).
 
 Still open (see below + new items): MCP-server dependency,
-letta/langmem backends, blueprint ecosystem curation, deprecation-shim sunset,
+letta/langmem backends, blueprint ecosystem curation, remaining deprecation-shim sunset,
 and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
 "not found or not callable" — only `list`/`wizard`/`install` work cleanly).
 
@@ -105,13 +105,12 @@ and **CLI command-registration cruft** (many `swarm-cli` aliases declared but
 
 ### 2.1 Deprecation shim sunset
 
-The consolidation left 7 import shims emitting `DeprecationWarning`
-(`extensions/blueprint/{__init__,spinner,slash_commands}`,
-`extensions/config/config_loader`, `blueprints/common/spinner`, `ux/spinner`,
-`utils/ansi_box`). Locked by `tests/unit/test_deprecation_shims.py`.
+The consolidation left import shims emitting `DeprecationWarning`. Locked by
+`tests/unit/test_deprecation_shims.py`.
 
 - [x] Migrate remaining internal callers off shim paths (`views/settings_manager.py` → core config_loader; also fixed a broken `extensions.blueprint.discovery` import in `core_views.py`)
-- [ ] Remove the shims in the release **after** the first tagged FOSS release
+- [x] Remove `swarm.extensions.blueprint` (`__init__` / `spinner` / `slash_commands`) — deleted; use `swarm.core.*`
+- [ ] Remove remaining shims (`extensions/config/config_loader`, `blueprints/common/spinner`, `ux/spinner`, `utils/ansi_box`)
 
 ---
 

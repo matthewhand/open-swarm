@@ -1,11 +1,10 @@
-"""Verify deprecation shims re-export the canonical implementations.
+"""Verify remaining deprecation shims and that removed paths stay gone.
 
-Strangler-fig consolidation (see ROADMAP.md sunset notes):
-- swarm.core.spinner          <- swarm.blueprints.common.spinner, swarm.ux.spinner,
-                                 swarm.extensions.blueprint.spinner
+Strangler-fig consolidation (see ROADMAP.md §2.1):
+- swarm.core.spinner          <- swarm.blueprints.common.spinner, swarm.ux.spinner
 - swarm.core.config_loader    <- swarm.extensions.config.config_loader
 - swarm.ux.ansi_box           <- swarm.utils.ansi_box
-- swarm.core (blueprint base) <- swarm.extensions.blueprint
+- swarm.extensions.blueprint  — **deleted** (use swarm.core.*)
 """
 
 import importlib
@@ -40,33 +39,6 @@ def test_ux_spinner_shim():
     assert shim.Spinner is Spinner
 
 
-def test_extensions_blueprint_spinner_shim():
-    shim = _import_with_deprecation("swarm.extensions.blueprint.spinner")
-    from swarm.core.spinner import Spinner, SwarmSpinner
-
-    assert shim.Spinner is Spinner
-    assert shim.SwarmSpinner is SwarmSpinner
-
-
-def test_extensions_blueprint_package_shim():
-    pkg = _import_with_deprecation("swarm.extensions.blueprint")
-    from swarm.core.blueprint_base import BlueprintBase
-    from swarm.core.blueprint_discovery import discover_blueprints
-    from swarm.core.blueprint_utils import filter_blueprints
-
-    assert pkg.BlueprintBase is BlueprintBase
-    assert pkg.discover_blueprints is discover_blueprints
-    assert pkg.filter_blueprints is filter_blueprints
-
-
-def test_extensions_blueprint_slash_commands_shim():
-    shim = _import_with_deprecation("swarm.extensions.blueprint.slash_commands")
-    from swarm.core.slash_commands import SlashCommandRegistry, slash_registry
-
-    assert shim.SlashCommandRegistry is SlashCommandRegistry
-    assert shim.slash_registry is slash_registry
-
-
 def test_extensions_config_loader_shim():
     shim = _import_with_deprecation("swarm.extensions.config.config_loader")
     from swarm.core import config_loader as core_loader
@@ -88,14 +60,25 @@ def test_utils_ansi_box_shim():
     assert shim.ansi_box is ansi_box
 
 
-def test_removed_dead_modules_stay_gone():
-    """The import-broken extensions.blueprint internals must not resurface."""
-    for dead in (
+def test_extensions_blueprint_package_removed():
+    """Former deprecation shim package must stay gone (use swarm.core.*)."""
+    for gone in (
+        "swarm.extensions.blueprint",
+        "swarm.extensions.blueprint.spinner",
+        "swarm.extensions.blueprint.slash_commands",
         "swarm.extensions.blueprint.blueprint_base",
         "swarm.extensions.blueprint.agent_utils",
         "swarm.extensions.blueprint.django_utils",
-        "swarm.extensions.config.config_manager",
     ):
+        with pytest.raises(ModuleNotFoundError):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                importlib.import_module(gone)
+
+
+def test_removed_dead_modules_stay_gone():
+    """Other import-broken internals must not resurface."""
+    for dead in ("swarm.extensions.config.config_manager",):
         with pytest.raises(ModuleNotFoundError):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)

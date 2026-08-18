@@ -2,7 +2,7 @@
 
 How to define and run blueprints against the live `BlueprintBase` / discovery /
 sandbox stack. Prefer this over older notes that pointed at
-`swarm.extensions.blueprint` (that package is a deprecated re-export shim).
+`swarm.extensions.blueprint` (that package has been removed).
 
 ## Core concept
 
@@ -22,9 +22,6 @@ Import:
 ```python
 from swarm.core.blueprint_base import BlueprintBase
 ```
-
-(`from swarm.extensions.blueprint import BlueprintBase` still works but emits
-`DeprecationWarning` and will be removed.)
 
 - **Inheritance:** Subclass `BlueprintBase`.
 - **Required method:** `async def run(self, messages: list[dict], **kwargs) -> AsyncGenerator[dict, None]`. This is the only `@abstractmethod`.

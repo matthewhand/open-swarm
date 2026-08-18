@@ -131,7 +131,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 
 ## Blueprint Development
 
-*   **Inheritance:** Blueprints must inherit from `swarm.core.blueprint_base.BlueprintBase` (`swarm.extensions.blueprint` is a deprecated re-export shim only).
+*   **Inheritance:** Blueprints must inherit from `swarm.core.blueprint_base.BlueprintBase` (`swarm.extensions.blueprint` was removed; do not import it).
 *   **Core Logic:** Implement the `run` method (often async) for agent orchestration using `openai-agents` SDK.
 *   **Configuration:** Access loaded configuration via `self.config`, LLM profiles via `self.get_llm_profile("profile_name")`.
 *   **MCP Servers:** Define requirements in metadata; access running instances via `self.mcp_servers["server_name"]`.
