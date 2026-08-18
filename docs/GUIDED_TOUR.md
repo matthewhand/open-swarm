@@ -56,9 +56,8 @@ Sessions · Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**,
 **Manage Teams**, **Settings**. Banner text points operators at Django
 trailing-slash paths for library, sessions, creators, and settings.
 Recaptured after `npm run build` on **2026-08-18**. Mobile
-`screenshots/mobile/landing.png` still shows the **older seven-item dock**
-(Home · Chat · Builder · Blueprints · Teams · Creator · Settings) — not yet
-recaptured to the five-tab chrome.*
+`screenshots/mobile/landing.png` uses the same **five-tab dock**
+(Home · Blueprints · Teams · Sessions · Settings; Home active) as App.tsx.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -70,8 +69,9 @@ recaptured to the five-tab chrome.*
 `spa-chat.png` shows the anonymous/disconnected gate: “Disconnected — login
 required for websocket” and “Log in to send messages”. **Mobile**
 `screenshots/mobile/spa-chat.png` is a different frame: **Connected**
-composer with blueprint `django_chat` selected, and the same older seven-item
-dock (Chat active). The consumer rejects anonymous sessions; replies also need
+composer with blueprint `django_chat` selected, and the **five-tab dock**
+(Home · Blueprints · Teams · Sessions · Settings; Chat is SPA-only, not a
+dock tab). The consumer rejects anonymous sessions; replies also need
 a working LLM profile.*
 
 **What you can do:** log in, then pick a blueprint and stream replies. Prefer
@@ -105,14 +105,13 @@ separate SPA product).*
 
 ## 3. Django operator UI (canonical)
 
-Primary chrome for **Django** (and the rebuilt SPA desktop top nav):
-**Home · Blueprints · Teams · Sessions · Settings**, with GitHub under
-**More** on Django desktop only. Mobile **Django** pages use that same
-five-tab bottom bar. Mobile **SPA** captures (`landing.png`, `spa-chat.png`
-under `screenshots/mobile/`) still show the older seven-item dock
-(Home · Chat · Builder · Blueprints · Teams · Creator · Settings) until
-recaptured. After bare-path redirects, `spa-*` captures show the Django
-shell (five-tab) plus the sticky “Redirected: …” banner.
+Primary chrome for **Django** (and the rebuilt SPA desktop top nav / mobile
+dock): **Home · Blueprints · Teams · Sessions · Settings**, with GitHub under
+**More** on Django desktop only. Mobile **Django** and **SPA** captures
+(`landing.png`, `spa-chat.png` under `screenshots/mobile/`) use that same
+five-tab bottom bar (matches App.tsx). After bare-path redirects, `spa-*`
+captures show the Django shell (five-tab) plus the sticky “Redirected: …”
+banner.
 
 ### Login — `/accounts/login/`
 

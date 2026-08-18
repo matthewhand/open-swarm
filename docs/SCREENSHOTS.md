@@ -42,13 +42,9 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 
 **Bottom nav honesty (as of these PNGs):**
 
-* **Django** operator pages use the five-tab bar
-  **Home · Blueprints · Teams · Sessions · Settings**.
-* **SPA** shell captures (`mobile/landing.png`, `mobile/spa-chat.png`) still
-  show the older seven-item dock
-  **Home · Chat · Builder · Blueprints · Teams · Creator · Settings** — not yet
-  recaptured to the five-tab chrome. Do not claim they match App.tsx’s current
-  five tabs until regenerated.
+* **Django** operator pages and the **SPA** shell (`mobile/landing.png`,
+  `mobile/spa-chat.png`) use the same five-tab bar
+  **Home · Blueprints · Teams · Sessions · Settings** (matches App.tsx).
 * Bare SPA paths still **redirect** to Django; `spa-*` redirect captures keep
   the sticky “Redirected: …” banner over the Django landing (five-tab bar).
 * Desktop `spa-chat.png` = **Disconnected** login gate; `mobile/spa-chat.png` =
@@ -56,8 +52,8 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **older 7-item dock** Home · Chat · Builder · Blueprints · Teams · Creator · Settings (Home active) | 2026-08-18 | current |
-| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector (`django_chat`); **older 7-item dock** with Chat active. Differs from desktop `spa-chat.png` (disconnected login gate) | 2026-08-18 | current |
+| `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; **5-tab dock** Home · Blueprints · Teams · Sessions · Settings (Home active; matches App.tsx) | 2026-08-18 | current |
+| `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector (`django_chat`); **5-tab dock** Home · Blueprints · Teams · Sessions · Settings (Chat is SPA-only, not a dock tab). Differs from desktop `spa-chat.png` (disconnected login gate) | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django **5-tab** bar (Teams active) | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Django **5-tab** (Settings active) | 2026-08-18 | current |
