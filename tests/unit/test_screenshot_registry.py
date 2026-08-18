@@ -33,16 +33,47 @@ def _png_embeds(md_text: str) -> set[str]:
     return found
 
 
+def _ast_str(node: ast.AST) -> str | None:
+    """Constant string, or the literal prefix of an f-string / JoinedStr."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        # Path may be f"/sessions/{SESSION_DETAIL_ID}/" — stem is still plain.
+        parts = []
+        for v in node.values:
+            if isinstance(v, ast.Constant) and isinstance(v.value, str):
+                parts.append(v.value)
+            else:
+                break
+        return "".join(parts) if parts else None
+    return None
+
+
 def _capture_script_stems() -> list[str]:
-    """Parse PAGES list from capture_user_journey.py without reimplementing it."""
+    """Parse PAGES list from capture_user_journey.py without reimplementing it.
+
+    Rows may use f-strings for the path (e.g. session-detail); only the stem
+    (tuple element 0) must be a plain string constant.
+    """
     src = CAPTURE_SCRIPT.read_text()
     tree = ast.parse(src)
     for node in tree.body:
         if isinstance(node, ast.Assign):
             for t in node.targets:
                 if isinstance(t, ast.Name) and t.id == "PAGES":
-                    pages = ast.literal_eval(node.value)
-                    return [row[0] for row in pages]
+                    if not isinstance(node.value, ast.List):
+                        raise AssertionError("PAGES must be a list literal")
+                    stems: list[str] = []
+                    for elt in node.value.elts:
+                        if not isinstance(elt, ast.Tuple) or not elt.elts:
+                            raise AssertionError(f"PAGES row must be a tuple: {ast.dump(elt)}")
+                        stem = _ast_str(elt.elts[0])
+                        if stem is None:
+                            raise AssertionError(
+                                f"PAGES stem must be a string constant: {ast.dump(elt.elts[0])}"
+                            )
+                        stems.append(stem)
+                    return stems
     raise AssertionError("PAGES list not found in capture_user_journey.py")
 
 
@@ -118,12 +149,40 @@ def test_user_journey_embeds_sessions_and_profiles_when_captured():
     """If PAGES captures exist on disk, USER_JOURNEY must embed them (not link-only)."""
     text = USER_JOURNEY.read_text()
     embeds = _png_embeds(text)
-    for stem in ("sessions", "profiles"):
+    for stem in ("sessions", "session-detail", "profiles"):
         if (SCREENSHOTS_DIR / f"{stem}.png").is_file():
             assert f"{stem}.png" in embeds, (
                 f"USER_JOURNEY.md must embed screenshots/{stem}.png when the "
                 "capture exists (do not leave a GUIDED_TOUR-only pointer)"
             )
+
+
+def test_guided_tour_embeds_session_detail_when_captured():
+    """GUIDED_TOUR must embed session-detail.png when the journey capture exists."""
+    if not (SCREENSHOTS_DIR / "session-detail.png").is_file():
+        pytest.skip("session-detail.png not captured yet")
+    text = GUIDED_TOUR.read_text()
+    embeds = _png_embeds(text)
+    assert "session-detail.png" in embeds, (
+        "GUIDED_TOUR.md must embed screenshots/session-detail.png when captured"
+    )
+
+
+def test_session_detail_caption_is_seeded_fixture_not_live_run():
+    """Tour captions must not claim session-detail.png is a live hybrid_team run."""
+    for path in (GUIDED_TOUR, USER_JOURNEY):
+        text = path.read_text().lower()
+        # Require honest seeded-fixture language near the embed.
+        assert "session-detail.png" in path.read_text()
+        assert "seeded" in text
+        assert "resp_journey_seed" in path.read_text()
+        # Must not claim the PNG is evidence of a live multi-model / hybrid_team run.
+        for banned in (
+            "live hybrid_team run",
+            "from a live hybrid_team",
+            "live post /v1/responses run",
+        ):
+            assert banned not in text, f"{path.name} must not claim: {banned!r}"
 
 
 def test_user_journey_launcher_caption_matches_hybrid_team_default():

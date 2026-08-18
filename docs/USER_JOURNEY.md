@@ -243,6 +243,18 @@ sessions exist (and when the list is truncated to the default limit of 50).
 See also [GUIDED_TOUR.md](./GUIDED_TOUR.md) and
 [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).
 
+### Session detail — `/sessions/resp_journey_seed/`
+
+![Session detail: Graph tab from seeded hybrid_team fixture](./screenshots/session-detail.png)
+
+Seeded journey fixture (`resp_journey_seed`), **not** a live `hybrid_team` or
+`POST /v1/responses` run. After the empty list capture,
+[`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py) writes
+a minimal `hybrid_team`-shaped record into an isolated `SWARM_RESPONSES_DIR`
+and screenshots the real Django Graph / timeline UI. The chrome is live; only
+the JSON is synthetic. Full honesty note:
+[SESSION_EXPLORER.md](./SESSION_EXPLORER.md).
+
 ### LLM profiles — `/profiles/`
 
 ![LLM profiles table: provider, model, source, enabled](./screenshots/profiles.png)

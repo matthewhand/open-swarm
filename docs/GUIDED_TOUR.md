@@ -170,6 +170,16 @@ sessions**, a **live** poll toggle, and “No sessions yet. Make a `POST
 the “Showing newest N of M (limit=50)” truncation banner appear only once
 sessions exist and the list is truncated — they are not in this PNG.*
 
+### Session detail — `/sessions/resp_journey_seed/`
+
+![Django session detail: Graph tab from seeded hybrid_team fixture](./screenshots/session-detail.png)
+
+*Seeded journey fixture (`resp_journey_seed`), not a live `hybrid_team` /
+`POST /v1/responses` run. Capture script writes a minimal `hybrid_team`-shaped
+JSON into an isolated `SWARM_RESPONSES_DIR` after the empty list PNG, then
+screenshots the real Django Graph / timeline chrome. Synthetic record only —
+see [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).*
+
 ### LLM Profiles — `/profiles/`
 
 ![Django LLM profiles table: provider, model, source, enabled](./screenshots/profiles.png)
