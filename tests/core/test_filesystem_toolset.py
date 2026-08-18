@@ -7,6 +7,7 @@ from swarm.core.filesystem_toolset import (
     FilesystemToolset,
     PathNotAllowed,
     PermissionDenied,
+    SensitivePathDenied,
     FilesystemError,
 )
 
@@ -187,3 +188,30 @@ def test_head_and_tail(sandbox):
     fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)])
     assert fs.head(str(sandbox / "log.txt"), 2) == "1: line1\n2: line2"
     assert fs.tail(str(sandbox / "log.txt"), 2) == "9: line9\n10: line10"
+
+
+def test_dotenv_and_private_keys_denied_inside_allowlist(sandbox):
+    """Credential files stay opaque even when their parent root is allow-listed."""
+    (sandbox / ".env").write_text("OPENAI_API_KEY=sk-secret\n", encoding="utf-8")
+    (sandbox / ".env.local").write_text("TOKEN=x\n", encoding="utf-8")
+    (sandbox / "id_rsa").write_text("-----BEGIN PRIVATE KEY-----\n", encoding="utf-8")
+    (sandbox / "tls.pem").write_text("-----BEGIN CERTIFICATE-----\n", encoding="utf-8")
+    (sandbox / "ok.txt").write_text("safe", encoding="utf-8")
+    fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)])
+    for name in (".env", ".env.local", "id_rsa", "tls.pem"):
+        with pytest.raises(SensitivePathDenied):
+            fs.read(str(sandbox / name))
+    assert fs.read(str(sandbox / "ok.txt")) == "safe"
+    names = {e["name"] for e in fs.list(str(sandbox))}
+    assert "ok.txt" in names
+    assert ".env" not in names
+    assert "id_rsa" not in names
+    assert "OPENAI_API_KEY" not in fs.grep("OPENAI", str(sandbox))
+    assert str(sandbox / ".env") not in fs.find(".env", str(sandbox))
+
+
+def test_default_roots_exclude_project_checkout():
+    """Bare defaults must not include ~/open-swarm (repo .env dump vector)."""
+    assert all("open-swarm" not in r for r in FilesystemToolset.DEFAULT_ROOTS)
+    fs = FilesystemToolset()
+    assert all("open-swarm" not in str(r) for r in fs._roots)

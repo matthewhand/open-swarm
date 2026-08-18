@@ -57,6 +57,72 @@ class PathNotAllowed(FilesystemError):
     """The target path is outside the configured allow-list."""
 
 
+class SensitivePathDenied(FilesystemError):
+    """The path looks like a credential / secret file and is never readable."""
+
+
+# Basenames that must never be read/written via the toolset, even under an
+# allow-listed root (e.g. ``fs_introspect`` over ``~/open-swarm`` must not
+# dump ``.env`` / private keys to API clients).
+_SENSITIVE_EXACT = frozenset({
+    ".env",
+    ".env.local",
+    ".env.development",
+    ".env.production",
+    ".env.staging",
+    ".env.test",
+    ".netrc",
+    ".pgpass",
+    ".npmrc",
+    ".pypirc",
+    "credentials",
+    "credentials.json",
+    "secrets.json",
+    "secrets.yaml",
+    "secrets.yml",
+    "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+})
+_SENSITIVE_SUFFIXES = frozenset({
+    ".pem",
+    ".key",
+    ".p12",
+    ".pfx",
+    ".jks",
+})
+
+
+def _sensitive_basename_reason(name: str) -> str | None:
+    """Return a short deny reason if *name* is a credential-like basename."""
+    if not name or name in (".", ".."):
+        return None
+    lower = name.lower()
+    if lower in _SENSITIVE_EXACT or name in _SENSITIVE_EXACT:
+        return f"credential file {name!r}"
+    if lower.startswith(".env."):
+        return f"dotenv file {name!r}"
+    if lower.startswith("id_rsa") or lower.startswith("id_ed25519") or lower.startswith("id_ecdsa"):
+        return f"private key {name!r}"
+    suffix = Path(lower).suffix
+    if suffix in _SENSITIVE_SUFFIXES:
+        return f"key material {name!r}"
+    return None
+
+
+def _sensitive_path_reason(path: Path) -> str | None:
+    """Deny credential files and well-known secret locations (``.ssh``, ``.aws``)."""
+    reason = _sensitive_basename_reason(path.name)
+    if reason:
+        return reason
+    parts_lower = {p.lower() for p in path.parts}
+    # Private key dirs: any file under .ssh / .aws is treated as sensitive.
+    if ".ssh" in parts_lower or ".aws" in parts_lower:
+        return "path under .ssh/.aws"
+    return None
+
+
 def _is_within(child: Path, root: Path) -> bool:
     try:
         child.relative_to(root)
@@ -141,10 +207,11 @@ class FilesystemToolset:
     max_list_entries: int = 2000
     audit: bool = True
 
-    # Reasonable default roots when config supplies none (read-only introspection).
+    # Default roots when config supplies none: swarm config + data dirs only.
+    # Deliberately excludes the project checkout (``~/open-swarm``) so a bare
+    # ``fs_introspect`` cannot dump repo ``.env`` / source secrets by default.
     DEFAULT_ROOTS: ClassVar[tuple[str, ...]] = (
         "~/.config/swarm",
-        "~/open-swarm",
         "~/.local/share/swarm",
     )
 
@@ -160,14 +227,30 @@ class FilesystemToolset:
                 logger.warning("filesystem toolset: skipping unresolvable root %r", p)
 
     # ---- internals -------------------------------------------------------
-    def _resolve(self, path: str | os.PathLike) -> Path:
-        """Resolve *path* (following symlinks) and enforce the allow-list."""
+    def _deny_sensitive(self, rp: Path) -> None:
+        """Fail closed on credential-like paths (after allow-list resolve)."""
+        reason = _sensitive_path_reason(rp)
+        if reason:
+            self._audit("resolve", str(rp), False, f"sensitive: {reason}")
+            raise SensitivePathDenied(
+                f"refusing access to sensitive path ({reason}): {rp}"
+            )
+
+    def _resolve(self, path: str | os.PathLike, *, allow_sensitive: bool = False) -> Path:
+        """Resolve *path* (following symlinks) and enforce the allow-list.
+
+        Credential-like basenames (``.env``, private keys, …) and paths under
+        ``.ssh`` / ``.aws`` are denied unless *allow_sensitive* is true (used
+        only for directory listing of a non-sensitive parent).
+        """
         rp = Path(path).expanduser().resolve()
         if not any(_is_within(rp, root) or rp == root for root in self._roots):
             self._audit("resolve", str(rp), False, "outside allow-list")
             raise PathNotAllowed(
                 f"{rp} is outside the allowed roots: {[str(r) for r in self._roots]}"
             )
+        if not allow_sensitive:
+            self._deny_sensitive(rp)
         return rp
 
     def _audit(self, op: str, path: str, ok: bool, detail: str = "") -> None:
@@ -280,6 +363,8 @@ class FilesystemToolset:
             if len(hits) >= max_matches:
                 break
             try:
+                if _sensitive_path_reason(fp):
+                    continue
                 if not any(_is_within(fp.resolve(), r) or fp.resolve() == r for r in self._roots):
                     continue
                 if fp.stat().st_size > self.max_read_bytes:
@@ -311,7 +396,7 @@ class FilesystemToolset:
             if len(out) >= max_results:
                 out.append("…[truncated]")
                 break
-            if _is_noise(p):
+            if _is_noise(p) or _sensitive_path_reason(p):
                 continue
             try:
                 if any(_is_within(p.resolve(), r) or p.resolve() == r for r in self._roots):
@@ -327,8 +412,10 @@ class FilesystemToolset:
         if not rp.is_dir():
             raise FilesystemError(f"not a directory: {rp}")
         out: list[dict[str, Any]] = []
-        for i, entry in enumerate(sorted(rp.iterdir(), key=lambda e: e.name)):
-            if i >= self.max_list_entries:
+        for entry in sorted(rp.iterdir(), key=lambda e: e.name):
+            if _sensitive_path_reason(entry):
+                continue
+            if len(out) >= self.max_list_entries:
                 out.append({"name": "…[truncated]", "type": "note"})
                 break
             try:
@@ -374,6 +461,8 @@ class FilesystemToolset:
             except OSError:
                 return
             for e in entries:
+                if _sensitive_path_reason(e):
+                    continue
                 if count >= self.max_list_entries:
                     lines.append(prefix + "…[truncated]")
                     return
