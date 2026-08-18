@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
-import ChatPage from '../ChatPage'
+import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -29,20 +29,37 @@ class MockWebSocket {
     this.readyState = MockWebSocket.OPEN
     this.onopen?.(new Event('open'))
   }
+
+  failBeforeOpen() {
+    this.readyState = 3
+    this.onclose?.(new Event('close'))
+  }
 }
 
-function renderChat() {
+function renderChat(initialEntry = '/chat') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <ChatPage />
       </MemoryRouter>
     </QueryClientProvider>,
   )
 }
+
+describe('chatLoginHref helpers', () => {
+  it('builds a rooted next path and encodes the Sign-in CTA', () => {
+    expect(chatLoginNext(new URLSearchParams())).toBe('/chat')
+    expect(chatLoginNext(new URLSearchParams('blueprint=codey'))).toBe(
+      '/chat?blueprint=codey',
+    )
+    expect(chatLoginHref(new URLSearchParams('blueprint=codey'))).toBe(
+      `/accounts/login/?next=${encodeURIComponent('/chat?blueprint=codey')}`,
+    )
+  })
+})
 
 describe('ChatPage reconnect focus', () => {
   beforeEach(() => {
@@ -100,5 +117,144 @@ describe('ChatPage reconnect focus', () => {
       expect(composer).not.toBeDisabled()
       expect(composer).toHaveFocus()
     })
+  })
+})
+
+describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('disables send while connecting and announces status via aria-live', async () => {
+    renderChat()
+
+    const statusRegion = screen.getByRole('status', { name: 'Connection status' })
+    expect(statusRegion).toHaveAttribute('aria-live', 'polite')
+    expect(statusRegion).toHaveTextContent(/Connecting/i)
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    expect(composer).toBeDisabled()
+    expect(composer).toHaveAttribute(
+      'placeholder',
+      expect.stringMatching(/Connecting/i),
+    )
+    expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled()
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    await waitFor(() => {
+      expect(statusRegion).toHaveTextContent(/^Connected$/)
+    })
+    expect(composer).not.toBeDisabled()
+  })
+
+  it('shows a Sign-in CTA with next=/chat when the websocket fails', async () => {
+    renderChat('/chat?blueprint=hybrid_team')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.failBeforeOpen()
+    })
+
+    const signIn = await screen.findByRole('link', { name: /Sign in/i })
+    expect(signIn).toHaveAttribute(
+      'href',
+      `/accounts/login/?next=${encodeURIComponent('/chat?blueprint=hybrid_team')}`,
+    )
+    expect(screen.getByRole('button', { name: /Reconnect/i })).toBeInTheDocument()
+    expect(screen.getByText(/Unavailable — sign in required/i)).toBeInTheDocument()
+  })
+
+  it('clears the composer draft on Escape', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'draft that should clear' } })
+    expect(composer).toHaveValue('draft that should clear')
+
+    fireEvent.keyDown(composer, { key: 'Escape' })
+    expect(composer).toHaveValue('')
+  })
+})
+
+describe('ChatPage blueprint query-param honesty', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps an unknown ?blueprint= preselect and warns honestly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=just_launched_team')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
+    expect(select).toHaveValue('just_launched_team')
+    expect(
+      screen.getByRole('option', { name: /just_launched_team \(not in list\)/i }),
+    ).toBeInTheDocument()
+
+    const honesty = await screen.findByRole('alert')
+    expect(honesty).toHaveTextContent(/not in the discoverable list/i)
+    expect(honesty).toHaveTextContent('just_launched_team')
+  })
+
+  it('does not warn when the ?blueprint= id is discoverable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
+    expect(select).toHaveValue('codey')
+    expect(screen.queryByText(/not in the discoverable list/i)).not.toBeInTheDocument()
   })
 })

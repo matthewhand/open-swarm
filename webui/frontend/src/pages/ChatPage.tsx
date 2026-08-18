@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, Info, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
 import {
   Alert,
   Badge,
@@ -37,6 +37,16 @@ const SUGGESTED_PROMPTS = [
   'Explain how MCP servers extend an agent',
 ]
 
+/** Post-login return path for the Django session gate (rooted, same-origin). */
+export function chatLoginNext(searchParams: URLSearchParams): string {
+  const qs = searchParams.toString()
+  return qs ? `/chat?${qs}` : '/chat'
+}
+
+export function chatLoginHref(searchParams: URLSearchParams): string {
+  return `/accounts/login/?next=${encodeURIComponent(chatLoginNext(searchParams))}`
+}
+
 const ChatPage = () => {
   // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
   const [searchParams] = useSearchParams()
@@ -59,6 +69,12 @@ const ChatPage = () => {
     queryFn: fetchBlueprints,
   })
   const blueprints = blueprintsQuery.data?.data ?? []
+  const blueprintMissingFromList =
+    Boolean(selectedBlueprint) &&
+    !blueprintsQuery.isPending &&
+    !blueprintsQuery.isError &&
+    !blueprints.some((bp) => bp.id === selectedBlueprint)
+  const signInHref = chatLoginHref(searchParams)
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
     if (event.kind === 'unknown') {
@@ -168,7 +184,21 @@ const ChatPage = () => {
 
   const reconnect = () => setConnectAttempt((n) => n + 1)
 
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape' && input.length > 0) {
+      event.preventDefault()
+      setInput('')
+    }
+  }
+
   const isStreaming = messages.some((m) => m.streaming)
+
+  const composerPlaceholder =
+    status === 'open'
+      ? 'Type a message…'
+      : status === 'connecting'
+        ? 'Connecting… sending is disabled'
+        : 'Websocket not connected — sending is disabled'
 
   return (
     <div className="container mx-auto flex h-[calc(100vh-13rem)] lg:h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4 px-4 py-6">
@@ -234,12 +264,11 @@ const ChatPage = () => {
                 <option value="">Server default model</option>
                 {/* Keep a ?blueprint= preselection visible even if it is not
                     in the fetched list (e.g. a just-created team). */}
-                {selectedBlueprint &&
-                  !blueprints.some((bp) => bp.id === selectedBlueprint) && (
-                    <option value={selectedBlueprint}>
-                      {selectedBlueprint}
-                    </option>
-                  )}
+                {blueprintMissingFromList && (
+                  <option value={selectedBlueprint}>
+                    {selectedBlueprint} (not in list)
+                  </option>
+                )}
                 {blueprints.map((bp) => (
                   <option key={bp.id} value={bp.id}>
                     {bp.name || bp.id}
@@ -254,29 +283,48 @@ const ChatPage = () => {
         </div>
       </div>
 
+      {blueprintMissingFromList && (
+        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+          <div className="space-y-1 text-sm">
+            <span className="font-medium">
+              Blueprint <code>{selectedBlueprint}</code> from the URL is not in
+              the discoverable list.
+            </span>
+            <p>
+              It stays selected so chat can still request it (for example a
+              just-launched team). If the server does not recognise the id, it
+              may fall back to its default model.
+            </p>
+          </div>
+        </Alert>
+      )}
+
       {/* Fallback when the websocket is unavailable */}
       {(status === 'failed' || status === 'closed') && (
         <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-          <div className="space-y-1">
+          <div className="space-y-2">
             <span className="font-medium">
               {status === 'failed'
-                ? 'Websocket connection failed.'
+                ? 'Websocket unavailable.'
                 : 'Websocket connection closed.'}
             </span>
             <p className="text-sm">
               Live chat runs over the backend websocket (served by{' '}
               <code>manage.py runserver</code>, daphne or any ASGI server via{' '}
               <code>swarm.asgi:application</code>). The chat consumer only
-              accepts authenticated Django sessions — sign in via{' '}
-              <a href="/accounts/login/" className="link">
-                /accounts/login/
-              </a>
-              , then reconnect. Message history above is kept when present.
+              accepts authenticated Django sessions. Sign in, then reconnect.
+              Message history above is kept when present.
             </p>
-            <Button size="sm" variant="ghost" onClick={reconnect}>
-              <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
-              Reconnect
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <a href={signInHref} className="btn btn-sm btn-primary">
+                <LogIn className="h-4 w-4 mr-1" aria-hidden="true" />
+                Sign in
+              </a>
+              <Button size="sm" variant="ghost" onClick={reconnect}>
+                <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
+                Reconnect
+              </Button>
+            </div>
           </div>
         </Alert>
       )}
@@ -361,13 +409,10 @@ const ChatPage = () => {
             ref={composerRef}
             type="text"
             className="input input-bordered input-sm h-10 flex-1"
-            placeholder={
-              status === 'open'
-                ? 'Type a message…'
-                : 'Websocket not connected — sending is disabled'
-            }
+            placeholder={composerPlaceholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleComposerKeyDown}
             disabled={status !== 'open'}
             aria-label="Chat message"
           />
@@ -385,22 +430,40 @@ const ChatPage = () => {
   )
 }
 
-function ConnectionBadge({ status }: { status: ConnectionStatus }) {
+function connectionStatusLabel(status: ConnectionStatus): string {
   switch (status) {
     case 'connecting':
-      return (
+      return 'Connecting…'
+    case 'open':
+      return 'Connected'
+    case 'closed':
+      return 'Disconnected — login required'
+    case 'failed':
+      return 'Unavailable — sign in required'
+  }
+}
+
+function ConnectionBadge({ status }: { status: ConnectionStatus }) {
+  const label = connectionStatusLabel(status)
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-label="Connection status"
+    >
+      {status === 'connecting' ? (
         <Badge type="warning">
           <LoadingSpinner size="xs" className="mr-1" />
-          Connecting…
+          {label}
         </Badge>
-      )
-    case 'open':
-      return <Badge type="success">Connected</Badge>
-    case 'closed':
-      return <Badge type="error">Disconnected — login required</Badge>
-    case 'failed':
-      return <Badge type="error">Unavailable</Badge>
-  }
+      ) : status === 'open' ? (
+        <Badge type="success">{label}</Badge>
+      ) : (
+        <Badge type="error">{label}</Badge>
+      )}
+    </span>
+  )
 }
 
 export default ChatPage
