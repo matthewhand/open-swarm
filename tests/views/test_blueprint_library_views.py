@@ -588,10 +588,18 @@ class TestBlueprintCreator:
         mock_get_library,
         mock_generate_code,
         request_factory,
-        test_user
+        test_user,
+        tmp_path,
+        monkeypatch,
     ):
-        """Test successful POST to create a blueprint."""
+        """Test successful POST to create a blueprint under get_user_blueprints_dir()."""
+        from pathlib import Path
+
         from swarm.views.blueprint_library_views import blueprint_creator
+
+        data_dir = tmp_path / "swarm_data"
+        monkeypatch.setenv("SWARM_USER_DATA_DIR", str(data_dir))
+        monkeypatch.delenv("SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY", raising=False)
 
         mock_generate_code.return_value = "# Generated blueprint code"
         mock_get_library.return_value = {"installed": [], "custom": []}
@@ -618,6 +626,13 @@ class TestBlueprintCreator:
         data = json.loads(response.content)
         assert data["success"] is True
         assert "created successfully" in data["message"]
+        assert data["blueprint_id"] == "my_agent"
+        assert "SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY" in data["message"]
+        saved = Path(data["path"])
+        assert saved.is_file()
+        assert saved.name == "blueprint_my_agent.py"
+        assert str(saved).startswith(str((data_dir / "blueprints").resolve()))
+        assert saved.read_text() == "# Generated blueprint code"
 
     def test_blueprint_creator_post_missing_name(self, request_factory, test_user):
         """Test POST with missing blueprint name."""

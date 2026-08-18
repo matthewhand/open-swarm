@@ -222,11 +222,10 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 ### 4.2 Broken-but-shipped (erodes trust)
 - [x] **`django_chat` LLM stub** — `run()` now calls the configured OpenAI-compatible
   profile (no more “Would respond to…” box). Still Django-context heavy.
-- [x] **Web create→run save path (Agent/Team Creator)** — `save_custom_agent` /
-  `save_team_swarm` write under `get_user_blueprints_dir()`; discovery remains
-  opt-in (`SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`). **Residual:** library
-  `blueprint_creator` still persists code only into the JSON catalog (not a
-  discoverable `.py` tree).
+- [x] **Web create→run save path** — `save_custom_agent` / `save_team_swarm` /
+  library `blueprint_creator` write under `get_user_blueprints_dir()` (plus JSON
+  catalog for My Blueprints). Discovery remains opt-in
+  (`SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`).
 - [ ] **Agent Creator Pro is non-functional clickware** — `/agent-creator-pro/`
   page + JS exist, but generate/validate/save routes are missing (JS POSTs 404).
   Honesty banner + FEATURE_STATUS 🟡 point users to `/agent-creator/`. Finish
@@ -259,8 +258,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   `execute`). Delete. (supersedes §3.4b)
 - [x] **Dead view+template:** `blueprint_webpage` + `simple_blueprint_page.html`
   (+ `chat.html`) removed 0.5.2 — see FEATURE_STATUS / CHANGELOG.
-- [ ] **Unrendered `templates/chat.html`** (only a `routing.py:6` docstring) + ~8
-  orphaned `templates/rest_mode/*` files. Delete.
+- [ ] **Orphaned `templates/rest_mode/*` files** (~8). Delete or wire; `chat.html`
+  already removed.
 - [ ] **`stewie` ships a broken nested Django app** — `blueprints/stewie/{settings,views,serializers,models}.py`
   import a nonexistent `blueprints.chc`. Fix paths or delete.
 

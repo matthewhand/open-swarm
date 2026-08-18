@@ -108,6 +108,48 @@ class TestCreatorSavePath:
         assert body["blueprint_id"] == "enabled_agent"
         assert Path(body["path"]).exists()
 
+    def test_blueprint_creator_post_writes_under_user_blueprints_dir(
+        self, tmp_path, monkeypatch
+    ):
+        """Library blueprint_creator must write .py under get_user_blueprints_dir()."""
+        from unittest.mock import patch
+
+        data_dir = tmp_path / "swarm_data"
+        monkeypatch.setenv("SWARM_USER_DATA_DIR", str(data_dir))
+        monkeypatch.delenv("SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY", raising=False)
+        monkeypatch.chdir(tmp_path)
+
+        from swarm.core.paths import get_user_blueprints_dir
+
+        expected_root = get_user_blueprints_dir()
+        client = _login_client()
+        with patch(
+            "swarm.views.blueprint_library_views.generate_blueprint_code",
+            return_value="# library creator code\n",
+        ), patch(
+            "swarm.views.blueprint_library_views.comfyui_client"
+        ) as mock_comfy:
+            mock_comfy.is_available.return_value = False
+            resp = client.post(
+                "/blueprint-library/creator/",
+                {
+                    "blueprint_name": "Lib Agent",
+                    "description": "from library creator",
+                    "category": "ai_assistants",
+                    "tags": "t",
+                    "generate_avatar": "false",
+                },
+            )
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body.get("success") is True
+        assert body.get("blueprint_id") == "lib_agent"
+        saved = Path(body["path"])
+        assert saved.is_file()
+        assert str(saved).startswith(str(expected_root.resolve()))
+        assert saved.read_text() == "# library creator code\n"
+        assert "SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY" in body.get("message", "")
+
     def test_save_custom_agent_rejects_path_traversal_name(
         self, tmp_path, monkeypatch
     ):

@@ -12,11 +12,15 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from swarm.core.blueprint_discovery import discover_blueprints
-from swarm.core.paths import get_user_config_dir_for_swarm
+from swarm.core.paths import get_user_blueprints_dir, get_user_config_dir_for_swarm
 from swarm.core.requirements import evaluate_mcp_compliance, load_active_config
 from swarm.settings import BLUEPRINT_DIRECTORY
 from swarm.utils.comfyui_client import comfyui_client
 from swarm.utils.logger_setup import setup_logger
+from swarm.views.agent_creator_views import (
+    _safe_agent_blueprint_id,
+    _save_discovery_message,
+)
 
 logger = setup_logger(__name__)
 
@@ -376,17 +380,30 @@ def blueprint_creator(request):
                     blueprint_name, description, category, avatar_style
                 )
 
-            # Save to user's custom blueprints
+            # Persist under XDG user blueprints (discoverable when enabled) and
+            # keep the JSON library catalog for My Blueprints UI.
+            blueprint_id = _safe_agent_blueprint_id(blueprint_name)
+            user_blueprints_dir = get_user_blueprints_dir()
+            root = user_blueprints_dir.resolve()
+            bp_dir = (user_blueprints_dir / blueprint_id).resolve()
+            if bp_dir != root and root not in bp_dir.parents:
+                return JsonResponse({"error": "Invalid blueprint name."}, status=400)
+            bp_dir.mkdir(parents=True, exist_ok=True)
+            blueprint_file = bp_dir / f"blueprint_{blueprint_id}.py"
+            blueprint_file.write_text(blueprint_code)
+            abs_path = str(blueprint_file.resolve())
+
             library = get_user_blueprint_library()
 
             custom_blueprint = {
-                "id": blueprint_name.lower().replace(" ", "_"),
+                "id": blueprint_id,
                 "name": blueprint_name,
                 "description": description,
                 "category": category,
                 "tags": [tag.strip() for tag in tags.split(",") if tag.strip()],
                 "requirements": requirements,
                 "code": blueprint_code,
+                "path": abs_path,
                 "avatar_path": avatar_path,
                 "avatar_style": avatar_style if avatar_path else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -398,8 +415,13 @@ def blueprint_creator(request):
             if save_user_blueprint_library(library):
                 return JsonResponse({
                     "success": True,
-                    "message": f"Blueprint '{blueprint_name}' created successfully",
-                    "blueprint": custom_blueprint
+                    "message": (
+                        f"Blueprint '{blueprint_name}' created successfully. "
+                        f"{_save_discovery_message()}"
+                    ),
+                    "blueprint": custom_blueprint,
+                    "path": abs_path,
+                    "blueprint_id": blueprint_id,
                 })
             else:
                 return JsonResponse({"error": "Failed to save blueprint"}, status=500)
