@@ -323,6 +323,10 @@ def test_user_journey_launcher_caption_matches_fs_introspect_default():
         assert "django_chat is pre-selected" not in text
         assert "**`hybrid_team`** selected (first" not in text
         assert "**`hybrid_team`** selected (first bundled" not in text
+        assert "hybrid_team` selected (first" not in text
+        # teams-launch.png itself is not the seeded hybrid_team session fixture.
+        assert "teams-launch.png` shows hybrid_team" not in text
+        assert "teams-launch.png shows **`hybrid_team`**" not in text
 
 
 def test_tour_docs_bridge_cli_list_vs_library_vs_landing_counts():
@@ -353,10 +357,6 @@ def test_tour_docs_bridge_cli_list_vs_library_vs_landing_counts():
             f"{path.name} must mention CLI 31 / library 38 / API 45 count bridge"
         )
         assert "swarm-cli list" in flat or "`swarm-cli list`" in text
-        assert "hybrid_team` selected (first" not in text
-        # teams-launch.png itself is not the seeded hybrid_team session fixture.
-        assert "teams-launch.png` shows hybrid_team" not in text
-        assert "teams-launch.png shows **`hybrid_team`**" not in text
 
 
 def test_settings_caption_matches_empty_meter_not_populated_local_config():
