@@ -60,15 +60,15 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 | `mobile/spa-chat.png` | `/chat` | **Unavailable** / websocket-failed gate + Sign in CTA (matches desktop); **5-tab dock** (Chat is SPA-only, not a dock tab) | 2026-08-18 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher; Django **5-tab** bar (Teams active) | 2026-08-18 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
-| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Django **5-tab** (Settings active) | 2026-08-18 | current |
+| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Django **5-tab** (Settings active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect banner over Agent Creator; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
-| `mobile/login.png` | `/accounts/login/` | Full-width login card (no bottom primary bar) | 2026-08-18 | current |
-| `mobile/teams.png` | `/teams/` | Django **5-tab** bar (Teams active); form wraps | 2026-08-18 | current |
-| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`hybrid_team`** selected (first dropdown option); Django **5-tab** (Teams active) | 2026-08-18 | current |
-| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
+| `mobile/login.png` | `/accounts/login/` | Full-width login card (no bottom primary bar). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/teams.png` | `/teams/` | Django **5-tab** bar (Teams active); form wraps. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`hybrid_team`** selected (first dropdown option); Django **5-tab** (Teams active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/blueprint-library.png` | `/blueprint-library/` | Paginated cards stack; Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/my-blueprints.png` | `/blueprint-library/my-blueprints/` | Empty-state CTAs; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
 | `mobile/agent-creator.png` | `/agent-creator/` | Essentials accordion; Django **5-tab** (Blueprints active) | 2026-08-18 | current |
-| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Django **5-tab** (Settings active) | 2026-08-18 | current |
+| `mobile/settings.png` | `/settings/` | Dashboard tiles wrap; Django **5-tab** (Settings active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/sessions.png` | `/sessions/` | Empty state (0 sessions + live toggle); Django **5-tab** (Sessions active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/session-detail.png` | `/sessions/resp_journey_seed/` | Seeded `hybrid_team` fixture Graph tab (same honesty as desktop — not a live run); Django **5-tab** (Sessions active) | 2026-08-18 | current |
 | `mobile/profiles.png` | `/profiles/` | Profiles table; Django **5-tab** (Settings active — profiles nest under Settings) | 2026-08-18 | current |

@@ -104,6 +104,12 @@ separate SPA product).*
 
 ![Bare /settings redirects to Django Settings Dashboard](./screenshots/spa-settings.png)
 
+![Bare /settings redirect (mobile): banner over Settings; Settings tab active](./screenshots/mobile/spa-settings.png)
+
+*Mobile twin (`screenshots/mobile/spa-settings.png`): same sticky “Redirected:
+…” banner over the Settings Dashboard; Django **five-tab** dock (Settings
+active).*
+
 ![Bare /agent-creator redirects to Django Agent Creator](./screenshots/spa-agent-creator.png)
 
 ---
@@ -112,11 +118,11 @@ separate SPA product).*
 
 Primary chrome for **Django** (and the rebuilt SPA desktop top nav / mobile
 dock): **Home · Blueprints · Teams · Sessions · Settings**, with GitHub under
-**More** on Django desktop only. Mobile **Django** and **SPA** captures
-(`landing.png`, `spa-chat.png` under `screenshots/mobile/`) use that same
-five-tab bottom bar (matches App.tsx). After bare-path redirects, `spa-*`
-captures show the Django shell (five-tab) plus the sticky “Redirected: …”
-banner.
+**More** on Django desktop only. Mobile **Django** and **SPA** captures under
+`screenshots/mobile/` (including `landing.png`, `spa-chat.png`,
+`spa-settings.png`, and the operator twins below) use that same five-tab
+bottom bar (matches App.tsx). After bare-path redirects, `spa-*` captures show
+the Django shell (five-tab) plus the sticky “Redirected: …” banner.
 
 ### Login — `/accounts/login/`
 
@@ -124,11 +130,21 @@ banner.
 
 *Sign-in form for authenticated operator pages (sessions, settings, creators).*
 
+![Login (mobile): full-width sign-in card](./screenshots/mobile/login.png)
+
+*Mobile twin (`screenshots/mobile/login.png`): full-width login card (no
+bottom primary bar on the login page).*
+
 ### Teams Admin — `/teams/`
 
 ![Django teams admin: registration form and registered teams table](./screenshots/teams.png)
 
 *Register dynamic teams as OpenAI-compatible model ids.*
+
+![Teams admin (mobile): form wraps; Teams tab active](./screenshots/mobile/teams.png)
+
+*Mobile twin: registration form wraps; Django **five-tab** dock (Teams
+active).*
 
 ### Team Launcher — `/teams/launch/`
 
@@ -138,6 +154,11 @@ banner.
 **`hybrid_team`** selected (first bundled option in the dropdown) and an
 empty output panel. Default do-path under Teams.*
 
+![Team launcher (mobile): hybrid_team selected; Teams tab active](./screenshots/mobile/teams-launch.png)
+
+*Mobile twin: launcher full-width with **`hybrid_team`** selected (same first
+dropdown option as desktop); Django **five-tab** dock (Teams active).*
+
 ### Blueprint Library — `/blueprint-library/`
 
 ![Django blueprint library: stats, search, paginated cards, Show more](./screenshots/blueprint-library.png)
@@ -145,6 +166,11 @@ empty output panel. Default do-path under Teams.*
 *Catalog of discoverable blueprints. First paint paginates (e.g. 12 of 55)
 with **Show more**; denser cards and per-card MCP status badges (this capture
 still shows the checking spinner labeled **MCP**).*
+
+![Blueprint library (mobile): stacked cards; Blueprints tab active](./screenshots/mobile/blueprint-library.png)
+
+*Mobile twin: paginated cards stack in a single column; Django **five-tab**
+dock (Blueprints active).*
 
 ### My Blueprints — `/blueprint-library/my-blueprints/`
 
@@ -164,6 +190,11 @@ collapsed. Generate / validate custom agent blueprints.*
 ![Django settings dashboard: progress meter and configuration sections](./screenshots/settings.png)
 
 *Full env/config operator surface (deeper than the SPA settings stub).*
+
+![Settings dashboard (mobile): tiles wrap; Settings tab active](./screenshots/mobile/settings.png)
+
+*Mobile twin: dashboard tiles wrap; Django **five-tab** dock (Settings
+active).*
 
 ### Session Explorer — `/sessions/`
 

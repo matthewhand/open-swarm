@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { Home, Settings, Bot, Book, Users, PlusCircle, History, MessageSquare } from 'lucide-react'
-import { Button, Card, Alert, Badge } from './components/DaisyUI'
+import { Card, Alert, Badge } from './components/DaisyUI'
 import TeamsPage from './pages/TeamsPage'
 import BlueprintsPage from './pages/BlueprintsPage'
 import ChatPage from './pages/ChatPage'
@@ -253,50 +253,22 @@ function Dashboard() {
 
       <Card title="Quick Actions" bordered>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Button
-            variant="primary"
-            size="md"
-            className="w-full"
-            onClick={() => {
-              window.location.href = '/teams/launch/'
-            }}
-          >
+          <a href="/teams/launch/" className="btn btn-primary w-full">
             <PlusCircle className="h-5 w-5 mr-2" />
             Launch Team
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            className="w-full"
-            onClick={() => {
-              window.location.href = '/blueprint-library/'
-            }}
-          >
+          </a>
+          <a href="/blueprint-library/" className="btn btn-secondary w-full">
             <Book className="h-5 w-5 mr-2" />
             Browse Blueprints
-          </Button>
-          <Button
-            variant="accent"
-            size="md"
-            className="w-full"
-            onClick={() => {
-              window.location.href = '/teams/'
-            }}
-          >
+          </a>
+          <a href="/teams/" className="btn btn-accent w-full">
             <Users className="h-5 w-5 mr-2" />
             Manage Teams
-          </Button>
-          <Button
-            variant="info"
-            size="md"
-            className="w-full"
-            onClick={() => {
-              window.location.href = '/settings/'
-            }}
-          >
+          </a>
+          <a href="/settings/" className="btn btn-info w-full">
             <Settings className="h-5 w-5 mr-2" />
             Settings
-          </Button>
+          </a>
         </div>
       </Card>
 
@@ -304,15 +276,9 @@ function Dashboard() {
         {(teamsCount === 0 || teamsCount === null) && !loadingStats ? (
           <div className="space-y-3 text-sm">
             <p>No teams registered yet. Launch a blueprint team to expose a custom model id on the API.</p>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                window.location.href = '/teams/launch/'
-              }}
-            >
+            <a href="/teams/launch/" className="btn btn-primary btn-sm">
               Launch your first team
-            </Button>
+            </a>
           </div>
         ) : (
           <ul className="list-disc pl-5 text-sm space-y-1 opacity-90">
@@ -368,20 +334,15 @@ function SettingsPage() {
         <span className="text-sm">
           Full settings live on the Django operator UI. When this app is served behind Django,
           bare <code>/settings</code> redirects to{' '}
-          <a id="settings-django-continue" className="link font-semibold" href="/settings/">
+          <a className="link font-semibold" href="/settings/">
             /settings/
           </a>
           .
         </span>
       </Alert>
-      <Button
-        variant="primary"
-        onClick={() => {
-          window.location.assign('/settings/')
-        }}
-      >
+      <a id="settings-django-continue" href="/settings/" className="btn btn-primary">
         Continue to /settings/
-      </Button>
+      </a>
       <Card title="Application Settings" bordered>
         <div className="space-y-4 text-sm">
           <div>
