@@ -44,15 +44,17 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | `/v1/blueprints` + custom CRUD | ✅ | `urls.py:58-61` (`BlueprintsListView`, `CustomBlueprintsView`, `CustomBlueprintDetailView`); 33 tests in `tests/views/test_api_views.py` incl. create/patch/delete custom blueprints |
 | WebSocket chat consumer | ✅ | ROUTED 2026-06-11: `swarm/asgi.py` (ProtocolTypeRouter + AuthMiddlewareStack + origin validator) + `swarm/routing.py` (`ws/ai-demo/<id>/`); daphne+channels in INSTALLED_APPS; 9 tests (`tests/test_asgi_routing.py`) incl. authenticated streamed round-trip; live 101 under daphne |
 
-## 4. Web UI — Django templates + HTMx — ✅ 5 · ❌ 3
+## 4. Web UI — Django templates + HTMx (operator UI) — ✅ 5 · ❌ 3
+
+Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` prefers the React SPA `dist/index.html` when built (`web_views.index`); bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` redirect into these pages.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| Index/dashboard | ✅ | `views/core_views.py:34-36` renders `swarm/index.html`; covered by `tests/views/test_web_views.py::TestIndexView` (passes in isolation) |
-| Teams (launch/admin/export) | ✅ | `urls.py:68-71` → `team_launcher`/`team_admin`/`teams_export`; renders `teams_launch.html` (`web_views.py:244`), `teams_admin.html` |
-| Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py:186-242` renders `blueprint_library.html`, JSON persistence at `:155-183`; routes `urls.py:89`; `tests/views/test_blueprint_library_views.py` |
-| Agent creator (+ pro) | ✅ | `urls.py:74-81` → generate/validate/save endpoints in `views/agent_creator_views.py`; `agent_creator_pro.py` |
-| Settings dashboard | ✅ | `urls.py:83-85` → `views/settings_views.py:28-57` renders `settings_dashboard.html` |
+| Index/dashboard | ✅ | `web_views.index` serves SPA `dist/index.html` when present, else Django `index.html`; `tests/views/test_web_views.py::TestIndexView` |
+| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; renders `teams_launch.html` (`web_views.py`), `teams_admin.html` |
+| Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py` |
+| Agent creator (+ pro) | ✅ | `/agent-creator/` + generate/validate/save in `views/agent_creator_views.py`; `agent_creator_pro.py` |
+| Settings dashboard | ✅ | `/settings/` → `views/settings_views.py` renders `settings_dashboard.html` |
 | `chat.html` | ❌ | Dead template — zero references: `grep -rn "chat.html" src/swarm --include="*.py"` returns nothing (only `templates/chat.html` itself, which contains the repo's only htmx attrs) |
 | `simple_blueprint_page.html` | ❌ | Only renderer is `web_views.py:121-140` `blueprint_webpage()`, which is **not routed** — `blueprint_webpage` absent from `urls.py`. Dead view + dead template |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |

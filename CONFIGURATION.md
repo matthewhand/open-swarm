@@ -278,7 +278,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `ENABLE_WEBUI` | Serve the web UI at `/`. | on |
+| `ENABLE_WEBUI` | Serve the web UI (`/` prefers SPA when built; Django operator pages at trailing-slash routes). | on |
 | `ENABLE_ADMIN` | Mount the Django admin. | off |
 | `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery. | off |
 | `ENABLE_MCP_SERVER` | Aspirational MCP-server mode — warns loudly; see [docs/mcp_server_mode.md](./docs/mcp_server_mode.md). | off |

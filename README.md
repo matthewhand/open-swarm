@@ -85,7 +85,7 @@ curl -sf http://localhost:8000/v1/responses \
   -d '{"model": "suggestion", "input": "ping"}' | jq .
 ```
 
-The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). A Django web UI (teams, blueprint library, agent creator, settings, websocket chat) is served at `/` — built with server-rendered templates + HTMx; it is the supported UI.
+The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). **Web UI:** when `webui/frontend/dist/` is built, `/` prefers that React SPA dashboard (falls back to Django templates otherwise). Day-to-day operator UI is Django server-rendered + HTMx at trailing-slash routes (`/teams/`, `/blueprint-library/`, `/agent-creator/`, `/settings/`, `/sessions/`, …). The SPA is experimental and not at parity with those pages — see [USERGUIDE.md](./USERGUIDE.md) and [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md).
 
 ---
 
@@ -241,7 +241,7 @@ ruff check .                          # lint
 
 * Tests run keyless via `SWARM_TEST_MODE` — blueprints emit deterministic spinner/result-box output that the suite asserts against.
 * Blueprint UX standards (spinner sequences, ANSI/emoji result boxes) are checked by `scripts/check_ux_compliance.py` and `scripts/lint_blueprints.py` plus CI compliance workflows.
-* The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`); Django serves the built `dist/` automatically when present and falls back to the template UI otherwise. **The React UI is experimental** — see Roadmap.
+* The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`). When `dist/` is built, `/` serves that SPA dashboard; without it, `/` falls back to Django templates. **Supported operator UI** is the Django trailing-slash pages (`/teams/`, `/blueprint-library/`, `/settings/`, …). The SPA is experimental — see Roadmap.
 Documentation map:
 
 * [USERGUIDE.md](./USERGUIDE.md) — task-oriented `swarm-cli` reference.
@@ -260,7 +260,7 @@ Documentation map:
 
 Detailed nested progress lives in [ROADMAP.md](./ROADMAP.md); per-feature evidence in [FEATURE_STATUS.md](./FEATURE_STATUS.md). The honest short list of what is **not** done:
 
-- [ ] **React SPA full parity with the Django UI** — dashboard, chat, teams, blueprints, agent-creator, and settings pages are live on real APIs, but the Django templates UI remains the supported surface until per-page parity is complete
+- [ ] **React SPA full parity with the Django UI** — `/` serves a lightweight SPA dashboard when `dist/` is built (experimental `/chat`); operator work stays on Django trailing-slash routes until per-page parity is complete
 - [ ] **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly and [docs/mcp_server_mode.md](./docs/mcp_server_mode.md) documents real adoption options
 - [ ] **Memory** — mem0 is wired into the agent loop (opt-in) and documented in [CONFIGURATION.md](./CONFIGURATION.md), but not yet validated against a live mem0 end-to-end; letta/langmem are placeholders
 - [ ] **Deprecation-shim sunset** — 7 import shims from the consolidation get removed in the release after v0.3.x
