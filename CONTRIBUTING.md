@@ -18,14 +18,18 @@ uv sync --all-extras
 `uv sync --all-extras` creates `.venv/` and installs the project plus the
 `dev`, `test`, `memory`, and `docs` extras from the committed `uv.lock`.
 
-The optional React frontend lives in `webui/frontend/` and needs Node >= 22:
+The optional React frontend lives in `webui/frontend/` and needs Node >= 22
+(`dist/` is gitignored):
 
 ```bash
-cd webui/frontend && npm install && npm run build
+make frontend
+# or: ./scripts/build_frontend.sh
+# or: cd webui/frontend && npm install && npm run build
 ```
 
 You do not need the frontend for backend or blueprint work — Django falls
-back to a template UI when no built `dist/` is present.
+back to a template UI when no built `dist/` is present. Docker/Fly images
+bake `dist/` in a multi-stage Node build (see `Dockerfile`).
 
 ## Running tests
 
