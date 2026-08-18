@@ -252,7 +252,7 @@ class TestUxShellTemplateContracts:
         assert "onclick=\"exportEnvVars()\"" not in html
         assert "onclick=\"checkPath(" not in html
 
-    def test_team_creator_validate_marked_demo(self, client):
+    def test_team_creator_validate_marked_unavailable(self, client):
         from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxtd", password="ux-td-pass")
@@ -260,5 +260,7 @@ class TestUxShellTemplateContracts:
         response = client.get("/team-creator/")
         assert response.status_code == 200
         html = response.content.decode()
-        assert "Validate (demo)" in html
+        assert "Validate (not available)" in html
+        assert "Validate (demo)" not in html
+        assert "Preview Draft" in html
         assert "no server-side team validation" in html

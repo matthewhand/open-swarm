@@ -40,8 +40,9 @@
               <button type="button" class="btn btn-outline-primary" data-action="add-member">
                 ➕ Add Bot
               </button>
-              <button type="button" class="btn btn-primary" data-action="generate-team">
-                🔧 Generate Swarm Blueprint
+              <button type="button" class="btn btn-primary" data-action="generate-team"
+                      title="Client-side preview only — Save writes the real server-rendered blueprint">
+                🔧 Preview Draft
               </button>
               <button type="button" class="btn btn-outline-secondary" data-action="clear-team">
                 Clear Form
@@ -58,9 +59,9 @@
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5>Generated Swarm Blueprint</h5>
           <div>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-action="validate-team" id="validateTeamBtn" disabled
-                    title="Client-side demo check only — does not run server validation">
-              ✅ Validate (demo)
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="validate-team" id="validateTeamBtn" disabled
+                    title="Server-side team validation is not available">
+              ✅ Validate (not available)
             </button>
             <button type="button" class="btn btn-sm btn-success" data-action="save-team" id="saveTeamBtn" disabled>
               💾 Save Swarm
@@ -71,7 +72,7 @@
           <div id="teamCodeContainer">
             <div class="text-muted text-center p-4">
               <i class="fas fa-users fa-3x mb-3"></i>
-              <p>Configure your swarm and click "Generate Swarm Blueprint" to see the Python blueprint.</p>
+              <p>Configure your swarm and click "Preview Draft" for a client-side sketch, or "Save Swarm" for the real blueprint.</p>
             </div>
           </div>
           
@@ -192,12 +193,12 @@ function generateTeamCode() {
     if (!teamData) {
         return;
     }
-    showTeamMessage('Generating swarm blueprint...', 'info');
+    showTeamMessage('Building client-side preview draft (not the saved blueprint)...', 'info');
     generateSimpleTeamCode(teamData);
 }
 
 function generateSimpleTeamCode(teamData) {
-    // Simple team code generation (client-side for demo)
+    // Client-side preview draft only — Save uses the server renderer.
     const className = sanitizeClassName(teamData.name) + 'TeamBlueprint';
     const blueprintId = teamData.name.toLowerCase().replace(/\s+/g, '-');
     
@@ -293,7 +294,7 @@ ${agentInitCode}
         const validation = {
             valid: true,
             errors: [],
-            warnings: ['Client-side generation - full validation requires backend'],
+            warnings: ['Preview draft only — Save Swarm writes the real server-rendered blueprint'],
             syntax_valid: true,
             structure_valid: true,
             lint_clean: true
@@ -303,10 +304,10 @@ ${agentInitCode}
         displayTeamValidation(validation);
         document.getElementById('validateTeamBtn').disabled = false;
         document.getElementById('saveTeamBtn').disabled = false;
-        showTeamMessage('Team code generated successfully!', 'success');
+        showTeamMessage('Preview draft ready. Save Swarm to write the real blueprint.', 'success');
         
     } catch (error) {
-        showTeamMessage('Code generation error: ' + error.message, 'danger');
+        showTeamMessage('Preview draft error: ' + error.message, 'danger');
     }
 }
 
@@ -322,9 +323,9 @@ function displayTeamValidation(validation) {
     let html = '';
     
     if (validation.valid) {
-        html += '<div class="alert alert-success">✅ Team code is valid!</div>';
+        html += '<div class="alert alert-info">ℹ️ Preview draft sketch ready (not server-validated).</div>';
     } else {
-        html += '<div class="alert alert-danger">❌ Team code has issues</div>';
+        html += '<div class="alert alert-danger">❌ Preview draft has issues</div>';
     }
     
     if (validation.warnings.length > 0) {
@@ -341,7 +342,7 @@ function displayTeamValidation(validation) {
 
 function validateTeamCode() {
     showTeamMessage(
-        'Demo only: no server-side team validation is wired yet. Review the generated code before saving.',
+        'Validate is not available: no server-side team validation is wired yet. Review the code before saving.',
         'warning'
     );
 }
@@ -367,8 +368,11 @@ function saveTeam() {
             return;
         }
         showTeamMessage(payload.message || `Swarm "${teamData.name}" saved to ${payload.path}`, 'success');
-        if (payload.code) {
+        if (typeof payload.code === 'string' && payload.code.length) {
+            generatedTeamCode = payload.code;
             displayTeamCode(payload.code);
+        } else {
+            showTeamMessage('Save succeeded but response omitted code; refresh or re-save to load the blueprint.', 'warning');
         }
     }).catch((err) => {
         showTeamMessage(`Save failed: ${err}`, 'danger');
@@ -381,7 +385,7 @@ function clearTeamForm() {
     document.getElementById('teamCodeContainer').innerHTML = `
         <div class="text-muted text-center p-4">
             <i class="fas fa-users fa-3x mb-3"></i>
-            <p>Configure your swarm and click "Generate Swarm Blueprint" to see the Python blueprint.</p>
+            <p>Configure your swarm and click "Preview Draft" for a client-side sketch, or "Save Swarm" for the real blueprint.</p>
         </div>
     `;
     document.getElementById('teamValidationResults').style.display = 'none';

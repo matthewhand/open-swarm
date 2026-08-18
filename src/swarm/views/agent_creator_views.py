@@ -906,4 +906,5 @@ def save_team_swarm(request):
         ),
         "blueprint_id": blueprint_id,
         "path": abs_path,
+        "code": code,
     })

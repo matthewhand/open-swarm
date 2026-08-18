@@ -229,6 +229,12 @@ class TestCreatorSavePath:
         assert not (cwd / "user_blueprints" / "alpha-team").exists()
         assert "SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY" in body.get("message", "")
 
+        code = body.get("code")
+        assert isinstance(code, str) and code
+        assert "AsyncGenerator" in code
+        assert "yield" in code
+        assert code == saved.read_text(encoding="utf-8")
+
     def test_get_available_agents_scans_user_blueprints_dir(
         self, tmp_path, monkeypatch
     ):
