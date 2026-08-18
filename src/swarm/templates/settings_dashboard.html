@@ -169,7 +169,7 @@
               </div>
             </div>
             {% empty %}
-            <div class="os-empty p-4" role="status">No settings in this group.</div>
+            <div class="os-empty p-4" role="status" style="grid-column:1/-1;">No settings in this group.</div>
             {% endfor %}
           </div>
         </div>
@@ -597,13 +597,11 @@ function toggleGroup(groupId) {
   const content = document.getElementById(`content-${groupId}`);
   const header = document.getElementById(`header-${groupId}`)
     || document.querySelector(`#group-${groupId} .group-header`);
+  if (!content || !header) return;
 
-  content.classList.toggle('expanded');
-  header.classList.toggle('expanded');
-  header.setAttribute(
-    'aria-expanded',
-    content.classList.contains('expanded') ? 'true' : 'false',
-  );
+  const expanded = content.classList.toggle('expanded');
+  header.classList.toggle('expanded', expanded);
+  header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
 }
 
 function viewObject(groupId, settingName) {
