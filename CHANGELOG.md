@@ -22,6 +22,9 @@ All notable changes to this project will be documented in this file.
 - **LoadingOverlay a11y:** `role="status"` instead of a fake modal without a focus trap
 - **Template XSS residual:** `onclick="fn('{{ … }}')"` JS-string breakout → `data-*` handlers (settings dashboard, blueprint cards / my blueprints)
 
+### Removed
+- **Dead `swarm.views.github_views`:** unrouted legacy marketplace helpers including `csrf_exempt` POST “install” stubs; live GitHub discovery remains `MarketplaceGitHub*` in `api_views` + `github_topics_service`
+
 ## [0.5.4] — 2026-06-19
 
 ### Fixed — `django_chat` actually resolves its LLM profile
