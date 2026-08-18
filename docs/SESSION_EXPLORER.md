@@ -1,9 +1,11 @@
 # Session Explorer — User Guide
 
 The **Session Explorer** is a read-only observability UI for the stateful
-`/v1/responses` API. After you sign in, it lists **sessions you own** (not a
-global inventory) — including the **inter-agent delegation timeline** produced
-by `hybrid_team`'s claude-orchestrated parallel delegation — without leaving
+`/v1/responses` API. After you sign in, it lists sessions visible to your
+operator account (not a global inventory): your `user:<name>` rows and, when
+API auth is on, sessions stamped with configured Bearer `token:…` principals
+— including the **inter-agent delegation timeline** produced by
+`hybrid_team`'s claude-orchestrated parallel delegation — without leaving
 the browser.
 
 Open it at **`/sessions/`** (`@login_required`).

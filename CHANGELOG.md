@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 - **SPA honesty:** Teams/Blueprints pages no longer invent demo rows on API failure — empty + alert with Django deep-links; Launch is a real `/chat?blueprint=…` link (not a simulated timeout)
 - **Mobile dock:** Chat tab + `aria-current` for SPA routes; Settings remains on the top-bar icon
 - **Chat Unavailable CTA layout:** Sign-in/Reconnect alert uses `shrink-0` so the fixed-height chat column cannot collapse it
-- **GitHub marketplace UI:** non-OK `/marketplace/github/…` responses surface an honest empty/error; repo “View” links allow only `http:`/`https:` hrefs
+- **GitHub marketplace errors:** upstream GitHub failures are **429/502** JSON (`GitHubAPIError`), not empty HTTP 200; library UI surfaces non-OK as an error empty-state; repo “View” links allow only `http:`/`https:` hrefs
 - **rest_mode / creator DOM XSS:** escape toast/creator messages; sanitize marked HTML via `htmlSafe.js` allowlist; gate profiles `base_url` href to http(s); slackbot `slackLogic.js` uses `textContent`; static regression tests
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
 - **CLI MoA test XDG isolation:** `swarm-cli moa` subprocess dogfood tests pin `HOME` / `XDG_*` / `SWARM_USER_DATA_DIR` under a temp tree so host broken-cache layouts cannot break CI

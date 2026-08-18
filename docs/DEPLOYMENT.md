@@ -73,6 +73,14 @@ For multiple clients with separate ownership principals, set
 `API_AUTH_TOKENS=key-a,key-b` (or `SWARM_API_KEYS`) — comma-separated secrets
 accepted alongside the single `API_AUTH_TOKEN` / `SWARM_API_KEY`. Each Bearer
 maps to its own `token:<sha256-prefix>` principal for response ownership.
+With API auth on, the Django Session Explorer (`/sessions/`, login required)
+is an operator bridge: a logged-in web user also sees sessions stamped with
+those configured token principals (curl/API creates); foreign `user:…`
+owners stay hidden. REST `/v1/responses` IDOR remains strict same-principal.
+
+Websocket chat on the same ASGI process needs a Django **session cookie**
+(form login). The API Bearer token does **not** authenticate websockets;
+anonymous sockets accept-then-close with code **4401**.
 
 > **Single worker preferred for inflight limits.** Async `/v1/responses`
 > inflight limits are **process-local**; cooperative cancel is shared via the
@@ -139,6 +147,10 @@ presets, per-request `params`, failover, workdir isolation, native best-of-N).
   in **both** debug and production — the prod settings block only reasserts them
   (and honors `DJANGO_X_FRAME_OPTIONS`). There is **no** Content-Security-Policy (CSP).
 - **401/403** → missing/wrong `Authorization: Bearer $API_AUTH_TOKEN`.
+- **SPA chat “Unavailable — sign in required” / WS close 4401** → no Django
+  session cookie. Sign in via `/accounts/login/` (CSRF required on POST);
+  Settings API tokens do not open the websocket. Unreachable/ASGI-down is a
+  different badge from 4401.
 - **gemini slow / stalls** → the free `oauth-personal` tier throttles the pro
   model heavily; the flash default answers in seconds. Use a paid `GEMINI_API_KEY`
   for the pro tier.

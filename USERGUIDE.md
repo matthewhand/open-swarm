@@ -19,9 +19,11 @@ here is verified against `swarm-cli --help`.
 > (`/blueprint-library/`, `/teams/`, `/sessions/`, `/settings/`) and
 > creator mutators require a Django login session; Team launcher
 > (`/teams/launch/`) and Agent Creator GET stay public. The React SPA at
-> `/` is a lightweight dashboard; bare `/teams`, `/blueprints`,
-> `/settings`, and `/agent-creator` redirect to those Django pages.
-> Regenerate tour images with `scripts/capture_user_journey.py`.
+> `/` is a lightweight dashboard; bare paths redirect to Django —
+> `/teams` → `/teams/launch/`, `/blueprints` → `/blueprint-library/`,
+> `/settings` → `/settings/`, `/agent-creator` → `/agent-creator/` (not
+> leftover SPA shells). Regenerate tour images with
+> `scripts/capture_user_journey.py`.
 
 ---
 

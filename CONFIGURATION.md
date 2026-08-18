@@ -262,8 +262,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). Must include scheme + host + port. Add LAN/proxy origins (e.g. `http://10.0.0.30:8000`) when the UI is not on localhost. | `http://localhost:8000,http://127.0.0.1:8000` |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. Primary when set. **Required in production** (`DEBUG=False`) unless `SWARM_ALLOW_NO_AUTH=true` — server refuses to start without any token. | none |
 | `SWARM_API_KEY` | Legacy alias for `API_AUTH_TOKEN` (used if the latter is unset). | none |
-| `API_AUTH_TOKENS` / `SWARM_API_KEYS` | Optional comma-separated list of additional (or sole) accepted Bearer secrets. Merged with the single-token vars; each key maps to a distinct ownership principal (`token:<sha256-prefix>`). | none |
-| `ENABLE_API_AUTH` | Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Auto-on when any API auth token is set. | prod: on |
+| `API_AUTH_TOKENS` / `SWARM_API_KEYS` | Optional comma-separated list of additional (or sole) accepted Bearer secrets. Merged with the single-token vars; each key maps to a distinct ownership principal (`token:<sha256-prefix>`). When API auth is on, Session Explorer also shows those token-owned sessions to a logged-in Django operator (REST IDOR stays same-principal). | none |
+| `ENABLE_API_AUTH` | Require auth on `/v1/*` (including `/v1/models` and `/v1/blueprints`). Auto-on when any API auth token is set. Also enables the Session Explorer operator bridge for token-owned rows. | prod: on |
 | `SWARM_SECURE_COOKIES` | When `DEBUG=False`, force `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE`. Default **on** in production; set `false` for HTTP-only staging. (No effect when `DEBUG=True` — cookies stay non-Secure for local HTTP.) | prod: true |
 | `DJANGO_X_FRAME_OPTIONS` | Env override for `X_FRAME_OPTIONS`, read **only** when `DEBUG=False`. `XFrameOptionsMiddleware` is always installed; Django’s default is already `DENY` in debug and prod. **No CSP** header is configured. | `DENY` |
 | `SWARM_ALLOW_NO_AUTH` | Allow booting in production **without** a token (warns) — for when an external OAuth proxy / API gateway already gates access. | `false` |
@@ -278,9 +278,9 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `ENABLE_WEBUI` | Serve the web UI (`/` prefers SPA when built; Django operator pages at trailing-slash routes). | on |
+| `ENABLE_WEBUI` | Serve the web UI (`/` prefers SPA when built; canonical operator UI is Django trailing-slash pages — bare `/teams`→`/teams/launch/`, `/blueprints`→`/blueprint-library/`, etc.). Teams admin / blueprint library / sessions / settings need a login session; login POST is CSRF-protected. | on |
 | `ENABLE_ADMIN` | Mount the Django admin. | off |
-| `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery. | off |
+| `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery (`/marketplace/github/…`). Upstream GitHub failures return **429/502**, not an empty 200. | off |
 | `ENABLE_MCP_SERVER` | Aspirational MCP-server mode — warns loudly; see [docs/mcp_server_mode.md](./docs/mcp_server_mode.md). | off |
 
 ### Behavior & diagnostics
