@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli config init`:** writes default `swarm_config.json` (`--force` to overwrite); aligns config-loader error hints that already recommended it
 
 ### Changed
+- **CSP prep — creator pages:** extract `agent_creator` / `team_creator` inline scripts to `static/js/` (`{% static %}`); team profiles via `json_script` island; AUTH.md extraction progress updated
 - **ADR-001 SPA finish:** delete `webui/frontend/src/pages/_quarantine/` (no remount bait); drop Builder/Settings e2e stubs; VISION/FEATURE_STATUS/ROADMAP align — SPA stays `/` + `/chat` only. Rebuild `dist/` after pull (`npm run build` — gitignored).
 - **ADR-001 SPA route cut:** React SPA mounts only `/` + `/chat`; Teams/Blueprints/Settings/Builder/AgentCreator pages were first quarantined then deleted; e2e/a11y/shots limited to live stems; nav/dock link out to Django for operator chrome.
 - **v1 product vocabulary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) + honesty sweeps (Blueprint vs `/v1/teams` LLM-profile alias; Operator UI vs SPA Chat); confirm `blueprint_audit_status.json` gone; ROADMAP v1 cut → ADR-001 + glossary
