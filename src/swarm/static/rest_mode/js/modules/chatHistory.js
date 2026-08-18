@@ -2,6 +2,7 @@
 
 import { showToast } from '../toast.js';
 import { appendRawMessage } from '../messages.js';
+import { escapeAttr, escapeHtml } from '../htmlSafe.js';
 import { deleteChat } from './apiService.js';
 import { debugLog } from './debugLogger.js';
 import { chatHistory, contextVariables } from './state.js';
@@ -13,11 +14,12 @@ import { chatHistory, contextVariables } from './state.js';
  * @returns {string} - The truncated message with a "more..." link if applicable.
  */
 function truncateMessage(content, maxLength = 50) {
-    if (content.length > maxLength) {
-        const truncated = content.slice(0, maxLength);
-        return `<span data-full-content="${content}">${truncated}... <a href="#" class="read-more">more</a></span>`;
+    const text = content == null ? '' : String(content);
+    if (text.length > maxLength) {
+        const truncated = escapeHtml(text.slice(0, maxLength));
+        return `<span data-full-content="${escapeAttr(text)}">${truncated}... <a href="#" class="read-more">more</a></span>`;
     }
-    return content;
+    return escapeHtml(text);
 }
 
 /**
@@ -37,13 +39,14 @@ export function createChatHistoryEntry(chatName, firstMessage) {
 
     // Generate truncated message with "more..." link if necessary
     const truncatedMessage = truncateMessage(firstMessage);
+    const trashIcon = escapeAttr(window.STATIC_URLS?.trashIcon || '');
 
     // Populate the chat history item
     chatItem.innerHTML = `
         <details>
-            <summary>${chatName}</summary>
+            <summary>${escapeHtml(chatName)}</summary>
             <p>${truncatedMessage}</p>
-            <span class="chat-item-time">${new Date().toLocaleString()}</span>
+            <span class="chat-item-time">${escapeHtml(new Date().toLocaleString())}</span>
                 <div class="chat-item-tools">
                     <!-- Tag Buttons and Delete Button -->
                     <div class="chat-item-tags">
@@ -53,7 +56,7 @@ export function createChatHistoryEntry(chatName, firstMessage) {
                         <button class="tag-button add-tag-btn" aria-label="Add Tag">+</button>
                         <!-- Delete Button -->
                         <button class="toolbar-btn delete-chat-btn" title="Delete Chat" aria-label="Delete Chat">
-                            <img src="${window.STATIC_URLS.trashIcon}" alt="Delete Chat">
+                            <img src="${trashIcon}" alt="Delete Chat">
                         </button>
                     </div>
                 </div>
@@ -67,13 +70,13 @@ export function createChatHistoryEntry(chatName, firstMessage) {
         debugLog('New chat history entry created and added to the list.', chatItem);
     }
 
-    // Event listener for "more..." links
+    // Event listener for "more..." links — textContent, never innerHTML of stored content
     chatItem.querySelectorAll('.read-more').forEach(link => {
         link.addEventListener('click', (event) => {
             event.preventDefault();
             const parent = link.parentElement;
             if (parent) {
-                parent.innerHTML = parent.getAttribute('data-full-content'); // Reveal full content
+                parent.textContent = parent.getAttribute('data-full-content') || '';
             }
         });
     });

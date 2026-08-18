@@ -2,6 +2,8 @@
  * rendering.js - Contains functions for rendering messages in the chat area,
  * and appending raw messages to the debug panel.
  */
+import { escapeHtml } from './htmlSafe.js';
+
 const messageContainerId = "messageHistory";
 const rawMessagesContainerId = "rawMessagesContent";
 
@@ -25,14 +27,17 @@ export function renderMessage(role, message, sender = "", metadata = {}, isFirst
     containerDiv.classList.add("message", role);
     if (isFirstUser) containerDiv.classList.add("first-user");
 
+    const safeSender = escapeHtml(sender);
+    const safeBody = escapeHtml(message?.content ?? '');
+
     // For our special "plus" icon on hover (to persist the message), we wrap the messageContent in a container
     // Then on hover, show a small plus icon in the top-right corner
-    let messageContent = `<strong>${sender}:</strong> ${message.content}`;
-    
+    let messageContent = `<strong>${safeSender}:</strong> ${safeBody}`;
+
     // If role === "assistant" and layout is "minimalist", remove boxes, etc.
     const containerElement = document.querySelector('.container');
     if (role === "assistant" && containerElement?.getAttribute('data-theme-layout') === 'minimalist-layout') {
-        messageContent = message.content;
+        messageContent = safeBody;
     }
 
     // Determine trash can icon based on current style
@@ -46,27 +51,35 @@ export function renderMessage(role, message, sender = "", metadata = {}, isFirst
         trashCanIcon = '🗑️'; // Smaller slim trash can could use a different emoji or a custom SVG
     }
 
-    containerDiv.innerHTML = `
-      <div class="message-text">
-        ${messageContent}
-      </div>
-      <span class="persist-icon" title="Persist this message to the pinned area">➕</span>
-      <span class="trash-can" title="Delete Chat">${trashCanIcon}</span>
-    `;
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.innerHTML = messageContent;
 
-    // Add event listener on the plus icon
-    const plusIcon = containerDiv.querySelector('.persist-icon');
-    plusIcon?.addEventListener('click', (event) => {
+    const persistIcon = document.createElement('span');
+    persistIcon.className = 'persist-icon';
+    persistIcon.title = 'Persist this message to the pinned area';
+    persistIcon.textContent = '➕';
+
+    const trashCan = document.createElement('span');
+    trashCan.className = 'trash-can';
+    trashCan.title = 'Delete Chat';
+    trashCan.textContent = trashCanIcon;
+
+    containerDiv.appendChild(textDiv);
+    containerDiv.appendChild(persistIcon);
+    containerDiv.appendChild(trashCan);
+
+    persistIcon.addEventListener('click', (event) => {
         event.stopPropagation();
         persistMessage(role, message, sender);
     });
 
-    // Add event listener on the trash can
-    const trashCan = containerDiv.querySelector('.trash-can');
-    trashCan?.addEventListener('click', (event) => {
+    trashCan.addEventListener('click', (event) => {
         event.stopPropagation();
         // Implement deletion logic if necessary
-        showToast("��️ Delete feature is under development.", "info");
+        if (typeof showToast === 'function') {
+            showToast("🗑️ Delete feature is under development.", "info");
+        }
     });
 
     messageHistory.appendChild(containerDiv);
@@ -84,7 +97,12 @@ function persistMessage(role, message, sender = "") {
     // We'll allow multiple pinned messages by just appending
     const pinned = document.createElement("div");
     pinned.classList.add("pinned-message");
-    pinned.innerHTML = `<small>${sender}:</small> ${message.content}`;
+
+    const label = document.createElement('small');
+    label.textContent = `${sender}:`;
+    pinned.appendChild(label);
+    pinned.appendChild(document.createTextNode(' '));
+    pinned.appendChild(document.createTextNode(message?.content ?? ''));
 
     firstUserMessageDiv.style.display = "block";
     firstUserMessageDiv.appendChild(pinned);

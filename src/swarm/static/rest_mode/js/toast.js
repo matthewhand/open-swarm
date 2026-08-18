@@ -2,11 +2,7 @@
  * toast.js - Handles toast notifications
  */
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text == null ? '' : String(text);
-    return div.innerHTML;
-}
+import { escapeHtml } from './htmlSafe.js';
 
 /**
  * Displays a toast notification.

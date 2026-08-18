@@ -78,7 +78,13 @@ export async function handleSubmit() {
     if (isFirstUserMessage) {
         const persistentMessageElement = document.getElementById('firstUserMessage');
         if (persistentMessageElement) {
-            persistentMessageElement.innerHTML = `<b>Persist:</b><p>User: ${userMessageContent}</p>`;
+            persistentMessageElement.replaceChildren();
+            const label = document.createElement('b');
+            label.textContent = 'Persist:';
+            const body = document.createElement('p');
+            body.textContent = `User: ${userMessageContent}`;
+            persistentMessageElement.appendChild(label);
+            persistentMessageElement.appendChild(body);
             debugLog("Persistent message updated with the first user message.");
         }
         createChatHistoryEntry("New Chat", userMessageContent);

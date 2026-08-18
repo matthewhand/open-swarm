@@ -1,5 +1,6 @@
 import { debugLog } from './debug.js';
 import { enableSlidingToolbar } from './ui.js';
+import { escapeHtml, sanitizeMarkdownHtml } from './htmlSafe.js';
 // import { marked } from '../../contrib/markedjs/marked.min.js';
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 
@@ -22,12 +23,14 @@ export function renderMessage(role, content, sender, metadata) {
         return;
     }
 
+    const safeSender = escapeHtml(sender || '');
+
     // 🔄 Detect assistant handoff JSON
     let isHandoff = false;
     try {
         const parsedContent = JSON.parse(messageContent);
         if (parsedContent.assistant && typeof parsedContent.assistant === 'string') {
-            messageContent = `<em>🔄 Handoff to <strong>${parsedContent.assistant}</strong></em>`;
+            messageContent = `<em>🔄 Handoff to <strong>${escapeHtml(parsedContent.assistant)}</strong></em>`;
             role = 'system';
             isHandoff = true;
         }
@@ -36,7 +39,8 @@ export function renderMessage(role, content, sender, metadata) {
     }
 
     if (!isHandoff) {
-        messageContent = `<strong>${sender}:</strong> ${marked.parse(messageContent)}`;
+        const rendered = sanitizeMarkdownHtml(marked.parse(messageContent));
+        messageContent = `<strong>${safeSender}:</strong> ${rendered}`;
     }
 
     // ❌ Prevent rendering assistant messages with "No content"
@@ -48,18 +52,24 @@ export function renderMessage(role, content, sender, metadata) {
     // ✅ Create the message
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
-    
-    messageDiv.innerHTML = `
-        <div class="message-text">${messageContent}</div>
-        <div class="message-toolbar">
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.innerHTML = messageContent;
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'message-toolbar';
+    toolbar.innerHTML = `
             <button class="toolbar-btn" aria-label="Copy Message">
                 <img src="/static/rest_mode/svg/copy.svg" alt="Copy Icon" class="icon-svg" />
             </button>
             <button class="toolbar-btn" aria-label="Delete Message">
                 <img src="/static/rest_mode/svg/trash.svg" alt="Trash Icon" class="icon-svg" />
             </button>
-        </div>
     `;
+
+    messageDiv.appendChild(textDiv);
+    messageDiv.appendChild(toolbar);
 
     messageContainer.appendChild(messageDiv);
     debugLog('Message rendered successfully.');
@@ -106,7 +116,7 @@ export function renderQuickPrompts() {
         .map(
             (prompt, index) => `
             <button class="quick-prompt-button" data-index="${index}">
-                ${prompt}
+                ${escapeHtml(prompt)}
             </button>`
         )
         .join('');
