@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
 - **Docs polish:** journey screenshots regenerated (2026-08-18) + caption/registry honesty; MoA troubleshooting; FEATURE_STATUS MoA team-path row; `cli-and-api.gif` refreshed from `SWARM_TEST_MODE` captures (optional `moa --team` scene)
+- **Session detail journey capture:** mid-run seed of `resp_journey_seed` so `session-detail.png` shows Graph/timeline; embeds in USER_JOURNEY / GUIDED_TOUR / SESSION_EXPLORER with seeded-fixture honesty (synthetic JSON, not a live hybrid_team run)
 
 ### Fixed
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
