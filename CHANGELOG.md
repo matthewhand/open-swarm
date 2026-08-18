@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **WS anonymous receive race:** `DjangoChatConsumer.receive` re-checks session auth so a frame that lands after accept-but-before 4401 close cannot crash the consumer or reach blueprint/LLM paths
 - **MoA `--act` phantom write:** `run_moa_cli` with `--act` and no `--act-write` now actually creates `moa_determination.md` (previously only `RecordingWriteSurface` + `ActResult` claimed the write)
 - **Fly HTTP health check:** re-enable `[[http_service.checks]]` GET `/health` in `fly.toml` (was disabled 2026-06-20 while the image lacked the route); live `open-swarm.fly.dev/health` returns 200 `{"status":"ok"}`
 - **SPA Chat Send honesty:** composer Send no longer shows a loading spinner while an assistant reply streams (progress stays on the bubble); avoids a false busy state on an enabled control
 - **Library-generated blueprints echo-only run:** `generate_blueprint_code` no longer calls nonexistent `model.chat_completion_stream`; uses `AsyncOpenAI` + `chat.completions.create(stream=True)` (DjangoChat/DynamicTeam pattern) with an explicit warned echo fallback
 - **Silent LLM profile fallback:** honor `blueprints[].default_model` / `settings.default_llm_profile`; **warn** (never silent) when a requested profile is missing, then fall back. `get_llm_profile` and Stewie warn on named misses; `llm_profile` stays fail-loud. Docs aligned in CONFIGURATION.md.
+
+### Security
+- **MCP stdio env leak:** MCP client/provider no longer pass the full parent `os.environ` into stdio MCP children (that exposed ambient API keys/tokens). Children get essentials (`PATH`/`HOME`/…) plus only vars declared in the server's `env` block.
 
 
 ### Added

@@ -646,6 +646,8 @@ def test_start_mcp_server_success(monkeypatch):
 
     from swarm.mcp import provider as prov
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
+    # Ambient secret must not be forwarded to the MCP stdio child.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-should-not-leak")
 
     p = prov.BlueprintMCPProvider(blueprint_dir="ignored")
     p._mcp_config = {"good_server": {"name": "good_server", "command": "test-cmd", "args": ["--port", "8080"], "env": {"FOO": "bar"}, "cwd": "/tmp"}}
@@ -667,7 +669,8 @@ def test_start_mcp_server_success(monkeypatch):
         call_args = mock_popen.call_args
         assert call_args[0][0] == ["test-cmd", "--port", "8080"]
         assert call_args[1]["cwd"] == "/tmp"
-        assert "FOO" in call_args[1]["env"]
+        assert call_args[1]["env"]["FOO"] == "bar"
+        assert "OPENAI_API_KEY" not in call_args[1]["env"]
 
 
 def test_start_mcp_server_retry_then_success(monkeypatch):

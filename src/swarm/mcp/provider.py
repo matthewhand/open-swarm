@@ -25,6 +25,7 @@ from swarm.core.blueprint_discovery import (
 from swarm.core.mcp_server_config import MCPServerConfig
 from swarm.core.requirements import load_active_config
 from swarm.settings import BLUEPRINT_DIRECTORY, BLUEPRINT_EXTRA_DIRS
+from swarm.utils.env_utils import build_mcp_stdio_env
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +189,9 @@ class BlueprintMCPProvider:
             if not mcp_config.command:
                 raise ValueError(f"MCP server '{server_name}' missing required 'command' in configuration")
             cmd = [mcp_config.command] + mcp_config.args
-            env = os.environ.copy()
-            env.update(mcp_config.env)
+            # Essentials + configured env only — do not inherit full parent env
+            # (leaks API keys/tokens into MCP stdio children).
+            env = build_mcp_stdio_env(mcp_config.env)
             cwd = mcp_config.cwd or os.getcwd()
             process = None
             for attempt in range(3):

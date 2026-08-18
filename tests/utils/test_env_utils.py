@@ -5,6 +5,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 
 from swarm.utils.env_utils import (
+    build_mcp_stdio_env,
     get_csv_env,
     get_django_allowed_hosts,
     get_django_csrf_trusted_origins,
@@ -109,3 +110,29 @@ def test_get_django_csrf_trusted_origins():
             "http://localhost:8000",
             "http://127.0.0.1:8000",
         ]
+
+
+def test_build_mcp_stdio_env_does_not_leak_parent_secrets():
+    """MCP stdio children must not inherit ambient API keys/tokens."""
+    parent = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/home/test",
+        "OPENAI_API_KEY": "sk-leak-me",
+        "GITHUB_TOKEN": "ghp_leak",
+        "SECRET_UNRELATED": "nope",
+    }
+    with patch.dict(os.environ, parent, clear=True):
+        env = build_mcp_stdio_env({"MIRO-OAUTH-KEY": "miro-ok"})
+    assert env["PATH"] == "/usr/bin:/bin"
+    assert env["HOME"] == "/home/test"
+    assert env["MIRO-OAUTH-KEY"] == "miro-ok"
+    assert "OPENAI_API_KEY" not in env
+    assert "GITHUB_TOKEN" not in env
+    assert "SECRET_UNRELATED" not in env
+
+
+def test_build_mcp_stdio_env_empty_server_env_is_essentials_only():
+    with patch.dict(os.environ, {"PATH": "/bin", "OPENAI_API_KEY": "sk-x"}, clear=True):
+        env = build_mcp_stdio_env(None)
+    assert env == {"PATH": "/bin"}
+    assert "OPENAI_API_KEY" not in env

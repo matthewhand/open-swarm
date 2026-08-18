@@ -241,6 +241,37 @@ def is_enable_mcp_server() -> bool:
     return os.getenv('ENABLE_MCP_SERVER', 'false').lower() in ('1', 'true', 'yes')
 
 
+# Essentials so npx/uvx/node MCP children can resolve binaries and temp dirs.
+# Deliberately excludes API keys/tokens — declare those in the server's env block.
+_MCP_STDIO_ESSENTIAL_ENV = (
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "LANG",
+    "LC_ALL",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "SHELL",
+    "TERM",
+)
+
+
+def build_mcp_stdio_env(server_env: dict | None = None) -> dict[str, str]:
+    """Build env for MCP stdio subprocesses without leaking parent secrets.
+
+    Returns essentials from the parent process plus any vars explicitly listed
+    in ``server_env`` (from swarm_config mcpServers.*.env). Does not copy the
+    full ``os.environ``, so ambient keys like OPENAI_API_KEY / GITHUB_TOKEN are
+    not exposed to third-party MCP servers unless configured for that server.
+    """
+    env = {k: os.environ[k] for k in _MCP_STDIO_ESSENTIAL_ENV if k in os.environ}
+    if server_env:
+        env.update({str(k): str(v) for k, v in server_env.items()})
+    return env
+
+
 def is_enable_github_marketplace() -> bool:
     """Check if GitHub marketplace is enabled."""
     return os.getenv('ENABLE_GITHUB_MARKETPLACE', 'false').lower() in ('1', 'true', 'yes')

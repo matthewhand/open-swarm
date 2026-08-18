@@ -7,13 +7,13 @@ Redirects MCP server stderr to log files unless debug mode is enabled.
 
 import asyncio
 import logging
-import os
 from typing import Any, Dict, List, Callable
 from contextlib import contextmanager
 
 from mcp import ClientSession, StdioServerParameters  # type: ignore
 from mcp.client.stdio import stdio_client  # type: ignore
 from swarm.types import Tool
+from swarm.utils.env_utils import build_mcp_stdio_env
 from .cache_utils import get_cache
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ class MCPClient:
         """
         self.command = server_config.get("command", "npx")
         self.args = server_config.get("args", [])
-        self.env = {**os.environ.copy(), **server_config.get("env", {})}
+        # Essentials + configured env only — never inherit full parent os.environ
+        # (that leaked API keys/tokens into every stdio MCP child).
+        self.env = build_mcp_stdio_env(server_config.get("env") or {})
         self.timeout = timeout
         self.debug = debug
         self._tool_cache: Dict[str, Tool] = {}
