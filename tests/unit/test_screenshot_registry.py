@@ -234,3 +234,20 @@ def test_spa_app_mobile_dock_omits_settings_tab():
     assert 'label="Sessions"' in app
     assert 'MobileTab href="/settings/"' not in app
     assert 'label="Chat"' in app
+
+
+def test_feature_status_mobile_dock_omits_settings():
+    """FEATURE_STATUS must not claim Settings is on the SPA mobile dock."""
+    text = (REPO / "FEATURE_STATUS.md").read_text()
+    # Stale claim paired Settings into the five-tab dock list.
+    assert "mobile dock Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings)" not in text
+    assert "mobile five-tab dock" in text or "Settings is desktop top-nav" in text
+
+
+def test_auth_summary_csp_has_no_style_residual():
+    """AUTH.md overview must match prod CSP (no style-src unsafe-inline)."""
+    text = (REPO / "docs" / "AUTH.md").read_text()
+    assert "style residual" not in text
+    assert "style-src self; no unsafe-inline" in text or (
+        "script-src/style-src self" in text and "no unsafe-inline" in text
+    )

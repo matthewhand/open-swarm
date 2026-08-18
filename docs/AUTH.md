@@ -47,7 +47,7 @@ Related: [DEPLOYMENT.md](./DEPLOYMENT.md) · [CONFIGURATION.md](../CONFIGURATION
   Workdir: params.workdir/cwd under SWARM_WORKSPACES_DIR
            (ALLOW_UNRESTRICTED_WORKDIR opt-in escape)
   Blueprints: user discovery opt-in; AST sandbox (not OS sandbox)
-  Browser: CSRF on login + HTML mutators; prod CSP (script-src self; style residual)
+  Browser: CSRF on login + HTML mutators; prod CSP (script-src/style-src self; no unsafe-inline)
 ```
 
 ---

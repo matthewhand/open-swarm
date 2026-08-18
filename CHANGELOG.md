@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **FEATURE_STATUS / AUTH CSP honesty:** SPA mobile dock row no longer lists Settings (five tabs: Home·Chat·Blueprints·Teams·Sessions; Settings is desktop/gear); AUTH overview drops stale “style residual” — prod CSP is `script-src`/`style-src` `'self'` only. Locked by `tests/unit/test_screenshot_registry.py`
 - **MCP blueprint→tool bridge silent no-op:** `register_blueprints_with_mcp()` now `logger.error`s when `mcp_server` ≥0.5 lacks flat `registry.register_tool` (or registration fails). `FEATURE_STATUS` + `docs/mcp_server_mode.md` state clearly: flag mounts `/mcp/`, blueprints are NOT tools until the MCPToolset port.
 - **Screenshot/docs ADR-001 alignment:** tour captions name SPA desktop **Home · Chat · …**; `spa-*` embeds describe redirect landings (sticky “Redirected” banner is capture-script injection on regen, not claimed in checked-in PNGs); SPA mobile dock drops Settings tab to match five-tab PNGs / SCREENSHOTS.md
 - **WS anonymous receive race:** `DjangoChatConsumer.receive` re-checks session auth so a frame that lands after accept-but-before 4401 close cannot crash the consumer or reach blueprint/LLM paths
