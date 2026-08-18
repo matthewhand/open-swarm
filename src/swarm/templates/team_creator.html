@@ -362,7 +362,7 @@ function saveTeam() {
             showTeamMessage(msg, 'danger');
             return;
         }
-        showTeamMessage(`Swarm "${teamData.name}" saved to ${payload.path}`, 'success');
+        showTeamMessage(payload.message || `Swarm "${teamData.name}" saved to ${payload.path}`, 'success');
         if (payload.code) {
             displayTeamCode(payload.code);
         }

@@ -54,7 +54,7 @@ Legacy commands to avoid:
 - Reference documentation files in code and PRs to ensure consistency.
 
 ## Contributing
-- Please read the [CONTRIBUTING.md](./CONTRIBUTING.md) file (if present) before submitting PRs.
+- Please read the [CONTRIBUTING.md](../CONTRIBUTING.md) file before submitting PRs.
 - Follow code style and documentation conventions.
 
 ---

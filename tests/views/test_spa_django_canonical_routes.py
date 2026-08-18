@@ -88,7 +88,9 @@ class TestUxShellTemplateContracts:
         # demoted under More dropdown.
         assert 'id="moreNavDropdown"' in html
 
-    def test_profiles_marks_teams_active_in_shell(self, client):
+    def test_profiles_marks_profiles_item_active_not_teams(self, client):
+        import re
+
         from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxprof", password="ux-prof-pass")
@@ -96,11 +98,48 @@ class TestUxShellTemplateContracts:
         response = client.get("/profiles/")
         assert response.status_code == 200
         html = response.content.decode()
-        # Desktop Teams dropdown active rule includes /profiles/
-        assert "nav-link dropdown-toggle active" in html or 'aria-current="page"' in html
-        # Mobile bottom: Teams is-active for profiles path
-        assert "os-bottom-nav__item" in html
-        assert "/profiles/" in html or "profiles" in html.lower()
+        # LLM profiles dropdown item is current page
+        profiles_item = re.search(
+            r'<a class="dropdown-item active"[^>]*href="/profiles/"[^>]*aria-current="page"',
+            html,
+        )
+        assert profiles_item, "expected active Profiles dropdown item with aria-current"
+        # Teams primary toggle must not be active for /profiles/
+        teams_toggle = re.search(
+            r'<a class="nav-link dropdown-toggle([^"]*)"[^>]*id="teamsNavDropdown"',
+            html,
+        )
+        assert teams_toggle, "expected Teams dropdown toggle"
+        assert "active" not in teams_toggle.group(1)
+        # Mobile bottom: Teams is-active only for /teams/, not /profiles/
+        teams_bottom = re.search(
+            r'<a class="os-bottom-nav__item([^"]*)"[^>]*>\s*'
+            r'<span class="os-bottom-nav__label">Teams</span>',
+            html,
+        )
+        assert teams_bottom, "expected Teams bottom-nav item"
+        assert "is-active" not in teams_bottom.group(1)
+
+    def test_sessions_marks_sessions_nav_active(self, client):
+        import re
+
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(username="uxsessnav", password="ux-sess-nav")
+        client.force_login(user)
+        response = client.get("/sessions/")
+        assert response.status_code == 200
+        html = response.content.decode()
+        sessions_link = re.search(
+            r'<a class="nav-link active"[^>]*href="/sessions/"[^>]*aria-current="page"',
+            html,
+        )
+        assert sessions_link, "expected active Sessions nav link"
+        teams_toggle = re.search(
+            r'<a class="nav-link dropdown-toggle([^"]*)"[^>]*id="teamsNavDropdown"',
+            html,
+        )
+        assert teams_toggle and "active" not in teams_toggle.group(1)
 
     def test_blueprint_library_ships_client_pagination(self, client):
         from django.contrib.auth.models import User

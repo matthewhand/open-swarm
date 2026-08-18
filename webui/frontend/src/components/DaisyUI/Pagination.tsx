@@ -62,7 +62,7 @@ export const Pagination = ({
   const visiblePages = getVisiblePages();
 
   return (
-    <div className={`flex items-center justify-center gap-2 ${className}`}>
+    <nav aria-label="Pagination" className={`flex items-center justify-center gap-2 ${className}`}>
       {/* First page button */}
       <Button
         variant="outline"
@@ -91,10 +91,12 @@ export const Pagination = ({
       <div className={`join ${sizeClasses[size]}`}>
         {visiblePages.map((page) => (
           <button
+            type="button"
             key={page}
             className={`btn ${buttonSize[size]} ${currentPage === page ? 'btn-active' : ''}`}
             onClick={() => onPageChange(page)}
             aria-current={currentPage === page ? 'page' : undefined}
+            aria-label={`Page ${page}`}
           >
             {page}
           </button>
@@ -124,7 +126,7 @@ export const Pagination = ({
       >
         <ChevronsRight className="h-4 w-4" aria-hidden="true" />
       </Button>
-    </div>
+    </nav>
   );
 };
 
@@ -147,19 +149,20 @@ export const SimplePagination = ({
   };
 
   return (
-    <div className={`flex items-center justify-center gap-2 ${className}`}>
+    <nav aria-label="Pagination" className={`flex items-center justify-center gap-2 ${className}`}>
       <Button
         variant="outline"
         size={size}
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
         className={buttonSize[size]}
+        aria-label="Previous page"
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         Previous
       </Button>
 
-      <span className="px-4 py-2 text-sm">
+      <span className="px-4 py-2 text-sm" aria-live="polite">
         Page {currentPage} of {totalPages}
       </span>
 
@@ -169,11 +172,12 @@ export const SimplePagination = ({
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
         className={buttonSize[size]}
+        aria-label="Next page"
       >
         Next
-        <ChevronRight className="h-4 w-4" />
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Button>
-    </div>
+    </nav>
   );
 };
 
@@ -200,14 +204,17 @@ export const AdvancedPagination = ({
 
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
-      <div className="text-sm text-base-content/70">
-        Showing {(currentPage - 1) * itemsPerPage + 1} to 
+      <div className="text-sm text-base-content/70" aria-live="polite">
+        Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
         {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-base-content/70">Items per page:</span>
+        <label htmlFor="pagination-items-per-page" className="text-sm text-base-content/70">
+          Items per page:
+        </label>
         <select
+          id="pagination-items-per-page"
           className="select select-bordered select-sm"
           value={itemsPerPage}
           onChange={(e) => onItemsPerPageChange(Number(e.target.value))}

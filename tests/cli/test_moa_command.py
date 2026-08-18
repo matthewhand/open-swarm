@@ -652,3 +652,196 @@ def test_swarm_cli_moa_json_team_mode_text_fields(tmp_path: Path):
     assert data["panel_wrote"] is False
     assert data.get("backend") == "fake"
     assert data.get("workdir") == str(ws)
+
+
+def test_swarm_cli_moa_team_unusable_panel_exit_1(tmp_path: Path):
+    """--team exits 1 when the panel is unusable (all seats ok=False)."""
+    ws = tmp_path / "unusable_ws"
+    proc = _swarm_cli(
+        "moa",
+        "Should we proceed?",
+        "--backend",
+        "fake",
+        "--participants",
+        "analyst,critic",
+        # Responses that do not cover seat names → every opinion ok=False.
+        "--fake-responses",
+        "unrelated=not used by seats",
+        "--team",
+        "--workdir",
+        str(ws),
+        "--team-tasks",
+        "implementer:Apply",
+        "--json",
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 1, proc.stderr + proc.stdout
+    out = proc.stdout.strip()
+    start = out.find("{")
+    assert start >= 0, out
+    data = json.loads(out[start:])
+    assert data["mode"] == "consensus_then_team"
+    assert data["specialists"] == []
+    assert data["writes"] == []
+    opinions = (data.get("moa") or {}).get("opinions") or []
+    assert opinions and all(o.get("ok") is False for o in opinions)
+    assert not (ws / "decision.md").exists()
+    assert not (ws / "moa_determination.md").exists()
+
+
+def test_swarm_cli_moa_team_specialist_ok_false_exit_1(tmp_path: Path):
+    """--team exits 1 when a specialist returns ok=False (unknown purpose)."""
+    ws = tmp_path / "spec_fail_ws"
+    proc = _swarm_cli(
+        "moa",
+        "Ship carefully?",
+        "--backend",
+        "fake",
+        "--participants",
+        "analyst,critic",
+        "--fake-responses",
+        'analyst={"claim":"ship","confidence":0.9}||critic={"claim":"ship","confidence":0.85}',
+        "--team",
+        "--workdir",
+        str(ws),
+        "--team-tasks",
+        "implementer:Apply|wizard:Do magic",
+        "--json",
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 1, proc.stderr + proc.stdout
+    out = proc.stdout.strip()
+    start = out.find("{")
+    assert start >= 0, out
+    data = json.loads(out[start:])
+    assert data["mode"] == "consensus_then_team"
+    specs = {s["persona"]: s for s in data["specialists"]}
+    assert specs["implementer"]["ok"] is True
+    assert specs["wizard"]["ok"] is False
+    assert "decision.md" in data["writes"]
+    assert (ws / "decision.md").is_file()
+
+
+def test_swarm_cli_moa_team_preserves_existing_notes(tmp_path: Path):
+    """CLI seeds notes.txt only when missing; existing notes are not overwritten."""
+    ws = tmp_path / "notes_ws"
+    ws.mkdir(parents=True)
+    notes = ws / "notes.txt"
+    notes.write_text("KEEP ME — user context", encoding="utf-8")
+    proc = _swarm_cli(
+        "moa",
+        "This question text must not clobber notes.txt",
+        "--backend",
+        "fake",
+        "--participants",
+        "analyst,critic",
+        "--fake-responses",
+        'analyst={"claim":"ship","confidence":0.9}||critic={"claim":"ship","confidence":0.85}',
+        "--team",
+        "--workdir",
+        str(ws),
+        "--team-tasks",
+        "implementer:Apply",
+        "--json",
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert notes.read_text(encoding="utf-8") == "KEEP ME — user context"
+    # Implementer may embed notes; ensure preserved content is what was seeded.
+    decision = (ws / "decision.md").read_text(encoding="utf-8")
+    assert "KEEP ME" in decision
+    assert "must not clobber" not in notes.read_text(encoding="utf-8")
+
+
+def test_swarm_cli_moa_trace_creates_parent_dirs(tmp_path: Path):
+    """--trace creates missing parent directories (team and consensus paths)."""
+    ws = tmp_path / "trace_ws"
+    nested = tmp_path / "deep" / "nested" / "dir" / "team_trace.json"
+    assert not nested.parent.exists()
+    proc = _swarm_cli(
+        "moa",
+        "Ship?",
+        "--backend",
+        "fake",
+        "--participants",
+        "analyst,critic",
+        "--fake-responses",
+        'analyst={"claim":"ship","confidence":0.9}||critic={"claim":"ship","confidence":0.85}',
+        "--team",
+        "--workdir",
+        str(ws),
+        "--team-tasks",
+        "implementer:Apply",
+        "--json",
+        "--trace",
+        str(nested),
+        xdg_root=tmp_path / "xdg",
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert nested.is_file()
+    traced = json.loads(nested.read_text(encoding="utf-8"))
+    assert traced["mode"] == "consensus_then_team"
+    assert traced.get("trace_path") == str(nested)
+
+    consensus_trace = tmp_path / "other" / "deep" / "consensus_trace.json"
+    assert not consensus_trace.parent.exists()
+    proc2 = _swarm_cli(
+        "moa",
+        "Rate limit?",
+        "--backend",
+        "fake",
+        "--participants",
+        "alpha,beta",
+        "--fake-responses",
+        "alpha=Yes.||beta=Yes with metrics.",
+        "--json",
+        "--trace",
+        str(consensus_trace),
+        xdg_root=tmp_path / "xdg2",
+    )
+    assert proc2.returncode == 0, proc2.stderr + proc2.stdout
+    assert consensus_trace.is_file()
+    traced2 = json.loads(consensus_trace.read_text(encoding="utf-8"))
+    assert traced2["mode"] == "consensus_only"
+
+
+def test_configure_moa_verbose_logging_does_not_force_root():
+    """Verbose setup must not wipe root handlers (no basicConfig force=True)."""
+    import logging
+
+    from swarm.core.swarm_cli import configure_moa_verbose_logging
+
+    root = logging.getLogger()
+    moa_log = logging.getLogger("swarm.core.moa")
+    sentinel = logging.NullHandler()
+    root.addHandler(sentinel)
+    # Reset any prior verbose configuration from other tests.
+    prior_handlers = list(moa_log.handlers)
+    prior_propagate = moa_log.propagate
+    prior_marker = getattr(moa_log, "_swarm_moa_cli_verbose", False)
+    moa_log.handlers.clear()
+    setattr(moa_log, "_swarm_moa_cli_verbose", False)
+    moa_log.propagate = True
+    try:
+        configure_moa_verbose_logging()
+        configure_moa_verbose_logging()  # idempotent
+        assert sentinel in root.handlers
+        assert moa_log.level == logging.INFO
+        assert moa_log.propagate is False
+        assert getattr(moa_log, "_swarm_moa_cli_verbose") is True
+        assert sum(isinstance(h, logging.StreamHandler) for h in moa_log.handlers) == 1
+        # Source contract: moa command must not use basicConfig(force=True).
+        import inspect
+
+        from swarm.core import swarm_cli as swarm_cli_mod
+
+        src = inspect.getsource(swarm_cli_mod.moa)
+        assert "basicConfig" not in src
+        assert "force=True" not in src
+    finally:
+        root.removeHandler(sentinel)
+        moa_log.handlers.clear()
+        for h in prior_handlers:
+            moa_log.addHandler(h)
+        moa_log.propagate = prior_propagate
+        setattr(moa_log, "_swarm_moa_cli_verbose", prior_marker)

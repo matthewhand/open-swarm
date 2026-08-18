@@ -8,11 +8,11 @@ and every screenshot in [`docs/screenshots/`](./screenshots/) was captured from
 a live local server by [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py).
 Where a page shows demo, placeholder, or empty-state data, the caption says so.
 
-> Screenshots last regenerated **2026-07-21** with Playwright
+> Screenshots last regenerated **2026-08-18** with Playwright
 > (`scripts/capture_user_journey.py`) against a live local server. Captures
-> reflect that environment’s data (e.g. session explorer may show many
-> historical `/v1/responses` rows; empty states are called out in captions).
-> Terminal transcripts below were captured 2026-06-10 on `main`.
+> reflect that environment’s data (empty states and login-gated chat are
+> called out in captions). Terminal transcripts below were captured
+> 2026-06-10 on `main`.
 
 > **Documentation map:** [USERGUIDE.md](../USERGUIDE.md) is the `swarm-cli`
 > reference, this file is the end-to-end story,
@@ -146,8 +146,10 @@ template-rendered pages (teams, launcher, library, creator, settings):
 ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 ```
 
-> In production set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, and
-> `API_AUTH_TOKEN` instead of `DJANGO_DEBUG=true` — see
+> With `DJANGO_DEBUG=true` and no `API_AUTH_TOKEN`, API auth stays **off**
+> (server warns). Production is the opposite: leave `DJANGO_DEBUG` unset/false
+> and set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, and `API_AUTH_TOKEN`
+> (or `SWARM_ALLOW_NO_AUTH=true` if an external layer gates access) — see
 > [CONFIGURATION.md](../CONFIGURATION.md).
 
 ### Landing page — `/`
@@ -229,9 +231,23 @@ SPA chat websocket session — the chat consumer rejects anonymous connections.
 
 ### Session explorer — `/sessions/`
 
-See [GUIDED_TOUR.md](./GUIDED_TOUR.md) (`sessions.png`). Lists stateful
-`/v1/responses` sessions with a default limit of 50 newest (live poll keeps
-the same cap).
+![Session explorer: status chips, limit=50 banner, empty list](./screenshots/sessions.png)
+
+Status filter chips (All / Queued / In Progress / Completed / Failed /
+Cancelled / Incomplete), a “Showing 50 newest sessions (limit=50)” banner,
+and an empty list (“No sessions yet. Create one via POST /v1/responses”).
+Live poll keeps the same cap so the list does not balloon. See also
+[GUIDED_TOUR.md](./GUIDED_TOUR.md) and [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).
+
+### LLM profiles — `/profiles/`
+
+![LLM profiles table: provider, model, source, enabled](./screenshots/profiles.png)
+
+Detected LLM profiles from project and user config (openai, anthropic,
+google, ollama, lmstudio, openrouter, …) with Provider / Model / Base URL /
+Source / Enabled columns. Nested under **Settings → LLM profiles** in the
+primary nav (Settings dropdown active in this capture). Enable or disable
+providers under Settings → LLM Providers.
 
 ### Pages not captured as distinct products
 
@@ -244,7 +260,8 @@ the same cap).
 ## 4. Use it as an OpenAI-compatible API
 
 Everything in the web UI is also an API. List blueprints as *models*
-(output truncated; real capture from a local dev server):
+(output truncated; real capture from a local `DJANGO_DEBUG=true` server —
+no `API_AUTH_TOKEN`, so no Bearer header):
 
 ```text
 $ curl -s http://localhost:8000/v1/models | python -m json.tool
@@ -269,9 +286,17 @@ $ curl -s http://localhost:8000/v1/models | python -m json.tool
 ```
 
 Chat with a blueprint using any OpenAI client — the `model` field selects the
-blueprint. With `API_AUTH_TOKEN` set on the server, pass it as a bearer token:
+blueprint. Same open-auth local setup as above (no Bearer). When
+`API_AUTH_TOKEN` *is* set, `ENABLE_API_AUTH` turns on and every `/v1/*` call
+needs `Authorization: Bearer ${API_AUTH_TOKEN}` (missing/wrong → 403):
 
 ```bash
+# Local debug, no token configured (matches the /v1/models capture above):
+curl -s http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "suggestion", "messages": [{"role":"user","content":"Say hello"}]}'
+
+# When API_AUTH_TOKEN is set on the server:
 curl -s http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${API_AUTH_TOKEN}" \

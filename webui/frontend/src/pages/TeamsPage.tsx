@@ -162,22 +162,32 @@ const TeamsPage = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Users className="h-8 w-8" />
+            <Users className="h-8 w-8" aria-hidden="true" />
             Team Management
           </h1>
           <p className="text-gray-500 mt-1">Create and manage your AI teams (live from backend dynamic registry)</p>
         </div>
         <div className="flex gap-2 mt-4 lg:mt-0">
           <Button variant="primary" onClick={openCreate} disabled={actionLoading}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
             Create Team
           </Button>
           <Button variant="outline" onClick={loadTeams} disabled={loading}>
-            <Search className="h-4 w-4 mr-2" />
+            <Search className="h-4 w-4 mr-2" aria-hidden="true" />
             Refresh
           </Button>
         </div>
       </div>
+
+      <Alert type="info" role="status" className="mb-4">
+        <span className="text-sm">
+          Prefer the full operator UI at{' '}
+          <a className="link font-semibold" href="/teams/launch/">
+            /teams/launch/
+          </a>
+          . Bare <code>/teams</code> redirects there when served by Django.
+        </span>
+      </Alert>
 
       {error && (
         <Alert type="error" role="alert" className="mb-4">
@@ -194,11 +204,12 @@ const TeamsPage = () => {
       <Card bordered className="mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <label className="label">
+            <label htmlFor="teams-search" className="label">
               <span className="label-text">Search Teams</span>
             </label>
             <input
-              type="text"
+              id="teams-search"
+              type="search"
               placeholder="Search by name or description..."
               className="input input-bordered w-full"
               value={searchTerm}
@@ -206,10 +217,16 @@ const TeamsPage = () => {
             />
           </div>
           <div>
-            <label className="label">
+            <label htmlFor="teams-status-filter" className="label">
               <span className="label-text">Status Filter</span>
             </label>
-            <select className="select select-bordered w-full max-w-xs" onChange={() => { /* filter client-side for now */ }}>
+            <select
+              id="teams-status-filter"
+              className="select select-bordered w-full max-w-xs"
+              defaultValue=""
+              aria-label="Status Filter"
+              onChange={() => { /* filter client-side for now */ }}
+            >
               <option value="">All Statuses</option>
               <option value="active">Active</option>
               <option value="idle">Idle</option>
@@ -236,11 +253,24 @@ const TeamsPage = () => {
                     {team.status.charAt(0).toUpperCase() + team.status.slice(1)}
                   </Badge>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="btn-xs" title="Edit (demo)">
-                      <Edit className="h-3 w-3" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="btn-xs"
+                      title="Edit (demo)"
+                      aria-label={`Edit ${team.name}`}
+                    >
+                      <Edit className="h-3 w-3" aria-hidden="true" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="btn-xs" onClick={() => setTeamToDelete(team.id)} disabled={actionLoading}>
-                      <Trash2 className="h-3 w-3" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="btn-xs"
+                      onClick={() => setTeamToDelete(team.id)}
+                      disabled={actionLoading}
+                      aria-label={`Delete ${team.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -267,7 +297,7 @@ const TeamsPage = () => {
                     View Details
                   </Button>
                   <Button variant="primary" size="sm" onClick={() => handleLaunch(team)} disabled={actionLoading}>
-                    <Play className="h-4 w-4 mr-1" />
+                    <Play className="h-4 w-4 mr-1" aria-hidden="true" />
                     Launch
                   </Button>
                 </div>
@@ -281,14 +311,14 @@ const TeamsPage = () => {
       {!loading && filteredTeams.length === 0 && (
         <Card bordered className="text-center py-12" role="status">
           <div className="mb-4">
-            <Users className="h-16 w-16 mx-auto text-gray-400" />
+            <Users className="h-16 w-16 mx-auto text-gray-400" aria-hidden="true" />
           </div>
           <h3 className="text-xl font-semibold mb-2">No teams found</h3>
           <p className="text-gray-500 mb-4">
             {searchTerm ? 'No teams match your search criteria' : 'Create your first team to get started (persists via backend)'}
           </p>
           <Button variant="primary" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
             Create Team
           </Button>
         </Card>
@@ -306,25 +336,29 @@ const TeamsPage = () => {
 
         <div className="space-y-4">
           <div>
-            <label className="label">
+            <label htmlFor="create-team-name" className="label">
               <span className="label-text">Team Name *</span>
             </label>
             <input
+              id="create-team-name"
               type="text"
               placeholder="e.g., code-review"
               className="input input-bordered w-full"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
               disabled={actionLoading}
+              required
+              autoFocus
             />
             <div className="text-xs text-gray-400 mt-1">Becomes the model id (alphanumeric + dashes).</div>
           </div>
 
           <div>
-            <label className="label">
+            <label htmlFor="create-team-desc" className="label">
               <span className="label-text">Description</span>
             </label>
             <textarea
+              id="create-team-desc"
               placeholder="Describe the team's purpose..."
               className="textarea textarea-bordered w-full h-20"
               value={formDesc}
@@ -334,10 +368,11 @@ const TeamsPage = () => {
           </div>
 
           <div>
-            <label className="label">
+            <label htmlFor="create-team-llm" className="label">
               <span className="label-text">LLM Profile (optional)</span>
             </label>
             <input
+              id="create-team-llm"
               type="text"
               placeholder="default or e.g. ollama_local"
               className="input input-bordered w-full"

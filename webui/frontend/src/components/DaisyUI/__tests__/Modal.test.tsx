@@ -49,12 +49,47 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    const backdrop = screen.getByRole('button', { name: 'close' });
+    const backdrop = screen.getByRole('button', { name: 'Close modal' });
     expect(backdrop).toBeInTheDocument();
     expect(backdrop).toHaveClass('modal-backdrop');
     expect(backdrop).toHaveAttribute('tabIndex', '-1');
 
     backdrop.click();
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps FocusTrap mounted and toggles active with isOpen', () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <Modal isOpen={false} onClose={onClose} title="Trap Test">
+        <button type="button">Inside</button>
+      </Modal>
+    );
+
+    const dialog = screen.getByRole('dialog', { hidden: true });
+    expect(dialog).not.toHaveClass('modal-open');
+    expect(dialog).not.toHaveAttribute('aria-modal');
+
+    rerender(
+      <Modal isOpen={true} onClose={onClose} title="Trap Test">
+        <button type="button">Inside</button>
+      </Modal>
+    );
+
+    const openDialog = screen.getByRole('dialog', { hidden: true });
+    expect(openDialog).toHaveClass('modal-open');
+    expect(openDialog).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('exposes aria-label when title is omitted', () => {
+    render(
+      <Modal isOpen={true} onClose={() => {}} aria-label="Untitled dialog">
+        <p>Body</p>
+      </Modal>
+    );
+    expect(screen.getByRole('dialog', { hidden: true })).toHaveAttribute(
+      'aria-label',
+      'Untitled dialog'
+    );
   });
 });

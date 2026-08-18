@@ -56,14 +56,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     className
   ].filter(Boolean);
 
+  const { disabled: propsDisabled, ...rest } = props;
+  const isDisabled = Boolean(loading || propsDisabled);
+
   return (
     <button
       ref={ref}
       className={classes.join(' ')}
-      disabled={loading || props.disabled}
-      aria-disabled={loading || props.disabled}
-      aria-busy={loading}
-      {...props}
+      {...rest}
+      disabled={isDisabled}
+      aria-disabled={isDisabled}
+      aria-busy={Boolean(loading)}
     >
       {/* DaisyUI 5: the bare `loading` btn class no longer renders a spinner —
           an explicit loading-spinner span is required for visible feedback. */}

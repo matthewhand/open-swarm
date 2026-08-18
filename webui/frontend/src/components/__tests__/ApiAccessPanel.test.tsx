@@ -15,10 +15,10 @@ describe('buildSnippets', () => {
     expect(s.responses).toContain('"input":"ping"')
   })
 
-  it('uses a placeholder key when auth is disabled (no token)', () => {
+  it('uses a placeholder key when no token is stored yet', () => {
     const s = buildSnippets('http://host/v1', null, 'm')
-    expect(s.curl).toContain('Bearer not-needed')
-    expect(s.python).toContain('api_key="not-needed"')
+    expect(s.curl).toContain('Bearer YOUR_API_TOKEN')
+    expect(s.python).toContain('api_key="YOUR_API_TOKEN"')
   })
 })
 
@@ -32,7 +32,7 @@ describe('ApiAccessPanel', () => {
       />,
     )
     expect(screen.getByText('http://localhost:8000/v1')).toBeInTheDocument()
-    expect(screen.getByText(/any key works/i)).toBeInTheDocument()
+    expect(screen.getByText(/No token stored yet/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'cli_fusion' })).toBeInTheDocument()
     expect(screen.getAllByText('Copy').length).toBe(4)
   })

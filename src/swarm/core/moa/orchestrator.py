@@ -94,13 +94,13 @@ def default_synthesize(
     best_prop = ranked[0][1]
     # Map best claim back to a source opinion name (first match).
     primary_name = ok[0].name
-    for o, p in zip(ok, props):
+    for o, p in zip(ok, props, strict=False):
         if p is best_prop or p.claim == best_prop.claim:
             primary_name = o.name
             break
 
     digest_lines = []
-    for o, p in zip(ok, props):
+    for o, p in zip(ok, props, strict=False):
         label = p.claim[:500] if p.claim else o.text.strip()[:500]
         conf = f" conf={p.confidence}" if p.confidence is not None else ""
         struct = " [structured]" if p.structured else ""
@@ -108,7 +108,7 @@ def default_synthesize(
 
     score_map: dict[str, float] = {}
     for score, prop in ranked:
-        for o, p in zip(ok, props):
+        for o, p in zip(ok, props, strict=False):
             if p is prop or p.claim == prop.claim:
                 score_map.setdefault(o.name, score)
 

@@ -758,6 +758,17 @@ def _moa_panel_usable(moa_payload: dict[str, Any]) -> bool:
     )
 
 
+def team_cli_failed(result: MoATeamResult) -> bool:
+    """Return True when ``swarm-cli moa --team`` should exit non-zero.
+
+    Soft failures: unusable panel (ok_count=0 / no ok opinions) or any
+    specialist with ``ok=False``. Callers still print the payload, then exit 1.
+    """
+    if not _moa_panel_usable(result.moa_payload):
+        return True
+    return any(not s.ok for s in result.specialist_results)
+
+
 async def run_moa_then_team(
     workspace: str | Path,
     question: str,
@@ -785,8 +796,12 @@ async def run_moa_then_team(
     perm = _normalize_permission(permission)
     tools = WorkspaceTools(workspace)
     if seed_files:
+        # Seed = create-if-missing; never overwrite existing workspace context
+        # (e.g. a user-authored notes.txt under --workdir).
         for rel, content in seed_files.items():
-            tools.write_file(rel, content)
+            dest = tools._safe(rel)
+            if not dest.exists():
+                tools.write_file(rel, content)
         tools.writes.clear()
         tools.reads.clear()
 
@@ -911,6 +926,7 @@ __all__ = [
     "parse_team_tasks",
     "run_moa_consensus",
     "run_moa_then_team",
+    "team_cli_failed",
     "team_result_to_payload",
     "validate_team_payload",
 ]

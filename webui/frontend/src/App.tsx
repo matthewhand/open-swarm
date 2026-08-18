@@ -44,6 +44,7 @@ function App() {
                   type="button"
                   onClick={() => setDarkMode(!darkMode)}
                   className="btn btn-ghost btn-sm"
+                  aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
                 >
                   {darkMode ? 'Light' : 'Dark'}
                 </button>
@@ -55,7 +56,7 @@ function App() {
           </div>
         </nav>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/chat" element={<ChatPage />} />
@@ -66,7 +67,7 @@ function App() {
             {/* Unknown SPA paths: never show a blank shell (was a screenshot P0) */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </div>
+        </main>
 
         {/* Fixed horizontal bottom nav on small screens */}
         <nav
@@ -339,22 +340,37 @@ function Dashboard() {
 }
 
 function SettingsPage() {
-  // Bare /settings redirects to Django; this route remains only if linked in-app.
+  // Django RedirectView owns bare /settings in production. In SPA-only preview
+  // we surface an explicit continue CTA (autofocus) instead of a fake "Redirected" badge.
+  useEffect(() => {
+    const link = document.getElementById('settings-django-continue') as HTMLAnchorElement | null
+    link?.focus()
+  }, [])
+
   return (
     <div className="max-w-2xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-3xl font-bold">Settings</h1>
-        <Badge type="warning">Redirected</Badge>
+        <Badge type="warning">SPA stub</Badge>
       </div>
-      <Alert type="info">
+      <Alert type="info" role="status">
         <span className="text-sm">
-          Prefer the full settings dashboard at{' '}
-          <a className="link font-semibold" href="/settings/">
+          Full settings live on the Django operator UI. When this app is served behind Django,
+          bare <code>/settings</code> redirects to{' '}
+          <a id="settings-django-continue" className="link font-semibold" href="/settings/">
             /settings/
           </a>
           .
         </span>
       </Alert>
+      <Button
+        variant="primary"
+        onClick={() => {
+          window.location.assign('/settings/')
+        }}
+      >
+        Continue to /settings/
+      </Button>
       <Card title="Application Settings" bordered>
         <div className="space-y-4 text-sm">
           <div>

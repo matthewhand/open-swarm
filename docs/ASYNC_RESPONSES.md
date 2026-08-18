@@ -103,10 +103,10 @@ heavy multi-CLI fusion or coding task can be longer).
 - Stateful chaining across async tasks (`previous_response_id`).
 - Per-request `params` on `/v1/responses` (e.g. `preset`, `cli`).
 
-**Auth:** none by default (warns). Set `API_AUTH_TOKEN` to require a Bearer
-token; or, when an external layer (cloud OAuth proxy / API gateway) already gates
-access, set `SWARM_ALLOW_NO_AUTH=true` to run unauthenticated in production
-(DEBUG=false) with a warning instead of a hard refusal.
+**Auth:** production (`DEBUG=False`) requires `API_AUTH_TOKEN` (or multi-key
+aliases) unless `SWARM_ALLOW_NO_AUTH=true`. With debug and no token, the API is
+open and the process logs a serve-time warning — set a Bearer token before
+exposing the server on a network.
 
 **Still missing (next)**
 - **TLS** — plain HTTP today (front with a reverse proxy for HTTPS).

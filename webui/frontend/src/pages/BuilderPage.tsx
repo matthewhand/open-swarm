@@ -93,7 +93,7 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
       <div className="flex flex-wrap items-end gap-4">
         <label className="form-control">
           <span className="label-text text-xs">CLI / model</span>
-          <select className="select select-bordered select-sm" value={cli} aria-label="cli" onChange={(e) => setCli(e.target.value)}>
+          <select className="select select-bordered select-sm" value={cli} aria-label="CLI / model" onChange={(e) => setCli(e.target.value)}>
             {clis.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
@@ -115,7 +115,7 @@ function AgentConfigBuilder({ info }: { info: CliAgentsInfo | undefined }) {
         {showN && (
           <label className="form-control">
             <span className="label-text text-xs">N</span>
-            <input type="number" min={2} max={16} value={n} onChange={(e) => setN(Number(e.target.value))} className="input input-bordered input-sm w-20" aria-label="n" />
+            <input type="number" min={2} max={16} value={n} onChange={(e) => setN(Number(e.target.value))} className="input input-bordered input-sm w-20" aria-label="Consensus sample size N" />
           </label>
         )}
       </div>

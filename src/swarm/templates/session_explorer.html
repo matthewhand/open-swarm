@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% block title %}Sessions - Open Swarm{% endblock %}
 {% block content %}
 <style>
-  .se-wrap { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+  .se-wrap { max-width: 1100px; margin: 0 auto; }
   .se-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
-  .se-chips { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .se-chips { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
   /* colors reference the shared --os-* tokens (rest_mode_style.css); the
      .badge-status/.st-* status pills are also defined globally there, so they
      are NOT re-declared here (deduped). */
   .se-chip { font-size:.8rem; padding:.2rem .6rem; border-radius:999px; background:var(--os-border); color:var(--os-text); }
-  .se-card { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:1rem 1.15rem;
-             margin:.65rem 0; transition:border-color .15s, transform .05s; }
+  .se-card { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:.85rem 1rem;
+             margin:.5rem 0; transition:border-color .15s, transform .05s; }
   .se-card:hover { border-color:var(--os-accent); }
   .se-card a.se-id { color:var(--os-link); text-decoration:none; font-family:ui-monospace,monospace; font-size:.9rem; }
   .se-row { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
@@ -19,7 +20,7 @@
   .dot { width:.6rem; height:.6rem; border-radius:50%; display:inline-block; }
   .dot.completed { background:#22c55e; } .dot.failed { background:#ef4444; }
   .dot.in_progress { background:var(--os-accent); } .dot.queued { background:#64748b; }
-  .se-empty { color:var(--os-muted); text-align:center; padding:3rem 1rem; }
+  .se-empty { color:var(--os-muted); text-align:center; padding:2.5rem 1rem; }
   .se-list-scroll {
     max-height: min(70vh, 720px);
     overflow-y: auto;
@@ -45,15 +46,18 @@
      data-limit="{{ limit }}">
   <div class="se-head">
     <div>
-      <h2 style="margin:0;">🧭 Session Explorer</h2>
-      <div class="se-meta">Stateful <code>/v1/responses</code> sessions &middot; claude-orchestrated delegation timelines</div>
+      <h1 class="h3" style="margin:0;">Session Explorer</h1>
+      <div class="se-meta">Stateful <code>/v1/responses</code> sessions &middot; delegation timelines</div>
     </div>
-    <div class="se-chips">
+    <div class="se-chips" role="group" aria-label="Filter sessions by status">
       <span class="se-chip se-filter active" data-filter="" role="button" tabindex="0" aria-pressed="true"><strong id="se-total">{{ total }}</strong>&nbsp;sessions</span>
       {% for status, n in status_counts.items %}
-        <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}"></span>&nbsp;{{ status }}: <span class="se-status-n" data-status="{{ status }}">{{ n }}</span></span>
+        <span class="se-chip se-filter" data-filter="{{ status }}" role="button" tabindex="0" aria-pressed="false"><span class="dot {{ status }}" aria-hidden="true"></span>&nbsp;{{ status }}: <span class="se-status-n" data-status="{{ status }}">{{ n }}</span></span>
       {% endfor %}
-      <label class="se-chip" style="cursor:pointer;"><span class="se-live-dot" id="se-live-dot"></span><input type="checkbox" id="se-live" checked> live</label>
+      <label class="se-chip" for="se-live" style="cursor:pointer;">
+        <span class="se-live-dot" id="se-live-dot" aria-hidden="true"></span>
+        <input type="checkbox" id="se-live" checked> live
+      </label>
     </div>
   </div>
 
@@ -74,8 +78,9 @@
           <span class="se-meta">{{ s.model|default:'—' }}</span>
           {% if s.execution_ms %}<span class="se-meta">{{ s.execution_ms }} ms</span>{% endif %}
           {% if s.delegations %}
-            <span class="se-deleg se-meta">⛓
-              {% for d in s.delegations %}<span class="dot {{ d.status }}" title="{{ d.role }}: {{ d.status }}"></span>{% endfor %}
+            <span class="se-deleg se-meta" aria-label="{{ s.delegations|length }} delegation{{ s.delegations|length|pluralize }}">
+              <span aria-hidden="true">⛓</span>
+              {% for d in s.delegations %}<span class="dot {{ d.status }}" title="{{ d.role }}: {{ d.status }}" aria-hidden="true"></span>{% endfor %}
               {{ s.delegations|length }} delegation{{ s.delegations|length|pluralize }}
             </span>
           {% endif %}
@@ -83,9 +88,14 @@
         {% if s.output_preview %}<div class="se-preview">{{ s.output_preview }}</div>{% endif %}
       </div>
     {% empty %}
-      <div class="se-empty">No sessions yet. Make a <code>POST /v1/responses</code> request and they'll appear here.</div>
+      <div class="se-empty os-empty">
+        <div class="os-empty-icon" aria-hidden="true">🧭</div>
+        <div>No sessions yet.</div>
+        <div class="os-meta mt-1">Make a <code>POST /v1/responses</code> request and they'll appear here.</div>
+      </div>
     {% endfor %}
   </div>
+  <div id="se-filter-empty" class="se-empty" style="display:none;" role="status">No sessions match this filter.</div>
 </div>
 
 <script>
@@ -140,14 +150,22 @@
         + (s.execution_ms?'<span class="se-meta">'+s.execution_ms+' ms</span>':'')
         + deleg + '</div>'
         + (s.output_preview?'<div class="se-preview">'+esc(s.output_preview)+'</div>':'') + '</div>';
-    }).join('') : '<div class="se-empty">No sessions yet.</div>';
+    }).join('') : '<div class="se-empty os-empty"><div class="os-empty-icon" aria-hidden="true">🧭</div><div>No sessions yet.</div><div class="os-meta mt-1">Make a <code>POST /v1/responses</code> request and they\'ll appear here.</div></div>';
   }
   // --- status filtering (click a status chip) ---
   var currentFilter = "";
   function applyFilter(){
+    var visible = 0;
     document.querySelectorAll('#se-list .se-card').forEach(function(c){
-      c.style.display = (!currentFilter || c.getAttribute('data-status') === currentFilter) ? '' : 'none';
+      var show = (!currentFilter || c.getAttribute('data-status') === currentFilter);
+      c.style.display = show ? '' : 'none';
+      if(show) visible++;
     });
+    var filterEmpty = document.getElementById('se-filter-empty');
+    var hasCards = document.querySelectorAll('#se-list .se-card').length > 0;
+    if(filterEmpty){
+      filterEmpty.style.display = (hasCards && currentFilter && visible === 0) ? '' : 'none';
+    }
   }
   function selectFilter(chip){
     currentFilter = chip.getAttribute('data-filter') || "";

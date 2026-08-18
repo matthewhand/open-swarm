@@ -114,6 +114,18 @@ def test_capture_script_injects_redirect_banner_for_spa_stems():
     assert "urlparse" in src
 
 
+def test_user_journey_embeds_sessions_and_profiles_when_captured():
+    """If PAGES captures exist on disk, USER_JOURNEY must embed them (not link-only)."""
+    text = USER_JOURNEY.read_text()
+    embeds = _png_embeds(text)
+    for stem in ("sessions", "profiles"):
+        if (SCREENSHOTS_DIR / f"{stem}.png").is_file():
+            assert f"{stem}.png" in embeds, (
+                f"USER_JOURNEY.md must embed screenshots/{stem}.png when the "
+                "capture exists (do not leave a GUIDED_TOUR-only pointer)"
+            )
+
+
 def test_user_journey_launcher_caption_matches_hybrid_team_default():
     """teams-launch capture defaults to first option hybrid_team, not django_chat."""
     text = USER_JOURNEY.read_text()
@@ -125,5 +137,6 @@ def test_user_journey_launcher_caption_matches_hybrid_team_default():
 
 def test_user_journey_screenshot_date_is_current_regeneration():
     text = USER_JOURNEY.read_text()
-    assert "2026-07-21" in text
+    assert "2026-08-18" in text
     assert "2026-06-11 with a fresh development database" not in text
+    assert "2026-07-21" not in text

@@ -12,18 +12,6 @@ interface Blueprint {
   featured?: boolean;
 }
 
-interface ApiBlueprint {
-  id?: string | number;
-  name?: string;
-  description?: string;
-  desc?: string;
-  category?: string;
-  tag?: string;
-  version?: string;
-  installed?: boolean;
-  featured?: boolean;
-}
-
 export default function BlueprintsPage() {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -104,11 +92,21 @@ export default function BlueprintsPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-2 mb-2">
-          <Book className="h-8 w-8" />
+          <Book className="h-8 w-8" aria-hidden="true" />
           Blueprint Library
         </h1>
         <p className="text-gray-500">Browse and install AI blueprints for your projects (live data preferred)</p>
       </div>
+
+      <Alert type="info" role="status" className="mb-4">
+        <span className="text-sm">
+          Prefer the full library at{' '}
+          <a className="link font-semibold" href="/blueprint-library/">
+            /blueprint-library/
+          </a>
+          . Bare <code>/blueprints</code> redirects there when served by Django.
+        </span>
+      </Alert>
 
       {error && (
         <Alert type="warning" role="alert" className="mb-4">
@@ -123,9 +121,13 @@ export default function BlueprintsPage() {
 
       <div className="mb-4 flex gap-2">
         <div className="relative flex-1 max-w-xs">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+          <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" aria-hidden="true" />
+          <label htmlFor="blueprints-search" className="sr-only">
+            Search blueprints
+          </label>
           <input
-            type="text"
+            id="blueprints-search"
+            type="search"
             placeholder="Search blueprints..."
             className="input input-bordered pl-10 w-full"
             value={searchTerm}
@@ -141,7 +143,7 @@ export default function BlueprintsPage() {
       ) : filtered.length === 0 ? (
         <Card bordered className="text-center py-12" role="status">
           <div className="mb-4">
-            <ArchiveX className="h-16 w-16 mx-auto text-gray-400" />
+            <ArchiveX className="h-16 w-16 mx-auto text-gray-400" aria-hidden="true" />
           </div>
           <h3 className="text-xl font-semibold mb-2">No blueprints found</h3>
           <p className="text-gray-500 mb-4">
@@ -167,12 +169,12 @@ export default function BlueprintsPage() {
                 </div>
 
                 <div className="card-actions justify-end">
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4 mr-1" />
+                  <Button variant="outline" size="sm" aria-label={`Details for ${blueprint.name}`}>
+                    <Eye className="h-4 w-4 mr-1" aria-hidden="true" />
                     Details
                   </Button>
-                  <Button variant="primary" size="sm" onClick={() => handleLaunch(blueprint)}>
-                    <Play className="h-4 w-4 mr-1" />
+                  <Button variant="primary" size="sm" onClick={() => handleLaunch(blueprint)} aria-label={`Launch ${blueprint.name}`}>
+                    <Play className="h-4 w-4 mr-1" aria-hidden="true" />
                     Launch
                   </Button>
                 </div>

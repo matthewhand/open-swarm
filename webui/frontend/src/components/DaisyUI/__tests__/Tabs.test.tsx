@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { Tabs } from '../Tabs';
+import { Tabs, VerticalTabs } from '../Tabs';
 
 describe('Tabs Keyboard Navigation', () => {
   const tabs = [
@@ -35,6 +35,32 @@ describe('Tabs Keyboard Navigation', () => {
     expect(onChange).toHaveBeenCalledWith('tab1');
 
     fireEvent.keyDown(secondTab, { key: 'End' });
+    expect(onChange).toHaveBeenCalledWith('tab4');
+  });
+});
+
+describe('VerticalTabs Keyboard Navigation', () => {
+  const tabs = [
+    { key: 'tab1', label: 'Tab 1', content: <p>One</p> },
+    { key: 'tab2', label: 'Tab 2', content: <p>Two</p> },
+    { key: 'tab3', label: 'Tab 3', content: <p>Three</p>, disabled: true },
+    { key: 'tab4', label: 'Tab 4', content: <p>Four</p> },
+  ];
+
+  it('exposes a vertical tablist and moves with ArrowDown, skipping disabled', () => {
+    const onChange = vi.fn();
+    render(<VerticalTabs tabs={tabs} activeTab="tab1" onChange={onChange} />);
+
+    expect(screen.getByRole('tablist')).toHaveAttribute('aria-orientation', 'vertical');
+
+    const firstTab = screen.getByRole('tab', { name: 'Tab 1' });
+    fireEvent.keyDown(firstTab, { key: 'ArrowDown' });
+    expect(onChange).toHaveBeenCalledWith('tab2');
+
+    render(<VerticalTabs tabs={tabs} activeTab="tab2" onChange={onChange} />);
+    const secondTabs = screen.getAllByRole('tab', { name: 'Tab 2' });
+    const secondTab = secondTabs[secondTabs.length - 1];
+    fireEvent.keyDown(secondTab, { key: 'ArrowDown' });
     expect(onChange).toHaveBeenCalledWith('tab4');
   });
 });

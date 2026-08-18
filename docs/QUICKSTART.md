@@ -70,21 +70,24 @@ If you want to expose blueprints over an OpenAI-compatible REST API:
 1) Prepare environment
 ```bash
 cp .env.example .env
-# Ensure OPENAI_API_KEY (and optional SWARM_API_KEY) are set in .env
+# Set OPENAI_API_KEY. Compose defaults DJANGO_DEBUG=false, so also set
+# API_AUTH_TOKEN (or SWARM_API_KEY), DJANGO_SECRET_KEY, and DJANGO_ALLOWED_HOSTS
+# or the container will refuse to start — see .env.example.
 ```
 
-2) Start the API (set `API_AUTH_TOKEN` and `DJANGO_SECRET_KEY` in `.env` for
-production-like boots; see `.env.example`)
+2) Start the API
 ```bash
 docker compose up -d
 # wait for the healthcheck to pass (or tail the logs)
 # docker compose logs -f swarm
 ```
 
-3) Smoke-check the API
+3) Smoke-check the API (Bearer required whenever `API_AUTH_TOKEN` is set —
+`ENABLE_API_AUTH` is derived from the token, not a separate switch)
 ```bash
 # Models
-curl -sf http://localhost:8000/v1/models | jq .
+curl -sf http://localhost:8000/v1/models \
+  -H "Authorization: Bearer ${API_AUTH_TOKEN}" | jq .
 
 # Chat (non-streaming) — use a bundled model id from /v1/models
 curl -sf http://localhost:8000/v1/chat/completions \
@@ -99,7 +102,10 @@ curl -sf http://localhost:8000/v1/chat/completions \
 Notes:
 - docker-compose healthcheck probes `/health` (service name: `swarm`)
 - PORT defaults to 8000
-- Auth is **on** by default; set `SWARM_ALLOW_NO_AUTH=true` only for local demos
+- Auth is **not** “on by default”: it is on only when a token is configured.
+  With compose’s `DJANGO_DEBUG=false`, a missing token refuses boot unless you
+  set `SWARM_ALLOW_NO_AUTH=true` (local/demo / external-gateway opt-out only).
+  Local `DJANGO_DEBUG=true` with no token leaves the API open (warns).
 
 ---
 

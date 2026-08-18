@@ -272,6 +272,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_UVICORN_WORKERS` | uvicorn worker count. Prefer **1** — inflight limits are process-local; cancel is filesystem-shared when workers share `SWARM_RESPONSES_DIR`. | `1` |
 | `SWARM_ENFORCE_SINGLE_WORKER` | When true (default), refuse `SWARM_UVICORN_WORKERS` &gt; 1 at app startup. | `true` |
 | `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` | When true, scan user blueprint dirs (exec_module). Default off so creator saves are write-only. | `false` |
+| `SWARM_USER_BLUEPRINT_SANDBOX` | AST safety gate before `exec_module` for user/community blueprint roots (and creator save validation). Set `false` only to opt out. | `true` |
 
 ### Feature flags
 

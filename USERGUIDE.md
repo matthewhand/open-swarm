@@ -39,10 +39,10 @@ swarm-cli list
 | `uninstall <name>` | Remove a compiled blueprint executable from the user bin directory |
 | `add` / `delete` | Add or remove a blueprint from the user blueprint library |
 | `config` | Manage LLM profiles and MCP servers (`list` \| `add` \| `remove`) |
-| `cli-agents` / `agents` | Autodiscover installed agentic CLIs (`--check-auth`, `--init`, `--smoke`, …) |
+| `cli-agents` / `agents` | Autodiscover configured agentic CLIs (`--check-auth`, `--init`, `--smoke`, `--suggest`, …) |
 | `skills` | List reusable `SKILL.md` capabilities (apply via `cli_agent` `skill=` param) |
 | `wizard` | Scaffold a new team blueprint (supports `--non-interactive`) |
-| `moa` | Mixture of Agents CLI (`--backend fake\|grok\|acpx`; optional `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for consensus→team — no openai-agents) |
+| `moa` | Mixture of Agents (`--backend fake\|grok\|acpx`; `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for scripted consensus→team — not a live Runner) |
 | `moa-init` | Install/merge default `moa` panel config/presets (`--write`, `--show-openwebui`; team mode is CLI/model-path, not a preset key) |
 
 Run `swarm-cli --help` or `swarm-cli <command> --help` for the authoritative
@@ -271,6 +271,137 @@ See [CONFIGURATION.md](./CONFIGURATION.md) for the full configuration guide
 
 ---
 
+## Discovering CLI Agents (`swarm-cli cli-agents`)
+
+Autodiscover which agentic CLIs from your `cli_agents` config are installed on
+this host (and optionally authenticated). Alias: `swarm-cli agents`.
+
+```bash
+swarm-cli cli-agents                     # install status (fast)
+swarm-cli cli-agents --check-auth        # also run each CLI's auth_check
+swarm-cli cli-agents --suggest           # propose config for installed-but-unconfigured CLIs
+swarm-cli cli-agents --smoke             # one trivial one-shot per installed CLI (uses quota)
+swarm-cli cli-agents --json              # machine-readable (combine with the flags above)
+swarm-cli cli-agents --config ./swarm_config.json
+
+# Generate a starter swarm_config wiring cli_agents + fusion/orchestrator/map
+# over CLIs found on this host (claude/gemini/codex/opencode catalog):
+swarm-cli cli-agents --init              # print JSON to stdout
+swarm-cli cli-agents --init --write      # write to XDG config (backs up existing)
+```
+
+`--smoke` invokes each CLI's model once; prefer `--check-auth` for a cheap
+login probe. Full adapter schema and fusion modes:
+[docs/CLI_FUSION.md](./docs/CLI_FUSION.md).
+
+---
+
+## Skills (`swarm-cli skills`)
+
+List reusable `SKILL.md` capabilities under the project's `skills/` directory
+(or `--dir`). Applying a skill is not a separate CLI write path — pass
+`skill=<name>` on the `cli_agent` model (API / Open WebUI params).
+
+```bash
+swarm-cli skills                         # name, asset count, description
+swarm-cli skills --show counting-lines   # full SKILL.md instructions
+swarm-cli skills --json
+swarm-cli skills --dir /path/to/skills
+```
+
+Bundled examples: `conventional-commit`, `reviewing-code`, `writing-changelog`,
+`counting-lines`. Details and screenshots:
+[docs/CLI_FUSION.md](./docs/CLI_FUSION.md#skills--reusable-capabilities-portable-across-clis),
+[docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md).
+
+---
+
+## Mixture of Agents (`swarm-cli moa`)
+
+Read-only multi-seat opinions → orchestrator determination. **Participants
+never write.** After consensus you choose one of:
+
+| Mode | Flags | What runs |
+| --- | --- | --- |
+| Consensus only | (default) | Determination; optional `--cwd` for panel read context |
+| Orchestrator write | `--act` / `--act-write` | Single orchestrator-owned write |
+| Consensus → team | `--team --workdir` (+ optional `--team-tasks`) | **Scripted** specialists (`WorkspaceTools`) under `--workdir` — **not** a live openai-agents `Runner` |
+
+`--team` and `--act` are mutually exclusive. `--workdir` is only valid with
+`--team` (specialist write workspace; created if missing). `--cwd` is panel
+read context only and is **not** a substitute for `--workdir`.
+
+```bash
+# Demo / CI — default backend is fake
+swarm-cli moa "How should we rate-limit the API?" --json
+
+# Explicit fake multi-seat
+swarm-cli moa "Pick a cache" --backend fake --participants a,b \
+  --fake-responses 'a=Use redis.||b=Use redis with TTL.'
+
+# Live Grok consensus (local grok CLI; Codex not required)
+swarm-cli moa "Summarize risks in auth/" --backend grok \
+  --participants analyst,critic --cwd .
+
+# Optional acpx multi-vendor panel
+swarm-cli moa "Review the design" --backend acpx \
+  --participants claude,gemini --cwd .
+
+# Orchestrator-only write after determination
+swarm-cli moa "Document the decision" --backend fake --act \
+  --act-write ./moa_decision.md
+
+# Consensus then scripted team (no openai-agents)
+swarm-cli moa "Ship rate limiting?" --backend fake --team \
+  --workdir /tmp/moa-team \
+  --team-tasks 'implementer:Apply|tester:Verify|docs:ADR' \
+  --json -v
+```
+
+`--team-tasks` is pipe-separated `purpose[:instruction][@rel/path]`. Purposes:
+`implementer`, `tester`, `docs`, `researcher`. Default tasks (when you omit a
+custom string) are implementer + tester + docs; default paths are `decision.md`,
+`test_notes.md`, `docs/ADR.md`, `research_notes.md`. Participant `--permission`
+is `approve-reads` or `deny-all` only (never `approve-all`).
+
+Without `--team`, `--json` reports `mode=consensus_only`. With `--team`,
+`mode=consensus_then_team`. Exit codes: `0` success; `1` runtime failure;
+`2` usage/validation; `5` write denied.
+
+Full model, backends, Python API, and honesty notes:
+[docs/MOA.md](./docs/MOA.md). Walkthroughs with captured runs:
+[docs/examples/moa-consensus-vs-team/](./docs/examples/moa-consensus-vs-team/),
+[docs/examples/moa-orchestrator/](./docs/examples/moa-orchestrator/).
+
+### MoA config init (`swarm-cli moa-init`)
+
+Install or merge the default `moa` panel block (backend, participants, named
+presets). **Presets are panel-only** (`backend` / `participants` /
+`fake_responses`) — team mode is **not** a preset key; use
+`swarm-cli moa --team --workdir …` or API models `hybrid_moa` /
+`moa_orchestrator`.
+
+```bash
+swarm-cli moa-init                       # dry-run print default moa block
+swarm-cli moa-init --write               # merge into XDG / discovered config
+swarm-cli moa-init --config ./swarm_config.json --write
+swarm-cli moa-init --write --overwrite   # replace existing moa block entirely
+swarm-cli moa-init --backend fake -p analyst,critic   # dry-run with overrides
+swarm-cli moa-init --show-openwebui      # Open WebUI connection JSON; exit
+```
+
+Example config: [docs/examples/moa.swarm_config.json](./docs/examples/moa.swarm_config.json).
+Open WebUI wiring: [docs/OPENWEBUI_MOA.md](./docs/OPENWEBUI_MOA.md).
+
+**Web UI:** this guide stays CLI-first (no PNG embeds). For the Django
+operator shell screenshot tour see
+[docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) and
+[docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md); for MoA over Open WebUI see
+[docs/OPENWEBUI_MOA.md](./docs/OPENWEBUI_MOA.md); skills screenshots live in
+[docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md).
+
+---
+
 ## Troubleshooting
 
 *   **Command Not Found (`swarm-cli` or installed blueprint):**
@@ -292,3 +423,10 @@ See [CONFIGURATION.md](./CONFIGURATION.md) for the full configuration guide
 *   **Permissions:** ensure you have read/write permission for the XDG
     directories (`~/.config/swarm`, `~/.local/share/swarm`,
     `~/.cache/swarm`).
+*   **`swarm-cli moa` usage errors (exit 2):** `--team` requires
+    `--workdir`; `--workdir` without `--team` is rejected; `--team` and
+    `--act` cannot be combined. Use `--cwd` only for panel read context.
+*   **CLI agents missing / unauthenticated:** run
+    `swarm-cli cli-agents --check-auth` (or `--init --write` for a starter
+    config). Each CLI authenticates itself; Open Swarm does not proxy their
+    credentials. See [docs/CLI_FUSION.md](./docs/CLI_FUSION.md).

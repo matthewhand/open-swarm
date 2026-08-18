@@ -797,6 +797,33 @@ async def test_soft_panel_failure_skips_specialists_and_determination(tmp_path: 
 
 
 @pytest.mark.asyncio
+async def test_seed_files_only_write_if_missing(tmp_path: Path):
+    """seed_files must not overwrite an existing notes.txt (create-if-missing)."""
+    ws = tmp_path / "seed_preserve"
+    ws.mkdir(parents=True)
+    notes = ws / "notes.txt"
+    notes.write_text("KEEP EXISTING NOTES", encoding="utf-8")
+    result = await run_moa_then_team(
+        ws,
+        "Should we overwrite notes?",
+        specialist_tasks=[TeamTask("implementer", "apply", "decision.md")],
+        seed_files={"notes.txt": "SEED SHOULD NOT WIN"},
+        moa_backend="fake",
+        moa_participants=["analyst", "critic"],
+        moa_fake_responses={
+            "analyst": '{"claim":"keep notes","confidence":0.9}',
+            "critic": '{"claim":"keep notes","confidence":0.85}',
+        },
+    )
+    assert result.mode == "consensus_then_team"
+    assert notes.read_text(encoding="utf-8") == "KEEP EXISTING NOTES"
+    assert "notes.txt" not in result.writes
+    body = (ws / "decision.md").read_text(encoding="utf-8")
+    assert "KEEP EXISTING NOTES" in body
+    assert "SEED SHOULD NOT WIN" not in notes.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
 async def test_team_result_to_payload_and_format_consensus_only():
     result = await run_moa_consensus(
         "Rate limit?",

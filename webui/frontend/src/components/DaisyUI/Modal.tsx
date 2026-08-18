@@ -12,6 +12,7 @@ export interface ModalProps {
   title?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  'aria-label'?: string;
 }
 
 export const Modal = ({
@@ -21,6 +22,7 @@ export const Modal = ({
   title,
   size = 'md',
   className = '',
+  'aria-label': ariaLabel,
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -85,43 +87,48 @@ export const Modal = ({
     xl: 'max-w-xl',
   };
 
-  const dialogContent = (
-    <dialog
-      ref={dialogRef}
-      className={`modal ${isOpen ? 'modal-open' : ''}`}
-      onClick={handleBackdropClick}
-      aria-labelledby={title ? titleId : undefined}
-      aria-modal="true"
+  // Keep FocusTrap mounted and toggle `active` so DaisyUI open/close
+  // transitions are not interrupted by remounting the dialog tree.
+  return (
+    <FocusTrap
+      active={isOpen}
+      focusTrapOptions={{
+        allowOutsideClick: true,
+        escapeDeactivates: false,
+        fallbackFocus: () => dialogRef.current || document.body,
+      }}
     >
-      <div 
-        className={`modal-box ${sizeClasses[size]} ${className}`}
-        onClick={(e) => e.stopPropagation()} // Prevent clicks inside from closing
-      >
-        {title && (
-          <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
-        )}
-        <div className="modal-content">
-          {children}
-        </div>
-      </div>
-      <button
-        type="button"
-        className="modal-backdrop"
-        onClick={onClose}
-        aria-label="close"
+      <dialog
+        ref={dialogRef}
+        className={`modal ${isOpen ? 'modal-open' : ''}`}
+        onClick={handleBackdropClick}
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={!title ? (ariaLabel || 'Dialog') : undefined}
+        aria-modal={isOpen ? true : undefined}
         tabIndex={-1}
       >
-        close
-      </button>
-    </dialog>
-  );
-
-  return isOpen ? (
-    <FocusTrap focusTrapOptions={{ fallbackFocus: () => dialogRef.current || document.body }}>
-      {dialogContent}
+        <div
+          className={`modal-box ${sizeClasses[size]} ${className}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {title && (
+            <h3 id={titleId} className="font-bold text-lg mb-4">{title}</h3>
+          )}
+          <div className="modal-content">
+            {children}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="modal-backdrop"
+          onClick={onClose}
+          aria-label="Close modal"
+          tabIndex={-1}
+        >
+          close
+        </button>
+      </dialog>
     </FocusTrap>
-  ) : (
-    dialogContent
   );
 };
 
@@ -152,10 +159,10 @@ export const ConfirmModal = ({
         {children}
       </div>
       <div className="modal-action flex gap-2">
-        <button className="btn btn-outline" onClick={onClose}>
+        <button type="button" className="btn btn-outline" onClick={onClose}>
           {cancelText}
         </button>
-        <button className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
+        <button type="button" className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
           {confirmText}
         </button>
       </div>

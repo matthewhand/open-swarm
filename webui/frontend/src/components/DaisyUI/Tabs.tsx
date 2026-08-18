@@ -108,7 +108,7 @@ export const Tabs = ({
             onKeyDown={(e) => handleKeyDown(e, index)}
             disabled={tab.disabled}
           >
-            {tab.icon && <span className="mr-2">{tab.icon}</span>}
+            {tab.icon && <span className="mr-2" aria-hidden="true">{tab.icon}</span>}
             {tab.label}
           </button>
         );
@@ -317,20 +317,72 @@ export const VerticalTabs = ({
   onChange,
   className = '',
 }: Omit<TabsProps, 'tabs'> & { tabs: ContentTab[] }) => {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let newIndex = index;
+    let step = 0;
+
+    if (e.key === 'ArrowDown') {
+      newIndex = index + 1 >= tabs.length ? 0 : index + 1;
+      step = 1;
+    } else if (e.key === 'ArrowUp') {
+      newIndex = index - 1 < 0 ? tabs.length - 1 : index - 1;
+      step = -1;
+    } else if (e.key === 'Home') {
+      newIndex = 0;
+      step = 1;
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1;
+      step = -1;
+    }
+
+    if (step !== 0 && newIndex !== index) {
+      e.preventDefault();
+      let count = 0;
+      while (tabs[newIndex].disabled && count < tabs.length) {
+        newIndex = step === 1
+          ? (newIndex + 1 >= tabs.length ? 0 : newIndex + 1)
+          : (newIndex - 1 < 0 ? tabs.length - 1 : newIndex - 1);
+        count++;
+      }
+
+      if (!tabs[newIndex].disabled) {
+        onChange(tabs[newIndex].key);
+        tabRefs.current[newIndex]?.focus();
+      }
+    }
+  };
+
   return (
     <div className={`flex gap-4 ${className}`}>
-      <div className="flex flex-col gap-1 min-w-[120px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={`btn btn-sm ${activeTab === tab.key ? 'btn-active' : ''} ${tab.disabled ? 'btn-disabled' : ''}`}
-            onClick={() => !tab.disabled && onChange(tab.key)}
-            disabled={tab.disabled}
-          >
-            {tab.icon && <span className="mr-2">{tab.icon}</span>}
-            {tab.label}
-          </button>
-        ))}
+      <div
+        className="flex flex-col gap-1 min-w-[120px]"
+        role="tablist"
+        aria-orientation="vertical"
+      >
+        {tabs.map((tab, index) => {
+          const isSelected = activeTab === tab.key;
+          return (
+            <button
+              ref={(el) => { tabRefs.current[index] = el; }}
+              id={`tab-${tab.key}`}
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-controls={`panel-${tab.key}`}
+              tabIndex={isSelected ? 0 : -1}
+              className={`btn btn-sm ${isSelected ? 'btn-active' : ''} ${tab.disabled ? 'btn-disabled' : ''}`}
+              onClick={() => !tab.disabled && onChange(tab.key)}
+              onKeyDown={(e) => handleKeyDown(e, index)}
+              disabled={tab.disabled}
+            >
+              {tab.icon && <span className="mr-2" aria-hidden="true">{tab.icon}</span>}
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
       <div className="flex-1">
         {tabs.map((tab) => (

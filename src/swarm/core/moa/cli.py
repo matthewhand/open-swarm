@@ -193,9 +193,12 @@ async def run_moa_cli(
         "panel_wrote": False,
     }
     if trace_path:
-        with open(trace_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+        from pathlib import Path
+
         payload["trace_path"] = trace_path
+        out = Path(trace_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
 
 

@@ -212,14 +212,12 @@ cli-agents --init/--check-auth/--suggest` flow, the OpenAPI-served REST surface,
 USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
 
 ### 4.1 Security (do first)
-- [ ] **XSS / secret leak:** `templates/settings_dashboard.html:567`
-  `let settingsData = {{ settings_groups|safe }}` injects server settings
-  (incl. values flagged `sensitive`) unescaped into a `<script>`. Use
-  `json_script` + server-side redaction.
-- [ ] **Unauthed web save + unsandboxed exec:** `views/agent_creator_views.py`
-  `save_custom_agent`/`save_team_swarm` are POST-only (no `login_required`); the
-  generated blueprints (which can carry `execute_shell_command`/`write_file`)
-  are `exec_module`'d by discovery unsandboxed.
+- [x] **XSS / secret leak:** settings dashboard now uses `json_script` +
+  `redact_settings_groups` (`settings_dashboard.html`, `settings_views.py`).
+- [x] **Unauthed web save + unsandboxed exec:** creator saves are
+  `@login_required`; AST sandbox + banned-snippet gate
+  (`blueprint_sandbox.py`, `agent_creator_views.py`); user discovery opt-in
+  via `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` (default off).
 
 ### 4.2 Broken-but-shipped (erodes trust)
 - [ ] **`django_chat` is a stub** — `blueprints/django_chat/blueprint_django_chat.py:200-221`

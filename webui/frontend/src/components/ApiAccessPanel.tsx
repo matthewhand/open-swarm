@@ -3,7 +3,7 @@ import { useState } from 'react'
 export interface ApiAccessPanelProps {
   /** OpenAI-compatible base URL, e.g. `http://localhost:8000/v1`. */
   baseUrl: string
-  /** Bearer token, or null when the server runs with auth disabled. */
+  /** Bearer token stored in the browser, or null when none is set yet. */
   token: string | null
   /** Available model ids (blueprints) from `/v1/models`. */
   models: string[]
@@ -18,7 +18,7 @@ export interface Snippets {
 
 /** Ready-to-paste client snippets, pre-filled with the live base URL + model. */
 export function buildSnippets(baseUrl: string, token: string | null, model: string): Snippets {
-  const key = token && token.length > 0 ? token : 'not-needed'
+  const key = token && token.length > 0 ? token : 'YOUR_API_TOKEN'
   return {
     curl: [
       `curl -sf ${baseUrl}/chat/completions \\`,
@@ -96,7 +96,9 @@ export function ApiAccessPanel({ baseUrl, token, models }: ApiAccessPanelProps) 
       <p className="text-sm text-base-content/70">
         Point any OpenAI-compatible client at this server. The <code>model</code> field selects the
         blueprint (e.g. <code>cli_fusion</code>).{' '}
-        {token ? 'Use your API token as the key.' : 'Auth is disabled — any key works.'}
+        {token
+          ? 'Use your API token as the key.'
+          : 'No token stored yet — paste one under API Authentication if the server requires Bearer auth.'}
       </p>
 
       <div className="grid gap-2 sm:grid-cols-2 mt-3 text-sm">
@@ -105,7 +107,7 @@ export function ApiAccessPanel({ baseUrl, token, models }: ApiAccessPanelProps) 
         </div>
         <div>
           <span className="font-semibold">API key:</span>{' '}
-          <code>{token ? `…${token.slice(-4)}` : 'any (auth disabled)'}</code>
+          <code>{token ? `…${token.slice(-4)}` : 'not set (paste if required)'}</code>
         </div>
       </div>
 

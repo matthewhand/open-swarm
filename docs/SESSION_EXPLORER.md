@@ -9,7 +9,7 @@ Open it at **`/sessions/`**.
 
 ## Session list
 
-![Session Explorer — list view](screenshots/session-explorer-list.png)
+![Session Explorer — list view](screenshots/sessions.png)
 
 1. **Live status summary + auto-refresh toggle** — a running count of sessions by
    status (`completed` / `in_progress` / `failed` / …). The **`live`** checkbox
@@ -25,7 +25,7 @@ Sessions are listed newest-first.
 
 ## Session detail + delegation timeline
 
-![Session Explorer — detail view](screenshots/session-explorer-detail.png)
+![Session Explorer — detail view (archived capture)](screenshots/archive/session-explorer-detail.png)
 
 1. **Inter-agent communication graph** — a hub-and-spoke view of the run: the
    central `claude -p` **orchestration brain** with an edge to each delegated
@@ -54,6 +54,8 @@ so the timeline fills in live while a session is still running.
 | `GET /sessions/<response_id>/` | session detail + delegation timeline |
 | `GET /api/sessions/` | JSON feed (used by the live refresh) |
 
-> Screenshots above are captured headlessly via Playwright against an isolated
-> instance seeded with sample sessions (`docs/screenshots/`), so the guide stays
-> in sync with the real UI.
+> List view uses the current `sessions.png` capture from
+> [`scripts/capture_user_journey.py`](../scripts/capture_user_journey.py).
+> The detail/delegation graph still relies on an archived still under
+> `docs/screenshots/archive/` until a dedicated detail stem is added to the
+> capture script — do not treat that archive image as a live empty-db capture.

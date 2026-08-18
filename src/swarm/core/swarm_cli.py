@@ -35,6 +35,40 @@ except Exception:
 app = typer.Typer(help="Swarm CLI tool", add_completion=False)
 
 
+def configure_moa_verbose_logging() -> None:
+    """Enable INFO on ``swarm.core.moa`` without touching the root logger.
+
+    ``logging.basicConfig(..., force=True)`` would wipe handlers already
+    attached to root (unsafe when swarm-cli is embedded or tests configure
+    logging). Attach a dedicated stderr handler once instead.
+    """
+    import logging
+    import sys
+
+    log = logging.getLogger("swarm.core.moa")
+    log.setLevel(logging.INFO)
+    marker = "_swarm_moa_cli_verbose"
+    if getattr(log, marker, False):
+        return
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(
+        logging.Formatter("%(levelname)s %(name)s | %(message)s")
+    )
+    log.addHandler(handler)
+    log.propagate = False
+    setattr(log, marker, True)
+
+
+def write_moa_trace(path: str | Path, data: dict) -> None:
+    """Persist MoA telemetry JSON, creating parent directories as needed."""
+    import json
+
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
 def find_entry_point(blueprint_dir: Path) -> str | None:
     """Find entry point with deterministic priority for CLI compatibility.
     Prefers {name}_cli.py, then {name}.py, then blueprint_{name}.py.
@@ -328,21 +362,17 @@ def moa(
     ``--cwd`` is panel read context; ``--workdir`` is the team write workspace
     (not interchangeable). Primary product name is MoA (not fusion/ensemble).
 
-    Exit codes: 0 success; 1 runtime failure; 2 usage/validation; 5 write denied.
+    Exit codes: 0 success; 1 runtime / soft team failure (unusable panel or
+    specialist ``ok=False``); 2 usage/validation; 5 write denied.
     """
     import asyncio
-    import logging
+    import json
 
     from swarm.core.moa.cli import format_moa_text, parse_fake_responses, run_moa_cli
     from swarm.core.moa.policy import WriteDeniedError
 
     if verbose:
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(levelname)s %(name)s | %(message)s",
-            force=True,
-        )
-        logging.getLogger("swarm.core.moa").setLevel(logging.INFO)
+        configure_moa_verbose_logging()
 
     from swarm.core.moa.policy import assert_participant_name
 
@@ -390,6 +420,9 @@ def moa(
         )
         raise typer.Exit(code=2)
 
+    # Soft --team failures still print payload, then exit 1.
+    team_exit_code = 0
+
     try:
         fakes = parse_fake_responses(fake_responses) if fake_responses else None
         if backend == "fake" and not fakes:
@@ -408,6 +441,7 @@ def moa(
             from swarm.core.moa.team import (
                 parse_team_tasks,
                 run_moa_then_team,
+                team_cli_failed,
                 team_result_to_payload,
             )
 
@@ -420,12 +454,17 @@ def moa(
                     err=True,
                 )
                 raise typer.Exit(code=2)
+            # Seed notes.txt from the question only when absent (do not clobber).
+            seed_files: dict[str, str] | None = None
+            notes_path = Path(workdir) / "notes.txt"
+            if not notes_path.is_file():
+                seed_files = {"notes.txt": question[:2000]}
             result = asyncio.run(
                 run_moa_then_team(
                     workdir,
                     question,
                     specialist_tasks=tasks,
-                    seed_files={"notes.txt": question[:2000]},
+                    seed_files=seed_files,
                     moa_backend=backend,
                     moa_participants=names,
                     moa_fake_responses=fakes,
@@ -447,11 +486,10 @@ def moa(
             if cwd:
                 payload["cwd"] = cwd
             if trace:
-                import json
-                from pathlib import Path
-
-                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
                 payload["trace_path"] = trace
+                write_moa_trace(trace, payload)
+            if team_cli_failed(result):
+                team_exit_code = 1
         elif act:
             # Orchestrator-owned single write still uses run_moa_cli.
             payload = asyncio.run(
@@ -496,11 +534,8 @@ def moa(
             if cwd:
                 payload["cwd"] = cwd
             if trace:
-                import json
-                from pathlib import Path
-
-                Path(trace).write_text(json.dumps(payload, indent=2), encoding="utf-8")
                 payload["trace_path"] = trace
+                write_moa_trace(trace, payload)
     except WriteDeniedError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=5) from e
@@ -515,8 +550,6 @@ def moa(
         raise typer.Exit(code=1) from e
 
     if as_json:
-        import json
-
         typer.echo(json.dumps(payload, indent=2))
     elif team or payload.get("mode") in ("consensus_only", "consensus_then_team"):
         from swarm.core.moa.team import format_team_text
@@ -524,6 +557,9 @@ def moa(
         typer.echo(format_team_text(payload))
     else:
         typer.echo(format_moa_text(payload))
+
+    if team_exit_code:
+        raise typer.Exit(code=team_exit_code)
 
 
 @app.command(name="list")
@@ -607,8 +643,8 @@ def cli_agents(
     import asyncio
     import json
 
-    from swarm.core.cli_adapter import CliAdapterRegistry
     from swarm.core import cli_catalog
+    from swarm.core.cli_adapter import CliAdapterRegistry
     from swarm.core.config_loader import find_config_file, load_config
 
     if init:
@@ -868,8 +904,8 @@ def config_cmd(
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
 ):
     """Manage LLM profiles and MCP servers."""
-    from swarm.core.config_loader import find_config_file, load_config
     from swarm.core import paths as _paths
+    from swarm.core.config_loader import find_config_file
     if config:
         cfg_path = _Path(config)
     else:
@@ -957,7 +993,6 @@ def add_cmd(
     name: str = typer.Option(None, "--name", help="Override blueprint name"),
 ):
     """Add a blueprint to the user blueprint library."""
-    from swarm.core import paths as _paths
     src = _Path(source).resolve()
     if not src.is_dir():
         typer.echo(f"Source directory not found: {src}", err=True)

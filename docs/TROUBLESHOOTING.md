@@ -40,6 +40,12 @@ Fix — set the required production vars (or enable dev mode):
 The error names exactly which var is missing; it surfaces them one at a time, so
 set both. See [CONFIGURATION.md](../CONFIGURATION.md) → Environment Variables.
 
+### Startup warning: “API authentication is OFF”
+In debug (or with `SWARM_ALLOW_NO_AUTH`) and no `API_AUTH_TOKEN` /
+`SWARM_API_KEY`, the server can boot with the API open. Serving logs a warning
+from `SwarmConfig._warn_if_api_auth_disabled`. Fine for local development — set a
+token before binding to a network-facing interface.
+
 ## 4. Logs and Debugging
 - Check logs at `~/.swarm/swarm.log` for error messages.
 - Run CLI commands with increased verbosity if supported (e.g., `--verbose`).

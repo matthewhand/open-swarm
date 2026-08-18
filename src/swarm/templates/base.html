@@ -18,7 +18,7 @@
 <body class="os-app">
     {% with path=request.path %}
     <header class="os-header sticky-top">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark os-navbar py-1">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark os-navbar py-1" aria-label="Primary">
             <div class="container-fluid px-3">
                 <a class="navbar-brand fw-semibold" href="/">Open Swarm</a>
 
@@ -37,29 +37,30 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}active{% endif %}"
                                href="/blueprint-library/" id="blueprintNavDropdown" role="button"
-                               data-bs-toggle="dropdown" aria-expanded="false">
+                               data-bs-toggle="dropdown" aria-expanded="false"
+                               {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}aria-current="page"{% endif %}>
                                 Blueprints
                             </a>
                             <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="blueprintNavDropdown">
-                                <li><a class="dropdown-item" href="/blueprint-library/">Library</a></li>
-                                <li><a class="dropdown-item" href="/blueprint-library/my-blueprints/">My Blueprints</a></li>
-                                <li><a class="dropdown-item" href="/blueprint-library/creator/">Create custom</a></li>
+                                <li><a class="dropdown-item {% if path == '/blueprint-library/' %}active{% endif %}" href="/blueprint-library/">Library</a></li>
+                                <li><a class="dropdown-item {% if '/my-blueprints/' in path %}active{% endif %}" href="/blueprint-library/my-blueprints/">My Blueprints</a></li>
+                                <li><a class="dropdown-item {% if '/blueprint-library/creator/' in path %}active{% endif %}" href="/blueprint-library/creator/">Create custom</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/agent-creator/">Agent creator</a></li>
-                                <li><a class="dropdown-item" href="/agent-creator-pro/">Agent creator Pro</a></li>
-                                <li><a class="dropdown-item" href="/team-creator/">Team creator</a></li>
+                                <li><a class="dropdown-item {% if path|slice:':16' == '/agent-creator/' %}active{% endif %}" href="/agent-creator/">Agent creator</a></li>
+                                <li><a class="dropdown-item {% if '/agent-creator-pro/' in path %}active{% endif %}" href="/agent-creator-pro/">Agent creator Pro</a></li>
+                                <li><a class="dropdown-item {% if '/team-creator/' in path %}active{% endif %}" href="/team-creator/">Team creator</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle {% if path|slice:':7' == '/teams/' or path|slice:':10' == '/profiles/' %}active{% endif %}"
+                            <a class="nav-link dropdown-toggle {% if path|slice:':7' == '/teams/' %}active{% endif %}"
                                href="/teams/launch/" id="teamsNavDropdown" role="button"
-                               data-bs-toggle="dropdown" aria-expanded="false">
+                               data-bs-toggle="dropdown" aria-expanded="false"
+                               {% if path|slice:':7' == '/teams/' %}aria-current="page"{% endif %}>
                                 Teams
                             </a>
                             <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="teamsNavDropdown">
-                                <li><a class="dropdown-item" href="/teams/launch/">Launch</a></li>
-                                <li><a class="dropdown-item" href="/teams/">Admin / registry</a></li>
-                                <li><a class="dropdown-item" href="/profiles/">LLM profiles</a></li>
+                                <li><a class="dropdown-item {% if '/teams/launch' in path %}active{% endif %}" href="/teams/launch/">Launch</a></li>
+                                <li><a class="dropdown-item {% if path == '/teams/' %}active{% endif %}" href="/teams/">Admin / registry</a></li>
                             </ul>
                         </li>
                         <li class="nav-item">
@@ -69,10 +70,19 @@
                         </li>
                     </ul>
                     <ul class="navbar-nav ms-lg-auto">
-                        <li class="nav-item">
-                            <a class="nav-link {% if path|slice:':10' == '/settings/' %}active{% endif %}"
-                               href="/settings/"
-                               {% if path|slice:':10' == '/settings/' %}aria-current="page"{% endif %}>Settings</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}active{% endif %}"
+                               href="/settings/" id="settingsNavDropdown" role="button"
+                               data-bs-toggle="dropdown" aria-expanded="false"
+                               {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}aria-current="page"{% endif %}>
+                                Settings
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="settingsNavDropdown">
+                                <li><a class="dropdown-item {% if path|slice:':10' == '/settings/' %}active{% endif %}" href="/settings/">Dashboard</a></li>
+                                <li><a class="dropdown-item {% if path|slice:':10' == '/profiles/' %}active{% endif %}"
+                                       href="/profiles/"
+                                       {% if path|slice:':10' == '/profiles/' %}aria-current="page"{% endif %}>LLM profiles</a></li>
+                            </ul>
                         </li>
                         <li class="nav-item dropdown d-none d-lg-block">
                             <a class="nav-link dropdown-toggle opacity-75" href="#" id="moreNavDropdown"
@@ -98,19 +108,28 @@
     {# Mobile primary tabs — thumb reach without opening hamburger #}
     {% with path=request.path %}
     <nav class="os-bottom-nav d-lg-none" aria-label="Mobile primary">
-        <a class="os-bottom-nav__item {% if path == '/' %}is-active{% endif %}" href="/">
+        <a class="os-bottom-nav__item {% if path == '/' %}is-active{% endif %}"
+           href="/" {% if path == '/' %}aria-current="page"{% endif %}>
             <span class="os-bottom-nav__label">Home</span>
         </a>
-        <a class="os-bottom-nav__item {% if '/blueprint' in path %}is-active{% endif %}" href="/blueprint-library/">
+        <a class="os-bottom-nav__item {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}is-active{% endif %}"
+           href="/blueprint-library/"
+           {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}aria-current="page"{% endif %}>
             <span class="os-bottom-nav__label">Blueprints</span>
         </a>
-        <a class="os-bottom-nav__item {% if path|slice:':7' == '/teams/' or path|slice:':10' == '/profiles/' %}is-active{% endif %}" href="/teams/launch/">
+        <a class="os-bottom-nav__item {% if path|slice:':7' == '/teams/' %}is-active{% endif %}"
+           href="/teams/launch/"
+           {% if path|slice:':7' == '/teams/' %}aria-current="page"{% endif %}>
             <span class="os-bottom-nav__label">Teams</span>
         </a>
-        <a class="os-bottom-nav__item {% if path|slice:':10' == '/sessions/' %}is-active{% endif %}" href="/sessions/">
+        <a class="os-bottom-nav__item {% if path|slice:':10' == '/sessions/' %}is-active{% endif %}"
+           href="/sessions/"
+           {% if path|slice:':10' == '/sessions/' %}aria-current="page"{% endif %}>
             <span class="os-bottom-nav__label">Sessions</span>
         </a>
-        <a class="os-bottom-nav__item {% if path|slice:':10' == '/settings/' %}is-active{% endif %}" href="/settings/">
+        <a class="os-bottom-nav__item {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}is-active{% endif %}"
+           href="/settings/"
+           {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}aria-current="page"{% endif %}>
             <span class="os-bottom-nav__label">Settings</span>
         </a>
     </nav>

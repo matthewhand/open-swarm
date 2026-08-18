@@ -217,20 +217,19 @@
     <!-- Empty State -->
     {% if not installed_blueprints and not custom_blueprints %}
     <div class="row">
-        <div class="col text-center py-5">
-            <div class="empty-state">
-                <i class="fas fa-cube fa-4x text-muted mb-4"></i>
-                <h3>No Blueprints Yet</h3>
-                <p class="text-muted mb-4">
-                    You haven't added any blueprints to your library yet. 
-                    Start by browsing the library or creating your own custom blueprint.
+        <div class="col">
+            <div class="os-empty empty-state" role="status">
+                <div class="os-empty-icon"><i class="fas fa-bookmark"></i></div>
+                <h3 class="h4 mb-2">Your library is empty</h3>
+                <p class="os-meta mb-4">
+                    Add blueprints from the catalog to run them here, or create a custom one.
                 </p>
-                <div class="d-flex gap-3 justify-content-center">
+                <div class="d-flex flex-wrap gap-2 justify-content-center">
                     <a href="{% url 'blueprint_library' %}" class="btn btn-primary">
-                        <i class="fas fa-cube me-1"></i>Browse Library
+                        <i class="fas fa-cube me-1"></i>Browse &amp; add
                     </a>
-                    <a href="{% url 'blueprint_creator' %}" class="btn btn-success">
-                        <i class="fas fa-plus me-1"></i>Create Custom
+                    <a href="{% url 'blueprint_creator' %}" class="btn btn-outline-success">
+                        <i class="fas fa-plus me-1"></i>Create custom
                     </a>
                 </div>
             </div>
@@ -445,15 +444,26 @@ function runBlueprint() {
         return;
     }
     
+    const runBtn = document.getElementById('runBlueprintBtn');
     // Show running status
     showStatus('Running blueprint...', 'info');
-    outputDiv.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Executing blueprint...</p></div>';
+    if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.setAttribute('aria-busy', 'true');
+        runBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Running…';
+    }
+    outputDiv.innerHTML = '<div class="text-center py-3" role="status" aria-live="polite"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0">Executing blueprint…</p></div>';
     
     // Simulate blueprint execution (in real implementation, this would call the actual blueprint)
     setTimeout(() => {
         const output = simulateBlueprintExecution(window.currentBlueprint, input);
         outputDiv.innerHTML = `<pre class="mb-0">${output}</pre>`;
         showStatus('Blueprint completed successfully', 'success');
+        if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.removeAttribute('aria-busy');
+            runBtn.innerHTML = '<i class="fas fa-play me-1"></i>Run';
+        }
     }, 2000);
 }
 
@@ -562,9 +572,10 @@ function deleteBlueprint(blueprintId) {
 }
 
 .empty-state {
-    max-width: 400px;
+    max-width: 28rem;
     margin: 0 auto;
 }
+.empty-state .os-empty-icon { font-size: 2.75rem; }
 
 #blueprintOutput {
     font-family: 'Courier New', monospace;

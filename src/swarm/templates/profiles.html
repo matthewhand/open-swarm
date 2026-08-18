@@ -7,7 +7,7 @@
   .prof-wrap { max-width: 1100px; margin: 0 auto; }
   .prof-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
   .prof-table th, .prof-table td {
-    padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--os-border, #2b3140);
+    padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--os-border, #2b3140);
     vertical-align: top; text-align: left;
   }
   .prof-table th { color: var(--os-muted, #94a3b8); font-weight: 600; white-space: nowrap; }
@@ -30,17 +30,23 @@
 </style>
 
 <div class="prof-wrap">
-  <h2 class="h3 mb-2">LLM Profiles</h2>
-  <p class="text-muted mb-4">Profiles detected from project and user config.</p>
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h3 mb-1">LLM Profiles</h1>
+      <p class="text-muted mb-0">Profiles detected from project and user config.</p>
+    </div>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'settings_dashboard' %}">Settings dashboard</a>
+  </div>
 
   <div class="prof-table-wrap overflow-auto">
     <table class="prof-table">
+      <caption class="visually-hidden">Configured LLM profiles</caption>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Provider</th>
-          <th>Model</th>
-          <th>Base URL</th>
+          <th scope="col">Name</th>
+          <th scope="col">Provider</th>
+          <th scope="col">Model</th>
+          <th scope="col">Base URL</th>
         </tr>
       </thead>
       <tbody>
@@ -59,7 +65,13 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="4" class="text-center text-muted py-4">No profiles found.</td>
+          <td colspan="4">
+            <div class="os-empty py-4">
+              <div class="os-empty-icon"><i class="fas fa-microchip" aria-hidden="true"></i></div>
+              <div>No profiles found.</div>
+              <div class="os-meta mt-1">Add LLM entries in your swarm config, then refresh this page.</div>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -69,7 +81,7 @@
   <div class="prof-cards">
     {% for p in profiles %}
     <div class="prof-card">
-      <h3><code>{{ p.name }}</code></h3>
+      <h2 class="h6 mb-2"><code>{{ p.name }}</code></h2>
       <div class="prof-meta"><strong>Provider</strong> · {{ p.provider }}</div>
       <div class="prof-meta"><strong>Model</strong> · {{ p.model }}</div>
       <div class="prof-meta"><strong>Base URL</strong> ·
@@ -81,7 +93,11 @@
       </div>
     </div>
     {% empty %}
-    <p class="text-muted text-center py-4">No profiles found.</p>
+    <div class="os-empty">
+      <div class="os-empty-icon"><i class="fas fa-microchip" aria-hidden="true"></i></div>
+      <div>No profiles found.</div>
+      <div class="os-meta mt-1">Add LLM entries in your swarm config, then refresh this page.</div>
+    </div>
     {% endfor %}
   </div>
 </div>
