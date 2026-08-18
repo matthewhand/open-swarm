@@ -99,7 +99,19 @@ These captures open the **no-trailing-slash** URL, follow the redirect, and
 *After redirect from `/teams`: Team Launcher with capture banner (not a
 separate SPA product).*
 
+![Bare /teams redirect (mobile): banner over Team Launcher; Teams tab active](./screenshots/mobile/spa-teams.png)
+
+*Mobile twin (`screenshots/mobile/spa-teams.png`): sticky “Redirected:
+/teams → /teams/launch/” banner over the Team Launcher with **`hybrid_team`**
+selected; Django **five-tab** dock (Teams active).*
+
 ![Bare /blueprints redirects to Django Blueprint Library](./screenshots/spa-blueprints.png)
+
+![Bare /blueprints redirect (mobile): banner over Blueprint Library; Blueprints tab active](./screenshots/mobile/spa-blueprints.png)
+
+*Mobile twin (`screenshots/mobile/spa-blueprints.png`): sticky “Redirected:
+/blueprints → /blueprint-library/” banner over single-column library cards;
+Django **five-tab** dock (Blueprints active).*
 
 ![Bare /settings redirects to Django Settings Dashboard](./screenshots/spa-settings.png)
 
@@ -110,6 +122,12 @@ separate SPA product).*
 active).*
 
 ![Bare /agent-creator redirects to Django Agent Creator](./screenshots/spa-agent-creator.png)
+
+![Bare /agent-creator redirect (mobile): banner over Agent Creator; Blueprints tab active](./screenshots/mobile/spa-agent-creator.png)
+
+*Mobile twin (`screenshots/mobile/spa-agent-creator.png`): sticky “Redirected:
+/agent-creator → /agent-creator/” banner over the Agent Creator essentials
+form; Django **five-tab** dock (Blueprints active).*
 
 ---
 
@@ -178,12 +196,24 @@ dock (Blueprints active).*
 
 *Installed/custom collection (empty on a fresh library).*
 
+![My blueprints (mobile): empty-state CTAs; Blueprints tab active](./screenshots/mobile/my-blueprints.png)
+
+*Mobile twin (`screenshots/mobile/my-blueprints.png`): empty personal library
+with **Create Agent** and **Browse Library** CTAs; Django **five-tab** dock
+(Blueprints active).*
+
 ### Agent Creator — `/agent-creator/`
 
 ![Django agent creator: essentials form and code panel](./screenshots/agent-creator.png)
 
 *Progressive disclosure: Identity essentials open; Persona/Tags optional
 collapsed. Generate / validate custom agent blueprints.*
+
+![Agent creator (mobile): essentials accordion; Blueprints tab active](./screenshots/mobile/agent-creator.png)
+
+*Mobile twin (`screenshots/mobile/agent-creator.png`): Identity essentials
+open in an accordion; **Generate Blueprint** / **Validate** actions; Django
+**five-tab** dock (Blueprints active).*
 
 ### Settings Dashboard — `/settings/`
 
@@ -221,6 +251,12 @@ JSON into an isolated `SWARM_RESPONSES_DIR` after the empty list PNG, then
 screenshots the real Django Graph / timeline chrome. Synthetic record only —
 see [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).*
 
+![Session detail (mobile): seeded hybrid_team Graph tab; Sessions tab active](./screenshots/mobile/session-detail.png)
+
+*Mobile twin (`screenshots/mobile/session-detail.png`): same seeded
+`resp_journey_seed` Graph tab (orchestration → agents → aux) — **not** a live
+`hybrid_team` run; Django **five-tab** dock (Sessions active).*
+
 ### LLM Profiles — `/profiles/`
 
 ![Django LLM profiles table: provider, model, source, enabled](./screenshots/profiles.png)
@@ -229,6 +265,12 @@ see [SESSION_EXPLORER.md](./SESSION_EXPLORER.md).*
 ollama, lmstudio, openrouter, …) with Source and Enabled columns. Nested
 under **Settings → LLM profiles** (desktop Settings dropdown active; mobile
 Settings bottom tab active).*
+
+![LLM profiles (mobile): profiles table; Settings tab active](./screenshots/mobile/profiles.png)
+
+*Mobile twin (`screenshots/mobile/profiles.png`): same provider/model/source
+table stacked for narrow width; Django **five-tab** dock (**Settings** active
+— profiles nest under Settings).*
 
 ---
 
