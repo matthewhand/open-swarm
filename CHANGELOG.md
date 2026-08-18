@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Screenshot/docs ADR-001 alignment:** tour captions name SPA desktop **Home · Chat · …**; `spa-*` embeds describe redirect landings (sticky “Redirected” banner is capture-script injection on regen, not claimed in checked-in PNGs); SPA mobile dock drops Settings tab to match five-tab PNGs / SCREENSHOTS.md
 - **WS anonymous receive race:** `DjangoChatConsumer.receive` re-checks session auth so a frame that lands after accept-but-before 4401 close cannot crash the consumer or reach blueprint/LLM paths
 - **MoA `--act` phantom write:** `run_moa_cli` with `--act` and no `--act-write` now actually creates `moa_determination.md` (previously only `RecordingWriteSurface` + `ActResult` claimed the write)
 - **Fly HTTP health check:** re-enable `[[http_service.checks]]` GET `/health` in `fly.toml` (was disabled 2026-06-20 while the image lacked the route); live `open-swarm.fly.dev/health` returns 200 `{"status":"ok"}`

@@ -80,12 +80,12 @@ function App() {
           className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-base-300 bg-base-200 flex justify-around items-stretch h-16"
           aria-label="Mobile primary"
         >
+          {/* Five-tab SPA dock (ADR-001): Settings stays desktop top-nav / gear. */}
           <MobileTab to="/" icon={<Home className="h-5 w-5" />} label="Home" />
           <MobileTab to="/chat" icon={<MessageSquare className="h-5 w-5" />} label="Chat" />
           <MobileTab href="/blueprint-library/" icon={<Book className="h-5 w-5" />} label="Blueprints" />
           <MobileTab href="/teams/launch/" icon={<Users className="h-5 w-5" />} label="Teams" />
           <MobileTab href="/sessions/" icon={<History className="h-5 w-5" />} label="Sessions" />
-          <MobileTab href="/settings/" icon={<Settings className="h-5 w-5" />} label="Settings" />
         </nav>
       </div>
     </Router>

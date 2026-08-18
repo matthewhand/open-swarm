@@ -51,10 +51,11 @@ replies, team launches) need an LLM profile configured (see
 
 *Lightweight React dashboard. This capture shows Teams **0**, Blueprints
 **55**, Models **55** (API listings — the Blueprint Library’s discoverable
-catalog count can differ). Desktop top nav: **Home · Blueprints · Teams ·
-Sessions · Settings**. Quick Actions: **Launch Team**, **Browse Blueprints**,
-**Manage Teams**, **Settings**. Banner text points operators at Django
-trailing-slash paths for library, sessions, creators, and settings.
+catalog count can differ). Desktop top nav:
+**Home · Chat · Blueprints · Teams · Sessions · Settings** (matches
+`landing.png` / `App.tsx`). Quick Actions: **Launch Team**, **Browse
+Blueprints**, **Manage Teams**, **Settings**. Banner text points operators at
+Django trailing-slash paths for library, sessions, creators, and settings.
 Recaptured after `npm run build` on **2026-08-18**.
 
 ![SPA dashboard (mobile): same counts; SPA dock Home · Chat · Blueprints · Teams · Sessions](./screenshots/mobile/landing.png)
@@ -83,9 +84,12 @@ Launcher for scripted multi-agent runs.
 
 ### Bare SPA entry URLs (redirect to Django)
 
-These captures open the **no-trailing-slash** URL, follow the redirect, and
-(when regenerated via `capture_user_journey.py`) show a sticky **“Redirected:
-/path → /canonical/”** banner so they are not pixel-identical to part 3.
+These captures open the **no-trailing-slash** URL and follow the redirect to
+the Django operator page (not a separate SPA product). The PNGs checked in
+here are the **redirect landings** (same chrome as part 3). When you
+regenerate via `capture_user_journey.py`, that script injects a sticky
+**“Redirected: /path → /canonical/”** banner so fresh captures are not
+pixel-identical to the canonical stems.
 
 | Capture | Entry URL | Lands on |
 | --- | --- | --- |
@@ -94,53 +98,53 @@ These captures open the **no-trailing-slash** URL, follow the redirect, and
 | `spa-settings.png` | `/settings` | `/settings/` Settings Dashboard |
 | `spa-agent-creator.png` | `/agent-creator` | `/agent-creator/` Agent Creator |
 
-![Bare /teams redirects to Django Team Launcher with redirect banner](./screenshots/spa-teams.png)
+![Bare /teams redirects to Django Team Launcher](./screenshots/spa-teams.png)
 
-*After redirect from `/teams`: Team Launcher with capture banner (not a
-separate SPA product).*
+*After redirect from `/teams`: Django Team Launcher with **`hybrid_team`**
+selected (not a separate SPA product). Current PNG is the landing only;
+regenerate to inject the sticky “Redirected: …” banner.*
 
-![Bare /teams redirect (mobile): banner over Team Launcher; Teams tab active](./screenshots/mobile/spa-teams.png)
+![Bare /teams redirect (mobile): Team Launcher; Teams tab active](./screenshots/mobile/spa-teams.png)
 
-*Mobile twin (`screenshots/mobile/spa-teams.png`): sticky “Redirected:
-/teams → /teams/launch/” banner over the Team Launcher with **`hybrid_team`**
-selected; Django **five-tab** dock (Teams active).*
+*Mobile twin (`screenshots/mobile/spa-teams.png`): Team Launcher with
+**`hybrid_team`** selected after `/teams` → `/teams/launch/`; Django
+**five-tab** dock (Teams active). Same banner note as desktop.*
 
 ![Bare /blueprints redirects to Django Blueprint Library](./screenshots/spa-blueprints.png)
 
-![Bare /blueprints redirect (mobile): banner over Blueprint Library; Blueprints tab active](./screenshots/mobile/spa-blueprints.png)
+![Bare /blueprints redirect (mobile): Blueprint Library; Blueprints tab active](./screenshots/mobile/spa-blueprints.png)
 
-*Mobile twin (`screenshots/mobile/spa-blueprints.png`): sticky “Redirected:
-/blueprints → /blueprint-library/” banner over single-column library cards;
-Django **five-tab** dock (Blueprints active).*
+*Mobile twin (`screenshots/mobile/spa-blueprints.png`): single-column library
+cards after `/blueprints` → `/blueprint-library/`; Django **five-tab** dock
+(Blueprints active).*
 
 ![Bare /settings redirects to Django Settings Dashboard](./screenshots/spa-settings.png)
 
-![Bare /settings redirect (mobile): banner over Settings; Settings tab active](./screenshots/mobile/spa-settings.png)
+![Bare /settings redirect (mobile): Settings; Settings tab active](./screenshots/mobile/spa-settings.png)
 
-*Mobile twin (`screenshots/mobile/spa-settings.png`): same sticky “Redirected:
-…” banner over the Settings Dashboard; Django **five-tab** dock (Settings
-active).*
+*Mobile twin (`screenshots/mobile/spa-settings.png`): Settings Dashboard after
+`/settings` → `/settings/`; Django **five-tab** dock (Settings active).*
 
 ![Bare /agent-creator redirects to Django Agent Creator](./screenshots/spa-agent-creator.png)
 
-![Bare /agent-creator redirect (mobile): banner over Agent Creator; Blueprints tab active](./screenshots/mobile/spa-agent-creator.png)
+![Bare /agent-creator redirect (mobile): Agent Creator; Blueprints tab active](./screenshots/mobile/spa-agent-creator.png)
 
-*Mobile twin (`screenshots/mobile/spa-agent-creator.png`): sticky “Redirected:
-/agent-creator → /agent-creator/” banner over the Agent Creator essentials
-form; Django **five-tab** dock (Blueprints active).*
+*Mobile twin (`screenshots/mobile/spa-agent-creator.png`): Agent Creator
+essentials form after `/agent-creator` → `/agent-creator/`; Django
+**five-tab** dock (Blueprints active).*
 
 ---
 
 ## 3. Django operator UI (canonical)
 
-Primary chrome for **Django** (and the SPA **desktop** top nav): **Home ·
-Blueprints · Teams · Sessions · Settings**, with GitHub under **More** on
-Django desktop only. The SPA **mobile** dock differs — **Home · Chat ·
-Blueprints · Teams · Sessions** (Chat instead of Settings; Settings stays on
-desktop top nav / gear). Mobile **Django** captures under `screenshots/mobile/`
-(operator twins + `spa-*` redirects) keep the Django five-tab bar. After
-bare-path redirects, `spa-*` captures show the Django shell plus the sticky
-“Redirected: …” banner.
+**SPA desktop** top nav: **Home · Chat · Blueprints · Teams · Sessions · Settings**.
+**Django** primary chrome: **Home · Blueprints · Teams · Sessions · Settings**
+(no Chat; GitHub under **More** on Django desktop only). The SPA **mobile**
+dock is **Home · Chat · Blueprints · Teams · Sessions** (Chat instead of
+Settings; Settings stays on SPA desktop top nav / gear). Mobile **Django**
+captures under `screenshots/mobile/` (operator twins + `spa-*` redirects) keep
+the Django five-tab bar. `spa-*` stems document bare-path **redirect landings**
+on that Django shell (optional sticky “Redirected: …” banner when regenerated).
 
 ### Login — `/accounts/login/`
 

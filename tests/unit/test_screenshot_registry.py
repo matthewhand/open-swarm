@@ -203,3 +203,34 @@ def test_user_journey_screenshot_date_is_current_regeneration():
     assert "2026-08-18" in text
     assert "2026-06-11 with a fresh development database" not in text
     assert "2026-07-21" not in text
+
+
+def test_tour_captions_include_spa_desktop_chat_nav():
+    """landing.png / App.tsx desktop top nav includes Chat after ADR-001."""
+    needle_spaced = "Home · Chat · Blueprints · Teams · Sessions · Settings"
+    needle_tight = "Home·Chat·Blueprints·Teams·Sessions·Settings"
+    for path in (GUIDED_TOUR, USER_JOURNEY, SCREENSHOTS_MD):
+        # Collapse wrapping newlines inside the bold nav phrase.
+        flat = " ".join(path.read_text().split())
+        assert needle_spaced in flat or needle_tight in flat, (
+            f"{path.name} must name SPA desktop Chat in the top-nav caption"
+        )
+
+
+def test_tour_captions_do_not_claim_sticky_banner_in_checked_in_spa_pngs():
+    """Checked-in spa-*.png are redirect landings; banner is injection-on-regen only."""
+    for path in (GUIDED_TOUR, SCREENSHOTS_MD):
+        text = path.read_text()
+        # Honest regeneration note is fine; claiming the on-disk PNG shows the banner is not.
+        assert "with redirect banner" not in text
+        assert "Sticky “Redirected: …” banner over Team Launcher" not in text
+        assert "banner on regeneration" in text or "injects" in text.lower()
+
+
+def test_spa_app_mobile_dock_omits_settings_tab():
+    """SPA mobile dock stays five tabs; Settings is desktop/gear (matches mobile PNGs)."""
+    app = (REPO / "webui" / "frontend" / "src" / "App.tsx").read_text()
+    # Five MobileTab labels in the bottom nav; no Settings href tab.
+    assert 'label="Sessions"' in app
+    assert 'MobileTab href="/settings/"' not in app
+    assert 'label="Chat"' in app

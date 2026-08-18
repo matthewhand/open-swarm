@@ -18,10 +18,10 @@ full-page PNGs.
 | --- | --- | --- | --- | --- | --- |
 | `landing.png` | `/` (React SPA dashboard) | Counts 0/55/55; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; desktop top nav Home·Chat·Blueprints·Teams·Sessions·Settings (SPA routes `/` + `/chat` only per ADR-001; rebuild `dist/` then recapture if dock/nav lag) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-18 | current |
 | `spa-chat.png` | `/chat` (React SPA) | **Connected** shell after journey login (session cookie); blueprint selector + empty-state prompts. Unavailable Sign-in CTA is for close **4401** / no session; unreachable badge is ASGI/network — not Settings API token | GUIDED_TOUR.md | 2026-08-18 | current |
-| `spa-teams.png` | `/teams` → **`/teams/launch/`** | Django redirect capture (SPA no longer mounts `/teams`; ADR-001). Sticky “Redirected: …” banner over Team Launcher | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
-| `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Django redirect capture (SPA unmounted `/blueprints`; ADR-001) | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
-| `spa-settings.png` | `/settings` → **`/settings/`** | Django redirect capture (SPA unmounted `/settings`; ADR-001) | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
-| `spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Django redirect capture (SPA never remounts creator; ADR-001) | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
+| `spa-teams.png` | `/teams` → **`/teams/launch/`** | Django redirect landing (SPA no longer mounts `/teams`; ADR-001). Current PNG is Team Launcher after redirect; `capture_user_journey.py` injects sticky “Redirected: …” banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
+| `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Django redirect landing (SPA unmounted `/blueprints`; ADR-001); banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
+| `spa-settings.png` | `/settings` → **`/settings/`** | Django redirect landing (SPA unmounted `/settings`; ADR-001); banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
+| `spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Django redirect landing (SPA never remounts creator; ADR-001); banner on regeneration | GUIDED_TOUR.md | 2026-08-18 | current (redirect stem) |
 | `login.png` | `/accounts/login/` (Django) | Sign-in form | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `teams.png` | `/teams/` (Django) | Teams Admin registration form + table | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
 | `teams-launch.png` | `/teams/launch/` (Django) | Team Launcher; **`hybrid_team`** selected (first dropdown option); empty output | USER_JOURNEY.md, GUIDED_TOUR.md | 2026-08-18 | current |
@@ -61,10 +61,10 @@ Same stems as desktop with `--mobile` (iPhone-14-class: 390×844, dpr 2, touch).
 | --- | --- | --- | --- | --- |
 | `mobile/landing.png` | `/` | Stat cards stack; Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; SPA dock Home · Chat · Blueprints · Teams · Sessions (Home/Chat are SPA; rest Django hrefs — ADR-001). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/spa-chat.png` | `/chat` | **Connected** composer + blueprint selector; SPA dock with **Chat** active | 2026-08-18 | current |
-| `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect banner + Team Launcher (`hybrid_team` selected); Django **5-tab** bar (Teams active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
-| `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect banner + single-column cards; Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
-| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect banner over Settings dashboard; Django **5-tab** (Settings active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
-| `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect banner over Agent Creator; Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect landing: Team Launcher (`hybrid_team` selected); Django **5-tab** bar (Teams active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect landing: single-column cards; Django **5-tab** (Blueprints active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/spa-settings.png` | `/settings` → **`/settings/`** | Redirect landing: Settings dashboard; Django **5-tab** (Settings active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
+| `mobile/spa-agent-creator.png` | `/agent-creator` → **`/agent-creator/`** | Redirect landing: Agent Creator; Django **5-tab** (Blueprints active); banner on regeneration. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/login.png` | `/accounts/login/` | Full-width login card (no bottom primary bar). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/teams.png` | `/teams/` | Django **5-tab** bar (Teams active); form wraps. Embedded in GUIDED_TOUR.md | 2026-08-18 | current |
 | `mobile/teams-launch.png` | `/teams/launch/` | Launcher full-width; **`hybrid_team`** selected (first dropdown option); Django **5-tab** (Teams active). Embedded in GUIDED_TOUR.md | 2026-08-18 | current |

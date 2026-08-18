@@ -159,11 +159,11 @@ ENABLE_WEBUI=true DJANGO_DEBUG=true .venv/bin/python manage.py runserver 8000
 When the React frontend has been built (`webui/frontend/dist/` exists), `/`
 serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
 teams/blueprints/models counts come from the API (this capture: 0 / 55 / 55).
-Top nav is **Home · Blueprints · Teams · Sessions · Settings**. Quick Actions:
-**Launch Team**, **Browse Blueprints**, **Manage Teams**, **Settings**
-(matches current `App.tsx`; recaptured after `npm run build` on
-**2026-08-18**). Bare `/teams`, `/blueprints`, `/settings`, and
-`/agent-creator` **redirect** to Django (`/teams/launch/`,
+Top nav is **Home · Chat · Blueprints · Teams · Sessions · Settings**
+(matches `landing.png` / `App.tsx`). Quick Actions: **Launch Team**,
+**Browse Blueprints**, **Manage Teams**, **Settings** (recaptured after
+`npm run build` on **2026-08-18**). Bare `/teams`, `/blueprints`,
+`/settings`, and `/agent-creator` **redirect** to Django (`/teams/launch/`,
 `/blueprint-library/`, `/settings/`, `/agent-creator/`) — `spa-*.png`
 captures document those redirect landings. Experimental SPA chat remains at
 `/chat` (login required for the websocket consumer). See the page-by-page
