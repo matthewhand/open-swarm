@@ -9,10 +9,16 @@ All notable changes to this project will be documented in this file.
 - **`swarm-cli moa --team --workdir`**: consensus then scripted specialists (`--team-tasks`, `-v` INFO logs); mutually exclusive with `--act`
 - **Examples:** `docs/examples/moa-consensus-vs-team/`, `docs/examples/moa-orchestrator/`; demos `scripts/demo_moa_consensus_vs_team.py`, `scripts/trace_moa_champagne.py`
 - **`moa_orchestrator` blueprint**: scripted MoA→team via `run_moa_agents_orchestrator` → `run_moa_then_team` (`implementer`/`tester`/`docs`/`researcher` writes; no live openai-agents Runner by default; optional `build_moa_orchestrator_agents` for real Agents)
+- **Skip-to-main:** skip links on Django `base.html` + SPA `App`; decorative mobile dock icons `aria-hidden`
+
+### Changed
+- **MoA CLI P1 UX:** soft `--team` failure still prints payload then exits 1; `-v` scopes INFO to `swarm.core.moa` (no root `basicConfig`); seeds `notes.txt` only if missing; `--trace` creates parent dirs
+- **Docs polish:** journey screenshots regenerated (2026-08-18) + caption/registry honesty; MoA troubleshooting; FEATURE_STATUS MoA team-path row; `cli-and-api.gif` refreshed from `SWARM_TEST_MODE` captures (optional `moa --team` scene)
 
 ### Fixed
 - **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
 - **CLI MoA test XDG isolation:** `swarm-cli moa` subprocess dogfood tests pin `HOME` / `XDG_*` / `SWARM_USER_DATA_DIR` under a temp tree so host broken-cache layouts cannot break CI
+- **LoadingOverlay a11y:** `role="status"` instead of a fake modal without a focus trap
 
 ## [0.5.4] — 2026-06-19
 
