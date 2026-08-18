@@ -58,3 +58,28 @@ def test_does_not_mutate_base(monkeypatch, tmp_path):
     base = {"alpha": "A"}
     bd.merge_community_blueprints(base, [str(tmp_path)])
     assert base == {"alpha": "A"}  # input untouched
+
+
+def test_passes_synthetic_namespace_per_extra_dir(monkeypatch, tmp_path):
+    """Community roots must load under swarm_community_{index}, not swarm.blueprints."""
+    captured = []
+
+    def spy(directory, namespace=None, *, sandboxed=None):
+        captured.append(
+            {"directory": directory, "namespace": namespace, "sandboxed": sandboxed}
+        )
+        return {}
+
+    monkeypatch.setattr(bd, "discover_blueprints", spy)
+    d0 = tmp_path / "pack_a"
+    d1 = tmp_path / "pack_b"
+    d0.mkdir()
+    d1.mkdir()
+    bd.merge_community_blueprints({}, [str(d0), str(d1)])
+    assert len(captured) == 2
+    assert captured[0]["namespace"] == "swarm_community_0"
+    assert captured[1]["namespace"] == "swarm_community_1"
+    assert captured[0]["sandboxed"] is True
+    assert captured[1]["sandboxed"] is True
+    assert captured[0]["directory"] == str(d0)
+    assert captured[1]["directory"] == str(d1)

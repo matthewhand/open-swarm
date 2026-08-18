@@ -12,6 +12,7 @@ from pathlib import Path
 from swarm.core.blueprint_discovery import (
     discover_all_blueprints,
     discover_blueprints,
+    merge_community_blueprints,
 )
 
 # A minimal, self-contained community blueprint that subclasses the real base.
@@ -70,3 +71,14 @@ def test_community_cannot_shadow_bundled(tmp_path):
     merged = discover_all_blueprints(str(bundled), [str(community)])
     # The bundled cli_fusion wins — its description is not the community stub.
     assert merged["cli_fusion"]["metadata"].get("description") != "community demo"
+
+
+def test_merge_community_uses_synthetic_namespace_for_colliding_path_layout(tmp_path):
+    """User OpenSwarm/swarm/blueprints packs must not register as swarm.blueprints.*."""
+    # Path shape that, without namespace=, would yield swarm.blueprints.<bp>.<mod>
+    community = _write_community_pack(tmp_path / "OpenSwarm" / "swarm" / "blueprints")
+    merged = merge_community_blueprints({}, [str(community)])
+    assert "acme" in merged
+    cls = merged["acme"]["class_type"]
+    assert cls.__module__.startswith("swarm_community_0.")
+    assert not cls.__module__.startswith("swarm.blueprints.")

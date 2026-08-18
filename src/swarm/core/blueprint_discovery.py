@@ -357,7 +357,11 @@ def merge_community_blueprints(
         if not directory or not Path(directory).is_dir():
             continue
         try:
-            found = discover_blueprints(directory, sandboxed=True)
+            found = discover_blueprints(
+                directory,
+                namespace=f"swarm_community_{index}",
+                sandboxed=True,
+            )
         except Exception:
             logger.exception("Failed discovering community blueprints in %s", directory)
             continue
