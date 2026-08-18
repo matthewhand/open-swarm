@@ -227,9 +227,10 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   (`blueprint_library_views.py:473-530`) save to a relative `user_blueprints/` /
   JSON catalog that discovery never scans (`views/utils.py`, XDG dir). Nothing
   built in the web UI is runnable. Point saves at `get_user_blueprints_dir()`.
-- [ ] **Agent Creator Pro is non-functional clickware** — route exists
-  (`urls.py:127`) but no generate/validate/save routes and the JS handlers are
-  undefined (`agent_creator_pro.html`). Finish or hide behind a flag.
+- [ ] **Agent Creator Pro is non-functional clickware** — `/agent-creator-pro/`
+  page + JS exist, but generate/validate/save routes are missing (JS POSTs 404).
+  Honesty banner + FEATURE_STATUS 🟡 point users to `/agent-creator/`. Finish
+  wiring or hide behind a flag.
 - [ ] **Fake buttons (Django UI):** `my_blueprints.html:445-463` "Run Blueprint"
   is a `setTimeout` simulation; `settings_dashboard.html:661-672`
   Validate/Check/Export only toast "coming soon"; `team_creator.html:341`

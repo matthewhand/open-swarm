@@ -94,7 +94,9 @@ urlpatterns = [
     # GitHub-topics marketplace discovery (returns empty list if disabled)
     path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
     path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
+    # Slash + no-slash twins (same pattern as /v1/responses and /v1/blueprints).
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
+    path("v1/chat/completions/", ChatCompletionsView.as_view(), name="chat_completions_slash"),
     # OpenAI Responses API (MVP) — normalizes `input`/`instructions` to messages
     # and reuses the same blueprint-resolution + run path as chat completions.
     # Slash + no-slash twins (same pattern as /v1/blueprints and /v1/teams).

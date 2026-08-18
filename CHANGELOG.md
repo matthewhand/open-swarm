@@ -21,6 +21,8 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **`/v1/chat/completions` trailing slash:** slash twin so `…/completions/` no longer 404s
+- **Agent Creator Pro honesty:** warning banner + FEATURE_STATUS 🟡 — Pro page is preview-only (generate/validate/save routes unwired); canonical creator remains `/agent-creator/`
 - **Agent Creator Pro preview XSS:** escape personality/style/expertise/template (and template tooltip) before capability `innerHTML`
 - **SPA DaisyUI Toast a11y:** `role="status"` + `aria-live` (assertive for error/warning); dismiss `type="button"`
 - **Chat WS streaming XSS:** HTMX OOB append chunks now `django.utils.html.escape` model/user text (blueprint + LiteLLM paths and TEST-MODE echo); final template swap was already escaped

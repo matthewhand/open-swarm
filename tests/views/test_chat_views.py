@@ -16,9 +16,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from asgiref.sync import sync_to_async
 from django.test import RequestFactory
+from django.urls import resolve
 from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework.request import Request
+
+
+def test_chat_completions_urls_accept_trailing_slash():
+    """Slash + no-slash twins (same pattern as /v1/responses)."""
+    assert resolve("/v1/chat/completions").url_name == "chat_completions"
+    assert resolve("/v1/chat/completions/").url_name == "chat_completions_slash"
 
 
 # =============================================================================

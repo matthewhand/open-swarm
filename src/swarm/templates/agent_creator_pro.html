@@ -6,6 +6,16 @@
 <script src="{% static 'js/agent_creator_pro.js' %}" defer></script>
 <div class="agent-creator-pro">
   <div style="display:none">personality_options expertise_options communication_options</div>
+  <div class="container pt-3">
+    <div class="alert alert-warning mb-0" role="status">
+      <strong>Preview UI only.</strong>
+      Generate / validate / save endpoints for Pro are not wired
+      (<code>/agent-creator-pro/generate/</code> etc. 404).
+      Use the canonical
+      <a href="{% url 'agent_creator' %}" class="alert-link">Agent Creator</a>
+      (<code>/agent-creator/</code>) to create blueprints.
+    </div>
+  </div>
   <!-- Hero Section -->
   <div class="hero-section">
     <div class="container">
