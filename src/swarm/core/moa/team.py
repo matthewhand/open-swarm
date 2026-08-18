@@ -612,6 +612,12 @@ async def run_moa_consensus(
         len(panel_writes),
         panel_writes,
     )
+    if panel_writes:
+        logger.warning(
+            "moa.team champagne violation panel_writes_n=%d panel_writes=%s",
+            len(panel_writes),
+            panel_writes,
+        )
     return MoATeamResult(
         determination=det,
         moa_payload=moa_payload,
@@ -631,13 +637,23 @@ def _run_specialist(
     task: TeamTask,
 ) -> PersonaResult:
     purpose = task.purpose.lower().strip()
+    logger.info(
+        "moa.team specialist start purpose=%s output_path=%s",
+        purpose,
+        task.output_path,
+    )
     if purpose not in SPECIALIST_PURPOSES:
         logger.warning(
             "moa.team specialist unknown purpose=%r",
             task.purpose,
         )
+        logger.info(
+            "moa.team specialist done purpose=%s ok=False trace=%s",
+            purpose,
+            [],
+        )
         return PersonaResult(
-            persona=task.purpose,
+            persona=purpose,
             instruction=task.instruction,
             output=(
                 f"unknown specialist purpose {task.purpose!r}; "
@@ -646,11 +662,6 @@ def _run_specialist(
             ok=False,
         )
 
-    logger.info(
-        "moa.team specialist start purpose=%s output_path=%s",
-        purpose,
-        task.output_path,
-    )
     det = determination
     trace: list[str] = []
     out_parts: list[str] = []
@@ -729,6 +740,11 @@ def _run_specialist(
         )
     except Exception as e:
         logger.exception("moa.team specialist failed purpose=%s", purpose)
+        logger.info(
+            "moa.team specialist done purpose=%s ok=False trace=%s",
+            purpose,
+            trace,
+        )
         return PersonaResult(
             persona=purpose,
             instruction=task.instruction,
@@ -848,6 +864,12 @@ async def run_moa_then_team(
         len(panel_writes),
         panel_writes,
     )
+    if panel_writes:
+        logger.warning(
+            "moa.team champagne violation panel_writes_n=%d panel_writes=%s",
+            len(panel_writes),
+            panel_writes,
+        )
 
     # Soft panel failure: do not write moa_determination.md or schedule specialists.
     if not _moa_panel_usable(moa_payload):
@@ -895,10 +917,17 @@ async def run_moa_then_team(
             )
         )
 
-    final = specialist_results[-1].output if specialist_results else det
+    # Prefer last successful specialist; do not let a trailing unknown/failed
+    # purpose replace determination with an error string.
+    ok_outputs = [s.output for s in specialist_results if s.ok]
+    final = ok_outputs[-1] if ok_outputs else det
+    specialists_ok = [s.persona for s in specialist_results if s.ok]
+    specialists_failed = [s.persona for s in specialist_results if not s.ok]
     logger.info(
-        "moa.team consensus_then_team done specialists_ok=%s writes_n=%d writes=%s reads_n=%d reads=%s",
-        [s.persona for s in specialist_results if s.ok],
+        "moa.team consensus_then_team done specialists_ok=%s specialists_failed=%s "
+        "writes_n=%d writes=%s reads_n=%d reads=%s",
+        specialists_ok,
+        specialists_failed,
         len(tools.writes),
         list(tools.writes),
         len(tools.reads),

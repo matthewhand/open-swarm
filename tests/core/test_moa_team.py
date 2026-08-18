@@ -631,6 +631,84 @@ async def test_unknown_specialist_purpose_ok_false(tmp_path: Path):
     assert not (tmp_path / "unk" / "spell.md").is_file()
 
 
+@pytest.mark.asyncio
+async def test_unknown_purpose_persona_lowercased_and_final_prefers_ok(
+    tmp_path: Path,
+):
+    """Unknown purposes normalize persona case; final skips trailing failures."""
+    result = await run_moa_then_team(
+        tmp_path / "unk_final",
+        "Should we?",
+        specialist_tasks=[
+            TeamTask("implementer", "apply", "decision.md"),
+            TeamTask("WiZaRd", "cast spell", "spell.md"),
+        ],
+        moa_backend="fake",
+        moa_fake_responses={
+            "analyst": '{"claim":"yes","confidence":0.9}',
+            "critic": '{"claim":"yes","confidence":0.8}',
+        },
+    )
+    personas = [s.persona for s in result.specialist_results]
+    assert personas == ["implementer", "wizard"]
+    assert result.specialist_results[-1].ok is False
+    assert "unknown specialist purpose" not in result.final
+    assert result.final == result.specialist_results[0].output
+
+
+@pytest.mark.asyncio
+async def test_panel_writes_champagne_violation_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Non-empty moa_payload writes must promote to warning (champagne)."""
+    import swarm.core.moa.team as team_mod
+
+    async def _fake_consult(question, seats, **kwargs):
+        return {
+            "question": question,
+            "participants": list(seats),
+            "opinions": [
+                {"agent": "analyst", "ok": True, "text": '{"claim":"y","confidence":0.9}'},
+                {"agent": "critic", "ok": True, "text": '{"claim":"y","confidence":0.8}'},
+            ],
+            "determination": {
+                "answer": "yes",
+                "rationale": "",
+                "participant_names": list(seats),
+                "analysis": {"ok_count": 2},
+            },
+            "writes": ["leaked_panel.md"],
+            "act": False,
+        }
+
+    records: list[str] = []
+
+    class _ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    handler = _ListHandler(level=logging.WARNING)
+    log = logging.getLogger("swarm.core.moa.team")
+    log.addHandler(handler)
+    prev_level = log.level
+    log.setLevel(logging.WARNING)
+    monkeypatch.setattr(team_mod, "consult_moa", _fake_consult)
+    try:
+        await run_moa_consensus("q?", moa_backend="fake")
+        await run_moa_then_team(
+            tmp_path / "champ_warn",
+            "q?",
+            specialist_tasks=[TeamTask("implementer", "go", "decision.md")],
+            moa_backend="fake",
+        )
+    finally:
+        log.removeHandler(handler)
+        log.setLevel(prev_level)
+    assert (
+        sum("champagne violation" in m and "panel_writes" in m for m in records) >= 2
+    )
+
+
 def test_default_output_path_single_source():
     """Parse defaults, helper, and known purposes share one map (no path drift)."""
     expected = {
@@ -1020,6 +1098,8 @@ async def test_team_emits_info_logs(tmp_path: Path):
             "moa.team wrote moa_determination.md",
             "specialist start purpose=implementer",
             "specialist done purpose=implementer",
+            "specialists_ok=",
+            "specialists_failed=",
             "moa.run start",
             "moa.collect start",
             "moa.determine",
