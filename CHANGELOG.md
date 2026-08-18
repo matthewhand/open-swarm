@@ -18,8 +18,11 @@ All notable changes to this project will be documented in this file.
 - **Session detail journey capture:** mid-run seed of `resp_journey_seed` so `session-detail.png` shows Graph/timeline; embeds in USER_JOURNEY / GUIDED_TOUR / SESSION_EXPLORER with seeded-fixture honesty (synthetic JSON, not a live hybrid_team run)
 - **SPA vs Django mobile docks:** recapture after Chat dock; docs distinguish SPA **Home · Chat · Blueprints · Teams · Sessions** from Django **… · Settings**; journey `spa-chat.png` is Connected post-login
 - **Session Explorer empty state:** recapture `sessions.png` (+ mobile) for owner-scoped copy (“only sessions you own”)
+- **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Agent Creator Pro preview XSS:** escape personality/style/expertise/template (and template tooltip) before capability `innerHTML`
+- **SPA DaisyUI Toast a11y:** `role="status"` + `aria-live` (assertive for error/warning); dismiss `type="button"`
 - **Chat WS streaming XSS:** HTMX OOB append chunks now `django.utils.html.escape` model/user text (blueprint + LiteLLM paths and TEST-MODE echo); final template swap was already escaped
 - **GitHub marketplace allowlist bypass:** client `org`/`topic` no longer replace configured allowlists; unknown values return **400** when lists are set (empty org allowlist remains intentionally unscoped)
 - **Session Explorer attribute XSS:** live-poll `esc()` now escapes `"`/`'` used in `data-status`/`title`/`class` (status/role breakout)

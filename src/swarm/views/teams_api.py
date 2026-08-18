@@ -7,6 +7,10 @@ file-backed JSON registry at <user config dir>/teams.json managed by
 swarm.views.utils (load_dynamic_registry / register_dynamic_team /
 deregister_dynamic_team).
 
+Honesty: a "team" here is a named **LLM-profile alias** (id + description +
+llm_profile), not a multi-agent team builder. Entries appear in /v1/models and
+can be selected as OpenAI-compatible model ids.
+
 Endpoints:
     GET    /v1/teams/          -> {"object": "list", "data": [team, ...]}
     POST   /v1/teams/          -> 201 + team
@@ -59,12 +63,22 @@ def _serialize_team(entry: dict) -> dict:
 
 class TeamsAPIView(APIView):
     """
-    GET  /v1/teams/  -> list registered dynamic teams
+    GET  /v1/teams/  -> list registered dynamic teams (LLM-profile aliases)
     POST /v1/teams/  -> register a new dynamic team
     """
 
     permission_classes = TEAMS_API_PERMISSIONS
 
+    @extend_schema(
+        operation_id="v1_teams_list",
+        summary="List dynamic teams (LLM-profile aliases)",
+        description=(
+            "List saved dynamic teams from teams.json. Each entry is an "
+            "OpenAI-compatible model id alias over an `llm_profile` "
+            "(id, description, llm_profile) — not a multi-agent team graph."
+        ),
+        responses={200: OpenApiTypes.OBJECT, 500: OpenApiTypes.OBJECT},
+    )
     def get(self, request, *_args, **_kwargs):
         try:
             teams = list(load_dynamic_registry().values())
@@ -79,10 +93,11 @@ class TeamsAPIView(APIView):
 
     @extend_schema(
         operation_id="v1_teams_create",
-        summary="Register a dynamic team",
+        summary="Register a dynamic team (LLM-profile alias)",
         description=(
             "Register a named dynamic team (a saved alias over an `llm_profile`). "
-            "`name` is **required**; it is slugified into the team id."
+            "`name` is **required**; it is slugified into the team id. "
+            "This is not a multi-agent team builder."
         ),
         request=inline_serializer(
             name="TeamCreateRequest",
