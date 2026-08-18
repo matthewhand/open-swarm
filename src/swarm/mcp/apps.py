@@ -1,4 +1,8 @@
+import logging
+
 from django.apps import AppConfig
+
+logger = logging.getLogger(__name__)
 
 
 class MCPIntegrationConfig(AppConfig):
@@ -13,5 +17,5 @@ class MCPIntegrationConfig(AppConfig):
                 register_blueprints_with_mcp()
         except Exception:
             # Keep startup robust even if MCP integration is misconfigured
-            pass
+            logger.exception("MCP blueprint registration failed during app ready()")
 

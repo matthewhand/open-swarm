@@ -3,6 +3,40 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
+def test_provider_refresh_without_prepatching_discover(tmp_path, monkeypatch):
+    """Construct BlueprintMCPProvider without monkeypatching discover_blueprints.
+
+    Regression: refresh() used getattr(provider_module, 'discover_blueprints') but
+    those helpers were never imported onto swarm.mcp.provider, so real
+    BlueprintMCPProvider() raised AttributeError.
+    """
+    from swarm.mcp import provider as prov
+
+    assert callable(prov.discover_blueprints)
+    assert callable(prov.merge_community_blueprints)
+    assert callable(prov.apply_blueprint_aliases)
+
+    # Empty dir: real discovery returns {}; refresh must not AttributeError.
+    empty = tmp_path / "blueprints"
+    empty.mkdir()
+    monkeypatch.setattr(prov, "BLUEPRINT_EXTRA_DIRS", [])
+    p = prov.BlueprintMCPProvider(blueprint_dir=str(empty))
+    assert p.list_tools() == []
+
+    # Light filesystem mock: one blueprint dir + metadata via discover return.
+    fake = {
+        "demo_bp": {
+            "metadata": {"name": "demo_bp", "description": "Demo"},
+            "class_type": None,
+        }
+    }
+    monkeypatch.setattr(prov, "discover_blueprints", lambda _dir: fake)
+    p.refresh()
+    tools = p.list_tools()
+    assert len(tools) == 1
+    assert tools[0]["name"] == "demo_bp"
+
+
 def test_provider_lists_tools(monkeypatch):
     # Fake discovery result with minimal metadata
     fake_discovered = {
