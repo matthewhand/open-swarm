@@ -233,7 +233,7 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   catalog for My Blueprints). Discovery remains opt-in
   (`SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`).
 - [x] **Agent Creator Pro clickware** — `/agent-creator-pro/` soft-redirects to
-  `/agent-creator/` (nav link removed). Leftover template/JS unused on disk.
+  `/agent-creator/` (nav link removed); view/template/JS/CSS deleted.
 - [x] **My Blueprints runner wired:** posts `/v1/chat/completions` with blueprint
   id + CTAs to `/chat?blueprint=` and `/teams/launch/` (replaces Simulate-run
   demo). Settings Validate + env Export labeled “(not available)”; path-check

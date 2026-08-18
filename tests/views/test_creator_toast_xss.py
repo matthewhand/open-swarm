@@ -1,7 +1,10 @@
 """Regression: creator status toasts must escape untrusted message text.
 
-showTeamMessage / showToast previously interpolated `message` into innerHTML.
+showTeamMessage / showMessage previously interpolated `message` into innerHTML.
 Call sites pass swarm names, server errors, and paths — a DOM XSS vector.
+
+Agent Creator Pro static JS was deleted (route redirects to `/agent-creator/`);
+XSS coverage for creators is the live team + agent creator templates.
 """
 
 from __future__ import annotations
@@ -11,7 +14,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TEAM_CREATOR = ROOT / "src" / "swarm" / "templates" / "team_creator.html"
-AGENT_CREATOR_PRO_JS = ROOT / "src" / "swarm" / "static" / "js" / "agent_creator_pro.js"
 AGENT_CREATOR = ROOT / "src" / "swarm" / "templates" / "agent_creator.html"
 
 
@@ -27,28 +29,6 @@ def test_team_creator_show_team_message_escapes_message():
     assert "escapeHtml(message)" in body
     assert re.search(r"\$\{\s*message\s*\}", body) is None
     assert "function escapeHtml" in source
-
-
-def test_agent_creator_pro_show_toast_escapes_message():
-    source = AGENT_CREATOR_PRO_JS.read_text(encoding="utf-8")
-    body = _slice_after(source, "showToast(message")
-    assert "this.escapeHtml(message)" in body
-    assert re.search(r"toast-body[^`]*\$\{\s*message\s*\}", body) is None
-    assert re.search(r"\$\{\s*message\s*\}", body) is None
-    assert "escapeHtml(text)" in source
-
-
-def test_agent_creator_pro_preview_capabilities_escape_form_fields():
-    """Preview pane sinks personality/style/expertise/template into innerHTML."""
-    source = AGENT_CREATOR_PRO_JS.read_text(encoding="utf-8")
-    body = _slice_after(source, "previewCapabilities", length=1200)
-    assert "this.escapeHtml(formData.personality)" in body
-    assert "this.escapeHtml(formData.communication_style)" in body
-    assert "this.escapeHtml(expertiseLabel)" in body
-    assert "this.escapeHtml(formData.template)" in body
-    assert re.search(r"Personality:\s*\$\{\s*formData\.personality\s*\}", body) is None
-    tip = _slice_after(source, "showTemplateTooltip", length=500)
-    assert "this.escapeHtml(template)" in tip
 
 
 def test_agent_creator_show_message_escapes_message():
