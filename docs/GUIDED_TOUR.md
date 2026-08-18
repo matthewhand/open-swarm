@@ -99,11 +99,11 @@ separate SPA product).*
 
 ## 3. Django operator UI (canonical)
 
-Primary Django chrome: **Home · Blueprints · Teams · Sessions · Settings**,
-with GitHub under **More** (desktop). Django mobile uses a fixed five-tab
-bottom bar with those same labels (no More/GitHub). The SPA shell at `/` and
-`/chat` has its own bottom dock (this capture: Home, Chat, Teams, Blueprints,
-Builder, Creator, Settings) — not the Django five-tab set.
+Primary chrome: **Home · Blueprints · Teams · Sessions · Settings**, with
+GitHub under **More** (desktop). Mobile uses a fixed five-tab bottom bar with
+the same labels (no More/GitHub). The SPA shell at `/` and `/chat` reuses
+that bar: Home → `/`; Blueprints / Teams / Sessions / Settings → Django
+`href`s (`/blueprint-library/`, `/teams/launch/`, `/sessions/`, `/settings/`).
 
 ### Login — `/accounts/login/`
 

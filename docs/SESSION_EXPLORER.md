@@ -9,12 +9,17 @@ Open it at **`/sessions/`**.
 
 ## Session list
 
-![Session Explorer — list view](screenshots/sessions.png)
+![Session Explorer — empty list (fresh db)](screenshots/sessions.png)
+
+The current `sessions.png` capture is a **fresh-db empty state**: **0
+sessions**, a **live** auto-refresh toggle, and a CTA to create sessions via
+`POST /v1/responses`. When sessions exist, the same page also shows:
 
 1. **Live status summary + auto-refresh toggle** — a running count of sessions by
    status (`completed` / `in_progress` / `failed` / …). The **`live`** checkbox
    auto-refreshes the list every few seconds from `/api/sessions/`, so long
-   background runs update in place — no reload.
+   background runs update in place — no reload. A truncation banner appears when
+   total sessions exceed the default list limit (50).
 2. **Inter-agent delegation status** — each session card shows one coloured dot
    per delegated sub-task (green = completed, blue = in progress, red = failed),
    plus the delegation count, so you can see multi-agent fan-out at a glance.
