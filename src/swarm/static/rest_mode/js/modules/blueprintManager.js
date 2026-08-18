@@ -3,6 +3,7 @@
 import { fetchBlueprintMetadata as fetchMetadataAPI } from './apiService.js';
 import { showToast } from '../toast.js';
 import { appendRawMessage } from '../messages.js';
+import { escapeAttr, escapeHtml } from '../htmlSafe.js';
 import { debugLog } from './debugLogger.js';
 import { createChatHistoryEntry } from './chatHistory.js';
 
@@ -20,13 +21,13 @@ function populateBlueprintDialog(blueprints) {
         return;
     }
 
-    // Populate dialog
+    // Populate dialog (escape API title/description/id before innerHTML)
     blueprintDialogElement.innerHTML = blueprints
         .map(
             (bp) => `
-        <div class="blueprint-option" data-id="${bp.id}">
-            <p class="blueprint-title">${bp.title}</p>
-            <p class="blueprint-description">${bp.description}</p>
+        <div class="blueprint-option" data-id="${escapeAttr(bp.id)}">
+            <p class="blueprint-title">${escapeHtml(bp.title)}</p>
+            <p class="blueprint-description">${escapeHtml(bp.description)}</p>
         </div>`
         )
         .join('');
@@ -40,7 +41,7 @@ function populateBlueprintDialog(blueprints) {
     blueprintDropdown.innerHTML = blueprints
         .map(
             (bp) => `
-        <option value="${bp.id}">${bp.title}</option>`
+        <option value="${escapeAttr(bp.id)}">${escapeHtml(bp.title)}</option>`
         )
         .join('');
 
@@ -84,8 +85,9 @@ export function selectBlueprint(blueprint, isUserInitiated = false) {
     const blueprintName = blueprint.title;
     const blueprintDescription = blueprint.description;
 
-    // Update UI
-    blueprintMetadataElement.innerHTML = `<h2>${blueprintName}</h2><p>${blueprintDescription}</p>`;
+    // Update UI (escape untrusted API metadata before innerHTML)
+    blueprintMetadataElement.innerHTML =
+        `<h2>${escapeHtml(blueprintName)}</h2><p>${escapeHtml(blueprintDescription)}</p>`;
     blueprintTitleElement.textContent = blueprintName;
 
     // Update Dropdown Value

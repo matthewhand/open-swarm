@@ -11,11 +11,21 @@ import json
 import os
 
 import pytest
-from django.urls import reverse
+from django.urls import resolve, reverse
 from rest_framework import status
 
 # Ensure deterministic blueprint output regardless of how the suite is launched.
 os.environ.setdefault("SWARM_TEST_MODE", "1")
+
+
+def test_responses_urls_accept_trailing_slash():
+    """Slash + no-slash twins (same pattern as /v1/blueprints and /v1/teams)."""
+    assert resolve("/v1/responses").url_name == "responses"
+    assert resolve("/v1/responses/").url_name == "responses-slash"
+    assert resolve("/v1/responses/resp_x").url_name == "responses-detail"
+    assert resolve("/v1/responses/resp_x/").url_name == "responses-detail-slash"
+    assert resolve("/v1/responses/resp_x/cancel").url_name == "responses-cancel"
+    assert resolve("/v1/responses/resp_x/cancel/").url_name == "responses-cancel-slash"
 
 
 @pytest.mark.django_db(transaction=True)

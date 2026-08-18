@@ -104,7 +104,12 @@
   var feed = app.dataset.feed;
   var pageLimit = parseInt(app.dataset.limit || '50', 10) || 50;
   var live = document.getElementById('se-live');
-  function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  // Escape for text nodes and double-quoted attributes (data-status/title/class).
+  function esc(s){
+    return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
   function dots(ds){ return (ds||[]).map(function(d){return '<span class="dot '+esc(d.status)+'" title="'+esc(d.role)+': '+esc(d.status)+'"></span>';}).join(''); }
   function updateBanner(payload){
     var total = (payload && typeof payload.total === 'number') ? payload.total : null;

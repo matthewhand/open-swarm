@@ -290,15 +290,16 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   manual backdrop math (`Modal.tsx:84-105`); pick one.
 - [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
   (`:324`), no markdown/code rendering (`:301`).
-- [ ] **BuilderPage** titled "Builder" but read-only (no save); no list filter.
-  **AgentCreator** code field is a plain textarea (no editor); custom cards offer
-  only Delete (dead end).
+- [x] **BuilderPage / AgentCreatorPage** — unmounted from `App.tsx` (`*` → `/`);
+  leftover sources under `src/pages/`; canonical creator is Django `/agent-creator/`
+  (see FEATURE_STATUS). Prior “read-only Builder / plain textarea” notes are stale.
 - [ ] **Django legacy surface off-brand/broken** — Bootstrap CDN (offline breaks),
   `profiles.html` uses DaisyUI classes on a Bootstrap base (unstyled),
   `base.html` missing `title`/`head` blocks. Decide retire-vs-migrate.
 
 ### 4.7 API + tests
-- [ ] **`/v1/responses` missing trailing-slash twin** (`urls.py:91`) — `…/responses/` 404s.
+- [x] **`/v1/responses` trailing-slash twins** — `…/responses/`, detail, and cancel
+  now resolve (same pattern as `/v1/blueprints` / `/v1/teams`).
 - [ ] **Silent model fallback** — unknown `default_model` silently uses `default`
   (`config_loader.py:303-304`, DEBUG-only log). Warn or 400.
 - [ ] **`/v1/teams/` oversold** — only `{name, description, llm_profile}`, an LLM-

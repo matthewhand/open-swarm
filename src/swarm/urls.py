@@ -97,9 +97,13 @@ urlpatterns = [
     path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
     # OpenAI Responses API (MVP) — normalizes `input`/`instructions` to messages
     # and reuses the same blueprint-resolution + run path as chat completions.
+    # Slash + no-slash twins (same pattern as /v1/blueprints and /v1/teams).
     path("v1/responses", ResponsesView.as_view(), name="responses"),
+    path("v1/responses/", ResponsesView.as_view(), name="responses-slash"),
     path("v1/responses/<str:response_id>/cancel", ResponsesCancelView.as_view(), name="responses-cancel"),
+    path("v1/responses/<str:response_id>/cancel/", ResponsesCancelView.as_view(), name="responses-cancel-slash"),
     path("v1/responses/<str:response_id>", ResponsesDetailView.as_view(), name="responses-detail"),
+    path("v1/responses/<str:response_id>/", ResponsesDetailView.as_view(), name="responses-detail-slash"),
     # OpenAPI schema + interactive docs (drf-spectacular).
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

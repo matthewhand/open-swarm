@@ -20,6 +20,9 @@ All notable changes to this project will be documented in this file.
 - **Session Explorer empty state:** recapture `sessions.png` (+ mobile) for owner-scoped copy (“only sessions you own”)
 
 ### Fixed
+- **Session Explorer attribute XSS:** live-poll `esc()` now escapes `"`/`'` used in `data-status`/`title`/`class` (status/role breakout)
+- **rest_mode blueprintManager XSS:** escape API `id`/`title`/`description` via `htmlSafe.js` before dialog/dropdown/metadata `innerHTML`
+- **`/v1/responses` trailing slash:** slash twins for create/detail/cancel (no more 404 on `…/responses/`)
 - **MoA `--act` human output:** `run_moa_cli` stamps `mode=consensus_then_act` (not false `consensus_only`); CLI routes act payloads to `format_moa_text` so `## Act` appears; consensus/team still use `format_team_text`
 - **Community blueprint namespace:** `merge_community_blueprints` now passes `namespace=swarm_community_{index}` into discovery so external packs (e.g. user `…/swarm/blueprints`) do not collide with real `swarm.blueprints` in `sys.modules`
 - **Chat WS history duplication:** `save_conversation` deletes existing `ChatMessage` rows before `bulk_create` so reconnect → disconnect does not double the transcript

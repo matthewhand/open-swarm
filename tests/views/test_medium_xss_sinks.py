@@ -1,7 +1,8 @@
 """Regression: medium XSS sinks must escape / gate untrusted values.
 
-Covers rest_mode toast.js, blueprint_creator showSuccessModal, and
-profiles.html base_url href (javascript: protocol).
+Covers rest_mode toast.js, blueprint_creator showSuccessModal,
+profiles.html base_url href (javascript: protocol), Session Explorer
+attribute escape, and rest_mode blueprintManager metadata sinks.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ SLACK_LOGIC = REST_JS / "slackLogic.js"
 CHAT_LOGIC = REST_JS / "chatLogic.js"
 SIMPLE_LOGIC = REST_JS / "simpleLogic.js"
 MESSENGER_LOGIC = REST_JS / "messengerLogic.js"
+BLUEPRINT_MANAGER = REST_JS / "modules" / "blueprintManager.js"
+SESSION_EXPLORER = ROOT / "src" / "swarm" / "templates" / "session_explorer.html"
 BLUEPRINT_CREATOR = ROOT / "src" / "swarm" / "templates" / "blueprint_creator.html"
 PROFILES = ROOT / "src" / "swarm" / "templates" / "profiles.html"
 
@@ -109,3 +112,26 @@ def test_settings_js_escapes_llm_config_fields():
     assert "escapeHtml(key)" in source
     assert "escapeAttr(value)" in source
     assert re.search(r'value="\$\{value\}"', source) is None
+
+
+def test_session_explorer_esc_covers_attribute_quotes():
+    """Live-poll card HTML uses esc() in data-status/title — quotes must escape."""
+    source = SESSION_EXPLORER.read_text(encoding="utf-8")
+    body = _slice_after(source, "function esc(s)", length=400)
+    assert "&quot;" in body
+    assert "&#39;" in body
+    assert '[&<>"\']' in body or "[&<>\"']" in body
+    assert "data-status=\"'+esc(st)" in source
+    assert "title=\"'+esc(d.role)" in source
+
+
+def test_blueprint_manager_escapes_api_metadata():
+    source = BLUEPRINT_MANAGER.read_text(encoding="utf-8")
+    assert "from '../htmlSafe.js'" in source or 'from "../htmlSafe.js"' in source
+    assert "escapeAttr(bp.id)" in source
+    assert "escapeHtml(bp.title)" in source
+    assert "escapeHtml(bp.description)" in source
+    assert "escapeHtml(blueprintName)" in source
+    assert "escapeHtml(blueprintDescription)" in source
+    assert re.search(r'data-id="\$\{bp\.id\}"', source) is None
+    assert re.search(r"<h2>\$\{blueprintName\}</h2>", source) is None
