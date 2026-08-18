@@ -343,6 +343,37 @@ class TestTeamAdminView:
         assert response.status_code in (301, 302)
         assert "/login" in response.url
 
+    @patch("swarm.views.web_views._webui_enabled", return_value=True)
+    @patch("swarm.views.web_views._profiles_ctx", return_value={})
+    @patch("swarm.views.web_views.register_dynamic_team")
+    @patch("swarm.views.web_views.discover_blueprints", side_effect=Exception("discovery exploded"))
+    @patch("swarm.views.web_views.load_dynamic_registry", return_value={})
+    def test_team_admin_discovery_failure_rejects_create(
+        self,
+        _mock_load,
+        _mock_discover,
+        mock_register,
+        _mock_profiles,
+        _mock_enabled,
+        test_user,
+    ):
+        """Discovery errors fail closed so a static blueprint cannot be shadowed."""
+        from swarm.views.web_views import team_admin
+
+        factory = RequestFactory()
+        request = factory.post(
+            "/teams/",
+            {"action": "add", "team_name": "shadow-static", "description": "nope"},
+        )
+        request.user = test_user
+
+        response = team_admin(request)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "Unable to verify team name against existing blueprints" in body
+        mock_register.assert_not_called()
+
 
 # =============================================================================
 # Tests for profiles_page view

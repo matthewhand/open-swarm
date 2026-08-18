@@ -383,13 +383,31 @@ def team_admin(request):
         # Uniqueness vs dynamic registry
         if any(t.get("id") == slug for t in teams_current):
             return render(request, "teams_admin.html", {"error": f"Team '{slug}' already exists.", "teams": teams_current, **_profiles_ctx()})
-        # Guard against collisions with statically discovered blueprints
+        # Guard against collisions with statically discovered blueprints.
+        # Fail closed: discovery errors must not allow shadowing a static blueprint.
         try:
             discovered = discover_blueprints(BLUEPRINT_DIRECTORY)
-            if isinstance(discovered, dict) and slug in discovered:
-                return render(request, "teams_admin.html", {"error": f"Name '{slug}' conflicts with an existing blueprint.", "teams": teams_current, **_profiles_ctx()})
         except Exception:
-            pass
+            logger.exception("Blueprint collision check failed; refusing team create.")
+            return render(
+                request,
+                "teams_admin.html",
+                {
+                    "error": "Unable to verify team name against existing blueprints. Please try again.",
+                    "teams": teams_current,
+                    **_profiles_ctx(),
+                },
+            )
+        if isinstance(discovered, dict) and slug in discovered:
+            return render(
+                request,
+                "teams_admin.html",
+                {
+                    "error": f"Name '{slug}' conflicts with an existing blueprint.",
+                    "teams": teams_current,
+                    **_profiles_ctx(),
+                },
+            )
         try:
             register_dynamic_team(slug, description=description, llm_profile=llm_profile)
         except Exception as e:

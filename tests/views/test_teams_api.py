@@ -222,10 +222,10 @@ class TestTeamsCreateView:
     @patch("swarm.views.teams_api.register_dynamic_team")
     @patch("swarm.views.teams_api.discover_blueprints")
     @patch("swarm.views.teams_api.load_dynamic_registry")
-    def test_create_team_discovery_failure_is_nonfatal(
+    def test_create_team_discovery_failure_rejects_create(
         self, mock_load, mock_discover, mock_register, api_client
     ):
-        """Blueprint discovery errors do not block team creation."""
+        """Discovery errors fail closed so a static blueprint cannot be shadowed."""
         mock_load.return_value = {}
         mock_discover.side_effect = Exception("discovery exploded")
 
@@ -233,8 +233,10 @@ class TestTeamsCreateView:
             "/v1/teams/", data={"name": "resilient"}, format="json"
         )
 
-        assert response.status_code == status.HTTP_201_CREATED
-        mock_register.assert_called_once()
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "error" in response.json()
+        assert "blueprints" in response.json()["error"].lower()
+        mock_register.assert_not_called()
 
     @patch("pathlib.Path.write_text", side_effect=OSError("disk full"))
     @patch("swarm.views.teams_api.discover_blueprints")

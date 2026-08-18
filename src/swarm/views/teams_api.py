@@ -144,17 +144,21 @@ class TeamsAPIView(APIView):
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            # Guard against collisions with statically discovered blueprints
-            # (mirrors team_admin; best-effort, non-fatal on discovery errors).
+            # Guard against collisions with statically discovered blueprints.
+            # Fail closed: discovery errors must not allow shadowing a static blueprint.
             try:
                 discovered = discover_blueprints(dj_settings.BLUEPRINT_DIRECTORY)
-                if isinstance(discovered, dict) and slug in discovered:
-                    return Response(
-                        {"error": f"Name '{slug}' conflicts with an existing blueprint."},
-                        status=status.HTTP_409_CONFLICT,
-                    )
             except Exception:
-                logger.debug("Blueprint collision check failed; continuing.", exc_info=True)
+                logger.exception("Blueprint collision check failed; refusing team create.")
+                return Response(
+                    {"error": "Unable to verify team name against existing blueprints."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            if isinstance(discovered, dict) and slug in discovered:
+                return Response(
+                    {"error": f"Name '{slug}' conflicts with an existing blueprint."},
+                    status=status.HTTP_409_CONFLICT,
+                )
 
             register_dynamic_team(slug, description=description, llm_profile=llm_profile)
             team = load_dynamic_registry().get(slug) or {
