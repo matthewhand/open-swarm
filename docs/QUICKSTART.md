@@ -44,19 +44,16 @@ swarm-cli wizard
 ```bash
 swarm-cli wizard --non-interactive \
   -n "Demo Team" \
-  -r "Coordinator:lead, Engineer:code" \
-  --output-dir ./my_blueprints \
-  --bin-dir ./my_bin
+  -r "Coordinator:lead" \
+  -r "Engineer:code" \
+  --output-dir ./my_blueprints
 ```
 
-Flags:
+Flags (see `swarm-cli wizard --help`):
 - `--name/-n`: Team name
-- `--description/-d`: One-line description
-- `--abbreviation/-a`: CLI shortcut name (defaults to slugified name)
-- `--agents/-r`: Comma-separated `Name:role` entries
-- `--use-llm [--model]`: Use LLM with constrained JSON to refine the spec (requires API key)
+- `--role/-r`: Role:description pairs (repeatable)
 - `--no-shortcut`: Skip creating the CLI shortcut
-- `--output-dir`, `--bin-dir`: Control output locations (useful in sandboxes/CI)
+- `--output-dir`: Where to write the blueprint
 
 Outputs:
 - Python file at `<output-dir>/<slug>/blueprint_<slug>.py`
@@ -73,19 +70,16 @@ If you want to expose blueprints over an OpenAI-compatible REST API:
 1) Prepare environment
 ```bash
 cp .env.example .env
-# For the simplest case (no swarm_config.json needed):
-#   OPENAI_API_KEY=...
-#   OPENAI_BASE_URL=...   (your gateway or https://api.openai.com/v1)
-#
-# For full control (profiles + complex mappings), copy swarm_config.json.example
-# and populate the "llm" section using ${OPENAI_API_KEY} etc. (LITELLM_* ok for compat).
+# Set OPENAI_API_KEY and, for gateways, OPENAI_BASE_URL.
+# Production-like boots also require API_AUTH_TOKEN, DJANGO_SECRET_KEY,
+# and DJANGO_ALLOWED_HOSTS; see .env.example.
 ```
 
 2) Start the API
 ```bash
 docker compose up -d
 # wait for the healthcheck to pass (or tail the logs)
-# docker compose logs -f open-swarm
+# docker compose logs -f swarm
 ```
 
 3) Smoke-check the API
@@ -93,42 +87,57 @@ docker compose up -d
 # Models
 curl -sf http://localhost:8000/v1/models | jq .
 
-# Chat (non-streaming)
+# Chat (non-streaming) — use a bundled model id from /v1/models
 curl -sf http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${SWARM_API_KEY:-dev}" \
+  -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
   -d '{
-    "model": "echocraft",
+    "model": "suggestion",
     "messages": [{"role":"user","content":"ping"}]
   }' | jq .
 ```
 
 Notes:
-- docker-compose includes a healthcheck for /v1/models
-- PORT defaults to 8000; SWARM_BLUEPRINTS defaults to echocraft
-- Adjust volumes in docker-compose.yaml to mount your blueprints and config
+- docker-compose healthcheck probes `/health` (service name: `swarm`)
+- PORT defaults to 8000
+- Auth is **on** by default; set `SWARM_ALLOW_NO_AUTH=true` only for local demos
 
 ---
 
 ## 3. Configure Your LLM Provider
 
-**Primary mechanism: named profiles in `swarm_config.json` (the `llm` block).** Complex mappings, multiple providers, inference traits, etc. go there.
+Named profiles in `swarm_config.json` are the canonical configuration. For the
+simple env-only bootstrap, set:
 
-### Simple case (no config file needed)
 ```bash
-export OPENAI_API_KEY="sk-..."
-export OPENAI_BASE_URL="http://your-gateway-or-openai/v1"  # optional
+export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL=https://api.openai.com/v1  # required for gateways; explicit is safest
 ```
-A `default` profile using the `gpt-5.5` family is synthesized automatically.
-`LITELLM_*` env vars are aliases for compatibility.
 
-### Full control
-Copy the example and edit:
+With no config file, these synthesize a named `default` profile. `LITELLM_API_KEY`
+and `LITELLM_BASE_URL` remain compatibility aliases only. `DEFAULT_LLM` and
+`LITELLM_MODEL` do not select models; set the profile's `model` and route by
+profile name in JSON.
+
+For persistent or multi-provider setup, copy the portable example and edit its
+named profiles:
+
 ```bash
+mkdir -p ~/.config/swarm
 cp swarm_config.json.example ~/.config/swarm/swarm_config.json
-# then edit "llm" profiles (use OPENAI_* or other ${VAR}s); select with "settings.default_llm_profile" or per-blueprint "llm_profile"
+python -m json.tool ~/.config/swarm/swarm_config.json >/dev/null
+swarm-cli config list --section llm
 ```
-See [CONFIGURATION.md](../CONFIGURATION.md) for schema and [swarm_config.json.example](../swarm_config.json.example).
+
+You can also add a profile with the implemented `config` command:
+
+```bash
+swarm-cli config add --section llm --name local --json \
+  '{"provider":"openai","model":"gpt-5.5","base_url":"https://api.your-endpoint.com/v1","api_key":"${OPENAI_API_KEY}"}'
+```
+
+Select it with `settings.default_llm_profile` or a per-blueprint
+`blueprints.<id>.llm_profile` entry. See [CONFIGURATION.md](../CONFIGURATION.md).
 
 ---
 
@@ -152,6 +161,16 @@ To launch without installing the executable:
 swarm-cli launch codey --message "Write a Python function to add two numbers"
 ```
 
+**MoA (optional):** multi-seat consensus, or consensus then a scripted team:
+
+```bash
+swarm-cli moa "Ship rate limiting?" --backend fake --team \
+  --workdir /tmp/moa-team \
+  --team-tasks 'implementer:Apply|tester:Verify|docs:ADR'
+```
+
+See [MOA.md](./MOA.md).
+
 ---
 
 ## 5. Managing Blueprints
@@ -173,15 +192,19 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 
 ## 6. Advanced: Configure swarm_config.json
 
-- The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
-- Secrets referenced as `${ENV_VAR}` (prefer `${OPENAI_API_KEY}` + `${OPENAI_BASE_URL}`).
-- Edit directly; define named `llm` profiles (primary for setup, including complex mappings). Use `gpt-5.5` family in examples. Select active via `settings.default_llm_profile` or `llm_profile`.
-- E.g. minimal:
-  ```json
-  {"llm": {"default": {"provider": "openai", "model": "gpt-5.5", "base_url": "${OPENAI_BASE_URL}", "api_key": "${OPENAI_API_KEY}" }}}
-  ```
-- For the agentic CLIs, generate the `cli_agents` block: `swarm-cli cli-agents --init --write`.
-- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [CONFIGURATION.md](../CONFIGURATION.md) (migration note there).
+- The canonical file is `~/.config/swarm/swarm_config.json` (XDG compliant).
+- Keep secrets in the environment and reference them as `${ENV_VAR}` in JSON.
+- The compact portable starting point is
+  [swarm_config.json.example](../swarm_config.json.example); profile names drive
+  bootstrap and per-blueprint routing.
+- For agentic CLIs, generate the `cli_agents` block from installed tools with
+  `swarm-cli cli-agents --init --write`.
+- For MoA defaults, run `swarm-cli moa-init`; use `swarm-cli moa --team
+  --workdir ...` only when you want post-consensus scripted specialists.
+- Docker ships the REST/API path, not host-authenticated agentic CLIs. To use
+  those in a container, copy and adapt `docker-compose.override.example.yml`, or
+  run natively so the installed CLI binaries and auth state are available.
+- See [CONFIGURATION.md](../CONFIGURATION.md) for the full schema.
 
 ---
 
@@ -199,7 +222,7 @@ swarm-cli launch codey --message "Write a Python function to add two numbers"
 - Run `swarm-cli --help` and `codey --help` for usage info.
 - Explore more blueprints: `swarm-cli list`
 - Read the [Developer Guide](./DEVELOPER_GUIDE.md) for advanced usage, customization, and contribution tips.
-- See [docs/SWARM_CONFIG.md](./SWARM_CONFIG.md) and [docs/BLUEPRINT_SPLASH.md](./BLUEPRINT_SPLASH.md) for in-depth config and blueprint info.
+- See [CONFIGURATION.md](../CONFIGURATION.md) and [BLUEPRINT_SPLASH.md](./BLUEPRINT_SPLASH.md) for in-depth config and blueprint info.
 
 ---
 

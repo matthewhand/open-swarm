@@ -65,3 +65,145 @@ def test_sensitive_key_with_structured_value_is_masked():
     # A dict/list under a sensitive key must be masked wholesale, not passed through.
     assert redact_sensitive_data({"secret": {"inner": "leak"}})["secret"] == "[REDACTED]"
     assert redact_sensitive_data({"token": ["leak1", "leak2"]})["token"] == "[REDACTED]"
+
+
+def test_env_style_keys_are_redacted_by_substring():
+    """OPENAI_API_KEY / GITHUB_TOKEN style names embed sensitive tokens — must redact."""
+    data = {
+        "env": {
+            "OPENAI_API_KEY": "sk-mcp-openai",
+            "GITHUB_TOKEN": "ghp_xxx",
+            "MONDAY_API_KEY": "mon_xxx",
+            "NORMAL_PATH": "/usr/bin/npx",
+        }
+    }
+    redacted = redact_sensitive_data(data, mask="***HIDDEN***")
+    assert redacted["env"]["OPENAI_API_KEY"] == "***HIDDEN***"
+    assert redacted["env"]["GITHUB_TOKEN"] == "***HIDDEN***"
+    assert redacted["env"]["MONDAY_API_KEY"] == "***HIDDEN***"
+    assert redacted["env"]["NORMAL_PATH"] == "/usr/bin/npx"
+
+
+def test_empty_user_uri_credentials_are_redacted():
+    """redis://:password@host (empty user) must not leak the password."""
+    from swarm.utils.redact import redact_uri_credentials
+
+    assert "onlypass" not in redact_uri_credentials("redis://:onlypass@host:6379")
+    assert "hunter2" not in redact_uri_credentials("postgres://admin:hunter2@db/prod")
+    plain = "https://example.com/path"
+    assert redact_uri_credentials(plain) == plain
+    nested = redact_sensitive_data(
+        {"notes": "cache at redis://:onlypass@host:6379/0"},
+        mask="***HIDDEN***",
+    )
+    assert "onlypass" not in nested["notes"]
+    assert "***HIDDEN***" in nested["notes"]
+
+
+def test_is_sensitive_key_helper():
+    from swarm.utils.redact import is_sensitive_key
+
+    assert is_sensitive_key("api_key")
+    assert is_sensitive_key("OPENAI_API_KEY")
+    assert is_sensitive_key("github-token")
+    assert is_sensitive_key("client_secret")
+    assert is_sensitive_key("not_secret")  # segment "secret"
+    assert not is_sensitive_key("model")
+    assert not is_sensitive_key("base_url")
+    assert not is_sensitive_key("mytokenized")  # no underscore boundary
+
+def test_aws_access_key_id_and_access_key_segments():
+    """AWS_ACCESS_KEY_ID / access_key must redact via segment match."""
+    from swarm.utils.redact import is_sensitive_key, redact_sensitive_data
+
+    assert is_sensitive_key("AWS_ACCESS_KEY_ID")
+    assert is_sensitive_key("access_key")
+    assert is_sensitive_key("access_key_id")
+    assert is_sensitive_key("aws-access-key-id")
+
+    data = {
+        "env": {
+            "AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7EXAMPLE",
+            "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "NORMAL_PATH": "/usr/bin/npx",
+        }
+    }
+    redacted = redact_sensitive_data(data, mask="***HIDDEN***")
+    assert redacted["env"]["AWS_ACCESS_KEY_ID"] == "***HIDDEN***"
+    assert redacted["env"]["AWS_SECRET_ACCESS_KEY"] == "***HIDDEN***"
+    assert redacted["env"]["NORMAL_PATH"] == "/usr/bin/npx"
+
+
+def test_connection_url_keys_are_sensitive():
+    """DATABASE_URL / REDIS_URL / connection secrets must fully mask."""
+    from swarm.utils.redact import is_sensitive_key, redact_sensitive_data
+
+    for key in (
+        "DATABASE_URL",
+        "REDIS_URL",
+        "MONGODB_URI",
+        "MONGO_URL",
+        "connection_string",
+        "DSN",
+    ):
+        assert is_sensitive_key(key), key
+
+    # Do not treat generic base_url as a secret key name.
+    assert not is_sensitive_key("base_url")
+    assert not is_sensitive_key("webhook_url")
+
+    data = {
+        "env": {
+            "DATABASE_URL": "postgres://user:supersecret@db:5432/app",
+            "REDIS_URL": "redis://:redispass@localhost:6379/0",
+            "MONGODB_URI": "mongodb://admin:mongopass@mongo:27017/db",
+            "PUBLIC_SITE": "https://example.com",
+        }
+    }
+    redacted = redact_sensitive_data(data, mask="***HIDDEN***")
+    assert redacted["env"]["DATABASE_URL"] == "***HIDDEN***"
+    assert redacted["env"]["REDIS_URL"] == "***HIDDEN***"
+    assert redacted["env"]["MONGODB_URI"] == "***HIDDEN***"
+    assert redacted["env"]["PUBLIC_SITE"] == "https://example.com"
+    assert "supersecret" not in str(redacted)
+    assert "redispass" not in str(redacted)
+    assert "mongopass" not in str(redacted)
+
+
+def test_uri_credentials_redacted_in_non_sensitive_values():
+    """Credentialed URIs under non-secret keys still mask the password segment."""
+    from swarm.utils.redact import redact_sensitive_data, redact_uri_credentials
+
+    assert (
+        redact_uri_credentials("postgres://user:s3cret@host/db", mask="***")
+        == "postgres://user:***@host/db"
+    )
+    # Plain URLs without userinfo are untouched.
+    assert redact_uri_credentials("https://api.example.com/v1") == "https://api.example.com/v1"
+
+    data = {"callback": "https://svc:leakedpass@internal.example/hook"}
+    redacted = redact_sensitive_data(data, mask="***HIDDEN***")
+    assert "leakedpass" not in redacted["callback"]
+    assert "***HIDDEN***" in redacted["callback"]
+
+
+def test_mcp_env_aws_and_database_url_nested():
+    """MCP nested env with AWS_ACCESS_KEY_ID and DATABASE_URL must not leak raw."""
+    data = {
+        "mcpServers": {
+            "demo": {
+                "env": {
+                    "AWS_ACCESS_KEY_ID": "AKIA_MUST_NOT_LEAK",
+                    "DATABASE_URL": "postgres://u:db_pass_must_not_leak@h/db",
+                    "NODE_ENV": "production",
+                }
+            }
+        }
+    }
+    redacted = redact_sensitive_data(data, mask="***HIDDEN***")
+    env = redacted["mcpServers"]["demo"]["env"]
+    assert env["AWS_ACCESS_KEY_ID"] == "***HIDDEN***"
+    assert env["DATABASE_URL"] == "***HIDDEN***"
+    assert env["NODE_ENV"] == "production"
+    assert "AKIA_MUST_NOT_LEAK" not in str(redacted)
+    assert "db_pass_must_not_leak" not in str(redacted)

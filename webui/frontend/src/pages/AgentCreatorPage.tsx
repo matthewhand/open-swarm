@@ -358,7 +358,7 @@ const AgentCreatorPageContent = () => {
         </h2>
 
         {customQuery.isPending && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-live="polite">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
@@ -366,25 +366,27 @@ const AgentCreatorPageContent = () => {
         )}
 
         {customQuery.isError && (
-          <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-            <div className="flex flex-col gap-2">
-              <span className="font-medium">Failed to load custom blueprints</span>
-              <span className="text-sm">
-                {customQuery.error instanceof Error
-                  ? customQuery.error.message
-                  : 'Unknown error'}
-              </span>
-              <div>
-                <Button variant="outline" size="sm" onClick={() => customQuery.refetch()}>
-                  Retry
-                </Button>
+          <div role="alert" aria-live="assertive">
+            <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+              <div className="flex flex-col gap-2">
+                <span className="font-medium">Failed to load custom blueprints</span>
+                <span className="text-sm">
+                  {customQuery.error instanceof Error
+                    ? customQuery.error.message
+                    : 'Unknown error'}
+                </span>
+                <div>
+                  <Button variant="outline" size="sm" onClick={() => customQuery.refetch()}>
+                    Retry
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Alert>
+            </Alert>
+          </div>
         )}
 
         {!customQuery.isPending && !customQuery.isError && customBlueprints.length === 0 && (
-          <Card bordered className="text-center py-10">
+          <Card bordered className="text-center py-10" role="status" aria-live="polite">
             <Bot className="h-14 w-14 mx-auto text-base-content/60 mb-3" />
             <h3 className="text-lg font-semibold mb-1">No custom blueprints yet</h3>
             <p className="text-base-content/70 text-sm">

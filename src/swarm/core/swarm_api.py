@@ -1,69 +1,72 @@
 #!/usr/bin/env python3
+"""Swarm API launcher — production path uses ASGI (uvicorn), not runserver."""
+from __future__ import annotations
+
 import argparse
-import subprocess
+import os
 import sys
-from os import listdir, makedirs, path
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Swarm REST Launcher")
-    parser.add_argument("--blueprint", required=True, help="Comma-separated blueprint file paths or names for configuration purposes")
-    parser.add_argument("--port", type=int, default=8000, help="Port to run the REST server")
-    parser.add_argument("--config", default="~/.swarm/swarm_config.json", help="Configuration file path")
-    parser.add_argument("--daemon", action="store_true", help="Run in daemon mode and print process id")
-    args = parser.parse_args()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Open Swarm OpenAI-compatible API server")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", "8000")),
+        help="Port to bind (default: PORT env or 8000)",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("HOST", "0.0.0.0"),
+        help="Host interface to bind (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--blueprint",
+        default=None,
+        help="(Legacy, ignored) Blueprint hint — discovery is automatic.",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Optional path to swarm_config.json (sets SWARM_CONFIG_PATH).",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=int(os.environ.get("SWARM_UVICORN_WORKERS", "1")),
+        help="Uvicorn workers (default 1; multi-worker needs shared cancel store).",
+    )
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Enable auto-reload (dev only).",
+    )
+    args = parser.parse_args(argv)
 
-    # Split blueprints by comma and strip whitespace
-    bp_list = [bp.strip() for bp in args.blueprint.split(",") if bp.strip()]
-    blueprint_paths = []
-    for bp_arg in bp_list:
-        resolved = None
-        if path.exists(bp_arg):
-            if path.isdir(bp_arg):
-                resolved = bp_arg
-                print(f"Using blueprint directory: {resolved}")
-            else:
-                resolved = bp_arg
-                print(f"Using blueprint file: {resolved}")
-        else:
-            managed_path = path.expanduser("~/.swarm/blueprints/" + bp_arg)
-            if path.isdir(managed_path):
-                matches = [f for f in listdir(managed_path) if f.startswith("blueprint_") and f.endswith(".py")]
-                if not matches:
-                    print("Error: No blueprint file found in managed directory:", managed_path)
-                    sys.exit(1)
-                resolved = path.join(managed_path, matches[0])
-                print(f"Using managed blueprint: {resolved}")
-            else:
-                print("Warning: Blueprint not found:", bp_arg, "- skipping.")
-                continue
-        if resolved:
-            blueprint_paths.append(resolved)
+    if args.config:
+        os.environ["SWARM_CONFIG_PATH"] = os.path.expanduser(args.config)
 
-    if not blueprint_paths:
-        print("Error: No valid blueprints found.")
-        sys.exit(1)
-    print("Blueprints to be configured:")
-    for bp in blueprint_paths:
-        print(" -", bp)
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
 
-    config_path = path.expanduser(args.config)
-    if not path.exists(config_path):
-        makedirs(path.dirname(config_path), exist_ok=True)
-        with open(config_path, 'w') as f:
-            f.write("{}")
-        print("Default config file created at:", config_path)
-
-    print(f"Launching Django server on port 0.0.0.0:{args.port}")
     try:
-        if args.daemon:
-            proc = subprocess.Popen(["python", "manage.py", "runserver", f"0.0.0.0:{args.port}"])
-            print("Running in daemon mode. Process ID:", proc.pid)
-        else:
-            subprocess.run(["python", "manage.py", "runserver", f"0.0.0.0:{args.port}"], check=True)
-    except subprocess.CalledProcessError as e:
-        print("Error launching Django server:", e)
-        sys.exit(1)
+        import uvicorn
+    except ImportError as e:
+        print(
+            "uvicorn is required to run swarm-api. Install with: pip install uvicorn",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from e
+
+    print(f"Launching Open Swarm ASGI (uvicorn) on {args.host}:{args.port}")
+    uvicorn.run(
+        "swarm.asgi:application",
+        host=args.host,
+        port=args.port,
+        workers=max(1, args.workers) if not args.reload else 1,
+        reload=args.reload,
+        log_level=os.environ.get("SWARM_LOG_LEVEL", "info").lower(),
+    )
+
 
 if __name__ == "__main__":
     main()

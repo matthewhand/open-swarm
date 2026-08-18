@@ -3,13 +3,13 @@
 The **Session Explorer** is a read-only observability UI for the stateful
 `/v1/responses` API. It lets you browse every session the server has run —
 including the **inter-agent delegation timeline** produced by `hybrid_team`'s
-claude-orchestrated parallel delegation — without leaving the browser.
+parallel delegation — without leaving the browser.
 
 Open it at **`/sessions/`**.
 
 ## Session list
 
-![Session Explorer — list view](screenshots/session-explorer-list.png)
+![Session Explorer — list view](screenshots/sessions.png)
 
 1. **Live status summary + auto-refresh toggle** — a running count of sessions by
    status (`completed` / `in_progress` / `failed` / …). The **`live`** checkbox
@@ -25,7 +25,7 @@ Sessions are listed newest-first.
 
 ## Session detail + delegation timeline
 
-![Session Explorer — detail view](screenshots/session-explorer-detail.png)
+![Session Explorer — detail view](screenshots/session-detail.png)
 
 1. **Inter-agent communication graph** — a hub-and-spoke view of the run: the
    central `claude -p` **orchestration brain** with an edge to each delegated

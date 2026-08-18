@@ -4,10 +4,18 @@ Proof of the Builder UI panels that configure the decoupling features, each
 bound to `GET /v1/config-options/`. Built on the existing React + TanStack Query
 + DaisyUI stack. 0 axe violations (full ruleset, light/dark, desktop/mobile).
 
-**Current status:** all four config panels + the resolved-MCP badge are live,
-each header carries an accessible info tooltip. Green: **61 frontend unit
-(vitest) + 5 Playwright e2e**, **1186 backend**, **0 axe violations**. The
-per-section figures below are historical (state at that commit).
+**Current status (2026-08-18):** these stills document the **historical
+React Builder** (`/builder`). That route is **not mounted** in the shipped
+SPA (`App.tsx` is Home / Chat plus Django redirects). The four config
+panels still exist as source (`BuilderPage.tsx` and friends) and e2e still
+visits `/builder`, but a live operator hits the dashboard instead. Treat
+the PNGs below as component history, not the current operator tour. The
+canonical tour is [GUIDED_TOUR.md](../GUIDED_TOUR.md).
+
+Historical note: all four config panels + the resolved-MCP badge were
+implemented with accessible info tooltips. Green at that commit: **61
+frontend unit (vitest) + 5 Playwright e2e**, **1186 backend**, **0 axe
+violations**. The per-section figures below are historical.
 
 ![Builder — all config panels](../screenshots/webui/builder-all-panels-dark.png)
 

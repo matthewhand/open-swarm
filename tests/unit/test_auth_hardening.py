@@ -44,6 +44,8 @@ class TestGetApiAuthToken:
     def test_returns_none_when_unset(self, monkeypatch):
         monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
         monkeypatch.delenv("SWARM_API_KEY", raising=False)
+        monkeypatch.delenv("API_AUTH_TOKENS", raising=False)
+        monkeypatch.delenv("SWARM_API_KEYS", raising=False)
         assert env_utils.get_api_auth_token() is None
 
 
@@ -56,6 +58,8 @@ class TestGetEnforcedApiAuthToken:
     def test_debug_mode_allows_missing_token_with_warning(self, monkeypatch):
         monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
         monkeypatch.delenv("SWARM_API_KEY", raising=False)
+        monkeypatch.delenv("API_AUTH_TOKENS", raising=False)
+        monkeypatch.delenv("SWARM_API_KEYS", raising=False)
         monkeypatch.setenv("DJANGO_DEBUG", "true")
         monkeypatch.setattr(env_utils, "_api_auth_disabled_warning_emitted", False)
         with patch.object(env_utils._logger, "warning") as mock_warning:
@@ -66,6 +70,8 @@ class TestGetEnforcedApiAuthToken:
     def test_debug_warning_only_emitted_once(self, monkeypatch):
         monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
         monkeypatch.delenv("SWARM_API_KEY", raising=False)
+        monkeypatch.delenv("API_AUTH_TOKENS", raising=False)
+        monkeypatch.delenv("SWARM_API_KEYS", raising=False)
         monkeypatch.setenv("DJANGO_DEBUG", "true")
         monkeypatch.setattr(env_utils, "_api_auth_disabled_warning_emitted", False)
         with patch.object(env_utils._logger, "warning") as mock_warning:
@@ -76,6 +82,8 @@ class TestGetEnforcedApiAuthToken:
     def test_production_refuses_without_token(self, monkeypatch):
         monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
         monkeypatch.delenv("SWARM_API_KEY", raising=False)
+        monkeypatch.delenv("API_AUTH_TOKENS", raising=False)
+        monkeypatch.delenv("SWARM_API_KEYS", raising=False)
         monkeypatch.setenv("DJANGO_DEBUG", "false")
         with pytest.raises(ImproperlyConfigured, match="API_AUTH_TOKEN"):
             env_utils.get_enforced_api_auth_token()
@@ -139,6 +147,8 @@ def _settings_import_env(**overrides):
         # override variables that are already present in the environment).
         "API_AUTH_TOKEN": "",
         "SWARM_API_KEY": "",
+        "API_AUTH_TOKENS": "",
+        "SWARM_API_KEYS": "",
         "DJANGO_SECRET_KEY": "test-secret-key-for-subprocess",
         "DJANGO_ALLOWED_HOSTS": "example.com",
         "DJANGO_DEBUG": "false",
@@ -265,9 +275,12 @@ def restore_auth_settings():
     from django.conf import settings
     orig_enable = getattr(settings, "ENABLE_API_AUTH", None)
     orig_key = getattr(settings, "SWARM_API_KEY", None)
+    orig_keys = getattr(settings, "SWARM_API_KEYS", None)
     yield
     settings.ENABLE_API_AUTH = orig_enable
     settings.SWARM_API_KEY = orig_key
+    if orig_keys is not None:
+        settings.SWARM_API_KEYS = orig_keys
 
 
 @pytest.mark.usefixtures("restore_auth_settings")
@@ -311,6 +324,8 @@ class TestRunserverCommand:
         monkeypatch.setenv("DJANGO_DEBUG", "true")
         monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
         monkeypatch.delenv("SWARM_API_KEY", raising=False)
+        monkeypatch.delenv("API_AUTH_TOKENS", raising=False)
+        monkeypatch.delenv("SWARM_API_KEYS", raising=False)
         mock_super = self._handle()
         assert mock_super.called
         assert settings.ENABLE_API_AUTH is False

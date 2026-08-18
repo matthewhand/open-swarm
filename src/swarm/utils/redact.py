@@ -7,7 +7,27 @@ import re
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SENSITIVE_KEYS = ["secret", "password", "api_key", "apikey", "token", "access_token", "client_secret"]
+DEFAULT_SENSITIVE_KEYS = [
+    "secret",
+    "password",
+    "api_key",
+    "apikey",
+    "token",
+    "access_token",
+    "access_key",
+    "access_key_id",
+    "client_secret",
+    "authorization",
+    "private_key",
+    "credentials",
+    # Connection strings / DB URLs (exact match; avoid bare "url" so base_url stays public)
+    "database_url",
+    "redis_url",
+    "mongodb_uri",
+    "mongo_url",
+    "connection_string",
+    "dsn",
+]
 _DEFAULT_SENSITIVE_KEYS_LOWER = {k.lower() for k in DEFAULT_SENSITIVE_KEYS}
 
 SENSITIVE_PATTERNS = [
@@ -17,6 +37,52 @@ SENSITIVE_PATTERNS = [
     r'ssh-rsa\s+[a-zA-Z0-9+/]+={0,2}',  # SSH keys
 ]
 _COMPILED_SENSITIVE_PATTERNS = [re.compile(p) for p in SENSITIVE_PATTERNS]
+
+# scheme://user:password@host and scheme://:password@host (empty user).
+# User part may be empty; bare https://host (no credentials) does not match.
+_URI_CREDENTIALS_PATTERN = re.compile(
+    r"([a-zA-Z][a-zA-Z0-9+.-]*://[^@/\s:]*):([^@/\s]+)@"
+)
+
+
+def _normalize_key(key: str) -> str:
+    """Lowercase and unify separators so OPENAI-API-KEY matches api_key heuristics."""
+    return key.lower().replace("-", "_")
+
+
+def is_sensitive_key(key: str, sensitive_keys: set[str] | None = None) -> bool:
+    """
+    True if *key* is an exact sensitive name or embeds one as underscore segments.
+
+    Exact match alone misses env-style names (OPENAI_API_KEY, GITHUB_TOKEN).
+    Segment match treats ``api_key`` / ``token`` as contiguous underscore parts so
+    provider-prefixed env vars redact without matching accidental substrings
+    like ``mytokenized`` (no underscore boundary).
+    """
+    keys = sensitive_keys if sensitive_keys is not None else _DEFAULT_SENSITIVE_KEYS_LOWER
+    kl = _normalize_key(key)
+    if kl in keys:
+        return True
+    parts = [p for p in kl.split("_") if p]
+    if not parts:
+        return False
+    for sk in keys:
+        sk_parts = [p for p in sk.split("_") if p]
+        if not sk_parts:
+            continue
+        n = len(sk_parts)
+        for i in range(len(parts) - n + 1):
+            if parts[i : i + n] == sk_parts:
+                return True
+    return False
+
+
+def redact_uri_credentials(text: str, mask: str = "[REDACTED]") -> str:
+    """Mask password segment in URIs like ``scheme://user:password@host``."""
+    if not isinstance(text, str) or "://" not in text or "@" not in text:
+        return text
+    return _URI_CREDENTIALS_PATTERN.sub(lambda m: f"{m.group(1)}:{mask}@", text)
+
 
 def redact_sensitive_data(
     data: str | dict | list,
@@ -37,7 +103,7 @@ def redact_sensitive_data(
         if isinstance(sensitive_keys, set):
             keys_to_redact = sensitive_keys
         else:
-            keys_to_redact = {k.lower() for k in sensitive_keys}
+            keys_to_redact = {_normalize_key(k) for k in sensitive_keys}
     else:
         keys_to_redact = _DEFAULT_SENSITIVE_KEYS_LOWER
 
@@ -62,12 +128,13 @@ def redact_sensitive_data(
         redacted = text
         for pattern in _COMPILED_SENSITIVE_PATTERNS:
             redacted = pattern.sub(mask, redacted)
+        redacted = redact_uri_credentials(redacted, mask=mask)
         return redacted
 
     if isinstance(data, dict):
         redacted_dict = {}
         for k, v in data.items():
-            if isinstance(k, str) and k.lower() in keys_to_redact:
+            if isinstance(k, str) and is_sensitive_key(k, keys_to_redact):
                 redacted_dict[k] = smart_mask(v)
             elif isinstance(v, dict | list):
                 redacted_dict[k] = redact_sensitive_data(v, keys_to_redact, reveal_chars, mask)

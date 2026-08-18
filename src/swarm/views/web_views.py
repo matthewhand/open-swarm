@@ -427,7 +427,15 @@ def profiles_page(request):
     try:
         import json
         cfgs = []
-        for path in [Path(settings.BASE_DIR) / "swarm_config.json", get_user_config_dir_for_swarm() / "swarm_config.json"]:
+        env_cfg = os.environ.get("SWARM_CONFIG_PATH")
+        candidates = []
+        if env_cfg:
+            candidates.append(Path(env_cfg))
+        candidates.extend([
+            Path(settings.BASE_DIR) / "swarm_config.json",
+            get_user_config_dir_for_swarm() / "swarm_config.json",
+        ])
+        for path in candidates:
             if path.exists():
                 cfgs.append(json.loads(path.read_text()))
         seen = set()

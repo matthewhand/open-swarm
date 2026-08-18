@@ -1,39 +1,88 @@
 {% extends 'base.html' %}
 
+{% block title %}LLM Profiles - Open Swarm{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-  <h2 class="text-2xl font-bold mb-4">LLM Profiles</h2>
-  <p class="text-gray-500 mb-6">Profiles detected from project and user config.</p>
-  
-  <div class="overflow-x-auto">
-    <table class="table table-zebra table-compact w-full">
+<style>
+  .prof-wrap { max-width: 1100px; margin: 0 auto; }
+  .prof-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  .prof-table th, .prof-table td {
+    padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--os-border, #2b3140);
+    vertical-align: top; text-align: left;
+  }
+  .prof-table th { color: var(--os-muted, #94a3b8); font-weight: 600; white-space: nowrap; }
+  .prof-table code {
+    background: var(--os-panel-2, #1e2430); padding: 0.15rem 0.4rem; border-radius: 4px;
+    font-size: 0.85rem;
+  }
+  .prof-url { word-break: break-all; max-width: 28rem; display: inline-block; }
+  .prof-cards { display: none; }
+  .prof-card {
+    border: 1px solid var(--os-border, #2b3140); border-radius: 10px;
+    padding: 0.85rem 1rem; margin-bottom: 0.75rem; background: var(--os-panel, #151a24);
+  }
+  .prof-card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .prof-meta { color: var(--os-muted, #94a3b8); font-size: 0.82rem; margin: 0.2rem 0; }
+  @media (max-width: 767.98px) {
+    .prof-table-wrap { display: none; }
+    .prof-cards { display: block; }
+  }
+</style>
+
+<div class="prof-wrap">
+  <h2 class="h3 mb-2">LLM Profiles</h2>
+  <p class="text-muted mb-4">Profiles detected from project and user config.</p>
+
+  <div class="prof-table-wrap overflow-auto">
+    <table class="prof-table">
       <thead>
         <tr>
-          <th class="bg-base-200">Name</th>
-          <th class="bg-base-200">Provider</th>
-          <th class="bg-base-200">Model</th>
-          <th class="bg-base-200">Base URL</th>
+          <th>Name</th>
+          <th>Provider</th>
+          <th>Model</th>
+          <th>Base URL</th>
         </tr>
       </thead>
       <tbody>
         {% for p in profiles %}
         <tr>
-          <td><code class="bg-base-300 px-2 py-1 rounded">{{ p.name }}</code></td>
+          <td><code>{{ p.name }}</code></td>
           <td>{{ p.provider }}</td>
           <td>{{ p.model }}</td>
-          <td class="max-w-xs truncate">
-            <a href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer" class="link link-primary truncate">
-              {{ p.base_url }}
-            </a>
+          <td>
+            {% if p.base_url and p.base_url != 'None' and p.base_url != 'null' %}
+            <a class="prof-url" href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer">{{ p.base_url }}</a>
+            {% else %}
+            <span class="text-muted">Not set</span>
+            {% endif %}
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="4" class="text-center text-gray-500 py-4">No profiles found.</td>
+          <td colspan="4" class="text-center text-muted py-4">No profiles found.</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  <div class="prof-cards">
+    {% for p in profiles %}
+    <div class="prof-card">
+      <h3><code>{{ p.name }}</code></h3>
+      <div class="prof-meta"><strong>Provider</strong> · {{ p.provider }}</div>
+      <div class="prof-meta"><strong>Model</strong> · {{ p.model }}</div>
+      <div class="prof-meta"><strong>Base URL</strong> ·
+        {% if p.base_url and p.base_url != 'None' and p.base_url != 'null' %}
+        <a class="prof-url" href="{{ p.base_url }}" target="_blank" rel="noopener noreferrer">{{ p.base_url }}</a>
+        {% else %}
+        <span class="text-muted">Not set</span>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted text-center py-4">No profiles found.</p>
+    {% endfor %}
   </div>
 </div>
 {% endblock %}

@@ -23,6 +23,13 @@ from typing import Any
 # resp ids we mint look like ``resp_<uuid>``; restrict to a safe charset so a
 # caller-supplied id can never traverse out of the store dir.
 _ID_RE = re.compile(r"^resp_[A-Za-z0-9_-]{1,128}$")
+# hybrid_team REST-plan traces leak into the Session Explorer as concatenated
+# markers. Strip those so the card preview is the human reply.
+_PREVIEW_SKIP_LINE = re.compile(
+    r"^(REST plan:|---\s*Plan\s*---|\[rest-plan\]|grok persona:|Consensus:)\s*$",
+    re.I,
+)
+_PREVIEW_PREFIX = re.compile(r"^\[rest-plan\]\s*", re.I)
 
 
 def _store_dir() -> Path:
@@ -41,7 +48,11 @@ def _path_for(response_id: str, base_dir: Path | None) -> Path | None:
 
 
 def save(record: dict[str, Any], *, base_dir: Path | None = None) -> None:
-    """Persist a record (must have a valid ``id``). Atomic write; best-effort."""
+    """Persist a record (must have a valid ``id``). Atomic write; best-effort.
+
+    Optional top-level ``owner`` string stamps the creating principal for IDOR
+    checks when API auth is enabled (see responses detail/cancel views).
+    """
     rid = record.get("id", "")
     path = _path_for(rid, base_dir)
     if path is None:
@@ -71,12 +82,57 @@ def load(response_id: str, *, base_dir: Path | None = None) -> dict[str, Any] | 
         return None
 
 
+def owner_allows(record: dict[str, Any] | None, principal: str | None) -> bool:
+    """Whether ``principal`` may access ``record`` under ownership rules.
+
+    Fail-closed: unowned (legacy) records are not readable by any principal.
+    Views skip this check entirely when ``ENABLE_API_AUTH`` is off, so open
+    deployments still allow access without an owner stamp.
+
+    - No record → False (caller should 404 separately if desired)
+    - No owner on record → False (legacy / missing stamp; deny when auth on)
+    - principal None → False
+    - else principal must equal record['owner']
+    """
+    if record is None:
+        return False
+    owner = record.get("owner")
+    if not owner:
+        return False
+    if not principal:
+        return False
+    return str(owner) == str(principal)
+
+
+def preview_output_text(text: str, *, limit: int = 160) -> str:
+    """One-line Session Explorer snippet from stored ``output_text``.
+
+    Drops REST-plan / persona / consensus markers and collapses whitespace
+    so a hybrid_team trace does not render as ``[rest-plan] hi grok persona:…``.
+    """
+    if not text:
+        return ""
+    lines: list[str] = []
+    for raw in str(text).splitlines():
+        line = raw.strip()
+        if not line or _PREVIEW_SKIP_LINE.match(line):
+            continue
+        line = _PREVIEW_PREFIX.sub("", line).strip()
+        if line:
+            lines.append(line)
+    cleaned = " · ".join(lines) if lines else re.sub(r"\s+", " ", str(text)).strip()
+    if len(cleaned) > limit:
+        return cleaned[: limit - 1] + "…"
+    return cleaned
+
+
 def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> list[dict[str, Any]]:
     """Lightweight summaries of stored sessions, newest first.
 
     Each summary: ``{id, model, status, created_at, execution_ms, output_preview,
-    delegations}`` where ``delegations`` is the per-role progress array (possibly
-    empty). Used by the Session Explorer web UI; reads each record once.
+    delegations, owner}`` where ``delegations`` is the per-role progress array
+    (possibly empty) and ``owner`` is the creating principal (or None for legacy).
+    Used by the Session Explorer web UI; reads each record once.
     """
     base = base_dir or _store_dir()
     if not base.is_dir():
@@ -96,8 +152,9 @@ def list_summaries(*, base_dir: Path | None = None, limit: int | None = 200) -> 
             "status": resp.get("status"),
             "created_at": resp.get("created_at") or resp.get("started_at") or 0,
             "execution_ms": resp.get("execution_ms"),
-            "output_preview": (text[:160] + "…") if len(text) > 160 else text,
+            "output_preview": preview_output_text(text),
             "delegations": resp.get("progress") or [],
+            "owner": record.get("owner"),
         })
     summaries.sort(key=lambda s: s.get("created_at") or 0, reverse=True)
     return summaries[:limit] if limit else summaries

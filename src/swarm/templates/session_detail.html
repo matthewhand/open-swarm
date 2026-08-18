@@ -38,7 +38,7 @@
 <div class="sd-wrap">
   <p><a href="{% url 'session-explorer' %}">&larr; All sessions</a></p>
   <h2 style="margin:.2rem 0;">Session <span class="sd-id">{{ session.id }}</span></h2>
-  <div class="sd-meta">
+  <div class="sd-meta" style="margin:0 0 .85rem;">
     <span class="badge-status st-{{ session.status|default:'unknown' }}">{{ session.status|default:'unknown' }}</span>
     &nbsp; model <strong>{{ session.model|default:'—' }}</strong>
     {% if session.execution_ms %}&nbsp;&middot;&nbsp; {{ session.execution_ms }} ms{% endif %}
@@ -48,11 +48,11 @@
   <ul class="nav nav-tabs" role="tablist">
     {% if delegations %}
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sd-graph" type="button">🕸 Graph</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-timeline" type="button">⛓ Delegation timeline <span class="sd-meta">{{ delegations|length }}</span></button></li>
     {% endif %}
     <li class="nav-item"><button class="nav-link {% if not delegations %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sd-output" type="button">Output</button></li>
     {% if messages %}
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-transcript" type="button">Transcript <span class="sd-meta">{{ messages|length }}</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sd-transcript" type="button">Transcript <span class="sd-meta">({{ messages|length }})</span></button></li>
     {% endif %}
   </ul>
 

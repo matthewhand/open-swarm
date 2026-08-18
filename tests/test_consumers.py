@@ -407,10 +407,12 @@ class TestBlueprintSelection:
                 assert all(m["role"] != "assistant" for m in consumer.messages)
 
     @pytest.mark.asyncio
-    async def test_blueprint_reply_streams_chunk_and_final(self, consumer):
+    async def test_blueprint_reply_streams_chunk_and_final(self, consumer, monkeypatch):
         """A blueprint reply emits an OOB chunk + final partial and is
         appended to the conversation history (last message wins, spinner
         side-channel chunks skipped — same semantics as chat_views)."""
+        # SWARM_TEST_MODE short-circuits respond_with_blueprint before the mock.
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
         consumer.messages = [{"role": "user", "content": "Hello"}]
 
         async def fake_run(messages, **kwargs):
@@ -439,8 +441,9 @@ class TestBlueprintSelection:
                 }
 
     @pytest.mark.asyncio
-    async def test_blueprint_run_failure_sends_error_partial(self, consumer):
+    async def test_blueprint_run_failure_sends_error_partial(self, consumer, monkeypatch):
         """Exceptions from blueprint.run() surface as an error partial."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
         consumer.messages = [{"role": "user", "content": "Hello"}]
 
         async def failing_run(messages, **kwargs):

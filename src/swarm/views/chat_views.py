@@ -135,18 +135,20 @@ def usage_counts(messages: list[dict[str, Any]] | None, answer: Any, model: str)
 
 
 def backend_fingerprint(model_name: str, meta: dict[str, Any] | None) -> str:
-    """Build ``system_fingerprint`` naming the resolved CLI backends + judge.
+    """Build ``system_fingerprint`` naming resolved backends (CLI panel / MoA).
 
-    A blueprint may yield a ``meta`` side-channel (see
-    ``cli_fusion_support.backend_meta``) on its final chunk. We render it as e.g.
-    ``cli_fusion:gemini+claude+grok|judge=claude`` so any OpenAI client can read
-    ``resp.system_fingerprint`` to see which CLI(s) actually answered. Falls back
-    to the blueprint id when a blueprint emits no backend meta.
+    A blueprint may yield a ``meta`` side-channel on its final chunk. Renders
+    e.g. ``moa:analyst+critic`` or ``cli_fusion:gemini+claude``. Accepts
+    ``backends`` or ``ok_participants``. Falls back to the model id.
     """
     if not isinstance(meta, dict):
         return model_name
     fp = model_name
-    backends = [str(b) for b in (meta.get("backends") or []) if b]
+    backends = [
+        str(b)
+        for b in (meta.get("backends") or meta.get("ok_participants") or [])
+        if b
+    ]
     if backends:
         fp += ":" + "+".join(backends)
     judge = meta.get("judge")
@@ -181,6 +183,7 @@ class ChatCompletionsView(APIView):
         final_message = None
         backend_meta = None
         start_time = time.time()
+        async_generator = None
         try:
             # The blueprint's run method should be an async generator. Blueprints
             # yield progress chunks (spinner frames like "Generating.") BEFORE the
@@ -214,7 +217,18 @@ class ChatCompletionsView(APIView):
             raise
         except Exception as e:
             logger.error(f"[ReqID: {request_id}] Unexpected error during non-streaming blueprint execution: {e}", exc_info=True)
-            raise APIException(f"Internal server error during generation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
+        finally:
+            # Avoid "Task was destroyed but it is pending" when we break early.
+            if async_generator is not None and hasattr(async_generator, "aclose"):
+                try:
+                    await async_generator.aclose()
+                except Exception:
+                    pass
 
     async def _handle_streaming(self, blueprint_instance, messages: list[dict[str, str]], request_id: str, model_name: str) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """
@@ -253,7 +267,8 @@ class ChatCompletionsView(APIView):
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 logger.error(f"[ReqID: {request_id}] Unexpected error during streaming: {e}", exc_info=True)
-                error_msg = f"Internal server error: {str(e)}"
+                from swarm.utils.env_utils import client_safe_error_message
+                error_msg = client_safe_error_message(e, public="Internal server error.")
                 error_chunk = {"error": {"message": error_msg, "type": "internal_error"}}
                 yield f"data: {json.dumps(error_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -348,7 +363,11 @@ class ChatCompletionsView(APIView):
             raise e
         except Exception as e:
             print_logger.error(f"[ReqID: {request_id}] Unexpected error during serializer validation: {e}", exc_info=True)
-            raise APIException(f"Internal error during request validation: {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+            from swarm.utils.env_utils import client_safe_error_message
+            raise APIException(
+                client_safe_error_message(e, public="Internal error during request validation."),
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) from e
 
         validated_data = serializer.validated_data
         model_name = validated_data['model']
@@ -372,7 +391,13 @@ class ChatCompletionsView(APIView):
             blueprint_instance = await get_blueprint_instance(model_name, params=blueprint_params)
         except Exception as e:
              logger.error(f"[ReqID: {request_id}] Error getting blueprint instance for '{model_name}': {e}", exc_info=True)
-             raise APIException(f"Failed to load model '{model_name}': {e}", code=status.HTTP_500_INTERNAL_SERVER_ERROR) from e
+             from swarm.utils.env_utils import client_safe_error_message
+             raise APIException(
+                 client_safe_error_message(
+                     e, public=f"Failed to load model '{model_name}'.",
+                 ),
+                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+             ) from e
 
         if blueprint_instance is None:
             logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (get_blueprint_instance returned None).")

@@ -9,29 +9,41 @@ here is verified against `swarm-cli --help`.
 > **Documentation map:** this file is the `swarm-cli` reference;
 > [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md) is the end-to-end story
 > (install → CLI → web UI → API) with real transcripts;
-> [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) is the screenshot tour of the
-> web UI; [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) is the capture
-> registry.
+> [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) is the **screenshot tour** of the
+> web UI (Playwright PNGs under `docs/screenshots/`);
+> [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) is the capture registry.
+>
+> **Web UI note:** day-to-day operator surfaces are the **Django** shell
+> (trailing-slash routes: `/blueprint-library/`, `/teams/launch/`,
+> `/sessions/`, `/settings/`, …). The React SPA at `/` is a lightweight
+> dashboard; bare `/teams`, `/blueprints`, `/settings`, and `/agent-creator`
+> redirect to those Django pages. Regenerate tour images with
+> `scripts/capture_user_journey.py`.
 
 ---
 
 ## Overview
 
-`swarm-cli` currently ships **four commands**:
+<!-- from-scratch: list.txt -->
+```text
+swarm-cli list
+```
+
+`swarm-cli` ships these commands (verify with `swarm-cli --help`):
 
 | Command | Purpose |
 | --- | --- |
 | `list` | List installed executables, bundled blueprints, and user blueprint sources |
-| `install-executable <name>` | Build a standalone executable for a blueprint (PyInstaller) |
-| `install <name>` | Alias for `install-executable` |
-| `launch <name> [options]` | Run an installed blueprint executable, optionally with pre/listen/post hooks |
-
-> **Note:** older versions of this guide documented `add`, `delete`,
-> `uninstall`, and `config` subcommands. Those are **not in the current CLI**
-> (restoring or formally retiring them is tracked in
-> [ROADMAP.md](./ROADMAP.md)). The equivalent manual workflows are described
-> below: copy blueprint sources into the user blueprints directory, and edit
-> `swarm_config.json` directly.
+| `install-executable <name>` / `install <name>` | Build a standalone executable for a blueprint (PyInstaller) |
+| `launch <name> [options]` | Run an installed blueprint executable (pre/listen/post hooks optional) |
+| `uninstall <name>` | Remove a compiled blueprint executable from the user bin directory |
+| `add` / `delete` | Add or remove a blueprint from the user blueprint library |
+| `config` | Manage LLM profiles and MCP servers (`list` \| `add` \| `remove`) |
+| `cli-agents` / `agents` | Autodiscover installed agentic CLIs (`--check-auth`, `--init`, `--smoke`, …) |
+| `skills` | List reusable `SKILL.md` capabilities (apply via `cli_agent` `skill=` param) |
+| `wizard` | Scaffold a new team blueprint (supports `--non-interactive`) |
+| `moa` | Mixture of Agents CLI (`--backend fake\|grok\|acpx`; optional `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for consensus→team — no openai-agents) |
+| `moa-init` | Install/merge default `moa` panel config/presets (`--write`, `--show-openwebui`; team mode is CLI/model-path, not a preset key) |
 
 Run `swarm-cli --help` or `swarm-cli <command> --help` for the authoritative
 usage text.
@@ -100,15 +112,21 @@ Try 'swarm-cli install-executable <blueprint_name>' or see 'swarm-cli list --ava
 You can add blueprints by copying their source folders to this directory.
 ```
 
-### Adding Your Own Blueprints (manual copy)
+### Adding Your Own Blueprints (`swarm-cli add` or manual copy)
 
-There is no `add` command in the current CLI; copy the blueprint's source
-folder into the user blueprints directory instead:
+Prefer the CLI when you have a blueprint source path:
+
+```bash
+swarm-cli add ./my_blueprints/cool_agent --name cool_agent
+swarm-cli list --available    # it now appears as a user blueprint source
+```
+
+Or copy the folder yourself into the user blueprints directory:
 
 ```bash
 mkdir -p ~/.local/share/swarm/blueprints
 cp -r ./my_blueprints/cool_agent ~/.local/share/swarm/blueprints/cool_agent
-swarm-cli list --available    # it now appears as a user blueprint source
+swarm-cli list --available
 ```
 
 ### Installing Blueprints as Commands (`swarm-cli install`)
@@ -170,25 +188,32 @@ with an error telling you to `swarm-cli install-executable <name>` first.
 
 These are the only `launch` options. To select a different LLM profile, set `llm_profile` (preferred) or use `settings.default_llm_profile` in your `swarm_config.json` (or per-blueprint in the `blueprints` section). Config profiles are primary for LLM setup (incl. complex mappings). For the absolute simplest case (no config file), just export `OPENAI_API_KEY` + `OPENAI_BASE_URL` (synthesizes minimal "default" using gpt-5.5). `LITELLM_*` aliases ok. `DEFAULT_LLM`/`LITELLM_MODEL` no longer select/override. Blueprint-specific flags can be passed when running the blueprint executable directly.
 
-### Removing Blueprints (manual)
-
-There are no `delete`/`uninstall` commands in the current CLI. Remove files
-directly:
+### Removing Blueprints (`swarm-cli delete` / `uninstall`)
 
 ```bash
-rm ~/.local/share/swarm/bin/jeeves                      # installed executable
-rm -r ~/.local/share/swarm/blueprints/cool_agent        # user blueprint source
+swarm-cli uninstall jeeves                 # remove compiled executable from user bin
+swarm-cli delete cool_agent                # remove from user blueprint library
+# optional manual cleanup of leftover files:
+# rm ~/.local/share/swarm/bin/jeeves
+# rm -r ~/.local/share/swarm/blueprints/cool_agent
 ```
 
 ---
 
 ## Managing Configuration
 
-`swarm_config.json` holds your LLM profiles and MCP server definitions. The
-current CLI has **no `config` subcommands** — create and edit the file with
-your editor. The loader searches upward from the current directory, then
-falls back to `~/.config/swarm/swarm_config.json`; `SWARM_CONFIG_PATH`
-overrides both.
+`swarm_config.json` holds your LLM profiles and MCP server definitions.
+Manage them with `swarm-cli config` (or edit the JSON file by hand).
+
+```bash
+swarm-cli config list --section llm
+swarm-cli config add --section llm --name default --json \
+  '{"provider":"openai","model":"gpt-4o-mini","api_key":"${OPENAI_API_KEY}"}'
+swarm-cli config remove --section llm --name default
+```
+
+The loader honors `SWARM_CONFIG_PATH`, then XDG
+(`~/.config/swarm/swarm_config.json`), then CWD / upward search.
 
 ### Example configuration
 

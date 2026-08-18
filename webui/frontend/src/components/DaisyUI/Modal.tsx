@@ -24,19 +24,24 @@ export const Modal = ({
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const triggerElementRef = useRef<HTMLElement | null>(null);
 
-  // Sync open state with native dialog methods
+  // Sync open state with native dialog methods and manage focus
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
 
     if (isOpen) {
       if (!dialog.open) {
+        triggerElementRef.current = document.activeElement as HTMLElement | null;
         dialog.showModal();
       }
     } else {
       if (dialog.open) {
         dialog.close();
+        if (triggerElementRef.current) {
+          triggerElementRef.current.focus();
+        }
       }
     }
   }, [isOpen]);
@@ -99,9 +104,15 @@ export const Modal = ({
           {children}
         </div>
       </div>
-      <form method="dialog" className="modal-backdrop">
-        <button type="button" onClick={onClose}>close</button>
-      </form>
+      <button
+        type="button"
+        className="modal-backdrop"
+        onClick={onClose}
+        aria-label="close"
+        tabIndex={-1}
+      >
+        close
+      </button>
     </dialog>
   );
 

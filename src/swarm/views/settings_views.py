@@ -5,6 +5,7 @@ Web views for displaying and managing configuration settings
 import os
 import sys
 
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
@@ -23,12 +24,16 @@ if _this_mod is not None:
         sys.modules.setdefault(__name__[4:], _this_mod)
 
 
+@login_required
 def settings_dashboard(request):
-    """Render the comprehensive settings dashboard"""
+    """Render the comprehensive settings dashboard (authenticated).
+
+    ``settings_groups`` is redacted before template/json_script so viewObject
+    never surfaces raw api_key values.
+    """
     try:
         all_settings = settings_manager.collect_all_settings()
-
-        # Calculate statistics
+        # Stats from raw collection (configured counts), display uses redacted copy.
         total_settings = sum(len(group['settings']) for group in all_settings.values())
         configured_settings = sum(
             1 for group in all_settings.values()
@@ -40,10 +45,11 @@ def settings_dashboard(request):
             for setting in group['settings'].values()
             if setting.get('sensitive', False)
         )
+        safe_groups = redact_settings_groups(all_settings)
 
         context = {
             'page_title': 'Settings Dashboard',
-            'settings_groups': all_settings,
+            'settings_groups': safe_groups,
             'stats': {
                 'total': total_settings,
                 'configured': configured_settings,
@@ -58,27 +64,50 @@ def settings_dashboard(request):
         return HttpResponse(f"Error loading settings: {str(e)}", status=500)
 
 
+def _redact_setting_value(value, *, sensitive: bool):
+    """Redact sensitive setting values for API/export using the real redactor."""
+    from swarm.utils.redact import redact_sensitive_data
+
+    if sensitive:
+        # Never emit raw secrets/objects marked sensitive.
+        if isinstance(value, dict | list):
+            return redact_sensitive_data(value, mask="***HIDDEN***")
+        if value in (None, "", "Not Set"):
+            return value
+        return "***HIDDEN***"
+    # Even non-sensitive dicts may embed api_key-like keys — run recursive redaction.
+    if isinstance(value, dict | list):
+        return redact_sensitive_data(value, mask="***HIDDEN***")
+    return value
+
+
+def redact_settings_groups(all_settings: dict) -> dict:
+    """Deep-copy settings groups with secrets redacted (dashboard + API + json_script)."""
+    safe_settings: dict = {}
+    for group_name, group_data in all_settings.items():
+        safe_settings[group_name] = {
+            "title": group_data["title"],
+            "description": group_data["description"],
+            "icon": group_data["icon"],
+            "settings": {},
+        }
+        for setting_name, setting_data in group_data["settings"].items():
+            safe_setting = setting_data.copy()
+            safe_setting["value"] = _redact_setting_value(
+                setting_data.get("value"),
+                sensitive=bool(setting_data.get("sensitive", False)),
+            )
+            safe_settings[group_name]["settings"][setting_name] = safe_setting
+    return safe_settings
+
+
+@login_required
 @require_http_methods(["GET"])
 def settings_api(_request):
-    """API endpoint to get all settings as JSON"""
+    """API endpoint to get all settings as JSON (authenticated)."""
     try:
         all_settings = settings_manager.collect_all_settings()
-
-        # Remove sensitive values for API response
-        safe_settings = {}
-        for group_name, group_data in all_settings.items():
-            safe_settings[group_name] = {
-                'title': group_data['title'],
-                'description': group_data['description'],
-                'icon': group_data['icon'],
-                'settings': {}
-            }
-
-            for setting_name, setting_data in group_data['settings'].items():
-                safe_setting = setting_data.copy()
-                if setting_data.get('sensitive', False):
-                    safe_setting['value'] = '***HIDDEN***'
-                safe_settings[group_name]['settings'][setting_name] = safe_setting
+        safe_settings = redact_settings_groups(all_settings)
 
         return JsonResponse({
             'success': True,
@@ -92,21 +121,25 @@ def settings_api(_request):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def environment_variables(_request):
-    """Get all environment variables related to Open Swarm"""
+    """Get all environment variables related to Open Swarm (authenticated)."""
+    from swarm.utils.redact import is_sensitive_key
+
     try:
         # Collect all environment variables that might be relevant
         relevant_prefixes = [
             'DJANGO_', 'SWARM_', 'API_', 'ENABLE_', 'OPENAI_',
-            'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG'
+            'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG', 'DATABASE_',
+            'AWS_', 'MONGODB_', 'MONGO_',
         ]
 
         env_vars = {}
         for key, value in os.environ.items():
             if any(key.startswith(prefix) for prefix in relevant_prefixes):
-                # Hide sensitive values
-                if any(sensitive in key.lower() for sensitive in ['key', 'token', 'secret', 'password']):
+                # Use shared redaction heuristics (access_key, database_url, …)
+                if is_sensitive_key(key):
                     env_vars[key] = '***SET***' if value else 'Not Set'
                 else:
                     env_vars[key] = value

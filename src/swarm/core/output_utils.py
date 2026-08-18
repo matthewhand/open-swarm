@@ -180,6 +180,9 @@ def print_search_progress_box(*args, **kwargs):
 
     return print_search_box(title, content or "", emoji=emoji)
 
+# Provide the private-name alias used by some legacy blueprint code (e.g. codey) for import compatibility.
+_print_search_progress_box = print_search_progress_box
+
 def pretty_print_response(messages: list[dict[str, Any]], use_markdown: bool = False, spinner=None, agent_name: str = None) -> None:
     """Format and print messages, optionally rendering assistant content as markdown, and always prefixing agent responses with the agent's name."""
     if spinner:

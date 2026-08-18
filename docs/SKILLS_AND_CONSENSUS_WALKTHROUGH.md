@@ -92,6 +92,8 @@ in [`docs/examples/`](examples):
 - [`consensus-slow-endpoint.md`](examples/consensus-slow-endpoint.md) — a case where the panel is unanimous.
 - [`consensus-rest-vs-graphql.md`](examples/consensus-rest-vs-graphql.md) — the split decision shown above.
 - [`skill-bundled-asset-toolcall.md`](examples/skill-bundled-asset-toolcall.md) — the tool-calling proof.
+- [`moa-consensus-vs-team/`](examples/moa-consensus-vs-team/) — pure MoA: consensus only vs consensus→team (no openai-agents).
+- [`moa-orchestrator/`](examples/moa-orchestrator/) — same scripted MoA→team under the orchestrator API surface (not a live Runner by default; diagrams + captured runs).
 
 ---
 

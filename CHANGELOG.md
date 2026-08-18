@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Pure MoA team path (no openai-agents):** `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; INFO logs on `moa.collect` / `moa.team` (champagne trace)
+- **`swarm-cli moa --team --workdir`**: consensus then scripted specialists (`--team-tasks`, `-v` INFO logs); mutually exclusive with `--act`
+- **Examples:** `docs/examples/moa-consensus-vs-team/`, `docs/examples/moa-orchestrator/`; demos `scripts/demo_moa_consensus_vs_team.py`, `scripts/trace_moa_champagne.py`
+- **`moa_orchestrator` blueprint**: scripted MoA→team via `run_moa_agents_orchestrator` → `run_moa_then_team` (`implementer`/`tester`/`docs`/`researcher` writes; no live openai-agents Runner by default; optional `build_moa_orchestrator_agents` for real Agents)
+
+### Fixed
+- **CLI import on broken XDG cache:** `ensure_swarm_directories_exist` in `swarm.core.paths` is best-effort per root (`_safe_mkdir`) so a broken `~/.cache` symlink no longer crashes `swarm-cli` import
+- **CLI MoA test XDG isolation:** `swarm-cli moa` subprocess dogfood tests pin `HOME` / `XDG_*` / `SWARM_USER_DATA_DIR` under a temp tree so host broken-cache layouts cannot break CI
+
 ## [0.5.4] — 2026-06-19
 
 ### Fixed — `django_chat` actually resolves its LLM profile
@@ -251,6 +261,18 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - **Docs** README attribution section (OpenAI Swarm derivative, built on openai-agents SDK) and explicit prerequisites (Python >= 3.10, Node >= 22 for optional frontend); React web UI marked experimental with the Django UI as the supported interface.
 
 ### Added
+- **Dual workflow taxonomy** (`docs/SWARM_WORKFLOWS.md`): **A** MoA consensus (read-only subagents + orchestrator) vs **B** openai-agents persona swarm (read/write specialists).
+- **Mixture of Agents (MoA)** (`swarm.core.moa`): read-only multi-CLI consensus participants; orchestrator-only determination and optional act/writes. Injectable fake backend for CI; production `AcpxParticipantBackend` defaults to `--approve-reads` + `exec` (never `--approve-all`). See `docs/MOA.md`.
+- Blueprint `moa` with legacy aliases `cli_fusion` / `cli_ensemble` / `mixture_of_agents` (discoverable model ids).
+- **`swarm-cli moa`** dogfood command: `--backend fake|acpx|grok`, orchestrator `--act` / `--act-write`; `GrokParticipantBackend` for local grok CLI as a read-only panelist.
+- **HTTP**: `/v1/chat/completions` model `moa` with `system_fingerprint` (`moa:p1+p2`); chat_views `backend_fingerprint`.
+- **Resilience**: participant failover chain, per-participant timeout budget, vote weights on determination.
+- **Model B**: `persona_swarm.run_persona_swarm_with_runner` (live Runner when available, scripted R/W fallback).
+- TDD: `tests/core/test_moa*.py`, `tests/cli/test_moa_command.py`, `tests/api/test_moa_api.py`, `tests/api/test_moa_http_e2e.py`, `tests/core/test_persona_swarm_runner.py`, `tests/integration/test_swarm_workflows_proof.py`.
+- Fixed Django 4 SPA `re_path` import; chat non-streaming generator `aclose`; discovery skip of same-class alias re-exports.
+- **Grok first-class MoA participant** (`GrokParticipantBackend` in `backends.py`); multi-seat labels; CLI defaults no longer Codex-centric (`analyst,critic` / fake); docs state Codex not required.
+- **Hybrid A←B:** `run_hybrid_scripted` + coordinator `consult_moa_panel` tool (read-only MoA then implementer write).
+- **`swarm-cli moa-init`**, `docs/examples/moa.swarm_config.json`, Open WebUI preset (`docs/OPENWEBUI_MOA.md`), blueprint **`hybrid_moa`**, multi-seat demo script.
 - Comprehensive unit tests for low-coverage modules: `audit.py`, `progress.py`, `output_formatters.py`, and `ansi_box.py`
 - Test coverage for `ChucksAngelsBlueprint` class
 - Test coverage for `DiffFormatter` and `StatusFormatter` classes

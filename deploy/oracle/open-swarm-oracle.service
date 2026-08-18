@@ -10,16 +10,19 @@ WorkingDirectory=/home/YOURUSER/open-swarm
 # PATH MUST include them or the adapters can't exec the CLIs. Adjust the node
 # version path to match `which gemini` on the host.
 Environment=PATH=/home/YOURUSER/.nvm/versions/node/v22.22.3/bin:/home/YOURUSER/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=DJANGO_DEBUG=true
+Environment=DJANGO_DEBUG=false
+Environment=DJANGO_SECRET_KEY=CHANGE_ME_GENERATE_A_SECRET
 # Add your public hostname here once TLS/nginx is in front:
 Environment=DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,oracle.example.com
 Environment=SWARM_CONFIG_PATH=/home/YOURUSER/.config/swarm/swarm_config.json
 Environment=SWARM_RESPONSES_DIR=/home/YOURUSER/.local/share/swarm/responses
+Environment=DJANGO_DB_NAME=/home/YOURUSER/.local/share/swarm/db.sqlite3
 # REQUIRE a bearer token. Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
 Environment=API_AUTH_TOKEN=CHANGE_ME_GENERATE_A_TOKEN
 # Bind localhost-only; nginx terminates TLS and proxies to it. (Use 0.0.0.0:8001
 # only if you intend to expose it directly without a TLS proxy — not recommended.)
-ExecStart=/home/YOURUSER/open-swarm/.venv/bin/python manage.py runserver 127.0.0.1:8001 --noreload
+# Production path: ASGI via uvicorn (not manage.py runserver).
+ExecStart=/home/YOURUSER/open-swarm/.venv/bin/uvicorn swarm.asgi:application --host 127.0.0.1 --port 8001 --workers 1
 Restart=always
 RestartSec=3
 

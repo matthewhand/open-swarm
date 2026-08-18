@@ -33,6 +33,8 @@
 - [ ] DEVELOPMENT.md: document blueprint-management internals, PyInstaller usage, `abbreviation` metadata, XDG path management.
 - [ ] Document `--pre`, `--listen`, `--post` hook flags and slash-command REPL behavior.
 
+**Recent unification (config loaders now central in core/, extensions are thin delegates; deprecate/status in discovery; resolver tests; wizard+audit improvements; docs refreshed; audit_status.json expanded; debug noise reduced; discovery/UX edges fixed for django/stewie/messenger; tool/spinner dupe sweep). See subagent work for details. Remaining: full metadata in all bps, use deprecate flag in CLI/UI, more coverage, central tools registration, full local uv run deps.**
+
 ---
 
 Superseded content (web UI, MCP server mode, SAML IdP, marketplace, blueprint

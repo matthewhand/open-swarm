@@ -37,30 +37,27 @@ def redact_sensitive_data(data: Any) -> Any:
     """
     Redact sensitive information from data for logging purposes.
 
-    Args:
-        data: The data to redact
-
-    Returns:
-        Redacted version of the data
+    Delegates to :func:`swarm.utils.redact.redact_sensitive_data` so tool-call
+    logs use the same key taxonomy and URI masking as the settings path.
+    Top-level strings also get pattern / URI scrubbing (log lines may be plain
+    text rather than structured dicts).
     """
-    if isinstance(data, dict):
-        redacted = {}
-        for key, value in data.items():
-            if any(sensitive in str(key).lower() for sensitive in ['key', 'token', 'secret', 'password', 'auth']):
-                if isinstance(value, str) and len(value) > 4:
-                    redacted[key] = value[:2] + '*' * (len(value) - 4) + value[-2:]
-                else:
-                    redacted[key] = '***'
-            else:
-                redacted[key] = redact_sensitive_data(value)
+    from swarm.utils.redact import (
+        _COMPILED_SENSITIVE_PATTERNS,
+        redact_sensitive_data as _shared_redact,
+        redact_uri_credentials,
+    )
+
+    if isinstance(data, str):
+        redacted = data
+        for pattern in _COMPILED_SENSITIVE_PATTERNS:
+            redacted = pattern.sub("[REDACTED]", redacted)
+        redacted = redact_uri_credentials(redacted)
+        # Extra log-oriented heuristics (Basic auth / JWT-ish prefixes).
+        if redacted == data and re.search(r"(?:sk-|Bearer |Basic |eyJ)", data):
+            return "***REDACTED***"
         return redacted
-    elif isinstance(data, list):
-        return [redact_sensitive_data(item) for item in data]
-    elif isinstance(data, str):
-        # Simple heuristic for API keys in strings
-        if re.search(r'(?:sk-|Bearer |Basic |eyJ)', data):
-            return '***REDACTED***'
-    return data
+    return _shared_redact(data)
 
 # Utility to convert function signatures to JSON schema (if needed, though less common now with direct calls)
 # from .util import function_to_json # Commented out if not used directly here
