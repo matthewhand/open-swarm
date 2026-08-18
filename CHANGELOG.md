@@ -88,7 +88,6 @@ All notable changes to this project will be documented in this file.
 - **Login open redirect:** post-login `next` accepts only rooted same-origin paths; rejects `//evil`, backslash tricks, absolute/external URLs
 
 ### Removed
-- **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`
 - **Leftover `@csrf_exempt` on GET-only WebUI views:** `index`, `team_launcher`, `teams_export`, and unrouted `serve_swarm_config` in `web_views.py` (decorator was pointless on GET; token-auth chat/responses APIs unchanged)
 - **Dead `swarm.views.github_views`:** unrouted legacy marketplace helpers including `csrf_exempt` POST “install” stubs; live GitHub discovery remains `MarketplaceGitHub*` in `api_views` + `github_topics_service`
 
@@ -322,7 +321,6 @@ Turn the agentic CLIs you already have installed (`claude`, `gemini`, `codex`,
 - Absorbed 18 community/agent branches (perf, security shlex hardening, UX, tests) (#83)
 
 ### Removed
-- **Orphan SPA Builder panels:** delete unused Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + AuthContext; move `buildCandidates` into `lib/inferenceProfile.ts`; drop `@uiw/react-codemirror` / `@codemirror/lang-python`
 - Wagtail marketplace and SAML IdP scaffolding (-716 lines; GitHub-topics discovery retained) (#82)
 
 ### Security / hygiene
