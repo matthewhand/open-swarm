@@ -1,0 +1,66 @@
+MoA mode: consensus_then_team
+Question: Should we ship the release?
+
+## Determination (orchestrator)
+Prefer a simple, well-tested approach with clear rollback.
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst: Prefer a simple, well-tested approach with clear rollback.
+- critic: Prefer explicit validation and structured logging at the boundary.
+
+## Specialists (R/W team)
+### implementer [ok]
+trace: read_file('notes.txt'), read_file('moa_determination.md'), write_file('decision.md')
+# Decision
+
+## Context
+Should we ship the release?
+
+## MoA consensus
+Prefer a simple, well-tested approach with clear rollback.
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst: Prefer a simple, well-tested approach with clear rollback.
+- critic: Prefer explici
+
+### tester [ok]
+trace: write_file('test_notes.md')
+# Test notes
+
+## Against determination
+Prefer a simple, well-tested approach with clear rollback.
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst: Prefer a simple, well-tested approach with clear rollback.
+- critic: Prefer explicit validation and structured lo
+
+### docs [ok]
+trace: write_file('docs/ADR.md')
+# ADR
+
+## Status
+Accepted (post-MoA)
+
+## Context
+Should we ship the release?
+
+## Decision
+Prefer a simple, well-tested approach with clear rollback.
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst: Prefer a simple, well-tested approach with clear rollback.
+- c
+
+## Writes
+moa_determination.md, decision.md, test_notes.md, docs/ADR.md
+
+panel_wrote=False
+

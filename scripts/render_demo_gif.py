@@ -13,14 +13,22 @@ Scene files (docs/demo/captures/scene{1,2,3}.txt) use a simple format:
   - lines starting with "$ "  -> typed at the prompt (char-by-char animation)
   - every other line          -> printed output (revealed in blocks)
 
-Regenerate the captures with:
+Regenerate the captures with (trim into scene{1,2,3,4}.txt afterward):
   SWARM_TEST_MODE=1 uv run swarm-cli list
-  SWARM_TEST_MODE=1 uv run python -m swarm.blueprints.zeus.zeus_cli \
+  # prefer documented launch path (install once if needed):
+  #   uv run swarm-cli install-executable zeus
+  SWARM_TEST_MODE=1 uv run swarm-cli launch zeus \
       --message "Plan a release: tests, changelog, tag"
+  # module path still works:
+  #   SWARM_TEST_MODE=1 uv run python -m swarm.blueprints.zeus.zeus_cli \
+  #       --message "Plan a release: tests, changelog, tag"
   SWARM_TEST_MODE=1 DJANGO_DEBUG=true uv run python manage.py runserver 8447 --noreload &
   curl -s localhost:8447/v1/models | jq -c '[.data[].id]'
   curl -s localhost:8447/v1/chat/completions -H 'Content-Type: application/json' \
       -d '{"model":"zeus","stream":true,"messages":[{"role":"user","content":"Plan a release: tests, changelog, tag"}]}'
+  # optional scene4 — real fake-backend MoA team only (do not invent frames):
+  #   SWARM_TEST_MODE=1 uv run swarm-cli moa --backend fake --team \
+  #       --workdir /tmp/moa-demo "Should we ship the release?"
 
 Then render:  uv run python scripts/render_demo_gif.py
 Requires Pillow (`uv pip install pillow`) and DejaVu Sans Mono (Linux default).

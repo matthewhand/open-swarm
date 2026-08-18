@@ -1,6 +1,6 @@
-data: {"id": "chatcmpl-b711caf1-fa1e-4fe5-a97a-6579d6b93d13", "object": "chat.completion.chunk", "created": 1781143537, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Generating."}, "logprobs": null, "finish_reason": null}]}
+data: {"id": "chatcmpl-6526e53d-6b72-4c10-afbe-5104de07b8d8", "object": "chat.completion.chunk", "created": 1787016248, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Generating."}, "logprobs": null, "finish_reason": null}], "system_fingerprint": "zeus"}
 
-data: {"id": "chatcmpl-b711caf1-fa1e-4fe5-a97a-6579d6b93d13", "object": "chat.completion.chunk", "created": 1781143537, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "[TEST\u2011MODE] Zeus here \u2013 tooling layer is disabled but I'm alive \u26a1"}, "logprobs": null, "finish_reason": null}]}
+data: {"id": "chatcmpl-6526e53d-6b72-4c10-afbe-5104de07b8d8", "object": "chat.completion.chunk", "created": 1787016248, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "[TEST\u2011MODE] Zeus here \u2013 tooling layer is disabled but I'm alive \u26a1"}, "logprobs": null, "finish_reason": null}], "system_fingerprint": "zeus"}
 
 data: [DONE]
 

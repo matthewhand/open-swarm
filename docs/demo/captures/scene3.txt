@@ -1,11 +1,10 @@
 $ # 2. the SAME blueprint, served over an OpenAI-compatible API
 $ # (server: SWARM_TEST_MODE=1 DJANGO_DEBUG=true uv run python manage.py runserver 8447)
 $ curl -s localhost:8447/v1/models | jq -c '[.data[].id]'
-["django_chat","gawd","geese","dynamic_team","poets","stewie","rue_code","chucks_angels","jeeves","zeus","whiskeytango_foxtrot","suggestion","codey","whinge_surf"]
+["fs_introspect","hybrid_swarm","django_chat","cli_planner","hybrid_team","moa","cli_ensemble","cli_fusion","ensemble","fusion","mixture_of_agents","cli_recurse","gawd","cli_pipeline","geese","dynamic_team","dynamic-team","poets","PoetsBlueprint","cli_agent","stewie","StewieBlueprint","rue_code","RueCode","chucks_angels","Chuck's Angels","persona_council","cli_map","moa_orchestrator","moa-orch","agents_moa","chatbot","ChatbotBlueprint","jeeves","JeevesBlueprint","cli_orchestrator","zeus","whiskeytango_foxtrot","WhiskeyTangoFoxtrotBlueprint","suggestion","SuggestionBlueprint","codey","hybrid_moa","moa_hybrid","hybrid-consensus","cli_roundtable","swarm_ensemble","swarm_map","swarm_recurse","swarm_pipeline","swarm_roundtable","swarm_planner","swarm_orchestrator"]
 $ curl -s localhost:8447/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"zeus","stream":true,"messages":[{"role":"user","content":"Plan a release: tests, changelog, tag"}]}'
-data: {"id": "chatcmpl-b711caf1-fa1e-4fe5-a97a-6579d6b93d13", "object": "chat.completion.chunk", "created": 1781143537, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Generating."}, "logprobs": null, "finish_reason": null}]}
+data: {"id": "chatcmpl-6526e53d-6b72-4c10-afbe-5104de07b8d8", "object": "chat.completion.chunk", "created": 1787016248, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Generating."}, "logprobs": null, "finish_reason": null}], "system_fingerprint": "zeus"}
 
-data: {"id": "chatcmpl-b711caf1-fa1e-4fe5-a97a-6579d6b93d13", "object": "chat.completion.chunk", "created": 1781143537, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "[TEST\u2011MODE] Zeus here \u2013 tooling layer is disabled but I'm alive \u26a1"}, "logprobs": null, "finish_reason": null}]}
+data: {"id": "chatcmpl-6526e53d-6b72-4c10-afbe-5104de07b8d8", "object": "chat.completion.chunk", "created": 1787016248, "model": "zeus", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "[TEST\u2011MODE] Zeus here \u2013 tooling layer is disabled but I'm alive \u26a1"}, "logprobs": null, "finish_reason": null}], "system_fingerprint": "zeus"}
 
 data: [DONE]
-

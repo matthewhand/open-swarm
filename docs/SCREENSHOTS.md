@@ -78,25 +78,16 @@ Regenerate with:
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `demo/cli-and-api.gif` | Animated terminal demo (~18s loop): `swarm-cli list`, zeus module CLI, curl `/v1/*` | README.md | 2026-06-12 | stale |
+| `demo/cli-and-api.gif` | Animated terminal demo (~25s loop): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake) | README.md | 2026-08-18 | current |
 
-**Stale vs current CLI (2026-08):** narrative still matches the README caption
-(“one blueprint — CLI and OpenAI-compatible API”), but scene captures predate
-today’s surface. Refresh before treating as current:
-
-* Bundled list / entry paths outdated (`zeus` as `apps.py`, missing
-  `moa` / `hybrid_*` / `cli_*`, truncated elision).
-* Scene 2 invokes `python -m swarm.blueprints.zeus.zeus_cli` instead of the
-  documented `swarm-cli launch zeus --message …`.
-* `/v1/models` id list omits current blueprints (`moa`, `hybrid_moa`,
-  `cli_*`, …).
-* Does **not** demo `swarm-cli moa --team` (featured in README Quickstart);
-  that would be a separate scene redesign with fresh captures — do not invent
-  frames.
+Four scenes from real `SWARM_TEST_MODE` / curl / `--backend fake` captures under
+`docs/demo/captures/` (see `raw_*.txt`). Scene 2 uses documented
+`swarm-cli launch zeus` (after `install-executable zeus`). Scene 4 is
+`swarm-cli moa --backend fake --team --workdir /tmp/moa-demo`.
 
 Regenerate (real captures only) via
 [`scripts/render_demo_gif.py`](../scripts/render_demo_gif.py) after updating
-`docs/demo/captures/scene{1,2,3}.txt` (and `raw_*.txt`) from live commands —
+`docs/demo/captures/scene{1,2,3,4}.txt` (and `raw_*.txt`) from live commands —
 see [Regenerating](#regenerating) below.
 
 ## Other images in the repo
@@ -147,12 +138,15 @@ pages changed, and refresh this registry's "Captured" dates.
 
 Honesty rule (from the render script): every output line must come from a
 real capture under `docs/demo/captures/` — type-animation only; elide with a
-single `…` line when trimming. Scene format: `$ ` lines are typed; other
-lines are output blocks.
+single `…` line when trimming a contiguous block. Scene format: `$ ` lines are
+typed; other lines are output blocks. `scene*.txt` are picked up in sorted
+order (`scene1`…`scene4`).
 
 ```bash
-# 1) Refresh raw captures (trim into scene{1,2,3}.txt afterward)
+# 1) Refresh raw captures (trim into scene{1,2,3,4}.txt afterward)
 SWARM_TEST_MODE=1 uv run swarm-cli list
+# prefer documented launch path (install once if needed):
+#   uv run swarm-cli install-executable zeus
 SWARM_TEST_MODE=1 uv run swarm-cli launch zeus --message "Plan a release: tests, changelog, tag"
 # or module path still works:
 # SWARM_TEST_MODE=1 uv run python -m swarm.blueprints.zeus.zeus_cli \
@@ -161,6 +155,10 @@ SWARM_TEST_MODE=1 DJANGO_DEBUG=true uv run python manage.py runserver 8447 --nor
 curl -s localhost:8447/v1/models | jq -c '[.data[].id]'
 curl -s localhost:8447/v1/chat/completions -H 'Content-Type: application/json' \
     -d '{"model":"zeus","stream":true,"messages":[{"role":"user","content":"Plan a release: tests, changelog, tag"}]}'
+# optional scene4 — real fake-backend MoA team only (do not invent frames):
+mkdir -p /tmp/moa-demo
+SWARM_TEST_MODE=1 uv run swarm-cli moa --backend fake --team --workdir /tmp/moa-demo \
+    "Should we ship the release?"
 
 # 2) Render from scene files
 uv run python scripts/render_demo_gif.py
@@ -168,8 +166,6 @@ uv run python scripts/render_demo_gif.py
 ```
 
 Then set this registry row’s Captured date and Status back to `current`.
-Optional: add a fourth scene for `swarm-cli moa --team` only with real
-`--backend fake` (or live) capture output — do not fabricate frames.
 
 ## Convention
 

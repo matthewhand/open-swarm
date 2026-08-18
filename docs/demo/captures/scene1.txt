@@ -1,11 +1,19 @@
-$ # 17 bundled blueprints ship with the repo
+$ # 31 bundled blueprints ship with the repo
 $ SWARM_TEST_MODE=1 uv run swarm-cli list
 --- Bundled Blueprints (available from package) ---
+- fs_introspect (entry: blueprint_fs_introspect.py)
+- hybrid_swarm (entry: blueprint_hybrid_swarm.py)
+- django_chat (entry: blueprint_django_chat.py)
+- cli_planner (entry: blueprint_cli_planner.py)
+- hybrid_team (entry: blueprint_hybrid_team.py)
+- moa (entry: blueprint_moa.py)
+- cli_fusion (entry: blueprint_cli_fusion.py)
 …
-- jeeves (entry: blueprint_jeeves.py)
-- zeus (entry: apps.py)
+- zeus (entry: zeus_cli.py)
 - common (entry: progress.py)
-- whiskeytango_foxtrot (entry: apps.py)
+- whiskeytango_foxtrot (entry: blueprint_whiskeytango_foxtrot.py)
 - suggestion (entry: suggestion_cli.py)
-- codey (entry: blueprint_codey.py)
-- whinge_surf (entry: blueprint_whinge_surf.py)
+- codey (entry: codey_cli.py)
+- hybrid_moa (entry: blueprint_hybrid_moa.py)
+- cli_ensemble (entry: blueprint_cli_ensemble.py)
+- cli_roundtable (entry: blueprint_cli_roundtable.py)

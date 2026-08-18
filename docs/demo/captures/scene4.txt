@@ -1,0 +1,29 @@
+$ # 3. MoA: consensus then scripted specialists (--backend fake)
+$ SWARM_TEST_MODE=1 uv run swarm-cli moa --backend fake --team --workdir /tmp/moa-demo "Should we ship the release?"
+MoA mode: consensus_then_team
+Question: Should we ship the release?
+
+## Determination (orchestrator)
+Prefer a simple, well-tested approach with clear rollback.
+
+— synthesized by orchestrator from 2 participants (primary: analyst)
+
+Panel:
+- analyst: Prefer a simple, well-tested approach with clear rollback.
+- critic: Prefer explicit validation and structured logging at the boundary.
+
+## Specialists (R/W team)
+### implementer [ok]
+trace: read_file('notes.txt'), read_file('moa_determination.md'), write_file('decision.md')
+…
+### tester [ok]
+trace: write_file('test_notes.md')
+…
+### docs [ok]
+trace: write_file('docs/ADR.md')
+…
+
+## Writes
+moa_determination.md, decision.md, test_notes.md, docs/ADR.md
+
+panel_wrote=False

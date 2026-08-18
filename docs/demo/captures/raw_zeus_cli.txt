@@ -1,5 +1,5 @@
-[SWARM_CONFIG_DEBUG] Trying: /home/matthewh/open-swarm/.claude/worktrees/agent-ac5382e2eb2aca256/swarm_config.json
-[SWARM_CONFIG_DEBUG] Loaded: /home/matthewh/open-swarm/.claude/worktrees/agent-ac5382e2eb2aca256/swarm_config.json
+Launching 'zeus' with: /home/matthewh/.local/share/swarm/bin/zeus --message Plan a release: tests, changelog, tag
+--- zeus Output ---
 ╭────────────────────────────── Zeus Assistance ───────────────────────────────╮
 │ ⚡ How can Zeus help you today? You said: Plan a release: tests, changelog,  │
 │ tag                                                                          │
@@ -7,3 +7,5 @@
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 How can Zeus help you today? You said: Plan a release: tests, changelog, tag
+
+--- 'zeus' finished (Return Code: 0) ---
