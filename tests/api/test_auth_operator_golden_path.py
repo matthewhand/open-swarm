@@ -10,13 +10,22 @@ Operator story (docs/AUTH.md §1 + §4):
 3. REST ``GET /v1/responses/{id}`` stays strict same-principal IDOR — the
    bridge does **not** escalate API privileges.
 
-This test exercises the real create path (background queue stamp) then asserts
-Explorer + REST visibility stay coherent. It must FAIL if create→own→list
-breaks (missing owner stamp, bridge regressions, or IDOR leaks).
+Library create→run closer (CHANGELOG library path + echo-only fix):
+
+4. ``generate_blueprint_code`` emits a BlueprintBase ``AsyncGenerator`` ``run``
+   that calls real ``AsyncOpenAI`` + ``chat.completions.create(stream=True)``
+   (not nonexistent ``chat_completion_stream`` / echo-only stubs).
+5. My Blueprints runner POSTs ``/v1/chat/completions`` (session credentials).
+6. That chat create path stamps ``owner`` the same way as responses create.
+
+These tests must FAIL if create→own→list or library create→run regresses
+(missing owner stamp, bridge/IDOR leaks, echo-only generated run, or demo
+simulate runner).
 """
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -30,6 +39,10 @@ from swarm.core import responses_store
 
 TOKEN = "golden-path-api-token-xyz"
 FOREIGN_TOKEN = "golden-path-other-token-abc"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_MY_BLUEPRINTS_JS = (
+    _REPO_ROOT / "src" / "swarm" / "static" / "js" / "my_blueprints.js"
+)
 
 
 @pytest.fixture
@@ -231,3 +244,229 @@ class TestAuthOperatorGoldenPath:
         )
         assert foreign_user.status_code == 403
         assert foreign_token.status_code == 403
+
+
+def _llm_config() -> dict:
+    return {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": "test-model",
+                "api_key": "sk-test",
+                "base_url": "http://127.0.0.1:9/v1",
+            }
+        },
+        "llm_profile": "default",
+    }
+
+
+def _load_generated_blueprint(code: str):
+    """Exec library-generated source into an isolated namespace; return (ns, cls)."""
+    ns: dict = {"__name__": "generated_library_create_run_bp"}
+    exec(compile(code, "<generate_blueprint_code>", "exec"), ns)
+    classes = [
+        v
+        for k, v in ns.items()
+        if isinstance(v, type) and k.endswith("Blueprint") and k != "BlueprintBase"
+    ]
+    assert len(classes) == 1, f"expected one generated Blueprint class, got {classes!r}"
+    return ns, classes[0]
+
+
+@pytest.mark.django_db(transaction=True)
+class TestLibraryCreateRunCloser:
+    """Library create→run: generated AsyncOpenAI stream + runner + ownership."""
+
+    def test_generate_blueprint_code_streams_via_async_openai(self):
+        """Generated run() must call AsyncOpenAI streaming — not echo-only fiction."""
+        from swarm.views.blueprint_library_views import generate_blueprint_code
+
+        code = generate_blueprint_code(
+            name="Golden Path Agent",
+            description="library create-run closer",
+            category="ai_assistants",
+            tags=["golden", "create-run"],
+            _requirements="",
+        )
+        # Static contract (string checks alone previously missed live echo-only).
+        assert "chat_completion_stream" not in code
+        assert "AsyncOpenAI" in code
+        assert "chat.completions.create" in code
+        assert "stream=True" in code
+        assert "async def run(" in code
+        assert "AsyncGenerator" in code
+        assert 'if __name__ == "__main__"' not in code
+        assert "asyncio.run(" not in code
+
+        ns, cls = _load_generated_blueprint(code)
+
+        async def stream():
+            for part in ("Hello", " from", " stream"):
+                chunk = MagicMock()
+                chunk.choices = [MagicMock()]
+                chunk.choices[0].delta.content = part
+                yield chunk
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=stream())
+        ns["AsyncOpenAI"] = MagicMock(return_value=mock_client)
+
+        bp = cls(blueprint_id="golden_path_agent", config=_llm_config())
+
+        async def collect():
+            out = []
+            async for ch in bp.run([{"role": "user", "content": "ping"}]):
+                out.append(ch)
+            return out
+
+        import asyncio
+
+        chunks = asyncio.run(collect())
+        text = "".join(c["messages"][0]["content"] for c in chunks)
+        assert text == "Hello from stream", (
+            f"expected streamed LLM chunks, got echo/fallback: {text!r}"
+        )
+        assert "You said:" not in text
+        assert "falling back to echo" not in text
+        ns["AsyncOpenAI"].assert_called_once()
+        create_kwargs = mock_client.chat.completions.create.await_args.kwargs
+        assert create_kwargs["stream"] is True
+        assert create_kwargs["model"] == "test-model"
+        assert create_kwargs["messages"][0]["role"] == "system"
+        assert "Golden Path Agent" in create_kwargs["messages"][0]["content"]
+
+    def test_generate_blueprint_code_echo_fallback_on_llm_failure(self):
+        """LLM failure must warn + echo — never raise out of run()."""
+        from swarm.views.blueprint_library_views import generate_blueprint_code
+
+        code = generate_blueprint_code(
+            name="Echo Fallback Agent",
+            description="warned echo path",
+            category="ai_assistants",
+            tags=["echo"],
+            _requirements="",
+        )
+        ns, cls = _load_generated_blueprint(code)
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=RuntimeError("llm down")
+        )
+        ns["AsyncOpenAI"] = MagicMock(return_value=mock_client)
+        bp = cls(blueprint_id="echo_fallback_agent", config=_llm_config())
+
+        async def collect():
+            out = []
+            async for ch in bp.run([{"role": "user", "content": "ping"}]):
+                out.append(ch)
+            return out
+
+        import asyncio
+
+        chunks = asyncio.run(collect())
+        assert len(chunks) == 1
+        content = chunks[0]["messages"][0]["content"]
+        assert "WARNING: LLM call failed" in content
+        assert "falling back to echo" in content
+        assert "You said: ping" in content
+
+    def test_my_blueprints_runner_posts_chat_completions(self):
+        """Runner JS must POST /v1/chat/completions — not client-side Simulate run."""
+        assert _MY_BLUEPRINTS_JS.is_file(), _MY_BLUEPRINTS_JS
+        js = _MY_BLUEPRINTS_JS.read_text(encoding="utf-8")
+        assert "Simulate run" not in js
+        assert "Client-side demo only" not in js
+        assert "/v1/chat/completions" in js
+        assert "credentials: 'same-origin'" in js or 'credentials: "same-origin"' in js
+        assert "method: 'POST'" in js or 'method: "POST"' in js
+        assert "model: blueprint.id" in js
+        assert "/chat?blueprint=" in js
+
+        User = get_user_model()
+        user = User.objects.create_user(username="gp_lib_runner", password="x")
+        client = Client()
+        client.force_login(user)
+        page = client.get(reverse("my_blueprints"))
+        assert page.status_code == 200
+        html = page.content.decode()
+        assert "Simulate run (demo)" not in html
+        assert "my_blueprints.js" in html
+        assert "Run via API" in html
+        assert "/teams/launch/" in html
+
+    @pytest.mark.asyncio
+    async def test_runner_chat_completions_background_stamps_owner(
+        self, store, settings, monkeypatch
+    ):
+        """My Blueprints session POST /v1/chat/completions?background stamps owner."""
+        settings.ENABLE_API_AUTH = True
+        settings.SWARM_API_KEY = TOKEN
+        settings.SWARM_API_KEYS = [TOKEN]
+        monkeypatch.setattr(
+            "swarm.views.chat_views.validate_model_access", lambda *a, **k: True
+        )
+        monkeypatch.setattr(
+            "swarm.views.responses_views._spawn_worker", lambda *a, **k: None
+        )
+        monkeypatch.setattr(
+            "swarm.views.chat_views.get_blueprint_instance",
+            AsyncMock(return_value=MagicMock()),
+        )
+
+        User = get_user_model()
+        alice = await sync_to_async(User.objects.create_user)(
+            username="gp_lib_alice", password="x"
+        )
+        bob = await sync_to_async(User.objects.create_user)(
+            username="gp_lib_bob", password="x"
+        )
+
+        alice_api = AsyncClient()
+        await sync_to_async(alice_api.force_login)(alice)
+        # Same shape as my_blueprints.js (model + messages), plus background so
+        # ownership lands on the /v1/responses poll handle operators use next.
+        created = await alice_api.post(
+            "/v1/chat/completions",
+            data=json.dumps({
+                "model": "chatbot",
+                "messages": [{"role": "user", "content": "library create-run ping"}],
+                "background": True,
+            }),
+            content_type="application/json",
+            SERVER_NAME="localhost",
+        )
+        assert created.status_code == 202, created.content
+        body = json.loads(created.content)
+        rid = body["id"]
+        assert rid.startswith("resp_")
+        rec = responses_store.load(rid)
+        assert rec is not None
+        assert rec.get("owner") == "user:gp_lib_alice", (
+            "session chat completions create must stamp owner for Explorer/REST"
+        )
+
+        ok = await alice_api.get(f"/v1/responses/{rid}", SERVER_NAME="localhost")
+        assert ok.status_code == 200
+
+        bob_api = AsyncClient()
+        await sync_to_async(bob_api.force_login)(bob)
+        denied = await bob_api.get(f"/v1/responses/{rid}", SERVER_NAME="localhost")
+        assert denied.status_code == 403
+
+        # Bearer create also stamps token owner (curl path beside the runner).
+        token_api = AsyncClient()
+        token_created = await token_api.post(
+            "/v1/chat/completions",
+            data=json.dumps({
+                "model": "chatbot",
+                "messages": [{"role": "user", "content": "token library ping"}],
+                "background": True,
+            }),
+            content_type="application/json",
+            SERVER_NAME="localhost",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+        )
+        assert token_created.status_code == 202, token_created.content
+        token_rid = json.loads(token_created.content)["id"]
+        token_rec = responses_store.load(token_rid)
+        assert token_rec is not None
+        assert token_rec.get("owner") == token_principal(TOKEN)
