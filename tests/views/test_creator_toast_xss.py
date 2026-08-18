@@ -38,6 +38,19 @@ def test_agent_creator_pro_show_toast_escapes_message():
     assert "escapeHtml(text)" in source
 
 
+def test_agent_creator_pro_preview_capabilities_escape_form_fields():
+    """Preview pane sinks personality/style/expertise/template into innerHTML."""
+    source = AGENT_CREATOR_PRO_JS.read_text(encoding="utf-8")
+    body = _slice_after(source, "previewCapabilities", length=1200)
+    assert "this.escapeHtml(formData.personality)" in body
+    assert "this.escapeHtml(formData.communication_style)" in body
+    assert "this.escapeHtml(expertiseLabel)" in body
+    assert "this.escapeHtml(formData.template)" in body
+    assert re.search(r"Personality:\s*\$\{\s*formData\.personality\s*\}", body) is None
+    tip = _slice_after(source, "showTemplateTooltip", length=500)
+    assert "this.escapeHtml(template)" in tip
+
+
 def test_agent_creator_show_message_escapes_message():
     source = AGENT_CREATOR.read_text(encoding="utf-8")
     body = _slice_after(source, "function showMessage")

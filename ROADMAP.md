@@ -283,9 +283,8 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   top-level blueprints. Consider one blueprint + `strategy` param, or a shared base.
 
 ### 4.6 UX / SPA (medium)
-- [ ] **Toast a11y + duplication** — `components/DaisyUI/Toast.tsx:98` no
-  `aria-live` (primary feedback is SR-invisible); `ToastProvider` triple-nested
-  (App + 3 pages).
+- [x] **Toast a11y** — DaisyUI `ToastItem` now `role="status"` + `aria-live`
+  (assertive for error/warning). Provider nesting on unmounted pages is leftover.
 - [ ] **Modal triple focus/dismiss** — native `<dialog>` + `focus-trap-react` +
   manual backdrop math (`Modal.tsx:84-105`); pick one.
 - [ ] **ChatPage gaps** — no auto-reconnect (`:115`), single-line composer
@@ -302,6 +301,9 @@ USERGUIDE.md accuracy, and the `cli_*` family's test coverage.
   now resolve (same pattern as `/v1/blueprints` / `/v1/teams`).
 - [ ] **Silent model fallback** — unknown `default_model` silently uses `default`
   (`config_loader.py:303-304`, DEBUG-only log). Warn or 400.
-- [ ] **`/v1/teams/` oversold** — only `{name, description, llm_profile}`, an LLM-
-  profile alias, not a team builder (`teams_api.py:51-120`). Relabel or extend.
+  *(Note: missing named profiles already `logger.warning` in*
+  *`load_configuration_and_prepare` / `get_resolved_llm_profile`.)*
+- [x] **`/v1/teams/` honesty** — documented as LLM-profile alias registry
+  (`id`/`description`/`llm_profile`), not a multi-agent team builder (OpenAPI +
+  module docstring + FEATURE_STATUS).
 - [ ] **Zero test coverage:** `stewie`, `whinge_surf` (both have real `run()`).

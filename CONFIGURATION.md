@@ -280,7 +280,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 |---|---|---|
 | `ENABLE_WEBUI` | Serve the web UI (`/` prefers SPA when built; canonical operator UI is Django trailing-slash pages — bare `/teams`→`/teams/launch/`, `/blueprints`→`/blueprint-library/`, etc.). Teams admin / blueprint library / sessions / settings need a login session; login POST is CSRF-protected. | on |
 | `ENABLE_ADMIN` | Mount the Django admin. | off |
-| `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery (`/marketplace/github/…`). Upstream GitHub failures return **429/502**, not an empty 200. | off |
+| `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery (`/marketplace/github/…`). Upstream GitHub failures return **429/502**, not an empty 200. Client `org`/`topic` must match `GITHUB_MARKETPLACE_ORG_ALLOWLIST` / `GITHUB_MARKETPLACE_TOPICS` when those lists are non-empty (else **400**); empty org allowlist means unscoped open search. | off |
 | `ENABLE_MCP_SERVER` | Aspirational MCP-server mode — warns loudly; see [docs/mcp_server_mode.md](./docs/mcp_server_mode.md). | off |
 
 ### Behavior & diagnostics

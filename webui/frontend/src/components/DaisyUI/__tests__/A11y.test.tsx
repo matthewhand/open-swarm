@@ -7,6 +7,8 @@ import { Textarea } from '../Textarea';
 import { Button } from '../Button';
 import { Alert } from '../Alert';
 import { LoadingOverlay, LoadingSpinner } from '../Loading';
+import { ToastProvider, useToast } from '../Toast';
+import { useEffect } from 'react';
 
 describe('Modal Accessibility', () => {
   it('should use HTML5 dialog and sync state', () => {
@@ -109,6 +111,44 @@ describe('Alert Accessibility', () => {
     );
     expect(screen.getByRole('status')).toHaveTextContent('Soft error');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('Toast Accessibility', () => {
+  function FireToast({ type }: { type: 'info' | 'error' }) {
+    const { error, info } = useToast();
+    useEffect(() => {
+      if (type === 'error') {
+        error('Err title', 'Something failed');
+      } else {
+        info('Info title', 'Hello');
+      }
+      // Fire once on mount; do not depend on toast helpers (new refs each render).
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type]);
+    return null;
+  }
+
+  it('announces info toasts with role=status and aria-live=polite', () => {
+    render(
+      <ToastProvider>
+        <FireToast type="info" />
+      </ToastProvider>,
+    );
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(status).toHaveTextContent('Info title');
+  });
+
+  it('announces error toasts assertively', () => {
+    render(
+      <ToastProvider>
+        <FireToast type="error" />
+      </ToastProvider>,
+    );
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-live', 'assertive');
+    expect(status).toHaveTextContent('Err title');
   });
 });
 

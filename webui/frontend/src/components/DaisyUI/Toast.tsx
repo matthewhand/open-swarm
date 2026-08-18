@@ -141,11 +141,18 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
   // Get toast colors and icons
   const { icon: Icon, bgColor, textColor } = getToastStyle(toast.type);
 
+  const live = toast.type === 'error' || toast.type === 'warning' ? 'assertive' : 'polite';
+
   return (
-    <div className={`alert ${bgColor} ${textColor} shadow-lg max-w-sm w-full`}>
+    <div
+      className={`alert ${bgColor} ${textColor} shadow-lg max-w-sm w-full`}
+      role="status"
+      aria-live={live}
+      aria-atomic="true"
+    >
       <div className="flex items-start gap-3">
         <div className="mt-1">
-          <Icon className="h-5 w-5 flex-shrink-0" />
+          <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
         </div>
         <div className="flex-1">
           <h3 className="font-bold">{toast.title}</h3>
@@ -153,6 +160,7 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
         </div>
       </div>
       <button
+        type="button"
         className="btn btn-sm btn-ghost btn-circle ml-2"
         onClick={() => removeToast(toast.id)}
         aria-label="Dismiss notification"

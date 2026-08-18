@@ -30,6 +30,12 @@ Security & Privacy
 - The app only reads public repo metadata and manifest files.
 - If a GitHub token is configured, it is used solely for higher rate limits; it
   is not exposed to clients.
+- Client `org` / `topic` query params are validated against
+  `GITHUB_MARKETPLACE_ORG_ALLOWLIST` and `GITHUB_MARKETPLACE_TOPICS`. When an
+  allowlist is **non-empty**, values outside it are rejected with **400** (they
+  cannot replace the configured scope and ride the server `GITHUB_TOKEN`). When
+  an allowlist is **empty**, filters stay open: any client `org`/`topic` is
+  applied as-is — set the org allowlist in locked-down deployments.
 
 Sorting, Filtering, and Search
 ------------------------------
@@ -47,7 +53,9 @@ Implementation Plan (Backend)
    - `GITHUB_TOKEN` (optional; improves rate limits)
    - `GITHUB_MARKETPLACE_TOPICS` default:
      - `open-swarm-blueprint`, `open-swarm-mcp-template`
-   - `GITHUB_MARKETPLACE_ORG_ALLOWLIST` (optional) — to scope results by org
+   - `GITHUB_MARKETPLACE_ORG_ALLOWLIST` (optional) — to scope results by org.
+     Empty = unscoped (client may pass any `org`). Non-empty = only listed orgs;
+     unknown client `org` → 400.
 2. Service module
    - `swarm/services/github_topics_service.py` with functions:
      - `search_repos_by_topics(topics: list[str], orgs: list[str]|None) -> list[Repo]`
@@ -57,7 +65,8 @@ Implementation Plan (Backend)
 3. API endpoints (headless)
    - `GET /marketplace/github/blueprints/` → list blueprint items
    - `GET /marketplace/github/mcp-configs/` → list MCP configs
-   - Filters: `search` (name), `org`, `topic`, `tag`
+   - Filters: `search` (name), `org`, `topic`, `tag` (`org`/`topic` must be
+     allowlisted when those lists are configured)
    - Sorts: `sort=stars|updated|created` (created via client sort or GraphQL), `order=desc|asc`
 4. Tests
    - Mock GitHub API responses and verify:

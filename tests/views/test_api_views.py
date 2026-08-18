@@ -645,6 +645,55 @@ class TestMarketplaceGitHubBlueprintsView:
         assert data["object"] == "list"
         assert data["data"] == []
 
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_ORG_ALLOWLIST", ["allowed-org"])
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_TOPICS", ["open-swarm-blueprint"])
+    @patch("swarm.views.api_views.gh_service.fetch_repo_manifests", return_value=[])
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_allowlisted_org_ok(self, mock_search, _mock_manifests, api_client):
+        """Allowlisted org query param is accepted and passed to search."""
+        mock_search.return_value = []
+        response = api_client.get(
+            "/marketplace/github/blueprints/",
+            {"org": "allowed-org", "topic": "open-swarm-blueprint"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_search.assert_called_once()
+        args, kwargs = mock_search.call_args
+        assert args[0] == ["open-swarm-blueprint"]
+        assert args[1] == ["allowed-org"]
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_ORG_ALLOWLIST", ["allowed-org"])
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_TOPICS", ["open-swarm-blueprint"])
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_arbitrary_org_rejected_when_allowlist_set(self, mock_search, api_client):
+        """Arbitrary org is rejected with 400 when org allowlist is configured."""
+        response = api_client.get(
+            "/marketplace/github/blueprints/",
+            {"org": "evil-corp"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "org not allowed" in response.json()["error"]
+        mock_search.assert_not_called()
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_ORG_ALLOWLIST", ["allowed-org"])
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_TOPICS", ["open-swarm-blueprint"])
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_arbitrary_topic_rejected_when_topics_set(self, mock_search, api_client):
+        """Arbitrary topic is rejected with 400 when topics list is configured."""
+        response = api_client.get(
+            "/marketplace/github/blueprints/",
+            {"topic": "not-a-swarm-topic"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "topic not allowed" in response.json()["error"]
+        mock_search.assert_not_called()
+
 
 class TestMarketplaceGitHubMCPConfigsView:
     """Tests for /marketplace/github/mcp-configs/ endpoint."""
@@ -674,3 +723,35 @@ class TestMarketplaceGitHubMCPConfigsView:
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
         assert response.json()["error"]
         assert response["Retry-After"] == "30"
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_ORG_ALLOWLIST", ["allowed-org"])
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_TOPICS", ["open-swarm-mcp-template"])
+    @patch("swarm.views.api_views.gh_service.fetch_repo_manifests", return_value=[])
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_allowlisted_org_ok(self, mock_search, _mock_manifests, api_client):
+        """Allowlisted org query param is accepted for MCP configs."""
+        mock_search.return_value = []
+        response = api_client.get(
+            "/marketplace/github/mcp-configs/",
+            {"org": "allowed-org"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_search.assert_called_once()
+        assert mock_search.call_args.args[1] == ["allowed-org"]
+
+    @patch("swarm.views.api_views.ENABLE_GITHUB_MARKETPLACE", True)
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_ORG_ALLOWLIST", ["allowed-org"])
+    @patch("swarm.views.api_views.GITHUB_MARKETPLACE_TOPICS", ["open-swarm-mcp-template"])
+    @patch("swarm.views.api_views.gh_service.search_repos_by_topics")
+    def test_arbitrary_org_rejected_when_allowlist_set(self, mock_search, api_client):
+        """Arbitrary org is rejected with 400 for MCP configs when allowlist set."""
+        response = api_client.get(
+            "/marketplace/github/mcp-configs/",
+            {"org": "evil-corp"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "org not allowed" in response.json()["error"]
+        mock_search.assert_not_called()

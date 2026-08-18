@@ -288,7 +288,7 @@ class AgentCreatorPro {
         const templateSelect = document.getElementById('templateSelect');
         const tooltip = document.createElement('div');
         tooltip.className = 'template-tooltip';
-        tooltip.innerHTML = `💡 Suggested: <strong>${template}</strong> template`;
+        tooltip.innerHTML = `💡 Suggested: <strong>${this.escapeHtml(template)}</strong> template`;
         
         templateSelect.parentNode.appendChild(tooltip);
         
@@ -576,11 +576,12 @@ class AgentCreatorPro {
         
         // Capabilities
         const capabilitiesContainer = document.getElementById('previewCapabilities');
+        const expertiseLabel = formData.expertise.join(', ') || 'General';
         const capabilities = [
-            `🎭 Personality: ${formData.personality}`,
-            `💬 Style: ${formData.communication_style}`,
-            `🎯 Expertise: ${formData.expertise.join(', ') || 'General'}`,
-            `📝 Template: ${formData.template}`
+            `🎭 Personality: ${this.escapeHtml(formData.personality)}`,
+            `💬 Style: ${this.escapeHtml(formData.communication_style)}`,
+            `🎯 Expertise: ${this.escapeHtml(expertiseLabel)}`,
+            `📝 Template: ${this.escapeHtml(formData.template)}`
         ];
         
         capabilitiesContainer.innerHTML = capabilities.map(cap => 

@@ -37,6 +37,52 @@ def _github_marketplace_error_response(exc: gh_service.GitHubAPIError) -> Respon
     return Response({"error": str(exc)}, status=http_status, headers=headers)
 
 
+def _resolve_github_marketplace_scope(
+    org: str, topic: str
+) -> tuple[list[str], list[str]] | Response:
+    """Resolve client org/topic against configured allowlists.
+
+    Non-empty ``GITHUB_MARKETPLACE_ORG_ALLOWLIST`` / ``GITHUB_MARKETPLACE_TOPICS``
+    constrain client filters: only listed values are accepted (400 otherwise).
+    When an allowlist is empty, client values pass through unscoped — intentional
+    open discovery (still gated by ``ENABLE_GITHUB_MARKETPLACE`` / token).
+    """
+    allowed_topics = list(GITHUB_MARKETPLACE_TOPICS)
+    allowed_orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
+
+    if topic:
+        if allowed_topics:
+            by_lower = {t.lower(): t for t in allowed_topics}
+            canonical = by_lower.get(topic.lower())
+            if canonical is None:
+                return Response(
+                    {"error": f"topic not allowed: {topic}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            topics = [canonical]
+        else:
+            topics = [topic]
+    else:
+        topics = allowed_topics
+
+    if org:
+        if allowed_orgs:
+            by_lower = {o.lower(): o for o in allowed_orgs}
+            canonical = by_lower.get(org.lower())
+            if canonical is None:
+                return Response(
+                    {"error": f"org not allowed: {org}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            orgs = [canonical]
+        else:
+            orgs = [org]
+    else:
+        orgs = allowed_orgs
+
+    return topics, orgs
+
+
 # Shared request body for creating/updating a custom blueprint (documents the
 # OpenAPI requestBody so MCP/codegen clients know what fields to send).
 _custom_blueprint_request = inline_serializer(
@@ -331,12 +377,10 @@ class MarketplaceGitHubBlueprintsView(APIView):
         topic = (request.query_params.get('topic') or '').strip()
         sort = (request.query_params.get('sort') or 'stars').strip()
         order = (request.query_params.get('order') or 'desc').strip()
-        topics = list(GITHUB_MARKETPLACE_TOPICS)
-        if topic:
-            topics = [topic]
-        orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
-        if org:
-            orgs = [org]
+        resolved = _resolve_github_marketplace_scope(org, topic)
+        if isinstance(resolved, Response):
+            return resolved
+        topics, orgs = resolved
 
         try:
             repos = gh_service.search_repos_by_topics(
@@ -374,12 +418,10 @@ class MarketplaceGitHubMCPConfigsView(APIView):
         topic = (request.query_params.get('topic') or '').strip()
         sort = (request.query_params.get('sort') or 'stars').strip()
         order = (request.query_params.get('order') or 'desc').strip()
-        topics = list(GITHUB_MARKETPLACE_TOPICS)
-        if topic:
-            topics = [topic]
-        orgs = list(GITHUB_MARKETPLACE_ORG_ALLOWLIST)
-        if org:
-            orgs = [org]
+        resolved = _resolve_github_marketplace_scope(org, topic)
+        if isinstance(resolved, Response):
+            return resolved
+        topics, orgs = resolved
 
         try:
             repos = gh_service.search_repos_by_topics(
