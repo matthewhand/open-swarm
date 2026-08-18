@@ -568,8 +568,10 @@ def test_run_blueprint_sync_with_string_result(monkeypatch):
 # ============================================================================
 
 
-def test_register_blueprints_missing_mcp_server(monkeypatch):
-    """Test register_blueprints_with_mcp when mcp_server is not installed."""
+def test_register_blueprints_missing_mcp_server(monkeypatch, caplog):
+    """Missing mcp_server → 0 tools and a loud logger.error (not silent)."""
+    import logging
+
     fake_discovered = {
         "test_bp": {
             "metadata": {"name": "Test", "description": "Test blueprint"},
@@ -579,6 +581,7 @@ def test_register_blueprints_missing_mcp_server(monkeypatch):
 
     from swarm.mcp import provider as prov
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
+    monkeypatch.setattr(logging.getLogger("swarm"), "propagate", True)
 
     # Remove mcp_server from modules if present
     for mod in list(sys.modules.keys()):
@@ -588,12 +591,51 @@ def test_register_blueprints_missing_mcp_server(monkeypatch):
     from swarm.mcp import integration as integ
     importlib.reload(integ)
 
-    count = integ.register_blueprints_with_mcp()
+    with caplog.at_level(logging.ERROR, logger="swarm.mcp.integration"):
+        count = integ.register_blueprints_with_mcp()
     assert count == 0
+    messages = [rec.getMessage() for rec in caplog.records]
+    assert any("blueprint→tool bridge unavailable" in msg for msg in messages), messages
+    assert any("NOT MCP tools" in msg for msg in messages), messages
 
 
-def test_register_blueprints_registration_error(monkeypatch):
-    """Test register_blueprints_with_mcp when registry.register_tool raises."""
+def test_register_blueprints_no_register_tool_api(monkeypatch, caplog):
+    """mcp_server≥0.5-style registry without register_tool → loud no-op."""
+    import logging
+
+    fake_discovered = {
+        "test_bp": {
+            "metadata": {"name": "Test", "description": "Test blueprint"},
+            "class_type": Mock()
+        }
+    }
+
+    from swarm.mcp import provider as prov
+    monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
+    monkeypatch.setattr(logging.getLogger("swarm"), "propagate", True)
+
+    reg_pkg = ModuleType("mcp_server")
+    reg_mod = ModuleType("mcp_server.registry")
+    # Intentionally no register_tool — MCPToolset-era API gap
+    reg_pkg.registry = reg_mod
+    sys.modules["mcp_server"] = reg_pkg
+    sys.modules["mcp_server.registry"] = reg_mod
+
+    from swarm.mcp import integration as integ
+    importlib.reload(integ)
+
+    with caplog.at_level(logging.ERROR, logger="swarm.mcp.integration"):
+        count = integ.register_blueprints_with_mcp()
+    assert count == 0
+    messages = [rec.getMessage() for rec in caplog.records]
+    assert any("blueprint→tool bridge no-op" in msg for msg in messages), messages
+    assert any("NOT MCP tools" in msg for msg in messages), messages
+
+
+def test_register_blueprints_registration_error(monkeypatch, caplog):
+    """Per-tool registry.register_tool failure logs error; others still register."""
+    import logging
+
     fake_discovered = {
         "bad_bp": {
             "metadata": {"name": "Bad", "description": "Bad blueprint"},
@@ -607,6 +649,7 @@ def test_register_blueprints_registration_error(monkeypatch):
 
     from swarm.mcp import provider as prov
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
+    monkeypatch.setattr(logging.getLogger("swarm"), "propagate", True)
 
     # Create stub registry that fails for one tool
     reg_pkg = ModuleType("mcp_server")
@@ -626,11 +669,14 @@ def test_register_blueprints_registration_error(monkeypatch):
     from swarm.mcp import integration as integ
     importlib.reload(integ)
 
-    count = integ.register_blueprints_with_mcp()
+    with caplog.at_level(logging.ERROR, logger="swarm.mcp.integration"):
+        count = integ.register_blueprints_with_mcp()
 
     # Only good_bp should be registered
     assert count == 1
     assert calls == ["good_bp"]
+    messages = [rec.getMessage() for rec in caplog.records]
+    assert any("Failed to register blueprint 'bad_bp'" in msg for msg in messages), messages
 
 
 def test_register_blueprints_handler_execution(monkeypatch):

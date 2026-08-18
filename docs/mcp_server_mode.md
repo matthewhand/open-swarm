@@ -1,12 +1,22 @@
 # MCP Server Mode (`ENABLE_MCP_SERVER`)
 
-**Status: the `/mcp/` mount works once the package is installed; the
-blueprint→tool bridge is not yet ported.**
+**Crystal clear:**
+
+| What the flag does | What it does **not** do |
+|---|---|
+| When `django-mcp-server` is installed, mounts **`/mcp/`** and adds `mcp_server` to `INSTALLED_APPS` | Expose Open Swarm **blueprints as MCP tools** |
+| Logs a warning if the package is missing (no crash) | Port the blueprint→tool bridge to `mcp_server` ≥0.5 |
 
 `ENABLE_MCP_SERVER=true` makes `swarm/settings.py` add `'mcp_server'` to
 `INSTALLED_APPS` and `swarm/urls.py` mount `path('mcp/', include('mcp_server.urls'))`.
 Both are gated on the module being importable, so with the package **absent** the
 flag is a no-op with a clear logged warning (it no longer breaks startup).
+
+**Blueprints are NOT MCP tools** until
+`swarm/mcp/integration.py::register_blueprints_with_mcp()` is ported off the
+legacy flat `registry.register_tool` API. On `mcp_server` ≥0.5 that call is an
+intentional no-op that now logs **`logger.error`** (not silent). `/mcp/` still
+serves django-mcp-server’s own toolset surface only.
 
 ## Install
 
@@ -29,14 +39,18 @@ installed and the flag set, `manage.py check` passes and `/mcp/` is mounted.
 
 `swarm/mcp/integration.py::register_blueprints_with_mcp()` was written against a
 flat `registry.register_tool(...)` API. `mcp_server` ≥0.5 replaced that with an
-`MCPToolset` / decorator paradigm, so the bridge is currently a **no-op** (it
-returns 0 without raising). Porting it to expose Open Swarm blueprints as MCP
-tools is tracked in [ROADMAP.md §3.3](../ROADMAP.md). Until then, the `/mcp/`
-mount serves django-mcp-server's own toolset surface, not the blueprints.
+`MCPToolset` / decorator paradigm, so the bridge is currently a **no-op** that
+returns 0 and emits **`logger.error`** (registration failure is loud on purpose).
+Porting it to expose Open Swarm blueprints as MCP tools is tracked in
+[ROADMAP.md §3.3](../ROADMAP.md). Until then:
+
+- ✅ Flag + package → `/mcp/` mount works
+- ❌ Flag + package → blueprints appear as MCP tools (**not until API fixed**)
 
 ## Tests
 
 `tests/mcp/test_mcp_urls.py` exercises the mount by stubbing `mcp_server` in
 `sys.modules`; `tests/mcp/test_mcp_missing_package_warning.py` guards the
 warning path by masking `mcp_server.urls` (hermetic whether or not the real
-package is installed).
+package is installed). Bridge no-op logging is covered via
+`tests/mcp/test_provider_edge_cases.py` / registration tests.
