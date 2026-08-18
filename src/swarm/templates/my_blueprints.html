@@ -248,30 +248,37 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-play me-2" aria-hidden="true"></i>Simulate run (demo): <span id="runnerBlueprintName"></span>
+                    <i class="fas fa-play me-2" aria-hidden="true"></i>Run: <span id="runnerBlueprintName"></span>
                 </h5>
                 <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-warning py-2" role="status">
-                    <strong>Client-side demo only.</strong>
-                    This does not execute blueprint code or call the API — output is simulated locally.
-                    Use <code>POST /v1/chat/completions</code> or the CLI for a real run.
+                <div class="alert alert-info py-2" role="status">
+                    Posts to <code>/v1/chat/completions</code> with this blueprint as
+                    <code>model</code> (session cookie). Custom blueprints need
+                    <code>SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY=true</code> to be discoverable.
+                    Prefer the SPA chat or Teams launch if this call returns not found.
                 </div>
                 <!-- Input Section -->
                 <div class="row mb-4">
                     <div class="col-md-8">
                         <label for="blueprintInput" class="form-label">Input Message</label>
-                        <textarea class="form-control" id="blueprintInput" rows="3" 
+                        <textarea class="form-control" id="blueprintInput" rows="3"
                                   placeholder="Enter your message or input for the blueprint..."></textarea>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Actions</label>
                         <div class="d-grid gap-2">
                             <button type="button" class="btn btn-primary" id="runBlueprintBtn"
-                                    title="Simulates output locally — does not run the blueprint">
-                                <i class="fas fa-play me-1" aria-hidden="true"></i>Simulate run
+                                    title="POST /v1/chat/completions with this blueprint id">
+                                <i class="fas fa-play me-1" aria-hidden="true"></i>Run via API
                             </button>
+                            <a class="btn btn-outline-primary" id="runnerChatLink" href="/chat">
+                                <i class="fas fa-comments me-1" aria-hidden="true"></i>Open in Chat
+                            </a>
+                            <a class="btn btn-outline-secondary" href="/teams/launch/">
+                                <i class="fas fa-rocket me-1" aria-hidden="true"></i>Teams launch
+                            </a>
                             <button type="button" class="btn btn-outline-secondary" id="clearOutputBtn">
                                 <i class="fas fa-eraser me-1" aria-hidden="true"></i>Clear Output
                             </button>
@@ -444,66 +451,106 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function openBlueprintRunner(blueprintId, blueprintName, blueprintCode) {
     document.getElementById('runnerBlueprintName').textContent = blueprintName;
-    
-    // Store blueprint data for execution
+
     window.currentBlueprint = {
         id: blueprintId,
         name: blueprintName,
         code: blueprintCode
     };
-    
+
+    const chatLink = document.getElementById('runnerChatLink');
+    if (chatLink && blueprintId) {
+        chatLink.href = `/chat?blueprint=${encodeURIComponent(blueprintId)}`;
+    }
+
     const modal = new bootstrap.Modal(document.getElementById('blueprintRunnerModal'));
     modal.show();
 }
 
-function runBlueprint() {
+async function runBlueprint() {
     const input = document.getElementById('blueprintInput').value;
     const outputDiv = document.getElementById('blueprintOutput');
-    const statusDiv = document.getElementById('runnerStatus');
-    const statusMessage = document.getElementById('statusMessage');
-    
+    const blueprint = window.currentBlueprint;
+
+    if (!blueprint || !blueprint.id) {
+        showStatus('No blueprint selected', 'warning');
+        return;
+    }
     if (!input.trim()) {
         showStatus('Please enter some input for the blueprint', 'warning');
         return;
     }
-    
+
     const runBtn = document.getElementById('runBlueprintBtn');
-    // Show running status
-    showStatus('Running blueprint...', 'info');
+    showStatus('Calling /v1/chat/completions…', 'info');
     if (runBtn) {
         runBtn.disabled = true;
         runBtn.setAttribute('aria-busy', 'true');
         runBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Running…';
     }
     outputDiv.innerHTML = '<div class="text-center py-3" role="status" aria-live="polite"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0">Executing blueprint…</p></div>';
-    
-    // Client-side demo only — does not execute blueprint code or hit the API.
-    setTimeout(() => {
-        const output = simulateBlueprintExecution(window.currentBlueprint, input);
+
+    const resetRunBtn = () => {
+        if (!runBtn) return;
+        runBtn.disabled = false;
+        runBtn.removeAttribute('aria-busy');
+        runBtn.innerHTML = '<i class="fas fa-play me-1" aria-hidden="true"></i>Run via API';
+    };
+
+    try {
+        const response = await fetch('/v1/chat/completions/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                model: blueprint.id,
+                messages: [{ role: 'user', content: input }],
+            }),
+        });
+        const raw = await response.text();
+        let data = null;
+        try {
+            data = raw ? JSON.parse(raw) : null;
+        } catch (_parseErr) {
+            data = null;
+        }
+
         outputDiv.replaceChildren();
         const pre = document.createElement('pre');
         pre.className = 'mb-0';
-        pre.textContent = output;
-        outputDiv.appendChild(pre);
-        showStatus('Demo simulation finished (not a real blueprint run)', 'warning');
-        if (runBtn) {
-            runBtn.disabled = false;
-            runBtn.removeAttribute('aria-busy');
-            runBtn.innerHTML = '<i class="fas fa-play me-1" aria-hidden="true"></i>Simulate run';
-        }
-    }, 2000);
-}
 
-function simulateBlueprintExecution(blueprint, input) {
-    // This is a simulation - in reality, you'd execute the actual blueprint code
-    const timestamp = new Date().toISOString();
-    return `[${timestamp}] Running ${blueprint.name}...
-[${timestamp}] Input: ${input}
-[${timestamp}] Processing...
-[${timestamp}] Output: This is a simulated response from the ${blueprint.name} blueprint.
-[${timestamp}] The blueprint would normally execute the actual code here.
-[${timestamp}] For custom blueprints, the generated code would be executed.
-[${timestamp}] Execution completed successfully.`;
+        if (!response.ok) {
+            const detail =
+                (data && (data.error?.message || data.detail || data.error)) ||
+                raw ||
+                response.statusText;
+            pre.textContent = `HTTP ${response.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2)}`;
+            outputDiv.appendChild(pre);
+            showStatus(
+                'API run failed — try Open in Chat or Teams launch, or enable user blueprint discovery for custom agents',
+                'warning'
+            );
+            resetRunBtn();
+            return;
+        }
+
+        const content =
+            data?.choices?.[0]?.message?.content ??
+            data?.choices?.[0]?.delta?.content ??
+            (data ? JSON.stringify(data, null, 2) : raw);
+        pre.textContent = content == null ? '' : String(content);
+        outputDiv.appendChild(pre);
+        showStatus('Blueprint run finished', 'success');
+    } catch (error) {
+        outputDiv.replaceChildren();
+        const pre = document.createElement('pre');
+        pre.className = 'mb-0';
+        pre.textContent = `Request failed: ${error && error.message ? error.message : error}`;
+        outputDiv.appendChild(pre);
+        showStatus('Network or browser error calling chat completions', 'danger');
+    } finally {
+        resetRunBtn();
+    }
 }
 
 function showStatus(message, type) {

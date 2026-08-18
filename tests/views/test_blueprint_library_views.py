@@ -1114,6 +1114,12 @@ class TestGenerateBlueprintCode:
         assert "A test agent" in code
         assert "ai_assistants" in code
         assert "BlueprintBase" in code
+        assert "AsyncGenerator" in code
+        assert "yield" in code
+        assert "async def run(" in code
+        assert "-> AsyncGenerator" in code
+        assert 'if __name__ == "__main__"' not in code
+        assert "asyncio.run(" not in code
 
     def test_generate_blueprint_code_with_spaces(self):
         """Test blueprint code generation with name containing spaces."""
@@ -1129,3 +1135,5 @@ class TestGenerateBlueprintCode:
 
         assert "MyTestAgent" in code  # Spaces should be removed in class name
         assert "My Test Agent" in code  # Original name in metadata
+        assert "AsyncGenerator" in code
+        assert "yield" in code

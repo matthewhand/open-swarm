@@ -221,7 +221,7 @@ class TestUxShellTemplateContracts:
         assert response["Location"].endswith("/agent-creator/?from=nav") or \
             response["Location"] == "/agent-creator/?from=nav"
 
-    def test_my_blueprints_runner_is_labeled_demo_simulation(self, client):
+    def test_my_blueprints_runner_posts_chat_completions(self, client):
         from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxmb", password="ux-mb-pass")
@@ -229,10 +229,12 @@ class TestUxShellTemplateContracts:
         response = client.get("/blueprint-library/my-blueprints/")
         assert response.status_code == 200
         html = response.content.decode()
-        assert "Simulate run (demo)" in html
-        assert "Client-side demo only" in html
-        assert "Simulate run" in html
-        assert "does not execute blueprint code" in html
+        assert "Simulate run (demo)" not in html
+        assert "Client-side demo only" not in html
+        assert "/v1/chat/completions" in html
+        assert "Run via API" in html
+        assert "/chat?blueprint=" in html
+        assert "/teams/launch/" in html
 
     def test_settings_unwired_actions_are_disabled(self, client):
         from django.contrib.auth.models import User
