@@ -168,20 +168,28 @@
                 <span class="category-badge">{{ setting.category|default:"general" }}</span>
               </div>
             </div>
+            {% empty %}
+            <div class="os-empty p-4" role="status">No settings in this group.</div>
             {% endfor %}
           </div>
         </div>
+      </div>
+      {% empty %}
+      <div class="os-empty" role="status">
+        <div class="os-empty-icon" aria-hidden="true"><i class="fas fa-sliders"></i></div>
+        <div>No settings groups available.</div>
+        <div class="os-meta mt-1">Check your swarm configuration and refresh.</div>
       </div>
       {% endfor %}
     </div>
   </div>
 
   <!-- Object Viewer Modal -->
-  <div class="modal fade" id="objectModal" tabindex="-1">
+  <div class="modal fade" id="objectModal" tabindex="-1" aria-labelledby="objectModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Object Viewer</h5>
+          <h5 class="modal-title" id="objectModalLabel">Object Viewer</h5>
           <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -189,7 +197,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" onclick="copyObjectContent()">
-            <i class="fas fa-copy"></i> Copy
+            <i class="fas fa-copy" aria-hidden="true"></i> Copy
           </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         </div>
@@ -198,11 +206,11 @@
   </div>
 
   <!-- Environment Variables Modal -->
-  <div class="modal fade" id="envModal" tabindex="-1">
+  <div class="modal fade" id="envModal" tabindex="-1" aria-labelledby="envModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Environment Variables</h5>
+          <h5 class="modal-title" id="envModalLabel">Environment Variables</h5>
           <button type="button" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -210,7 +218,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" onclick="exportEnvVars()">
-            <i class="fas fa-download"></i> Export
+            <i class="fas fa-download" aria-hidden="true"></i> Export
           </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         </div>
@@ -228,8 +236,8 @@
 
 .dashboard-header-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 15px;
-  padding: 2rem;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
   color: white;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
@@ -243,9 +251,9 @@
 }
 
 .dashboard-title {
-  font-size: 2.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .dashboard-subtitle {
@@ -560,11 +568,11 @@
 
 @media (max-width: 768px) {
   .dashboard-title {
-    font-size: 2rem;
+    font-size: 1.45rem;
   }
 
   .dashboard-header-card {
-    padding: 1.5rem;
+    padding: 1rem 1.15rem;
   }
 
   .settings-stats {
