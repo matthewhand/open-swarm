@@ -64,3 +64,13 @@ def test_slack_logic_appends_messages_via_textcontent():
     assert re.search(r"innerHTML\s*\+=\s*`<div class=\"user-message\">\$\{", source) is None
     assert re.search(r"innerHTML\s*\+=\s*`<div class=\"assistant-message\">\$\{", source) is None
     assert re.search(r"innerHTML\s*\+=\s*`<div class=\"error-message\">\$\{", source) is None
+
+
+def test_chat_logic_exports_initializer_and_uses_textcontent():
+    """ui.js imports initializeChatLogic — export must exist; chat lines use textContent."""
+    chat_logic = ROOT / "src" / "swarm" / "static" / "rest_mode" / "js" / "chatLogic.js"
+    source = chat_logic.read_text(encoding="utf-8")
+    assert "export async function initializeChatLogic" in source
+    assert "textContent" in source
+    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"user-message\">\$\{", source) is None
+    assert re.search(r"innerHTML\s*\+=\s*`<div class=\"assistant-message\">\$\{", source) is None

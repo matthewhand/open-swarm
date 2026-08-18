@@ -75,7 +75,14 @@ async function handleSubmit(event) {
     }
     input.value = '';
     const history = document.getElementById('messageHistory');
-    history.innerHTML += `<div class="user-message">${message}</div>`;
+    if (!history) return;
+    const append = (className, text) => {
+        const div = document.createElement('div');
+        div.className = className;
+        div.textContent = text == null ? '' : String(text);
+        history.appendChild(div);
+    };
+    append('user-message', message);
     try {
         const response = await fetch('/v1/chat/completions/', {
             method: 'POST',
@@ -89,11 +96,11 @@ async function handleSubmit(event) {
             })
         });
         const data = await response.json();
-        history.innerHTML += `<div class="assistant-message">${data.choices[0].message.content}</div>`;
+        append('assistant-message', data.choices[0].message.content);
         history.scrollTop = history.scrollHeight;
     } catch (error) {
         console.error('Error submitting message:', error);
-        history.innerHTML += `<div class="error-message">Error: ${error.message}</div>`;
+        append('error-message', `Error: ${error.message}`);
     }
 }
 

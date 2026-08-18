@@ -66,7 +66,12 @@ webui/
 
 ## Integration with Django
 
-The frontend is automatically detected and served by Django when built. The `index` view in `src/swarm/views/web_views.py` checks for built assets and serves them preferentially over Django templates.
+The frontend is automatically detected and served by Django when built
+(`webui/frontend/dist/` is gitignored). After pulling SPA changes (chat auth
+messaging, mobile dock, etc.), run `npm run build` locally (or
+`./scripts/build_frontend.sh`) so journey captures and `/` serve the new
+bundle. The `index` view in `src/swarm/views/web_views.py` prefers built
+assets over Django templates when `dist/` exists.
 
 ## DaisyUI Components
 
