@@ -109,6 +109,31 @@ class TestAssertSafeBlueprintSource:
     def test_open_read_mode_ok(self):
         assert_safe_blueprint_source("f = open('/tmp/x', 'r')\n")
 
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "from pathlib import Path\nPath('/tmp/x').open('w')\n",
+            "from pathlib import Path\nPath('/tmp/x').open('wb')\n",
+            "from pathlib import Path\nPath('/tmp/x').open('a')\n",
+            "from pathlib import Path\nPath('/tmp/x').open('x')\n",
+            "from pathlib import Path\np = Path('/tmp/x')\np.open('w')\n",
+            "from pathlib import Path\nPath('/tmp/x').open(mode='w')\n",
+            "from pathlib import Path\nPath('/tmp/x').open('w').write('evil')\n",
+        ],
+    )
+    def test_path_open_write_mode_fails(self, src):
+        """Path.open(mode) puts mode in args[0]; must not bypass builtin open ban."""
+        with pytest.raises(ValueError, match=r"open.*write mode"):
+            assert_safe_blueprint_source(src)
+
+    def test_path_open_read_mode_ok(self):
+        assert_safe_blueprint_source(
+            "from pathlib import Path\nf = Path('/tmp/x').open('r')\n"
+        )
+        assert_safe_blueprint_source(
+            "from pathlib import Path\nf = Path('/tmp/x').open()\n"
+        )
+
     def test_os_system_fails(self):
         with pytest.raises(ValueError, match=r"os\.system"):
             assert_safe_blueprint_source("import os\nos.system('id')\n")

@@ -438,23 +438,56 @@ def _check_getattr_escape(node: ast.Call) -> None:
         )
 
 
+def _looks_like_open_mode(value: str) -> bool:
+    """True for short open()/Path.open mode strings (r/w/a/x + optional b/t/+).
+
+    Used so ``Path(...).open('w')`` (mode is 1st positional) is not confused
+    with ``io.open('/path/with/w', 'r')`` (path is 1st positional).
+    """
+    if not value or len(value) > 4:
+        return False
+    return all(c in "rwaxtbU+" for c in value) and any(c in "rwax" for c in value)
+
+
+def _is_write_open_mode(mode: str) -> bool:
+    return mode in _WRITE_OPEN_MODES or any(c in mode for c in ("w", "a", "x"))
+
+
 def _check_open_call(node: ast.Call) -> None:
-    """Reject ``open(..., 'w')`` / keyword mode= write variants when detectable."""
-    mode: str | None = None
+    """Reject ``open(..., 'w')`` / ``Path.open('w')`` / keyword mode= write variants.
+
+    Builtin ``open(file, mode)`` and ``io.open`` / ``codecs.open`` put mode in
+    the 2nd positional arg. ``pathlib.Path.open(mode)`` puts mode first — the
+    prior check only looked at args[1]/kwargs, so ``Path('/tmp/x').open('w')``
+    bypassed the write ban (while ``Path(...).open(mode='w')`` was caught).
+    """
+    modes: list[str] = []
+    # Builtin / io.open / codecs.open: open(file, mode)
     if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) and isinstance(
         node.args[1].value, str
     ):
-        mode = node.args[1].value
+        modes.append(node.args[1].value)
+    # pathlib.Path.open(mode[, ...]): mode is first positional after receiver
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "open"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+        and _looks_like_open_mode(node.args[0].value)
+    ):
+        modes.append(node.args[0].value)
     for kw in node.keywords:
         if kw.arg == "mode" and isinstance(kw.value, ast.Constant) and isinstance(
             kw.value.value, str
         ):
-            mode = kw.value.value
-    if mode is None:
+            modes.append(kw.value.value)
+    if not modes:
         # open(path) defaults to read; dynamic mode left to runtime policy
         return
-    if mode in _WRITE_OPEN_MODES or any(c in mode for c in ("w", "a", "x")):
-        raise ValueError(
-            f"Banned open() with write mode {mode!r} in user blueprint "
-            f"(line {getattr(node, 'lineno', '?')})"
-        )
+    for mode in modes:
+        if _is_write_open_mode(mode):
+            raise ValueError(
+                f"Banned open() with write mode {mode!r} in user blueprint "
+                f"(line {getattr(node, 'lineno', '?')})"
+            )

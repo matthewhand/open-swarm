@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - **`/v1/teams/` honesty:** OpenAPI + module docs label teams as LLM-profile aliases (not a multi-agent team builder)
 
 ### Fixed
+- **Blueprint AST sandbox Path.open write escape:** `Path(...).open('w')` / `p.open('wb')` put mode in the first positional arg (unlike builtin `open(file, mode)`), so write modes bypassed the open-ban; detect Path.open-style modes and reject them (keyword `mode=` was already caught)
 - **CLI blueprint name path traversal:** `swarm-cli add`/`delete`/`uninstall`/`install-executable`/`launch` reject `../` and multi-segment names so library/bin joins cannot `rmtree`/`unlink`/exec outside XDG roots; `add`/`delete` also use `get_user_blueprints_dir()` instead of a hardcoded `~/.local/share/swarm/blueprints`
 - **Blueprint AST sandbox getattr/runpy escapes:** reject `getattr(os, "system")` / `getattr(asyncio, "create_subprocess_*")` constant reflection that bypassed Attribute bans; ban `runpy` (code-loading peer of `importlib`)
 - **Workdir confinement:** `params.workdir` / `params.cwd` (hybrid_moa, moa_orchestrator, cli_fusion_support consumers) and `swarm-cli moa --workdir`/`--cwd` resolve under `SWARM_WORKSPACES_DIR` / XDG `workspaces/`; absolute escapes rejected unless `ALLOW_UNRESTRICTED_WORKDIR=true`. Unset write workdirs get a per-run temp under that root.
