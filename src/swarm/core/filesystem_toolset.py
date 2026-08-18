@@ -37,11 +37,12 @@ from typing import Any, ClassVar
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("swarm.filesystem.audit")
 
-# Permission levels
+# Permission levels (ordered weakest → strongest for override clamping)
 NONE = "none"
 READONLY = "readonly"
 READWRITE = "readwrite"
 _LEVELS = (NONE, READONLY, READWRITE)
+_LEVEL_RANK = {NONE: 0, READONLY: 1, READWRITE: 2}
 
 
 class FilesystemError(Exception):
@@ -356,15 +357,15 @@ class FilesystemToolset:
 
         Recognised keys: ``permission``, ``allowed_paths``, ``max_read_bytes``,
         ``max_write_bytes``, ``max_list_entries``, ``audit``. ``overrides`` (e.g.
-        per-request params) take precedence but can NEVER escalate ``readwrite``
-        unless the config already granted it.
+        per-request params) take precedence but can NEVER escalate permission
+        above what config already granted (``none`` < ``readonly`` < ``readwrite``).
         """
         block = dict(((config or {}).get(section)) or {})
         block.update({k: v for k, v in (overrides or {}).items() if v is not None})
-        cfg_perm = (((config or {}).get(section)) or {}).get("permission", READONLY)
-        req_perm = block.get("permission", cfg_perm)
-        # never let a request escalate beyond what config allows
-        if cfg_perm != READWRITE and req_perm == READWRITE:
+        cfg_perm = (((config or {}).get(section)) or {}).get("permission", READONLY) or READONLY
+        req_perm = block.get("permission", cfg_perm) or cfg_perm
+        # Clamp: overrides may only de-escalate, never gain rights.
+        if _LEVEL_RANK.get(req_perm, -1) > _LEVEL_RANK.get(cfg_perm, -1):
             req_perm = cfg_perm
         return cls(
             permission=req_perm or READONLY,

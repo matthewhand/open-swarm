@@ -94,6 +94,27 @@ def test_request_cannot_escalate_to_readwrite(sandbox):
         fs.write(str(sandbox / "x.txt"), "y")
 
 
+def test_request_cannot_escalate_none_to_readonly(sandbox):
+    """Config ``none`` must not become ``readonly`` via per-request overrides."""
+    cfg = {"filesystem": {"permission": "none", "allowed_paths": [str(sandbox)]}}
+    fs = FilesystemToolset.from_config(cfg, overrides={"permission": "readonly"})
+    assert fs.permission == "none"
+    with pytest.raises(PermissionDenied):
+        fs.read(str(sandbox / "a.txt"))
+    fs_rw = FilesystemToolset.from_config(cfg, overrides={"permission": "readwrite"})
+    assert fs_rw.permission == "none"
+
+
+def test_request_may_deescalate_permission(sandbox):
+    """Overrides may still lower rights (readwrite → readonly / none)."""
+    cfg = {"filesystem": {"permission": "readwrite", "allowed_paths": [str(sandbox)]}}
+    fs = FilesystemToolset.from_config(cfg, overrides={"permission": "readonly"})
+    assert fs.permission == "readonly"
+    with pytest.raises(PermissionDenied):
+        fs.write(str(sandbox / "x.txt"), "y")
+    assert fs.read(str(sandbox / "a.txt")) == "hello"
+
+
 def test_not_a_file(sandbox):
     fs = FilesystemToolset(permission="readonly", allowed_paths=[str(sandbox)])
     with pytest.raises(FilesystemError):
