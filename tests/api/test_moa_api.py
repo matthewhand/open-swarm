@@ -60,7 +60,7 @@ async def test_chat_completions_moa_fingerprint(monkeypatch):
     view = ChatCompletionsView.as_view()
 
     class FakeBP:
-        async def run(self, messages, stream=False):
+        async def run(self, messages, stream=False, user_id=None):
             yield {
                 "messages": [{"role": "assistant", "content": "token bucket"}],
                 "final": True,
@@ -102,6 +102,7 @@ async def test_chat_completions_moa_fingerprint(monkeypatch):
             [{"role": "user", "content": "rate limit?"}],
             "test-req",
             "moa",
+            user_id="test-user",
         )
     assert resp.status_code == 200
     data = resp.data

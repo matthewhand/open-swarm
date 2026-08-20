@@ -41,7 +41,7 @@ describe('Modal Accessibility and Focus Restoration', () => {
     });
   });
 
-  it('renders focusable button backdrop and calls onClose when clicked', async () => {
+  it('renders form method="dialog" backdrop and calls onClose when clicked', async () => {
     const onClose = vi.fn();
     render(
       <Modal isOpen={true} onClose={onClose} title="Backdrop Test">
@@ -49,12 +49,16 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    const backdrop = screen.getByRole('button', { name: 'Close modal' });
-    expect(backdrop).toBeInTheDocument();
-    expect(backdrop).toHaveClass('modal-backdrop');
-    expect(backdrop).toHaveAttribute('tabIndex', '-1');
+    // eslint-disable-next-line testing-library/no-node-access
+    const backdropForm = document.querySelector('.modal-backdrop');
+    expect(backdropForm).toBeInTheDocument();
+    expect(backdropForm?.tagName.toLowerCase()).toBe('form');
+    expect(backdropForm).toHaveAttribute('method', 'dialog');
 
-    backdrop.click();
+    const backdropButton = screen.getByRole('button', { name: 'Close modal' });
+    expect(backdropButton).toBeInTheDocument();
+
+    backdropButton.click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

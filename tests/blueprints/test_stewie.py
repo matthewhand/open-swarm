@@ -70,6 +70,7 @@ def test_unknown_llm_profile_warns_then_falls_back(monkeypatch):
         return original(self, msg, *args, **kwargs)
 
     monkeypatch.setattr(logging.Logger, "warning", _capture)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     with patch(
         "swarm.blueprints.stewie.blueprint_stewie.OpenAIChatCompletionsModel",
         return_value=MagicMock(name="model"),

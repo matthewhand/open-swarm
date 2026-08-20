@@ -21,8 +21,12 @@ except ImportError:  # openai < 1.99: the concrete class is ChatCompletionMessag
     from openai.types.chat.chat_completion_message_tool_call import (
         ChatCompletionMessageToolCall as ChatCompletionMessageFunctionToolCall,
     )
+try:
+    from openai.types.chat import ChatCompletionMessageToolCall
+except ImportError:
+    from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
+
 from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,  # noqa: F401  (Union on >=1.99; concrete class on <1.99)
     Function,
 )
 

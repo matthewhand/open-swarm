@@ -125,8 +125,8 @@ describe('ChatPage reconnect focus', () => {
     const composer = await screen.findByRole('textbox', { name: 'Chat message' })
     await waitFor(() => {
       expect(composer).not.toBeDisabled()
-      expect(composer).toHaveFocus()
     })
+    expect(composer).toHaveFocus()
   })
 })
 
@@ -329,8 +329,10 @@ describe('ChatPage Send button honesty while streaming', () => {
 
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
+    // eslint-disable-next-line testing-library/no-node-access
     expect(send.querySelector('[data-testid="loading-spinner"]')).toBeNull()
     // Streaming progress lives on the message bubble, not a fake Send busy state.
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector('.chat-bubble .loading')).toBeTruthy()
   })
 })
@@ -425,9 +427,12 @@ describe('ChatPage markdown bubbles', () => {
       )
     })
 
+    // eslint-disable-next-line testing-library/no-node-access
     const bubble = document.querySelector('.chat-md')
     expect(bubble).toBeTruthy()
+    // eslint-disable-next-line testing-library/no-node-access
     expect(bubble?.innerHTML).toContain('<strong>hello</strong>')
+    // eslint-disable-next-line testing-library/no-node-access
     expect(bubble?.innerHTML).toContain('<code>code</code>')
   })
 })

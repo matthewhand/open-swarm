@@ -199,36 +199,46 @@ export const Accordion = ({
 }: AccordionProps) => {
   const [activeItems, setActiveItems] = useState<string[]>([]);
 
-  const toggleItem = (key: string) => {
+  const toggleItem = (e: React.SyntheticEvent<HTMLDetailsElement>, key: string) => {
+    const isOpen = e.currentTarget.open;
     if (allowMultiple) {
       setActiveItems(prev =>
-        prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+        isOpen ? [...new Set([...prev, key])] : prev.filter(k => k !== key)
       );
     } else {
-      setActiveItems(prev => prev.includes(key) ? [] : [key]);
+      if (isOpen) {
+        setActiveItems([key]);
+      } else {
+        setActiveItems(prev => prev.filter(k => k !== key));
+      }
     }
   };
 
   return (
     <div className={`join join-vertical w-full ${className}`}>
       {items.map((item) => (
-        <div key={item.key} className="collapse collapse-arrow join-item border border-base-300">
-          <input
-            type="checkbox"
-            checked={activeItems.includes(item.key)}
-            onChange={() => toggleItem(item.key)}
-            disabled={item.disabled}
-          />
-          <div className="collapse-title font-medium flex items-center gap-2">
-            {item.icon && <span>{item.icon}</span>}
+        <details
+          key={item.key}
+          className="collapse collapse-arrow join-item border border-base-300"
+          open={activeItems.includes(item.key)}
+          onToggle={(e) => toggleItem(e, item.key)}
+        >
+          <summary
+            className="collapse-title font-medium flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+            tabIndex={item.disabled ? -1 : 0}
+            onClick={(e) => {
+              if (item.disabled) e.preventDefault();
+            }}
+          >
+            {item.icon && <span aria-hidden="true">{item.icon}</span>}
             {item.title}
-          </div>
+          </summary>
           <div className="collapse-content">
             <div className="p-4">
               {item.content}
             </div>
           </div>
-        </div>
+        </details>
       ))}
     </div>
   );
@@ -255,18 +265,26 @@ export const AccordionItem = ({
   className = '',
 }: AccordionItemProps) => {
   return (
-    <div className={`collapse collapse-arrow join-item border border-base-300 ${className}`}>
-      <input type="checkbox" defaultChecked={open} disabled={disabled} />
-      <div className="collapse-title font-medium flex items-center gap-2">
-        {icon && <span>{icon}</span>}
+    <details
+      className={`collapse collapse-arrow join-item border border-base-300 ${className}`}
+      open={open}
+    >
+      <summary
+        className="collapse-title font-medium flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+        tabIndex={disabled ? -1 : 0}
+        onClick={(e) => {
+          if (disabled) e.preventDefault();
+        }}
+      >
+        {icon && <span aria-hidden="true">{icon}</span>}
         {title}
-      </div>
+      </summary>
       <div className="collapse-content">
         <div className="p-4">
           {children}
         </div>
       </div>
-    </div>
+    </details>
   );
 };
 
