@@ -62,24 +62,6 @@ export const Modal = ({
     return () => dialog.removeEventListener('cancel', handleCancel);
   }, [onClose]);
 
-  // Handle backdrop clicks (clicking outside the modal-box)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const rect = dialog.getBoundingClientRect();
-    const isInDialog = (
-      rect.top <= e.clientY &&
-      e.clientY <= rect.top + rect.height &&
-      rect.left <= e.clientX &&
-      e.clientX <= rect.left + rect.width
-    );
-
-    if (!isInDialog) {
-      onClose();
-    }
-  };
-
   const sizeClasses = {
     sm: 'max-w-sm',
     md: 'max-w-md',
@@ -101,7 +83,6 @@ export const Modal = ({
       <dialog
         ref={dialogRef}
         className={`modal ${isOpen ? 'modal-open' : ''}`}
-        onClick={handleBackdropClick}
         aria-labelledby={title ? titleId : undefined}
         aria-label={!title ? (ariaLabel || 'Dialog') : undefined}
         aria-modal={isOpen ? true : undefined}
@@ -118,15 +99,9 @@ export const Modal = ({
             {children}
           </div>
         </div>
-        <button
-          type="button"
-          className="modal-backdrop"
-          onClick={onClose}
-          aria-label="Close modal"
-          tabIndex={-1}
-        >
-          close
-        </button>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={onClose} aria-label="Close modal">close</button>
+        </form>
       </dialog>
     </FocusTrap>
   );

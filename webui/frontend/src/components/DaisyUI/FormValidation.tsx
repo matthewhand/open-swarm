@@ -32,6 +32,7 @@ export const useFormValidation = <T extends Record<string, unknown>>(
   const [errors, setErrors] = useState<FormErrors<T>>({});
   const [touched, setTouched] = useState<FormTouched<T>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(false);
 
   // Validate a single field
@@ -111,20 +112,21 @@ export const useFormValidation = <T extends Record<string, unknown>>(
 
   // Handle submit
   const handleSubmit = async (callback: (values: T) => Promise<void> | void) => {
+    if (isSubmitting) return;
+    setSubmitError(null);
+    
+    const formIsValid = validateForm();
+    if (!formIsValid) {
+      return;
+    }
+    
     setIsSubmitting(true);
-    
-    const isValid = validateForm();
-    
-    if (isValid) {
-      try {
-        await callback(values);
-      } catch (error) {
-        console.error('Form submission error:', error);
-        throw error;
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
+    try {
+      await callback(values);
+    } catch (error) {
+      console.error('Form submission error:', error);
+      setSubmitError(error instanceof Error ? error.message : 'Submit failed');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -135,6 +137,7 @@ export const useFormValidation = <T extends Record<string, unknown>>(
     setErrors({});
     setTouched({});
     setIsSubmitting(false);
+    setSubmitError(null);
     setIsValid(false);
   };
 
@@ -143,6 +146,8 @@ export const useFormValidation = <T extends Record<string, unknown>>(
     errors,
     touched,
     isSubmitting,
+    submitError,
+    setSubmitError,
     isValid,
     handleChange,
     handleBlur,
