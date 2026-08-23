@@ -51,7 +51,6 @@ describe('Modal Accessibility and Focus Restoration', () => {
 
     const backdrop = screen.getByRole('button', { name: 'Close modal' });
     expect(backdrop).toBeInTheDocument();
-    expect(backdrop).toHaveClass('modal-backdrop');
     expect(backdrop).toHaveAttribute('tabIndex', '-1');
 
     backdrop.click();

@@ -216,12 +216,12 @@ function Dashboard() {
       </Alert>
 
       {errorStats && (
-        <Alert type="warning">
+        <Alert type="warning" role="alert">
           <span className="text-sm">{errorStats}</span>
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" aria-live="polite" aria-busy={loadingStats}>
         <Card compact bordered>
           <div className="stat">
             <div className="stat-title">Teams</div>
@@ -274,7 +274,7 @@ function Dashboard() {
 
       <Card title="Getting started" bordered>
         {(teamsCount === 0 || teamsCount === null) && !loadingStats ? (
-          <div className="space-y-3 text-sm">
+          <div className="space-y-3 text-sm" role="status">
             <p>No teams registered yet. Launch a blueprint team to expose a custom model id on the API.</p>
             <a href="/teams/launch/" className="btn btn-primary btn-sm">
               Launch your first team
