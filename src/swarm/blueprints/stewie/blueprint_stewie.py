@@ -138,7 +138,7 @@ class StewieBlueprint(BlueprintBase):
         # Use OpenAI client config from env (already set by framework)
         model_name = profile_data.get("model", os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo")
         base_url = os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-        api_key = os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_key = profile_data.get("api_key", os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY"))
         client_cache_key = f"{base_url}:{api_key}"
         if client_cache_key not in self._openai_client_cache:
             try:
