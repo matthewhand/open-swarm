@@ -13,9 +13,11 @@ from typing import Any
 from .types import (
     Agent,
     AgentFunction,  # Type hint for functions/tools
-    ChatCompletionMessageToolCall,
     Response,  # Structure for returning results of multiple tool calls
     Result,  # Structure for returning result of a single tool call
+)
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
 )
 
 # openai>=1.99 turned ChatCompletionMessageToolCall into a discriminated Union, which
