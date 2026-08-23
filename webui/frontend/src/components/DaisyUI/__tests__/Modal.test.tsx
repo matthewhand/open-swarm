@@ -11,8 +11,7 @@ describe('Modal Accessibility and Focus Restoration', () => {
     );
     const triggerBtn = screen.getByRole('button', { name: 'Open Modal' });
     triggerBtn.focus();
-    // eslint-disable-next-line testing-library/no-node-access
-    expect(document.activeElement).toBe(triggerBtn);
+    expect(triggerBtn).toHaveFocus();
 
     const onClose = vi.fn();
     const { rerender } = render(
@@ -36,8 +35,7 @@ describe('Modal Accessibility and Focus Restoration', () => {
     );
 
     await waitFor(() => {
-      // eslint-disable-next-line testing-library/no-node-access
-      expect(document.activeElement).toBe(triggerBtn);
+      expect(triggerBtn).toHaveFocus();
     });
   });
 
@@ -49,10 +47,10 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    const backdrop = screen.getByRole('button', { name: 'Close modal' });
+    const backdrop = screen.getByText('close');
     expect(backdrop).toBeInTheDocument();
     expect(backdrop).toHaveClass('modal-backdrop');
-    expect(backdrop).toHaveAttribute('tabIndex', '-1');
+    expect(backdrop).toHaveAttribute('aria-hidden', 'true');
 
     backdrop.click();
     expect(onClose).toHaveBeenCalledTimes(1);
