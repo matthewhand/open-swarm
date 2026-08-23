@@ -60,7 +60,7 @@ async def test_chat_completions_moa_fingerprint(monkeypatch):
     view = ChatCompletionsView.as_view()
 
     class FakeBP:
-        async def run(self, messages, stream=False):
+        async def run(self, messages, stream=False, **kwargs):
             yield {
                 "messages": [{"role": "assistant", "content": "token bucket"}],
                 "final": True,

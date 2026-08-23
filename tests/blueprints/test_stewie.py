@@ -47,6 +47,7 @@ async def test_test_mode_echoes_instruction():
 
 
 def test_unknown_llm_profile_warns_then_falls_back(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     """Named miss must warn (not silent {}); default profile still used."""
     import logging
     from unittest.mock import MagicMock, patch
