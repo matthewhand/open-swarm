@@ -29,7 +29,44 @@ export default defineConfig({
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },
-            '/v1': {
+            // Health probe fetched by the Dashboard status card.
+            '/health': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            // Django operator pages linked from the SPA (ADR-001): without
+            // these, dev-mode navigations hit the SPA catch-all and silently
+            // dump the user on the dashboard instead of the Django page.
+            '/accounts': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/sessions': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/blueprint-library': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/settings': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/profiles': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/team-creator': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/static': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            // CSRF cookie priming for Django POSTs; /login/ sets csrftoken.
+            '/login': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },
@@ -41,21 +78,6 @@ export default defineConfig({
                 changeOrigin: true,
             },
             '/agent-creator/validate': {
-                target: 'http://127.0.0.1:8000',
-                changeOrigin: true,
-            },
-            // CSRF cookie priming for Django POSTs; /login/ sets csrftoken.
-            '/login': {
-                target: 'http://127.0.0.1:8000',
-                changeOrigin: true,
-            },
-            // Read-only settings APIs (Django). SPA /settings is unmounted
-            // (ADR-001); proxies remain for Django CTAs during local Vite dev.
-            '/settings/api': {
-                target: 'http://127.0.0.1:8000',
-                changeOrigin: true,
-            },
-            '/settings/environment': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },

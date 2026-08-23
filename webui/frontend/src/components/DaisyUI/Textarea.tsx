@@ -28,7 +28,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
 
   const textareaClasses = [
     'textarea',
-    bordered ? 'textarea-bordered' : '',
+    bordered ? '' : 'border-0',
     size === 'xs' ? 'textarea-xs' :
     size === 'sm' ? 'textarea-sm' :
     size === 'lg' ? 'textarea-lg' :
@@ -39,10 +39,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
   ].filter(Boolean);
 
   return (
-    <div className="form-control w-full">
+    <div className="w-full flex flex-col gap-1">
       {label && (
-        <label htmlFor={textareaId} className="label">
-          <span className="label-text">{label}</span>
+        <label htmlFor={textareaId} className="text-sm font-medium">
+          {label}
         </label>
       )}
       <textarea
@@ -54,9 +54,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
         {...props}
       />
       {error && (
-        <label htmlFor={textareaId} className="label">
-          <span id={errorId} className="label-text-alt text-error">{error}</span>
-        </label>
+        <span id={errorId} role="alert" className="text-xs text-error">{error}</span>
       )}
     </div>
   );

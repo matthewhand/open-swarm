@@ -35,9 +35,10 @@ export const Tabs = ({
   className = '',
 }: TabsProps) => {
   const variantClasses = {
-    boxed: 'tabs-boxed',
-    lifted: 'tabs-lifted',
-    bordered: 'tabs-bordered',
+    // daisyUI v5 renamed: boxed→tabs-box, lifted→tabs-lift, bordered→tabs-border.
+    boxed: 'tabs-box',
+    lifted: 'tabs-lift',
+    bordered: 'tabs-border',
   };
 
   const sizeClasses = {

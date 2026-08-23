@@ -1,8 +1,30 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Home, Settings, Bot, Book, Users, PlusCircle, History, MessageSquare } from 'lucide-react'
 import { Card, Alert, Badge } from './components/DaisyUI'
 import ChatPage from './pages/ChatPage'
+import CommandPalette from './experimental/CommandPalette'
+import { isExperimentalEnabled } from './experimental/flags'
+
+/** EXPERIMENTAL: ⌘K command palette (see experimental/README.md). */
+const SHOW_COMMAND_PALETTE = isExperimentalEnabled('command_palette')
+
+/** Theme preference storage key (shared with the Django dark default). */
+export const THEME_STORAGE_KEY = 'swarm_theme'
+
+type Theme = 'dark' | 'light'
+
+function initialTheme(): Theme {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    if (stored === 'light' || stored === 'dark') return stored
+  } catch {
+    /* storage unavailable — fall through to the dark default */
+  }
+  // Default matches the Django operator pages (dark).
+  return 'dark'
+}
 
 /**
  * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
@@ -10,13 +32,30 @@ import ChatPage from './pages/ChatPage'
  * Do not remount deleted Teams/Blueprints/Settings/Builder/AgentCreator SPA pages.
  */
 function App() {
-  const [darkMode, setDarkMode] = useState(true)
+  const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, darkMode)
+    } catch {
+      /* persistence is best-effort */
+    }
+  }, [darkMode])
+
+  // Experimental features (command palette) can request a theme flip without
+  // needing prop plumbing — single source of truth stays here.
+  useEffect(() => {
+    const onToggle = () => setDarkMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+    window.addEventListener('swarm:toggle-theme', onToggle)
+    return () => window.removeEventListener('swarm:toggle-theme', onToggle)
+  }, [])
 
   return (
     <Router>
+      {SHOW_COMMAND_PALETTE && <CommandPalette />}
       <div
-        className={`min-h-screen pb-20 lg:pb-0 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}
-        data-theme={darkMode ? 'dark' : 'light'}
+        className={`min-h-screen pb-20 lg:pb-0 ${darkMode === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}
+        data-theme={darkMode === 'dark' ? 'dark' : 'light'}
       >
         <a
           href="#os-main"
@@ -52,11 +91,11 @@ function App() {
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={() => setDarkMode(!darkMode)}
+                  onClick={() => setDarkMode(darkMode === 'dark' ? 'light' : 'dark')}
                   className="btn btn-ghost btn-sm"
-                  aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+                  aria-label={darkMode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
                 >
-                  {darkMode ? 'Light' : 'Dark'}
+                  {darkMode === 'dark' ? 'Light' : 'Dark'}
                 </button>
                 <a href="/settings/" className="btn btn-ghost btn-sm" aria-label="Settings">
                   <Settings className="h-5 w-5" aria-hidden="true" />
@@ -144,53 +183,44 @@ function MobileTab({
 }
 
 function Dashboard() {
-  const [blueprintCount, setBlueprintCount] = useState<number | null>(null)
-  const [modelCount, setModelCount] = useState<number | null>(null)
-  const [teamsCount, setTeamsCount] = useState<number | null>(null)
-  const [loadingStats, setLoadingStats] = useState(true)
-  const [errorStats, setErrorStats] = useState<string | null>(null)
-  const [apiOnline, setApiOnline] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    const fetchStats = async () => {
-      setLoadingStats(true)
-      setErrorStats(null)
-      try {
-        const [bpRes, mRes, tRes, healthRes] = await Promise.all([
-          fetch('/v1/blueprints'),
-          fetch('/v1/models'),
-          fetch('/v1/teams/').catch(() => fetch('/teams/export?format=json')),
-          fetch('/health').catch(() => null),
-        ])
-        const bpJson = bpRes.ok ? await bpRes.json() : { data: [] }
-        const mJson = mRes.ok ? await mRes.json() : { data: [] }
-        let tCount = 0
-        if (tRes && tRes.ok) {
-          const tJson = await tRes.json()
-          if (Array.isArray(tJson?.data)) tCount = tJson.data.length
-          else if (tJson && typeof tJson === 'object') tCount = Object.keys(tJson).length
-        }
-        if (!cancelled) {
-          setBlueprintCount(Array.isArray(bpJson?.data) ? bpJson.data.length : 0)
-          setModelCount(Array.isArray(mJson?.data) ? mJson.data.length : 0)
-          setTeamsCount(tCount)
-          setApiOnline(healthRes ? healthRes.ok : bpRes.ok || mRes.ok)
-        }
-      } catch {
-        if (!cancelled) {
-          setErrorStats('Could not load live stats. Is the API running?')
-          setApiOnline(false)
-        }
-      } finally {
-        if (!cancelled) setLoadingStats(false)
+  // Live-polling stats via react-query: stays fresh (30s) and survives
+  // remounts via the shared query cache, unlike a one-shot useEffect fetch.
+  const statsQuery = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const [bpRes, mRes, tRes, healthRes] = await Promise.all([
+        fetch('/v1/blueprints'),
+        fetch('/v1/models'),
+        fetch('/v1/teams/').catch(() => fetch('/teams/export?format=json')),
+        fetch('/health').catch(() => null),
+      ])
+      const bpJson = bpRes.ok ? await bpRes.json() : { data: [] }
+      const mJson = mRes.ok ? await mRes.json() : { data: [] }
+      let tCount = 0
+      if (tRes && tRes.ok) {
+        const tJson = await tRes.json()
+        if (Array.isArray(tJson?.data)) tCount = tJson.data.length
+        else if (tJson && typeof tJson === 'object') tCount = Object.keys(tJson).length
       }
-    }
-    fetchStats()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+      return {
+        blueprintCount: Array.isArray(bpJson?.data) ? bpJson.data.length : 0,
+        modelCount: Array.isArray(mJson?.data) ? mJson.data.length : 0,
+        teamsCount: tCount,
+        apiOnline: healthRes ? healthRes.ok : bpRes.ok || mRes.ok,
+      }
+    },
+    refetchInterval: 30_000,
+    retry: 1,
+  })
+
+  const loadingStats = statsQuery.isPending
+  const errorStats = statsQuery.isError
+    ? 'Could not load live stats. Is the API running?'
+    : null
+  const teamsCount = statsQuery.data?.teamsCount ?? null
+  const blueprintCount = statsQuery.data?.blueprintCount ?? null
+  const modelCount = statsQuery.data?.modelCount ?? null
+  const apiOnline = statsQuery.data ? statsQuery.data.apiOnline : null
 
   return (
     <div className="space-y-6">

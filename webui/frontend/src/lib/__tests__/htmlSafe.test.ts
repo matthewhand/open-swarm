@@ -32,4 +32,27 @@ describe('sanitizeMarkdownHtml', () => {
     expect(out).not.toContain('javascript:')
     expect(out).toContain('https://example.com')
   })
+
+  it('blocks javascript: hrefs smuggled with control characters', () => {
+    // Browsers strip TAB/LF/CR before URL resolution, so these would become
+    // live javascript: URLs if the sanitizer tested the raw value.
+    for (const href of [
+      'java\tscript:alert(1)',
+      'jav\nascript:alert(1)',
+      'jav\rascript:alert(1)',
+      ' \t javascript:alert(1)',
+    ]) {
+      const out = sanitizeMarkdownHtml(`<a href="${href}">click</a>`)
+      expect(out).not.toContain('alert(1)')
+      expect(out).not.toContain('javascript')
+    }
+  })
+
+  it('keeps relative and fragment links', () => {
+    const out = sanitizeMarkdownHtml(
+      '<a href="/docs">a</a><a href="#sec">b</a>',
+    )
+    expect(out).toContain('href="/docs"')
+    expect(out).toContain('href="#sec"')
+  })
 })

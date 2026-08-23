@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
 
 /**
@@ -39,8 +39,12 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export const ToastProvider = ({ children }: { children: ReactNode }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // Monotonic counter avoids same-millisecond id collisions (duplicate keys).
+  const toastIdRef = useRef(0);
+
   const addToast = (toast: Omit<Toast, 'id'>) => {
-    const id = Date.now().toString();
+    toastIdRef.current += 1;
+    const id = `toast-${Date.now()}-${toastIdRef.current}`;
     const newToast = { ...toast, id };
     setToasts(prev => [...prev, newToast]);
   };

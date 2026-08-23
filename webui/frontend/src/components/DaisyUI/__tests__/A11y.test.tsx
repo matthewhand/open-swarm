@@ -30,45 +30,42 @@ describe('Modal Accessibility', () => {
 });
 
 describe('Form Control Accessibility', () => {
-  it('should link Input label and error deterministically', () => {
+  // The error message renders as a role="alert" span OUTSIDE the <label>, so
+  // it must not leak into the control's accessible name; aria-describedby
+  // carries the association for assistive tech.
+  it('links Input label and error without polluting the accessible name', () => {
     render(<Input label="My Label" error="My Error" />);
-    // Testing-library sees both "My Label" and "My Error" as part of the accessible name
-    // when they are both associated labels, but since `aria-describedby` is used for the error,
-    // the name itself might just be "My Label" depending on how screen readers compose it.
-    // However, the error output above showed it evaluated to `Name "My Label My Error":`
-    // This is because DaisyUI forms put both label and error spans inside their own `<label>`
-    // tags pointing to the same `id`. Testing Library correctly concatenates all label text.
-    const input = screen.getByRole('textbox', { name: 'My Label My Error' });
-    const error = screen.getByText('My Error');
+    const input = screen.getByRole('textbox', { name: 'My Label' });
+    const error = screen.getByRole('alert');
 
     expect(input).toBeInTheDocument();
-
+    expect(error).toHaveTextContent('My Error');
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAttribute('aria-describedby', error.id);
   });
 
-  it('should link Select label and error deterministically', () => {
+  it('links Select label and error without polluting the accessible name', () => {
     render(
       <Select label="My Select" error="Select Error">
         <option>Option</option>
       </Select>
     );
-    const select = screen.getByRole('combobox', { name: 'My Select Select Error' });
-    const error = screen.getByText('Select Error');
+    const select = screen.getByRole('combobox', { name: 'My Select' });
+    const error = screen.getByRole('alert');
 
     expect(select).toBeInTheDocument();
-
+    expect(error).toHaveTextContent('Select Error');
     expect(select).toHaveAttribute('aria-invalid', 'true');
     expect(select).toHaveAttribute('aria-describedby', error.id);
   });
 
-  it('should link Textarea label and error deterministically', () => {
+  it('links Textarea label and error without polluting the accessible name', () => {
     render(<Textarea label="My Textarea" error="Text Error" />);
-    const textarea = screen.getByRole('textbox', { name: 'My Textarea Text Error' });
-    const error = screen.getByText('Text Error');
+    const textarea = screen.getByRole('textbox', { name: 'My Textarea' });
+    const error = screen.getByRole('alert');
 
     expect(textarea).toBeInTheDocument();
-
+    expect(error).toHaveTextContent('Text Error');
     expect(textarea).toHaveAttribute('aria-invalid', 'true');
     expect(textarea).toHaveAttribute('aria-describedby', error.id);
   });

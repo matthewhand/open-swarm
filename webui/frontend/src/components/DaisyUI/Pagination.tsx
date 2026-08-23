@@ -28,11 +28,7 @@ export const Pagination = ({
 }: PaginationProps) => {
   if (totalPages <= 1) return null;
 
-  const sizeClasses = {
-    sm: 'join',
-    md: 'join',
-    lg: 'join',
-  };
+  // daisyUI v5: size is expressed on the buttons; the join wrapper is uniform.
 
   const buttonSize = {
     sm: 'btn-sm',
@@ -88,7 +84,7 @@ export const Pagination = ({
       </Button>
 
       {/* Page numbers */}
-      <div className={`join ${sizeClasses[size]}`}>
+      <div className="join">
         {visiblePages.map((page) => (
           <button
             type="button"

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
@@ -23,6 +31,11 @@ import {
   WS_AUTH_REQUIRED_CODE,
 } from '../lib/chatReconnect'
 import { renderSafeMarkdown } from '../lib/markdown'
+import { isExperimentalEnabled } from '../experimental/flags'
+import { ChatMessageActions } from '../experimental/ChatMessageActions'
+
+/** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
+const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 
@@ -69,7 +82,10 @@ const ChatPage = () => {
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(newConversationId())
   const listEndRef = useRef<HTMLDivElement | null>(null)
+  const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
+  /** Monotonic counter for collision-free user-echo keys. */
+  const userKeyCounterRef = useRef(0)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
   /** Consecutive auto-reconnect attempts since last successful open. */
   const backoffAttemptRef = useRef(0)
@@ -97,10 +113,11 @@ const ChatPage = () => {
     setMessages((prev) => {
       switch (event.kind) {
         case 'user_echo':
+          userKeyCounterRef.current += 1
           return [
             ...prev,
             {
-              key: `user-${prev.length}-${Date.now()}`,
+              key: `user-${userKeyCounterRef.current}-${Date.now()}`,
               role: 'user',
               text: event.text,
               streaming: false,
@@ -206,9 +223,13 @@ const ChatPage = () => {
     }
   }, [connectAttempt, handleWsEvent])
 
-  // Keep the latest message in view while streaming.
+  // Keep the latest message in view while streaming, but only while the user
+  // is already at (or near) the bottom — never yank a reader who scrolled up.
+  const pinnedToBottomRef = useRef(true)
   useEffect(() => {
-    listEndRef.current?.scrollIntoView({ block: 'end' })
+    if (pinnedToBottomRef.current) {
+      listEndRef.current?.scrollIntoView({ block: 'end' })
+    }
   }, [messages])
 
   // After a user-initiated reconnect succeeds, move focus to the composer so
@@ -224,15 +245,26 @@ const ChatPage = () => {
   const canSend =
     status === 'open' && input.trim().length > 0
 
+  /** Last user prompt, kept for the experimental Retry action. */
+  const lastUserTextRef = useRef('')
+
+  const sendText = useCallback(
+    (text: string) => {
+      const ws = wsRef.current
+      const trimmed = text.trim()
+      if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
+      lastUserTextRef.current = trimmed
+      // Protocol from DjangoChatConsumer.receive():
+      // {"message": "<text>", "blueprint": "<id>"} — the blueprint field is
+      // optional and selects which blueprint generates the reply.
+      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+    },
+    [selectedBlueprint],
+  )
+
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
-    const text = input.trim()
-    const ws = wsRef.current
-    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return
-    // Protocol from DjangoChatConsumer.receive():
-    // {"message": "<text>", "blueprint": "<id>"} — the blueprint field is
-    // optional and selects which blueprint generates the reply.
-    ws.send(buildChatWsFrame(text, selectedBlueprint || undefined))
+    sendText(input)
     setInput('')
   }
 
@@ -301,22 +333,29 @@ const ChatPage = () => {
               </span>
             </Alert>
           ) : (
-            <label className="form-control w-full max-w-xs">
+            <div className="w-full max-w-xs flex flex-col gap-1">
               <div className="mb-1 flex items-center gap-1.5">
-                <span className="label-text text-sm font-medium">
+                <span className="text-sm font-medium">
                   Blueprint
                 </span>
+                {/* Focusable so keyboard users can reveal the tooltip;
+                    aria-describedby keeps the note available to screen readers. */}
                 <span
                   className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
                   data-tip="Sent with every message — the selected blueprint generates the reply. Choose “Server default model” to use the server-configured model instead."
-                  role="img"
-                  aria-label="Blueprint selection note"
                 >
-                  <Info className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs btn-circle p-0 min-h-0 h-auto"
+                    aria-label="About blueprint selection"
+                    tabIndex={0}
+                  >
+                    <Info className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                  </button>
                 </span>
               </div>
               <select
-                className="select select-bordered select-sm w-full border border-base-300"
+                className="select select-sm w-full border border-base-300"
                 value={selectedBlueprint}
                 onChange={(e) => setSelectedBlueprint(e.target.value)}
                 aria-label="Blueprint"
@@ -335,7 +374,7 @@ const ChatPage = () => {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           )}
           <div className="pb-1">
             <ConnectionBadge status={status} authRejected={authRejected} />
@@ -415,11 +454,18 @@ const ChatPage = () => {
       {/* Conversation: scrollable message list + composer pinned at bottom */}
       <div className="card flex min-h-0 flex-1 flex-col overflow-hidden border border-base-300 bg-base-100">
         <div
+          ref={scrollBoxRef}
           className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4 focus:outline focus:outline-2 focus:outline-primary"
           aria-live="polite"
           role="log"
           aria-label="Conversation"
           tabIndex={0}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            // Within 48px of the bottom counts as "following" the stream.
+            pinnedToBottomRef.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 48
+          }}
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
@@ -458,26 +504,49 @@ const ChatPage = () => {
               )}
             </div>
           ) : (
-            messages.map((message) => (
-              <div
-                key={message.key}
-                className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
-              >
-                <div className="chat-header text-xs opacity-60">
-                  {message.role === 'user' ? 'You' : 'Assistant'}
-                </div>
+            messages.map((message, idx) => {
+              const isLast = idx === messages.length - 1
+              const retryEnabled =
+                SHOW_MESSAGE_ACTIONS &&
+                isLast &&
+                message.role === 'assistant' &&
+                !message.streaming &&
+                lastUserTextRef.current.length > 0
+              return (
                 <div
-                  className={`chat-bubble ${
-                    message.role === 'user' ? 'chat-bubble-primary' : ''
-                  }`}
+                  key={message.key}
+                  className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
                 >
-                  <ChatBubbleBody
-                    text={message.text}
-                    streaming={message.streaming}
-                  />
+                  <div className="chat-header text-xs opacity-60">
+                    {message.role === 'user' ? 'You' : 'Assistant'}
+                  </div>
+                  <div
+                    className={`chat-bubble ${
+                      message.role === 'user' ? 'chat-bubble-primary' : ''
+                    }`}
+                  >
+                    <ChatBubbleBody
+                      text={message.text}
+                      streaming={message.streaming}
+                    />
+                  </div>
+                  {SHOW_MESSAGE_ACTIONS &&
+                    message.role === 'assistant' &&
+                    !message.streaming && (
+                      <ChatMessageActions
+                        text={message.text}
+                        onRetry={
+                          retryEnabled
+                            ? () => {
+                                sendText(lastUserTextRef.current)
+                              }
+                            : undefined
+                        }
+                      />
+                    )}
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
           <div ref={listEndRef} />
         </div>
@@ -490,7 +559,7 @@ const ChatPage = () => {
           <input
             ref={composerRef}
             type="text"
-            className="input input-bordered input-sm h-10 flex-1"
+            className="input input-sm h-10 flex-1"
             placeholder={composerPlaceholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -508,27 +577,33 @@ const ChatPage = () => {
   )
 }
 
-function ChatBubbleBody({
-  text,
-  streaming,
-}: {
-  text: string
-  streaming: boolean
-}) {
-  if (text.length === 0) {
-    return streaming ? (
-      <LoadingDots size="sm" />
-    ) : (
-      <span className="opacity-60">(empty response)</span>
+/** Memoized bubble body: avoids re-running markdown + sanitize for every
+ * already-final message on each streamed chunk. */
+const ChatBubbleBody = memo(
+  function ChatBubbleBody({
+    text,
+    streaming,
+  }: {
+    text: string
+    streaming: boolean
+  }) {
+    if (text.length === 0) {
+      return streaming ? (
+        <LoadingDots size="sm" />
+      ) : (
+        <span className="opacity-60">(empty response)</span>
+      )
+    }
+    return (
+      <div
+        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
+        dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
+      />
     )
-  }
-  return (
-    <div
-      className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
-      dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
-    />
-  )
-}
+  },
+  (prev, next) =>
+    prev.text === next.text && prev.streaming === next.streaming,
+)
 
 function connectionStatusLabel(
   status: ConnectionStatus,

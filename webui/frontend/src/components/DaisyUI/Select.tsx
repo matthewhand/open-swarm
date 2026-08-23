@@ -29,7 +29,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({
 
   const selectClasses = [
     'select',
-    bordered ? 'select-bordered' : '',
+    bordered ? '' : 'border-0',
     size === 'xs' ? 'select-xs' :
     size === 'sm' ? 'select-sm' :
     size === 'lg' ? 'select-lg' :
@@ -40,10 +40,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({
   ].filter(Boolean);
 
   return (
-    <div className="form-control w-full">
+    <div className="w-full flex flex-col gap-1">
       {label && (
-        <label htmlFor={selectId} className="label">
-          <span className="label-text">{label}</span>
+        <label htmlFor={selectId} className="text-sm font-medium">
+          {label}
         </label>
       )}
       <select
@@ -57,9 +57,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({
         {children}
       </select>
       {error && (
-        <label htmlFor={selectId} className="label">
-          <span id={errorId} className="label-text-alt text-error">{error}</span>
-        </label>
+        <span id={errorId} role="alert" className="text-xs text-error">{error}</span>
       )}
     </div>
   );

@@ -34,8 +34,8 @@ export const Card = ({
     // daisyUI 5 renamed `card-bordered` to `card-border`; keep an explicit
     // Tailwind border as well so the outline is never theme-dependent.
     bordered ? 'card-border border border-base-300' : '',
-    compact ? 'card-compact' : '',
-    normal ? 'card-normal' : '',
+    // daisyUI v5 replaced `card-compact`/`card-normal` with card-xs..card-xl.
+    compact ? 'card-sm' : normal ? 'card-lg' : '',
     side ? 'card-side' : '',
     imageFull ? 'image-full' : '',
     className

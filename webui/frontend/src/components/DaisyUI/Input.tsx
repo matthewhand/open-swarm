@@ -1,8 +1,13 @@
 import { InputHTMLAttributes, forwardRef, useId } from 'react';
 
 /**
- * Input component using DaisyUI classes
+ * Input component using DaisyUI 5 classes.
  * Docs: https://daisyui.com/components/input/
+ *
+ * daisyUI v5 notes: `form-control`, `label-text`, `label-text-alt`, and
+ * `input-bordered` were removed. Layout uses utility classes; borders come
+ * from the base `input` style. The `bordered` prop is kept for API
+ * compatibility and maps to an explicit border for a non-default look.
  */
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
@@ -28,7 +33,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
 
   const inputClasses = [
     'input',
-    bordered ? 'input-bordered' : '',
+    bordered ? '' : 'border-0',
     size === 'xs' ? 'input-xs' :
     size === 'sm' ? 'input-sm' :
     size === 'lg' ? 'input-lg' :
@@ -39,10 +44,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   ].filter(Boolean);
 
   return (
-    <div className="form-control w-full">
+    <div className="w-full flex flex-col gap-1">
       {label && (
-        <label htmlFor={inputId} className="label">
-          <span className="label-text">{label}</span>
+        <label htmlFor={inputId} className="text-sm font-medium">
+          {label}
         </label>
       )}
       <input
@@ -54,9 +59,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
         {...props}
       />
       {error && (
-        <label htmlFor={inputId} className="label">
-          <span id={errorId} className="label-text-alt text-error">{error}</span>
-        </label>
+        <span id={errorId} role="alert" className="text-xs text-error">{error}</span>
       )}
     </div>
   );

@@ -50,8 +50,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     block ? 'btn-block' : '',
     // Glass effect
     glass ? 'glass' : '',
-    // Animation
-    noAnimation ? 'no-animation' : '',
+    // Animation (daisyUI v5 removed `no-animation`; disable via transition-none)
+    noAnimation ? 'transition-none' : '',
     // Custom classes
     className
   ].filter(Boolean);

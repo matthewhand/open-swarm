@@ -59,7 +59,12 @@ export function escapeAttr(text: unknown): string {
 }
 
 function isSafeUrl(value: string): boolean {
-  const v = String(value || '').trim()
+  // Browsers strip TAB/LF/CR anywhere in a URL before resolution, so
+  // "java\tscript:" would otherwise bypass scheme detection. Remove control
+  // characters first and only then decide.
+  // eslint-disable-next-line no-control-regex -- deliberate security normalization
+  const raw = String(value || '').replace(/[\t\n\r\x00-\x1f\x7f]/g, '')
+  const v = raw.trim()
   if (!v) return false
   if (/^(https?:|mailto:)/i.test(v)) return true
   if (v.startsWith('/') || v.startsWith('#') || v.startsWith('./') || v.startsWith('../')) {
