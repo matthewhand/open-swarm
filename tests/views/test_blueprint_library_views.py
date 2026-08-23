@@ -260,6 +260,7 @@ class TestBlueprintRequirementsStatus:
         mock_evaluate.return_value = {"compliant": True, "missing": []}
 
         request = request_factory.get("/blueprints/requirements-status/")
+        request.user = MagicMock(is_authenticated=True)
 
         response = blueprint_requirements_status(request)
 
@@ -285,6 +286,7 @@ class TestBlueprintRequirementsStatus:
         mock_load_config.return_value = {}
 
         request = request_factory.get("/blueprints/requirements-status/")
+        request.user = MagicMock(is_authenticated=True)
 
         response = blueprint_requirements_status(request)
 
@@ -306,6 +308,7 @@ class TestBlueprintRequirementsStatus:
         mock_discover.side_effect = Exception("Discovery error")
 
         request = request_factory.get("/blueprints/requirements-status/")
+        request.user = MagicMock(is_authenticated=True)
 
         response = blueprint_requirements_status(request)
 
@@ -888,6 +891,7 @@ class TestCheckComfyUIStatus:
         mock_comfyui.enabled = True
 
         request = request_factory.get("/blueprints/comfyui-status/")
+        request.user = MagicMock(is_authenticated=True)
 
         response = check_comfyui_status(request)
 
@@ -906,6 +910,7 @@ class TestCheckComfyUIStatus:
         mock_comfyui.enabled = False
 
         request = request_factory.get("/blueprints/comfyui-status/")
+        request.user = MagicMock(is_authenticated=True)
 
         response = check_comfyui_status(request)
 
@@ -922,6 +927,7 @@ class TestCheckComfyUIStatus:
         mock_comfyui.is_available.side_effect = Exception("Connection error")
 
         request = request_factory.get("/blueprints/comfyui-status/")
+        request.user = MagicMock(is_authenticated=True)
 
         response = check_comfyui_status(request)
 

@@ -316,20 +316,31 @@ class TestReceive:
         assert len(consumer.messages) == 0
 
     @pytest.mark.asyncio
-    async def test_receive_missing_message_key_raises_error(self, consumer):
-        """JSON without 'message' key should raise KeyError."""
+    async def test_receive_missing_message_key_is_ignored(self, consumer):
+        """JSON without 'message' key is logged and dropped, socket survives."""
         text_data = json.dumps({"content": "Hello"})
-        
-        with pytest.raises(KeyError):
-            await consumer.receive(text_data)
+
+        await consumer.receive(text_data)
+
+        assert len(consumer.messages) == 0
 
     @pytest.mark.asyncio
-    async def test_receive_invalid_json_raises_error(self, consumer):
-        """Invalid JSON should raise JSONDecodeError."""
+    async def test_receive_invalid_json_is_ignored(self, consumer):
+        """Invalid JSON is logged and dropped instead of killing the socket."""
         text_data = "not valid json"
-        
-        with pytest.raises(json.JSONDecodeError):
-            await consumer.receive(text_data)
+
+        await consumer.receive(text_data)
+
+        assert len(consumer.messages) == 0
+
+    @pytest.mark.asyncio
+    async def test_receive_non_string_message_is_ignored(self, consumer):
+        """A non-string 'message' value is dropped without raising."""
+        text_data = json.dumps({"message": 12345})
+
+        await consumer.receive(text_data)
+
+        assert len(consumer.messages) == 0
 
 
 # =============================================================================

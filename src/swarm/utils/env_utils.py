@@ -278,8 +278,13 @@ def is_enable_github_marketplace() -> bool:
 
 
 def is_enable_webui() -> bool:
-    """Check if WebUI is enabled."""
-    return os.getenv('ENABLE_WEBUI', 'false').lower() in ('true', '1', 't', 'yes', 'y')
+    """Check if WebUI is enabled.
+
+    Defaults to true, mirroring ``settings.ENABLE_WEBUI`` — the Django pages
+    (teams launcher/admin) are part of the default product UI. Set
+    ``ENABLE_WEBUI=false`` to hide them.
+    """
+    return os.getenv('ENABLE_WEBUI', 'true').lower() in ('true', '1', 't', 'yes', 'y')
 
 
 def is_enable_admin() -> bool:

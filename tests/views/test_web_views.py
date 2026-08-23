@@ -88,8 +88,8 @@ class TestIndexView:
         mock_discover.assert_called_once()
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Conversations" in content            # real template header
-        assert "New Conversation" in content          # CTA appears when blueprints exist
+        assert "Welcome to Open Swarm" in content    # real template header
+        assert "Launch a Team" in content             # CTA appears when blueprints exist
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
@@ -101,8 +101,8 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Conversations" in content
-        assert "New Conversation" in content
+        assert "Welcome to Open Swarm" in content
+        assert "Launch a Team" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
@@ -114,7 +114,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Conversations" in content
+        assert "Welcome to Open Swarm" in content
         assert "No blueprints available" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
@@ -127,7 +127,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Conversations" in content
+        assert "Welcome to Open Swarm" in content
         assert "No blueprints available" in content
 
 
@@ -385,14 +385,15 @@ class TestTeamAdminView:
 class TestProfilesPageView:
     """Tests for the profiles page view."""
 
+    @pytest.mark.django_db
     def test_profiles_page_renders(self, client):
-        """Renders the real profiles template (LLM Profiles page)."""
-        from swarm.views.web_views import profiles_page
+        """Renders the real profiles template (LLM Profiles page; auth required)."""
+        from django.contrib.auth.models import User
 
-        factory = RequestFactory()
-        request = factory.get("/profiles/")
+        User.objects.get_or_create(username="profiles-viewer")
+        client.force_login(User.objects.get(username="profiles-viewer"))
 
-        response = profiles_page(request)
+        response = client.get("/profiles/")
 
         assert response.status_code == 200
         assert "LLM Profiles" in response.content.decode()

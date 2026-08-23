@@ -53,7 +53,7 @@
         + '<span class="badge-status st-'+esc(st)+'">'+esc(st)+'</span>'
         + '<a class="se-id" href="/sessions/'+encodeURIComponent(s.id)+'/">'+esc(s.id)+'</a>'
         + '<span class="se-meta">'+esc(s.model||'—')+'</span>'
-        + (s.execution_ms?'<span class="se-meta">'+s.execution_ms+' ms</span>':'')
+        + (s.execution_ms?'<span class="se-meta">'+esc(s.execution_ms)+' ms</span>':'')
         + deleg + '</div>'
         + (s.output_preview?'<div class="se-preview">'+esc(s.output_preview)+'</div>':'') + '</div>';
     }).join('') : '<div class="se-empty os-empty" role="status"><div class="os-empty-icon" aria-hidden="true">🧭</div><div>No sessions for your account yet.</div><div class="os-meta mt-1">Create one with <code>POST /v1/responses</code> (include API credentials when auth is enabled). This list shows only sessions you own.</div></div>';

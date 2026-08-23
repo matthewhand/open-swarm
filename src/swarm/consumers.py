@@ -105,8 +105,17 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
-        text_data_json = json.loads(text_data)
-        message_text = text_data_json["message"]
+        # Tolerate malformed frames without killing the socket: log and drop.
+        try:
+            text_data_json = json.loads(text_data)
+            if not isinstance(text_data_json, dict):
+                raise ValueError("frame must be a JSON object")
+            message_text = text_data_json["message"]
+            if not isinstance(message_text, str):
+                raise ValueError("'message' must be a string")
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
+            return
 
         if not message_text.strip():
             return
@@ -293,20 +302,31 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         _enforce_litellm_only(client)
 
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=self.messages,
-            stream=True,
-        )
-
         full_message = ""
-        async for chunk in stream:
-            message_chunk = chunk.choices[0].delta.content
-            if message_chunk:
-                full_message += message_chunk
-                await self.send(
-                    text_data=_oob_append_html(contents_div_id, message_chunk)
-                )
+        try:
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=self.messages,
+                stream=True,
+            )
+            async for chunk in stream:
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                message_chunk = choices[0].delta.content
+                if message_chunk:
+                    full_message += message_chunk
+                    await self.send(
+                        text_data=_oob_append_html(contents_div_id, message_chunk)
+                    )
+        except Exception as e:
+            logger.error("Default-model chat stream failed: %s", e, exc_info=True)
+            await self.send_error_message(
+                contents_div_id,
+                "Error: the default model failed while generating a reply. "
+                "Check the server's LLM configuration (LITELLM_* / OPENAI_*).",
+            )
+            return
 
         self.messages.append(
             {

@@ -69,7 +69,7 @@ class TestLoginURLRouting:
             "/accounts/login/", {"username": "routeuser", "password": "route-pass-123"}
         )
         assert response.status_code == 302
-        assert response.url == "/chatbot/"
+        assert response.url == "/"
 
     @pytest.mark.django_db
     def test_post_good_credentials_honours_safe_next(
@@ -99,7 +99,7 @@ class TestLoginURLRouting:
             {"username": "routeuser", "password": "route-pass-123"},
         )
         assert response.status_code == 302
-        assert response.url == "/chatbot/"
+        assert response.url == "/"
 
     @pytest.mark.django_db
     def test_login_alias_post_good_credentials_redirects(
@@ -109,7 +109,7 @@ class TestLoginURLRouting:
             "/login/", {"username": "routeuser", "password": "route-pass-123"}
         )
         assert response.status_code == 302
-        assert response.url == "/chatbot/"
+        assert response.url == "/"
 
 
 class TestTestuserAutologinGating:
@@ -137,7 +137,7 @@ class TestTestuserAutologinGating:
         )
         # Auto-login happened, but the malicious next was still rejected.
         assert response.status_code == 302
-        assert response.url == "/chatbot/"
+        assert response.url == "/"
         assert "_auth_user_id" in client.session
         assert User.objects.filter(username="testuser").exists()
 

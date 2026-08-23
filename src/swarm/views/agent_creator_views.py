@@ -160,6 +160,7 @@ class BlueprintCodeValidator:
     def lint_code(self, code: str) -> tuple[bool, list[str]]:
         """Run flake8 on the code"""
         issues = []
+        temp_file = None
 
         try:
             # Write code to temporary file
@@ -183,9 +184,6 @@ class BlueprintCodeValidator:
                         if len(parts) >= 4:
                             issues.append(f"Line {parts[1]}: {parts[3].strip()}")
 
-            # Clean up
-            Path(temp_file).unlink()
-
             return len(issues) == 0, issues
 
         except subprocess.TimeoutExpired:
@@ -197,6 +195,13 @@ class BlueprintCodeValidator:
         except Exception as e:
             issues.append(f"Linting error: {str(e)}")
             return False, issues
+        finally:
+            # Always clean up, including on timeout/error paths.
+            if temp_file:
+                try:
+                    Path(temp_file).unlink()
+                except OSError:
+                    pass
 
     def validate_blueprint_code(self, code: str) -> dict[str, Any]:
         """Complete validation of blueprint code"""
@@ -406,6 +411,7 @@ validator = BlueprintCodeValidator()
 agent_generator = AgentPersonaGenerator()
 
 
+@login_required
 def agent_creator_page(request):
     """Render the agent creator interface"""
     if request.method == 'GET':
@@ -593,6 +599,7 @@ swarm-cli launch {blueprint_id}
         }, status=500)
 
 
+@login_required
 def team_creator_page(request):
     """Render the team creator interface"""
     if request.method == 'GET':

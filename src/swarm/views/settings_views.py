@@ -2,6 +2,7 @@
 Settings Views for Open Swarm
 Web views for displaying and managing configuration settings
 """
+import logging
 import os
 import sys
 
@@ -11,6 +12,8 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
 from .settings_manager import settings_manager
+
+logger = logging.getLogger(__name__)
 
 # Ensure module aliasing so tests patching either path work consistently
 # Some tests reference this module as 'src.swarm.views.settings_views' while
@@ -61,7 +64,8 @@ def settings_dashboard(request):
         return render(request, 'settings_dashboard.html', context)
 
     except Exception as e:
-        return HttpResponse(f"Error loading settings: {str(e)}", status=500)
+        logger.exception("Error loading settings")
+        return HttpResponse("Error loading settings. See server logs for details.", status=500)
 
 
 def _redact_setting_value(value, *, sensitive: bool):
@@ -114,10 +118,11 @@ def settings_api(_request):
             'settings': safe_settings
         })
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Settings API request failed")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': "Internal error. See server logs for details."
         }, status=500)
 
 
@@ -150,8 +155,9 @@ def environment_variables(_request):
             'count': len(env_vars)
         })
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Settings API request failed")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': "Internal error. See server logs for details."
         }, status=500)

@@ -74,6 +74,16 @@
       opt.textContent = `${name}`;
       bpSelect.appendChild(opt);
     }
+    // Deep-link preselect: /teams/launch/?blueprint=<id> (linked from the
+    // blueprint library cards). Unknown ids are ignored so the first
+    // option stays selected.
+    try {
+      const requested = new URLSearchParams(window.location.search).get('blueprint');
+      if (requested) {
+        const match = Array.from(bpSelect.options).find((o) => o.value === requested);
+        if (match) bpSelect.value = requested;
+      }
+    } catch (e) { /* query param parsing is best-effort */ }
   }
 
   function append(text) {

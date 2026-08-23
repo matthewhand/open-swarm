@@ -33,7 +33,7 @@ from .utils import (
 
 logger = setup_logger(__name__)
 
-_DEFAULT_POST_LOGIN_REDIRECT = "/chatbot/"
+_DEFAULT_POST_LOGIN_REDIRECT = "/"
 
 
 def _safe_post_login_redirect(request, next_url: str | None) -> str:
@@ -144,8 +144,23 @@ def index(request):
     context = {
         "dark_mode": request.session.get('dark_mode', True),
         "enable_admin": is_enable_admin(),
-        "blueprints": blueprint_names # Use the dynamically discovered list
+        "blueprints": blueprint_names,  # Use the dynamically discovered list
     }
+
+    # Recent sessions for the landing page (owner-scoped; empty when anonymous).
+    try:
+        from swarm.auth import explorer_owner_allows
+        from swarm.core import responses_store
+
+        recent = [
+            s for s in responses_store.list_summaries(limit=50)
+            if explorer_owner_allows(s, request)
+        ][:5]
+        context["recent_sessions"] = recent
+    except Exception:
+        logger.debug("Could not load recent sessions for index", exc_info=True)
+        context["recent_sessions"] = []
+
     return render(request, "index.html", context)
 
 
@@ -461,10 +476,18 @@ def teams_export(request):
     reg = load_dynamic_registry()
     fmt = request.GET.get("format", "json").lower()
     if fmt == "csv":
+        def _csv_safe(value: str) -> str:
+            # Neutralise spreadsheet formula injection (=, +, -, @ prefixes)
+            # and strip commas/quotes that would break naive row parsing.
+            v = (value or "").replace(",", " ").replace('"', "'")
+            if v.startswith(("=", "+", "-", "@")):
+                v = "'" + v
+            return v
+
         lines = ["id,llm_profile,description"]
         for k, v in reg.items():
-            llm = (v.get("llm_profile") or "").replace(",", " ")
-            desc = (v.get("description") or "").replace(",", " ")
+            llm = _csv_safe(v.get("llm_profile") or "")
+            desc = _csv_safe(v.get("description") or "")
             lines.append(f"{k},{llm},{desc}")
         body = "\n".join(lines) + "\n"
         resp = HttpResponse(body, content_type="text/csv")
@@ -474,6 +497,7 @@ def teams_export(request):
     return JsonResponse(reg)
 
 
+@login_required
 def profiles_page(request):
     """Show detected LLM profiles with model/provider/base_url."""
     profiles = []

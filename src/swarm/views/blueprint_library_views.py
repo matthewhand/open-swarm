@@ -244,6 +244,7 @@ def blueprint_library(request):
         logger.error(f"Error loading blueprint library: {e}")
         return HttpResponse("Error loading blueprint library", status=500)
 
+@login_required
 def blueprint_requirements_status(_request):
     """Return JSON with MCP requirements vs current configuration per blueprint."""
     try:
@@ -468,6 +469,7 @@ def generate_avatar(request, blueprint_name):
         logger.error(f"Error generating avatar: {e}")
         return JsonResponse({"error": "Internal server error"}, status=500)
 
+@login_required
 def check_comfyui_status(_request):
     """Check if ComfyUI is available for avatar generation."""
     try:

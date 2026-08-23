@@ -1,6 +1,7 @@
 // Blueprint card actions (loaded via {% static %} from blueprint_library.html).
 function previewBlueprint(blueprintId) {
-    window.open(`/blueprint/${encodeURIComponent(blueprintId)}/`, '_blank');
+    // Blueprint source served by the REST API (there is no /blueprint/<id>/ page).
+    window.open(`/v1/blueprints/${encodeURIComponent(blueprintId)}/source/`, '_blank');
 }
 
 function launchBlueprint(blueprintId) {

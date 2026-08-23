@@ -187,7 +187,8 @@ function showStatus(message, type) {
 }
 
 function previewBlueprint(blueprintId) {
-    window.open(`/blueprint/${encodeURIComponent(blueprintId)}/`, '_blank');
+    // Blueprint source served by the REST API (there is no /blueprint/<id>/ page).
+    window.open(`/v1/blueprints/${encodeURIComponent(blueprintId)}/source/`, '_blank');
 }
 
 function removeBlueprint(blueprintId, blueprintName) {
