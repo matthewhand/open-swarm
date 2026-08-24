@@ -90,6 +90,12 @@ export default defineConfig({
     build: {
         outDir: 'dist',
     },
+    preview: {
+        // Keep `vite preview` (used by Playwright) hermetic: by default it
+        // inherits server.proxy, so a locally-running Django on :8000 would
+        // intercept proxied paths and make e2e results machine-dependent.
+        proxy: {},
+    },
     test: {
         environment: 'jsdom',
         setupFiles: ['./src/setupTests.ts'],

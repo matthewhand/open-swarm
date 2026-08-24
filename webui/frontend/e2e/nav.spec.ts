@@ -29,7 +29,10 @@ for (const route of ROUTES) {
 test('unknown SPA path falls through to dashboard (no leftover shells)', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
-  await page.goto('/teams')
+  // A path with no proxy, no Django route, and no SPA route: the React
+  // catch-all must land on the dashboard. (/teams is NOT such a path —
+  // production Django redirects it to the teams UI.)
+  await page.goto('/definitely-not-a-real-path')
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
   expect(jsErrors).toHaveLength(0)
 })
