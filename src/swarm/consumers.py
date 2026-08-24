@@ -156,6 +156,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # In test mode, skip slow blueprint instantiation and return canned output.
         if os.environ.get("SWARM_TEST_MODE"):
             from pathlib import Path as _Path
+
             from django.conf import settings as _settings
             bp_dir = _Path(getattr(_settings, "BLUEPRINT_DIRECTORY", "src/swarm/blueprints"))
             known = {d.name for d in bp_dir.iterdir() if d.is_dir() and not d.name.startswith("_")} if bp_dir.is_dir() else set()
@@ -349,16 +350,20 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     def fetch_conversation(self, conversation_id):
         """
         Fetch conversation messages from memory or DB. If missing from memory, load from DB.
+
+        Always returns a COPY: two tabs sharing a conversation must not mutate
+        each other's in-flight transcript list (interleaved appends previously
+        corrupted both and double-persisted merged turns on disconnect).
         """
         cache_key = _conversation_cache_key(self.user, conversation_id)
         if cache_key in IN_MEMORY_CONVERSATIONS:
-            return IN_MEMORY_CONVERSATIONS[cache_key]
+            return list(IN_MEMORY_CONVERSATIONS[cache_key])
 
         try:
             chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
             messages = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
             IN_MEMORY_CONVERSATIONS[cache_key] = messages  # Cache it
-            return messages
+            return list(messages)
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
             return []

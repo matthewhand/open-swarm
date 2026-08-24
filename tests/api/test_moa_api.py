@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from rest_framework.test import APIRequestFactory, force_authenticate
+from rest_framework.test import APIRequestFactory
 
-from swarm.blueprints.moa.blueprint_moa import MoABlueprint, LEGACY_ALIASES
+from swarm.blueprints.moa.blueprint_moa import LEGACY_ALIASES, MoABlueprint
 from swarm.core.blueprint_discovery import discover_blueprints
-from swarm.views.chat_views import ChatCompletionsView, backend_fingerprint
+from swarm.views.chat_views import ChatCompletionsView
 
 
 def test_discover_moa_and_aliases():
@@ -60,7 +60,7 @@ async def test_chat_completions_moa_fingerprint(monkeypatch):
     view = ChatCompletionsView.as_view()
 
     class FakeBP:
-        async def run(self, messages, stream=False):
+        async def run(self, messages, stream=False, user_id=None):
             yield {
                 "messages": [{"role": "assistant", "content": "token bucket"}],
                 "final": True,
@@ -90,7 +90,6 @@ async def test_chat_completions_moa_fingerprint(monkeypatch):
         )
         # DRF APIView async: use view dispatch carefully
         from rest_framework.request import Request
-        from rest_framework.parsers import JSONParser
 
         # Use the class method path directly for reliability
         api_view = ChatCompletionsView()
