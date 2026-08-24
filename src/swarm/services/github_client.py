@@ -15,7 +15,7 @@ import os
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from django.db import models
@@ -30,7 +30,7 @@ from swarm.settings import (
 @dataclass
 class GitHubConfig:
     """Configuration for the GitHub client."""
-    token: Optional[str] = field(default_factory=lambda: os.environ.get("GITHUB_TOKEN"))
+    token: str | None = field(default_factory=lambda: os.environ.get("GITHUB_TOKEN"))
     base_url: str = "https://api.github.com"
     timeout: int = 30
     max_retries: int = 3
@@ -41,7 +41,7 @@ class GitHubConfig:
 class GitHubClient:
     """A client for interacting with the GitHub API."""
 
-    def __init__(self, config: Optional[GitHubConfig] = None, **kwargs: Any):
+    def __init__(self, config: GitHubConfig | None = None, **kwargs: Any):
         if config:
             self.config = config
         elif kwargs:

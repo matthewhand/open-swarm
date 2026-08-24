@@ -6,8 +6,6 @@ backend. No authenticated third-party CLIs required.
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
@@ -24,7 +22,6 @@ from swarm.core.moa import (
 )
 from swarm.core.moa.backends import FakeParticipantBackend, RecordingWriteSurface
 from swarm.core.moa.policy import assert_participant_permission, participant_acpx_flags
-
 
 # ---------------------------------------------------------------------------
 # Collect opinions (read-only multi-participant)
@@ -98,8 +95,8 @@ def test_policy_participant_permission_modes():
 
 def test_policy_participant_name_rejects_flag_injection():
     """Seat labels must not look like CLI flags (acpx argv injection)."""
-    from swarm.core.moa.policy import assert_participant_name
     from swarm.core.moa.backends import AcpxParticipantBackend
+    from swarm.core.moa.policy import assert_participant_name
 
     assert assert_participant_name("analyst") == "analyst"
     assert assert_participant_name("claude-code") == "claude-code"

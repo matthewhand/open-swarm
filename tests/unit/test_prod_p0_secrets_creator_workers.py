@@ -1,14 +1,11 @@
 """Production P0: settings redaction, creator write auth, workers=1 helper."""
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.test import Client, override_settings
-from django.urls import reverse
+from django.test import Client
 
 
 @pytest.mark.django_db
@@ -167,8 +164,9 @@ class Evil(BlueprintBase):
 
     def test_validate_blueprint_code_does_not_exec(self):
         """Structural: validator uses AST only — no exec() in module path for validation."""
-        from swarm.views.agent_creator_views import BlueprintCodeValidator
         import inspect
+
+        from swarm.views.agent_creator_views import BlueprintCodeValidator
 
         src = inspect.getsource(BlueprintCodeValidator.validate_blueprint_code)
         assert "exec(" not in src

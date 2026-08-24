@@ -1,6 +1,8 @@
-import re
 import os
+import re
+
 import pytest
+
 
 def test_userguide_captures_match_scratch():
     """Full-fence mechanical gate: every <!-- from-scratch: xxx --> marker must have exact body == $SCRATCH/xxx (strip). All real-output fences must be marker-bound. Run paste script after captures."""

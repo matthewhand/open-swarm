@@ -15,11 +15,17 @@ import django  # noqa: E402
 
 django.setup()
 
-from swarm.core import cli_catalog  # noqa: E402
-from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint  # noqa: E402
-from swarm.blueprints.cli_fusion.blueprint_cli_fusion import CliFusionBlueprint  # noqa: E402
-from swarm.blueprints.cli_orchestrator.blueprint_cli_orchestrator import CliOrchestratorBlueprint  # noqa: E402
+from swarm.blueprints.cli_agent.blueprint_cli_agent import (
+    CliAgentBlueprint,  # noqa: E402
+)
+from swarm.blueprints.cli_fusion.blueprint_cli_fusion import (
+    CliFusionBlueprint,  # noqa: E402
+)
 from swarm.blueprints.cli_map.blueprint_cli_map import CliMapBlueprint  # noqa: E402
+from swarm.blueprints.cli_orchestrator.blueprint_cli_orchestrator import (
+    CliOrchestratorBlueprint,  # noqa: E402
+)
+from swarm.core import cli_catalog  # noqa: E402
 
 WD = "/tmp/prove_perms"
 os.makedirs(WD, exist_ok=True)

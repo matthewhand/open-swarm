@@ -445,7 +445,6 @@ def list_available_llm_profiles(full_config: dict) -> list[str]:
 # --- Additional unification helpers (find/load/save/validate etc.) for central config management ---
 # These consolidate logic previously duplicated in extensions/config/.
 
-import json
 import logging
 from pathlib import Path
 from typing import Any

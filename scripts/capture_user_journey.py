@@ -152,13 +152,13 @@ def assert_pages_adr001_contract() -> None:
     """Guard PAGES drift: SPA destinations stay `/` + `/chat` only."""
     by_stem = {stem: path for stem, path, _name in PAGES}
     assert by_stem["landing"] == "/" and by_stem["spa-chat"] == "/chat"
-    assert SPA_ROUTE_STEMS == {"landing", "spa-chat"}
-    assert SPA_REDIRECT_STEMS == {
+    assert {"landing", "spa-chat"} == SPA_ROUTE_STEMS
+    assert {
         "spa-teams",
         "spa-blueprints",
         "spa-settings",
         "spa-agent-creator",
-    }
+    } == SPA_REDIRECT_STEMS
     for stem in SPA_REDIRECT_STEMS:
         assert stem in by_stem and not by_stem[stem].endswith("/"), stem
 

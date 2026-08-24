@@ -20,6 +20,7 @@ if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
 import django
+
 django.setup()
 
 from django.contrib.auth.decorators import login_required
@@ -34,6 +35,7 @@ from swarm.blueprints.common.operation_box_utils import display_operation_box
 from swarm.core.blueprint_base import BlueprintBase as Blueprint
 from swarm.models import ChatConversation
 from swarm.utils.logger_setup import setup_logger
+
 
 # --- Logging Setup ---
 def setup_logging():

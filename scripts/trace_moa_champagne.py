@@ -17,7 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from swarm.core.moa.team import TeamTask, run_moa_consensus, run_moa_then_team  # noqa: E402
+from swarm.core.moa.team import (  # noqa: E402
+    TeamTask,
+    run_moa_consensus,
+    run_moa_then_team,
+)
 
 FAKES = {
     "analyst": '{"claim":"yes token bucket at edge","confidence":0.9}',

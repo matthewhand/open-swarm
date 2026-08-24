@@ -1,9 +1,10 @@
-import pytest
 # Import from correct location
-from src.swarm.utils.message_utils import filter_messages
+import datetime  # Import datetime for creating test data
+
 # Import the serializer used in the test data
 from src.swarm.utils.general_utils import serialize_datetime
-import datetime # Import datetime for creating test data
+from src.swarm.utils.message_utils import filter_messages
+
 
 def test_filter_messages_empty_and_none_content():
     messages = [

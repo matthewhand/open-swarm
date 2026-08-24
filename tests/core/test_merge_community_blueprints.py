@@ -7,8 +7,6 @@ merge/collision logic without real on-disk blueprint modules.
 """
 from __future__ import annotations
 
-import pytest
-
 from swarm.core import blueprint_discovery as bd
 
 

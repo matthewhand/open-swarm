@@ -7,14 +7,12 @@ Covers:
 - Timeouts / subprocess failures (mocked)
 - Empty tool lists / empty resources
 """
-import asyncio
 import importlib
 import sys
 from types import ModuleType
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 
 # ============================================================================
 # Provider Edge Cases: Invalid/Partial Server Configs
@@ -124,8 +122,9 @@ def test_stop_mcp_server_timeout_kill(monkeypatch):
         }
     }
 
-    from swarm.mcp import provider as prov
     import subprocess
+
+    from swarm.mcp import provider as prov
     monkeypatch.setattr(prov, "discover_blueprints", lambda _: fake_discovered)
 
     p = prov.BlueprintMCPProvider(blueprint_dir="ignored")

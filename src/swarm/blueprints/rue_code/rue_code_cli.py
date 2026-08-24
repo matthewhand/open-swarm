@@ -3,8 +3,8 @@ import os
 import sys
 
 from swarm.blueprints.common.operation_box_utils import display_operation_box
-from swarm.core.spinner import SwarmSpinner
 from swarm.blueprints.rue_code.blueprint_rue_code import RueCodeBlueprint
+from swarm.core.spinner import SwarmSpinner
 
 # Early test-mode: simulate spinner output and exit for RueCode CLI tests
 if os.environ.get("SWARM_TEST_MODE") or os.environ.get("DEFAULT_LLM") == "test":

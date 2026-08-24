@@ -51,7 +51,8 @@ import os
 import re
 import threading
 import time
-from typing import Any, AsyncGenerator, ClassVar
+from collections.abc import AsyncGenerator
+from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
@@ -472,7 +473,7 @@ class HybridTeamBlueprint(BlueprintBase):
                 # Full ConsensusResult path: surface per-panelist failures, honour workdir.
                 cons = await run_consensus(
                     sub_question, panel, judge,
-                    workdirs={n: workdir for n in registry.names()},
+                    workdirs=dict.fromkeys(registry.names(), workdir),
                 )
                 for r in cons.results:
                     if not r.ok:

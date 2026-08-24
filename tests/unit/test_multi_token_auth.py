@@ -11,7 +11,6 @@ from rest_framework.test import APIRequestFactory
 from swarm.auth import StaticTokenAuthentication, request_principal
 from swarm.utils import env_utils
 
-
 TOKEN_A = "multi-token-alpha-secret"
 TOKEN_B = "multi-token-beta-secret"
 TOKEN_SINGLE = "single-token-gamma-secret"

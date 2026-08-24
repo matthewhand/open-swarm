@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 RE_NON_ALPHANUMERIC = re.compile(r'[^a-zA-Z0-9]')
 
 # Import secure subprocess utilities
-from swarm.services.secure_subprocess import (
-    validate_command_safety
-)
+from swarm.services.secure_subprocess import validate_command_safety
 
 # Define a path for storing job metadata and outputs
 # Consider making this configurable

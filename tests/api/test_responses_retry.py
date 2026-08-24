@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 import pytest
-from rest_framework.exceptions import APIException, NotFound, ParseError, PermissionDenied
+from rest_framework.exceptions import (
+    APIException,
+    NotFound,
+    ParseError,
+    PermissionDenied,
+)
 
 from swarm.views.responses_views import async_retry
 

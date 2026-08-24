@@ -1,7 +1,5 @@
 
 import pytest
-from rich.markdown import Markdown
-from rich.syntax import Syntax
 
 # Assuming RICH_AVAILABLE is True for these tests.
 # If not, they'd be skipped by the decorator.

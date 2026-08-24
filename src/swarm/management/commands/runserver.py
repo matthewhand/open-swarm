@@ -6,7 +6,11 @@ from django.core.management.base import CommandError
 from django.core.management.commands.runserver import Command as RunserverCommand
 from dotenv import load_dotenv
 
-from swarm.utils.env_utils import get_api_auth_token, get_api_auth_tokens, is_django_debug
+from swarm.utils.env_utils import (
+    get_api_auth_token,
+    get_api_auth_tokens,
+    is_django_debug,
+)
 
 # Load .env from project root relative to this file's location
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent

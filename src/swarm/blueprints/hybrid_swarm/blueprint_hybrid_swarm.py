@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, AsyncGenerator, ClassVar
+from collections.abc import AsyncGenerator
+from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase

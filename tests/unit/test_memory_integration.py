@@ -9,7 +9,6 @@ import pytest
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.memory import MemoryBackend, get_memory_backend
 
-
 # --- Helpers -----------------------------------------------------------------
 
 class FakeMemoryBackend:

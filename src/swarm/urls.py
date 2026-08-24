@@ -1,11 +1,11 @@
-from django.conf import settings
-from django.conf.urls.static import static
-from django.urls import path, re_path
-from django.http import HttpResponse, FileResponse
-from django.views.generic import RedirectView
-from django.views.static import serve
 from pathlib import Path
 
+from django.conf import settings
+from django.conf.urls.static import static
+from django.http import FileResponse, HttpResponse
+from django.urls import path, re_path
+from django.views.generic import RedirectView
+from django.views.static import serve
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -43,9 +43,17 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
-from swarm.views.responses_views import ResponsesCancelView, ResponsesDetailView, ResponsesView
-from swarm.views.session_explorer import session_detail, session_explorer, session_list_api
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
+from swarm.views.responses_views import (
+    ResponsesCancelView,
+    ResponsesDetailView,
+    ResponsesView,
+)
+from swarm.views.session_explorer import (
+    session_detail,
+    session_explorer,
+    session_list_api,
+)
 from swarm.views.settings_views import (
     environment_variables,
     settings_api,

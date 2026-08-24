@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sys
 
-from swarm.blueprints.cli_orchestrator.blueprint_cli_orchestrator import CliOrchestratorBlueprint
+from swarm.blueprints.cli_orchestrator.blueprint_cli_orchestrator import (
+    CliOrchestratorBlueprint,
+)
 
 PY = sys.executable
 

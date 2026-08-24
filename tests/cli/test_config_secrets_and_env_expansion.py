@@ -11,8 +11,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _xdg_paths(home: Path) -> tuple[Path, Path]:
     cfg_dir = home / ".config" / "swarm"

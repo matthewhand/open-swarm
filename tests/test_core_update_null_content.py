@@ -1,6 +1,6 @@
-import pytest
 # Import from correct location
 from src.swarm.utils.message_utils import update_null_content
+
 
 def test_update_null_content_list():
     """Test updating None content in a list of message dictionaries."""

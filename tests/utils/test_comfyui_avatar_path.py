@@ -1,6 +1,5 @@
 """Path traversal guards for ComfyUI avatar storage."""
 
-from pathlib import Path
 
 import pytest
 from django.conf import settings

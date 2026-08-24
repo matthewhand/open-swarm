@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from swarm.core.blueprint_sandbox import (
     assert_safe_blueprint_source,
     sandbox_enabled,
 )
-
 
 SAFE_MINIMAL_BLUEPRINT = '''\
 from __future__ import annotations

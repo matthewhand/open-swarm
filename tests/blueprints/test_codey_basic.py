@@ -4,8 +4,9 @@ Basic functional tests for Codey blueprint (SWARM_TEST_MODE / keyless).
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from swarm.blueprints.codey.blueprint_codey import CodeyBlueprint, CodeySpinner
 

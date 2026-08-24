@@ -1,7 +1,6 @@
 """
 Unit tests for output_formatters.py module
 """
-import pytest
 from src.swarm.blueprints.common.output_formatters import DiffFormatter, StatusFormatter
 
 

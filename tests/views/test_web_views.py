@@ -12,13 +12,10 @@ Uses mocks for blueprint discovery and external calls; no network.
 """
 
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import RequestFactory, Client
-from django.http import HttpResponse, JsonResponse
-
+from django.test import Client, RequestFactory
 
 # =============================================================================
 # Fixtures
@@ -164,7 +161,7 @@ class TestServeSwarmConfigView:
         from django.conf import settings
         monkeypatch.setattr(settings, "BASE_DIR", str(tmp_path))
 
-        from swarm.views.web_views import serve_swarm_config, DEFAULT_CONFIG
+        from swarm.views.web_views import DEFAULT_CONFIG, serve_swarm_config
 
         factory = RequestFactory()
         request = factory.get("/swarm-config/")

@@ -22,9 +22,8 @@ def test_ready_logs_when_registration_fails(monkeypatch, caplog):
     with patch(
         "swarm.mcp.integration.register_blueprints_with_mcp",
         side_effect=RuntimeError("boom"),
-    ):
-        with caplog.at_level(logging.ERROR, logger="swarm.mcp.apps"):
-            cfg.ready()
+    ), caplog.at_level(logging.ERROR, logger="swarm.mcp.apps"):
+        cfg.ready()
 
     messages = [rec.getMessage() for rec in caplog.records]
     assert any("MCP blueprint registration failed" in msg for msg in messages), messages

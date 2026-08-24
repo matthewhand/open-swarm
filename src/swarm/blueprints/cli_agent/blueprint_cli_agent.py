@@ -141,7 +141,7 @@ class CliAgentBlueprint(BlueprintBase):
             panel = registry.resolve_panel(panel_names)
             judge = registry.get(judge_name) if judge_name else None
             cons = await run_consensus(
-                prompt, panel, judge, workdirs={n: workdir for n in registry.names()}
+                prompt, panel, judge, workdirs=dict.fromkeys(registry.names(), workdir)
             )
             for r in cons.results:
                 if not r.ok:

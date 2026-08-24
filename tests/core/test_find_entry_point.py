@@ -1,8 +1,10 @@
+import sys
 import tempfile
 from pathlib import Path
-import sys
+
 sys.path.insert(0, 'src')
 from swarm.core.swarm_cli import find_entry_point
+
 
 def test_find_entry_point_prefers_cli():
     with tempfile.TemporaryDirectory() as tmp:

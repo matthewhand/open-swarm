@@ -33,11 +33,23 @@ def test_team_apis_exported_from_package_toplevel():
     import swarm.core.moa as moa
     from swarm.core.moa import (
         TeamTask as PkgTeamTask,
+    )
+    from swarm.core.moa import (
         format_team_text as pkg_format_team_text,
+    )
+    from swarm.core.moa import (
         parse_team_tasks as pkg_parse_team_tasks,
+    )
+    from swarm.core.moa import (
         run_moa_consensus as pkg_run_moa_consensus,
+    )
+    from swarm.core.moa import (
         run_moa_then_team as pkg_run_moa_then_team,
+    )
+    from swarm.core.moa import (
         team_result_to_payload as pkg_team_result_to_payload,
+    )
+    from swarm.core.moa import (
         validate_team_payload as pkg_validate_team_payload,
     )
 

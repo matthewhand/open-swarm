@@ -39,13 +39,13 @@ class TestSearchReposByTopics:
     def test_search_with_orgs(self, monkeypatch):
         """Search with orgs includes org filter."""
         mock_response = {"items": [{"full_name": "org/repo", "html_url": "https://github.com/org/repo"}]}
-        
+
         def mock_get(*args, **kwargs):
             # Check that the query contains org: filter
             params = kwargs.get("params", {})
             q = params.get("q", "")
             assert "org:myorg" in q
-            
+
             mock_resp = MagicMock()
             mock_resp.status_code = 200
             mock_resp.json.return_value = mock_response
@@ -62,12 +62,12 @@ class TestSearchReposByTopics:
     def test_search_with_query(self, monkeypatch):
         """Search with name query includes in:name qualifier."""
         mock_response = {"items": [{"full_name": "test/search", "html_url": "https://github.com/test/search"}]}
-        
+
         def mock_get(*args, **kwargs):
             params = kwargs.get("params", {})
             q = params.get("q", "")
             assert "m Blueprint in:name" in q
-            
+
             mock_resp = MagicMock()
             mock_resp.status_code = 200
             mock_resp.json.return_value = mock_response
@@ -83,13 +83,13 @@ class TestSearchReposByTopics:
     def test_search_default_query(self, monkeypatch):
         """Search without topics uses default query."""
         mock_response = {"items": []}
-        
+
         def mock_get(*args, **kwargs):
             params = kwargs.get("params", {})
             q = params.get("q", "")
             # Should have default topics
             assert "open-swarm-blueprint" in q
-            
+
             mock_resp = MagicMock()
             mock_resp.status_code = 200
             mock_resp.json.return_value = mock_response
@@ -183,7 +183,7 @@ class TestFetchRepoManifests:
             # Default: 404 for unmatched
             mock_resp.status_code = 404
             return mock_resp
-        
+
         mock_client = MagicMock()
         mock_client.get.side_effect = mock_get
         return mock_client
@@ -191,17 +191,17 @@ class TestFetchRepoManifests:
     def test_top_level_single_item(self):
         """Fetches single item from top-level open-swarm.json."""
         repo = {"full_name": "owner/testrepo"}
-        
+
         content = json.dumps({"name": "test-item", "description": "A test"})
         encoded = base64.b64encode(content.encode()).decode()
-        
+
         url_to_response = {
             "contents/open-swarm.json": {
                 "status_code": 200,
                 "json": {"type": "file", "content": encoded}
             }
         }
-        
+
         with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client_cls:
             mock_client = self._create_mock_client(url_to_response)
             mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
@@ -215,20 +215,20 @@ class TestFetchRepoManifests:
     def test_top_level_list_items(self):
         """Fetches list of items from top-level open-swarm.json."""
         repo = {"full_name": "owner/testrepo"}
-        
+
         content = json.dumps([
             {"name": "item1", "description": "First"},
             {"name": "item2", "description": "Second"}
         ])
         encoded = base64.b64encode(content.encode()).decode()
-        
+
         url_to_response = {
             "contents/open-swarm.json": {
                 "status_code": 200,
                 "json": {"type": "file", "content": encoded}
             }
         }
-        
+
         with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client_cls:
             mock_client = self._create_mock_client(url_to_response)
             mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
@@ -243,7 +243,7 @@ class TestFetchRepoManifests:
     def test_invalid_repo_format(self):
         """Returns empty list for invalid repo full_name."""
         repo = {"full_name": "invalid"}  # Missing second part
-        
+
         result = github_service.fetch_repo_manifests(repo)
 
         assert result == []
@@ -251,7 +251,7 @@ class TestFetchRepoManifests:
     def test_fetch_error_handling(self, monkeypatch):
         """Handles fetch errors gracefully."""
         repo = {"full_name": "owner/testrepo"}
-        
+
         def mock_get(url, **kwargs):
             raise Exception("Network error")
 
@@ -265,14 +265,14 @@ class TestFetchRepoManifests:
     def test_invalid_json_content(self):
         """Handles invalid JSON in manifest gracefully."""
         repo = {"full_name": "owner/testrepo"}
-        
+
         url_to_response = {
             "contents/open-swarm.json": {
                 "status_code": 200,
                 "json": {"type": "file", "content": "!!!invalid!!!"}
             }
         }
-        
+
         with patch("src.swarm.services.github_topics_service.httpx.Client") as mock_client_cls:
             mock_client = self._create_mock_client(url_to_response)
             mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
@@ -329,7 +329,7 @@ class MyBlueprint:
     def test_handles_invalid_syntax(self):
         """Returns None on invalid Python syntax."""
         src = 'class MyBlueprint: metadata = {'
-        
+
         result = github_service.safe_extract_metadata_from_py(src)
 
         assert result is None

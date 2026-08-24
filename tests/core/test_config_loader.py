@@ -351,11 +351,12 @@ def test_django_secret_key_debug_fallback(monkeypatch):
 
 def test_load_full_configuration_complex_merging():
     """Test complex configuration merging with all layers (top level)."""
-    from swarm.core.config_loader import load_full_configuration
-    import tempfile
     import json
-    from pathlib import Path
     import os
+    import tempfile
+    from pathlib import Path
+
+    from swarm.core.config_loader import load_full_configuration
     config_data = {
         "defaults": {
             "global_setting": "global",

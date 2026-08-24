@@ -7,12 +7,11 @@ which is vulnerable to command injection attacks.
 
 import shlex
 import subprocess
-from typing import List, Optional, Tuple
 
 
 def execute_command_safe(
-    command: List[str] | str,
-    timeout: Optional[int] = None,
+    command: list[str] | str,
+    timeout: int | None = None,
     capture_output: bool = True,
     text: bool = True,
     check: bool = False
@@ -66,11 +65,11 @@ def execute_command_safe(
 
 
 def execute_command_with_fallback(
-    command: List[str] | str,
-    timeout: Optional[int] = None,
+    command: list[str] | str,
+    timeout: int | None = None,
     capture_output: bool = True,
     text: bool = True
-) -> Tuple[subprocess.CompletedProcess, bool]:
+) -> tuple[subprocess.CompletedProcess, bool]:
     """Run ``execute_command_safe``; never fall back to ``shell=True``.
 
     Historical name retained for callers. A previous implementation caught
@@ -88,7 +87,7 @@ def execute_command_with_fallback(
     return result, False
 
 
-def validate_command_safety(command: List[str] | str) -> bool:
+def validate_command_safety(command: list[str] | str) -> bool:
     """
     Validate command for security best practices.
 
@@ -127,7 +126,7 @@ def validate_command_safety(command: List[str] | str) -> bool:
     return True
 
 
-def sanitize_environment(env: Optional[dict] = None) -> dict:
+def sanitize_environment(env: dict | None = None) -> dict:
     """
     Sanitize environment variables for subprocess execution.
 
@@ -162,13 +161,13 @@ class SecureCommandExecutor:
     Provides additional safety checks and logging.
     """
 
-    def __init__(self, timeout: Optional[int] = None):
+    def __init__(self, timeout: int | None = None):
         self.timeout = timeout
         self.last_command = None
         self.last_result = None
         self.used_fallback = False
 
-    def execute(self, command: List[str] | str, **kwargs) -> subprocess.CompletedProcess:
+    def execute(self, command: list[str] | str, **kwargs) -> subprocess.CompletedProcess:
         """Execute command with security checks (shell=False only)."""
         if not validate_command_safety(command):
             raise ValueError(f"Unsafe command detected: {command}")
@@ -184,11 +183,11 @@ class SecureCommandExecutor:
         self.used_fallback = used_fallback
         return result
 
-    def get_last_command(self) -> Optional[List[str] | str]:
+    def get_last_command(self) -> list[str] | str | None:
         """Get last executed command."""
         return self.last_command
 
-    def get_last_result(self) -> Optional[subprocess.CompletedProcess]:
+    def get_last_result(self) -> subprocess.CompletedProcess | None:
         """Get last execution result."""
         return self.last_result
 

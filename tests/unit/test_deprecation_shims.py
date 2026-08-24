@@ -32,7 +32,6 @@ _GONE = (
 
 @pytest.mark.parametrize("module_name", _GONE)
 def test_deprecated_shim_paths_stay_gone(module_name):
-    with pytest.raises(ModuleNotFoundError):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            importlib.import_module(module_name)
+    with pytest.raises(ModuleNotFoundError), warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        importlib.import_module(module_name)

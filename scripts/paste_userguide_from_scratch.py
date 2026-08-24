@@ -11,9 +11,10 @@ It replaces the body with exact content of $SCRATCH/wizard-capture.txt (stripped
 Run after fresh captures, before tests.
 Never hand-edit the fenced output.
 """
-import re
 import os
+import re
 import sys
+
 
 def main():
     scratch = os.environ.get("SCRATCH", "/tmp/grok-goal-4567a1afab94/implementer")

@@ -2,7 +2,8 @@ from unittest.mock import MagicMock, patch
 
 # django and httpx are real dependencies in this suite — never fake them in
 # sys.modules: doing so at collection time poisons the whole pytest session.
-from swarm.services.github_client import GitHubConfig, GitHubClient
+from swarm.services.github_client import GitHubClient, GitHubConfig
+
 
 def test_github_config_defaults():
     config = GitHubConfig()
@@ -40,8 +41,12 @@ def test_search_repositories(mock_httpx_client):
 
 # --- Manifest-creation tests (from fix-github-client-tests branch, adapted) ---
 import pytest
+
 import swarm.services.github_client as github_client_module
-from swarm.services.github_client import create_blueprint_from_manifest, create_mcp_config_from_manifest
+from swarm.services.github_client import (
+    create_blueprint_from_manifest,
+    create_mcp_config_from_manifest,
+)
 
 # The branch this came from mocked django/httpx/models via sys.modules at
 # import time (standalone style), which poisons pytest-django for the whole

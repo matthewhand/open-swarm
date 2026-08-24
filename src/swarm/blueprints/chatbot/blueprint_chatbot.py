@@ -108,7 +108,8 @@ class ChatbotBlueprint(BlueprintBase):
             return f"ERROR: {e}"
 
     def execute_shell_command(self, command: str) -> str:
-        import subprocess, shlex
+        import shlex
+        import subprocess
         try:
             result = subprocess.run(shlex.split(command), shell=False, capture_output=True, text=True, timeout=30)
             return result.stdout + result.stderr

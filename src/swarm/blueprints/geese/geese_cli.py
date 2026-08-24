@@ -2,9 +2,9 @@ import argparse
 import os
 import sys
 
-from swarm.core.spinner import SwarmSpinner
 from swarm.blueprints.geese.blueprint_geese import GeeseBlueprint
 from swarm.core.output_utils import print_search_progress_box
+from swarm.core.spinner import SwarmSpinner
 
 # Early test-mode: simulate spinner output and exit for Geese CLI tests
 if os.environ.get("SWARM_TEST_MODE"):

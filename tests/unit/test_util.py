@@ -1,5 +1,5 @@
-import pytest
-from swarm.util import merge_fields, merge_chunk
+from swarm.util import merge_chunk, merge_fields
+
 
 class TestMergeFields:
     """Tests for the merge_fields utility."""

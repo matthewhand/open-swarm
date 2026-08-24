@@ -1,9 +1,10 @@
 """Open-redirect and login redirect safety for custom_login."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from django.http import QueryDict
 from django.test import RequestFactory
-from unittest.mock import patch, MagicMock
 
 from swarm.views.web_views import (
     _DEFAULT_POST_LOGIN_REDIRECT,

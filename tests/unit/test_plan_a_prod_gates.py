@@ -16,7 +16,6 @@ from django.core.exceptions import ImproperlyConfigured
 
 from swarm.utils import env_utils
 
-
 # ---------------------------------------------------------------------------
 # Secure defaults
 # ---------------------------------------------------------------------------
@@ -50,7 +49,6 @@ class TestSwarmTestModeGate:
         monkeypatch.setattr(env_utils, "is_django_debug", lambda: False)
         # Patch out pytest allowance
         with patch.dict(os.environ, {"DJANGO_DEBUG": "false"}, clear=False):
-            import sys
             # Temporarily remove pytest markers from the check path by
             # patching the function to not see pytest — call a local replica:
             with patch.object(env_utils, "assert_test_mode_allowed") as _:
@@ -229,7 +227,10 @@ class TestInflightConcurrency:
 
 class TestMutatingApiPermissions:
     def test_custom_blueprints_not_hardcoded_allow_any(self):
-        from swarm.views.api_views import CustomBlueprintDetailView, CustomBlueprintsView
+        from swarm.views.api_views import (
+            CustomBlueprintDetailView,
+            CustomBlueprintsView,
+        )
         for cls in (CustomBlueprintsView, CustomBlueprintDetailView):
             assert hasattr(cls, "get_permissions"), cls.__name__
             # Class attribute must not force AllowAny when auth is on
@@ -239,8 +240,9 @@ class TestMutatingApiPermissions:
                 assert "AllowAny" not in names or True  # get_permissions wins
 
     def test_api_permission_classes_respect_enable_auth(self, settings):
-        from swarm.auth import HasValidTokenOrSession, api_permission_classes
         from rest_framework.permissions import AllowAny
+
+        from swarm.auth import HasValidTokenOrSession, api_permission_classes
 
         settings.ENABLE_API_AUTH = True
         perms = api_permission_classes()
@@ -316,7 +318,6 @@ class TestNoClientFacingExceptionLeaks:
 
     def test_source_has_no_api_exception_fstring_with_exception(self):
         """AST scan: APIException(...) must not be an f-string interpolating ``e``."""
-        import ast
         import re
 
         # Banned patterns on raise/APIException client payloads (not logger lines)

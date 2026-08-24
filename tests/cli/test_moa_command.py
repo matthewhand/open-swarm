@@ -944,7 +944,7 @@ def test_configure_moa_verbose_logging_does_not_force_root():
     prior_propagate = moa_log.propagate
     prior_marker = getattr(moa_log, "_swarm_moa_cli_verbose", False)
     moa_log.handlers.clear()
-    setattr(moa_log, "_swarm_moa_cli_verbose", False)
+    moa_log._swarm_moa_cli_verbose = False
     moa_log.propagate = True
     try:
         configure_moa_verbose_logging()
@@ -952,7 +952,7 @@ def test_configure_moa_verbose_logging_does_not_force_root():
         assert sentinel in root.handlers
         assert moa_log.level == logging.INFO
         assert moa_log.propagate is False
-        assert getattr(moa_log, "_swarm_moa_cli_verbose") is True
+        assert moa_log._swarm_moa_cli_verbose is True
         assert sum(isinstance(h, logging.StreamHandler) for h in moa_log.handlers) == 1
         # Source contract: moa command must not use basicConfig(force=True).
         import inspect
@@ -968,4 +968,4 @@ def test_configure_moa_verbose_logging_does_not_force_root():
         for h in prior_handlers:
             moa_log.addHandler(h)
         moa_log.propagate = prior_propagate
-        setattr(moa_log, "_swarm_moa_cli_verbose", prior_marker)
+        moa_log._swarm_moa_cli_verbose = prior_marker

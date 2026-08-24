@@ -9,8 +9,8 @@ import logging
 import os
 import random
 import shlex
-import subprocess
 import sqlite3  # Use standard sqlite3 module
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, ClassVar

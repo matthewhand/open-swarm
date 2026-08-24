@@ -4,11 +4,11 @@ from __future__ import annotations
 import pytest
 
 from swarm.core.filesystem_toolset import (
+    FilesystemError,
     FilesystemToolset,
     PathNotAllowed,
     PermissionDenied,
     SensitivePathDenied,
-    FilesystemError,
 )
 
 

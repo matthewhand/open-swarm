@@ -14,7 +14,7 @@ wrap it with :func:`as_function_tool` to hand it to an ``Agent(tools=[...])``.
 from __future__ import annotations
 
 import re
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from swarm.core.cli_adapter import CliAdapter
 from swarm.core.consensus import run_consensus

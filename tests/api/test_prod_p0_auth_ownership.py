@@ -9,14 +9,12 @@ import json
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.test import Client, override_settings
+from django.test import override_settings
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from swarm.auth import StaticTokenAuthentication, request_principal
 from swarm.core import responses_store
 from swarm.views.api_views import BlueprintsListView, ModelsListView
-from swarm.views.responses_views import ResponsesCancelView, ResponsesDetailView
-
 
 TOKEN = "prod-p0-test-token-xyz"
 
@@ -111,8 +109,9 @@ class TestResponseOwnership:
         bob = User.objects.create_user(username="bob_p0", password="x")
         self._save("resp_owned_alice", "user:alice_p0")
 
-        from rest_framework.request import Request
         from rest_framework.exceptions import PermissionDenied
+        from rest_framework.request import Request
+
         from swarm.views.responses_views import _assert_owner_access
 
         factory = APIRequestFactory()
@@ -141,8 +140,9 @@ class TestResponseOwnership:
         factory = APIRequestFactory()
         req = factory.post("/v1/responses/resp_cancel_alice/cancel")
         force_authenticate(req, user=bob)
-        from rest_framework.request import Request
         from rest_framework.exceptions import PermissionDenied
+        from rest_framework.request import Request
+
         from swarm.views.responses_views import _assert_owner_access
 
         drf_req = Request(req)

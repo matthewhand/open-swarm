@@ -7,6 +7,7 @@ ensuring compatibility with OpenAI API requirements and robust handling of agent
 
 import inspect
 
+
 def merge_fields(target: dict, source: dict) -> None:
     """
     Recursively merge fields from source into target, appending strings and updating nested dictionaries.

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+
 class DummyCache:
     """A dummy cache that performs no operations."""
     def get(self, key: str, default: Any = None) -> Any:

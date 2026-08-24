@@ -496,7 +496,7 @@ class FilesystemToolset:
         *,
         section: str = "filesystem",
         overrides: dict[str, Any] | None = None,
-    ) -> "FilesystemToolset":
+    ) -> FilesystemToolset:
         """Build a toolset from the ``filesystem`` block of swarm_config.
 
         Recognised keys: ``permission``, ``allowed_paths``, ``max_read_bytes``,

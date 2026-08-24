@@ -56,14 +56,15 @@ if src_path not in sys.path:
 try:
     from agents import Agent, function_tool
     from agents.mcp import MCPServer
+
     # Model probed for optional openai-agents; OpenAIChatCompletionsModel used at runtime.
     from agents.models.interface import Model  # noqa: F401
     from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
     from openai import AsyncOpenAI
 
+    from swarm.core.agent_config import AgentConfig
     from swarm.core.blueprint_base import BlueprintBase
     from swarm.core.blueprint_ux import BlueprintUXImproved
-    from swarm.core.agent_config import AgentConfig
 except ImportError as e:
     print(f"ERROR: Import failed in blueprint_geese: {e}. Check 'openai-agents' install and project structure.")
     print(f"sys.path: {sys.path}")

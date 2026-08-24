@@ -1,8 +1,10 @@
-import pytest
-import inspect
-from typing import List, Dict, Optional, Any, Union
+from typing import Any
 from unittest.mock import patch
+
+import pytest
+
 from swarm.core.tool_utils import get_function_schema, tool
+
 
 def test_get_function_schema_basic():
     def basic_func(a: str, b: int):
@@ -28,10 +30,10 @@ def test_get_function_schema_types():
         b: bool,
         l: list,
         d: dict,
-        li: List[int],
-        ls: List[str],
-        la: List[Any],
-        lo: List[float]
+        li: list[int],
+        ls: list[str],
+        la: list[Any],
+        lo: list[float]
     ):
         pass
 
@@ -53,7 +55,7 @@ def test_get_function_schema_types():
     assert props["lo"]["items"]["type"] == "number"
 
 def test_get_function_schema_defaults():
-    def default_func(a: str, b: int = 10, c: Optional[str] = None):
+    def default_func(a: str, b: int = 10, c: str | None = None):
         pass
 
     schema = get_function_schema(default_func)
@@ -91,7 +93,7 @@ def test_get_function_schema_docstring_parsing():
     assert schema["description"] == "This is the first line."
 
 def test_get_function_schema_optional_handling():
-    def opt_func(a: Optional[int] = None):
+    def opt_func(a: int | None = None):
         pass
 
     schema = get_function_schema(opt_func)

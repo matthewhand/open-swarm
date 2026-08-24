@@ -9,7 +9,7 @@ Covers:
 
 import asyncio
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -32,7 +32,6 @@ from swarm.tool_executor import (
     redact_sensitive_data,
 )
 from swarm.types import Agent, Result
-
 
 # =============================================================================
 # redact_sensitive_data tests

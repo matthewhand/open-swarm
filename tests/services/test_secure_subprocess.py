@@ -1,14 +1,16 @@
+import subprocess
 from unittest.mock import patch
 
 import pytest
-import subprocess
+
 from src.swarm.services.secure_subprocess import (
+    SecureCommandExecutor,
     execute_command_safe,
     execute_command_with_fallback,
-    validate_command_safety,
     sanitize_environment,
-    SecureCommandExecutor,
+    validate_command_safety,
 )
+
 
 def test_execute_command_safe_success():
     res = execute_command_safe(["echo", "hello"])

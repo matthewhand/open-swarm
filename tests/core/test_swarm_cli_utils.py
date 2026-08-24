@@ -1,10 +1,9 @@
-import pytest
-from pathlib import Path
 
 # Note: the branch this test came from mocked typer/click/platformdirs via
 # sys.modules at import time, which poisoned those packages for the whole
 # pytest session (breaking later CLI tests). All three are real deps here.
 from swarm.core.swarm_cli import find_entry_point
+
 
 def test_find_entry_point_single_valid_file(tmp_path):
     """Test find_entry_point with a single valid .py file."""

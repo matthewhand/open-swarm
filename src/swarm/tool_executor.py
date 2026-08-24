@@ -44,8 +44,10 @@ def redact_sensitive_data(data: Any) -> Any:
     """
     from swarm.utils.redact import (
         _COMPILED_SENSITIVE_PATTERNS,
-        redact_sensitive_data as _shared_redact,
         redact_uri_credentials,
+    )
+    from swarm.utils.redact import (
+        redact_sensitive_data as _shared_redact,
     )
 
     if isinstance(data, str):

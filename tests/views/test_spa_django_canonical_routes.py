@@ -144,8 +144,9 @@ class TestUxShellTemplateContracts:
         assert teams_toggle and "active" not in teams_toggle.group(1)
 
     def test_blueprint_library_ships_client_pagination(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxlib", password="ux-lib-pass")
         client.force_login(user)
@@ -222,8 +223,9 @@ class TestUxShellTemplateContracts:
         assert "AGENT_CREATOR_ACTIONS" in ac_js
 
     def test_team_creator_uses_data_action_not_onclick(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxteam", password="ux-team-pass")
         client.force_login(user)
@@ -258,8 +260,9 @@ class TestUxShellTemplateContracts:
             response["Location"] == "/agent-creator/?from=nav"
 
     def test_my_blueprints_runner_posts_chat_completions(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxmb", password="ux-mb-pass")
         client.force_login(user)
@@ -300,8 +303,9 @@ class TestUxShellTemplateContracts:
         assert "onclick=\"checkPath(" not in html
 
     def test_settings_dashboard_uses_data_action_not_onclick(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxset2", password="ux-set-pass")
         client.force_login(user)
@@ -325,8 +329,9 @@ class TestUxShellTemplateContracts:
         assert "SETTINGS_DASHBOARD_ACTIONS" in js
 
     def test_blueprint_library_uses_data_action_not_onclick(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxbplib", password="ux-bp-pass")
         client.force_login(user)
@@ -350,8 +355,9 @@ class TestUxShellTemplateContracts:
         assert 'data-action="load-github-marketplace"' in html or "load-github-marketplace" in js
 
     def test_blueprint_creator_uses_data_action_not_onclick(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxbpcr", password="ux-bp-pass")
         client.force_login(user)
@@ -372,8 +378,9 @@ class TestUxShellTemplateContracts:
         assert "BLUEPRINT_CREATOR_ACTIONS" in js
 
     def test_team_creator_validate_marked_unavailable(self, client):
-        from django.contrib.auth.models import User
         from pathlib import Path
+
+        from django.contrib.auth.models import User
 
         user = User.objects.create_user(username="uxtd", password="ux-td-pass")
         client.force_login(user)

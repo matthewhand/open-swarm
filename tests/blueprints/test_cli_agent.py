@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import sys
 
-import pytest
-
 from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.cli_adapter import CliAdapterRegistry

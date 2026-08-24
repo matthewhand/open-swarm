@@ -1,6 +1,5 @@
-import pytest
-from rest_framework import serializers
 from swarm.serializers import ChatCompletionRequestSerializer
+
 
 def test_validate_messages_happy_path():
     data = {

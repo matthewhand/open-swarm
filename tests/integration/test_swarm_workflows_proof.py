@@ -8,15 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from swarm.core.moa.backends import RecordingWriteSurface
 from swarm.core.moa.cli import run_moa_cli
 from swarm.core.moa.policy import WriteDeniedError
-from swarm.core.moa.backends import RecordingWriteSurface
 from swarm.core.persona_swarm import (
     PersonaStep,
     build_persona_agents,
     run_scripted_persona_swarm,
 )
-
 
 ROOT = Path(__file__).resolve().parents[2]
 PROOF = Path(os.environ.get("MOA_PROOF_DIR", "/tmp/grok-goal-cb0223abecb8/implementer/proof"))

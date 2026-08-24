@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from swarm.core.persona_swarm import build_persona_agents, run_hybrid_scripted, WorkspaceTools
+from swarm.core.persona_swarm import (
+    WorkspaceTools,
+    build_persona_agents,
+    run_hybrid_scripted,
+)
 
 
 @pytest.mark.asyncio

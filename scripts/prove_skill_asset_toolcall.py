@@ -20,7 +20,9 @@ import django  # noqa: E402
 
 django.setup()
 
-from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint  # noqa: E402
+from swarm.blueprints.cli_agent.blueprint_cli_agent import (
+    CliAgentBlueprint,  # noqa: E402
+)
 from swarm.core import cli_catalog  # noqa: E402
 
 CLIS = sys.argv[1:] or ["grok", "gemini", "claude"]

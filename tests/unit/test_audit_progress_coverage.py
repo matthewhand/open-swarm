@@ -7,7 +7,6 @@ checks that re-verified the test's own inputs and would pass even if the helper
 did nothing. They now assert on the REAL rendered output (via ``capsys``), so a
 regression in the formatting or pass-through logic actually fails the test.
 """
-import pytest
 
 from swarm.blueprints.common.audit import AuditLogger
 from swarm.blueprints.common.progress import ProgressRenderer
@@ -82,7 +81,9 @@ class TestChucksAngelsBlueprint:
     """The Chuck's Angels blueprint produces deterministic, themed output."""
 
     def test_init(self):
-        from swarm.blueprints.chucks_angels.blueprint_chucks_angels import ChucksAngelsBlueprint
+        from swarm.blueprints.chucks_angels.blueprint_chucks_angels import (
+            ChucksAngelsBlueprint,
+        )
         blueprint = ChucksAngelsBlueprint(blueprint_id="test_angels")
         assert blueprint.blueprint_id == "test_angels"
         assert blueprint.metadata["name"] == "Chuck's Angels"
@@ -90,7 +91,9 @@ class TestChucksAngelsBlueprint:
         assert "Chuck Norris" in blueprint.metadata["description"]
 
     async def test_run_echoes_user_message(self):
-        from swarm.blueprints.chucks_angels.blueprint_chucks_angels import ChucksAngelsBlueprint
+        from swarm.blueprints.chucks_angels.blueprint_chucks_angels import (
+            ChucksAngelsBlueprint,
+        )
         blueprint = ChucksAngelsBlueprint(blueprint_id="test_angels")
         messages = [
             {"role": "user", "content": "Test message"},
@@ -104,7 +107,9 @@ class TestChucksAngelsBlueprint:
         assert "Roundhouse kick" in results[1]["content"]
 
     async def test_run_handles_no_user_message(self):
-        from swarm.blueprints.chucks_angels.blueprint_chucks_angels import ChucksAngelsBlueprint
+        from swarm.blueprints.chucks_angels.blueprint_chucks_angels import (
+            ChucksAngelsBlueprint,
+        )
         blueprint = ChucksAngelsBlueprint(blueprint_id="test_angels")
         results = [r async for r in blueprint.run([{"role": "assistant", "content": "Response"}])]
         assert len(results) == 2

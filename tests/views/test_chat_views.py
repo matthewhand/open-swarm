@@ -10,16 +10,13 @@ Tests for chat views covering:
 Uses mocks for blueprint discovery, LLM calls, and DB interactions; no network.
 """
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from asgiref.sync import sync_to_async
 from django.test import RequestFactory
 from django.urls import resolve
 from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
-from rest_framework.request import Request
 
 
 def test_chat_completions_urls_accept_trailing_slash():
@@ -382,8 +379,9 @@ class TestIndexView:
 
     def test_index_view_unauthenticated_redirect(self, request_factory):
         """Test index view redirects unauthenticated users."""
-        from swarm.views.chat_views import IndexView
         from django.contrib.auth.models import AnonymousUser
+
+        from swarm.views.chat_views import IndexView
 
         request = request_factory.get("/")
         request.user = AnonymousUser()
@@ -469,12 +467,11 @@ class TestHealthCheckView:
 
         view = HealthCheckView()
         factory_request = RequestFactory().get("/health/")
-        
+
         # Create a proper DRF request
-        from rest_framework.test import APIRequestFactory
         factory = APIRequestFactory()
         request = factory.get("/health/")
-        
+
         response = view.get(request)
 
         assert response.status_code == status.HTTP_200_OK

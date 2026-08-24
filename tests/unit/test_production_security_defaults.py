@@ -5,10 +5,6 @@ need to re-import settings under a flipped DEBUG (which is sticky under pytest).
 """
 from __future__ import annotations
 
-import os
-from unittest.mock import patch
-
-
 _SWARM_CSP_POLICY = (
     "default-src 'self'; "
     "base-uri 'self'; "

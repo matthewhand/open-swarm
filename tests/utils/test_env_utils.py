@@ -12,7 +12,6 @@ from swarm.utils.env_utils import (
     get_django_secret_key,
     get_swarm_config_path,
     get_swarm_log_level,
-    is_django_debug,
     is_truthy,
 )
 

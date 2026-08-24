@@ -6,7 +6,6 @@ thin alias of :class:`~swarm.blueprints.moa.blueprint_moa.MoABlueprint`.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest

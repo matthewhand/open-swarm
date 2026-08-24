@@ -8,7 +8,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-
 VALID_AGENT_CODE = '''
 from collections.abc import AsyncGenerator
 from typing import Any

@@ -5,9 +5,9 @@ This module provides a single source of truth for environment variables used acr
 reducing direct os.getenv() calls and providing consistent defaults and type handling.
 """
 
+import logging as _logging
 import os
 import secrets
-import logging as _logging
 from pathlib import Path
 
 _logger = _logging.getLogger(__name__)

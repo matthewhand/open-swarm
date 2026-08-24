@@ -1,5 +1,5 @@
-import pytest
 from swarm.core.common_utils import get_agent_name
+
 
 def test_get_agent_name_with_name_attr():
     class Agent:

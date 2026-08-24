@@ -7,20 +7,20 @@ termination, and pruning behaviors using mocks only.
 """
 
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
-import pytest
 import time
+from pathlib import Path
+from unittest.mock import MagicMock, mock_open, patch
+
+import pytest
 
 # Import the module under test
 from swarm.services.job import (
     JOB_OUTPUTS_DIR,
-    Job,
     DefaultJobService,
+    Job,
     _is_under_job_outputs,
     _validated_output_file_path,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -31,7 +31,7 @@ def mock_job_data_dir(tmp_path):
     """Mock the job data directory to a temporary path and ensure directories exist."""
     outputs_dir = tmp_path / "outputs"
     outputs_dir.mkdir(exist_ok=True)
-    
+
     with patch('swarm.services.job.SWARM_JOB_DATA_DIR', tmp_path):
         with patch('swarm.services.job.JOBS_METADATA_FILE', tmp_path / "jobs_metadata.json"):
             with patch('swarm.services.job.JOB_OUTPUTS_DIR', outputs_dir):
@@ -288,7 +288,7 @@ class TestDefaultJobService:
         # Create a job directly without launching (to avoid subprocess issues)
         job = Job(id="test_job_no_output", command_list=["echo", "hello"])
         job.output_file_path = None
-        
+
         with patch.object(job_service, 'get_status', return_value=job):
             log = job_service.get_full_log("test_job_no_output")
             assert "[No output file found" in log
@@ -297,7 +297,7 @@ class TestDefaultJobService:
         """Test getting log with content."""
         # Create a job directly with a known output file path
         job = Job(id="test_job_with_log", command_list=["echo", "hello"])
-        
+
         with patch.object(job_service, 'get_status', return_value=job), \
              patch('pathlib.Path.open', new_callable=mock_open, read_data="Line 1\nLine 2\nLine 3"), \
              patch('pathlib.Path.exists', return_value=True):
@@ -307,7 +307,7 @@ class TestDefaultJobService:
     def test_get_full_log_with_max_chars(self, job_service):
         """Test getting log with max chars limit."""
         job = Job(id="test_job_with_max_chars", command_list=["echo", "hello"])
-        
+
         # Mock the get_status method to return our test job
         with patch.object(job_service, 'get_status', return_value=job):
             # Patch Path.exists at the module level
@@ -319,7 +319,7 @@ class TestDefaultJobService:
     def test_get_log_tail_default_lines(self, job_service):
         """Test getting log tail with default lines."""
         job = Job(id="test_job_tail_default", command_list=["echo", "hello"])
-        
+
         with patch.object(job_service, 'get_status', return_value=job), \
              patch('pathlib.Path.open', new_callable=mock_open, read_data="Line 1\nLine 2\nLine 3"), \
              patch('pathlib.Path.exists', return_value=True):
@@ -329,7 +329,7 @@ class TestDefaultJobService:
     def test_get_log_tail_specific_lines(self, job_service):
         """Test getting log tail with specific number of lines."""
         job = Job(id="test_job_tail_specific", command_list=["echo", "hello"])
-        
+
         with patch.object(job_service, 'get_status', return_value=job), \
              patch('pathlib.Path.open', new_callable=mock_open, read_data="Line 1\nLine 2\nLine 3"), \
              patch('pathlib.Path.exists', return_value=True):
@@ -370,7 +370,7 @@ class TestDefaultJobService:
         # Create a job directly with a running process handle
         job = Job(id="test_job_running", command_list=["echo", "hello"])
         job.status = "RUNNING"
-        
+
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.terminate = MagicMock()
@@ -378,7 +378,7 @@ class TestDefaultJobService:
         mock_process.wait = MagicMock()
         mock_process.returncode = -15
         job._process_handle = mock_process
-        
+
         with patch.object(job_service, 'get_status', return_value=job):
             result = job_service.terminate("test_job_running")
             assert result == "TERMINATED"
@@ -387,11 +387,11 @@ class TestDefaultJobService:
     def test_terminate_running_job_timeout(self, job_service):
         """Test terminating a running job that times out and requires force kill."""
         from subprocess import TimeoutExpired
-        
+
         job = Job(id="test_job_timeout", command_list=["echo", "hello"])
         job.status = "RUNNING"
         job.pid = 12345
-        
+
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.terminate = MagicMock()
@@ -400,10 +400,10 @@ class TestDefaultJobService:
         mock_process.wait.side_effect = [TimeoutExpired(cmd="test", timeout=2), None]
         mock_process.returncode = -9
         job._process_handle = mock_process
-        
+
         # Add job to service's internal dict
         job_service._jobs["test_job_timeout"] = job
-        
+
         result = job_service.terminate("test_job_timeout")
 
         assert result == "TERMINATED"
@@ -414,15 +414,15 @@ class TestDefaultJobService:
         job = Job(id="test_job_error", command_list=["echo", "hello"])
         job.status = "RUNNING"
         job.pid = 12345
-        
+
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.terminate.side_effect = Exception("Termination error")
         job._process_handle = mock_process
-        
+
         # Add job to service's internal dict
         job_service._jobs["test_job_error"] = job
-        
+
         result = job_service.terminate("test_job_error")
         assert result == "ERROR"
 
@@ -472,7 +472,7 @@ class TestDefaultJobService:
         # Create a running job directly
         job = Job(id="test_job_running_prune", command_list=["echo", "hello"])
         job.status = "RUNNING"
-        
+
         with patch.object(job_service, 'get_status', return_value=job):
             pruned_ids = job_service.prune_completed()
             assert len(pruned_ids) == 0
@@ -591,7 +591,7 @@ class TestJobServicePersistence:
         job = Job(id="test_job_persist", command_list=["echo", "hello"])
         job.status = "COMPLETED"
         job.exit_code = 0
-        
+
         job_service._jobs["test_job_persist"] = job
         job_service._save_jobs_to_disk()
 
@@ -610,11 +610,11 @@ class TestJobServicePersistence:
         job = Job(id="test_job_stale", command_list=["echo", "hello"])
         job.status = "RUNNING"
         job.pid = 12345
-        
+
         # Manually save the job to disk
         job_service._jobs["test_job_stale"] = job
         job_service._save_jobs_to_disk()
-        
+
         # Create a new instance to load the jobs
         new_service = DefaultJobService()
         loaded_job = new_service.get_status("test_job_stale")
@@ -640,9 +640,9 @@ class TestJobServicePersistence:
         job = Job(id="test_job_save_error", command_list=["echo", "hello"])
         job.status = "COMPLETED"
         job.exit_code = 0
-        
+
         job_service._jobs["test_job_save_error"] = job
-        
+
         # Make save operation fail
         with patch.object(job_service, '_save_jobs_to_disk', side_effect=Exception("Save error")):
             # Should raise exception (not caught in prune_completed)

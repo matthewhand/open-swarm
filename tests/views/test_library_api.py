@@ -22,7 +22,6 @@ from rest_framework.test import APIClient
 from swarm.permissions import HasValidTokenOrSession
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================

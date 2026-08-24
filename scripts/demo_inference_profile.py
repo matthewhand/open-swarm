@@ -16,7 +16,9 @@ import django  # noqa: E402
 
 django.setup()
 
-from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint  # noqa: E402
+from swarm.blueprints.cli_agent.blueprint_cli_agent import (
+    CliAgentBlueprint,  # noqa: E402
+)
 from swarm.blueprints.common import cli_fusion_support as support  # noqa: E402
 from swarm.core import cli_catalog  # noqa: E402
 
@@ -35,7 +37,7 @@ async def main() -> int:
     registry = support.build_registry(cfg)
     os.makedirs("/tmp/demo_profile", exist_ok=True)
 
-    print(f"Installed CLIs + default traits (intelligence/speed/cost):")
+    print("Installed CLIs + default traits (intelligence/speed/cost):")
     for n in installed:
         t = cli_catalog.cli_traits(n) or {}
         print(f"  {n:9} {t.get('intelligence',0):.2f} / {t.get('speed',0):.2f} / {t.get('cost',0):.2f}")

@@ -9,6 +9,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.forms import AuthenticationForm  # Use standard auth form
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+
 # Assuming blueprint discovery happens elsewhere and results are available if needed
 # from .utils import blueprints_metadata # Or however metadata is accessed
 # Use the current config loader

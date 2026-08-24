@@ -63,7 +63,7 @@ def settings_dashboard(request):
 
         return render(request, 'settings_dashboard.html', context)
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error loading settings")
         return HttpResponse("Error loading settings. See server logs for details.", status=500)
 

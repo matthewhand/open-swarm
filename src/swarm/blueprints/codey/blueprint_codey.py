@@ -25,6 +25,8 @@ from swarm.core.output_utils import (
     get_spinner_state,
     pretty_print_response,
     print_operation_box,
+)
+from swarm.core.output_utils import (
     print_search_progress_box as _print_search_progress_box,
 )
 
@@ -487,14 +489,18 @@ class CodeyBlueprint(BlueprintBase):
         return
 
     async def run(self, messages: list[dict], **kwargs):
-        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
         import asyncio  # hoist for all paths (sleeps after conditional blocks)
+
         # AGGRESSIVE TEST-MODE GUARD: Only emit test-compliant output, block all legacy output
         import os
 
+        from swarm.core.output_utils import _print_search_progress_box  # ensure bound
+
         instruction = messages[-1].get("content", "") if messages else ""
         if os.environ.get("SWARM_TEST_MODE"):
-            from swarm.core.output_utils import _print_search_progress_box  # force bound in guard
+            from swarm.core.output_utils import (
+                _print_search_progress_box,  # force bound in guard
+            )
             spinner_lines = [
                 "Generating.",
                 "Generating..",

@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from swarm.blueprints.moa.blueprint_moa import MoABlueprint
 from swarm.core.moa import GrokParticipantBackend, MoAOrchestrator, PermissionMode
 from swarm.core.moa.backends import GrokParticipantBackend as GrokFromBackends
 from swarm.core.moa.cli import build_backend
-from swarm.blueprints.moa.blueprint_moa import MoABlueprint
 
 
 def test_grok_exported_from_package_and_backends():

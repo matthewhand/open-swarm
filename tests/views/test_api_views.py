@@ -12,11 +12,11 @@ Tests for API views covering:
 Uses mocks for blueprint discovery and external calls; no network.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from rest_framework.test import APIClient
-from rest_framework import status
+from unittest.mock import patch
 
+import pytest
+from rest_framework import status
+from rest_framework.test import APIClient
 
 # =============================================================================
 # Fixtures

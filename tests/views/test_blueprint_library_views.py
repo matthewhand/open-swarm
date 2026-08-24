@@ -20,10 +20,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.http import HttpRequest, JsonResponse
+from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
-from django.contrib.auth.models import AnonymousUser, User
-
 
 # =============================================================================
 # Fixtures
@@ -596,7 +594,6 @@ class TestBlueprintCreator:
         monkeypatch,
     ):
         """Test successful POST to create a blueprint under get_user_blueprints_dir()."""
-        from pathlib import Path
 
         from swarm.views.blueprint_library_views import blueprint_creator
 
@@ -818,7 +815,9 @@ class TestGenerateAvatar:
         test_user
     ):
         """Test successful avatar generation."""
-        from swarm.views.blueprint_library_views import generate_avatar, BLUEPRINT_METADATA
+        from swarm.views.blueprint_library_views import (
+            generate_avatar,
+        )
 
         mock_comfyui.generate_avatar.return_value = "/path/to/avatar.png"
 
@@ -845,7 +844,9 @@ class TestGenerateAvatar:
         test_user
     ):
         """Test avatar generation failure."""
-        from swarm.views.blueprint_library_views import generate_avatar, BLUEPRINT_METADATA
+        from swarm.views.blueprint_library_views import (
+            generate_avatar,
+        )
 
         mock_comfyui.generate_avatar.return_value = None
 

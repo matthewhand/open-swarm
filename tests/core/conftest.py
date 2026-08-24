@@ -1,6 +1,6 @@
 """Isolate LiteLLM/OpenAI env overrides so unit tests use their own config."""
-import os
 import time
+
 import pytest
 
 _LITELLM_VARS = (

@@ -27,8 +27,9 @@ import os
 import shutil
 import signal
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, replace
-from typing import Any, AsyncIterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

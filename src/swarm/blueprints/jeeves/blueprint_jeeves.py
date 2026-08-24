@@ -141,7 +141,8 @@ def list_files(directory: str = '.') -> str:
         return f"ERROR: {e}"
 
 def execute_shell_command(command: str) -> str:
-    import subprocess, shlex
+    import shlex
+    import subprocess
     try:
         # Use shell=False with shlex.split to prevent shell injection
         args = shlex.split(command)

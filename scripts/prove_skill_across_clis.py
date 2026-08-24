@@ -19,7 +19,9 @@ import django  # noqa: E402
 
 django.setup()
 
-from swarm.blueprints.cli_agent.blueprint_cli_agent import CliAgentBlueprint  # noqa: E402
+from swarm.blueprints.cli_agent.blueprint_cli_agent import (
+    CliAgentBlueprint,  # noqa: E402
+)
 from swarm.core import cli_catalog, skills  # noqa: E402
 
 SKILL = sys.argv[1] if len(sys.argv) > 1 else "conventional-commit"

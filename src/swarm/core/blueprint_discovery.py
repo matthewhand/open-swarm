@@ -149,7 +149,7 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None, *, san
                     class _MessengerStub(BlueprintBase):
                         metadata = stub_meta
                         def run(self, *a, **k): return; yield  # type: ignore
-                    _MessengerStub.__module__ = f"swarm.blueprints.messenger.blueprint_messenger"
+                    _MessengerStub.__module__ = "swarm.blueprints.messenger.blueprint_messenger"
                     blueprints[blueprint_key_name] = DiscoveredBlueprintInfo(
                         class_type=_MessengerStub,
                         metadata=stub_meta
@@ -180,7 +180,9 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None, *, san
 
             if module_spec and module_spec.loader:
                 if apply_sandbox:
-                    from swarm.core.blueprint_sandbox import assert_safe_blueprint_source
+                    from swarm.core.blueprint_sandbox import (
+                        assert_safe_blueprint_source,
+                    )
                     try:
                         source_text = py_file_path.read_text(encoding="utf-8")
                         assert_safe_blueprint_source(source_text)
