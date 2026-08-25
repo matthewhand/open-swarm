@@ -1,5 +1,7 @@
-import { ReactNode, useEffect, useRef, useId } from 'react';
+import { ReactNode, useEffect, useRef, useId, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import { Alert } from './Alert';
+import { LoadingButton } from './Loading';
 
 /**
  * Modal component using DaisyUI classes
@@ -118,15 +120,16 @@ export const Modal = ({
             {children}
           </div>
         </div>
-        <button
-          type="button"
-          className="modal-backdrop"
-          onClick={onClose}
-          aria-label="Close modal"
-          tabIndex={-1}
-        >
-          close
-        </button>
+        <form method="dialog" className="modal-backdrop">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close modal"
+            tabIndex={-1}
+          >
+            close
+          </button>
+        </form>
       </dialog>
     </FocusTrap>
   );
@@ -136,7 +139,7 @@ export const Modal = ({
  * Confirmation Modal
  */
 export interface ConfirmModalProps extends ModalProps {
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   confirmText?: string;
   cancelText?: string;
   confirmVariant?: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'error';
@@ -153,18 +156,54 @@ export const ConfirmModal = ({
   confirmVariant = 'primary',
   ...props
 }: ConfirmModalProps) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirm = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await onConfirm();
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (typeof err === 'string') {
+        setError(err);
+      } else {
+        setError('An unknown error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} {...props}>
       <div className="mb-6">
         {children}
       </div>
+
+      {error && (
+        <Alert type="error" className="mb-4">
+          {error}
+        </Alert>
+      )}
+
       <div className="modal-action flex gap-2">
-        <button type="button" className="btn btn-outline" onClick={onClose}>
+        <button type="button" className="btn btn-outline" onClick={onClose} disabled={isSubmitting}>
           {cancelText}
         </button>
-        <button type="button" className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
+        <LoadingButton
+          type="button"
+          className={`btn btn-${confirmVariant}`}
+          onClick={handleConfirm}
+          loading={isSubmitting}
+        >
           {confirmText}
-        </button>
+        </LoadingButton>
       </div>
     </Modal>
   );

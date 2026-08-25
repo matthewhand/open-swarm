@@ -1,11 +1,5 @@
-## 2024-05-23 | [Architectural Audit] | Insight: Pagination state is missing from SR announcements | Protocol: Always explicitly add `aria-current="page"` to the active page button in pagination components.
+## 2023-10-25 | [Architectural Audit] | Insight: DaisyUI Modal Backdrop Anti-Pattern | Protocol: Refactored `Modal` to use native HTML5 `<form method="dialog" className="modal-backdrop">` instead of a standalone full-screen button. This ensures strict semantic compliance and allows the browser to natively handle modal cancellation workflows without overriding interactive behaviors.
 
-## 2024-05-23 | [Architectural Audit] | Insight: Missing focus traps in user confirmation | Protocol: Use `<ConfirmModal>` for user confirmations instead of native `window.confirm()` to ensure focus trapping and HTML5 modal semantics.
+## 2023-10-25 | [Architectural Audit] | Insight: Fragile Async Confirmation State | Protocol: Updated `ConfirmModal` to natively handle `Promise<void>` operations via `onConfirm`. Introduced strict early-return locks for `isSubmitting` alongside deterministic textual alerts via `role="alert"` for error handling, eliminating silent failures or double-submissions during network distress.
 
-## 2024-05-23 | [Architectural Audit] | Insight: Missing deterministic async states | Protocol: Ensure all async views have an explicit empty state component, and use `aria-live="polite"` and `aria-busy="true"` for loading components, and `role="alert"` for errors.
-
-## 2024-05-23 | [Architectural Audit] | Insight: Lax type checking and use of 'any' | Protocol: Do not use `any`. Use strict TypeScript types or generics, and `unknown` in catch blocks combined with `e instanceof Error` for safety.
-
-## 2024-05-18 | [Architectural Audit] | Insight: Modal component uses inaccessible <form method="dialog"> for backdrop, lacks rigorous focus management, and relies on brittle `document.getElementById` navigation in Tabs. Pagination is missing `aria-current="page"` and `aria-live` is misused or missing on loading states. | Protocol: Refactor Modal backdrop to a proper focusable button with `tabIndex={-1}`, ensure robust state handling across components and use explicit accessibility patterns
-
-## 2024-05-18 | [Architectural Audit] | Insight: Codebase uses `any` types when parsing API responses in `TeamsPage.tsx` and `BlueprintsPage.tsx`. | Protocol: Replace `any` with `unknown` and strict type guards to ensure TypeScript integrity during async data extraction.
+## 2023-10-25 | [Architectural Audit] | Insight: Div-soup Accordion Anti-Pattern | Protocol: Replaced custom `div` and hidden `input[type="checkbox"]` Accordion structures with native HTML5 `<details>` and `<summary>` elements. Intercepted click events to mimic `disabled` states natively unsupported by HTML5 details, ensuring perfect keyboard tab-index order and built-in focus management.

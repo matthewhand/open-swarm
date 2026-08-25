@@ -94,6 +94,7 @@ describe('Alert Accessibility', () => {
         Boom
       </Alert>,
     );
+    // eslint-disable-next-line testing-library/no-node-access
     expect(screen.getByTestId('alert-icon').parentElement).toHaveAttribute(
       'aria-hidden',
       'true',
