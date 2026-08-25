@@ -139,6 +139,12 @@ class StewieBlueprint(BlueprintBase):
         model_name = profile_data.get("model", os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or "gpt-3.5-turbo")
         base_url = os.getenv("LITELLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
         api_key = os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+
+        # When api_key is None and LITELLM_API_KEY / OPENAI_API_KEY are not set,
+        # fallback to a dummy key to prevent AsyncOpenAI from raising an error in tests.
+        if not api_key and os.getenv("SWARM_TEST_MODE") == "1":
+            api_key = "dummy-test-key"
+
         client_cache_key = f"{base_url}:{api_key}"
         if client_cache_key not in self._openai_client_cache:
             try:
