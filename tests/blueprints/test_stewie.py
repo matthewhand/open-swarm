@@ -80,3 +80,39 @@ def test_unknown_llm_profile_warns_then_falls_back(monkeypatch):
         model = bp._get_model_instance("not-a-real-profile")
     assert model is not None
     assert any("not-a-real-profile" in w and "falling back" in w.lower() for w in warned)
+
+
+def test_profile_credentials_preferred_over_env(monkeypatch):
+    """LLM profile base_url/api_key win over process env (Jules #293)."""
+    from unittest.mock import MagicMock, patch
+
+    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://env.example")
+    monkeypatch.setenv("LITELLM_API_KEY", "env-litellm-key")
+    monkeypatch.setenv("LITELLM_BASE_URL", "https://env-litellm.example")
+
+    config = {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": "gpt-mock",
+                "api_key": "profile-key",
+                "base_url": "https://profile.example",
+            }
+        },
+        "llm_profile": "default",
+    }
+    bp = StewieBlueprint(blueprint_id="stewie", config=config)
+    with patch(
+        "swarm.blueprints.stewie.blueprint_stewie.OpenAIChatCompletionsModel",
+        return_value=MagicMock(name="model"),
+    ), patch(
+        "swarm.blueprints.stewie.blueprint_stewie.AsyncOpenAI",
+        return_value=MagicMock(name="client"),
+    ) as mock_client:
+        assert bp._get_model_instance("default") is not None
+
+    mock_client.assert_called_once()
+    kwargs = mock_client.call_args.kwargs
+    assert kwargs["api_key"] == "profile-key"
+    assert kwargs["base_url"] == "https://profile.example"

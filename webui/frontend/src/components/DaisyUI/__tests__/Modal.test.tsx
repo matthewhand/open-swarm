@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { Modal } from '../Modal';
+import { ConfirmModal, Modal } from '../Modal';
 
 describe('Modal Accessibility and Focus Restoration', () => {
   it('captures document.activeElement before opening and restores it on close', async () => {
@@ -91,5 +91,51 @@ describe('Modal Accessibility and Focus Restoration', () => {
       'aria-label',
       'Untitled dialog'
     );
+  });
+});
+
+describe('ConfirmModal async state', () => {
+  it('shows a busy confirm button and ignores a second click while pending', async () => {
+    let resolveConfirm: (() => void) | undefined;
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveConfirm = resolve;
+        }),
+    );
+
+    render(
+      <ConfirmModal isOpen={true} onClose={() => {}} onConfirm={onConfirm} confirmText="Submit">
+        Confirm this action
+      </ConfirmModal>,
+    );
+
+    const submitBtn = screen.getByRole('button', { name: 'Submit' });
+    fireEvent.click(submitBtn);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(submitBtn).toHaveAttribute('aria-busy', 'true');
+
+    fireEvent.click(submitBtn);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+
+    resolveConfirm?.();
+    await waitFor(() => {
+      expect(submitBtn).not.toHaveAttribute('aria-busy', 'true');
+    });
+  });
+
+  it('surfaces a rejected confirm as a role=alert error', async () => {
+    const onConfirm = vi.fn(() => Promise.reject(new Error('Network error')));
+
+    render(
+      <ConfirmModal isOpen={true} onClose={() => {}} onConfirm={onConfirm} confirmText="Submit">
+        Confirm this action
+      </ConfirmModal>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Network error');
   });
 });
