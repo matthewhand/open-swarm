@@ -14,6 +14,14 @@ def main():
     # Load environment variables from .env file
     load_dotenv(dotenv_path=base_dir / '.env')
 
+    # Database health check: prevent crash-looping on quota-exceeded DB
+    # Only run for server commands (runserver, uvicorn via daphne, etc.)
+    # Skip for management commands like migrate, shell, etc.
+    server_commands = {'runserver', 'daphne', 'grpcrunserver', 'runserver_plus'}
+    if len(sys.argv) > 1 and sys.argv[1] in server_commands:
+        from swarm.utils.db_health import enforce_database_health_on_startup
+        enforce_database_health_on_startup()
+
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'swarm.settings')
     try:

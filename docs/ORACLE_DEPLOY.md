@@ -1,14 +1,23 @@
-# Open Swarm Oracle — authenticated, durable, public-HTTPS deployment
+# Open Swarm Oracle - authenticated, durable, public-HTTPS deployment
 
 A runbook to stand up an Open Swarm gateway that an external client (e.g. Grok
 via mcp-gateway) can reach over **public HTTPS with a bearer token**, durable
 across reboots.
 
-> **The one hard constraint — read first.** Open Swarm's CLI blueprints
+> **IMPORTANT: Database Configuration**
+> 
+> If you're using Neon Postgres or any external database, be aware of quota limits.
+> A quota-exceeded database will cause the service to crash-loop. See
+> `docs/RUNBOOK_NEON_QUOTA_CRASH_LOOP.md` for troubleshooting and prevention.
+>
+> **Recommended for Oracle deployments**: Use local SQLite (default) or Docker
+> Postgres (`docker-compose.postgres.yml`) to avoid external dependencies.
+
+> **The one hard constraint - read first.** Open Swarm's CLI blueprints
 > (`cli_agent`, `cli_fusion`, `cli_*`) **shell out to host-installed CLIs**
 > (`gemini`, `claude`, `grok`, `opencode`), each with its **own** auth (gemini
 > OAuth, grok file-login, claude key/login). Those don't containerize or
-> transfer cleanly — **the gateway must run on a host where the CLIs are
+> transfer cleanly - **the gateway must run on a host where the CLIs are
 > installed and authenticated.** So "cloud" here means *a VM you control and can
 > log into to authenticate the CLIs*, not a stateless container image. Non-CLI
 > blueprints (chatbot, etc.) just need an `llm` profile and have no such

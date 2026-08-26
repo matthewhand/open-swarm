@@ -23,6 +23,11 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarm.settings")
 
+# Database health check: prevent crash-looping on quota-exceeded DB
+# This must run BEFORE get_asgi_application() triggers Django setup
+from swarm.utils.db_health import enforce_database_health_on_startup  # noqa: E402
+enforce_database_health_on_startup()
+
 # Initialise Django (apps/settings) *before* importing anything that touches
 # the ORM or settings — swarm.routing imports the chat consumer, which
 # imports models.

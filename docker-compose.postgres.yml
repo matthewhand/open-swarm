@@ -1,0 +1,86 @@
+# Open Swarm with local Postgres
+#
+# Use this when you need a local Postgres database instead of Neon or SQLite.
+# This is ideal for:
+# - Development without external dependencies
+# - Avoiding Neon quota issues
+# - Testing with a production-like database locally
+#
+# Usage:
+#   docker compose -f docker-compose.postgres.yml up -d
+#
+# The postgres container runs on port 5432 and creates a database named 'swarm'.
+# DATABASE_URL is automatically configured for the swarm service.
+#
+# Data is persisted in a Docker volume 'postgres_data'.
+#
+# To stop and clean up:
+#   docker compose -f docker-compose.postgres.yml down
+#   docker volume rm open-swarm_postgres_data  # if you want to delete the data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: open-swarm-postgres
+    environment:
+      POSTGRES_DB: swarm
+      POSTGRES_USER: swarm
+      POSTGRES_PASSWORD: swarm_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swarm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  swarm:
+    build:
+      context: .
+      args:
+        PORT: "8000"
+    image: open-swarm:local
+    container_name: open-swarm-app
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      HOME: "${HOME}"
+      # Point to the local postgres service
+      DATABASE_URL: "postgresql://swarm:swarm_dev_password@postgres:5432/swarm"
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-false}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      API_AUTH_TOKEN: "${API_AUTH_TOKEN:-}"
+      SWARM_RESPONSES_DIR: "${HOME}/.local/share/swarm/responses"
+      SWARM_UVICORN_WORKERS: "${SWARM_UVICORN_WORKERS:-1}"
+    volumes:
+      - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"
+      - "${HOME}/.local/share/swarm:${HOME}/.local/share/swarm"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
