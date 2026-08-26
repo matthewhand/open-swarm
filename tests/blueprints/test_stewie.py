@@ -96,13 +96,19 @@ def test_profile_credentials_preferred_over_env(monkeypatch):
             "default": {
                 "provider": "openai",
                 "model": "gpt-mock",
+                "api_key": "default-key",
+                "base_url": "https://default.example",
+            },
+            "cred-pref": {
+                "provider": "openai",
+                "model": "gpt-mock",
                 "api_key": "profile-key",
                 "base_url": "https://profile.example",
-            }
+            },
         },
         "llm_profile": "default",
     }
-    bp = StewieBlueprint(blueprint_id="stewie", config=config)
+
     with patch(
         "swarm.blueprints.stewie.blueprint_stewie.OpenAIChatCompletionsModel",
         return_value=MagicMock(name="model"),
@@ -110,7 +116,14 @@ def test_profile_credentials_preferred_over_env(monkeypatch):
         "swarm.blueprints.stewie.blueprint_stewie.AsyncOpenAI",
         return_value=MagicMock(name="client"),
     ) as mock_client:
-        assert bp._get_model_instance("default") is not None
+        bp = StewieBlueprint(blueprint_id="stewie", config=config)
+        # Caches are class-level and leak across tests / earlier lookups.
+        bp._openai_client_cache = {}
+        bp._model_instance_cache = {}
+        StewieBlueprint._openai_client_cache = {}
+        StewieBlueprint._model_instance_cache = {}
+        mock_client.reset_mock()
+        assert bp._get_model_instance("cred-pref") is not None
 
     mock_client.assert_called_once()
     kwargs = mock_client.call_args.kwargs
