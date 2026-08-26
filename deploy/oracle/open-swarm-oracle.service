@@ -25,6 +25,11 @@ Environment=API_AUTH_TOKEN=CHANGE_ME_GENERATE_A_TOKEN
 ExecStart=/home/YOURUSER/open-swarm/.venv/bin/uvicorn swarm.asgi:application --host 127.0.0.1 --port 8001 --workers 1
 Restart=always
 RestartSec=3
+# Exit 78 (EX_CONFIG) is the DB health check's fail-fast for permanent config
+# errors (e.g. Neon quota exhausted). Restart=always restarts on EVERY exit
+# code, so without this directive systemd would crash-loop anyway. With it,
+# an exit 78 leaves the service stopped until the config is fixed.
+RestartPreventExitStatus=78
 
 [Install]
 WantedBy=default.target

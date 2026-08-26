@@ -99,6 +99,18 @@ Edit `~/.config/systemd/user/open-swarm-oracle.service`:
 
 Only do this if you intentionally want to use Neon and have upgraded your plan to remove compute limits. Otherwise, prefer Option A or B.
 
+**In all options**, also add this to the `[Service]` section of
+`~/.config/systemd/user/open-swarm-oracle.service` (already present in the
+repo template `deploy/oracle/open-swarm-oracle.service`):
+
+```
+RestartPreventExitStatus=78
+```
+
+Without it, `Restart=always` restarts the service on every exit code —
+including the health check's fail-fast exit 78 — and the crash-loop continues.
+With it, an exit 78 stops the service until you fix the configuration.
+
 ### Step 4: Apply Changes and Restart
 
 ```bash
@@ -136,13 +148,14 @@ This PR introduces a **pre-startup database health check** that prevents crash-l
 1. **Health check runs before Django starts**: The check happens in `swarm.utils.db_health.enforce_database_health_on_startup()`
 2. **Detects quota-exceeded errors**: Looks for Neon-specific error indicators like "quota", "compute time", "suspended"
 3. **Fails fast with clear error**: Exits with code 78 (EX_CONFIG) and prints actionable remediation steps
-4. **Prevents systemd restart churn**: Exit code 78 signals a configuration error, not a transient failure
+4. **Prevents systemd restart churn — only together with `RestartPreventExitStatus=78`**: The exit code alone does NOT stop the loop. `Restart=always` restarts the service on *every* exit code, including 78. The unit file must set `RestartPreventExitStatus=78` (now included in `deploy/oracle/open-swarm-oracle.service`) so systemd leaves the service stopped after a config-error exit instead of restarting it
 
 ### Files Changed
 
 - **`src/swarm/utils/db_health.py`**: New module with health check logic
 - **`src/swarm/asgi.py`**: Calls health check before `get_asgi_application()`
 - **`src/manage.py`**: Calls health check for server commands (runserver, daphne, etc.)
+- **`deploy/oracle/open-swarm-oracle.service`**: Adds `RestartPreventExitStatus=78` so systemd does not restart the service after a fail-fast exit 78 (required — `Restart=always` restarts on all exit codes otherwise)
 - **`docker-compose.postgres.yml`**: New compose file for local Postgres setup
 
 ### Environment Variables
@@ -217,7 +230,7 @@ journalctl --user -u open-swarm-oracle.service | grep "DATABASE HEALTH CHECK FAI
 ## Related Documentation
 
 - **Neon Postgres compute limits**: https://neon.tech/docs/introduction/plans#compute-time
-- **systemd Restart behavior**: `man systemd.service` (see `Restart=` and `RestartSec=`)
+- **systemd Restart behavior**: `man systemd.service` (see `Restart=`, `RestartSec=`, and `RestartPreventExitStatus=`)
 - **Django database configuration**: https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 - **dj-database-url**: https://github.com/jazzband/dj-database-url
 
