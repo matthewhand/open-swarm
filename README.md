@@ -240,16 +240,32 @@ Runtime maps from the code. GitHub-safe Mermaid: short plain labels, no HTML, no
 
 ### Gateway vs workers
 
-The API process is the gateway: `swarm.core.swarm_api` starts uvicorn on `swarm.asgi:application`. Default is one uvicorn worker (`SWARM_UVICORN_WORKERS=1`; `swarm.core.concurrency.resolved_uvicorn_workers` refuses more unless `SWARM_ENFORCE_SINGLE_WORKER` is false). Inflight slots for async work are process-local (`SWARM_MAX_INFLIGHT`). Long `/v1/responses` jobs run in a daemon thread (`_spawn_worker` in `swarm.views.responses_views`), not extra uvicorn workers. The blueprint then calls host CLI adapters or REST/LLM profiles.
+Block view below uses flowchart subgraphs (GitHub Mermaid; `block-beta` is not reliable there). The API process is the gateway: `swarm.core.swarm_api` starts uvicorn on `swarm.asgi:application`. Default is one uvicorn worker (`SWARM_UVICORN_WORKERS=1`; `swarm.core.concurrency.resolved_uvicorn_workers` refuses more unless `SWARM_ENFORCE_SINGLE_WORKER` is false). Inflight slots for async work are process-local (`SWARM_MAX_INFLIGHT`). Long `/v1/responses` jobs run in a daemon thread (`_spawn_worker` in `swarm.views.responses_views`), not extra uvicorn workers. The blueprint then calls host CLI adapters or REST/LLM profiles.
 
 ```mermaid
-block-beta
-columns 3
-  Client["Client"]:3
-  Gateway["API gateway"]:3
-  Chat["Chat view"] Resp["Responses view"] Store["File store"]
-  Worker["Daemon worker"]:3
-  CLI["CLI adapters"] Blueprint["Blueprint run"] LLM["REST LLM"]
+flowchart TB
+  subgraph clients [Clients]
+    C[Client]
+  end
+  subgraph gateway [API gateway]
+    CH[Chat view]
+    RV[Responses view]
+    ST[File store]
+  end
+  subgraph workers [Workers]
+    DW[Daemon worker]
+    BP[Blueprint run]
+    CLI[CLI adapters]
+    LLM[REST LLM]
+  end
+  C --> CH
+  C --> RV
+  RV --> ST
+  RV --> DW
+  CH --> BP
+  DW --> BP
+  BP --> CLI
+  BP --> LLM
 ```
 
 ### Request sequence
@@ -260,26 +276,26 @@ columns 3
 sequenceDiagram
     participant Client
     participant Gateway
-    participant Store
+    participant FileStore
     participant Worker
     participant Blueprint
 
     Client->>Gateway: POST /v1/responses
     Gateway->>Gateway: auth and load blueprint
-    Gateway->>Store: save queued record
+    Gateway->>FileStore: save queued record
     Gateway->>Worker: spawn daemon thread
     alt wait is zero
         Gateway-->>Client: 202 queued handle
     else wait window
         Gateway-->>Client: 200 done or 202 poll
     end
-    Worker->>Store: set in_progress
+    Worker->>FileStore: set in_progress
     Worker->>Blueprint: run messages
     Blueprint-->>Worker: output
-    Worker->>Store: completed or failed
+    Worker->>FileStore: completed or failed
     Client->>Gateway: GET /v1/responses/id
-    Gateway->>Store: load record
-    Store-->>Gateway: status and output
+    Gateway->>FileStore: load record
+    FileStore-->>Gateway: status and output
     Gateway-->>Client: JSON body
 ```
 
@@ -306,6 +322,19 @@ gantt
     ADR-001 Django UI        :2026-08-18, 2026-08-24
 ```
 
+| Date | What | Evidence |
+|---|---|---|
+| 2024-12-21 | Initial commit | git root commit |
+| 2024-12-26 | Django REST API | commit `c3a092c4` |
+| 2026-02-20 | Tag 0.0.1 | git tag |
+| 2026-04-04 | React Web UI | commit `9077902b` |
+| 2026-06-11 | v0.3.0 MoA | tag `v0.3.0` |
+| 2026-06-16 | CLI fusion | commit `976cbd49` |
+| 2026-06-18 | `/v1/responses` | commit `50492380` |
+| 2026-06-19 | v0.5.4 | tag `v0.5.4` |
+| 2026-07-22 | Worker gates | commit `ff014180` |
+| 2026-08-18 | ADR-001 | commit `3d870d62` |
+
 ## Development
 
 ```bash
@@ -329,6 +358,7 @@ Documentation map:
 * [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/MOA.md](./docs/MOA.md) — Mixture of Agents consensus and consensus→team path.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
+* [Developer](#developer) — gateway vs workers, `/v1/responses` sequence, git-dated history.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.
 * [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) — common issues (CLI/blueprint not found, API errors, the production `ImproperlyConfigured` startup crash) and fixes.
 
