@@ -234,6 +234,78 @@ Feature-flag variables for experimental subsystems (`ENABLE_MCP_SERVER`, `ENABLE
 
 ---
 
+## Developer
+
+Runtime maps from the code. GitHub-safe Mermaid: short plain labels, no HTML, no markdown links in nodes. Dates are from git tags and the commits that added each surface.
+
+### Gateway vs workers
+
+The API process is the gateway: `swarm.core.swarm_api` starts uvicorn on `swarm.asgi:application`. Default is one uvicorn worker (`SWARM_UVICORN_WORKERS=1`; `swarm.core.concurrency.resolved_uvicorn_workers` refuses more unless `SWARM_ENFORCE_SINGLE_WORKER` is false). Inflight slots for async work are process-local (`SWARM_MAX_INFLIGHT`). Long `/v1/responses` jobs run in a daemon thread (`_spawn_worker` in `swarm.views.responses_views`), not extra uvicorn workers. The blueprint then calls host CLI adapters or REST/LLM profiles.
+
+```mermaid
+block-beta
+columns 3
+  Client["Client"]:3
+  Gateway["API gateway"]:3
+  Chat["Chat view"] Resp["Responses view"] Store["File store"]
+  Worker["Daemon worker"]:3
+  CLI["CLI adapters"] Blueprint["Blueprint run"] LLM["REST LLM"]
+```
+
+### Request sequence
+
+`POST /v1/responses` (`ResponsesView.post` in `swarm.views.responses_views`): authenticate, resolve the blueprint from `model`, persist a queued record (`swarm.core.responses_store`), spawn the daemon worker, then return 200 if the wait window hits completion or 202 to poll. `GET /v1/responses/{id}` reads the store. Chat `background:true` reuses the same worker (`ChatCompletionsView._handle_background_chat`).
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant Store
+    participant Worker
+    participant Blueprint
+
+    Client->>Gateway: POST /v1/responses
+    Gateway->>Gateway: auth and load blueprint
+    Gateway->>Store: save queued record
+    Gateway->>Worker: spawn daemon thread
+    alt wait is zero
+        Gateway-->>Client: 202 queued handle
+    else wait window
+        Gateway-->>Client: 200 done or 202 poll
+    end
+    Worker->>Store: set in_progress
+    Worker->>Blueprint: run messages
+    Blueprint-->>Worker: output
+    Worker->>Store: completed or failed
+    Client->>Gateway: GET /v1/responses/id
+    Gateway->>Store: load record
+    Store-->>Gateway: status and output
+    Gateway-->>Client: JSON body
+```
+
+### History
+
+Real dates only (git). The changelog `0.1.0` row dated 2024-01-01 is not a tag and is omitted.
+
+```mermaid
+gantt
+    title Open Swarm git history
+    dateFormat YYYY-MM-DD
+    axisFormat %Y-%m
+    section Start
+    Initial commit           :milestone, 2024-12-21, 0d
+    Django REST API          :2024-12-26, 2025-01-04
+    section Releases
+    Tag 0.0.1                :milestone, 2026-02-20, 0d
+    React Web UI             :milestone, 2026-04-04, 0d
+    v0.3 MoA                 :2026-06-11, 2026-06-12
+    v0.4 CLI fusion          :2026-06-16, 2026-06-17
+    v0.5 responses           :2026-06-18, 2026-06-19
+    section Later
+    Worker gates             :milestone, 2026-07-22, 0d
+    ADR-001 Django UI        :2026-08-18, 2026-08-24
+```
+
 ## Development
 
 ```bash
