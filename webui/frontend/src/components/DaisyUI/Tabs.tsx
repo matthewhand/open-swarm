@@ -1,4 +1,4 @@
-import { useState, useRef, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode, MouseEvent, SyntheticEvent } from 'react';
 
 /**
  * Tab interface
@@ -200,7 +200,10 @@ export const Accordion = ({
 }: AccordionProps) => {
   const [activeItems, setActiveItems] = useState<string[]>([]);
 
-  const toggleItem = (key: string) => {
+  const toggleItem = (key: string, disabled: boolean, event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    if (disabled) return;
+
     if (allowMultiple) {
       setActiveItems(prev =>
         prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
@@ -212,25 +215,29 @@ export const Accordion = ({
 
   return (
     <div className={`join join-vertical w-full ${className}`}>
-      {items.map((item) => (
-        <div key={item.key} className="collapse collapse-arrow join-item border border-base-300">
-          <input
-            type="checkbox"
-            checked={activeItems.includes(item.key)}
-            onChange={() => toggleItem(item.key)}
-            disabled={item.disabled}
-          />
-          <div className="collapse-title font-medium flex items-center gap-2">
-            {item.icon && <span>{item.icon}</span>}
-            {item.title}
-          </div>
-          <div className="collapse-content">
-            <div className="p-4">
-              {item.content}
+      {items.map((item) => {
+        const isOpen = activeItems.includes(item.key);
+        return (
+          <details
+            key={item.key}
+            className={`collapse collapse-arrow join-item border border-base-300 ${item.disabled ? 'opacity-50 pointer-events-none' : ''}`}
+            open={isOpen}
+          >
+            <summary
+              className="collapse-title font-medium flex items-center gap-2 cursor-pointer"
+              onClick={(event) => toggleItem(item.key, Boolean(item.disabled), event)}
+            >
+              {item.icon && <span>{item.icon}</span>}
+              {item.title}
+            </summary>
+            <div className="collapse-content">
+              <div className="p-4">
+                {item.content}
+              </div>
             </div>
-          </div>
-        </div>
-      ))}
+          </details>
+        );
+      })}
     </div>
   );
 };
@@ -255,19 +262,36 @@ export const AccordionItem = ({
   icon,
   className = '',
 }: AccordionItemProps) => {
+  const [isOpen, setIsOpen] = useState(open);
+
+  useEffect(() => {
+    setIsOpen(open);
+  }, [open]);
+
+  const handleToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    if (disabled) {
+      event.currentTarget.open = isOpen;
+      return;
+    }
+    setIsOpen(event.currentTarget.open);
+  };
+
   return (
-    <div className={`collapse collapse-arrow join-item border border-base-300 ${className}`}>
-      <input type="checkbox" defaultChecked={open} disabled={disabled} />
-      <div className="collapse-title font-medium flex items-center gap-2">
+    <details
+      className={`collapse collapse-arrow join-item border border-base-300 ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
+      open={isOpen}
+      onToggle={handleToggle}
+    >
+      <summary className="collapse-title font-medium flex items-center gap-2 cursor-pointer">
         {icon && <span>{icon}</span>}
         {title}
-      </div>
+      </summary>
       <div className="collapse-content">
         <div className="p-4">
           {children}
         </div>
       </div>
-    </div>
+    </details>
   );
 };
 
