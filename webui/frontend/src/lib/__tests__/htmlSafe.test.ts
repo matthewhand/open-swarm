@@ -9,6 +9,7 @@ describe('escapeHtml', () => {
   })
 })
 
+/* eslint-disable no-script-url */
 describe('sanitizeMarkdownHtml', () => {
   it('keeps allowlisted formatting tags', () => {
     const out = sanitizeMarkdownHtml('<p>hi <strong>there</strong></p>')
@@ -26,9 +27,9 @@ describe('sanitizeMarkdownHtml', () => {
   })
 
   it('blocks javascript: hrefs', () => {
-    const out = sanitizeMarkdownHtml(
-      '<a href="javascript:alert(1)">click</a><a href="https://example.com">safe</a>',
-    )
+    // eslint-disable-next-line no-script-url
+    const jsString = '<a href="javascript:alert(1)">click</a><a href="https://example.com">safe</a>'
+    const out = sanitizeMarkdownHtml(jsString)
     expect(out).not.toContain('javascript:')
     expect(out).toContain('https://example.com')
   })

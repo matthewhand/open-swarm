@@ -11,3 +11,5 @@
 ## 2024-05-18 | [Architectural Audit] | Insight: Codebase uses `any` types when parsing API responses in `TeamsPage.tsx` and `BlueprintsPage.tsx`. | Protocol: Replace `any` with `unknown` and strict type guards to ensure TypeScript integrity during async data extraction.
 
 ## 2026-08-26 | [Architectural Audit] | Insight: ConfirmModal treated onConfirm as fire-and-forget, so async deletes could double-submit with no error surface. Accordion used a checkbox+div collapse instead of native disclosure. | Protocol: ConfirmModal must accept `() => void | Promise<void>`, guard with `aria-busy`, and report failures via `Alert` `role="alert"` using `unknown` + `instanceof Error`. Keep the modal backdrop as a `tabIndex={-1}` button (do not wrap it in `<form method="dialog">`). Accordion items use `<details>`/`<summary>`; preventDefault on summary click so React `open` stays the source of truth.
+
+## 2026-08-29 | [Architectural Audit] | Insight: Modal backdrop anti-pattern and testing library DOM access violations | Protocol: Enforce <form method="dialog"> for modal backdrops and ban direct DOM selectors (querySelector) in UI tests.

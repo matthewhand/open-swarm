@@ -36,7 +36,7 @@ export const Alert = ({
 
   return (
     <div role={resolvedRole} className={alertClasses.join(' ')}>
-      {icon && <div className="mr-2 shrink-0" aria-hidden="true">{icon}</div>}
+      {icon && <div data-testid="alert-icon-wrapper" className="mr-2 shrink-0" aria-hidden="true">{icon}</div>}
       <div className="min-w-0">{children}</div>
     </div>
   );
