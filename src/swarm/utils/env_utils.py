@@ -205,6 +205,36 @@ def get_litellm_base_url() -> str | None:
     return os.getenv('LITELLM_BASE_URL')
 
 
+def get_llm_base_url() -> str | None:
+    """Prefer LiteLLM proxy URL, then OPENAI_BASE_URL."""
+    return get_litellm_base_url() or get_openai_base_url()
+
+
+def get_llm_api_key() -> str | None:
+    """Client key for the proxy (master key), then a raw OpenAI key."""
+    return (
+        os.getenv("LITELLM_API_KEY")
+        or os.getenv("LITELLM_MASTER_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+
+
+def openai_client_kwargs() -> dict:
+    """Kwargs for ``AsyncOpenAI`` / ``OpenAI`` that honor the LiteLLM proxy.
+
+    Clients must send the master key to ``LITELLM_BASE_URL`` /
+    ``OPENAI_BASE_URL``. Raw ``sk-proj-`` keys belong only on the proxy.
+    """
+    kwargs: dict = {}
+    api_key = get_llm_api_key()
+    base_url = get_llm_base_url()
+    if api_key:
+        kwargs["api_key"] = api_key
+    if base_url:
+        kwargs["base_url"] = base_url
+    return kwargs
+
+
 def get_default_llm() -> str | None:
     """Get default LLM."""
     return os.getenv('DEFAULT_LLM')

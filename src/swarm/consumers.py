@@ -268,16 +268,15 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             _self_mod.AsyncOpenAI = _cls
 
         # Mirror blueprint_base.configure_openai_client_from_env / LITELLM_* patterns.
-        base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-        api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        from swarm.utils.env_utils import get_llm_base_url, openai_client_kwargs
+
+        base_url = get_llm_base_url()
+        client_kwargs = openai_client_kwargs()
         model = (
             os.environ.get("LITELLM_MODEL")
             or os.environ.get("OPENAI_MODEL")
             or os.environ.get("DEFAULT_LLM")
         )
-        client_kwargs = {"api_key": api_key}
-        if base_url:
-            client_kwargs["base_url"] = base_url
         client = _cls(**client_kwargs)
 
         if base_url:
@@ -290,7 +289,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         def _enforce_litellm_only(client):
             """Reject openai.com fallback when a custom LiteLLM gateway is configured."""
-            expected = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+            expected = get_llm_base_url()
             if not expected:
                 return
             actual = str(getattr(client, "base_url", "") or "")

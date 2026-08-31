@@ -129,9 +129,10 @@ class GeeseBlueprint(BlueprintBase):
         agent_assignments = kwargs.pop("agent_mcp_assignments", {})
         super().__init__(blueprint_id, config=config, **kwargs)
         from agents import Agent
-        # --- Setup OpenAI LLM Model ---
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
-        openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+        # --- Setup OpenAI / LiteLLM model ---
+        from swarm.utils.env_utils import openai_client_kwargs
+        client_kwargs = openai_client_kwargs()
+        openai_client = AsyncOpenAI(**client_kwargs) if client_kwargs.get("api_key") else None
         llm_model_name = kwargs.get("llm_model", "o4-mini")
         llm_model = OpenAIChatCompletionsModel(model=llm_model_name, openai_client=openai_client)
         # --- Create Agent instances and corresponding Tools ---
