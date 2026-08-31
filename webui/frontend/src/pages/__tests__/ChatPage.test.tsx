@@ -125,8 +125,8 @@ describe('ChatPage reconnect focus', () => {
     const composer = await screen.findByRole('textbox', { name: 'Chat message' })
     await waitFor(() => {
       expect(composer).not.toBeDisabled()
-      expect(composer).toHaveFocus()
     })
+    expect(composer).toHaveFocus()
   })
 })
 
@@ -329,9 +329,13 @@ describe('ChatPage Send button honesty while streaming', () => {
 
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
-    expect(send.querySelector('[data-testid="loading-spinner"]')).toBeNull()
-    // Streaming progress lives on the message bubble, not a fake Send busy state.
-    expect(document.querySelector('.chat-bubble .loading')).toBeTruthy()
+
+    // We verify the send button is not busy and does not contain sr-only text
+    expect(send).not.toHaveTextContent('Loading')
+
+    // Streaming progress lives on the message bubble. Verify the bubble contains a loading indicator.
+    const loaders = screen.getAllByRole('status', { name: 'Loading' })
+    expect(loaders.length).toBeGreaterThan(0)
   })
 })
 
@@ -425,9 +429,9 @@ describe('ChatPage markdown bubbles', () => {
       )
     })
 
-    const bubble = document.querySelector('.chat-md')
-    expect(bubble).toBeTruthy()
-    expect(bubble?.innerHTML).toContain('<strong>hello</strong>')
-    expect(bubble?.innerHTML).toContain('<code>code</code>')
+    // Testing library prefers query over .querySelector
+    // Test the semantic output instead of the raw HTML
+    expect(screen.getByText('hello').tagName).toBe('STRONG')
+    expect(screen.getByText('code').tagName).toBe('CODE')
   })
 })

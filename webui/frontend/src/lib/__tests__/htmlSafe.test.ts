@@ -27,6 +27,7 @@ describe('sanitizeMarkdownHtml', () => {
 
   it('blocks javascript: hrefs', () => {
     const out = sanitizeMarkdownHtml(
+      // eslint-disable-next-line no-script-url
       '<a href="javascript:alert(1)">click</a><a href="https://example.com">safe</a>',
     )
     expect(out).not.toContain('javascript:')

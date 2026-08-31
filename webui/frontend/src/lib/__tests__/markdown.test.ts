@@ -3,15 +3,15 @@ import { renderSafeMarkdown } from '../markdown'
 
 describe('renderSafeMarkdown', () => {
   it('renders bold and code', () => {
-    const html = renderSafeMarkdown('hello **world** and `code`')
-    expect(html).toContain('<strong>world</strong>')
-    expect(html).toContain('<code>code</code>')
+    const view = renderSafeMarkdown('hello **world** and `code`')
+    expect(view).toContain('<strong>world</strong>')
+    expect(view).toContain('<code>code</code>')
   })
 
   it('does not execute raw HTML from markdown source', () => {
-    const html = renderSafeMarkdown('hi <script>alert(1)</script> **ok**')
-    expect(html.toLowerCase()).not.toContain('<script')
-    expect(html).toContain('<strong>ok</strong>')
+    const view = renderSafeMarkdown('hi <script>alert(1)</script> **ok**')
+    expect(view.toLowerCase()).not.toContain('<script')
+    expect(view).toContain('<strong>ok</strong>')
   })
 
   it('returns empty string for empty input', () => {

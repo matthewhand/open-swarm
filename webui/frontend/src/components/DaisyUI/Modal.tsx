@@ -120,15 +120,16 @@ export const Modal = ({
             {children}
           </div>
         </div>
-        <button
-          type="button"
-          className="modal-backdrop"
-          onClick={onClose}
-          aria-label="Close modal"
-          tabIndex={-1}
-        >
-          close
-        </button>
+        <form method="dialog" className="modal-backdrop">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close modal"
+            tabIndex={-1}
+          >
+            close
+          </button>
+        </form>
       </dialog>
     </FocusTrap>
   );
