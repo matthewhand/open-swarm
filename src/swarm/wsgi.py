@@ -4,13 +4,14 @@ import os
 from pathlib import Path
 
 from django.core.wsgi import get_wsgi_application
-from dotenv import load_dotenv
 
-# Define the base directory
+# Define the base directory (src/)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file
-load_dotenv(dotenv_path=BASE_DIR / '.env')
+# XDG ~/.config/swarm/.env (primary) + project .env (fallback)
+from swarm.utils.dotenv_load import load_swarm_dotenv
+
+load_swarm_dotenv(project_root=BASE_DIR.parent)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'swarm.settings')
 
