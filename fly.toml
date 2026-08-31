@@ -7,7 +7,9 @@ app = 'open-swarm'
 primary_region = 'syd'
 
 [build]
-  image = 'mhand79/open-swarm'
+  # Build from local Dockerfile so LiteLLM base_url / master-key client fixes ship.
+  # (Previously pinned to prebuilt mhand79/open-swarm:latest which lagged the repo.)
+  dockerfile = 'Dockerfile'
 
 [env]
   PORT = '8000'

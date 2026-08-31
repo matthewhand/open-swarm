@@ -189,9 +189,9 @@ class ZeusCoordinatorBlueprint(BlueprintBase):
         from agents import Agent
         from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
         from openai import AsyncOpenAI
+        from swarm.utils.env_utils import openai_client_kwargs
         model_name = (self.config.get('llm_profile', 'default') if hasattr(self, 'config') and self.config else 'default')
-        api_key = os.environ.get('OPENAI_API_KEY', 'sk-test')
-        openai_client = AsyncOpenAI(api_key=api_key)
+        openai_client = AsyncOpenAI(**openai_client_kwargs())
         model_instance = OpenAIChatCompletionsModel(model=model_name, openai_client=openai_client)
 
         pantheon_names = [

@@ -10,9 +10,12 @@ from swarm.utils.env_utils import (
     get_django_allowed_hosts,
     get_django_csrf_trusted_origins,
     get_django_secret_key,
+    get_llm_api_key,
+    get_llm_base_url,
     get_swarm_config_path,
     get_swarm_log_level,
     is_truthy,
+    openai_client_kwargs,
 )
 
 
@@ -135,3 +138,39 @@ def test_build_mcp_stdio_env_empty_server_env_is_essentials_only():
         env = build_mcp_stdio_env(None)
     assert env == {"PATH": "/bin"}
     assert "OPENAI_API_KEY" not in env
+
+
+def test_openai_client_kwargs_prefers_litellm_proxy():
+    env = {
+        "LITELLM_BASE_URL": "https://open-litellm.example/v1",
+        "LITELLM_MASTER_KEY": "sk-master",
+        "OPENAI_API_KEY": "sk-proj-raw",
+        "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        assert get_llm_base_url() == "https://open-litellm.example/v1"
+        assert get_llm_api_key() == "sk-master"
+        assert openai_client_kwargs() == {
+            "api_key": "sk-master",
+            "base_url": "https://open-litellm.example/v1",
+        }
+
+
+def test_openai_client_kwargs_litellm_api_key_beats_master_key():
+    env = {
+        "LITELLM_API_KEY": "sk-litellm",
+        "LITELLM_MASTER_KEY": "sk-master",
+        "LITELLM_BASE_URL": "http://127.0.0.1:4000/v1",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        assert openai_client_kwargs() == {
+            "api_key": "sk-litellm",
+            "base_url": "http://127.0.0.1:4000/v1",
+        }
+
+
+def test_openai_client_kwargs_empty_when_unset():
+    with patch.dict(os.environ, {}, clear=True):
+        assert openai_client_kwargs() == {}
+        assert get_llm_api_key() is None
+        assert get_llm_base_url() is None

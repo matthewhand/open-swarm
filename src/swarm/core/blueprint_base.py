@@ -125,18 +125,30 @@ def configure_openai_client_from_env():
     """
     Framework-level function: Always instantiate and set the default OpenAI client.
     Prints out the config being used for debug.
+
+    Uses LiteLLM proxy when ``LITELLM_BASE_URL`` / ``OPENAI_BASE_URL`` is set
+    (required for load balancing + accounting).
     """
-    import os
-    base_url = os.environ.get("LITELLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-    api_key = os.environ.get("LITELLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    from swarm.utils.env_utils import get_llm_base_url, openai_client_kwargs
+
+    kwargs = openai_client_kwargs()
+    base_url = kwargs.get("base_url") or get_llm_base_url()
+    api_key = kwargs.get("api_key")
     if _should_debug():
-        _debug_print(f"[DEBUG] Using OpenAI client config: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
+        _debug_print(
+            f"[DEBUG] Using OpenAI client config: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}"
+        )
     if base_url and api_key:
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        client = AsyncOpenAI(**kwargs)
         set_default_openai_client(client)
-        _framework_print(f"[FRAMEWORK] Set default OpenAI client: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}")
+        _framework_print(
+            f"[FRAMEWORK] Set default OpenAI client: base_url={base_url}, api_key={'set' if api_key else 'NOT SET'}"
+        )
     else:
-        _framework_print("[FRAMEWORK] WARNING: base_url or api_key missing, OpenAI client not set!")
+        _framework_print(
+            "[FRAMEWORK] WARNING: base_url or api_key missing, OpenAI client not set! "
+            "Set OPENAI_BASE_URL/LITELLM_BASE_URL to the LiteLLM proxy."
+        )
 
 configure_openai_client_from_env()
 
