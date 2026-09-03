@@ -186,11 +186,6 @@ html[data-theme="light"] #root {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
-.os-agent-dot[data-role="support"] { background: #3d8f8a; }
-.os-agent-dot[data-role="gate"] { background: #c47a3a; }
-.os-agent-dot[data-role="skeptic"] { background: #7a6b9b; }
-/* REQ-28 CoS: ice-steel — not support teal, gate amber, or skeptic violet */
-.os-agent-dot[data-role="chief_of_staff"] { background: #4f8ec9; }
 
 /* REQ-66 scale-out stack — same overlapping faces as inter-bot hops */
 .os-stacked-avatars {
@@ -332,29 +327,10 @@ button.os-agent-row {
   gap: 0.15rem;
   position: relative;
 }
-.os-agent-row--support,
-.os-agent-row.os-agent-role-support {
-  box-shadow: inset 2px 0 0 #3d8f8a;
-}
-.os-agent-row--gate {
-  box-shadow: inset 2px 0 0 #c47a3a;
-}
-.os-agent-row--skeptic {
-  box-shadow: inset 2px 0 0 #7a6b9b;
-}
+/* REQ-67: role colour lives on .os-agent-role-badge only — no row fill/border. */
 .os-agent-row--dragging,
 .os-fav-tile--dragging {
   opacity: 0.4;
-}
-.os-agent-row--cos,
-.os-agent-row.os-agent-role-chief_of_staff {
-  box-shadow: inset 2px 0 0 #4f8ec9;
-}
-.os-agent-row.os-agent-role-gate {
-  box-shadow: inset 2px 0 0 #c9a227;
-}
-.os-agent-row.os-agent-role-skeptic {
-  box-shadow: inset 2px 0 0 #8a5a9b;
 }
 .os-agent-row--team {
   box-shadow: inset 2px 0 0 #6b7c8a;

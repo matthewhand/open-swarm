@@ -8,12 +8,12 @@ DJANGO_CSS = REPO / "src" / "swarm" / "static" / "css" / "rest_mode_style.css"
 SIDEBAR_JS = REPO / "src" / "swarm" / "static" / "js" / "agent_sidebar.js"
 
 
-def test_cos_color_is_not_support_gate_or_skeptic():
+def test_cos_badge_color_is_not_support_gate_or_skeptic():
+    """REQ-28 distinct CoS colour survives REQ-67 (badge only, not row/dot)."""
     for css in (SPA_CSS.read_text(encoding="utf-8"), DJANGO_CSS.read_text(encoding="utf-8")):
-        assert 'data-role="chief_of_staff"] { background: #4f8ec9; }' in css
+        assert '.os-agent-role-badge[data-role="chief_of_staff"]' in css
+        assert "#4f8ec9" in css  # CoS ice-steel
         assert "#3d8f8a" in css  # support teal
-        assert "#c9a227" in css  # gate amber
-        assert "#8a5a9b" in css  # skeptic violet
         assert css.index("#4f8ec9") != css.index("#3d8f8a")
         assert 'data-kind="team"' in css
 

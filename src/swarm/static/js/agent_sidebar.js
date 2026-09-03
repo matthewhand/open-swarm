@@ -242,18 +242,12 @@
       link.setAttribute("aria-label", name);
       if (role !== "default") {
         link.setAttribute("data-role", role);
-        link.className += " os-agent-role-" + role;
       }
 
-      var mark = document.createElement("span");
-      mark.setAttribute("aria-hidden", "true");
-      if (role === "support" || role === "gate" || role === "skeptic") {
-        mark.className = "os-agent-role-mark os-agent-role-mark--" + role;
-      } else {
-        mark.className = "os-agent-dot";
-        mark.setAttribute("data-mark", markIndex(agent.id));
-        if (role !== "default") mark.setAttribute("data-role", role);
-      }
+      var dot = document.createElement("span");
+      dot.className = "os-agent-dot";
+      dot.setAttribute("data-mark", markIndex(agent.id));
+      dot.setAttribute("aria-hidden", "true");
 
       var text = document.createElement("span");
       text.className = "os-agent-item__text";

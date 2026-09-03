@@ -444,12 +444,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     const role = agentRole(agent)
     const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
-    const cos = isChiefOfStaff(role)
     const badge = roleBadgeLabel(role)
     const dataRole = role !== 'default' ? role : undefined
-    const className = `os-agent-row ${roleCssClass(role)} ${active ? 'os-agent-row--active' : ''} ${
-      role !== 'default' ? `os-agent-row--${role}` : ''
-    } ${cos ? 'os-agent-row--cos' : ''} ${dragging ? 'os-agent-row--dragging' : ''}`
+    const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+      dragging ? 'os-agent-row--dragging' : ''
+    }`
     const mark = (
       scaleOut ? (
         // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
@@ -545,7 +544,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     if (scaleOut) {
       return (
         <div
-          className={`os-agent-row-wrap ${roleCssClass(role)}`}
+          className="os-agent-row-wrap"
           data-role={role}
           data-scale-out="true"
         >
@@ -592,7 +591,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
 
     return (
       <div
-        className={`os-agent-row-wrap ${roleCssClass(role)}`}
+        className="os-agent-row-wrap"
         data-role={role}
       >
         <Link

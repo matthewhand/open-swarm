@@ -21,7 +21,7 @@ not expand grandchildren into individual seats.
 
 ## Roles
 
-| Role | Aliases | Rail |
+| Role | Aliases | Badge (REQ-67: badge only, no row fill/border) |
 |---|---|---|
 | `default` | worker, agent | no badge |
 | `support` | helper | teal |
