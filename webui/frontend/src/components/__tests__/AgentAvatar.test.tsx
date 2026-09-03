@@ -9,7 +9,14 @@ describe('AgentAvatar', () => {
     expect(img).toBeTruthy()
     expect(img).toHaveAttribute('data-agent-avatar', 'default')
     expect(img).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
-    expect(DEFAULT_AGENT_AVATAR_SRC).toMatch(/default-agent-avatar/)
+    expect(DEFAULT_AGENT_AVATAR_SRC).toMatch(/^data:image\/svg\+xml/)
+    const svg = decodeURIComponent(
+      DEFAULT_AGENT_AVATAR_SRC.includes(';base64,')
+        ? atob(DEFAULT_AGENT_AVATAR_SRC.split(',')[1])
+        : DEFAULT_AGENT_AVATAR_SRC.replace(/^data:image\/svg\+xml[^,]*,/, ''),
+    )
+    expect(svg).toContain('#3deef5')
+    expect(svg).toMatch(/<circle/i)
   })
 
   it('uses a custom src when provided', () => {

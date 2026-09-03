@@ -130,3 +130,17 @@ test('right-click hide from sidebar persists across reload; unhide restores', as
   await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
+
+test('default Bert-like avatar shows in the agents pane and chat chrome', async ({ page }) => {
+  await stubAgentApis(page)
+  await page.goto('/')
+  const list = page.getByRole('navigation', { name: 'Agent list' })
+  await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
+  await expect(list.locator('img[data-agent-avatar="default"]')).toHaveCount(2)
+  await expect(list.locator('.os-agent-dot')).toHaveCount(0)
+
+  await page.goto('/chat')
+  const heading = page.getByRole('heading', { name: /Chat/i })
+  await expect(heading.locator('img[data-agent-avatar="default"]')).toBeVisible()
+  await expect(page.locator('[role="log"] img[data-agent-avatar="default"]')).toBeVisible()
+})
