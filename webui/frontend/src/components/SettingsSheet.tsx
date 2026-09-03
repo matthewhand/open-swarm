@@ -1,8 +1,15 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, FileCode2, Server } from 'lucide-react'
+import { AlertCircle, FileCode2, HardDrive, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
-import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
+import {
+  EMPTY_LOCAL_STORE,
+  fetchBlueprintSource,
+  fetchLocalStore,
+  fetchModels,
+  type BlueprintSource,
+} from '../lib/api'
+import { formatStoreSize } from '../lib/localStore'
 import {
   agentRole,
   fallbackBlueprintSource,
@@ -33,6 +40,7 @@ export type SettingsSection =
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
+  | 'system'
 
 export interface OpenSettingsDetail {
   section?: SettingsSection
@@ -63,8 +71,8 @@ export interface SettingsSheetProps {
  * Right-docked DaisyUI settings sheet (REQ-19 + REQ-25).
  *
  * Opens as `modal` + `modal-end` over the SPA (not a top-nav eject to Django).
- * Gear opens Remotes / Retention / Hostname / LLM profiles. Hover-edit on a
- * roled agent selects the Blueprint editor for that agent's blueprint id —
+ * Gear opens Remotes / Retention / Hostname / LLM profiles / System. Hover-edit
+ * on a roled agent selects the Blueprint editor for that agent's blueprint id —
  * not the Teams drop-zone roster. Django `/settings/` stays the operator dump.
  */
 export default function SettingsSheet({ isOpen, onClose, blueprintId }: SettingsSheetProps) {
@@ -174,6 +182,16 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
                 LLM profiles
               </button>
             </li>
+            <li>
+              <button
+                type="button"
+                className={section === 'system' ? 'menu-active' : undefined}
+                aria-current={section === 'system' ? 'page' : undefined}
+                onClick={() => setSection('system')}
+              >
+                System
+              </button>
+            </li>
           </ul>
         </nav>
 
@@ -197,6 +215,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
             />
           )}
           {section === 'llm-profiles' && <LlmProfilesPane />}
+          {section === 'system' && <SystemPane />}
         </div>
       </div>
 
@@ -455,6 +474,65 @@ function HostnamePane({
         Save hostname
       </Button>
     </form>
+  )
+}
+
+function SystemPane() {
+  const headingId = useId()
+  const storeQuery = useQuery({
+    queryKey: ['settings-local-store'],
+    queryFn: fetchLocalStore,
+    retry: 1,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
+  const facts = storeQuery.isError || !storeQuery.data ? EMPTY_LOCAL_STORE : storeQuery.data
+  const sizeLabel =
+    facts.created && facts.size_bytes > 0
+      ? facts.size_label || formatStoreSize(facts.size_bytes)
+      : formatStoreSize(facts.size_bytes)
+  const location = facts.path?.trim() || 'not created yet'
+
+  return (
+    <section id="os-system-store" aria-labelledby={headingId} className="space-y-4">
+      <div>
+        <h4 id={headingId} className="text-lg font-semibold">
+          System
+        </h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Local database on this machine. Read-only facts refresh when you open
+          this section.
+        </p>
+      </div>
+      {storeQuery.isPending ? (
+        <p className="text-sm text-base-content/60">Loading local database…</p>
+      ) : (
+        <dl className="space-y-3 text-sm">
+          <div className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2">
+            <dt className="text-xs uppercase tracking-wide text-base-content/60">Size</dt>
+            <dd className="mt-0.5 font-medium">{sizeLabel}</dd>
+          </div>
+          <div className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2">
+            <dt className="text-xs uppercase tracking-wide text-base-content/60">Location</dt>
+            <dd className="mt-0.5 break-all font-mono text-xs">{location}</dd>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2">
+              <dt className="text-xs uppercase tracking-wide text-base-content/60">Conversations</dt>
+              <dd className="mt-0.5 font-medium">{facts.conversation_count}</dd>
+            </div>
+            <div className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2">
+              <dt className="text-xs uppercase tracking-wide text-base-content/60">Messages</dt>
+              <dd className="mt-0.5 font-medium">{facts.message_count}</dd>
+            </div>
+          </div>
+        </dl>
+      )}
+      <p className="text-xs text-base-content/50">
+        <HardDrive className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+        Stored on this machine. No remote host.
+      </p>
+    </section>
   )
 }
 

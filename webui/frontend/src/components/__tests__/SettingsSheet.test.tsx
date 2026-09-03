@@ -55,6 +55,7 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
   })
 
   it('shows remotes placeholders and join radios for retention', () => {
@@ -112,6 +113,52 @@ describe('SettingsSheet', () => {
     const { onClose } = renderSheet()
     fireEvent.click(screen.getByRole('button', { name: /^Close$/ }))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a System section with local store facts and no Django copy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          path: '~/share/swarm/store.db',
+          size_bytes: 13_002_342,
+          size_label: '12.4 MB',
+          created: true,
+          conversation_count: 3,
+          message_count: 11,
+        }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'System' }))
+    const heading = await screen.findByRole('heading', { name: 'System' })
+    expect(await screen.findByText('12.4 MB')).toBeInTheDocument()
+    expect(screen.getByText('~/share/swarm/store.db')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('11')).toBeInTheDocument()
+    expect(screen.getByText(/local database/i)).toBeInTheDocument()
+    expect(screen.getByText(/on this machine/i)).toBeInTheDocument()
+    const pane = heading.closest('section')
+    const copy = pane?.textContent ?? ''
+    expect(copy).not.toMatch(/Django/i)
+    expect(copy).not.toMatch(/sqlite/i)
+    expect(copy).not.toMatch(/ORM/i)
+  })
+
+  it('shows 0 and not created yet when the local store is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('offline')),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'System' }))
+    expect(await screen.findByText('not created yet')).toBeInTheDocument()
+    expect(screen.getByText('Conversations').closest('div')).toHaveTextContent('0')
+    expect(screen.getByText('Messages').closest('div')).toHaveTextContent('0')
+    const pane = screen.getByRole('heading', { name: 'System' }).closest('section')
+    expect(pane?.textContent).not.toMatch(/Django/i)
   })
 
   it('keeps the Django operator dump link', () => {

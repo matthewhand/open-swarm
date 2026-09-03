@@ -32,6 +32,20 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ status: 'ok' }),
     })
   })
+  await page.route('**/v1/system**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        path: '~/share/swarm/store.db',
+        size_bytes: 13_002_342,
+        size_label: '12.4 MB',
+        created: true,
+        conversation_count: 3,
+        message_count: 11,
+      }),
+    })
+  })
 }
 
 test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page }) => {
@@ -63,6 +77,7 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'System' })).toBeVisible()
 
   await expect(page.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass(/join/)
   await page.getByRole('radio', { name: 'Trash' }).click()
@@ -79,6 +94,13 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hostname_override')))
     .toBe('swarm.example.com')
+
+  await page.getByRole('button', { name: 'System' }).click()
+  await expect(page.getByRole('heading', { name: 'System' })).toBeVisible()
+  await expect(page.getByText('12.4 MB')).toBeVisible()
+  await expect(page.getByText('~/share/swarm/store.db')).toBeVisible()
+  await expect(page.getByText(/local database/i)).toBeVisible()
+  await expect(page.locator('#os-system-store')).not.toContainText('Django')
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
