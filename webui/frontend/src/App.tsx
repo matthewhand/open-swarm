@@ -5,7 +5,11 @@ import ChatPage from './pages/ChatPage'
 import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
-import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from './components/SettingsSheet'
+import SettingsSheet, {
+  OPEN_SETTINGS_EVENT,
+  type OpenSettingsDetail,
+  type SettingsSection,
+} from './components/SettingsSheet'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
@@ -53,6 +57,7 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsBlueprintId, setSettingsBlueprintId] = useState<string | null>(null)
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>()
 
   useLayoutEffect(() => {
     applyDocumentTheme(darkMode)
@@ -72,6 +77,7 @@ function App() {
     const onOpenSettings = (event: Event) => {
       const detail = (event as CustomEvent<OpenSettingsDetail>).detail
       setSettingsBlueprintId(detail?.blueprintId ?? null)
+      setSettingsSection(detail?.section)
       setSettingsOpen(true)
     }
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
@@ -95,6 +101,7 @@ function App() {
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           blueprintId={settingsBlueprintId}
+          initialSection={settingsSection}
         />
         <div
           className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"

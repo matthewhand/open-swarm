@@ -361,6 +361,62 @@ export function discoverHerdrAgents(
   return apiGet(`/v1/herdr-agents/discover/${qs}`)
 }
 
+/**
+ * GET/POST /v1/remotes/ and DELETE /v1/remotes/<id>/
+ * (swarm/views/remotes_api.py). Settings and remote dropdowns use
+ * ``configured`` — unused kinds do not occupy those surfaces (REQ-59).
+ * Internal id ``omb`` is labelled OpenMousBot in UI copy.
+ */
+export type RemoteKindId = 'hermes' | 'omb' | 'rakazo' | 'herdr' | 'open-swarm'
+
+export interface RemoteKind {
+  id: string
+  label: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind?: string
+  label?: string
+  title: string
+  host_label: string
+  base_url: string
+  ui_url?: string
+  api_key_set?: boolean
+  cookie_set?: boolean
+  source?: string
+  notes?: string
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  kinds?: RemoteKind[]
+  data?: RemoteConnection[]
+  configured?: RemoteConnection[]
+  vocabulary?: Record<string, string>
+  team_members?: unknown[]
+}
+
+export interface CreateRemoteRequest {
+  kind: string
+  base_url?: string
+  api_key?: string
+  ui_url?: string
+  cookie?: string
+}
+
+export function fetchRemotes(): Promise<RemotesListResponse> {
+  return apiGet<RemotesListResponse>('/v1/remotes/')
+}
+
+export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
+  return apiPost<RemoteConnection>('/v1/remotes/', remote)
+}
+
+export function deleteRemote(remoteId: string): Promise<void> {
+  return apiDelete(`/v1/remotes/${encodeURIComponent(remoteId)}/`)
+}
+
 // ---------------------------------------------------------------------------
 // Agent creator (swarm/views/agent_creator_views.py)
 //
