@@ -1,8 +1,16 @@
 /**
- * Persist which agents are hidden from the SPA sidepane.
+ * Persist which agents are hidden from the SPA left rail.
  *
  * Hidden IDs live in localStorage so a reload keeps the same visible list.
- * Hide all parks every id in Hidden; Unhide restores one at a time.
+ * Grok-Bot rail has no hide-all control — hide is always per-agent.
+ * Agent Router still parks non-starters via hideAllExceptStarters.
+ *
+ * REQ-24: any conversation/agent row can be hidden, including role-assigned
+ * seats (support, gate, skeptic). Hide is not exempt by role.
+ *
+ * Hide wins for the visible list. The rail also unpins favourite tiles when
+ * an agent is hidden (removed from the list AND the pin grid). Unhide restores
+ * the conversation row only — it does not re-pin.
  */
 
 export const HIDDEN_AGENTS_STORAGE_KEY = 'swarm_hidden_agents'
@@ -33,6 +41,11 @@ export function hideAgentId(id: string, current: string[]): string[] {
   const next = [...current, id]
   saveHiddenAgentIds(next)
   return next
+}
+
+/** Role seats (support / gate / skeptic) are hideable — no exemptions. */
+export function canHideAgent(id: string): boolean {
+  return typeof id === 'string' && id.length > 0
 }
 
 export function unhideAgentId(id: string, current: string[]): string[] {
