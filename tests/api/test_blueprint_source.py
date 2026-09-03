@@ -63,3 +63,63 @@ def test_cli_agents_endpoint_exposes_native_consensus(client):
     assert "grok" in data["clis"]
     assert data["native_consensus"]["grok"] == ["--best-of-n", "{n}"]
     assert data["catalog"]["grok"]["parse"] == "json:.text"
+    assert data["list_models"]["opencode"] == ["opencode", "models"]
+    assert data["list_models"]["gemini"] == ["gemini", "--list-models"]
+    assert data["list_models"]["codex"] == ["codex", "debug", "models"]
+
+
+@pytest.mark.django_db
+def test_cli_agent_models_urls_accept_trailing_slash():
+    assert resolve("/v1/cli-agents/models").url_name == "cli-agent-models-all-no-slash"
+    assert resolve("/v1/cli-agents/models/").url_name == "cli-agent-models-all"
+    assert resolve("/v1/cli-agents/grok/models").url_name == "cli-agent-models-no-slash"
+    assert resolve("/v1/cli-agents/grok/models/").url_name == "cli-agent-models"
+
+
+@pytest.mark.django_db
+def test_cli_agent_models_single_cli(client, monkeypatch):
+    from swarm.core.cli_models import ListModelsResult
+
+    monkeypatch.setattr(
+        "swarm.core.cli_models.list_models",
+        lambda name, **_k: ListModelsResult(cli=name, models=["grok-4"]),
+    )
+    resp = client.get("/v1/cli-agents/grok/models")
+    assert resp.status_code == 200
+    assert resp.json() == {"cli": "grok", "models": ["grok-4"]}
+
+
+@pytest.mark.django_db
+def test_cli_agent_models_unknown_cli_empty_warning(client, monkeypatch):
+    from swarm.core.cli_models import ListModelsResult
+
+    monkeypatch.setattr(
+        "swarm.core.cli_models.list_models",
+        lambda name, **_k: ListModelsResult(
+            cli=name, models=[], warning="unknown CLI 'nope'"
+        ),
+    )
+    resp = client.get("/v1/cli-agents/nope/models/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["cli"] == "nope"
+    assert data["models"] == []
+    assert "unknown" in data["warning"]
+
+
+@pytest.mark.django_db
+def test_cli_agent_models_all(client, monkeypatch):
+    from swarm.core.cli_models import ListModelsResult
+
+    monkeypatch.setattr(
+        "swarm.core.cli_models.list_models_all",
+        lambda **_k: [
+            ListModelsResult(cli="claude", models=[], warning="not installed"),
+            ListModelsResult(cli="opencode", models=["opencode/big-pickle"]),
+        ],
+    )
+    resp = client.get("/v1/cli-agents/models")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["models"] == []
+    assert data[1] == {"cli": "opencode", "models": ["opencode/big-pickle"]}
