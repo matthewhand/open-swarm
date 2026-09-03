@@ -158,20 +158,32 @@
     }
 
     function loadTeams(done) {
-      fetch("/team_rosters.json")
-        .then(function (res) {
-          if (!res.ok) throw new Error("status " + res.status);
-          return res.json();
-        })
-        .then(function (payload) {
-          var parsed = parseRosters(payload);
-          teams = parsed.length ? parsed : [DEMO_TEAM];
-          done();
-        })
-        .catch(function () {
+      var urls = ["/team_rosters.json", "/v1/team-rosters/"];
+      function tryNext(i) {
+        if (i >= urls.length) {
           teams = [DEMO_TEAM];
           done();
-        });
+          return;
+        }
+        fetch(urls[i])
+          .then(function (res) {
+            if (!res.ok) throw new Error("status " + res.status);
+            return res.json();
+          })
+          .then(function (payload) {
+            var parsed = parseRosters(payload);
+            if (parsed.length) {
+              teams = parsed;
+              done();
+              return;
+            }
+            tryNext(i + 1);
+          })
+          .catch(function () {
+            tryNext(i + 1);
+          });
+      }
+      tryNext(0);
     }
 
     function closeMenu() {
