@@ -62,6 +62,13 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ object: 'list', data: [] }),
+    })
+  })
 }
 
 test('sidepane mixes a team row; selecting it shows the unlabeled member dropdown', async ({
@@ -78,6 +85,9 @@ test('sidepane mixes a team row; selecting it shows the unlabeled member dropdow
   await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
 
   await team.click()
+  const picker = page.getByRole('dialog', { name: 'Demo Team sessions' })
+  await expect(picker).toBeVisible()
+  await picker.getByRole('option', { name: /Codey/ }).click()
   await expect(page).toHaveURL(/[?&]team=demo-team/)
 
   const dropdown = page.getByRole('combobox')

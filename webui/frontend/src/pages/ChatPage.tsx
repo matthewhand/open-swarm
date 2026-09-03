@@ -42,6 +42,7 @@ import {
   memberOptionLabel,
   teamThreadId,
 } from '../lib/teamRosters'
+import { fetchConfiguredRemotes } from '../lib/remotesCatalog'
 import {
   reconnectBackoffMs,
   shouldAutoReconnect,
@@ -97,10 +98,16 @@ const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
   const teamFromUrl = searchParams.get('team') ?? ''
-  const selectedBlueprint = teamFromUrl
+  const remoteFromUrl = searchParams.get('remote') ?? ''
+  const sessionFromUrl = searchParams.get('session') ?? ''
+  const selectedBlueprint = teamFromUrl || remoteFromUrl
     ? ''
     : defaultBlueprintId(searchParams.get('blueprint'))
-  const threadKey = teamFromUrl ? teamThreadId(teamFromUrl) : selectedBlueprint
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : remoteFromUrl
+      ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+      : selectedBlueprint
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [summariesByThread, setSummariesByThread] = useState<
@@ -116,7 +123,9 @@ const ChatPage = () => {
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
-      : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+      : remoteFromUrl
+        ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+        : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
   )
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
@@ -158,31 +167,45 @@ const ChatPage = () => {
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
   })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchConfiguredRemotes,
+  })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const teams = teamsQuery.data ?? []
+  const remotes = remotesQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const selectedRemote = remotes.find((remote) => remote.id === remoteFromUrl) ?? null
+  const selectedRemoteSession = selectedRemote?.agents.find((agent) => agent.id === sessionFromUrl)
+  const selectedTeamSession = selectedTeam?.members.find((member) => member.id === sessionFromUrl)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const selectedAgentName = teamFromUrl
-    ? selectedTeam?.name || teamFromUrl
-    : selectedAgent
-      ? agentLabel(selectedAgent)
-      : selectedBlueprint === SUPPORT_AGENT_ID
-        ? 'Support'
-        : selectedBlueprint
+    ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
+    : remoteFromUrl
+      ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
+      : selectedAgent
+        ? agentLabel(selectedAgent)
+        : selectedBlueprint === SUPPORT_AGENT_ID
+          ? 'Support'
+          : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
     // REQ-28: a selected composition team uses ?team=; do not clobber it
     // with the Support default (REQ-23 owns send-to-all).
-    if (searchParams.get('team')) return
+    if (searchParams.get('team') || searchParams.get('remote')) return
     if (!searchParams.get('blueprint')) {
       setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })
     }
   }, [searchParams, setSearchParams])
 
   useEffect(() => {
+    if (teamFromUrl && sessionFromUrl) {
+      setMemberTarget(sessionFromUrl)
+      return
+    }
     setMemberTarget(ALL_MEMBERS_TARGET)
-  }, [teamFromUrl])
+  }, [teamFromUrl, sessionFromUrl])
 
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
@@ -190,6 +213,19 @@ const ChatPage = () => {
   useEffect(() => {
     if (teamFromUrl) {
       const key = teamThreadId(teamFromUrl)
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+    if (remoteFromUrl) {
+      const key = `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
       const switched =
         lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
       lastHydratedAgentRef.current = key
@@ -235,7 +271,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, teamFromUrl])
+  }, [selectedBlueprint, teamFromUrl, remoteFromUrl, sessionFromUrl])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {

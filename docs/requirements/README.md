@@ -59,6 +59,7 @@ In-flight PRs sit on their own branches. This tree does not include their code.
 | [REQ-26](./REQ-26.md) | First load hide gate and skeptic | in flight |
 | [REQ-28](./REQ-28.md) | Chief of Staff + team isolation + teams-of-teams | this PR |
 | [REQ-37](./REQ-37.md) | Nested conversation compact / summaries | in flight (#350) |
+| [REQ-68](./REQ-68.md) | Stacked avatars for teams and remotes | in flight (#398) |
 
 REQ-22 (debt audits) and earlier REQ-5 / REQ-6 chrome/avatar work are **not**
 filed here — they were not in this backlog slice.

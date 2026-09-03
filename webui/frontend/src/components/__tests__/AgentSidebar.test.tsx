@@ -473,3 +473,183 @@ describe('AgentSidebar teams', () => {
     )
   })
 })
+
+const SCALE_MEMBERS = [
+  { id: 'cos', name: 'Pat', kind: 'agent', role: 'chief_of_staff', started_at: '2026-09-03T00:00:00Z', status: 'running' },
+  { id: 'ada', name: 'Ada', kind: 'agent', started_at: '2026-09-03T00:00:01Z', status: 'finished' },
+  { id: 'bea', name: 'Bea', kind: 'agent', started_at: '2026-09-03T00:00:02Z', status: 'running' },
+  { id: 'cyd', name: 'Cyd', kind: 'agent', started_at: '2026-09-03T00:00:03Z', status: 'running' },
+  { id: 'dee', name: 'Dee', kind: 'agent', started_at: '2026-09-03T00:00:04Z', status: 'running' },
+]
+
+const STACK_REMOTES = {
+  object: 'list',
+  data: [
+    {
+      id: 'omb',
+      title: 'OMB',
+      configured: true,
+      agents: [
+        { id: 'omb-cos', name: 'CoS', started_at: '2026-09-03T00:00:00Z', role: 'chief_of_staff' },
+        { id: 'w1', name: 'Worker 1', started_at: '2026-09-03T00:00:01Z' },
+        { id: 'w2', name: 'Worker 2', started_at: '2026-09-03T00:00:02Z' },
+        { id: 'w3', name: 'Worker 3', started_at: '2026-09-03T00:00:03Z' },
+        { id: 'w4', name: 'Worker 4', started_at: '2026-09-03T00:00:04Z' },
+      ],
+    },
+    {
+      id: 'hermes',
+      title: 'Hermes',
+      configured: true,
+      agents: [{ id: 'hermes-1', name: 'Hermes', started_at: '2026-09-03T00:00:00Z' }],
+    },
+    {
+      id: 'rakazo',
+      title: 'Rakazo',
+      configured: true,
+      agents: [
+        { id: 'r1', name: 'Rakazo A', started_at: '2026-09-03T00:00:00Z' },
+        { id: 'r2', name: 'Rakazo B', started_at: '2026-09-03T00:00:01Z' },
+      ],
+    },
+    {
+      id: 'lab-swarm',
+      kind: 'open-swarm',
+      title: 'Lab swarm',
+      configured: true,
+      agents: [
+        { id: 'ns-cos', name: 'CoS', started_at: '2026-09-03T00:00:00Z' },
+        { id: 'ns-w', name: 'Nested worker', started_at: '2026-09-03T00:00:01Z' },
+      ],
+    },
+  ],
+}
+
+describe('AgentSidebar stacked avatars (REQ-68)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/remotes')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => STACK_REMOTES,
+          } as Response
+        }
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'scale-out',
+                  object: 'team_roster',
+                  name: 'Scale Out',
+                  description: 'Five workers',
+                  members: SCALE_MEMBERS,
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/herdr-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('stacks 3 most recent team faces + remainder on one rail row', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Scale Out \(team\)/ })
+    expect(team).toHaveAttribute('data-stack-count', '3')
+    expect(team).toHaveAttribute('data-remainder', '2')
+    const stack = within(team).getByLabelText('Scale Out members')
+    expect(stack).toHaveAttribute('data-avatar-stack', 'true')
+    expect(stack).toHaveAttribute('data-stack-count', '3')
+    expect(within(stack).getByText('+2')).toBeInTheDocument()
+    const faces = team.querySelectorAll('.os-avatar-stack__face')
+    expect(faces).toHaveLength(3)
+    expect(
+      [...faces].every((face) => face.classList.contains('os-avatar-stack__face--working')),
+    ).toBe(true)
+    const delays = [...faces].map((face) => (face as HTMLElement).style.animationDelay)
+    expect(new Set(delays).size).toBe(3)
+    expect(delays).toContain('0ms')
+  })
+
+  it('keeps a single-agent remote as one avatar (no stack)', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const hermes = await within(list).findByRole('link', { name: /Hermes \(remote\)/ })
+    expect(hermes).toHaveAttribute('data-stack-count', '1')
+    expect(hermes).toHaveAttribute('data-remainder', '0')
+    const stack = within(hermes).getByLabelText('Hermes members')
+    expect(stack).toHaveAttribute('data-avatar-stack', 'false')
+    expect(within(hermes).queryByText(/^\+\d+$/)).not.toBeInTheDocument()
+    expect(hermes.querySelectorAll('.os-avatar-stack__face')).toHaveLength(1)
+  })
+
+  it('labels OpenMousBot (not OMB) and stacks CoS + workers; click opens filtered picker', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const omb = await within(list).findByRole('link', { name: /OpenMousBot \(remote\)/ })
+    expect(omb).toHaveTextContent('OpenMousBot')
+    expect(omb).not.toHaveTextContent(/\bOMB\b/)
+    expect(omb).toHaveAttribute('data-stack-count', '3')
+    expect(omb).toHaveAttribute('data-remainder', '2')
+    expect(within(list).getByRole('link', { name: /Rakazo \(remote\)/ })).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /Lab swarm \(remote\)/ })).toBeInTheDocument()
+
+    fireEvent.click(omb)
+    const dialog = await screen.findByRole('dialog', { name: 'OpenMousBot sessions' })
+    expect(within(dialog).getAllByRole('option')).toHaveLength(5)
+    expect(dialog).toHaveTextContent('OpenMousBot')
+    expect(dialog).not.toHaveTextContent(/\bOMB\b/)
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Filter sessions' }), {
+      target: { value: 'Worker 1' },
+    })
+    expect(within(dialog).getAllByRole('option')).toHaveLength(1)
+    fireEvent.click(within(dialog).getByRole('option', { name: /Worker 1/ }))
+    expect(screen.queryByRole('dialog', { name: 'OpenMousBot sessions' })).not.toBeInTheDocument()
+  })
+
+  it('opens the team picker filtered to that roster and selects a session id', async () => {
+    renderSidebar('/chat?team=scale-out')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Scale Out \(team\)/ })
+    fireEvent.click(team)
+    const dialog = await screen.findByRole('dialog', { name: 'Scale Out sessions' })
+    expect(within(dialog).getAllByRole('option')).toHaveLength(5)
+    expect(within(dialog).getByRole('option', { name: /Pat/ })).toHaveAttribute(
+      'data-session-id',
+      'scale-out:cos',
+    )
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Filter sessions' }), {
+      target: { value: 'cyd' },
+    })
+    expect(within(dialog).getAllByRole('option')).toHaveLength(1)
+    fireEvent.click(within(dialog).getByRole('option', { name: /Cyd/ }))
+    expect(screen.queryByRole('dialog', { name: 'Scale Out sessions' })).not.toBeInTheDocument()
+  })
+})

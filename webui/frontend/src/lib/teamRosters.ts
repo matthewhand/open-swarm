@@ -21,6 +21,12 @@ export interface TeamMember {
   role?: string
   /** Nested roster id when kind=team (REQ-28 teams-of-teams). */
   team_id?: string
+  /** ISO / epoch when this member became active (REQ-68 stack stagger). */
+  started_at?: string
+  startedAt?: number
+  working?: boolean
+  status?: 'running' | 'finished'
+  snippet?: string
 }
 
 export interface TeamRoster {
@@ -76,6 +82,15 @@ function parseMember(raw: unknown): TeamMember | null {
   } else if (teamId) {
     member.team_id = teamId
   }
+  if (typeof rec.started_at === 'string' && rec.started_at.trim()) {
+    member.started_at = rec.started_at.trim()
+  }
+  if (typeof rec.startedAt === 'number' && Number.isFinite(rec.startedAt)) {
+    member.startedAt = rec.startedAt
+  }
+  if (rec.working === true) member.working = true
+  if (rec.status === 'running' || rec.status === 'finished') member.status = rec.status
+  if (typeof rec.snippet === 'string') member.snippet = rec.snippet
   return member
 }
 
