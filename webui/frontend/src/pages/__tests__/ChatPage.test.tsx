@@ -3,6 +3,8 @@ import { render, screen, waitFor, act, fireEvent, within } from '@testing-librar
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
+import AgentSidebar from '../../components/AgentSidebar'
+import { AGENT_CHAT_SESSIONS_KEY } from '../../lib/agentChatSessions'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -12,6 +14,7 @@ class MockWebSocket {
   static instances: MockWebSocket[] = []
 
   readyState = MockWebSocket.CONNECTING
+  url: string
   onopen: WsHandler = null
   onmessage: WsHandler = null
   onclose: WsHandler = null
@@ -21,7 +24,8 @@ class MockWebSocket {
     this.onclose?.(new CloseEvent('close', { code: 1000 }))
   })
 
-  constructor(_url: string) {
+  constructor(url: string) {
+    this.url = url
     MockWebSocket.instances.push(this)
   }
 
@@ -46,18 +50,93 @@ class MockWebSocket {
   }
 }
 
-function renderChat(initialEntry = '/chat') {
+function renderChat(initialEntry = '/chat', { sidebar = false } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
+        {sidebar ? <AgentSidebar /> : null}
         <ChatPage />
       </MemoryRouter>
     </QueryClientProvider>,
   )
 }
+
+function mockAgentListFetch() {
+  return vi.fn().mockImplementation(async (input: RequestInfo) => {
+    const url = String(input)
+    if (url.includes('/v1/support/context')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'support.context',
+          briefing: '**Agents**\n- Support · support\n\n**Inference** off',
+        }),
+      } as Response
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [
+          {
+            id: 'hybrid_team',
+            name: 'Hybrid Team',
+            description: 'Hybrid',
+            object: 'blueprint',
+          },
+          {
+            id: 'support',
+            name: 'Support',
+            description: 'Onboarding. First team.',
+            role: 'support',
+            object: 'blueprint',
+          },
+          {
+            id: 'skeptic',
+            name: 'Skeptic',
+            description: 'Review',
+            role: 'skeptic',
+            object: 'blueprint',
+          },
+        ],
+      }),
+    } as Response
+  })
+}
+
+async function openLatestSocket() {
+  const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]
+  await act(async () => {
+    ws?.open()
+  })
+  return ws
+}
+
+function injectTurn(ws: MockWebSocket, user: string, assistant: string, id: string) {
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">${user}</div></div>`,
+    }),
+  )
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-${id}" class="assistant-message"></div></div>`,
+    }),
+  )
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-response-${id}" hx-swap-oob="true" class="assistant-message">${assistant}</div>`,
+    }),
+  )
+}
+
+beforeEach(() => {
+  localStorage.removeItem(AGENT_CHAT_SESSIONS_KEY)
+})
 
 describe('chatLoginHref helpers', () => {
   it('builds a rooted next path and encodes the Sign-in CTA', () => {
@@ -507,5 +586,107 @@ describe('ChatPage markdown bubbles', () => {
 
     expect(screen.getByText('hello').tagName).toBe('STRONG')
     expect(screen.getByText('code').tagName).toBe('CODE')
+  })
+})
+
+describe('ChatPage per-agent threads', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal('fetch', mockAgentListFetch())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps Support, hybrid_team, and skeptic transcripts isolated and restorable', async () => {
+    renderChat('/chat', { sidebar: true })
+
+    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
+    await waitFor(() => {
+      expect(select).toHaveValue('support')
+    })
+    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Support')
+    expect(screen.getByRole('button', { name: /System → Support/ })).toBeInTheDocument()
+
+    await openLatestSocket()
+    const supportSocket = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
+    await act(async () => {
+      injectTurn(supportSocket, 'hello support', 'support reply', 'sup1')
+    })
+    expect(screen.getByText('hello support')).toBeInTheDocument()
+    expect(screen.getByText('support reply')).toBeInTheDocument()
+    const supportUrl = supportSocket.url
+    expect(supportUrl).toMatch(/\/ws\/ai-demo\/.+\/\?blueprint=support$/)
+
+    fireEvent.click(screen.getByRole('link', { name: /Hybrid Team/ }))
+    await waitFor(() => {
+      expect(select).toHaveValue('hybrid_team')
+    })
+    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Hybrid Team')
+    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /System → Support/ })).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBeGreaterThan(1)
+    })
+    await openLatestSocket()
+    const hybridSocket = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
+    expect(hybridSocket.url).not.toBe(supportUrl)
+    expect(hybridSocket.url).toMatch(/\/ws\/ai-demo\/.+\/\?blueprint=hybrid_team$/)
+    await act(async () => {
+      injectTurn(hybridSocket, 'hello hybrid', 'hybrid reply', 'hyb1')
+    })
+    expect(screen.getByText('hello hybrid')).toBeInTheDocument()
+    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: /Skeptic/ }))
+    await waitFor(() => {
+      expect(select).toHaveValue('skeptic')
+    })
+    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Skeptic')
+    expect(screen.queryByText('hello hybrid')).not.toBeInTheDocument()
+    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: /^Support/ }))
+    await waitFor(() => {
+      expect(select).toHaveValue('support')
+    })
+    expect(screen.getByText('hello support')).toBeInTheDocument()
+    expect(screen.getByText('support reply')).toBeInTheDocument()
+    expect(screen.queryByText('hello hybrid')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /System → Support/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: /Hybrid Team/ }))
+    await waitFor(() => {
+      expect(screen.getByText('hello hybrid')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
+  })
+
+  it('restores an agent thread after remount from the persisted session', async () => {
+    const { unmount } = renderChat('/chat?blueprint=support')
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Blueprint' })).toHaveValue('support')
+    })
+    await openLatestSocket()
+    await act(async () => {
+      injectTurn(
+        MockWebSocket.instances[MockWebSocket.instances.length - 1]!,
+        'remember this',
+        'stored for support',
+        'persist1',
+      )
+    })
+    expect(screen.getByText('remember this')).toBeInTheDocument()
+    unmount()
+
+    MockWebSocket.instances = []
+    renderChat('/chat?blueprint=support')
+    expect(await screen.findByText('remember this')).toBeInTheDocument()
+    expect(screen.getByText('stored for support')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Support')
   })
 })

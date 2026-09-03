@@ -17,16 +17,21 @@ import {
   LoadingDots,
   LoadingSpinner,
 } from '../components/DaisyUI'
+import { AgentMark, agentDisplayName } from '../components/AgentMark'
 import {
   SupportActionChips,
   SupportBriefingPill,
 } from '../components/SupportBriefingPill'
 import { fetchBlueprints, fetchSupportContext, isAuthError } from '../lib/api'
+import {
+  getOrCreateAgentChatSession,
+  persistableMessages,
+  putAgentChatSession,
+} from '../lib/agentChatSessions'
 import { findSupportAgent, isSupportAgent } from '../lib/supportAgents'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
-  newConversationId,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
@@ -97,12 +102,15 @@ export function chatLoginHref(searchParams: URLSearchParams): string {
 const ChatPage = () => {
   // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
   const [searchParams, setSearchParams] = useSearchParams()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const initialBlueprint = searchParams.get('blueprint') ?? ''
+  const initialSession = getOrCreateAgentChatSession(initialBlueprint)
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    initialSession.messages.map((row) => ({ ...row, streaming: false })),
+  )
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
-  const [selectedBlueprint, setSelectedBlueprint] = useState(
-    () => searchParams.get('blueprint') ?? '',
-  )
+  const [selectedBlueprint, setSelectedBlueprint] = useState(initialBlueprint)
+  const [conversationId, setConversationId] = useState(initialSession.conversationId)
   const [supportBriefing, setSupportBriefing] = useState('')
   const didDefaultRef = useRef(false)
   const [connectAttempt, setConnectAttempt] = useState(0)
@@ -110,7 +118,11 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
 
   const wsRef = useRef<WebSocket | null>(null)
-  const conversationIdRef = useRef(newConversationId())
+  const conversationIdRef = useRef(initialSession.conversationId)
+  const threadKeyRef = useRef(initialBlueprint)
+  const messagesRef = useRef<ChatMessage[]>(
+    initialSession.messages.map((row) => ({ ...row, streaming: false })),
+  )
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
@@ -121,6 +133,11 @@ const ChatPage = () => {
   const backoffAttemptRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
+  /** Last user prompt, kept for the experimental Retry action. */
+  const lastUserTextRef = useRef('')
+
+  conversationIdRef.current = conversationId
+  messagesRef.current = messages
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -129,6 +146,7 @@ const ChatPage = () => {
   const blueprints = blueprintsQuery.data?.data ?? []
   const urlBlueprint = searchParams.get('blueprint') ?? ''
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
+  const headerName = agentDisplayName(selectedAgent, selectedBlueprint)
   const supportSelected =
     isSupportAgent(selectedAgent) || selectedBlueprint === 'support'
   const blueprintMissingFromList =
@@ -157,6 +175,33 @@ const ChatPage = () => {
     setSelectedBlueprint(support.id)
     setSearchParams({ blueprint: support.id }, { replace: true })
   }, [urlBlueprint, blueprints, blueprintsQuery.isPending, setSearchParams])
+
+  useEffect(() => {
+    const prevKey = threadKeyRef.current
+    if (prevKey === selectedBlueprint) return
+    putAgentChatSession(prevKey, {
+      conversationId: conversationIdRef.current,
+      messages: persistableMessages(messagesRef.current),
+    })
+    const next = getOrCreateAgentChatSession(selectedBlueprint)
+    threadKeyRef.current = selectedBlueprint
+    conversationIdRef.current = next.conversationId
+    setConversationId(next.conversationId)
+    setMessages(next.messages.map((row) => ({ ...row, streaming: false })))
+    setInput('')
+    lastUserTextRef.current = ''
+    backoffAttemptRef.current = 0
+  }, [selectedBlueprint])
+
+  useEffect(() => {
+    if (threadKeyRef.current !== selectedBlueprint) return
+    const owned = getOrCreateAgentChatSession(selectedBlueprint)
+    if (owned.conversationId !== conversationId) return
+    putAgentChatSession(selectedBlueprint, {
+      conversationId,
+      messages: persistableMessages(messages),
+    })
+  }, [selectedBlueprint, conversationId, messages])
 
   useEffect(() => {
     if (!supportSelected) return
@@ -229,7 +274,10 @@ const ChatPage = () => {
 
     let ws: WebSocket
     try {
-      ws = new WebSocket(buildChatWsUrl(conversationIdRef.current))
+      const session = getOrCreateAgentChatSession(selectedBlueprint)
+      ws = new WebSocket(
+        buildChatWsUrl(session.conversationId, selectedBlueprint || undefined),
+      )
     } catch {
       setStatus('failed')
       const attempt = backoffAttemptRef.current
@@ -292,7 +340,7 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent])
+  }, [connectAttempt, handleWsEvent, selectedBlueprint])
 
   // Keep the latest message in view while streaming, but only while the user
   // is already at (or near) the bottom — never yank a reader who scrolled up.
@@ -316,9 +364,6 @@ const ChatPage = () => {
   const isReceiving = messages.length > 0 && messages[messages.length - 1].streaming
   const canSend =
     status === 'open' && input.trim().length > 0 && !isReceiving
-
-  /** Last user prompt, kept for the experimental Retry action. */
-  const lastUserTextRef = useRef('')
 
   const sendText = useCallback(
     (text: string) => {
@@ -368,9 +413,16 @@ const ChatPage = () => {
       {/* Header: title + blueprint selector + connection status.
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <MessageSquare className="h-8 w-8" />
-          Chat
+        <h1
+          className="text-3xl font-bold flex items-center gap-2"
+          data-testid="chat-agent-header"
+        >
+          <AgentMark
+            agent={selectedAgent}
+            fallbackId={selectedBlueprint}
+            size="lg"
+          />
+          {headerName}
         </h1>
 
         {/* Blueprint selector (from /v1/blueprints/) */}
@@ -601,7 +653,7 @@ const ChatPage = () => {
                   className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
                 >
                   <div className="chat-header text-xs opacity-60">
-                    {message.role === 'user' ? 'You' : 'Assistant'}
+                    {message.role === 'user' ? 'You' : headerName}
                   </div>
                   <div
                     className={`chat-bubble ${
