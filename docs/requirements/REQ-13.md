@@ -1,14 +1,28 @@
-# REQ-13
+# REQ-13 — Mock inference fast + >60s
 
-Intent: in development, LAN (and loopback) clients use the operator UI and chat websockets without a login form.
+**Status:** PR [317](https://github.com/matthewhand/open-swarm/pull/317) — in flight
 
-Success:
-1. When `DJANGO_DEBUG=true` and the client IP is loopback or RFC1918/link-local, HTTP auto-logs the `swarm-anon-preview` user (session cookie).
-2. The same rule applies to `ws/ai-demo/<id>/`: no 4401 close for those clients; `receive()` mints the preview user if the handshake had no session yet.
-3. Debug `ALLOWED_HOSTS` default includes `*` so a phone hitting `http://10.x.x.x:8001` is not `DisallowedHost`, and Channels Origin checks allow that host.
-4. Production (`DEBUG=False`) still requires login / 4401 unless `SWARM_ALLOW_ANONYMOUS=1`.
-5. Pytest stays gated (no implicit LAN auto-login). `SWARM_ALLOW_ANONYMOUS=0` forces login even in debug.
+## Intent
 
-Constraints: Do not trust `X-Forwarded-For` for this gate. Do not enable WAN IPs in debug. Bearer still does not auth websockets.
+TDD for the SPA chat **Send** path with **MOCK inference** — prove both a fast
+reply and a >60s reply without live LiteLLM / Qwen / Fly.
 
-Owner: open-swarm engineer.
+## Success
+
+1. User types a message, clicks **Send**, the conversation log shows a canned assistant reply.
+2. **FAST** mock: reply well under 60s (wall clock from Send, e.g. under 2s).
+3. **SLOW** mock: assistant frames scheduled at **61s**. Playwright `page.clock` fast-forwards — still no reply at 59s, reply appears after +2s. No false timeout, no stuck Send, no silent drop.
+4. Tests fail if mock strings never render.
+
+## Constraints
+
+- No live LiteLLM / Qwen / Fly. No oracle / Neon. No Grok-Bot chrome. No Hide-all.
+- After REQ-8 (PR 312) removes standing Connected, FAST/SLOW waits must target composer-ready / enabled Send / conversation log — **not** a Connected badge. Do not reintroduce Connected.
+- Docs-only on this PR — do not implement here.
+
+## Owner
+
+- CoS transcribes
+- cloud implements
+- engineer GitHub-merge after skeptic
+- live preview `10.0.0.30:8001` guest dirty only

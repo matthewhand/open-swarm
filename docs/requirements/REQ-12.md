@@ -1,15 +1,37 @@
-# REQ-12
+# REQ-12 — Harness-of-harnesses docs
 
-Intent: Shift+Tab cycles operator session mode: plan, auto-edit, default. Always-approve is not a cycle stop because Open Swarm already simulates it on host CLIs.
+**Status:** PR [315](https://github.com/matthewhand/open-swarm/pull/315) — in flight
 
-Success:
-1. Agent Router composer (SPA + Django fallback): Shift+Tab cycles **default → plan → auto-edit → default**.
-2. **Plan** prefixes the outbound user message so the agent plans and does not edit or run mutating commands.
-3. **Auto-edit** prefixes so file edits may proceed without asking; destructive shell / secrets still need a pause. Stupidity-checker approval cards are skipped in this mode.
-4. **Default** sends the message unchanged (current routing + oversight).
-5. Always-approve stays in `cli_catalog` (`--always-approve`, `--yolo`, `--dangerously-skip-permissions`, …) so one-shot CLIs do not block. It is not a Shift+Tab mode.
-6. Persist the session mode in localStorage. Show the current mode next to the composer.
+## Intent
 
-Constraints: Do not remap Grok TUI bindings. Do not add Always-approve to the Open Swarm cycle.
+Direction write: Open Swarm is turning from *an* agent harness into a
+**harness for other harnesses** (Hermes, OMB, Rakazo). Composition is
+openai-agents **handoff / `as_tool`**, not extra concurrent Grok / Rakazo / OMB
+seats.
 
-Owner: open-swarm engineer.
+## Success
+
+Honesty table lands in VISION / GLOSSARY / README pointers:
+
+| Surface | Honesty |
+|---|---|
+| Running today | API, blueprints, CLI fusion / MoA, Django + SPA `/` + `/chat`, REQ-5 dark chrome |
+| **Teams** | **Live:** LLM-profile alias registry. **Intended:** wire API / CLI / remote so they can see and talk. Admin does not do inter-agent talk. |
+| Grok-Bot-like UI | **Not live.** Dark chrome ≠ Bot product. Not on `:8001` yet. |
+| Support / gate / skeptic | In flight (not on `main` / this starting tree). |
+| Remotes (REQ-11) | Not landed. Do not claim remotes work. |
+
+Differentiator: coordinator invokes another harness as a tool / handoff.
+
+## Constraints
+
+- Docs only (this REQ and this filing PR). Not the generic audit in #297.
+- Does not enable Neon / oracle.
+- Does not implement remotes, Support, gate, skeptic, or the intended Team graph.
+
+## Owner
+
+- CoS transcribes
+- cloud implements
+- engineer GitHub-merge after skeptic
+- live preview `10.0.0.30:8001` guest dirty only

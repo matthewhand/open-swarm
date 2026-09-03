@@ -1,14 +1,29 @@
-# REQ-15
+# REQ-15 — CLI dropdown lists CLIs
 
-Intent: a highlighted Support agent sits at the top of the Agent Router sidepane, is selected by default, and onboards the operator.
+**Status:** PR [316](https://github.com/matthewhand/open-swarm/pull/316) — in flight
 
-Success:
-1. Support has product role `support` (badge + warning highlight). It is not grouped under API/CLI/Remote.
-2. Hide-all keeps Support plus the three typed starters (CLI, API, Remote). Default selection is Support.
-3. On first open of Support with an empty transcript, inject a briefing that lists visible agents and inference (LiteLLM profiles / installed CLIs). If inference is missing, the briefing and pill D link to Settings.
-4. Support pills: Explain Open Swarm, Build my first team, Code a blueprint, and either Configure inference or Customise experience.
-5. Chat renders markdown; Python fenced blocks are pretty-printed (language label + token colors). No extra UI framework.
+## Intent
 
-Constraints: Do not merge unrelated open PRs. Do not invent TBD remote ports.
+When the selected agent / mode is a CLI agent, the Chat dropdown must list
+**available CLIs**, not the full blueprint catalog. (Grok CLI can already
+answer; the dropdown still listed blueprints.)
 
-Owner: open-swarm engineer.
+## Success
+
+- CLI-agent context: selected / `?blueprint=` is `cli_agent` or any `cli_*` slug, or `?mode=cli` / `?cli=<name>`.
+- Dropdown prefers host-exposed CLIs (`installed` ∪ `configured` from `GET /v1/cli-agents/`), then falls back to the static catalog.
+- Selecting a CLI sends `{"message", "blueprint": "cli_agent", "params": {"cli": "grok"}}` (or the chosen name). Consumer forwards `params`.
+- In CLI context the dropdown is **unlabeled** (REQ-8) and ends with **Manage Cli** → `/settings/`. Blueprint-mode chats still list `/v1/blueprints`.
+
+## Constraints
+
+- Not piled onto 313. Not a Grok-Bot chrome rewrite.
+- Builder SPA stays deleted (ADR-001).
+- No Neon. No oracle. Docs-only on this PR — do not implement here.
+
+## Owner
+
+- CoS transcribes
+- cloud implements
+- engineer GitHub-merge after skeptic
+- live preview `10.0.0.30:8001` guest dirty only

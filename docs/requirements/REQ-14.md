@@ -1,16 +1,29 @@
-# REQ-14
+# REQ-14 — Chat JSON persist + Settings retention
 
-Intent: the Agent Router sidebar groups visible agents by run type `api` / `cli` / `remote` (not Orchestration / Specialists / Tools / Blueprints). Selecting an agent shows only that type's header extra. Favourites stay a top pin grid; Hidden stays Hidden.
+**Status:** PR [319](https://github.com/matthewhand/open-swarm/pull/319) **merged** `4d554ea5`
 
-Success:
-1. Sidebar sections are **API**, **CLI**, **Remote** (labels from `agent_type` / kind). Starters land under their type: API agent → API; CLI agent → CLI; Remote agent → Remote.
-2. Header extras are exclusive: CLI selected → CLI model dropdown (catalog + custom). API → blueprint dropdown. Remote → remote member dropdown. Never all three at once.
-3. Persist grouping is derived from type, not a new storage key. Custom drag-to-section may still exist, but default grouping is by type.
-4. Django chrome sidepane matches if it lists agents in groups.
-5. Tests cover frontend grouping and AgentRouterPage type-gated dropdowns.
+## Intent
 
-Constraints: No extra UI frameworks. Do not invent Rakazo/OMB ports. Hide-all keeps the three typed starters (REQ-6). Match existing daisyUI.
+Each agent chat thread persists so switching agents or reloading Chat restores
+that agent’s context. Retention lives on **Settings only** — not in Grok-Bot
+Chat chrome.
 
-Related: Hybrid Team must not auto-use host `claude` as orchestrator — operator default is LiteLLM + grok (honesty, not grouping).
+## Success
 
-Owner: open-swarm engineer.
+- Source of truth is **JSON on disk** (`$SWARM_CHAT_DIR/active/<user>/<agent>.json`; trash beside it). Django DB remains a consumer mirror.
+- Reload / agent switch restores that agent’s thread. Default max age **90** days (`SWARM_CHAT_MAX_AGE_DAYS`); `0` disables auto-archive. Auto-archive moves to trash; empty trash is a **manual** Settings action.
+- Settings-only: counts, disk use, per-chat Move to trash / Restore, Move all / Empty trash.
+- Chat chrome unchanged aside from silent restore — no history sidebar, no archive/delete controls in chat.
+
+## Constraints
+
+- Not markdown session logs (`SessionLogger` stays unused by SPA Chat).
+- Grok chrome is **not on `:8001` yet** — do not put retention UI there.
+- No Neon. No oracle. **This filing PR is docs-only** (319 already merged; do not re-implement).
+
+## Owner
+
+- CoS transcribes
+- cloud implements
+- engineer GitHub-merge after skeptic
+- live preview `10.0.0.30:8001` guest dirty only
