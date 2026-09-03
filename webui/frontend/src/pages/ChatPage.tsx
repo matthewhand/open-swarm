@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
+import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
 import { fetchBlueprints } from '../lib/api'
 import {
   agentIdFromBlueprint,
@@ -452,6 +453,15 @@ const ChatPage = () => {
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
         <div className="flex items-center gap-1">
           <ThemeToggle />
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            aria-label="Open settings"
+            aria-haspopup="dialog"
+            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))}
+          >
+            <Settings className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
       </header>
 

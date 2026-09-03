@@ -71,7 +71,15 @@ export default function CommandPalette() {
       { id: 'launch', label: 'Launch a Team', hint: '/teams/launch/', icon: <PlusCircle className="h-4 w-4" />, to: '/teams/launch/' },
       { id: 'teams', label: 'Manage Teams', hint: '/teams/', icon: <Users className="h-4 w-4" />, to: '/teams/' },
       { id: 'sessions', label: 'Sessions', hint: 'Session explorer', icon: <History className="h-4 w-4" />, to: '/sessions/' },
-      { id: 'settings', label: 'Settings', hint: 'Settings dashboard', icon: <Settings className="h-4 w-4" />, to: '/settings/' },
+      {
+        id: 'settings',
+        label: 'Settings',
+        hint: 'Chat settings sheet',
+        icon: <Settings className="h-4 w-4" />,
+        action: () => {
+          window.dispatchEvent(new CustomEvent('swarm:open-settings'))
+        },
+      },
       {
         id: 'theme',
         label: 'Toggle light/dark theme',
