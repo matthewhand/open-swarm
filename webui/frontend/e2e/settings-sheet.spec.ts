@@ -40,7 +40,8 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await stubApis(page)
   await page.goto('/chat')
 
-  await expect(page.getByRole('heading', { name: 'Chat' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open settings' })).toBeVisible()
   await page.getByRole('button', { name: 'Open settings' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Settings' })
