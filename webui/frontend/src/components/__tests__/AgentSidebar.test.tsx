@@ -165,7 +165,9 @@ describe('AgentSidebar Grok rail', () => {
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const support = await within(list).findByRole('link', { name: /Support/ })
     expect(within(list).getAllByRole('link')[0]).toBe(support)
-    expect(support.className).toMatch(/os-agent-row--support/)
+    expect(support.className).not.toMatch(/os-agent-row--support/)
+    expect(support.className).not.toMatch(/os-agent-role-/)
+    expect(support.querySelector('.os-agent-role-badge')).toHaveTextContent('Support')
     expect(within(list).queryByRole('link', { name: /Gate/ })).not.toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
 
@@ -388,9 +390,12 @@ describe('AgentSidebar Grok rail', () => {
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const cos = await within(list).findByRole('link', { name: /Pat/ })
     expect(cos).toHaveAttribute('data-role', 'chief_of_staff')
-    expect(cos).toHaveClass('os-agent-role-chief_of_staff')
-    expect(cos).toHaveClass('os-agent-row--cos')
+    expect(cos).not.toHaveClass('os-agent-role-chief_of_staff')
+    expect(cos).not.toHaveClass('os-agent-row--cos')
+    expect(cos.className).not.toMatch(/os-agent-role-/)
     expect(within(cos).getByText('CoS')).toHaveAttribute('data-role', 'chief_of_staff')
+    expect(within(cos).getByText('CoS')).toHaveClass('os-agent-role-badge')
+    expect(within(cos).getByText('CoS')).toHaveClass('os-agent-role-chief_of_staff')
 
     const office = within(list).getByRole('link', { name: /Office/ })
     expect(office).toHaveAttribute('data-kind', 'team')
@@ -399,6 +404,35 @@ describe('AgentSidebar Grok rail', () => {
     const research = within(list).getByRole('link', { name: /Research/ })
     expect(research).toHaveAttribute('data-kind', 'team')
     expect(research.closest('ul')).toHaveClass('os-agent-team-nest')
+  })
+
+  it('REQ-67: role chrome is the badge only — no row fill/border', async () => {
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
+    renderSidebar('/chat?blueprint=codey')
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const support = await within(list).findByRole('link', { name: /Support/ })
+    const gate = within(list).getByRole('link', { name: /Gate/ })
+    const skeptic = within(list).getByRole('link', { name: /Skeptic/ })
+    const cos = within(list).getByRole('link', { name: /Pat/ })
+    const codey = within(list).getByRole('link', { name: /Codey/ })
+
+    for (const row of [support, gate, skeptic, cos, codey]) {
+      expect(row).toHaveClass('os-agent-row')
+      expect(row.className).not.toMatch(/os-agent-row--(support|gate|skeptic|cos|chief_of_staff)/)
+      expect(row.className).not.toMatch(/os-agent-role-/)
+      expect(row.querySelector('.os-agent-dot')).not.toHaveAttribute('data-role')
+    }
+
+    expect(support.querySelector('.os-agent-role-badge')).toHaveAttribute('data-role', 'support')
+    expect(gate.querySelector('.os-agent-role-badge')).toHaveAttribute('data-role', 'gate')
+    expect(skeptic.querySelector('.os-agent-role-badge')).toHaveAttribute('data-role', 'skeptic')
+    expect(cos.querySelector('.os-agent-role-badge')).toHaveAttribute('data-role', 'chief_of_staff')
+    expect(codey.querySelector('.os-agent-role-badge')).toBeNull()
+
+    expect(codey).toHaveClass('os-agent-row--active')
+    expect(support).not.toHaveClass('os-agent-row--active')
+    expect(support.closest('.os-agent-row-wrap')?.className).not.toMatch(/os-agent-role-/)
   })
 })
 
