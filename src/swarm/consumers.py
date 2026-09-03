@@ -147,10 +147,20 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             text_data_json = json.loads(text_data)
             if not isinstance(text_data_json, dict):
                 raise ValueError("frame must be a JSON object")
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
+            return
+
+        # REQ-49: in-place edit of an existing turn (API-agent threads only).
+        if "edit" in text_data_json:
+            await self.apply_message_edit(text_data_json.get("edit"))
+            return
+
+        try:
             message_text = text_data_json["message"]
             if not isinstance(message_text, str):
                 raise ValueError("'message' must be a string")
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
             return
 
@@ -382,6 +392,42 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await client.close()
         await self.send(text_data=final_message)
+
+    async def apply_message_edit(self, edit):
+        """Replace one transcript turn and persist it (REQ-49).
+
+        Later ``receive()`` turns run against ``self.messages``, so the
+        edited text is what the next blueprint/LLM call sees. CLI and
+        remote agents are ignored — those sessions are owned outside swarm.
+        """
+        from swarm.core.agent_kind import can_edit_agent_messages
+
+        agent = getattr(self, "active_agent", None) or getattr(self, "default_blueprint", None)
+        if not can_edit_agent_messages(agent):
+            logger.info("Ignoring message edit on non-API agent %s", agent)
+            return
+        if not isinstance(edit, dict):
+            logger.warning("Ignoring malformed chat edit frame: %.200r", edit)
+            return
+        index = edit.get("index")
+        content = edit.get("content")
+        if type(index) is not int or not isinstance(content, str):
+            logger.warning("Ignoring malformed chat edit frame: %.200r", edit)
+            return
+        if index < 0 or index >= len(self.messages):
+            logger.warning(
+                "Ignoring chat edit index %s (transcript length %s)",
+                index,
+                len(self.messages),
+            )
+            return
+        current = dict(self.messages[index])
+        current["content"] = content
+        current["edited"] = True
+        self.messages[index] = current
+        conversation_id = getattr(self, "conversation_id", None)
+        if conversation_id:
+            await self.save_conversation(conversation_id, self.messages)
 
     @database_sync_to_async
     def fetch_conversation(self, conversation_id):

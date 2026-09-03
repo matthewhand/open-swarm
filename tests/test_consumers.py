@@ -340,6 +340,80 @@ class TestReceive:
 
         assert len(consumer.messages) == 0
 
+    @pytest.mark.asyncio
+    async def test_edit_frame_updates_transcript_used_by_next_turn(self, consumer):
+        """REQ-49: saved edit is what the next send includes."""
+        consumer.messages = [
+            {"role": "user", "content": "old question"},
+            {"role": "assistant", "content": "old answer"},
+        ]
+        consumer.conversation_id = "test-conv-123"
+        consumer.default_blueprint = "jeeves"
+        consumer.active_agent = "jeeves"
+
+        with patch.object(consumer, "save_conversation", new_callable=AsyncMock) as mock_save:
+            await consumer.receive(
+                json.dumps({"edit": {"index": 0, "content": "engineered question"}})
+            )
+            mock_save.assert_called_once_with("test-conv-123", consumer.messages)
+        assert consumer.messages[0]["content"] == "engineered question"
+        assert consumer.messages[0]["edited"] is True
+        assert consumer.messages[1]["content"] == "old answer"
+
+        captured = {}
+
+        async def fake_respond(blueprint_id, contents_div_id):
+            captured["messages"] = [dict(m) for m in consumer.messages]
+            captured["blueprint"] = blueprint_id
+
+        with patch("swarm.consumers.render_to_string", return_value="<div/>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                with patch.object(consumer, "respond_with_blueprint", side_effect=fake_respond):
+                    await consumer.receive(
+                        json.dumps({"message": "follow up", "blueprint": "jeeves"})
+                    )
+
+        assert captured["blueprint"] == "jeeves"
+        assert captured["messages"][0]["content"] == "engineered question"
+        assert captured["messages"][-1]["content"] == "follow up"
+
+    @pytest.mark.asyncio
+    async def test_edit_frame_ignored_for_cli_and_remote(self, consumer):
+        """CLI/remote sessions are owned outside swarm — no transcript edit."""
+        consumer.messages = [{"role": "user", "content": "stay"}]
+        consumer.conversation_id = "test-conv-123"
+        consumer.default_blueprint = "cli:grok"
+        consumer.active_agent = "cli:grok"
+
+        with patch.object(consumer, "save_conversation", new_callable=AsyncMock) as mock_save:
+            await consumer.receive(
+                json.dumps({"edit": {"index": 0, "content": "nope"}})
+            )
+            mock_save.assert_not_called()
+        assert consumer.messages[0]["content"] == "stay"
+
+        consumer.default_blueprint = "remote:acp"
+        consumer.active_agent = "remote:acp"
+        with patch.object(consumer, "save_conversation", new_callable=AsyncMock) as mock_save:
+            await consumer.receive(
+                json.dumps({"edit": {"index": 0, "content": "nope"}})
+            )
+            mock_save.assert_not_called()
+        assert consumer.messages[0]["content"] == "stay"
+
+    @pytest.mark.asyncio
+    async def test_malformed_edit_frame_is_ignored(self, consumer):
+        consumer.messages = [{"role": "user", "content": "stay"}]
+        consumer.conversation_id = "test-conv-123"
+        consumer.active_agent = "jeeves"
+
+        with patch.object(consumer, "save_conversation", new_callable=AsyncMock) as mock_save:
+            await consumer.receive(json.dumps({"edit": "nope"}))
+            await consumer.receive(json.dumps({"edit": {"index": "0", "content": "x"}}))
+            await consumer.receive(json.dumps({"edit": {"index": 4, "content": "x"}}))
+            mock_save.assert_not_called()
+        assert consumer.messages[0]["content"] == "stay"
+
 
 # =============================================================================
 # Blueprint Selection Tests

@@ -5,6 +5,24 @@ from datetime import datetime, timedelta, timezone
 from swarm.core import chat_store
 
 
+def test_edited_flag_survives_roundtrip(tmp_path):
+    path = chat_store.save(
+        "u1",
+        "jeeves",
+        [
+            {"role": "user", "content": "engineered", "edited": True},
+            {"role": "assistant", "content": "ok"},
+        ],
+        conversation_id="agt-1-jeeves",
+        base_dir=tmp_path,
+    )
+    assert path is not None
+    loaded = chat_store.load("u1", "jeeves", base_dir=tmp_path)
+    assert loaded["messages"][0]["content"] == "engineered"
+    assert loaded["messages"][0]["edited"] is True
+    assert "edited" not in loaded["messages"][1]
+
+
 def test_save_load_roundtrip(tmp_path):
     path = chat_store.save(
         "u1",

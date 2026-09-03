@@ -175,10 +175,10 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _normalize_messages(raw: Any) -> list[dict[str, str]]:
+def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
-    out: list[dict[str, str]] = []
+    out: list[dict[str, Any]] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -189,10 +189,12 @@ def _normalize_messages(raw: Any) -> list[dict[str, str]]:
         if not isinstance(content, str):
             content = str(content)
         role_s = "assistant" if str(role) == "assistant" else "user"
-        msg = {"role": role_s, "content": content}
+        msg: dict[str, Any] = {"role": role_s, "content": content}
         ts = item.get("ts") or item.get("timestamp")
         if isinstance(ts, str) and ts:
             msg["ts"] = ts
+        if item.get("edited") is True or item.get("edited") == "true":
+            msg["edited"] = True
         out.append(msg)
     return out
 

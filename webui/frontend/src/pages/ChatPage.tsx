@@ -1,5 +1,4 @@
 import {
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -11,15 +10,19 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
-import { LoadingDots, useToast } from '../components/DaisyUI'
+import { useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
+import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import { fetchBlueprints } from '../lib/api'
 import {
   agentIdFromBlueprint,
   conversationIdForAgent,
   fetchAgentThread,
+  patchAgentMessage,
 } from '../lib/agentChat'
+import { canEditAgentMessages, classifyAgentKind, type AgentKind } from '../lib/agentKind'
 import {
+  buildChatWsEditFrame,
   buildChatWsFrame,
   buildChatWsUrl,
   parseChatWsMessage,
@@ -36,7 +39,6 @@ import {
   formatElapsed,
   formatTokenCount,
 } from '../lib/chatMeter'
-import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import {
@@ -58,6 +60,7 @@ interface ChatMessage {
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
+  edited?: boolean
 }
 
 const OPERATOR_LINKS = [
@@ -94,6 +97,13 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [agentKind, setAgentKind] = useState<AgentKind>(() =>
+    classifyAgentKind(selectedBlueprint),
+  )
+  const [messagesEditable, setMessagesEditable] = useState(() =>
+    canEditAgentMessages(selectedBlueprint),
+  )
   const [conversationId, setConversationId] = useState(() =>
     conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
   )
@@ -151,6 +161,9 @@ const ChatPage = () => {
       lastHydratedAgentRef.current !== agent
     lastHydratedAgentRef.current = agent
     setConversationId(conversationIdForAgent(agent))
+    setEditingKey(null)
+    setAgentKind(classifyAgentKind(selectedBlueprint))
+    setMessagesEditable(canEditAgentMessages(selectedBlueprint))
     userKeyCounterRef.current = 0
     if (switched) {
       setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
@@ -159,6 +172,10 @@ const ChatPage = () => {
     ;(async () => {
       const thread = await fetchAgentThread(agent)
       if (cancelled) return
+      setAgentKind(thread.kind ?? classifyAgentKind(selectedBlueprint))
+      setMessagesEditable(
+        thread.editable ?? canEditAgentMessages(selectedBlueprint, thread.kind),
+      )
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
@@ -167,6 +184,7 @@ const ChatPage = () => {
           role: message.role,
           text: message.content,
           streaming: false,
+          edited: message.edited === true,
         })),
       }))
     })()
@@ -364,6 +382,41 @@ const ChatPage = () => {
     [selectedBlueprint],
   )
 
+  const saveEditedMessage = useCallback(
+    async (index: number, nextText: string) => {
+      if (!messagesEditable) return
+      const current = threads[selectedBlueprint] ?? []
+      const target = current[index]
+      if (!target || target.streaming) return
+      setThreads((prev) => {
+        const list = prev[selectedBlueprint] ?? []
+        if (!list[index]) return prev
+        const next = list.slice()
+        next[index] = { ...next[index], text: nextText, edited: true }
+        return { ...prev, [selectedBlueprint]: next }
+      })
+      setEditingKey(null)
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(buildChatWsEditFrame(index, nextText))
+      }
+      try {
+        await patchAgentMessage(agentIdFromBlueprint(selectedBlueprint), {
+          index,
+          content: nextText,
+          conversation_id: conversationIdRef.current,
+        })
+      } catch {
+        addToast({
+          type: 'error',
+          title: 'Could not save edit',
+          message: 'The message was updated in this view, but persist failed.',
+        })
+      }
+    },
+    [addToast, messagesEditable, selectedBlueprint, threads],
+  )
+
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
     sendText(input)
@@ -465,6 +518,8 @@ const ChatPage = () => {
         aria-live="polite"
         role="log"
         aria-label="Conversation"
+        data-agent-kind={agentKind}
+        data-messages-editable={messagesEditable ? 'true' : 'false'}
         tabIndex={0}
         onScroll={(e) => {
           const el = e.currentTarget
@@ -485,22 +540,21 @@ const ChatPage = () => {
               !message.streaming &&
               lastUserTextRef.current.length > 0
             return (
-              <div
-                key={message.key}
-                className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
-              >
-                <div className="chat-header text-xs opacity-60">
-                  {message.role === 'user' ? 'You' : selectedAgentName}
-                </div>
-                <div
-                  className={`chat-bubble ${
-                    message.role === 'user'
-                      ? 'bg-neutral text-neutral-content'
-                      : 'bg-base-200 text-base-content'
-                  }`}
-                >
-                  <ChatBubbleBody text={message.text} streaming={message.streaming} />
-                </div>
+              <div key={message.key}>
+                <ChatMessageBubble
+                  role={message.role}
+                  agentName={selectedAgentName}
+                  text={message.text}
+                  streaming={message.streaming}
+                  edited={message.edited}
+                  canEdit={messagesEditable && !message.streaming}
+                  editing={editingKey === message.key}
+                  onStartEdit={() => setEditingKey(message.key)}
+                  onCancelEdit={() => setEditingKey(null)}
+                  onSaveEdit={(next) => {
+                    void saveEditedMessage(idx, next)
+                  }}
+                />
                 {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
                   <ChatMessageActions
                     text={message.text}
@@ -608,30 +662,6 @@ const ChatPage = () => {
   )
 }
 
-const ChatBubbleBody = memo(
-  function ChatBubbleBody({
-    text,
-    streaming,
-  }: {
-    text: string
-    streaming: boolean
-  }) {
-    if (text.length === 0) {
-      return streaming ? (
-        <LoadingDots size="sm" />
-      ) : (
-        <span className="opacity-60">(empty response)</span>
-      )
-    }
-    return (
-      <div
-        data-testid="chat-md"
-        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
-      />
-    )
-  },
-  (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
-)
+export { ChatBubbleBody } from '../components/ChatMessageBubble'
 
 export default ChatPage

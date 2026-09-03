@@ -54,6 +54,11 @@ export function buildChatWsFrame(message: string, blueprintId?: string): string 
   )
 }
 
+/** Build the JSON frame that edits an existing transcript turn (REQ-49). */
+export function buildChatWsEditFrame(index: number, content: string): string {
+  return JSON.stringify({ edit: { index, content } })
+}
+
 export function newConversationId(): string {
   try {
     return crypto.randomUUID()

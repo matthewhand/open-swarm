@@ -4,6 +4,7 @@ import {
   agentIdFromBlueprint,
   conversationIdForAgent,
   fetchAgentThread,
+  patchAgentMessage,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -67,5 +68,54 @@ describe('fetchAgentThread', () => {
     expect(thread.messages).toEqual([])
     expect(thread.agent_id).toBe('jeeves')
     expect(thread.conversation_id).toBeTruthy()
+    expect(thread.kind).toBe('api')
+    expect(thread.editable).toBe(true)
+  })
+
+  it('classifies a CLI fixture as not editable when fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    const thread = await fetchAgentThread('cli:grok')
+    expect(thread.kind).toBe('cli')
+    expect(thread.editable).toBe(false)
+  })
+})
+
+describe('patchAgentMessage', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
+
+  it('PATCHes index and content and returns the edited thread', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        agent_id: 'jeeves',
+        conversation_id: 'agt-1-jeeves',
+        kind: 'api',
+        editable: true,
+        messages: [
+          { role: 'user', content: 'engineered', edited: true },
+          { role: 'assistant', content: 'hello' },
+        ],
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const thread = await patchAgentMessage('jeeves', { index: 0, content: 'engineered' })
+    expect(thread.messages[0]).toEqual({
+      role: 'user',
+      content: 'engineered',
+      edited: true,
+    })
+    const patchCall = fetchMock.mock.calls.find(
+      (call) => String(call[1]?.method || '').toUpperCase() === 'PATCH',
+    )
+    expect(patchCall).toBeTruthy()
+    expect(String(patchCall?.[0])).toContain('/chat/thread/?agent=jeeves')
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({
+      index: 0,
+      content: 'engineered',
+    })
   })
 })

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildChatWsUrl,
   buildChatWsFrame,
+  buildChatWsEditFrame,
   parseChatWsMessage,
 } from '../chatWs'
 
@@ -41,6 +42,14 @@ describe('buildChatWsFrame', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',
     )
+  })
+})
+
+describe('buildChatWsEditFrame', () => {
+  it('emits an edit object with index and content', () => {
+    expect(JSON.parse(buildChatWsEditFrame(2, 'engineered'))).toEqual({
+      edit: { index: 2, content: 'engineered' },
+    })
   })
 })
 

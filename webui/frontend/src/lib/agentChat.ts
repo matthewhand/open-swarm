@@ -1,4 +1,5 @@
-import { apiGet } from './api'
+import { apiGet, apiPatch, ensureCsrfCookie } from './api'
+import { classifyAgentKind, type AgentKind } from './agentKind'
 import { newConversationId } from './chatWs'
 
 /** Blueprint id used when Chat is on “Server default model”. */
@@ -28,21 +29,32 @@ export function conversationIdForAgent(agentId: string): string {
 export interface AgentThreadMessage {
   role: 'user' | 'assistant'
   content: string
+  edited?: boolean
 }
 
 export interface AgentThread {
   agent_id: string
   conversation_id: string
   messages: AgentThreadMessage[]
+  kind?: AgentKind
+  editable?: boolean
 }
 
 function isThreadMessage(value: unknown): value is AgentThreadMessage {
   if (!value || typeof value !== 'object') return false
-  const row = value as { role?: unknown; content?: unknown }
-  return (
-    (row.role === 'user' || row.role === 'assistant') &&
-    typeof row.content === 'string'
-  )
+  const row = value as { role?: unknown; content?: unknown; edited?: unknown }
+  if (
+    !(row.role === 'user' || row.role === 'assistant') ||
+    typeof row.content !== 'string'
+  ) {
+    return false
+  }
+  if (row.edited !== undefined && row.edited !== true) return false
+  return true
+}
+
+function parseThreadKind(data: AgentThread | undefined, agent: string): AgentKind {
+  return classifyAgentKind(agent, data?.kind)
 }
 
 /** GET /chat/thread/?agent= — empty on auth/network failure (chat still works). */
@@ -55,6 +67,7 @@ export async function fetchAgentThread(agentId: string): Promise<AgentThread> {
     const messages = Array.isArray(data?.messages)
       ? data.messages.filter(isThreadMessage)
       : []
+    const kind = parseThreadKind(data, agent)
     return {
       agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
       conversation_id:
@@ -62,12 +75,50 @@ export async function fetchAgentThread(agentId: string): Promise<AgentThread> {
           ? data.conversation_id
           : conversationIdForAgent(agent),
       messages,
+      kind,
+      editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
     }
   } catch {
+    const kind = classifyAgentKind(agent)
     return {
       agent_id: agent,
       conversation_id: conversationIdForAgent(agent),
       messages: [],
+      kind,
+      editable: kind === 'api',
     }
+  }
+}
+
+export interface PatchAgentMessageRequest {
+  index: number
+  content: string
+  conversation_id?: string
+}
+
+/** PATCH /chat/thread/?agent= — persist one edited turn (API agents only). */
+export async function patchAgentMessage(
+  agentId: string,
+  body: PatchAgentMessageRequest,
+): Promise<AgentThread> {
+  const agent = agentIdFromBlueprint(agentId)
+  await ensureCsrfCookie()
+  const data = await apiPatch<AgentThread>(
+    `/chat/thread/?agent=${encodeURIComponent(agent)}`,
+    body,
+  )
+  const messages = Array.isArray(data?.messages)
+    ? data.messages.filter(isThreadMessage)
+    : []
+  const kind = parseThreadKind(data, agent)
+  return {
+    agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
+    conversation_id:
+      typeof data?.conversation_id === 'string' && data.conversation_id
+        ? data.conversation_id
+        : conversationIdForAgent(agent),
+    messages,
+    kind,
+    editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
   }
 }
