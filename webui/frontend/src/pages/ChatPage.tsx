@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
+import { Layers, Mic, Plus, Settings } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
@@ -18,9 +18,16 @@ import { ComputerControlStub } from '../components/ComputerControlStub'
 import { fetchBlueprints } from '../lib/api'
 import {
   agentIdFromBlueprint,
+  compactAgentThread,
   conversationIdForAgent,
   fetchAgentThread,
+  type ConversationSummary,
 } from '../lib/agentChat'
+import {
+  buildDisplayItems,
+  contextTextsForMeter,
+  summariesById,
+} from '../lib/chatCompact'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
@@ -70,12 +77,6 @@ interface ChatMessage {
   streaming: boolean
 }
 
-const OPERATOR_LINKS = [
-  { href: '/blueprint-library/', label: 'Blueprints', icon: Book },
-  { href: '/teams/launch/', label: 'Teams', icon: Users },
-  { href: '/settings/', label: 'Settings', icon: Settings },
-] as const
-
 /** Post-login return path for the Django session gate (rooted, same-origin). */
 export function chatLoginNext(searchParams: URLSearchParams): string {
   const qs = searchParams.toString()
@@ -102,6 +103,9 @@ const ChatPage = () => {
   const threadKey = teamFromUrl ? teamThreadId(teamFromUrl) : selectedBlueprint
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  const [summariesByThread, setSummariesByThread] = useState<
+    Record<string, ConversationSummary[]>
+  >({})
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
@@ -116,6 +120,15 @@ const ChatPage = () => {
   )
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const summaries = useMemo(
+    () => summariesByThread[threadKey] ?? [],
+    [summariesByThread, threadKey],
+  )
+  const displayItems = useMemo(
+    () => buildDisplayItems(messages, summaries),
+    [messages, summaries],
+  )
+  const summaryMap = useMemo(() => summariesById(summaries), [summaries])
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(conversationId)
@@ -182,6 +195,7 @@ const ChatPage = () => {
       userKeyCounterRef.current = 0
       if (switched) {
         setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
       }
       return
     }
@@ -195,11 +209,16 @@ const ChatPage = () => {
     userKeyCounterRef.current = 0
     if (switched) {
       setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [selectedBlueprint]: [] }))
     }
     let cancelled = false
     ;(async () => {
       const thread = await fetchAgentThread(agent)
       if (cancelled) return
+      setSummariesByThread((prev) => ({
+        ...prev,
+        [selectedBlueprint]: thread.summaries,
+      }))
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
@@ -482,7 +501,36 @@ const ChatPage = () => {
     return () => window.clearInterval(timer)
   }, [streamingMessage])
 
-  const tokenCount = estimateTokensInContext(messages.map((message) => message.text))
+  const handleCompact = useCallback(async () => {
+    setPlusOpen(false)
+    if (messages.length === 0) {
+      addToast({
+        type: 'info',
+        title: 'Compact',
+        message: 'Nothing to compact yet.',
+      })
+      return
+    }
+    try {
+      const result = await compactAgentThread({
+        conversationId,
+        agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        })),
+      })
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Compact failed',
+        message: 'Could not compact this chat. Sign in and try again.',
+      })
+    }
+  }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
+
+  const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
   const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
   const streamElapsed =
     streamingMessage && streamStartedAtRef.current != null
@@ -568,8 +616,18 @@ const ChatPage = () => {
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
-          messages.map((message, idx) => {
-            const isLast = idx === messages.length - 1
+          displayItems.map((item, idx) => {
+            if (item.kind === 'summary') {
+              return (
+                <SummaryBlock
+                  key={`sum-${item.summary.id}`}
+                  summary={item.summary}
+                  byId={summaryMap}
+                />
+              )
+            }
+            const message = item.message
+            const isLast = idx === displayItems.length - 1
             const retryEnabled =
               SHOW_MESSAGE_ACTIONS &&
               isLast &&
@@ -628,25 +686,22 @@ const ChatPage = () => {
             {plusOpen && (
               <ul
                 role="menu"
-                aria-label="Operator pages"
+                aria-label="Chat actions"
                 className="os-plus-menu"
               >
-                {OPERATOR_LINKS.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <li key={item.href} role="none">
-                      <a
-                        role="menuitem"
-                        href={item.href}
-                        className="os-plus-menu__item"
-                        onClick={() => setPlusOpen(false)}
-                      >
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                        {item.label}
-                      </a>
-                    </li>
-                  )
-                })}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="os-plus-menu__item"
+                    onClick={() => {
+                      void handleCompact()
+                    }}
+                  >
+                    <Layers className="h-4 w-4" aria-hidden="true" />
+                    Compact
+                  </button>
+                </li>
               </ul>
             )}
           </div>
@@ -696,6 +751,32 @@ const ChatPage = () => {
           </span>
         ) : null}
       </footer>
+    </div>
+  )
+}
+
+function SummaryBlock({
+  summary,
+  byId,
+  depth = 0,
+}: {
+  summary: ConversationSummary
+  byId: Record<number, ConversationSummary>
+  depth?: number
+}) {
+  const parent =
+    summary.parent_summary_id != null ? byId[summary.parent_summary_id] : undefined
+  const replaced =
+    summary.replaced_count ?? summary.span.end - summary.span.start + 1
+  return (
+    <div
+      className={depth > 0 ? 'chat-summary chat-summary--nested' : 'chat-summary'}
+      data-testid="chat-summary"
+    >
+      <div className="chat-summary__label">Summary</div>
+      <div className="chat-summary__body whitespace-pre-wrap break-words">{summary.body}</div>
+      <div className="chat-summary__meta">Replaced {replaced} turns</div>
+      {parent ? <SummaryBlock summary={parent} byId={byId} depth={depth + 1} /> : null}
     </div>
   )
 }

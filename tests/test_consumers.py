@@ -502,6 +502,41 @@ class TestBlueprintSelection:
                 }
 
     @pytest.mark.asyncio
+    async def test_blueprint_run_uses_compacted_context(self, consumer, monkeypatch):
+        """REQ-37: blueprint.run sees the summary tree, not covered raw turns."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.conversation_id = "ws-compact-conv"
+        consumer.messages = [
+            {"role": "user", "content": "secret raw turn"},
+            {"role": "assistant", "content": "secret raw reply"},
+        ]
+        seen = {}
+
+        async def fake_run(messages, **kwargs):
+            seen["messages"] = messages
+            yield {"messages": [{"role": "assistant", "content": "ok"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+
+        async def fake_context(conversation_id, messages):
+            assert conversation_id == "ws-compact-conv"
+            assert messages[0]["content"] == "secret raw turn"
+            return [{"role": "system", "content": "[Conversation summary]\ndigest only"}]
+
+        with patch("swarm.consumers._compacted_context", side_effect=fake_context):
+            with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = instance
+                with patch.object(consumer, "send", new_callable=AsyncMock):
+                    await consumer.respond_with_blueprint("jeeves", "message-response-compact")
+
+        contents = " ".join(m["content"] for m in seen["messages"])
+        assert "[Conversation summary]" in contents
+        assert "digest only" in contents
+        assert "secret raw turn" not in contents
+        assert consumer.messages[0]["content"] == "secret raw turn"
+
+    @pytest.mark.asyncio
     async def test_blueprint_reply_escapes_html_in_oob_chunk(self, consumer, monkeypatch):
         """Streaming OOB chunks must HTML-escape model text (DOM XSS)."""
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
