@@ -10,7 +10,12 @@ export const SKEPTIC_AGENT_ID = 'skeptic'
 const GATE_ID_ALIASES = new Set([GATE_AGENT_ID, TOOL_GATE_AGENT_ID, 'tool-gate', 'toolgate'])
 const SKEPTIC_ID_ALIASES = new Set([SKEPTIC_AGENT_ID, 'reviewer'])
 
-function stubBlueprint(id: string, name: string, description: string): Blueprint {
+function stubBlueprint(
+  id: string,
+  name: string,
+  description: string,
+  role?: Blueprint['role'],
+): Blueprint {
   return {
     id,
     object: 'blueprint',
@@ -21,6 +26,7 @@ function stubBlueprint(id: string, name: string, description: string): Blueprint
     tags: [],
     installed: true,
     compiled: true,
+    role,
   }
 }
 
@@ -28,18 +34,21 @@ export const SYNTHETIC_SUPPORT: Blueprint = stubBlueprint(
   SUPPORT_AGENT_ID,
   'Support',
   'Talk about the other agents.',
+  'support',
 )
 
 export const SYNTHETIC_GATE: Blueprint = stubBlueprint(
   GATE_AGENT_ID,
   'Gate',
   'Dangerous? yes/no. Until wired, all approved.',
+  'gate',
 )
 
 export const SYNTHETIC_SKEPTIC: Blueprint = stubBlueprint(
   SKEPTIC_AGENT_ID,
   'Skeptic',
   'Prompt done? If not, retry.',
+  'skeptic',
 )
 
 function agentId(agent: { id: string }): string {

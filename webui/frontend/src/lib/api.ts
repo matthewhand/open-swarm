@@ -151,6 +151,14 @@ export interface ListResponse<T> {
   data: T[]
 }
 
+/** Visual / wiring role on a Team member (REQ-9 / REQ-25). */
+export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic'
+
+export interface BlueprintAgent {
+  name: string
+  role: AgentRole
+}
+
 /** GET /v1/blueprints/ (BlueprintsListView) */
 export interface Blueprint {
   id: string
@@ -162,6 +170,11 @@ export interface Blueprint {
   tags: string[]
   installed: boolean | null
   compiled: boolean | null
+  /** First-class role for sidepane highlighting when the API sends it. */
+  role?: AgentRole | string | null
+  agents?: BlueprintAgent[]
+  gate_agent?: string | null
+  skeptic_agent?: string | null
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
