@@ -405,6 +405,57 @@ describe('ChatPage markdown bubbles', () => {
     vi.unstubAllGlobals()
   })
 
+  it('defaults /chat to Support and injects a laconic welcome', async () => {
+    const welcome =
+      '**Support**\n\n**Agents**\n- Support · support\n\n**Inference** off\n[Set inference](/settings/)\n\n**First team**\n[New team](/teams/launch/)\n\n**Gate** — dangerous tool call? yes/no. Until wired, all approved.\n**Skeptic** — prompt done? If not, findings go back to retry.'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/support/context')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'support.context', welcome, inference: { configured: false } }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              { id: 'codey', name: 'Codey', description: 'Code' },
+              {
+                id: 'support',
+                name: 'Support',
+                description: 'Onboarding. First team.',
+                role: 'support',
+              },
+            ],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
+    await waitFor(() => {
+      expect(select).toHaveValue('support')
+    })
+    const md = await screen.findByTestId('chat-md')
+    expect(md).toHaveClass('os-support-welcome')
+    expect(md).toHaveTextContent(/Inference/)
+    expect(md).toHaveTextContent(/New team/)
+    expect(md).toHaveTextContent(/Set inference/)
+    expect(md).toHaveTextContent(/Gate/)
+    expect(md).toHaveTextContent(/Skeptic/)
+    expect(md).not.toHaveTextContent(/Welcome —/)
+  })
+
   it('renders assistant markdown (bold/code) in the bubble', async () => {
     renderChat()
     await act(async () => {

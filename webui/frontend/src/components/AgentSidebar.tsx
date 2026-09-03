@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Eye, EyeOff, Settings, Users, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, EyeOff, LifeBuoy, ScanSearch, Settings, Shield, Users, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
   agentMarkIndex,
@@ -9,6 +9,7 @@ import {
   loadHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
+import { isSupportAgent, roleTone, sortSupportFirst } from '../lib/supportAgents'
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
@@ -60,11 +61,23 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
   )
 
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !hiddenIds.includes(agent.id) && matchesFilter(agent)),
+    () =>
+      sortSupportFirst(
+        agents.filter(
+          (agent) =>
+            (isSupportAgent(agent) || !hiddenIds.includes(agent.id)) && matchesFilter(agent),
+        ),
+      ),
     [agents, hiddenIds, matchesFilter],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => hiddenIds.includes(agent.id) && matchesFilter(agent)),
+    () =>
+      sortSupportFirst(
+        agents.filter(
+          (agent) =>
+            !isSupportAgent(agent) && hiddenIds.includes(agent.id) && matchesFilter(agent),
+        ),
+      ),
     [agents, hiddenIds, matchesFilter],
   )
 
@@ -117,25 +130,46 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
   const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
     const name = agentLabel(agent)
     const active = selectedId === agent.id
+    const tone = roleTone(agent)
+    const pinned = isSupportAgent(agent)
     return (
       <Link
         to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+        className={`os-agent-row flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+          tone ? `os-agent-row--${tone}` : ''
+        } ${
           active
             ? 'bg-base-300/70 text-base-content'
             : 'text-base-content/90 hover:bg-base-300/40'
         }`}
+        data-role={tone || undefined}
         aria-current={active ? 'page' : undefined}
         onClick={onClose}
-        onContextMenu={(event) => openMenu(event, agent, hidden)}
+        onContextMenu={(event) => {
+          if (pinned) return
+          openMenu(event, agent, hidden)
+        }}
       >
-        <span
-          className="os-agent-dot mt-1.5"
-          data-mark={String(agentMarkIndex(agent.id))}
-          aria-hidden="true"
-        />
+        {tone === 'support' ? (
+          <LifeBuoy className="os-agent-role-mark mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        ) : tone === 'gate' ? (
+          <Shield className="os-agent-role-mark mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        ) : tone === 'skeptic' ? (
+          <ScanSearch className="os-agent-role-mark mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <span
+            className="os-agent-dot mt-1.5"
+            data-mark={String(agentMarkIndex(agent.id))}
+            aria-hidden="true"
+          />
+        )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {tone ? (
+              <span className={`os-role-pill os-role-pill--${tone}`}>{tone}</span>
+            ) : null}
+          </span>
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}

@@ -17,7 +17,8 @@ import {
   LoadingDots,
   LoadingSpinner,
 } from '../components/DaisyUI'
-import { fetchBlueprints, isAuthError } from '../lib/api'
+import { fetchBlueprints, fetchSupportContext, isAuthError } from '../lib/api'
+import { findSupportAgent, isSupportAgent } from '../lib/supportAgents'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
@@ -56,6 +57,12 @@ const SUGGESTED_PROMPTS = [
   'Explain how MCP servers extend an agent',
 ]
 
+const SUPPORT_CHIPS = [
+  { label: 'New team', href: '/teams/launch/' },
+  { label: 'Write blueprint', href: '/agent-creator/' },
+  { label: 'Set inference', href: '/settings/' },
+]
+
 /** Post-login return path for the Django session gate (rooted, same-origin). */
 export function chatLoginNext(searchParams: URLSearchParams): string {
   const qs = searchParams.toString()
@@ -68,13 +75,16 @@ export function chatLoginHref(searchParams: URLSearchParams): string {
 
 const ChatPage = () => {
   // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [selectedBlueprint, setSelectedBlueprint] = useState(
     () => searchParams.get('blueprint') ?? '',
   )
+  const [supportWelcome, setSupportWelcome] = useState('')
+  const didDefaultRef = useRef(false)
+  const welcomeKeyRef = useRef('')
   const [connectAttempt, setConnectAttempt] = useState(0)
   /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
@@ -97,12 +107,94 @@ const ChatPage = () => {
     queryFn: fetchBlueprints,
   })
   const blueprints = blueprintsQuery.data?.data ?? []
+  const urlBlueprint = searchParams.get('blueprint') ?? ''
+  const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
+  const supportSelected =
+    isSupportAgent(selectedAgent) || selectedBlueprint === 'support'
   const blueprintMissingFromList =
     Boolean(selectedBlueprint) &&
     !blueprintsQuery.isPending &&
     !blueprintsQuery.isError &&
     !blueprints.some((bp) => bp.id === selectedBlueprint)
   const signInHref = chatLoginHref(searchParams)
+
+  useEffect(() => {
+    if (urlBlueprint && urlBlueprint !== selectedBlueprint) {
+      setSelectedBlueprint(urlBlueprint)
+    }
+  }, [urlBlueprint, selectedBlueprint])
+
+  useEffect(() => {
+    if (didDefaultRef.current) return
+    if (urlBlueprint) {
+      didDefaultRef.current = true
+      return
+    }
+    if (blueprintsQuery.isPending) return
+    didDefaultRef.current = true
+    const support = findSupportAgent(blueprints)
+    if (!support) return
+    setSelectedBlueprint(support.id)
+    setSearchParams({ blueprint: support.id }, { replace: true })
+  }, [urlBlueprint, blueprints, blueprintsQuery.isPending, setSearchParams])
+
+  useEffect(() => {
+    if (!supportSelected) return
+    let cancelled = false
+    fetchSupportContext()
+      .then((ctx) => {
+        if (cancelled || !ctx.welcome) return
+        setSupportWelcome(ctx.welcome)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          const names = blueprints.map((bp) => `- ${bp.name || bp.id}`).join('\n') || '- none'
+          setSupportWelcome(
+            [
+              '**Support**',
+              '',
+              '**Agents**',
+              names,
+              '',
+              '**Inference** —',
+              '[Set inference](/settings/) [Quickstart](docs/QUICKSTART.md#4-configure-your-llm-provider)',
+              '',
+              '**First team**',
+              '[New team](/teams/launch/) [Write blueprint](/agent-creator/)',
+              '',
+              '**Gate** — dangerous tool call? yes/no. Until wired, all approved.',
+              '**Skeptic** — prompt done? If not, findings go back to retry.',
+            ].join('\n'),
+          )
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [supportSelected, blueprints])
+
+  useEffect(() => {
+    if (!supportSelected || !supportWelcome) return
+    const key = `support-welcome:${selectedBlueprint}`
+    if (welcomeKeyRef.current === key) return
+    welcomeKeyRef.current = key
+    setMessages((prev) => {
+      if (prev.some((m) => m.key.startsWith('support-welcome'))) {
+        return prev.map((m) =>
+          m.key.startsWith('support-welcome') ? { ...m, text: supportWelcome } : m,
+        )
+      }
+      if (prev.length > 0) return prev
+      return [
+        {
+          key,
+          role: 'assistant',
+          text: supportWelcome,
+          streaming: false,
+        },
+      ]
+    })
+  }, [supportSelected, supportWelcome, selectedBlueprint])
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
     if (event.kind === 'unknown') {
@@ -358,7 +450,12 @@ const ChatPage = () => {
               <select
                 className="select select-md h-12 w-full border border-base-300"
                 value={selectedBlueprint}
-                onChange={(e) => setSelectedBlueprint(e.target.value)}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setSelectedBlueprint(id)
+                  if (id) setSearchParams({ blueprint: id }, { replace: true })
+                  else setSearchParams({}, { replace: true })
+                }}
                 aria-label="Blueprint"
               >
                 <option value="">Server default model</option>
@@ -491,7 +588,8 @@ const ChatPage = () => {
               </div>
               {status === 'open' && (
                 <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-xl">
-                  {SUGGESTED_PROMPTS.map((prompt) => (
+                  {(supportSelected ? SUPPORT_CHIPS.map((c) => c.label) : SUGGESTED_PROMPTS).map(
+                    (prompt) => (
                     <button
                       key={prompt}
                       type="button"
@@ -500,7 +598,8 @@ const ChatPage = () => {
                     >
                       {prompt}
                     </button>
-                  ))}
+                    ),
+                  )}
                 </div>
               )}
             </div>
@@ -531,6 +630,7 @@ const ChatPage = () => {
                     <ChatBubbleBody
                       text={message.text}
                       streaming={message.streaming}
+                      welcome={message.key.startsWith('support-welcome')}
                     />
                   </div>
                   {SHOW_MESSAGE_ACTIONS &&
@@ -586,9 +686,11 @@ const ChatBubbleBody = memo(
   function ChatBubbleBody({
     text,
     streaming,
+    welcome = false,
   }: {
     text: string
     streaming: boolean
+    welcome?: boolean
   }) {
     if (text.length === 0) {
       return streaming ? (
@@ -600,13 +702,15 @@ const ChatBubbleBody = memo(
     return (
       <div
         data-testid="chat-md"
-        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
+        className={`chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline${welcome ? ' os-support-welcome' : ''}`}
         dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
       />
     )
   },
   (prev, next) =>
-    prev.text === next.text && prev.streaming === next.streaming,
+    prev.text === next.text &&
+    prev.streaming === next.streaming &&
+    prev.welcome === next.welcome,
 )
 
 function connectionStatusLabel(

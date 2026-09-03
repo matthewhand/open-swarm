@@ -30,6 +30,7 @@ from swarm.views.api_views import (
     CustomBlueprintsView,
     MarketplaceGitHubBlueprintsView,
     MarketplaceGitHubMCPConfigsView,
+    SupportContextView,
 )
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.blueprint_library_views import (
@@ -115,6 +116,8 @@ urlpatterns = [
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
     path("v1/config-options", ConfigOptionsView.as_view(), name="config-options-api-no-slash"),
     path("v1/config-options/", ConfigOptionsView.as_view(), name="config-options-api"),
+    path("v1/support/context", SupportContextView.as_view(), name="support-context-no-slash"),
+    path("v1/support/context/", SupportContextView.as_view(), name="support-context"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
     path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
     # GitHub-topics marketplace discovery (returns empty list if disabled)

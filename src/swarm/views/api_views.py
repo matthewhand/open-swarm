@@ -191,6 +191,7 @@ class BlueprintsListView(APIView):
                         "tags": meta.get("tags") or [],
                         "installed": None,
                         "compiled": None,
+                        "role": meta.get("role") or None,
                     })
             else:
                 logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
@@ -634,3 +635,33 @@ class BlueprintToolsView(APIView):
             "skipped_optional": res.skipped_optional,
             "ok": res.ok,
         })
+
+
+class SupportContextView(APIView):
+    """Live snapshot for the Support welcome (agents + inference status).
+
+    GET /v1/support/context/ — no secrets. Same auth as /v1/blueprints/.
+    """
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core.support_context import live_context, welcome_markdown
+
+        try:
+            context = live_context()
+            return Response(
+                {
+                    "object": "support.context",
+                    **context,
+                    "welcome": welcome_markdown(context),
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            logger.exception("Error building Support live context.")
+            return Response(
+                {"error": "Failed to build Support context."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
