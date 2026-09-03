@@ -41,5 +41,6 @@ describe('SPA settings chrome (REQ-19)', () => {
     expect(dialog).toHaveClass('modal-end')
     expect(dialog).toHaveClass('modal-open')
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
   })
 })

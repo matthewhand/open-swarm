@@ -27,12 +27,14 @@ import {
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import { notifyGenerationComplete } from '../lib/railOrder'
 import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
   MANAGE_TEAMS_VALUE,
   fetchTeamRosters,
   memberOptionLabel,
+  teamHideId,
   teamThreadId,
 } from '../lib/teamRosters'
 import {
@@ -255,8 +257,11 @@ const ChatPage = () => {
         }
         return { ...prev, [threadKey]: next }
       })
+      if (event.kind === 'assistant_final') {
+        notifyGenerationComplete(teamFromUrl ? teamHideId(teamFromUrl) : selectedBlueprint)
+      }
     },
-    [threadKey],
+    [threadKey, teamFromUrl, selectedBlueprint],
   )
 
   useEffect(() => {

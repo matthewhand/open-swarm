@@ -260,6 +260,9 @@ html[data-theme="light"] #root {
 .os-fav-tile--dragging {
   opacity: 0.4;
 }
+.os-agent-row--drop {
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
 .os-agent-role-badge {
   display: inline-flex;
   align-items: center;

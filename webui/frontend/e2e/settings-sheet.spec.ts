@@ -63,6 +63,7 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Rail' })).toBeVisible()
 
   await expect(page.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass(/join/)
   await page.getByRole('radio', { name: 'Trash' }).click()
