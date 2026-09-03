@@ -132,18 +132,22 @@ describe('SettingsSheet', () => {
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add remote/i }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Kind' }), { target: { value: 'omb' } })
+    const kindSelect = await screen.findByRole('combobox', { name: 'Kind' })
+    expect(within(kindSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+    fireEvent.change(kindSelect, { target: { value: 'omb' } })
+    expect(kindSelect).toHaveValue('omb')
     fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), {
       target: { value: 'http://127.0.0.1:8802' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save remote' }))
+    fireEvent.submit(kindSelect.closest('form') as HTMLFormElement)
 
-    expect(await screen.findByText('OpenMousBot')).toBeInTheDocument()
-    expect(screen.getByText('http://127.0.0.1:8802')).toBeInTheDocument()
+    const rows = await screen.findByRole('list', { name: 'Configured remotes' })
+    expect(within(rows).getByText('OpenMousBot')).toBeInTheDocument()
+    expect(within(rows).getByText('http://127.0.0.1:8802')).toBeInTheDocument()
     const remoteSelect = screen.getByRole('combobox', { name: 'Remote' })
     expect(within(remoteSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
-    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {

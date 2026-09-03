@@ -386,6 +386,12 @@ function RemotesCatalogPane() {
         ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
       }),
     onSuccess: (created) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: [...configuredRemotes(prev).filter((row) => row.id !== created.id), created],
+        data: prev?.data ?? [],
+      }))
       void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
       void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
       setAdding(false)
@@ -403,6 +409,12 @@ function RemotesCatalogPane() {
   const removeMutation = useMutation({
     mutationFn: (remoteId: string) => deleteRemote(remoteId),
     onSuccess: (_void, remoteId) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: configuredRemotes(prev).filter((row) => row.id !== remoteId),
+        data: prev?.data ?? [],
+      }))
       void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
       void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
       if (selectedId === remoteId) setSelectedId('')
@@ -438,19 +450,11 @@ function RemotesCatalogPane() {
         />
       ) : null}
 
-      {remotesQuery.isPending ? (
-        <p className="text-sm text-base-content/60">Loading remotes…</p>
-      ) : remotesQuery.isError && configured.length === 0 && !adding ? (
-        <Alert type="info" icon={<Server className="h-5 w-5" />}>
-          <span className="text-sm">
-            No remotes configured. Add one to use it in Settings and dropdowns.
-          </span>
-        </Alert>
-      ) : configured.length === 0 && !adding ? (
+      {configured.length === 0 && !adding ? (
         <Alert type="info" icon={<Server className="h-5 w-5" />}>
           <span className="text-sm">No remotes configured yet.</span>
         </Alert>
-      ) : (
+      ) : configured.length === 0 ? null : (
         <ul className="space-y-2" aria-label="Configured remotes">
           {configured.map((remote) => {
             const label = remoteKindLabel(remote.kind || remote.id, kinds)
