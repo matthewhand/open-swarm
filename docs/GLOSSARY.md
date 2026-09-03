@@ -10,7 +10,7 @@ A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defin
 
 ## Team (handoff members — REQ-11)
 
-A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`.
+A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo, nested open-swarm) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`, `consult_swarm`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`. Nested swarm is a network remote (own process, own DB); do not auto-add this instance as its own remote.
 
 This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 
@@ -49,6 +49,9 @@ Wrapping installed agentic CLIs (`grok` / `claude` / `gemini` / …) behind the 
 A stateful `/v1/responses` record (and related conversation/delegation data) owned by an operator or API-token principal. The Django **Session Explorer** at `/sessions/` is a read-only observability UI over those records — not a chat composer.
 
 **Scale-out chat sessions (REQ-66)** are per-agent websocket conversations (`?session=` on SPA Chat). They are not Session Explorer rows. An agent with more than one of these stays one rail row with stacked avatars.
+## CLI session
+
+An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id file). Open Swarm stores it next to the chat thread (`cli_sessions`) and passes it back so the CLI restores its own context (REQ-52). Not a Django `conversation_id`, not a `/v1/responses` Session, and not OS `start_new_session` (process-group kill). Remotes keep the remote’s session.
 
 ## Herdr member (`kind=herdr`)
 

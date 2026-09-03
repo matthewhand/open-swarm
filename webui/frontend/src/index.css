@@ -566,6 +566,17 @@ button.os-agent-row {
   background: color-mix(in srgb, var(--color-base-300) 55%, transparent);
 }
 
+.os-chat-status {
+  display: block;
+  margin: 0.45rem auto;
+  max-width: 36rem;
+  padding: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+}
+
 .chat-summary {
   border: 1px solid color-mix(in srgb, var(--color-base-content) 28%, transparent);
   border-left-width: 3px;
@@ -725,3 +736,19 @@ button.os-agent-row {
 .os-team-mark {
   color: color-mix(in srgb, var(--color-base-content) 80%, var(--color-primary));
 }
+
+.os-code-python {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.os-py-kw { color: #7eb8ff; font-weight: 650; }
+.os-py-str { color: #9ad4a0; }
+.os-py-com { color: #8b93a7; font-style: italic; }
+.os-py-num { color: #e0b36a; }
+.os-py-dec { color: #d7a1ff; }
+.os-py-bi { color: #7fd4d0; }
+[data-theme="light"] .os-py-kw { color: #1d4f91; }
+[data-theme="light"] .os-py-str { color: #2d6a38; }
+[data-theme="light"] .os-py-com { color: #667085; }
+[data-theme="light"] .os-py-num { color: #9a5b10; }
+[data-theme="light"] .os-py-dec { color: #7a3ea8; }
+[data-theme="light"] .os-py-bi { color: #0e6e6a; }

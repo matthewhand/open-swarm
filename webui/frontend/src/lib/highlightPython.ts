@@ -138,3 +138,11 @@ export function highlightPython(source: string): string {
 
   return out
 }
+
+export function isPythonFence(lang: string | undefined | null): boolean {
+  const normalized = String(lang || '')
+    .trim()
+    .toLowerCase()
+    .split(/[\s{]/)[0]
+  return normalized === 'python' || normalized === 'py'
+}

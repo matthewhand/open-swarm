@@ -18,6 +18,14 @@ from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.cli_adapter import CliAdapter, CliResult
+from swarm.core.cli_sessions import (
+    clear_cli_session,
+    get_cli_session,
+    is_resume_failure,
+    put_cli_session,
+    resolve_thread,
+)
 from swarm.core.consensus import run_consensus
 
 logger = logging.getLogger(__name__)
@@ -47,6 +55,92 @@ class CliAgentBlueprint(BlueprintBase):
     def set_params(self, params: dict[str, Any] | None) -> None:
         """Capture per-request params forwarded by the API view."""
         self._params = dict(params or {})
+
+    def _thread_ref(self, params: dict[str, Any]) -> tuple[str, str] | None:
+        return resolve_thread(params, default_agent=self.blueprint_id)
+
+    def _stored_session(self, params: dict[str, Any], cli_name: str) -> str | None:
+        ref = self._thread_ref(params)
+        if ref is None:
+            return None
+        return get_cli_session(ref[0], ref[1], cli_name)
+
+    def _remember_session(
+        self, params: dict[str, Any], cli_name: str, session_id: str | None
+    ) -> None:
+        ref = self._thread_ref(params)
+        if ref is None:
+            return
+        put_cli_session(
+            ref[0],
+            ref[1],
+            cli_name,
+            session_id,
+            conversation_id=str(params.get("conversation_id") or ""),
+        )
+
+    def _forget_session(self, params: dict[str, Any], cli_name: str) -> None:
+        ref = self._thread_ref(params)
+        if ref is None:
+            return
+        clear_cli_session(
+            ref[0],
+            ref[1],
+            cli_name,
+            conversation_id=str(params.get("conversation_id") or ""),
+        )
+
+    def _turn_prompt(
+        self,
+        messages: list[dict[str, Any]],
+        full_prompt: str,
+        params: dict[str, Any],
+        workdir: str | None,
+        *,
+        resume: bool,
+    ) -> str:
+        if not resume:
+            return full_prompt
+        latest = support.latest_user_prompt(messages)
+        if not latest:
+            return full_prompt
+        prompt, _applied = support.apply_skill_to_prompt(latest, params, workdir=workdir)
+        return prompt
+
+    async def _invoke_cli(
+        self,
+        adapter: CliAdapter,
+        messages: list[dict[str, Any]],
+        full_prompt: str,
+        params: dict[str, Any],
+        workdir: str | None,
+    ) -> tuple[CliResult, bool]:
+        """Run one CLI, replaying a stored session id when the CLI can resume.
+
+        Returns ``(result, resumed)``. ``resumed`` is True only when a stored
+        id was passed and the run succeeded without falling back to a new session.
+        """
+        stored = self._stored_session(params, adapter.name)
+        can_resume = bool(stored and adapter.can_resume())
+        prompt = self._turn_prompt(
+            messages, full_prompt, params, workdir, resume=can_resume
+        )
+        result = await adapter.run(
+            prompt, workdir=workdir, session_id=stored if can_resume else None
+        )
+        resumed = can_resume and result.ok
+        if can_resume and not result.ok and is_resume_failure(result):
+            self._forget_session(params, adapter.name)
+            prompt = self._turn_prompt(
+                messages, full_prompt, params, workdir, resume=False
+            )
+            result = await adapter.run(prompt, workdir=workdir, session_id=None)
+            resumed = False
+        if result.session_id:
+            self._remember_session(params, adapter.name, result.session_id)
+        elif resumed and stored:
+            self._remember_session(params, adapter.name, stored)
+        return result, resumed
 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         # Snapshot params once before any await: the API view may reuse a cached
@@ -161,12 +255,39 @@ class CliAgentBlueprint(BlueprintBase):
             if target is not None and (registry.get(target).config.parse or "text") == "text":
                 adapter = registry.get(target)
                 yield support.progress_chunk(f"_Streaming CLI agent `{target}`…_")
+                stored = self._stored_session(params, adapter.name)
+                can_resume = bool(stored and adapter.can_resume())
+                turn_prompt = self._turn_prompt(
+                    messages, prompt, params, workdir, resume=can_resume
+                )
                 result = None
-                async for chunk in adapter.stream_run(prompt, workdir=workdir):
+                async for chunk in adapter.stream_run(
+                    turn_prompt,
+                    workdir=workdir,
+                    session_id=stored if can_resume else None,
+                ):
                     if chunk.final:
                         result = chunk.result
                     elif chunk.delta:
                         yield support.message_chunk(chunk.delta)  # incremental delta
+                resumed = can_resume and result is not None and result.ok
+                if result is not None and can_resume and not result.ok and is_resume_failure(result):
+                    self._forget_session(params, adapter.name)
+                    turn_prompt = self._turn_prompt(
+                        messages, prompt, params, workdir, resume=False
+                    )
+                    result = None
+                    async for chunk in adapter.stream_run(turn_prompt, workdir=workdir):
+                        if chunk.final:
+                            result = chunk.result
+                        elif chunk.delta:
+                            yield support.message_chunk(chunk.delta)
+                    resumed = False
+                if result is not None and result.session_id:
+                    self._remember_session(params, adapter.name, result.session_id)
+                elif resumed and stored:
+                    self._remember_session(params, adapter.name, stored)
+                yield support.session_notice_chunk(adapter.name, resumed=resumed)
                 if result is None or not result.ok:
                     err = (result.error if result else None) or "unknown error"
                     yield support.message_chunk(support.format_cli_error(adapter, err), final=True)
@@ -184,7 +305,10 @@ class CliAgentBlueprint(BlueprintBase):
                 yield support.progress_chunk(f"_Skipping `{name}` (not installed); failing over…_")
                 continue
             yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
-            result = await adapter.run(prompt, workdir=workdir)
+            result, resumed = await self._invoke_cli(
+                adapter, messages, prompt, params, workdir
+            )
+            yield support.session_notice_chunk(adapter.name, resumed=resumed)
             if result.ok:
                 if result.parse_error:
                     logger.warning("CLI %s parse issue: %s", name, result.parse_error)

@@ -188,7 +188,13 @@ def _normalize_messages(raw: Any) -> list[dict[str, str]]:
             content = item.get("text") or ""
         if not isinstance(content, str):
             content = str(content)
-        role_s = "assistant" if str(role) == "assistant" else "user"
+        role_raw = str(role)
+        if role_raw == "assistant":
+            role_s = "assistant"
+        elif role_raw == "status":
+            role_s = "status"
+        else:
+            role_s = "user"
         msg = {"role": role_s, "content": content}
         ts = item.get("ts") or item.get("timestamp")
         if isinstance(ts, str) and ts:
@@ -212,6 +218,7 @@ def empty_record(
         "created_at": now,
         "updated_at": now,
         "messages": [],
+        "cli_sessions": {},
     }
 
 
@@ -221,6 +228,7 @@ def save(
     messages: list[dict[str, Any]],
     *,
     conversation_id: str = "",
+    cli_sessions: dict[str, Any] | None = None,
     base_dir: Path | None = None,
 ) -> Path | None:
     """Write (or replace) the active thread. Returns the path, or None if ids are unsafe."""
@@ -234,6 +242,11 @@ def save(
         return None
     existing = _read_json(path) if path.is_file() else None
     created = (existing or {}).get("created_at") or _iso()
+    sessions = (
+        normalize_cli_sessions(cli_sessions)
+        if cli_sessions is not None
+        else normalize_cli_sessions((existing or {}).get("cli_sessions"))
+    )
     record = {
         "schema": SCHEMA,
         "agent_id": agent,
@@ -242,6 +255,7 @@ def save(
         "created_at": created,
         "updated_at": _iso(),
         "messages": _normalize_messages(messages),
+        "cli_sessions": sessions,
     }
     _atomic_write(path, record)
     return path
@@ -261,7 +275,23 @@ def load(
     if record is None:
         return None
     record["messages"] = _normalize_messages(record.get("messages"))
+    record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
     return record
+
+
+def normalize_cli_sessions(raw: Any) -> dict[str, str]:
+    """``{cli_name: session_id}`` with unsafe keys/values dropped (no secrets)."""
+    from swarm.core.cli_sessions import sanitize_cli_session_id
+
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        cli = normalize_agent_id(str(key))
+        sid = sanitize_cli_session_id(value)
+        if cli and sid:
+            out[cli] = sid
+    return out
 
 
 def archive(
