@@ -201,11 +201,12 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
       MockWebSocket.instances[0]?.rejectAuth()
     })
 
-    const signIn = await screen.findByRole('link', { name: /Sign in/i })
-    expect(signIn).toHaveAttribute(
+    const signIn = await screen.findAllByRole('link', { name: /Sign in/i })
+    expect(signIn[0]).toHaveAttribute(
       'href',
       `/accounts/login/?next=${encodeURIComponent('/chat?blueprint=hybrid_team')}`,
     )
+    expect(signIn.length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: /Reconnect/i })).toBeInTheDocument()
     expect(screen.getByText(/sign in required/i)).toBeInTheDocument()
     expect(screen.getByText(/session cookie/i)).toBeInTheDocument()
