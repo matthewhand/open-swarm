@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   HIDDEN_AGENTS_STORAGE_KEY,
   agentMarkColor,
+  canHideAgent,
   hideAgentId,
   loadHiddenAgentIds,
   saveHiddenAgentIds,
@@ -44,5 +45,12 @@ describe('hiddenAgents persistence', () => {
   it('assigns a stable small accent per agent id', () => {
     expect(agentMarkColor('codey')).toBe(agentMarkColor('codey'))
     expect(agentMarkColor('codey')).not.toBe(agentMarkColor('stewie'))
+  })
+
+  it('does not exempt role agents (support, gate, skeptic) from hide', () => {
+    for (const id of ['support', 'gate', 'skeptic', 'codey']) {
+      expect(canHideAgent(id)).toBe(true)
+      expect(hideAgentId(id, [])).toEqual([id])
+    }
   })
 })
