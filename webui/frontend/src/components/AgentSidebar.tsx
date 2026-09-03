@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Eye, EyeOff, Settings, Users, X } from 'lucide-react'
@@ -75,7 +75,7 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeMenu()
     }
-    const onPointer = (event: MouseEvent) => {
+    const onPointer = (event: Event) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         closeMenu()
       }
@@ -88,7 +88,7 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     }
   }, [menu, closeMenu])
 
-  const openMenu = (event: MouseEvent, agent: Blueprint, hidden: boolean) => {
+  const openMenu = (event: ReactMouseEvent, agent: Blueprint, hidden: boolean) => {
     event.preventDefault()
     const pad = 8
     const width = 200
