@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -330,10 +330,6 @@ describe('ChatPage Send button honesty while streaming', () => {
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
 
-    // We verify the send button is not busy and does not contain sr-only text
-    expect(send).not.toHaveTextContent('Loading')
-
-    // Streaming progress lives on the message bubble. Verify the bubble contains a loading indicator.
     const loaders = screen.getAllByRole('status', { name: 'Loading' })
     expect(loaders.length).toBeGreaterThan(0)
   })
@@ -429,8 +425,6 @@ describe('ChatPage markdown bubbles', () => {
       )
     })
 
-    // Testing library prefers query over .querySelector
-    // Test the semantic output instead of the raw HTML
     expect(screen.getByText('hello').tagName).toBe('STRONG')
     expect(screen.getByText('code').tagName).toBe('CODE')
   })

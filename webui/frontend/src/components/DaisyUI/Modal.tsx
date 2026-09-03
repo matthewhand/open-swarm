@@ -122,7 +122,7 @@ export const Modal = ({
         </div>
         <form method="dialog" className="modal-backdrop">
           <button
-            type="button"
+            type="submit"
             onClick={onClose}
             aria-label="Close modal"
             tabIndex={-1}

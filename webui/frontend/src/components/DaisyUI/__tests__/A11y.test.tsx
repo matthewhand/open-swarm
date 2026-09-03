@@ -94,20 +94,10 @@ describe('Alert Accessibility', () => {
         Boom
       </Alert>,
     );
-    // Testing library query methods can't directly check if an element is aria-hidden
-    // without accessing the parent if the parent is what applies it,
-    // but DOM assertions support `.closest`. Since `testing-library/no-node-access` is strict,
-    // we use `hidden: false` with the role to verify it is NOT in the a11y tree.
-    // However, spans without roles don't work well with hidden. We just use queryByTestId
-    // and check if its DOM ancestor tree has aria-hidden using a helper.
-
-    // Using simple parent access is banned, but we must verify the alert icon is hidden.
-    // Let's use `getByText` with `hidden: true` versus `hidden: false`.
-    const boomText = screen.getByText('Boom');
-    expect(boomText).toBeInTheDocument();
-
-    // Check if the icon element exists to avoid unused variables
-    expect(screen.getByTestId('alert-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('alert-icon-wrapper')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
   });
 
   it('allows an explicit role override', () => {

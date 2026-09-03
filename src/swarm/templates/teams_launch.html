@@ -3,8 +3,26 @@
 
 {% block content %}
 <div class="os-wrap" id="team-launcher">
-  <h2 class="mb-1">Team Launcher</h2>
+  <h1 class="mb-1">Team Launcher</h1>
   <p class="text-muted mb-3">Select a team blueprint and enter your task. Results stream below.</p>
+
+  <h2 class="visually-hidden">Primary actions</h2>
+  <div class="os-action-grid mb-4">
+    <a href="{% url 'blueprint_library' %}" class="os-action-card">
+      <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-book"></i></span>
+      <span>
+        <span class="os-action-card__title">Browse Blueprints</span>
+        <span class="os-action-card__desc">Pick a blueprint before launching a team.</span>
+      </span>
+    </a>
+    <a href="{% url 'teams_admin' %}" class="os-action-card">
+      <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+      <span>
+        <span class="os-action-card__title">Manage Teams</span>
+        <span class="os-action-card__desc">Registry, aliases, and launched team admin.</span>
+      </span>
+    </a>
+  </div>
 
   <!-- Configuration card -->
   <div class="card mb-3">
@@ -37,7 +55,7 @@
           <textarea id="instruction" class="form-control" rows="4" placeholder="Describe the task for the team…"></textarea>
         </div>
         <div class="col-12 d-flex align-items-center gap-2">
-          <button type="button" id="launchBtn" class="btn btn-primary">
+          <button type="button" id="launchBtn" class="btn btn-primary os-launch-btn">
             <span class="launch-label"><i class="fas fa-rocket me-1" aria-hidden="true"></i>Launch</span>
             <span class="launch-spinner os-hide"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Launching…</span>
           </button>

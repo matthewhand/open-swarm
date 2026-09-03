@@ -49,14 +49,10 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    // DaisyUI modal backdrop is typically a form with a button
     const backdropButton = screen.getByRole('button', { name: 'Close modal' });
     expect(backdropButton).toBeInTheDocument();
     expect(backdropButton).toHaveAttribute('tabIndex', '-1');
 
-    // Instead of using .parentElement (no-node-access), check for the form presence
-    // We can't directly get the form by role easily if it has no accessible name,
-    // but verifying the button exists and clicks properly is the core functionality.
     backdropButton.click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });

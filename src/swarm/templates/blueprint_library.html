@@ -15,17 +15,38 @@
                 Browse and manage your AI agent blueprints. Add them to your library or create custom ones.
             </p>
         </div>
-        <div class="col-auto">
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="{% url 'my_blueprints' %}" class="btn btn-outline-primary">
-                    <i class="fas fa-bookmark me-1" aria-hidden="true"></i>My Library
-                    <span class="badge bg-primary ms-1">{{ installed_count }}</span>
-                </a>
-                <a href="{% url 'blueprint_creator' %}" class="btn btn-success">
-                    <i class="fas fa-plus me-1" aria-hidden="true"></i>Create Custom
-                </a>
-            </div>
-        </div>
+    </div>
+
+    <h2 class="visually-hidden">Primary actions</h2>
+    <div class="os-action-grid mb-4">
+        <a href="{% url 'teams_launch' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+            <span>
+                <span class="os-action-card__title">Launch Team</span>
+                <span class="os-action-card__desc">Stand up a blueprint team and expose it as an API model.</span>
+            </span>
+        </a>
+        <a href="{% url 'my_blueprints' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-bookmark"></i></span>
+            <span>
+                <span class="os-action-card__title">My Library</span>
+                <span class="os-action-card__desc">Installed and custom blueprints ({{ installed_count }}).</span>
+            </span>
+        </a>
+        <a href="{% url 'blueprint_creator' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-pen"></i></span>
+            <span>
+                <span class="os-action-card__title">Create Custom</span>
+                <span class="os-action-card__desc">Write a new blueprint instead of browsing the catalog.</span>
+            </span>
+        </a>
+        <a href="{% url 'teams_admin' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+            <span>
+                <span class="os-action-card__title">Manage Teams</span>
+                <span class="os-action-card__desc">Inspect the registry and launched team admin.</span>
+            </span>
+        </a>
     </div>
 
     <h2 class="visually-hidden">Library overview</h2>
