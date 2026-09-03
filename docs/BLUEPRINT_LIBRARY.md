@@ -101,6 +101,7 @@ gracefully without an LLM key; the CLI half is verified live with grok.
 | Blueprint | Feature it demonstrates | Status |
 |---|---|---|
 | `codey` | Code generation + semantic code search/analysis; approval-mode | 🟢 |
+| `software_dev` | CoS / engineer / skeptic via openai-agents as-tool / handoff (not extra Grok seats) | 🟢 |
 | `rue_code` | Code execution + filesystem interaction | 🟢 |
 | `whinge_surf` | Async subprocess job management (launch / poll / review) | 🟢 |
 
