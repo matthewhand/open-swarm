@@ -735,9 +735,9 @@ describe('ChatPage gap timestamps and NEW', () => {
     expect(screen.getByText(/7:36 AM/)).toBeInTheDocument()
     expect(screen.getByRole('separator', { name: 'New messages' })).toHaveTextContent('NEW')
     const log = screen.getByRole('log', { name: 'Conversation' }).textContent ?? ''
-    expect(log.indexOf('yesterday line')).toBeLessThan(log.indexOf('7:36 AM'))
-    expect(log.indexOf('7:36 AM')).toBeLessThan(log.indexOf('NEW'))
-    expect(log.indexOf('NEW')).toBeLessThan(log.indexOf('after the gap'))
+    expect(log.indexOf('yesterday line')).toBeLessThan(log.indexOf('NEW'))
+    expect(log.indexOf('NEW')).toBeLessThan(log.indexOf('7:36 AM'))
+    expect(log.indexOf('7:36 AM')).toBeLessThan(log.indexOf('after the gap'))
   })
 })
 

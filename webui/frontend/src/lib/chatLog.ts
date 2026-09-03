@@ -13,7 +13,7 @@ export type ConversationRow =
 /**
  * Insert gap timestamps and a NEW rule around grouped hops + bubbles.
  * Messaged / progress stay after the previous bubble; Message from waits
- * until after the gap (and NEW) so the stamp is not inside a bubble.
+ * until after NEW + the gap so the stamp is not inside a bubble.
  */
 export function decorateConversationRows(
   items: ChatItem[],
@@ -51,19 +51,19 @@ export function decorateConversationRows(
     }
 
     const message = row.message
-    if (shouldShowGapStamp(previousMs, message.createdAtMs, timeZone)) {
-      rows.push({
-        type: 'gap',
-        key: `gap-${message.key}`,
-        label: formatGapLabel(message.createdAtMs as number, nowMs, timeZone),
-      })
-    }
     if (
       lastReadCount != null &&
       lastReadCount > 0 &&
       messageIndex === lastReadCount
     ) {
       rows.push({ type: 'new', key: `new-${message.key}` })
+    }
+    if (shouldShowGapStamp(previousMs, message.createdAtMs, timeZone)) {
+      rows.push({
+        type: 'gap',
+        key: `gap-${message.key}`,
+        label: formatGapLabel(message.createdAtMs as number, nowMs, timeZone),
+      })
     }
     flushSingle()
     rows.push(row)

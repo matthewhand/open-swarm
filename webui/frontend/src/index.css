@@ -433,18 +433,18 @@ html[data-theme="light"] #root {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.55rem 0.85rem;
-  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+  padding: 0.7rem 1.1rem 0.35rem;
+  color: #3b82f6;
 }
 .os-chat-new__rule {
   flex: 1 1 auto;
   height: 1px;
-  background: color-mix(in srgb, var(--color-base-content) 28%, transparent);
+  background: #3b82f6;
 }
 .os-chat-new__label {
   flex: 0 0 auto;
   font-size: 0.68rem;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: 0.08em;
 }
 

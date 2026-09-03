@@ -86,6 +86,27 @@ describe('decorateConversationRows', () => {
     expect(rows[2]).toMatchObject({ type: 'new' })
   })
 
+  it('places NEW above the gap stamp and before Message from', () => {
+    const items: ChatItem[] = [
+      message('a', 'old', THU_721),
+      { type: 'hop', key: 'h1', hop: hopFromAssistantName('1', 'Taskmaster', false) },
+      message('b', 'unread', THU_736, 'assistant'),
+    ]
+    const rows = decorateConversationRows(items, {
+      lastReadMessageCount: 1,
+      nowMs: Date.parse('2026-09-03T10:00:00+10:00'),
+    })
+    expect(rows.map((row) => row.type)).toEqual([
+      'message',
+      'new',
+      'gap',
+      'hop-line',
+      'message',
+    ])
+    expect(rows[3]).toMatchObject({ type: 'hop-line', line: { kind: 'single' } })
+    expect(rows[2]).toMatchObject({ type: 'gap', label: 'Today 7:36 AM' })
+  })
+
   it('does not show NEW on a first visit or when everything is already read', () => {
     const items = [message('a', 'one', THU_721), message('b', 'two', THU_735)]
     expect(
