@@ -59,27 +59,64 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
   })
 }
 
-test('dashboard shows four large chrome action cards', async ({ page }) => {
+test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
   await page.goto('/')
 
-  const launch = page.getByRole('link', { name: /Launch Team/i })
-  await expect(launch).toBeVisible()
-  await expect(page.getByRole('link', { name: /Browse Blueprints/i })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Manage Teams/i })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Settings/ }).first()).toBeVisible()
+  const rail = page.getByRole('navigation', { name: 'Agent list' })
+  await expect(rail.getByRole('link', { name: /Support/ })).toBeVisible()
+  await expect(rail.getByRole('link', { name: /Codey/ })).toBeVisible()
+  await expect(page.getByLabel('Pinned agents')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Plugins/i })).toBeVisible()
+  await expect(page.getByLabel('Hostname')).toBeVisible()
 
-  await expect(launch).toHaveClass(/os-action-card/)
-  const box = await launch.boundingBox()
-  expect(box, 'Launch Team card should be a large tile').toBeTruthy()
-  expect(box!.height).toBeGreaterThan(120)
-  expect(box!.width).toBeGreaterThan(240)
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Home$/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Chat$/ })).toHaveCount(0)
+
+  await expect(page.getByRole('heading', { name: 'Support' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toHaveAttribute(
+    'placeholder',
+    'Message …',
+  )
+  await expect(page.getByRole('button', { name: 'Add' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Voice input' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Switch to (light|dark) theme$/ })).toBeVisible()
+  await expect(page.getByText(/^Connected$/)).toHaveCount(0)
 
   const root = page.locator('[data-theme]').first()
   await expect(root).toHaveAttribute('data-theme', 'dark')
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
+
+test('left-rail Search opens the command palette overlay, not an in-place filter', async ({
+  page,
+}) => {
+  await stubAgentApis(page)
+  await page.goto('/chat')
+
+  const list = page.getByRole('navigation', { name: 'Agent list' })
+  await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
+  await expect(list.getByRole('link', { name: /Stewie/ })).toBeVisible()
+
+  await page.getByRole('searchbox', { name: 'Search' }).click()
+  const palette = page.getByRole('dialog', { name: 'Search' })
+  await expect(palette).toBeVisible()
+  await expect(palette.getByRole('combobox', { name: 'Search' })).toHaveAttribute(
+    'placeholder',
+    'Search',
+  )
+  await expect(palette.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+  for (const tab of ['Messages', 'Bots', 'Groups', 'Files', 'Links', 'Routines', 'Actions']) {
+    await expect(palette.getByRole('tab', { name: tab })).toBeVisible()
+  }
+  await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
+  await expect(list.getByRole('link', { name: /Stewie/ })).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(palette).toHaveCount(0)
 })
 
 test('right-click hide from sidebar persists across reload; unhide restores', async ({ page }) => {
@@ -106,10 +143,10 @@ test('right-click hide from sidebar persists across reload; unhide restores', as
   await expect(list.getByRole('link', { name: /Codey/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Stewie/ })).toBeVisible()
 
-  await page.getByRole('button', { name: /Hidden/i }).click()
-  await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
+  await page.getByRole('button', { name: /1 hidden/i }).click()
+  await expect(page.getByRole('dialog', { name: /Hidden agents/i })).toBeVisible()
   await page.getByRole('button', { name: /Unhide Codey/i }).click()
-  await expect(page.getByRole('button', { name: /Hidden/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^\d+ hidden$/i })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
