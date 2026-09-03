@@ -15,7 +15,8 @@ import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import { fetchBlueprints } from '../lib/api'
+import { RemoteSelect } from '../components/RemoteSelect'
+import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
@@ -71,7 +72,7 @@ type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
@@ -113,6 +114,7 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
@@ -154,21 +156,34 @@ const ChatPage = () => {
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
   const teamsQuery = useQuery({
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
   })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const cliAgents = cliQuery.data?.rail ?? []
   const teams = teamsQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const selectedAgentName = teamFromUrl
     ? selectedTeam?.name || teamFromUrl
-    : selectedAgent
-      ? agentLabel(selectedAgent)
-      : selectedBlueprint === SUPPORT_AGENT_ID
-        ? 'Support'
-        : selectedBlueprint
+    : selectedCli
+      ? selectedCli.name
+      : selectedAgent
+        ? agentLabel(selectedAgent)
+        : selectedBlueprint === SUPPORT_AGENT_ID
+          ? 'Support'
+          : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
@@ -272,6 +287,17 @@ const ChatPage = () => {
             next = current.map((m) =>
               m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
             )
+            break
+          case 'status':
+            next = [
+              ...current,
+              {
+                key: `status-${current.length}-${Date.now()}`,
+                role: 'status',
+                text: event.text,
+                streaming: false,
+              },
+            ]
             break
         }
         return { ...prev, [threadKey]: next }
@@ -433,9 +459,15 @@ const ChatPage = () => {
         )
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          selectedBlueprint || undefined,
+          selectedCli ? { cli: selectedCli.cli } : undefined,
+        ),
+      )
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -554,6 +586,13 @@ const ChatPage = () => {
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
         <div className="flex items-center gap-2">
+          <RemoteSelect
+            remotes={remotesQuery.data}
+            value={selectedRemoteId}
+            onChange={setSelectedRemoteId}
+            size="sm"
+            className="h-8 max-w-[10rem]"
+          />
           {teamFromUrl ? (
             <select
               className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
@@ -629,6 +668,13 @@ const ChatPage = () => {
               )
             }
             const message = item.message
+            if (message.role === 'status') {
+              return (
+                <p key={message.key} className="os-chat-status" data-role="status">
+                  {message.text}
+                </p>
+              )
+            }
             const isLast = idx === displayItems.length - 1
             const retryEnabled =
               SHOW_MESSAGE_ACTIONS &&

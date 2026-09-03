@@ -60,6 +60,15 @@ describe('parseChatWsMessage', () => {
     expect(parseChatWsMessage(raw)).toEqual({ kind: 'user_echo', text: 'hi there' })
   })
 
+  it('parses a bubble-less status line', () => {
+    const raw =
+      '<div id="message-list" hx-swap-oob="beforeend"><div class="chat-status-line os-chat-status">Started a new grok session.</div></div>'
+    expect(parseChatWsMessage(raw)).toEqual({
+      kind: 'status',
+      text: 'Started a new grok session.',
+    })
+  })
+
   it('parses an assistant-start append', () => {
     const raw =
       '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-abc123" class="assistant-message"></div></div>'

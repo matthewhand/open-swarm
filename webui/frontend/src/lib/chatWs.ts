@@ -31,6 +31,7 @@ export type ChatWsEvent =
   | { kind: 'assistant_start'; id: string }
   | { kind: 'assistant_chunk'; id: string; text: string }
   | { kind: 'assistant_final'; id: string; text: string }
+  | { kind: 'status'; text: string }
   | { kind: 'unknown'; raw: string }
 
 const OOB_CHUNK_PREFIX = 'beforeend:#'
@@ -99,6 +100,9 @@ export function parseChatWsMessage(raw: string): ChatWsEvent {
     const child = root.firstElementChild
     if (child?.classList.contains('user-message')) {
       return { kind: 'user_echo', text: (child.textContent ?? '').trim() }
+    }
+    if (child?.classList.contains('chat-status-line')) {
+      return { kind: 'status', text: (child.textContent ?? '').trim() }
     }
     if (child?.id.startsWith(ASSISTANT_ID_PREFIX)) {
       return { kind: 'assistant_start', id: child.id }
