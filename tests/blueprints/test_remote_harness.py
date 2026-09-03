@@ -72,11 +72,12 @@ async def test_send_params(bp):
 @pytest.mark.asyncio
 async def test_as_tool_specialists_wired(bp):
     agents = bp._build_agents()
-    if not agents:
-        pytest.skip("openai-agents Agent/as_tool unavailable")
+    assert agents, "expected coordinator + specialist agents (bare Agent fallback if no LLM)"
     coord = agents["coordinator"]
     names = []
     for tool in getattr(coord, "tools", []) or []:
         names.append(getattr(tool, "name", None) or getattr(tool, "__name__", ""))
     joined = " ".join(str(n) for n in names)
-    assert "consult_hermes" in joined or "HermesRemote" in joined or "remote_health" in joined
+    assert "consult_hermes" in joined
+    assert "consult_omb" in joined
+    assert "consult_rakazo" in joined

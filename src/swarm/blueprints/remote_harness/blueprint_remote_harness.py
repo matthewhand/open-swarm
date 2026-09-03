@@ -142,23 +142,38 @@ class RemoteHarnessBlueprint(BlueprintBase):
             return _send_tool(name, prompt, target)
 
         shared = [remote_health, remote_list, remote_send]
+
+        def _agent(name: str, instructions: str, tools: list[Any]):
+            """Prefer BlueprintBase.make_agent; fall back to a model-less Agent.
+
+            Remote operate is HTTP, not a local seat. as_tool wiring must still
+            exist when no LLM profile is configured (tests / LAN LLM down).
+            """
+            try:
+                return self.make_agent(name, instructions, tools)
+            except Exception as exc:
+                logger.debug("make_agent(%s) fell back to bare Agent: %s", name, exc)
+                from agents import Agent
+
+                return Agent(name=name, instructions=instructions, tools=tools)
+
         try:
-            hermes = self.make_agent(
+            hermes = _agent(
                 "HermesRemote",
                 "You operate the remote Hermes gateway via tools. Never pretend to be Hermes locally.",
                 shared,
             )
-            omb = self.make_agent(
+            omb = _agent(
                 "OmbRemote",
                 "You operate remote OpenMausBot via tools. Never clone an OMB seat locally.",
                 shared,
             )
-            rakazo = self.make_agent(
+            rakazo = _agent(
                 "RakazoRemote",
                 "You operate remote Rakazo via tools. Do not claim Grok-Bot chrome is live.",
                 shared,
             )
-            coordinator = self.make_agent(
+            coordinator = _agent(
                 "RemoteCoordinator",
                 (
                     "You are Open Swarm coordinating remote harnesses. "
