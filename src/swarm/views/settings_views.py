@@ -50,9 +50,34 @@ def settings_dashboard(request):
         )
         safe_groups = redact_settings_groups(all_settings)
 
+        chat_stats = {}
+        try:
+            from swarm.core import chat_store
+
+            user_key = chat_store.user_key_for(request.user)
+            chat_store.prune_expired(user_key)
+            chat_stats = chat_store.stats(user_key)
+        except Exception:
+            logger.exception("Failed to collect chat persistence stats")
+            chat_stats = {
+                "store_dir": "",
+                "format": "json",
+                "active_count": 0,
+                "trash_count": 0,
+                "bytes_used": 0,
+                "bytes_label": "0 B",
+                "max_age_days": 90,
+                "auto_archive_enabled": True,
+                "chats": [],
+                "trash": [],
+                "env_dir": "SWARM_CHAT_DIR",
+                "env_max_age": "SWARM_CHAT_MAX_AGE_DAYS",
+            }
+
         context = {
             'page_title': 'Settings Dashboard',
             'settings_groups': safe_groups,
+            'chat_stats': chat_stats,
             'stats': {
                 'total': total_settings,
                 'configured': configured_settings,
