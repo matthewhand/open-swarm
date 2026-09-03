@@ -48,3 +48,8 @@ def test_spa_wires_agent_avatar_as_default():
     # Custom avatar_path must reach all three chat faces (header / empty / bubbles).
     assert chat.count("src={agentAvatarSrc}") == 3
     assert "selectedAgent?.avatar_path" in chat
+
+
+def test_blueprints_list_exposes_avatar_path_for_chat():
+    api = (REPO / "src" / "swarm" / "views" / "api_views.py").read_text(encoding="utf-8")
+    assert '"avatar_path": _blueprint_avatar_url(blueprint_id, meta)' in api

@@ -212,6 +212,29 @@ class TestBlueprintsListView:
         assert "description" in bp
         assert "required_mcp_servers" in bp
         assert "tags" in bp
+        assert bp.get("avatar_path") is None
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_forwards_custom_avatar_path(
+        self, mock_get_blueprints, api_client
+    ):
+        """Custom avatar_path in metadata is forwarded so SPA Chat can paint it."""
+        mock_get_blueprints.return_value = {
+            "codey": {
+                "metadata": {
+                    "name": "Codey",
+                    "description": "Code assistant",
+                    "avatar_path": "/avatars/codey_avatar.png",
+                }
+            }
+        }
+
+        response = api_client.get("/v1/blueprints/")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["data"][0]["id"] == "codey"
+        assert data["data"][0]["avatar_path"] == "/avatars/codey_avatar.png"
 
     @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_search_filter(

@@ -24,6 +24,29 @@ from swarm.views.utils import get_available_blueprints
 logger = logging.getLogger(__name__)
 
 
+def _blueprint_avatar_url(blueprint_id: str, meta: dict) -> str | None:
+    """Optional custom face URL for Chat/sidebar. Missing → SPA Bert default.
+
+    Prefer metadata ``avatar_path`` / ``avatar``. Else a generated file under
+    AVATAR_STORAGE_PATH (ComfyUI). Does not invent faces for default blueprints.
+    """
+    raw = meta.get("avatar_path") or meta.get("avatar")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    from pathlib import Path
+
+    from django.conf import settings
+
+    from swarm.utils.comfyui_client import _safe_avatar_blueprint_slug
+
+    slug = _safe_avatar_blueprint_slug(blueprint_id)
+    filename = f"{slug}_avatar.png"
+    stored = Path(settings.AVATAR_STORAGE_PATH) / filename
+    if stored.is_file():
+        return f"{settings.AVATAR_URL_PREFIX}{filename}"
+    return None
+
+
 def _github_marketplace_error_response(exc: gh_service.GitHubAPIError) -> Response:
     """Map upstream GitHub failures to a non-200 JSON error for marketplace clients."""
     http_status = (
@@ -191,6 +214,7 @@ class BlueprintsListView(APIView):
                         "tags": meta.get("tags") or [],
                         "installed": None,
                         "compiled": None,
+                        "avatar_path": _blueprint_avatar_url(blueprint_id, meta),
                     })
             else:
                 logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
