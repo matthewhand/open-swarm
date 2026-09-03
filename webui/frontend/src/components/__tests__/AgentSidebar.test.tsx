@@ -350,6 +350,13 @@ describe('AgentSidebar teams', () => {
             }),
           } as Response
         }
+        if (url.includes('/v1/herdr-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [] }),
+          } as Response
+        }
         return {
           ok: true,
           status: 200,
