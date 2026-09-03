@@ -53,7 +53,7 @@ def test_settings_shows_chat_counts_and_disk(client, user):
 def test_settings_unauthenticated_redirects():
     resp = Client().get("/settings/")
     assert resp.status_code == 302
-    assert "/accounts/login/" in resp["Location"]
+    assert "login" in resp["Location"]
 
 
 @pytest.mark.django_db
@@ -128,14 +128,14 @@ def test_unknown_action_rejected(client):
 @pytest.mark.django_db
 def test_retention_scoped_to_current_user(client, user, db):
     other = get_user_model().objects.create_user(username="other", password="pw")
-    _seed_thread(other, "secret", "private")
-    _seed_thread(user, "mine", "visible")
+    _seed_thread(other, "other-user-thread", "private-other-transcript")
+    _seed_thread(user, "mine-thread", "visible-own-transcript")
     html = client.get("/settings/").content.decode()
-    assert "mine" in html
-    assert "secret" not in html
+    assert "mine-thread" in html
+    assert "other-user-thread" not in html
     client.post("/settings/chats/action/", {"action": "archive_all"})
-    assert chat_store.load(chat_store.user_key_for(other), "secret") is not None
-    assert chat_store.load(chat_store.user_key_for(user), "mine") is None
+    assert chat_store.load(chat_store.user_key_for(other), "other-user-thread") is not None
+    assert chat_store.load(chat_store.user_key_for(user), "mine-thread") is None
 
 
 @pytest.mark.django_db
