@@ -57,6 +57,19 @@ def resolve_workdir(
     return str(resolve_confined_workdir(raw, create=create))
 
 
+def latest_user_prompt(messages: list[dict[str, Any]]) -> str:
+    """The newest user turn — used when a CLI session is being resumed."""
+    for message in reversed(messages or []):
+        if not isinstance(message, dict):
+            continue
+        if (message.get("role") or "user") != "user":
+            continue
+        text = str(message.get("content") or "").strip()
+        if text:
+            return text
+    return ""
+
+
 def render_prompt(messages: list[dict[str, Any]]) -> str:
     """Flatten an OpenAI-style message list into a single prompt string.
 
@@ -378,6 +391,8 @@ def backend_meta(backends: list[str], judge: str | None = None) -> dict[str, Any
 
 #: Chunk ``type`` for fusion progress side-channel events.
 PROGRESS_TYPE = "fusion_progress"
+#: Honest CLI session line (new vs resumed). Not a chat bubble.
+SESSION_NOTICE_TYPE = "cli_session_notice"
 
 
 def progress_chunk(content: str) -> dict:
@@ -389,6 +404,18 @@ def progress_chunk(content: str) -> dict:
     by inspecting ``chunk["type"] == PROGRESS_TYPE``.
     """
     return {"type": PROGRESS_TYPE, "content": content}
+
+
+def session_notice_chunk(cli_name: str, *, resumed: bool) -> dict:
+    """Bubble-less session line. ``resumed`` only when the stored id was used."""
+    from swarm.core.cli_sessions import session_notice_text
+
+    return {
+        "type": SESSION_NOTICE_TYPE,
+        "content": session_notice_text(cli_name, resumed=resumed),
+        "resumed": resumed,
+        "session_notice": True,
+    }
 
 
 def format_cli_error(adapter: CliAdapter, error: str) -> str:

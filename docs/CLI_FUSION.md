@@ -121,6 +121,9 @@ string.
 | `mode` | str | Free-text label documenting safety posture (`"readonly"`, `"write"`). Advisory. |
 | `auth_check` | list[str] | Optional argv probe for `swarm-cli cli-agents --check-auth`. Exit 0 ⇒ authenticated. Should be cheap and not consume quota (capped at 30s). |
 | `consensus` | bool \| list[str] \| dict | Designate this agent as a **consensus agent** — calling it runs a panel, not a single call. `true` ⇒ all available CLIs; a list ⇒ a preferred whitelist (falls back to all-available if it matches nothing); `{"panel":[…],"judge":"…"}` ⇒ explicit. See [Consensus modes](BLUEPRINT_LIBRARY.md#consensus-modes-a-second-axis--partly-built-partly-roadmap). |
+| `resume_argv` | list[str] \| null | Extra argv inserted when a stored CLI session id exists. Use `{session_id}`. `null` uses the catalog policy for this name; `[]` means this CLI cannot resume. |
+| `resume_insert` | int \| null | Index in argv at which `resume_argv` is inserted (catalog default `1`; `codex` uses `2` so it becomes `codex exec resume <id>`). |
+| `session_id_paths` | list[str] \| null | JSON dotted paths to capture a session id from stdout (e.g. `.session_id`). |
 
 > ⚠️ **Exact flags and JSON shapes vary by CLI version.** The snippets below are
 > starting points — run the CLI's `--help` and confirm its non-interactive flag,
@@ -145,6 +148,31 @@ get a panelist that actually *does work*, pin down two flags from its `--help`:
 | `gemini` | `-p` | `--yolo` | `-o json` → `json:.response` |
 | `codex` | `exec` | `--dangerously-bypass-approvals-and-sandbox` (or `--full-auto`) | text |
 | `opencode` | `run` | (none needed — `run` acts without an approval gate) | text |
+
+### CLI session resume (REQ-52)
+
+Catalog CLIs **own** their sessions. Open Swarm stores each CLI session id next
+to the chat thread (`cli_sessions` on the per-agent JSON record) and, on the
+next send to that CLI, inserts the resume argv so the CLI restores its own
+context. This is not a Django/API conversation id and not OS
+`start_new_session` (process-group kill). First-turn catalog cmds stay one-shot;
+resume argv is added only when a stored id exists. Missing or expired ids start
+a new session; we store the new id. If a CLI cannot resume, the UI says we
+started a new session — never a fake “restored”.
+
+| CLI | Resume argv (when an id is stored) | How the id is named | Capture |
+|---|---|---|---|
+| `grok` | `--resume {session_id}` (`-r`) | UUID. `--session-id` / `-s` names a **new** session | JSON `sessionId` / `session_id` |
+| `claude` | `--resume {session_id}` (`-r`) | UUID. `--session-id` names a **new** session | JSON `session_id` (sibling of `result`) |
+| `gemini` | `--resume {session_id}` (`-r`) | UUID. `--session-id` starts a **new** session | JSON `session_id` / `sessionId` when present |
+| `codex` | `codex exec resume {session_id} …` (subcommand) | UUID / thread id | JSON `thread_id` when `--json`; default catalog parse is text |
+| `opencode` | `--session {session_id}` (`-s`) | `ses_…`. `--continue` is last-cwd, not thread-scoped | JSON when the CLI emits it; default parse is text |
+
+`antigravity` is not in the catalog. If wired later, headless resume is
+`agy -p --conversation <id>` (JSON often includes `conversation_id`).
+
+Per-adapter config can override `resume_argv`, `resume_insert`, and
+`session_id_paths`. An empty `resume_argv` means the CLI cannot resume.
 
 ### Example adapters
 

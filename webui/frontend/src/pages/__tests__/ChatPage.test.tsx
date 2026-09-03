@@ -513,6 +513,51 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(screen.queryByText(/Disk used/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument()
   })
+
+  it('renders a CLI session notice without a chat-start/chat-end bubble', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'agt-1-cli',
+              messages: [
+                { role: 'user', content: 'hello' },
+                { role: 'status', content: 'Started a new grok session.' },
+                { role: 'assistant', content: 'hi' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const notice = await screen.findByText('Started a new grok session.')
+    expect(notice).toHaveAttribute('data-role', 'status')
+    expect(notice.closest('.chat-start')).toBeNull()
+    expect(notice.closest('.chat-end')).toBeNull()
+    expect(notice.closest('.chat-bubble')).toBeNull()
+  })
 })
 
 describe('ChatPage Grok composer and per-agent threads', () => {
