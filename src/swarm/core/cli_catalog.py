@@ -97,6 +97,15 @@ CATALOG: dict[str, dict[str, Any]] = {
         "mode": "write",
         "timeout": 240,
     },
+    "pi": {
+        # pi -p/--print is non-interactive; prompt is a positional message
+        # (not attached to -p). --mode text; --no-session keeps verify runs
+        # ephemeral. --approve trusts project-local files for that run.
+        "cmd": ["pi", "-p", "--mode", "text", "--no-session", "--approve", "{prompt}"],
+        "parse": "text",
+        "mode": "write",
+        "timeout": 240,
+    },
 }
 
 
@@ -121,12 +130,14 @@ CLI_TRAITS: dict[str, dict[str, float]] = {
     "gemini":   {"intelligence": 0.60, "speed": 0.92, "cost": 0.90},
     "codex":    {"intelligence": 0.75, "speed": 0.60, "cost": 0.50},
     "opencode": {"intelligence": 0.55, "speed": 0.65, "cost": 0.75},
+    "pi":       {"intelligence": 0.70, "speed": 0.70, "cost": 0.70},
 }
 
 # First-class sidebar CLIs — always listed like remote FRAMEWORKS (OpenMausBot),
 # even when the designer has not created a `kind=cli` record. Other catalog
 # CLIs stay available in the backend picker / designer.
-SIDEBAR_CLIS: tuple[str, ...] = ("grok", "agy")
+# Grok rail verify rows use ``{name}_agent`` ids (grok_agent, agy_agent, …).
+SIDEBAR_CLIS: tuple[str, ...] = ("grok", "agy", "opencode", "pi")
 
 CLI_SIDEBAR: dict[str, dict[str, str]] = {
     "grok": {
@@ -142,6 +153,20 @@ CLI_SIDEBAR: dict[str, dict[str, str]] = {
         "description": "Host agy CLI in one-shot print mode (auto-approve tools).",
         "color": "#38bdf8",
         "icon": "🛠️",
+    },
+    "opencode": {
+        "name": "OpenCode",
+        "specialty": "OpenCode CLI",
+        "description": "Host opencode CLI one-shot (run + explicit --model).",
+        "color": "#a78bfa",
+        "icon": "⌨️",
+    },
+    "pi": {
+        "name": "Pi",
+        "specialty": "Pi CLI",
+        "description": "Host pi CLI in non-interactive print mode (-p).",
+        "color": "#fb923c",
+        "icon": "π",
     },
 }
 
@@ -295,6 +320,43 @@ def listed_cli_specs() -> list[dict[str, Any]]:
             "type": "specialist",
         })
     return specs
+
+
+def rail_cli_agent_id(cli_name: str) -> str:
+    """Grok-rail id: grok → grok_agent."""
+    return f"{cli_name}_agent"
+
+
+def cli_from_rail_id(agent_id: str | None) -> str | None:
+    """Map grok_agent / grok → catalog CLI name, or None."""
+    raw = str(agent_id or "").strip().lower()
+    if not raw:
+        return None
+    if raw.endswith("_agent"):
+        raw = raw[: -len("_agent")]
+    if raw in CATALOG:
+        return raw
+    return None
+
+
+def rail_cli_rows() -> list[dict[str, Any]]:
+    """Rows for the Grok conversation rail (id ``grok_agent``, …)."""
+    rows: list[dict[str, Any]] = []
+    for spec in listed_cli_specs():
+        name = str(spec.get("cli") or spec.get("agent_id") or "")
+        if not name:
+            continue
+        meta = CLI_SIDEBAR.get(name) or {}
+        rows.append({
+            "id": rail_cli_agent_id(name),
+            "object": "cli.agent",
+            "name": rail_cli_agent_id(name),
+            "cli": name,
+            "kind": "cli",
+            "description": meta.get("description") or spec.get("description") or f"{name} CLI",
+            "installed": bool(shutil.which(CATALOG[name]["cmd"][0])),
+        })
+    return rows
 
 
 def catalog_names() -> list[str]:

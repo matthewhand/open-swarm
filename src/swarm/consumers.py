@@ -246,7 +246,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if params and params.get("team"):
             await self.respond_with_team_stub(params, message_text, contents_div_id)
         elif blueprint_id:
-            await self.respond_with_blueprint(blueprint_id, contents_div_id)
+            await self.respond_with_blueprint(blueprint_id, contents_div_id, params)
         else:
             await self.respond_with_default_model(contents_div_id)
 
@@ -267,7 +267,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=final_html)
 
-    async def respond_with_blueprint(self, blueprint_id, contents_div_id):
+    async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
         # In test mode, skip slow blueprint instantiation and return canned output.
         if os.environ.get("SWARM_TEST_MODE"):
@@ -276,7 +276,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             from django.conf import settings as _settings
             bp_dir = _Path(getattr(_settings, "BLUEPRINT_DIRECTORY", "src/swarm/blueprints"))
             known = {d.name for d in bp_dir.iterdir() if d.is_dir() and not d.name.startswith("_")} if bp_dir.is_dir() else set()
-            if blueprint_id not in known:
+            from swarm.core.cli_catalog import cli_from_rail_id
+            if blueprint_id not in known and not cli_from_rail_id(blueprint_id):
                 await self.send_error_message(
                     contents_div_id,
                     f"Error: blueprint '{blueprint_id}' not found.",
@@ -299,8 +300,22 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
 
         try:
+            from swarm.core.cli_catalog import cli_from_rail_id
             from swarm.views.utils import get_blueprint_instance
-            blueprint_instance = await get_blueprint_instance(blueprint_id)
+
+            cli_name = None
+            if isinstance(params, dict):
+                raw_cli = params.get("cli")
+                if isinstance(raw_cli, str) and raw_cli.strip():
+                    cli_name = raw_cli.strip()
+            if not cli_name:
+                cli_name = cli_from_rail_id(blueprint_id)
+            run_id = "cli_agent" if cli_name else blueprint_id
+            blueprint_instance = await get_blueprint_instance(run_id)
+            if blueprint_instance is not None and cli_name and hasattr(
+                blueprint_instance, "set_params"
+            ):
+                blueprint_instance.set_params({"cli": cli_name})
         except Exception:
             logger.error(
                 f"Error loading blueprint '{blueprint_id}'", exc_info=True

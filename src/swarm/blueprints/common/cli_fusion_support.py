@@ -116,10 +116,12 @@ def build_registry(config: dict[str, Any] | None) -> CliAdapterRegistry:
     if not agents and not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("SWARM_TEST_MODE"):
         from swarm.core.cli_catalog import catalog_entry, installed_catalog_clis
 
-        # Operator default is grok (then agy). Do not auto-wire claude/gemini
-        # as hybrid orchestrators just because they are on PATH.
+        # Operator rail CLIs (grok/agy/opencode/pi). Do not auto-wire
+        # claude/gemini as hybrid orchestrators just because they are on PATH.
+        from swarm.core.cli_catalog import SIDEBAR_CLIS
+
         for name in installed_catalog_clis():
-            if name not in ("grok", "agy"):
+            if name not in SIDEBAR_CLIS:
                 continue
             entry = catalog_entry(name)
             if entry:

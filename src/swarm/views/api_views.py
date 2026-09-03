@@ -533,6 +533,7 @@ class CliAgentsView(APIView):
             "clis": cli_catalog.catalog_names(),
             "native_consensus": cli_catalog.NATIVE_CONSENSUS,
             "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
+            "rail": cli_catalog.rail_cli_rows(),
         })
 
 

@@ -15,7 +15,7 @@ import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import { fetchBlueprints } from '../lib/api'
+import { fetchBlueprints, fetchCliAgents } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
@@ -154,21 +154,29 @@ const ChatPage = () => {
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
   const teamsQuery = useQuery({
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
   })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const cliAgents = cliQuery.data?.rail ?? []
   const teams = teamsQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const selectedAgentName = teamFromUrl
     ? selectedTeam?.name || teamFromUrl
-    : selectedAgent
-      ? agentLabel(selectedAgent)
-      : selectedBlueprint === SUPPORT_AGENT_ID
-        ? 'Support'
-        : selectedBlueprint
+    : selectedCli
+      ? selectedCli.name
+      : selectedAgent
+        ? agentLabel(selectedAgent)
+        : selectedBlueprint === SUPPORT_AGENT_ID
+          ? 'Support'
+          : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
@@ -433,9 +441,15 @@ const ChatPage = () => {
         )
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          selectedBlueprint || undefined,
+          selectedCli ? { cli: selectedCli.cli } : undefined,
+        ),
+      )
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
   )
 
   const handleSend = (event: FormEvent) => {

@@ -9,7 +9,7 @@ from swarm.core.cli_adapter import CliAdapter
 def test_catalog_names_are_sorted_and_known():
     names = cli_catalog.catalog_names()
     assert names == sorted(names)
-    assert {"claude", "gemini", "codex", "opencode", "grok", "agy"} <= set(names)
+    assert {"claude", "gemini", "codex", "opencode", "grok", "agy", "pi"} <= set(names)
 
 
 def test_every_catalog_entry_is_a_valid_adapter_config():
@@ -92,6 +92,28 @@ def test_listed_cli_specs_are_first_class_sidebar_agents():
     assert specs["agy"]["cli"] == "agy"
     assert specs["grok"]["agent_type"] == "cli"
     assert specs["agy"]["agent_type"] == "cli"
+    assert specs["opencode"]["cli"] == "opencode"
+    assert specs["pi"]["cli"] == "pi"
+
+
+def test_rail_cli_rows_use_star_agent_ids():
+    rows = {r["id"]: r for r in cli_catalog.rail_cli_rows()}
+    for name in ("grok", "agy", "opencode", "pi"):
+        row = rows[f"{name}_agent"]
+        assert row["cli"] == name
+        assert row["kind"] == "cli"
+        assert cli_catalog.cli_from_rail_id(row["id"]) == name
+    assert cli_catalog.cli_from_rail_id("grok") == "grok"
+    assert cli_catalog.cli_from_rail_id("nope") is None
+
+
+def test_pi_catalog_print_mode_is_positional_prompt():
+    e = cli_catalog.catalog_entry("pi")
+    assert e["cmd"][0] == "pi"
+    assert "-p" in e["cmd"]
+    assert "{prompt}" in e["cmd"]
+    assert e["cmd"].index("-p") < e["cmd"].index("{prompt}")
+    CliAdapter.from_config("pi", e)
 
 
 def test_build_starter_config_prefers_grok_for_single_agent_roles():

@@ -81,6 +81,23 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
         json: async () => ({ object: 'list', data: extraRosters }),
       } as Response
     }
+    if (url.includes('/v1/cli-agents')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          clis: ['grok', 'agy', 'opencode', 'pi'],
+          native_consensus: {},
+          catalog: {},
+          rail: [
+            { id: 'grok_agent', object: 'cli.agent', name: 'grok_agent', cli: 'grok', kind: 'cli', description: 'Host grok CLI', installed: true },
+            { id: 'agy_agent', object: 'cli.agent', name: 'agy_agent', cli: 'agy', kind: 'cli', description: 'Host agy CLI', installed: true },
+            { id: 'opencode_agent', object: 'cli.agent', name: 'opencode_agent', cli: 'opencode', kind: 'cli', description: 'Host opencode CLI', installed: true },
+            { id: 'pi_agent', object: 'cli.agent', name: 'pi_agent', cli: 'pi', kind: 'cli', description: 'Host pi CLI', installed: true },
+          ],
+        }),
+      } as Response
+    }
     if (url.includes('/v1/herdr-agents')) {
       return {
         ok: true,
@@ -157,6 +174,22 @@ describe('AgentSidebar Grok rail', () => {
     expect(onOpenSearch).toHaveBeenCalled()
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+  })
+
+  it('lists grok_agent, agy_agent, opencode_agent, and pi_agent after Support', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await within(list).findByRole('link', { name: /grok_agent/ })
+    const hrefs = within(list)
+      .getAllByRole('link')
+      .map((el) => el.getAttribute('href'))
+    expect(hrefs.slice(0, 5)).toEqual([
+      '/chat?blueprint=support',
+      '/chat?blueprint=grok_agent',
+      '/chat?blueprint=agy_agent',
+      '/chat?blueprint=opencode_agent',
+      '/chat?blueprint=pi_agent',
+    ])
   })
 
   it('seeds Hidden with gate and skeptic on first load; Support stays visible', async () => {

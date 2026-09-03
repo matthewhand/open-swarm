@@ -531,10 +531,21 @@ export function fetchBlueprintSource(id: string, file?: string): Promise<Bluepri
 }
 
 /** GET /v1/cli-agents/ — CLI catalog + native (built-in) consensus capability. */
+export interface CliRailAgent {
+  id: string
+  object: 'cli.agent'
+  name: string
+  cli: string
+  kind: 'cli'
+  description: string
+  installed: boolean
+}
+
 export interface CliAgentsInfo {
   clis: string[]
   native_consensus: Record<string, string[]>
   catalog: Record<string, Record<string, unknown>>
+  rail?: CliRailAgent[]
 }
 
 export function fetchCliAgents(): Promise<CliAgentsInfo> {
