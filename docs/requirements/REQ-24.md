@@ -1,6 +1,6 @@
 # REQ-24 — Drag any agent incl. roles into Hidden drop zone
 
-**Status:** implemented (left-rail Hidden drop zone; hide wins for list + pin grid)
+**Status:** implemented in #342 (left-rail Hidden drop zone; hide wins for list + pin grid)
 
 ## Intent
 
