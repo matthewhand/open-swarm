@@ -319,6 +319,8 @@ class TestTeamAdminView:
         content = response.content.decode()
         assert "Create Team" in content
         assert "teams_admin.js" in content
+        assert "Profiles, not a Team" in content
+        assert "/v1/agent-team/" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_admin_disabled(self, mock_enabled, test_user):

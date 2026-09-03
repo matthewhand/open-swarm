@@ -8,11 +8,15 @@ Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.
 
 A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed).
 
-## Team (dynamic / `/v1/teams`)
+## Team (handoff members — REQ-11)
 
-A named **LLM-profile alias** stored in `teams.json` (`id`, `description`, `llm_profile`). CRUD via `/v1/teams/` and the Django `/teams/` admin/launcher. Entries surface as model ids and run through `DynamicTeamBlueprint` — a thin chat proxy to the configured profile.
+A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`.
 
-**Not** a multi-agent team builder or graph editor. For multi-agent workflows, use a **Blueprint** (or MoA / persona patterns below).
+This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
+
+## Profiles (`/teams/` — name collision)
+
+`/v1/teams/` and the Django `/teams/` admin store **LLM-profile aliases** (`id`, `description`, `llm_profile`) in `teams.json`. They run through `DynamicTeamBlueprint` — a thin chat proxy to a profile. Prefer calling that surface **Profiles** in new copy. Do not call those aliases a Team.
 
 ## Persona / MoA
 
