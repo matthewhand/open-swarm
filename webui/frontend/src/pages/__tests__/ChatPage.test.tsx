@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -125,8 +125,8 @@ describe('ChatPage reconnect focus', () => {
     const composer = await screen.findByRole('textbox', { name: 'Chat message' })
     await waitFor(() => {
       expect(composer).not.toBeDisabled()
-      expect(composer).toHaveFocus()
     })
+    expect(composer).toHaveFocus()
   })
 })
 
@@ -329,9 +329,14 @@ describe('ChatPage Send button honesty while streaming', () => {
 
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
-    expect(send.querySelector('[data-testid="loading-spinner"]')).toBeNull()
+
+    const { queryByTestId } = within(send)
+    expect(queryByTestId('loading-spinner')).toBeNull()
     // Streaming progress lives on the message bubble, not a fake Send busy state.
-    expect(document.querySelector('.chat-bubble .loading')).toBeTruthy()
+    // Use getAllByRole because there are multiple status roles (like connection status)
+    const statuses = screen.getAllByRole('status', { hidden: true })
+    const loadingStatus = statuses.find(s => s.getAttribute('aria-label') === 'Loading')
+    expect(loadingStatus).toBeInTheDocument()
   })
 })
 
@@ -425,9 +430,9 @@ describe('ChatPage markdown bubbles', () => {
       )
     })
 
-    const bubble = document.querySelector('.chat-md')
-    expect(bubble).toBeTruthy()
-    expect(bubble?.innerHTML).toContain('<strong>hello</strong>')
-    expect(bubble?.innerHTML).toContain('<code>code</code>')
+    const bubble = screen.getByTestId('chat-md')
+    expect(bubble).toBeInTheDocument()
+    expect(bubble.innerHTML).toContain('<strong>hello</strong>')
+    expect(bubble.innerHTML).toContain('<code>code</code>')
   })
 })
