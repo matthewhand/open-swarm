@@ -628,11 +628,14 @@ describe('ChatPage team member dropdown', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
 
     await waitFor(() => {
-      expect(ws.send).toHaveBeenCalledTimes(2)
-    })
-    expect(JSON.parse(String(ws.send.mock.calls[1][0]))).toEqual({
-      message: 'just codey',
-      params: { team: 'demo-team', target: 'codey' },
+      const userFrames = ws.send.mock.calls
+        .map((call) => JSON.parse(String(call[0])))
+        .filter((frame) => frame.message && frame.type !== 'status')
+      expect(userFrames).toHaveLength(2)
+      expect(userFrames[1]).toEqual({
+        message: 'just codey',
+        params: { team: 'demo-team', target: 'codey' },
+      })
     })
   })
 
