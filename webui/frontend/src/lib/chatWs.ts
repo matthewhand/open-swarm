@@ -47,11 +47,23 @@ export function buildChatWsUrl(
     : base
 }
 
+/** Optional per-turn fields (Support skill attach, session kind). */
+export type ChatWsFrameExtras = {
+  skill?: string
+  session_kind?: string
+}
+
 /** Build the JSON frame sent to DjangoChatConsumer.receive(). */
-export function buildChatWsFrame(message: string, blueprintId?: string): string {
-  return JSON.stringify(
-    blueprintId ? { message, blueprint: blueprintId } : { message },
-  )
+export function buildChatWsFrame(
+  message: string,
+  blueprintId?: string,
+  extras?: ChatWsFrameExtras,
+): string {
+  const payload: Record<string, string> = { message }
+  if (blueprintId) payload.blueprint = blueprintId
+  if (extras?.skill) payload.skill = extras.skill
+  if (extras?.session_kind) payload.session_kind = extras.session_kind
+  return JSON.stringify(payload)
 }
 
 export function newConversationId(): string {

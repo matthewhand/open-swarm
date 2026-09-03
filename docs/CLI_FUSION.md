@@ -359,7 +359,8 @@ curl -sf localhost:8000/v1/chat/completions -H "Content-Type: application/json" 
 
 The same skill works on grok, claude, or gemini (verified live, 3/3). Bundled
 examples: `conventional-commit`, `reviewing-code`, `writing-changelog`,
-`counting-lines` (ships an executable `count.py`). See the illustrated
+`counting-lines` (ships an executable `count.py`), `support-session-ownership`
+(Support session ownership). See the illustrated
 [walkthrough](SKILLS_AND_CONSENSUS_WALKTHROUGH.md).
 
 ## Inference profiles — say what you want, not which model

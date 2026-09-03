@@ -162,6 +162,13 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             self, "default_blueprint", None
         )
         self.active_agent = blueprint_id or getattr(self, "active_agent", None)
+        # Optional skill= / session_kind (Support attaches session-ownership every turn).
+        request_params = {}
+        if text_data_json.get("skill"):
+            request_params["skill"] = text_data_json["skill"]
+        if text_data_json.get("session_kind"):
+            request_params["session_kind"] = text_data_json["session_kind"]
+        self._request_params = request_params or None
 
         self.messages.append(
             {
@@ -196,24 +203,28 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             from pathlib import Path as _Path
 
             from django.conf import settings as _settings
+            from swarm.blueprints.common.support_blueprint import is_support_id
+
             bp_dir = _Path(getattr(_settings, "BLUEPRINT_DIRECTORY", "src/swarm/blueprints"))
             known = {d.name for d in bp_dir.iterdir() if d.is_dir() and not d.name.startswith("_")} if bp_dir.is_dir() else set()
-            if blueprint_id not in known:
+            if blueprint_id not in known and not is_support_id(blueprint_id):
                 await self.send_error_message(
                     contents_div_id,
                     f"Error: blueprint '{blueprint_id}' not found.",
                 )
                 return
-            instruction = self.messages[-1]["content"] if self.messages else ""
-            canned = f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'" if blueprint_id == "jeeves" else f"[TEST-MODE] {blueprint_id} at your service. You said: '{instruction}'"
-            await self.send(text_data=_oob_append_html(contents_div_id, canned))
-            self.messages.append({"role": "assistant", "content": canned})
-            final_html = render_to_string(
-                "websocket_partials/final_system_message.html",
-                {"contents_div_id": contents_div_id, "message": canned},
-            )
-            await self.send(text_data=final_html)
-            return
+            if not is_support_id(blueprint_id):
+                instruction = self.messages[-1]["content"] if self.messages else ""
+                canned = f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'" if blueprint_id == "jeeves" else f"[TEST-MODE] {blueprint_id} at your service. You said: '{instruction}'"
+                await self.send(text_data=_oob_append_html(contents_div_id, canned))
+                self.messages.append({"role": "assistant", "content": canned})
+                final_html = render_to_string(
+                    "websocket_partials/final_system_message.html",
+                    {"contents_div_id": contents_div_id, "message": canned},
+                )
+                await self.send(text_data=final_html)
+                return
+            # Support falls through: deterministic skill-injected path below.
 
         from swarm.views.chat_views import (
             _chunk_is_final,
@@ -222,7 +233,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         try:
             from swarm.views.utils import get_blueprint_instance
-            blueprint_instance = await get_blueprint_instance(blueprint_id)
+            blueprint_instance = await get_blueprint_instance(
+                blueprint_id, params=getattr(self, "_request_params", None)
+            )
         except Exception:
             logger.error(
                 f"Error loading blueprint '{blueprint_id}'", exc_info=True

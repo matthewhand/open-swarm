@@ -327,6 +327,22 @@ describe('ChatPage Send button honesty while streaming', () => {
     const loaders = screen.getAllByRole('status', { name: 'Loading' })
     expect(loaders.length).toBeGreaterThan(0)
   })
+
+  it('attaches the session-ownership skill on every Support send', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'how do I edit?' } })
+    fireEvent.submit(composer.closest('form')!)
+    const payload = JSON.parse(String(MockWebSocket.instances[0]!.send.mock.calls[0][0]))
+    expect(payload).toMatchObject({
+      message: 'how do I edit?',
+      blueprint: 'support',
+      skill: 'support-session-ownership',
+    })
+  })
 })
 
 describe('ChatPage auto-reconnect backoff', () => {

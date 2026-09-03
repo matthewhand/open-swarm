@@ -37,6 +37,16 @@ describe('buildChatWsFrame', () => {
     expect(buildChatWsFrame('hi', undefined)).toBe('{"message":"hi"}')
   })
 
+  it('includes Support skill extras when given', () => {
+    expect(
+      JSON.parse(buildChatWsFrame('hi', 'support', { skill: 'support-session-ownership' })),
+    ).toEqual({
+      message: 'hi',
+      blueprint: 'support',
+      skill: 'support-session-ownership',
+    })
+  })
+
   it('round-trips back to the original message via JSON.parse', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',

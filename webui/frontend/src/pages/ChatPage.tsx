@@ -42,8 +42,10 @@ import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import {
   agentLabel,
   defaultBlueprintId,
+  isSupportAgent,
   SUPPORT_AGENT_ID,
   supportFirstAgents,
+  supportTurnExtras,
 } from '../lib/supportAgent'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
@@ -359,7 +361,10 @@ const ChatPage = () => {
       const trimmed = text.trim()
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
       lastUserTextRef.current = trimmed
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      const extras = isSupportAgent({ id: selectedBlueprint })
+        ? supportTurnExtras()
+        : undefined
+      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined, extras))
     },
     [selectedBlueprint],
   )

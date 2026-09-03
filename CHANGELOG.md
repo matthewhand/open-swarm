@@ -36,6 +36,7 @@ All notable changes to this project will be documented in this file.
 
 
 ### Added
+- **REQ-50 Support session-ownership skill:** bundled `skills/support-session-ownership/SKILL.md` is attached on every Support turn (`skill=` / `supportAgent.ts` / Support blueprint). Teaches API-owned editable threads vs CLI/remote sessions (no edit) and that Chat stays the main view. Fixture `SESSION_OWNERSHIP_API_CLI_REMOTE`.
 - **REQ-14 per-agent chat persistence:** each agent thread is a JSON file under `$SWARM_USER_DATA_DIR/chats` (override `SWARM_CHAT_DIR`). Chat restores that thread after reload or agent switch. Settings shows chat count + disk use, can move chats to trash / empty trash, and auto-archives after `SWARM_CHAT_MAX_AGE_DAYS` (default 90; `0` disables). Not in the Chat chrome.
 - **SPA ChatPage markdown + auto-reconnect:** bubbles render GFM via `marked` then allowlist-sanitize (`htmlSafe`, same model as rest_mode); unexpected WS closes retry with exponential backoff (skip **4401** auth gate)
 - **Responses store prune:** `swarm.core.responses_store.prune_expired` deletes terminal records older than `max_age_days` / `SWARM_RESPONSES_MAX_AGE_DAYS` (skips `queued`/`in_progress`; not automatic — operator/cron); notes in CONFIGURATION.md, ASYNC_RESPONSES.md, ORACLE_DEPLOY.md
