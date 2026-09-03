@@ -516,13 +516,18 @@ html[data-theme="light"] #root {
   align-items: center;
   gap: 0.5rem;
   min-height: 0;
-  padding: 0 1rem 0.15rem;
+  margin-top: -2.15rem;
+  padding: 0 1rem 0.35rem;
+  pointer-events: none;
+  z-index: 4;
 }
 .os-chat-dock__workers {
   justify-self: start;
+  pointer-events: auto;
 }
 .os-chat-dock__jump {
   justify-self: center;
+  pointer-events: auto;
 }
 .os-working-avatars {
   display: inline-flex;
@@ -551,10 +556,11 @@ html[data-theme="light"] #root {
   width: 2.15rem;
   height: 2.15rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
-  background: var(--color-base-100);
-  color: var(--color-base-content);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  border: 1px solid color-mix(in srgb, #fff 8%, transparent);
+  background: color-mix(in srgb, #1a1a1a 78%, transparent);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
 }
 .os-new-pill {
   display: inline-flex;

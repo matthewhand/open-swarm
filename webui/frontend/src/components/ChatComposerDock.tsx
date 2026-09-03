@@ -74,7 +74,7 @@ export function ChatComposerDock({
             aria-label="Jump to latest messages"
             onClick={onJumpToBottom}
           >
-            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            <ChevronDown className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         ) : null}
       </div>
