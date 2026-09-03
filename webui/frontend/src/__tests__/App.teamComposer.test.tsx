@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import App from '../App'
@@ -34,12 +34,12 @@ describe('SPA + team composer entry', () => {
     renderApp()
 
     const primary = screen.getByRole('navigation', { name: 'Primary' })
-    expect(primary.querySelector('a[href="/"]')?.textContent).toMatch(/Home/i)
-    expect(primary.querySelector('a[href="/chat"]')?.textContent).toMatch(/Chat/i)
-    const teamsTab = Array.from(primary.querySelectorAll('a')).find(
-      (el) => el.textContent?.trim() === 'Teams' && el.getAttribute('href') === '/teams',
-    )
-    expect(teamsTab).toBeUndefined()
+    expect(within(primary).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
+    expect(within(primary).getByRole('link', { name: 'Chat' })).toHaveAttribute('href', '/chat')
+    const spaTeamsTab = within(primary)
+      .queryAllByRole('link')
+      .find((el) => el.textContent?.trim() === 'Teams' && el.getAttribute('href') === '/teams')
+    expect(spaTeamsTab).toBeUndefined()
 
     fireEvent.click(screen.getByRole('button', { name: /compose team/i }))
     expect(await screen.findByRole('heading', { name: /new team/i })).toBeInTheDocument()
