@@ -42,12 +42,15 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    btn = page.locator(".btn-primary").first
+    # Grok chrome landing is chat (no standing .btn-primary). A visible DaisyUI
+    # `.btn` still proves component styles compiled. Prefer a named visible
+    # control so hidden overlay / lg:hidden chrome buttons are not `.first`.
+    btn = page.get_by_role("button", name="Compose team")
     btn.wait_for(state="visible", timeout=10_000)
-    bg = _computed(page, btn, "backgroundColor")
-    assert bg not in TRANSPARENT, (
-        ".btn-primary has a transparent background; DaisyUI component "
-        "styles are missing from the bundle"
+    radius = _computed(page, btn, "borderRadius")
+    assert radius not in ("0px", "0"), (
+        f".btn border-radius is {radius!r}; DaisyUI button styles are missing "
+        "from the bundle"
     )
 
     # The empty-CSS guard: fetch every stylesheet the page links and demand
@@ -82,11 +85,18 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """The Connected badge only renders after ws.onopen fires, so this also
-    guards the ASGI/daphne websocket wiring."""
+    """Grok chrome has no standing Connected badge. The composer enables only
+    after ws.onopen, which still guards ASGI/daphne websocket wiring."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    badge = page.get_by_text("Connected", exact=True)
-    badge.wait_for(state="visible", timeout=20_000)
+    box = page.get_by_role("textbox", name="Chat message")
+    box.wait_for(state="visible", timeout=10_000)
+    page.wait_for_function(
+        """() => {
+          const el = document.querySelector('[aria-label="Chat message"]');
+          return el instanceof HTMLInputElement && !el.disabled;
+        }""",
+        timeout=20_000,
+    )
 
 
 def test_blueprint_cards_have_borders(page, live_server_url):

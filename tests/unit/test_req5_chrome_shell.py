@@ -117,15 +117,18 @@ def test_spa_document_chrome_is_near_black():
 
 
 def test_spa_chat_nav_and_routes_stay_on_chat_not_agents():
-    """REQ-5d follow-up: Chat is /chat (composer). /agents is only an alias."""
+    """REQ-5d + Grok chrome: ChatPage mounts at /chat. /agents is only an alias.
+    There is no Home/Chat NavLink (`to="/chat"`) after PR 322."""
     app = SPA_APP.read_text(encoding="utf-8")
     base = BASE.read_text(encoding="utf-8")
     # 322 chrome: Chat is a Route path, not a leftover Home/Chat NavLink.
     assert 'path="/chat"' in app
     assert "return '/chat'" in app
+    assert "element={<ChatPage />}" in app
     assert 'href="/chat"' in base
     assert 'to="/agents"' not in app
     assert 'href="/agents"' not in base
     assert "RedirectAgentsToChat" in app
     assert "chatPathWithSearch" in app
     assert 'path="/agents"' in app
+    assert 'to="/chat"' not in app
