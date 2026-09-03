@@ -2,7 +2,7 @@
 
 Each test pins down a real regression class that previously shipped green:
 
-- ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file
+- ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file (SPA Chat at ``/``)
 - ``test_blueprint_cards_have_borders``-> DaisyUI 5 removed ``card-bordered``
 - ``test_teams_navbar_has_no_zero_text_links`` -> white-box navbar links
 - ``test_chat_websocket_connects``     -> ASGI/daphne wiring
@@ -42,12 +42,17 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    btn = page.locator(".btn-primary").first
-    btn.wait_for(state="visible", timeout=10_000)
-    bg = _computed(page, btn, "backgroundColor")
+    # Grok-Bot chrome: ``/`` is Chat (no Home dashboard .btn-primary).
+    # DaisyUI still paints the themed app root.
+    themed = page.locator("[data-theme]").first
+    themed.wait_for(state="visible", timeout=10_000)
+    bg = _computed(page, themed, "backgroundColor")
     assert bg not in TRANSPARENT, (
-        ".btn-primary has a transparent background; DaisyUI component "
+        "[data-theme] has a transparent background; DaisyUI theme "
         "styles are missing from the bundle"
+    )
+    page.get_by_role("textbox", name="Chat message").wait_for(
+        state="visible", timeout=10_000
     )
 
     # The empty-CSS guard: fetch every stylesheet the page links and demand
@@ -82,11 +87,20 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """The Connected badge only renders after ws.onopen fires, so this also
-    guards the ASGI/daphne websocket wiring."""
+    """Healthy WS is silent (sr-only Connection status empty). Composer
+    enables after ws.onopen — still guards ASGI/daphne wiring."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    badge = page.get_by_text("Connected", exact=True)
-    badge.wait_for(state="visible", timeout=20_000)
+    status = page.get_by_label("Connection status")
+    status.wait_for(state="attached", timeout=20_000)
+    page.wait_for_function(
+        """() => {
+          const el = document.querySelector('[aria-label="Chat message"]');
+          return el && !el.disabled;
+        }""",
+        timeout=20_000,
+    )
+    assert status.inner_text().strip() == ""
+    assert page.get_by_text("Connected", exact=True).count() == 0
 
 
 def test_blueprint_cards_have_borders(page, live_server_url):
