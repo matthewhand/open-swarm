@@ -32,18 +32,18 @@ from swarm.core.blueprint_base import BlueprintBase
 logger = logging.getLogger(__name__)
 
 
-def _health_tool(name: str = "") -> str:
+def _health_tool(name: str = "", config: dict[str, Any] | None = None) -> str:
     """Probe added remotes. Honest DOWN if unreachable. Missing = empty."""
     if name.strip():
         targets = [name]
     else:
-        targets = remotes_core.added_remote_ids()
+        targets = remotes_core.added_remote_ids(config)
         if not targets:
             return "No remotes added."
     lines = []
     for rid in targets:
         try:
-            result = remotes_core.check_health(rid)
+            result = remotes_core.check_health(rid, config=config)
         except remotes_core.RemoteError as exc:
             lines.append(f"{rid}: UNKNOWN — {exc}")
             continue
@@ -52,10 +52,10 @@ def _health_tool(name: str = "") -> str:
     return "\n".join(lines)
 
 
-def _list_tool(name: str = "") -> str:
+def _list_tool(name: str = "", config: dict[str, Any] | None = None) -> str:
     """List jobs/bots/sessions on a remote, or show config when name is empty."""
     if not name.strip():
-        specs = remotes_core.load_added_remotes()
+        specs = remotes_core.load_added_remotes(config)
         if not specs:
             return "No remotes added."
         lines = ["Remote harness config (secrets redacted):"]
@@ -65,13 +65,13 @@ def _list_tool(name: str = "") -> str:
                 f"  {spec.id}: {pub['base_url']}  auth={'set' if pub['api_key_set'] else 'unset'}"
             )
         return "\n".join(lines)
-    result = remotes_core.operate(name, "list")
+    result = remotes_core.operate(name, "list", config=config)
     return _render_operate(result)
 
 
-def _send_tool(name: str, prompt: str, target: str = "") -> str:
+def _send_tool(name: str, prompt: str, target: str = "", config: dict[str, Any] | None = None) -> str:
     """Send a job/turn to a remote harness's real API (not a local seat clone)."""
-    result = remotes_core.operate(name, "send", prompt=prompt, target=target)
+    result = remotes_core.operate(name, "send", prompt=prompt, target=target, config=config)
     return _render_operate(result)
 
 
@@ -132,20 +132,22 @@ class RemoteHarnessBlueprint(BlueprintBase):
             logger.debug("openai-agents not available; deterministic path only")
             return {}
 
+        cfg = self.config if isinstance(getattr(self, "config", None), dict) else None
+
         @function_tool
         def remote_health(name: str = "") -> str:
             """Probe hermes, omb, and/or rakazo. Honest DOWN if unreachable."""
-            return _health_tool(name)
+            return _health_tool(name, config=cfg)
 
         @function_tool
         def remote_list(name: str = "") -> str:
             """List config, or list jobs/bots on hermes|omb|rakazo."""
-            return _list_tool(name)
+            return _list_tool(name, config=cfg)
 
         @function_tool
         def remote_send(name: str, prompt: str, target: str = "") -> str:
             """Send a job via the remote's real API. name=hermes|omb|rakazo."""
-            return _send_tool(name, prompt, target)
+            return _send_tool(name, prompt, target, config=cfg)
 
         shared = [remote_health, remote_list, remote_send]
 
@@ -163,7 +165,6 @@ class RemoteHarnessBlueprint(BlueprintBase):
 
                 return Agent(name=name, instructions=instructions, tools=tools)
 
-        cfg = self.config if isinstance(getattr(self, "config", None), dict) else None
         placed = set(remotes_core.load_placed_members(cfg))
         added = set(remotes_core.added_remote_ids(cfg))
         active = placed & added
@@ -264,16 +265,17 @@ class RemoteHarnessBlueprint(BlueprintBase):
             ))
         )
 
+        cfg = self.config if isinstance(getattr(self, "config", None), dict) else None
         if deterministic:
             if op == "health":
-                body = _health_tool(name)
+                body = _health_tool(name, config=cfg)
             elif op == "list":
-                body = _list_tool(name)
+                body = _list_tool(name, config=cfg)
             else:
                 if not name:
                     body = "Usage: send <hermes|omb|rakazo> <prompt>"
                 else:
-                    body = _send_tool(name, prompt, target)
+                    body = _send_tool(name, prompt, target, config=cfg)
             yield support.message_chunk(
                 body,
                 final=True,
@@ -284,7 +286,7 @@ class RemoteHarnessBlueprint(BlueprintBase):
         coordinator = agents.get("coordinator")
         if coordinator is None:
             yield support.message_chunk(
-                _health_tool(""),
+                _health_tool("", config=cfg),
                 final=True,
                 meta=support.backend_meta(["remote_harness"]),
             )
@@ -297,7 +299,7 @@ class RemoteHarnessBlueprint(BlueprintBase):
             content = getattr(result, "final_output", None) or str(result)
         except Exception as exc:
             logger.warning("remote_harness Runner failed; falling back to health: %s", exc)
-            content = _health_tool("") + f"\n(coordinator unavailable: {exc})"
+            content = _health_tool("", config=cfg) + f"\n(coordinator unavailable: {exc})"
         yield support.message_chunk(
             str(content),
             final=True,
