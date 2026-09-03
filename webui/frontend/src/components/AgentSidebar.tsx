@@ -132,9 +132,30 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
   const teams = teamsQuery.data ?? []
   const agents = useMemo<SidebarAgent[]>(() => {
-    const blueprints = exampleRoleAgents(catalog)
+    const fromBlueprints = exampleRoleAgents(catalog)
+    const seen = new Set(fromBlueprints.map((a) => a.id))
+    const fromRosters: SidebarAgent[] = []
+    for (const roster of teams) {
+      for (const member of roster.members) {
+        if (member.kind === 'team' || seen.has(member.id)) continue
+        if (!isChiefOfStaff(member.role) && member.id !== 'cos') continue
+        seen.add(member.id)
+        fromRosters.push({
+          id: member.id,
+          object: 'blueprint',
+          name: member.id === 'cos' ? 'Chief of Staff' : member.id,
+          description: 'Talks to any available team.',
+          abbreviation: 'CoS',
+          required_mcp_servers: [],
+          tags: [],
+          installed: true,
+          compiled: true,
+          role: 'chief_of_staff',
+        })
+      }
+    }
     const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
-    const list = [...blueprints, ...herdr]
+    const list = [...fromRosters, ...fromBlueprints, ...herdr]
     return [...list].sort((a, b) => {
       const ac = isChiefOfStaff(roleFromAgent(a)) ? 0 : 1
       const bc = isChiefOfStaff(roleFromAgent(b)) ? 0 : 1
@@ -142,7 +163,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
       if (ac !== bc) return ac - bc
       return 0
     })
-  }, [catalog, herdrQuery.data])
+  }, [catalog, herdrQuery.data, teams])
   const rosterById = useMemo(() => new Map(teams.map((r) => [r.id, r])), [teams])
   const childTeamIds = useMemo(() => {
     const ids = new Set<string>()
