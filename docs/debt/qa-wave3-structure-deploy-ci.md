@@ -69,6 +69,7 @@ exec’d), **overlap** (two entrypoints start the same ASGI app differently),
 | `tests/conftest.py` | Root pytest-django fixtures. | **Y** | **keep**. Fixture *quality* is wave1 D-09/D-12 — not this file. |
 | `tests/swarm_config.json` | Fixture config for collected tests. | **Y** | **keep**. |
 | `tests/xdg_isolation.py` | Shared HOME/XDG helper (not a `test_*.py`). | **Y** | **keep** or later **move** to `tests/helpers/`. |
+| `tests/test_agent_router.py` | Operator / Agent Router HTTP suite at `tests/` root (`/v1/agents/…`, landed with `#321`). Not under `tests/api/` or `tests/blueprints/`. | **Y** | later **move** → `tests/api/` (or `tests/blueprints/`). |
 | `tests/test_asgi_routing.py` | Websocket/ASGI suite living at `tests/` root. | **Y** | later **move** → `tests/asgi/` (or `tests/websocket/`). |
 | `tests/test_consumers.py` | Channels consumer suite at `tests/` root. | **Y** | later **move** with the ASGI file. |
 | `tests/test_core_filter_messages.py` | Core unit tests at `tests/` root (not under `tests/core/`). | **Y** | later **move** → `tests/core/`. |
@@ -210,7 +211,8 @@ tests/
   swarm_config.json
   helpers/xdg_isolation.py         # move from tests/xdg_isolation.py
   asgi/                            # move test_asgi_routing.py, test_consumers.py
-  api/  blueprints/  cli/  core/   # core/ absorbs test_core_*.py
+  api/                             # also receives test_agent_router.py
+  blueprints/  cli/  core/         # core/ absorbs test_core_*.py
   e2e_visual/                      # do not move while HOLD
   herdr/  integration/  mcp/
   services/  unit/  utils/  views/
@@ -264,8 +266,8 @@ on this look-only file.
    Dockerfile `CMD` edit in that ticket.
 2. **Decide Hub-vs-Fly:** either Fly `image =` the Hub tag, or stop
    pushing Hub on every `main` commit. Requires a host window.
-3. **`tests/` folder tidy:** move the five stray `tests/test_*.py` into
-   `core/` / `asgi/`; archive `tests/system/*.sh`; optionally merge
+3. **`tests/` folder tidy:** move the six stray `tests/test_*.py` into
+   `core/` / `asgi/` / `api/`; archive `tests/system/*.sh`; optionally merge
    `tests/unit/blueprints/` into `tests/blueprints/`. No assertion
    rewrites.
 4. **Unify pytest config + runner** — already ticket-shaped as wave1
