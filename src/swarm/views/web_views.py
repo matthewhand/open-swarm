@@ -481,7 +481,22 @@ def team_admin(request):
         return redirect("teams_admin")
 
     teams = list(load_dynamic_registry().values())
-    return render(request, "teams_admin.html", {"teams": teams, **_profiles_ctx()})
+    return render(
+        request,
+        "teams_admin.html",
+        {"teams": teams, **_profiles_ctx(), **_herdr_members_ctx()},
+    )
+
+
+def _herdr_members_ctx():
+    """Persisted Herdr members (kind=herdr) for Teams to pick."""
+    try:
+        from swarm.models import HerdrAgent
+
+        return {"herdr_agents": list(HerdrAgent.objects.all().order_by("name"))}
+    except Exception:
+        logger.exception("Error loading Herdr members for Teams")
+        return {"herdr_agents": []}
 
 
 def _profiles_ctx():

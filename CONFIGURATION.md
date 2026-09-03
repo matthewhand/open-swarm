@@ -326,4 +326,18 @@ Model/provider keys and service endpoints — `OPENAI_API_KEY`, `OPENAI_BASE_URL
 
 ---
 
+## 10. Herdr members (REQ-21)
+
+Persisted Herdr connections (`kind=herdr`) live in the Django SQLite database
+(default; do **not** set `DATABASE_URL` / Neon for this). Empty `remote` means
+localhost — `herdr` with no `--remote` (unix sockets under `~/.config/herdr/`).
+When `remote` is set, every call is `herdr --remote <value> …`.
+
+CRUD: `/v1/herdr-agents/`. Discover live panes: `/v1/herdr-agents/discover/`
+(`herdr agent list` + `herdr workspace list`). Operator UI: `/settings/` and
+`/teams/#herdr-members`. Wrapper: `swarm.herdr.HerdrClient`. Full notes:
+[docs/HERDR.md](docs/HERDR.md) (not Hermes/OMB/Rakazo; cloud CI must mock `herdr`).
+
+---
+
 For more, see the main [README.md](./README.md) or run `swarm-cli --help`.
