@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-45 browser control + runtime banner:** SPA Chat header **Browser control** pane defaults to **Browser (this machine)** (Playwright launch/attach). **Sandbox / Docker** and **SaaS** rows are greyed TODO (clickable WIP, not wired). Distinct from #341 desktop/OS stub. Dismissible **runtime banner** reads `SWARM_RUNTIME_MODE` (`bare-metal` / `sandbox-home` → warning; `sandbox-isolated` → green/info; missing → honest unknown, never fake green). Compose wires the env (`docker-compose.yml` isolated, `docker-compose.dev.yml` sandbox-home). Small Python driver `swarm.core.browser_control` (stub in tests; missing Chrome is an error, not a crash). `GET /v1/runtime/` + `GET /v1/browser-control/`.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 
 ### Changed
