@@ -498,7 +498,7 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     resetConversationThreads()
   })
 
-  it('uses a pill composer with + operator menu and mic', async () => {
+  it('uses a pill composer with + attach menu and mic', async () => {
     renderChat()
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -509,12 +509,11 @@ describe('ChatPage Grok composer and per-agent threads', () => {
       'Message …',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('menuitem', { name: 'Blueprints' })).toHaveAttribute(
-      'href',
-      '/blueprint-library/',
-    )
-    expect(screen.getByRole('menuitem', { name: 'Teams' })).toHaveAttribute('href', '/teams/launch/')
-    expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings/')
+    expect(screen.getByRole('menu', { name: 'Composer actions' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Attach file' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Blueprints' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Teams' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
@@ -650,3 +649,131 @@ describe('ChatPage team member dropdown', () => {
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
 })
+
+function mockFile(name: string, type: string, body = 'hello'): File {
+  return new File([body], name, { type })
+}
+
+function stubFetchWithUpload(id = 'att-mock-1') {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo) => {
+      const url = String(input)
+      if (url.includes('/v1/chat/attachments')) {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            id,
+            name: 'notes.txt',
+            size: 5,
+            content_type: 'text/plain',
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response
+    }),
+  )
+}
+
+describe('ChatPage composer attachments (REQ-38)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    if (!URL.createObjectURL) {
+      URL.createObjectURL = vi.fn(() => 'blob:mock')
+    }
+    if (!URL.revokeObjectURL) {
+      URL.revokeObjectURL = vi.fn()
+    }
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    stubFetchWithUpload()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('adds a chip from the + Attach file picker', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Attach file' }))
+    const input = screen.getByTestId('composer-file-input')
+    fireEvent.change(input, { target: { files: [mockFile('notes.txt', 'text/plain')] } })
+
+    const chips = await screen.findByRole('list', { name: 'Attached files' })
+    expect(within(chips).getByText('notes.txt')).toBeInTheDocument()
+    expect(within(chips).getByText('5 B')).toBeInTheDocument()
+  })
+
+  it('adds a chip when a file is dropped on the chat', async () => {
+    const { container } = renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const dropZone = container.querySelector('.os-chat') as HTMLElement
+    const file = mockFile('dropped.md', 'text/markdown', '# hi')
+    fireEvent.dragEnter(dropZone, { dataTransfer: { types: ['Files'], files: [file] } })
+    expect(dropZone).toHaveAttribute('data-drag-over', 'true')
+    fireEvent.drop(dropZone, { dataTransfer: { types: ['Files'], files: [file] } })
+
+    const chips = await screen.findByRole('list', { name: 'Attached files' })
+    expect(within(chips).getByText('dropped.md')).toBeInTheDocument()
+  })
+
+  it('removes a chip with the hover × control', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(screen.getByTestId('composer-file-input'), {
+      target: { files: [mockFile('notes.txt', 'text/plain')] },
+    })
+    const chips = await screen.findByRole('list', { name: 'Attached files' })
+    fireEvent.click(within(chips).getByRole('button', { name: 'Remove notes.txt' }))
+    expect(screen.queryByRole('list', { name: 'Attached files' })).not.toBeInTheDocument()
+  })
+
+  it('includes uploaded attachment ids on the next send', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(screen.getByTestId('composer-file-input'), {
+      target: { files: [mockFile('notes.txt', 'text/plain')] },
+    })
+    await screen.findByRole('list', { name: 'Attached files' })
+    await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls
+      expect(calls.some(([url]) => String(url).includes('/v1/chat/attachments'))).toBe(true)
+    })
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'see notes' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalled()
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
+      message: 'see notes',
+      blueprint: 'support',
+      attachments: ['att-mock-1'],
+    })
+    expect(screen.queryByRole('list', { name: 'Attached files' })).not.toBeInTheDocument()
+  })
+})
+

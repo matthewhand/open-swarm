@@ -131,6 +131,22 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+/** Multipart POST. Do not set Content-Type — the browser supplies the boundary. */
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  const headers = buildHeaders(false)
+  const response = await fetch(path, {
+    method: 'POST',
+    headers,
+    body,
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',

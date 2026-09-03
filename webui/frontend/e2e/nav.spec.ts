@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 // Per-route smoke across mounted SPA routes only (ADR-001: `/` + `/chat`).
 // Product chrome is left rail + chat. Django operator pages stay on trailing-slash
-// routes and are reachable from the composer + menu.
+// routes and are reachable from Search palette Actions. Composer + is attach.
 const ROUTES = ['/', '/chat']
 
 for (const route of ROUTES) {

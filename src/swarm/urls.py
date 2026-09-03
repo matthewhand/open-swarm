@@ -54,7 +54,11 @@ from swarm.views.session_explorer import (
     session_explorer,
     session_list_api,
 )
-from swarm.views.chat_persist_views import chat_retention_action, chat_thread
+from swarm.views.chat_persist_views import (
+    chat_attachment_upload,
+    chat_retention_action,
+    chat_thread,
+)
 from swarm.views.settings_views import (
     environment_variables,
     settings_api,
@@ -203,6 +207,8 @@ urlpatterns = [
     path("settings/chats/action/", chat_retention_action, name="chat_retention_action"),
     # Per-agent chat restore (session cookie). Not shown in Chat chrome.
     path("chat/thread/", chat_thread, name="chat_thread"),
+    path("v1/chat/attachments", chat_attachment_upload, name="chat-attachments-no-slash"),
+    path("v1/chat/attachments/", chat_attachment_upload, name="chat-attachments"),
     # Blueprint Library endpoints
     path("blueprint-library/", blueprint_library, name="blueprint_library"),
     path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),

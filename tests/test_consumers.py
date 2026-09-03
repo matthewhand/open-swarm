@@ -449,6 +449,69 @@ class TestBlueprintSelection:
         assert consumer.messages[-1]["role"] == "assistant"
 
     @pytest.mark.asyncio
+    async def test_receive_attachments_join_model_context(self, consumer):
+        """REQ-38: attachment ids are resolved into the user turn the model sees."""
+        consumer.messages = []
+        text_data = json.dumps({
+            "message": "please review",
+            "attachments": ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"],
+        })
+        resolved = [
+            {
+                "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "name": "notes.txt",
+                "content_type": "text/plain",
+                "size": 5,
+                "text": "hello",
+            }
+        ]
+
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                with patch.object(
+                    consumer, "resolve_attachments", new_callable=AsyncMock, return_value=resolved
+                ):
+                    with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock):
+                        await consumer.receive(text_data)
+
+        assert consumer.messages[0]["role"] == "user"
+        assert "please review" in consumer.messages[0]["content"]
+        assert "notes.txt" in consumer.messages[0]["content"]
+        assert "hello" in consumer.messages[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_receive_attachments_only_uses_caption(self, consumer):
+        consumer.messages = []
+        text_data = json.dumps({
+            "message": "   ",
+            "attachments": ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"],
+        })
+        resolved = [
+            {
+                "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "name": "photo.png",
+                "content_type": "image/png",
+                "size": 12,
+            }
+        ]
+
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>") as mock_render:
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                with patch.object(
+                    consumer, "resolve_attachments", new_callable=AsyncMock, return_value=resolved
+                ):
+                    with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock):
+                        await consumer.receive(text_data)
+
+        assert consumer.messages[0]["content"].startswith("Attached photo.png")
+        echo_kwargs = mock_render.call_args_list[0].kwargs
+        if not echo_kwargs:
+            echo_kwargs = mock_render.call_args_list[0][1] if mock_render.call_args_list[0] else {}
+        # First render is the user echo partial.
+        first_ctx = mock_render.call_args_list[0].args[1] if mock_render.call_args_list[0].args else {}
+        assert first_ctx.get("message_text") == "Attached photo.png"
+
+    @pytest.mark.asyncio
     async def test_unknown_blueprint_sends_error_partial(self, consumer):
         """Unknown blueprint -> error partial; no assistant message recorded."""
         consumer.messages = [{"role": "user", "content": "Hello"}]

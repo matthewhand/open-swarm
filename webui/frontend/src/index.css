@@ -314,6 +314,17 @@ html[data-theme="light"] #root {
   border-bottom: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
 }
 
+.os-chat[data-drag-over],
+.os-chat--file-drag {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
+  outline-offset: -2px;
+}
+.os-chat[data-drag-over] .os-composer,
+.os-chat--file-drag .os-composer {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-base-100));
+}
+
 .os-composer-wrap {
   padding: 0.75rem 1rem 0.25rem;
 }
@@ -370,12 +381,91 @@ html[data-theme="light"] #root {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   border-radius: 0.45rem;
   padding: 0.45rem 0.6rem;
   font-size: 0.875rem;
+  cursor: pointer;
 }
 .os-plus-menu__item:hover {
   background: color-mix(in srgb, var(--color-base-300) 55%, transparent);
+}
+
+.os-attach-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+.os-attach-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 14rem;
+  min-height: 2rem;
+  padding: 0.2rem 1.6rem 0.2rem 0.35rem;
+  border-radius: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
+  background: color-mix(in srgb, var(--color-base-200) 85%, var(--color-base-100));
+}
+.os-attach-chip__thumb {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
+}
+.os-attach-chip__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+.os-attach-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 7.5rem;
+}
+.os-attach-chip__size {
+  color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+  white-space: nowrap;
+}
+.os-attach-chip__status {
+  font-size: 0.65rem;
+  color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+}
+.os-attach-chip__status--error {
+  color: var(--color-error);
+}
+.os-attach-chip__remove {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-base-300) 80%, transparent);
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+}
+.os-attach-chip:hover .os-attach-chip__remove,
+.os-attach-chip:focus-within .os-attach-chip__remove,
+.os-attach-chip__remove:focus-visible {
+  opacity: 1;
 }
 
 .os-chat-footer {

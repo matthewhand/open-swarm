@@ -47,7 +47,7 @@ function RedirectAgentsToChat() {
 
 /**
  * Product chrome is Grok-Bot: left rail + the selected agent's chat.
- * Operator Django pages stay reachable from the composer + menu.
+ * Operator Django pages stay reachable from Search palette Actions.
  * Legacy `/agents` aliases `/chat` (REQ-5d) without restoring Home/Chat top nav.
  * Gear opens the REQ-19 DaisyUI settings sheet over chat.
  */

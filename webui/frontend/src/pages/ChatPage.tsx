@@ -5,16 +5,28 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
+import { Mic, Paperclip, Plus, Settings } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
+import ComposerAttachChips from '../components/ComposerAttachChips'
 import { fetchBlueprints } from '../lib/api'
+import {
+  attachmentCaption,
+  createPendingAttachment,
+  dataTransferHasFiles,
+  filesFromList,
+  readyAttachmentIds,
+  revokePreviewUrl,
+  uploadChatAttachment,
+  type PendingAttachment,
+} from '../lib/chatAttachments'
 import {
   agentIdFromBlueprint,
   conversationIdForAgent,
@@ -69,12 +81,6 @@ interface ChatMessage {
   streaming: boolean
 }
 
-const OPERATOR_LINKS = [
-  { href: '/blueprint-library/', label: 'Blueprints', icon: Book },
-  { href: '/teams/launch/', label: 'Teams', icon: Users },
-  { href: '/settings/', label: 'Settings', icon: Settings },
-] as const
-
 /** Post-login return path for the Django session gate (rooted, same-origin). */
 export function chatLoginNext(searchParams: URLSearchParams): string {
   const qs = searchParams.toString()
@@ -108,6 +114,8 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [fileDragOver, setFileDragOver] = useState(false)
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
@@ -123,6 +131,9 @@ const ChatPage = () => {
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
   const plusRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const fileDragDepthRef = useRef(0)
+  const uploadPromisesRef = useRef(new Map<string, Promise<string | null>>())
   /** Monotonic counter for collision-free user-echo keys. */
   const userKeyCounterRef = useRef(0)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
@@ -393,33 +404,147 @@ const ChatPage = () => {
     })
   }, [status, authRejected, signInHref, addToast, reconnect])
 
-  const canSend = status === 'open' && input.trim().length > 0
+  const addFiles = useCallback((incoming: File[]) => {
+    if (incoming.length === 0) return
+    const created = incoming.map((file) => createPendingAttachment(file))
+    setAttachments((prev) => [...prev, ...created])
+    for (const item of created) {
+      const promise = uploadChatAttachment(item.file)
+        .then((record) => {
+          setAttachments((prev) =>
+            prev.map((row) =>
+              row.localId === item.localId
+                ? { ...row, uploadId: record.id, status: 'ready' }
+                : row,
+            ),
+          )
+          return record.id
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Upload failed'
+          setAttachments((prev) =>
+            prev.map((row) =>
+              row.localId === item.localId
+                ? { ...row, status: 'error', error: message }
+                : row,
+            ),
+          )
+          addToast({
+            type: 'error',
+            title: 'Could not attach file',
+            message: `${item.name}: ${message}`,
+          })
+          return null
+        })
+      uploadPromisesRef.current.set(item.localId, promise)
+    }
+  }, [addToast])
+
+  const removeAttachment = useCallback((localId: string) => {
+    setAttachments((prev) => {
+      const doomed = prev.find((item) => item.localId === localId)
+      revokePreviewUrl(doomed?.previewUrl)
+      return prev.filter((item) => item.localId !== localId)
+    })
+    uploadPromisesRef.current.delete(localId)
+  }, [])
+
+  const clearAttachments = useCallback(() => {
+    setAttachments((prev) => {
+      for (const item of prev) revokePreviewUrl(item.previewUrl)
+      return []
+    })
+    uploadPromisesRef.current.clear()
+  }, [])
+
+  const attachmentsRef = useRef(attachments)
+  attachmentsRef.current = attachments
+  useEffect(() => {
+    return () => {
+      for (const item of attachmentsRef.current) revokePreviewUrl(item.previewUrl)
+    }
+  }, [])
+
+  const onFileDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!dataTransferHasFiles(event.dataTransfer?.types)) return
+    event.preventDefault()
+    fileDragDepthRef.current += 1
+    setFileDragOver(true)
+  }
+
+  const onFileDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!dataTransferHasFiles(event.dataTransfer?.types)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const onFileDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!dataTransferHasFiles(event.dataTransfer?.types)) return
+    event.preventDefault()
+    fileDragDepthRef.current -= 1
+    if (fileDragDepthRef.current <= 0) {
+      fileDragDepthRef.current = 0
+      setFileDragOver(false)
+    }
+  }
+
+  const onFileDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!dataTransferHasFiles(event.dataTransfer?.types)) return
+    event.preventDefault()
+    fileDragDepthRef.current = 0
+    setFileDragOver(false)
+    addFiles(filesFromList(event.dataTransfer?.files))
+  }
+
+  const openFilePicker = () => {
+    setPlusOpen(false)
+    fileInputRef.current?.click()
+  }
+
+  const hasReadyOrPending = attachments.some(
+    (item) => item.status === 'ready' || item.status === 'uploading',
+  )
+  const canSend = status === 'open' && (input.trim().length > 0 || hasReadyOrPending)
 
   const sendText = useCallback(
-    (text: string) => {
+    (text: string, attachmentIds: string[] = []) => {
       const ws = wsRef.current
       const trimmed = text.trim()
-      if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
-      lastUserTextRef.current = trimmed
-      // Team compose adds params { team, target: "all" | memberId }.
-      if (teamFromUrl) {
-        ws.send(
-          buildChatWsFrame(trimmed, undefined, {
-            team: teamFromUrl,
-            target: memberTarget || ALL_MEMBERS_TARGET,
-          }),
-        )
+      if ((!trimmed && attachmentIds.length === 0) || !ws || ws.readyState !== WebSocket.OPEN) {
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      const message = trimmed || attachmentCaption(
+        attachments
+          .filter((item) => item.uploadId && attachmentIds.includes(item.uploadId))
+          .map((item) => item.name),
+      )
+      lastUserTextRef.current = message
+      const teamParams = teamFromUrl
+        ? { team: teamFromUrl, target: memberTarget || ALL_MEMBERS_TARGET }
+        : undefined
+      ws.send(
+        buildChatWsFrame(
+          message,
+          teamFromUrl ? undefined : selectedBlueprint || undefined,
+          teamParams,
+          attachmentIds,
+        ),
+      )
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [attachments, selectedBlueprint, teamFromUrl, memberTarget],
   )
 
-  const handleSend = (event: FormEvent) => {
+  const handleSend = async (event: FormEvent) => {
     event.preventDefault()
-    sendText(input)
+    const ids = (
+      await Promise.all(Array.from(uploadPromisesRef.current.values()))
+    ).filter((id): id is string => typeof id === 'string' && id.length > 0)
+    const readyIds = readyAttachmentIds(attachments)
+    const attachmentIds = Array.from(new Set([...ids, ...readyIds]))
+    sendText(input, attachmentIds)
     setInput('')
+    clearAttachments()
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -499,7 +624,14 @@ const ChatPage = () => {
   }, [authRejected, status])
 
   return (
-    <div className="os-chat flex h-full min-h-0 w-full flex-col">
+    <div
+      className={`os-chat flex h-full min-h-0 w-full flex-col${fileDragOver ? ' os-chat--file-drag' : ''}`}
+      data-drag-over={fileDragOver ? 'true' : undefined}
+      onDragEnter={onFileDragEnter}
+      onDragOver={onFileDragOver}
+      onDragLeave={onFileDragLeave}
+      onDrop={onFileDrop}
+    >
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
         <div className="flex items-center gap-2">
@@ -605,6 +737,20 @@ const ChatPage = () => {
       </div>
 
       <form onSubmit={handleSend} className="os-composer-wrap">
+        <ComposerAttachChips attachments={attachments} onRemove={removeAttachment} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          data-testid="composer-file-input"
+          onChange={(event) => {
+            addFiles(filesFromList(event.target.files))
+            event.target.value = ''
+          }}
+        />
         <div className="os-composer">
           <div className="relative" ref={plusRef}>
             <button
@@ -620,25 +766,20 @@ const ChatPage = () => {
             {plusOpen && (
               <ul
                 role="menu"
-                aria-label="Operator pages"
+                aria-label="Composer actions"
                 className="os-plus-menu"
               >
-                {OPERATOR_LINKS.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <li key={item.href} role="none">
-                      <a
-                        role="menuitem"
-                        href={item.href}
-                        className="os-plus-menu__item"
-                        onClick={() => setPlusOpen(false)}
-                      >
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                        {item.label}
-                      </a>
-                    </li>
-                  )
-                })}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="os-plus-menu__item"
+                    onClick={openFilePicker}
+                  >
+                    <Paperclip className="h-4 w-4" aria-hidden="true" />
+                    Attach file
+                  </button>
+                </li>
               </ul>
             )}
           </div>

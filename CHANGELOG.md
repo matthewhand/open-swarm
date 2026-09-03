@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **REQ-38 composer file attach:** Chat `+` opens **Attach file** (OS picker). Native HTML5 drag-and-drop onto the transcript/composer shows a drop highlight and the same chips (image thumbnail, or name + size). Hover × removes a chip before send. The next send uploads via `POST /v1/chat/attachments/` (sqlite metadata + `$SWARM_USER_DATA_DIR/attachments`) and includes attachment ids in the websocket frame so the model sees the files. Compact stays #350.
+
 ### Changed
 - **REQ-26 first-load Hidden seed:** First visit (no `localStorage.swarm_hidden_agents`) hides gate and skeptic (`gate` / `tool_gate` / `skeptic` — whatever ids the catalog ships). Support stays visible and highlighted. An existing hidden list, including `[]` after Unhide, is not re-seeded. Hidden drop zone + N hidden popup still work; role agents remain hideable.
 - **REQ-24 Hidden drop zone:** Any left-rail conversation row (including role agents support / gate / skeptic) can be dragged onto an always-visible Hidden drop zone (`os-drop-target`, `data-drag-over`; empty hint “drop here to hide”). Hide writes `localStorage.swarm_hidden_agents` and removes the row from the list **and** the favourite pin grid. Unhide is still the **N hidden** dialog (no Hide-all). Context-menu Hide remains for a11y.

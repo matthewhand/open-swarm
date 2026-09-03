@@ -46,6 +46,12 @@ describe('buildChatWsFrame', () => {
     ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'codey' } })
   })
 
+  it('includes attachment ids on the send path', () => {
+    expect(
+      JSON.parse(buildChatWsFrame('see this', 'support', undefined, ['att-1'])),
+    ).toEqual({ message: 'see this', blueprint: 'support', attachments: ['att-1'] })
+  })
+
   it('round-trips back to the original message via JSON.parse', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',

@@ -55,10 +55,12 @@ export function buildChatWsFrame(
   message: string,
   blueprintId?: string,
   params?: ChatWsParams,
+  attachments?: string[],
 ): string {
   const frame: Record<string, unknown> = { message }
   if (blueprintId) frame.blueprint = blueprintId
   if (params && Object.keys(params).length > 0) frame.params = params
+  if (attachments && attachments.length > 0) frame.attachments = attachments
   return JSON.stringify(frame)
 }
 

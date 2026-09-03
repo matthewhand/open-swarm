@@ -9,7 +9,14 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.template.loader import render_to_string
 from django.utils.html import escape
 
-from swarm.models import ChatConversation, ChatMessage
+from swarm.core.chat_attachments import (
+    caption as _attachment_caption,
+    compose_user_content as _compose_attachment_content,
+    excerpt_text,
+    parse_attachment_ids as _parse_attachment_ids,
+    read_bytes,
+)
+from swarm.models import ChatAttachment, ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +102,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     Team compose (REQ-23) sends ``params: {team, target: "all"|memberId}``.
     Runtime for that path is stubbed until a real roster executor exists.
 
+    File attach (REQ-38) sends ``attachments: ["<uuid>", ...]`` (also accepted
+    inside ``params``). Owned uploads are resolved from sqlite + local disk
+    and appended to the user turn that the model sees.
+
     Auth is Django **session** only (``AuthMiddlewareStack`` cookie). A
     Settings-page API bearer token does not authenticate this socket.
     """
@@ -157,7 +168,14 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
             return
 
-        if not message_text.strip():
+        params = text_data_json.get("params")
+        if not isinstance(params, dict):
+            params = None
+        raw_ids = text_data_json.get("attachments")
+        if raw_ids is None and params is not None:
+            raw_ids = params.get("attachments")
+        attachment_ids = _parse_attachment_ids(raw_ids)
+        if not message_text.strip() and not attachment_ids:
             return
 
         # Per-message blueprint selection wins over the connection default.
@@ -165,21 +183,25 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             self, "default_blueprint", None
         )
         self.active_agent = blueprint_id or getattr(self, "active_agent", None)
-        params = text_data_json.get("params")
-        if not isinstance(params, dict):
-            params = None
 
+        resolved = []
+        if attachment_ids:
+            resolved = await self.resolve_attachments(attachment_ids)
+        display_text = message_text.strip() or _attachment_caption(
+            [item["name"] for item in resolved]
+        )
+        context_text = _compose_attachment_content(display_text, resolved)
 
         self.messages.append(
             {
                 "role": "user",
-                "content": message_text,
+                "content": context_text,
             }
         )
 
         user_message_html = render_to_string(
             "websocket_partials/user_message.html",
-            {"message_text": message_text},
+            {"message_text": display_text},
         )
         await self.send(text_data=user_message_html)
 
@@ -408,6 +430,38 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await client.close()
         await self.send(text_data=final_message)
+
+    @database_sync_to_async
+    def resolve_attachments(self, attachment_ids):
+        """Load owned attachment metadata + optional text excerpt for context."""
+        if not attachment_ids:
+            return []
+        rows = list(
+            ChatAttachment.objects.filter(owner=self.user, id__in=attachment_ids)
+        )
+        by_id = {str(row.id): row for row in rows}
+        resolved = []
+        for aid in attachment_ids:
+            row = by_id.get(aid)
+            if row is None:
+                continue
+            item = {
+                "id": str(row.id),
+                "name": row.original_name,
+                "content_type": row.content_type,
+                "size": row.size,
+            }
+            try:
+                data = read_bytes(self.user, row.id)
+            except OSError:
+                logger.warning("Missing bytes for chat attachment %s", row.id)
+                resolved.append(item)
+                continue
+            text = excerpt_text(data, row.content_type)
+            if text is not None:
+                item["text"] = text
+            resolved.append(item)
+        return resolved
 
     @database_sync_to_async
     def fetch_conversation(self, conversation_id):
