@@ -82,4 +82,45 @@ describe('SearchPalette', () => {
     expect(screen.getByText('No results')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true')
   })
+
+  it('Bots tab lists Support + catalog agents and Enter chooses a /chat href (REQ-17 / #322)', async () => {
+    const { onClose } = renderPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Bots' }))
+    expect(screen.getByRole('tab', { name: 'Bots' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('option', { name: /Support/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Codey/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Toggle theme/ })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('Actions tab lists theme + Django operator destinations, not live remotes (REQ-17 / #322)', () => {
+    const toggled: string[] = []
+    const onToggle = () => toggled.push('theme')
+    window.addEventListener('swarm:toggle-theme', onToggle)
+    const { onClose } = renderPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    expect(screen.getByRole('option', { name: /Toggle theme/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Blueprints/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Teams/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Settings/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Hermes/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Rakazo/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('option', { name: /Toggle theme/ }))
+    expect(onClose).toHaveBeenCalled()
+    expect(toggled).toEqual(['theme'])
+    window.removeEventListener('swarm:toggle-theme', onToggle)
+  })
+
+  it('filters All-tab rows by query without hiding the overlay chrome', async () => {
+    renderPalette()
+    const input = screen.getByRole('combobox', { name: 'Search' })
+    fireEvent.change(input, { target: { value: 'codey' } })
+    expect(await screen.findByRole('option', { name: /Codey/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Support/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Toggle theme/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument()
+  })
 })

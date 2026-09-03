@@ -72,6 +72,20 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
   })
 
+  it('OMB and Rakazo panes are the same placeholder shell and never fetch remotes (PR #320 / #318)', () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderSheet()
+    for (const label of ['OMB', 'Rakazo'] as const) {
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      expect(screen.getByRole('heading', { name: label })).toBeInTheDocument()
+      expect(screen.getByText(new RegExp(`${label} is a placeholder remote`))).toBeInTheDocument()
+      expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
+      expect(screen.queryByRole('textbox', { name: /api key/i })).not.toBeInTheDocument()
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('persists retention via join radios and shows a save toast', async () => {
     renderSheet()
     fireEvent.click(screen.getByRole('radio', { name: 'Archive' }))

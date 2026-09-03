@@ -773,3 +773,123 @@ describe('ChatPage team member dropdown', () => {
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
 })
+
+const REMOTE_ROSTER = {
+  object: 'list',
+  data: [
+    {
+      id: 'harness-team',
+      object: 'team_roster',
+      name: 'Harness Team',
+      description: 'Remotes as Team members',
+      members: [
+        { id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' },
+        { id: 'omb', name: 'OMB', kind: 'remote', role: 'default' },
+        { id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' },
+      ],
+    },
+  ],
+}
+
+describe('ChatPage remote members (PR #318 / REQ-23)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => REMOTE_ROSTER,
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists Hermes/OMB/Rakazo as kind=remote in the unlabeled member dropdown', async () => {
+    renderChat('/chat?team=harness-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    expect(within(select).getAllByRole('option').map((opt) => opt.textContent)).toEqual([
+      'All members',
+      'Hermes (remote/default)',
+      'OMB (remote/default)',
+      'Rakazo (remote/default)',
+      'Manage Teams',
+    ])
+    expect(screen.getByRole('heading', { name: 'Harness Team' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+
+  it('sends params {team, target} for a remote member without calling remotes APIs', async () => {
+    renderChat('/chat?team=harness-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'hermes' },
+    })
+    fireEvent.change(composer, { target: { value: 'ping hermes' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalled()
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
+      message: 'ping hermes',
+      params: { team: 'harness-team', target: 'hermes' },
+    })
+    const fetchMock = vi.mocked(fetch)
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/v1/remotes'))).toBe(true)
+  })
+})
+
+describe('ChatPage voice input stub (PR #322)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('toasts when SpeechRecognition is missing — no live mic / LAN', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Voice input' }))
+    expect(await screen.findByText(/Speech recognition is not available/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+})
