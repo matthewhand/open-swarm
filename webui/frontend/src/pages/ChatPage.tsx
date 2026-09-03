@@ -13,6 +13,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
+import BrowserControlPane from '../components/BrowserControlPane'
+import RuntimeBanner from '../components/RuntimeBanner'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
 import { fetchBlueprints } from '../lib/api'
 import {
@@ -500,9 +502,10 @@ const ChatPage = () => {
 
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
+      <RuntimeBanner />
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" aria-label="Chat tools">
           {teamFromUrl ? (
             <select
               className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
@@ -526,6 +529,7 @@ const ChatPage = () => {
               <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
             </select>
           ) : null}
+          <BrowserControlPane />
           <ThemeToggle />
           <button
             type="button"

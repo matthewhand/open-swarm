@@ -86,6 +86,7 @@ test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ pa
   )
   await expect(page.getByRole('button', { name: 'Add' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Voice input' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Browser control' })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Switch to (light|dark) theme$/ })).toBeVisible()
   await expect(page.getByText(/^Connected$/)).toHaveCount(0)
 
@@ -120,6 +121,41 @@ test('left-rail Search opens the command palette overlay, not an in-place filter
 
   await page.keyboard.press('Escape')
   await expect(palette).toHaveCount(0)
+})
+
+test('Browser control pane defaults to this machine; sandbox and SaaS stay TODO', async ({
+  page,
+}) => {
+  await stubAgentApis(page)
+  await page.route('**/v1/runtime**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        mode: 'unknown',
+        known: false,
+        tone: 'unknown',
+        title: 'Runtime mode unknown',
+        message: 'SWARM_RUNTIME_MODE is unset or unrecognized.',
+      }),
+    })
+  })
+  await page.goto('/chat')
+  await page.getByRole('button', { name: 'Browser control' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Browser control' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /Browser \(this machine\)/i })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  const sandbox = dialog.getByRole('button', { name: /Sandbox \/ Docker/i })
+  await expect(sandbox).toHaveAttribute('data-todo', 'true')
+  await sandbox.click()
+  await expect(dialog.getByText(/TODO — not wired/i)).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /Browser \(this machine\)/i })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 })
 
 test('legacy /agents lands on chat chrome with query', async ({ page }) => {

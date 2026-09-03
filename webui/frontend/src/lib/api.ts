@@ -215,6 +215,16 @@ export function fetchBlueprints(): Promise<ListResponse<Blueprint>> {
   return apiGet<ListResponse<Blueprint>>('/v1/blueprints/')
 }
 
+/** GET /v1/runtime/ — REQ-45 app runtime banner (AllowAny, no secrets). */
+export function fetchRuntimeBanner(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/runtime/')
+}
+
+/** GET /v1/browser-control/ — REQ-45 provider catalog (this-machine default). */
+export function fetchBrowserControl(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/browser-control/')
+}
+
 export function fetchModels(): Promise<ListResponse<Model>> {
   return apiGet<ListResponse<Model>>('/v1/models/')
 }
