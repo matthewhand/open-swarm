@@ -25,6 +25,7 @@
       id === "tool-gate" ||
       id === "skeptic" ||
       name === "gate" ||
+      name === "safety" ||
       name === "skeptic"
     );
   }

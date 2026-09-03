@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-55 Safety tool badges + approval (API agents):** Chat assistant popups show a DaisyUI badge (blue + animated while running, green allowed/done, red denied/error). User-facing role name is **Safety** (internal `gate` / `tool_gate` unchanged). When a Safety seat is assigned and flags concern, chat pauses with Allow once / Always allow / Deny. Always-allow persists for that tool name on this agent. Default remains all-approved until Safety is assigned **and** concerned. CLI and remote (Herdr) sessions are not intercepted. Tests: `tests/core/test_safety.py`, `ToolCallPopup.test.tsx`, `ChatPage.test.tsx`.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 
 ### Changed

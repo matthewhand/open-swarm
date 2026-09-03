@@ -24,9 +24,17 @@ import {
 import {
   buildChatWsFrame,
   buildChatWsUrl,
+  buildToolDecisionFrame,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import { ToolCallPopup } from '../components/ToolCallPopup'
+import {
+  isToolAlwaysAllowed,
+  rememberAlwaysAllow,
+  upsertToolCall,
+  type ToolCallState,
+} from '../lib/safety'
 import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
@@ -68,6 +76,7 @@ interface ChatMessage {
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
+  tools?: ToolCallState[]
 }
 
 const OPERATOR_LINKS = [
@@ -216,10 +225,82 @@ const ChatPage = () => {
     }
   }, [selectedBlueprint, teamFromUrl])
 
+  const attachToolToThread = useCallback(
+    (tool: ToolCallState) => {
+      setThreads((prev) => {
+        const current = prev[threadKey] ?? []
+        const targetIndex = [...current]
+          .reverse()
+          .findIndex((message) => message.role === 'assistant')
+        const index = targetIndex === -1 ? -1 : current.length - 1 - targetIndex
+        if (index === -1) {
+          return {
+            ...prev,
+            [threadKey]: [
+              ...current,
+              {
+                key: `tool-host-${tool.id}`,
+                role: 'assistant' as const,
+                text: '',
+                streaming: true,
+                tools: [tool],
+              },
+            ],
+          }
+        }
+        const next = [...current]
+        const host = next[index]!
+        next[index] = { ...host, tools: upsertToolCall(host.tools ?? [], tool) }
+        return { ...prev, [threadKey]: next }
+      })
+    },
+    [threadKey],
+  )
+
+  const sendToolDecision = useCallback((id: string, decision: 'allow' | 'always' | 'deny') => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(buildToolDecisionFrame(id, decision))
+  }, [])
+
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
       if (event.kind === 'unknown') {
         console.warn('Unrecognised chat websocket frame:', event.raw)
+        return
+      }
+      if (event.kind === 'tool_status') {
+        attachToolToThread({
+          id: event.id,
+          name: event.name,
+          status: event.status,
+          agentId: event.agentId,
+          needsApproval: false,
+        })
+        return
+      }
+      if (event.kind === 'tool_approval') {
+        const agentId = event.agentId || selectedBlueprint || threadKey
+        if (isToolAlwaysAllowed(agentId, event.name)) {
+          sendToolDecision(event.id, 'always')
+          attachToolToThread({
+            id: event.id,
+            name: event.name,
+            status: 'allowed',
+            agentId,
+            needsApproval: false,
+            concerned: true,
+          })
+          return
+        }
+        attachToolToThread({
+          id: event.id,
+          name: event.name,
+          status: 'running',
+          agentId,
+          needsApproval: true,
+          concerned: true,
+        })
         return
       }
       setThreads((prev) => {
@@ -256,7 +337,7 @@ const ChatPage = () => {
         return { ...prev, [threadKey]: next }
       })
     },
-    [threadKey],
+    [attachToolToThread, selectedBlueprint, sendToolDecision, threadKey],
   )
 
   useEffect(() => {
@@ -592,6 +673,27 @@ const ChatPage = () => {
                   }`}
                 >
                   <ChatBubbleBody text={message.text} streaming={message.streaming} />
+                  {(message.tools ?? []).map((tool) => (
+                    <ToolCallPopup
+                      key={tool.id}
+                      tool={tool}
+                      onDecision={(decision) => {
+                        const agentId = tool.agentId || selectedBlueprint || threadKey
+                        if (decision === 'always') rememberAlwaysAllow(agentId, tool.name)
+                        sendToolDecision(tool.id, decision)
+                        attachToolToThread({
+                          ...tool,
+                          needsApproval: false,
+                          status:
+                            decision === 'deny'
+                              ? 'denied'
+                              : decision === 'always' || decision === 'allow'
+                                ? 'allowed'
+                                : tool.status,
+                        })
+                      }}
+                    />
+                  ))}
                 </div>
                 {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
                   <ChatMessageActions

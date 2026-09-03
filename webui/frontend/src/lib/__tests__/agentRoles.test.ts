@@ -32,7 +32,9 @@ describe('agentRoles', () => {
 
   it('detects example roles from id/name when API omits role', () => {
     expect(agentRole({ id: 'support', name: 'Support' })).toBe('support')
-    expect(agentRole({ id: 'gate', name: 'Gate' })).toBe('gate')
+    expect(agentRole({ id: 'gate', name: 'Safety' })).toBe('gate')
+    expect(agentRole({ id: 'safety', name: 'Safety' })).toBe('gate')
+    expect(normalizeAgentRole('safety')).toBe('gate')
     expect(agentRole({ id: 'skeptic', name: 'Skeptic' })).toBe('skeptic')
     expect(agentRole(codey)).toBe('default')
   })

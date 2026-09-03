@@ -276,6 +276,15 @@ html[data-theme="light"] #root {
 .os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
 .os-agent-role-badge[data-role="gate"] { color: #c47a3a; }
 .os-agent-role-badge[data-role="skeptic"] { color: #7a6b9b; }
+.os-tool-popup {
+  text-align: left;
+}
+.os-tool-badge-running {
+  animation: os-tool-pulse 1s ease-in-out infinite;
+}
+@keyframes os-tool-pulse {
+  50% { opacity: 0.55; }
+}
 .os-agent-edit {
   opacity: 0;
   flex: 0 0 auto;

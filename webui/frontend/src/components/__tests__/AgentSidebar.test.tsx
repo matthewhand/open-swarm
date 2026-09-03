@@ -24,7 +24,7 @@ function blueprint(id: string, name: string, description: string) {
 const blueprints = [
   blueprint('codey', 'Codey', 'Code assistant'),
   blueprint('stewie', 'Stewie', 'Helpful agent'),
-  blueprint('gate', 'Gate', 'Role: gate'),
+  blueprint('gate', 'Safety', 'Role: gate'),
   blueprint('skeptic', 'Skeptic', 'Role: skeptic'),
 ]
 
@@ -109,7 +109,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(links[0]).toBe(support)
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
-    expect(within(list).queryByRole('link', { name: /Gate/ })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Safety/ })).not.toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
 
     const search = screen.getByRole('searchbox', { name: 'Search' })
@@ -128,7 +128,7 @@ describe('AgentSidebar Grok rail', () => {
     const support = await within(list).findByRole('link', { name: /Support/ })
     expect(within(list).getAllByRole('link')[0]).toBe(support)
     expect(support.className).toMatch(/os-agent-row--support/)
-    expect(within(list).queryByRole('link', { name: /Gate/ })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Safety/ })).not.toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
 
     await waitFor(() => {
@@ -136,13 +136,13 @@ describe('AgentSidebar Grok rail', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /2 hidden/i }))
     const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    expect(within(dialog).getByText('Gate')).toBeInTheDocument()
+    expect(within(dialog).getByText('Safety')).toBeInTheDocument()
     expect(within(dialog).getByText('Skeptic')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Gate/i }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Safety/i }))
     await waitFor(() => {
       expect(storedHidden()).toEqual(['skeptic'])
     })
-    expect(within(list).getByRole('link', { name: /Gate/ })).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /Safety/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Support/ })).toBeInTheDocument()
   })
 
@@ -155,7 +155,7 @@ describe('AgentSidebar Grok rail', () => {
       expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
     })
     expect(within(list).getByRole('link', { name: /Support/ })).toBeInTheDocument()
-    expect(within(list).getByRole('link', { name: /Gate/ })).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /Safety/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Skeptic/ })).toBeInTheDocument()
     expect(storedHidden()).toEqual(['codey'])
   })
@@ -276,11 +276,11 @@ describe('AgentSidebar Grok rail', () => {
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const zone = screen.getByRole('region', { name: 'Hidden' })
 
-    dragTo(await within(list).findByRole('link', { name: /Gate/ }), zone)
+    dragTo(await within(list).findByRole('link', { name: /Safety/ }), zone)
     dragTo(await within(list).findByRole('link', { name: /Skeptic/ }), zone)
 
     await waitFor(() => {
-      expect(within(list).queryByRole('link', { name: /Gate/ })).not.toBeInTheDocument()
+      expect(within(list).queryByRole('link', { name: /Safety/ })).not.toBeInTheDocument()
       expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic'])
@@ -334,7 +334,7 @@ describe('AgentSidebar Grok rail', () => {
 
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const supportEdit = await screen.findByRole('button', { name: 'Edit Support blueprint' })
-    expect(screen.getByRole('button', { name: 'Edit Gate blueprint' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Safety blueprint' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit Skeptic blueprint' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Codey blueprint' })).not.toBeInTheDocument()
     expect(within(list).queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()

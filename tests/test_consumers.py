@@ -340,6 +340,20 @@ class TestReceive:
 
         assert len(consumer.messages) == 0
 
+    @pytest.mark.asyncio
+    async def test_receive_tool_decision_resolves_pending_and_skips_chat(self, consumer):
+        """Safety Allow/Deny frames are not treated as chat messages."""
+        import asyncio
+
+        future = asyncio.get_running_loop().create_future()
+        consumer.messages = []
+        consumer._pending_tool_decisions = {"appr-1": future}
+        await consumer.receive(
+            json.dumps({"type": "tool_decision", "id": "appr-1", "decision": "allow"})
+        )
+        assert future.result() == "allow"
+        assert consumer.messages == []
+
 
 # =============================================================================
 # Blueprint Selection Tests

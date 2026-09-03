@@ -687,3 +687,132 @@ describe('ChatPage team member dropdown', () => {
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
 })
+
+describe('ChatPage Safety tool popups (REQ-55)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    window.localStorage.clear()
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: 'codey', name: 'Codey' }] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  async function openAndStart() {
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-tool1" class="assistant-message"></div></div>',
+        }),
+      )
+    })
+    return ws
+  }
+
+  it('shows blue running, green done, and red denied badges', async () => {
+    const ws = await openAndStart()
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_status',
+            id: 'c1',
+            name: 'read_file',
+            status: 'running',
+          }),
+        }),
+      )
+    })
+    expect(screen.getByTestId('tool-status-badge')).toHaveAttribute('data-status', 'running')
+    expect(screen.getByText('read_file')).toBeInTheDocument()
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_status',
+            id: 'c1',
+            name: 'read_file',
+            status: 'done',
+          }),
+        }),
+      )
+    })
+    expect(screen.getByTestId('tool-status-badge')).toHaveAttribute('data-status', 'done')
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_status',
+            id: 'c2',
+            name: 'wipe',
+            status: 'denied',
+          }),
+        }),
+      )
+    })
+    const badges = screen.getAllByTestId('tool-status-badge')
+    expect(badges.some((el) => el.getAttribute('data-status') === 'denied')).toBe(true)
+  })
+
+  it('prompts on concern and Always allow skips the next prompt for that tool', async () => {
+    const ws = await openAndStart()
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_approval',
+            id: 'ap1',
+            name: 'write_file',
+            agent_id: 'codey',
+          }),
+        }),
+      )
+    })
+    expect(screen.getByRole('dialog', { name: 'Safety approval' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Always allow' }))
+    expect(JSON.parse(String(ws.send.mock.calls.at(-1)?.[0]))).toEqual({
+      type: 'tool_decision',
+      id: 'ap1',
+      decision: 'always',
+    })
+    expect(screen.queryByRole('dialog', { name: 'Safety approval' })).not.toBeInTheDocument()
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_approval',
+            id: 'ap2',
+            name: 'write_file',
+            agent_id: 'codey',
+          }),
+        }),
+      )
+    })
+    expect(screen.queryByRole('dialog', { name: 'Safety approval' })).not.toBeInTheDocument()
+    expect(JSON.parse(String(ws.send.mock.calls.at(-1)?.[0]))).toEqual({
+      type: 'tool_decision',
+      id: 'ap2',
+      decision: 'always',
+    })
+  })
+})

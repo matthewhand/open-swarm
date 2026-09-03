@@ -315,7 +315,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
             {role !== 'default' ? (
               <span className={`os-agent-role-badge ${roleCssClass(role)}`} data-role={role}>
-                {role}
+                {role === 'gate' ? 'Safety' : role}
               </span>
             ) : null}
           </span>

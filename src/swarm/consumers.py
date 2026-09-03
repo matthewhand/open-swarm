@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -109,6 +110,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if self.user.is_authenticated:
             self.active_agent = self.default_blueprint
             self.messages = await self.fetch_conversation(self.conversation_id)
+            self._pending_tool_decisions = {}
             await self.accept()
         else:
             # Accept first so the client sees close code 4401 (not 1006).
@@ -150,10 +152,19 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             text_data_json = json.loads(text_data)
             if not isinstance(text_data_json, dict):
                 raise ValueError("frame must be a JSON object")
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
+            return
+
+        if text_data_json.get("type") == "tool_decision":
+            await self.resolve_tool_decision(text_data_json)
+            return
+
+        try:
             message_text = text_data_json["message"]
             if not isinstance(message_text, str):
                 raise ValueError("'message' must be a string")
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
             return
 
@@ -263,7 +274,30 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return
 
         final_message = None
+        token = None
         try:
+            from swarm.core.safety import (
+                SafetySession,
+                channel_for_runtime,
+                install_safety_session,
+                safety_role_assigned,
+            )
+
+            channel = channel_for_runtime(blueprint_id=blueprint_id)
+            metadata = getattr(blueprint_instance, "metadata", None)
+            if not isinstance(metadata, dict):
+                metadata = {}
+            session = SafetySession(
+                agent_id=str(blueprint_id),
+                channel=channel,
+                safety_assigned=safety_role_assigned(
+                    getattr(blueprint_instance, "agents", None),
+                    metadata=metadata,
+                ),
+                elicit_fn=self.elicit_tool_approval,
+                emit_fn=self.emit_tool_event,
+            )
+            token = install_safety_session(session)
             async for chunk in blueprint_instance.run(self.messages):
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
@@ -280,6 +314,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 f"Error: blueprint '{blueprint_id}' failed while generating a reply.",
             )
             return
+        finally:
+            if token is not None:
+                from swarm.core.safety import reset_safety_session
+
+                reset_safety_session(token)
 
         if not isinstance(final_message, dict) or final_message.get("content") is None:
             await self.send_error_message(
@@ -306,6 +345,49 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             },
         )
         await self.send(text_data=final_message_html)
+
+    async def emit_tool_event(self, payload: dict) -> None:
+        """JSON tool-status / approval frames for the SPA (not HTMx HTML)."""
+        try:
+            await self.send(text_data=json.dumps(payload))
+        except Exception:
+            logger.debug("tool event send failed", exc_info=True)
+
+    async def elicit_tool_approval(self, tool_name: str, arguments: dict) -> str:
+        """Pause the API-agent run until the chat sends Allow / Always / Deny."""
+        approval_id = uuid.uuid4().hex
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        pending = getattr(self, "_pending_tool_decisions", None)
+        if pending is None:
+            pending = {}
+            self._pending_tool_decisions = pending
+        pending[approval_id] = future
+        await self.emit_tool_event(
+            {
+                "type": "tool_approval",
+                "id": approval_id,
+                "name": tool_name,
+                "agent_id": getattr(self, "active_agent", None) or "",
+                "arguments": arguments or {},
+            }
+        )
+        try:
+            decision = await asyncio.wait_for(future, timeout=300)
+        except TimeoutError:
+            decision = "deny"
+        finally:
+            pending.pop(approval_id, None)
+        return str(decision or "deny")
+
+    async def resolve_tool_decision(self, payload: dict) -> None:
+        approval_id = str(payload.get("id") or "")
+        decision = str(payload.get("decision") or "deny")
+        pending = getattr(self, "_pending_tool_decisions", {}) or {}
+        future = pending.get(approval_id)
+        if future is None or future.done():
+            return
+        future.set_result(decision)
 
     async def send_error_message(self, contents_div_id, error_text):
         """Replace the streaming placeholder with an error partial.
