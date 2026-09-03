@@ -2,29 +2,74 @@ import type { Blueprint } from './api'
 
 /** Default Support seat — first + highlighted in the conversation rail. */
 export const SUPPORT_AGENT_ID = 'support'
+/** Catalog ids that ship for the gate seat (`tool_gate` is an alias). */
+export const GATE_AGENT_ID = 'gate'
+export const TOOL_GATE_AGENT_ID = 'tool_gate'
+export const SKEPTIC_AGENT_ID = 'skeptic'
 
-export const SYNTHETIC_SUPPORT: Blueprint = {
-  id: SUPPORT_AGENT_ID,
-  object: 'blueprint',
-  name: 'Support',
-  description: 'Talk about the other agents.',
-  abbreviation: null,
-  required_mcp_servers: [],
-  tags: [],
-  installed: true,
-  compiled: true,
+const GATE_ID_ALIASES = new Set([GATE_AGENT_ID, TOOL_GATE_AGENT_ID, 'tool-gate', 'toolgate'])
+const SKEPTIC_ID_ALIASES = new Set([SKEPTIC_AGENT_ID, 'reviewer'])
+
+function stubBlueprint(id: string, name: string, description: string): Blueprint {
+  return {
+    id,
+    object: 'blueprint',
+    name,
+    description,
+    abbreviation: null,
+    required_mcp_servers: [],
+    tags: [],
+    installed: true,
+    compiled: true,
+  }
+}
+
+export const SYNTHETIC_SUPPORT: Blueprint = stubBlueprint(
+  SUPPORT_AGENT_ID,
+  'Support',
+  'Talk about the other agents.',
+)
+
+export const SYNTHETIC_GATE: Blueprint = stubBlueprint(
+  GATE_AGENT_ID,
+  'Gate',
+  'Dangerous? yes/no. Until wired, all approved.',
+)
+
+export const SYNTHETIC_SKEPTIC: Blueprint = stubBlueprint(
+  SKEPTIC_AGENT_ID,
+  'Skeptic',
+  'Prompt done? If not, retry.',
+)
+
+function agentId(agent: { id: string }): string {
+  return agent.id.trim().toLowerCase()
+}
+
+function agentName(agent: { name?: string | null }): string {
+  return (agent.name || '').trim().toLowerCase()
 }
 
 export function isSupportAgent(agent: { id: string; name?: string | null }): boolean {
-  const id = agent.id.trim().toLowerCase()
-  const name = (agent.name || '').trim().toLowerCase()
-  return id === SUPPORT_AGENT_ID || name === 'support'
+  return agentId(agent) === SUPPORT_AGENT_ID || agentName(agent) === 'support'
 }
 
-/** Ensure Support exists even when /v1/blueprints has no such seat. */
+export function isGateAgent(agent: { id: string; name?: string | null }): boolean {
+  const name = agentName(agent)
+  return GATE_ID_ALIASES.has(agentId(agent)) || name === 'gate' || name === 'tool gate'
+}
+
+export function isSkepticAgent(agent: { id: string; name?: string | null }): boolean {
+  return SKEPTIC_ID_ALIASES.has(agentId(agent)) || agentName(agent) === 'skeptic'
+}
+
+/** Ensure Support / gate / skeptic exist even when /v1/blueprints has no such seat. */
 export function ensureSupportAgent(agents: Blueprint[]): Blueprint[] {
-  if (agents.some(isSupportAgent)) return agents
-  return [SYNTHETIC_SUPPORT, ...agents]
+  const next = [...agents]
+  if (!next.some(isSupportAgent)) next.unshift(SYNTHETIC_SUPPORT)
+  if (!next.some(isGateAgent)) next.push(SYNTHETIC_GATE)
+  if (!next.some(isSkepticAgent)) next.push(SYNTHETIC_SKEPTIC)
+  return next
 }
 
 export function sortSupportFirst(agents: Blueprint[]): Blueprint[] {
