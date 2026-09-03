@@ -85,9 +85,10 @@ describe('SearchPalette', () => {
 
   it('Bots tab lists Support + catalog agents and Enter chooses a /chat href (REQ-17 / #322)', async () => {
     const { onClose } = renderPalette()
+    expect(await screen.findByRole('option', { name: /Codey/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Bots' }))
     expect(screen.getByRole('tab', { name: 'Bots' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByRole('option', { name: /Support/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Support/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Codey/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Toggle theme/ })).not.toBeInTheDocument()
 

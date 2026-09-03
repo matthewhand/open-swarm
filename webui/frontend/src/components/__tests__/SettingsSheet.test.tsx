@@ -79,7 +79,8 @@ describe('SettingsSheet', () => {
     for (const label of ['OMB', 'Rakazo'] as const) {
       fireEvent.click(screen.getByRole('button', { name: label }))
       expect(screen.getByRole('heading', { name: label })).toBeInTheDocument()
-      expect(screen.getByText(new RegExp(`${label} is a placeholder remote`))).toBeInTheDocument()
+      expect(screen.getByText(label, { selector: 'span.font-medium' })).toBeInTheDocument()
+      expect(screen.getByText(/is a placeholder remote/i)).toBeInTheDocument()
       expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
       expect(screen.queryByRole('textbox', { name: /api key/i })).not.toBeInTheDocument()
     }
