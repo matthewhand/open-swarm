@@ -5,6 +5,7 @@ import ChatPage from './pages/ChatPage'
 import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
+import SettingsSheet, { OPEN_SETTINGS_EVENT } from './components/SettingsSheet'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
@@ -42,11 +43,13 @@ export function chatPathWithSearch(search: string): string {
 /**
  * Product chrome is Grok-Bot: left rail + the selected agent's chat.
  * `/agents` is Agent Router (own chrome). `/` and `/chat` are the rail + composer.
+ * Gear opens the REQ-19 DaisyUI settings sheet over chat.
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useLayoutEffect(() => {
     applyDocumentTheme(darkMode)
@@ -63,13 +66,16 @@ function App() {
       if (detail === 'light' || detail === 'dark') setDarkMode(detail)
     }
     const onOpenSearch = () => setSearchOpen(true)
+    const onOpenSettings = () => setSettingsOpen(true)
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
     window.addEventListener(THEME_SET_EVENT, onSet)
     window.addEventListener('swarm:open-search', onOpenSearch)
+    window.addEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
     return () => {
       window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
       window.removeEventListener(THEME_SET_EVENT, onSet)
       window.removeEventListener('swarm:open-search', onOpenSearch)
+      window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
     }
   }, [])
 
@@ -78,6 +84,7 @@ function App() {
       <ToastProvider>
         {SHOW_COMMAND_PALETTE && <CommandPalette />}
         <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <SettingsSheet isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <div
           className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"
           data-theme={darkMode === 'dark' ? 'dark' : 'light'}
