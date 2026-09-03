@@ -48,11 +48,11 @@ import {
 import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
+import { exampleRoleAgents } from '../lib/agentRoles'
 import {
   agentLabel,
   defaultBlueprintId,
   SUPPORT_AGENT_ID,
-  supportFirstAgents,
 } from '../lib/supportAgent'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
@@ -144,7 +144,7 @@ const ChatPage = () => {
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
   })
-  const blueprints = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const teams = teamsQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)

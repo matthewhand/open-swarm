@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
+
 ### Changed
 - **REQ-26 first-load Hidden seed:** First visit (no `localStorage.swarm_hidden_agents`) hides gate and skeptic (`gate` / `tool_gate` / `skeptic` — whatever ids the catalog ships). Support stays visible and highlighted. An existing hidden list, including `[]` after Unhide, is not re-seeded. Hidden drop zone + N hidden popup still work; role agents remain hideable.
 - **REQ-24 Hidden drop zone:** Any left-rail conversation row (including role agents support / gate / skeptic) can be dragged onto an always-visible Hidden drop zone (`os-drop-target`, `data-drag-over`; empty hint “drop here to hide”). Hide writes `localStorage.swarm_hidden_agents` and removes the row from the list **and** the favourite pin grid. Unhide is still the **N hidden** dialog (no Hide-all). Context-menu Hide remains for a11y.

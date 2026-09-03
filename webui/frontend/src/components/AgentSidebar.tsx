@@ -9,8 +9,14 @@ import {
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
 import { fetchBlueprints, fetchHerdrAgents, type Blueprint, type HerdrAgent } from '../lib/api'
+import {
+  agentRole,
+  exampleRoleAgents,
+  roleCssClass,
+  showsBlueprintEdit,
+} from '../lib/agentRoles'
 import {
   agentMarkIndex,
   hasHiddenAgentsStorage,
@@ -29,14 +35,10 @@ import {
   unpinAgent,
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
-import {
-  agentLabel,
-  defaultBlueprintId,
-  isSupportAgent,
-  supportFirstAgents,
-} from '../lib/supportAgent'
+import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { openSearchPalette } from './SearchPalette'
+import { openSettingsSheet } from './SettingsSheet'
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
 
@@ -126,7 +128,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
   const agents = useMemo<SidebarAgent[]>(() => {
-    const blueprints = supportFirstAgents(catalog)
+    const blueprints = exampleRoleAgents(catalog)
     const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
     return [...blueprints, ...herdr]
   }, [catalog, herdrQuery.data])
@@ -285,25 +287,38 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     setDraggingId(agent.id)
   }
 
-  const renderAgentLink = (agent: SidebarAgent, hidden: boolean) => {
+  const openBlueprintEditor = (agent: Blueprint) => {
+    openSettingsSheet({ section: 'blueprint', blueprintId: agent.id })
+    onClose?.()
+  }
+
+  const renderAgentRow = (agent: SidebarAgent, hidden: boolean) => {
     const name = agentLabel(agent)
     const herdr = isHerdrAgent(agent)
     const active = !herdr && selectedId === agent.id
-    const support = isSupportAgent(agent)
+    const role = agentRole(agent)
+    const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
     const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
-      support ? 'os-agent-row--support' : ''
+      role !== 'default' ? `os-agent-row--${role}` : ''
     } ${dragging ? 'os-agent-row--dragging' : ''}`
     const body = (
       <>
         <span
           className="os-agent-dot mt-1.5"
           data-mark={String(agentMarkIndex(agent.id))}
-          data-role={support ? 'support' : undefined}
+          data-role={role !== 'default' ? role : undefined}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {role !== 'default' ? (
+              <span className={`os-agent-role-badge ${roleCssClass(role)}`} data-role={role}>
+                {role}
+              </span>
+            ) : null}
+          </span>
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}
@@ -337,28 +352,54 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
       )
     }
     return (
-      <Link
-        to={sidebarHref(agent)}
-        className={className}
-        data-agent-id={agent.id}
-        aria-current={active ? 'page' : undefined}
-        draggable={!hidden}
-        onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
-        onDragEnd={finishDrag}
-        onDragOver={(event) => {
-          // Rows are not drop targets; dropping onto the source is a no-op.
-          try {
-            event.dataTransfer.dropEffect = 'none'
-          } catch {
-            /* synthetic events may omit dataTransfer */
-          }
-        }}
-        onDrop={dropOnSelf}
-        onClick={onClose}
-        onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
+      <div
+        className={`os-agent-row-wrap ${roleCssClass(role)}`}
+        data-role={role}
       >
-        {body}
-      </Link>
+        <Link
+          to={sidebarHref(agent)}
+          className={className}
+          data-agent-id={agent.id}
+          aria-current={active ? 'page' : undefined}
+          draggable={!hidden}
+          onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
+          onDragEnd={finishDrag}
+          onDragOver={(event) => {
+            // Rows are not drop targets; dropping onto the source is a no-op.
+            try {
+              event.dataTransfer.dropEffect = 'none'
+            } catch {
+              /* synthetic events may omit dataTransfer */
+            }
+          }}
+          onDrop={dropOnSelf}
+          onClick={onClose}
+          onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
+        >
+          {body}
+        </Link>
+        {showEdit ? (
+          <button
+            type="button"
+            className="os-agent-edit"
+            aria-label={`Edit ${name} blueprint`}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openBlueprintEditor(agent)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                event.stopPropagation()
+                openBlueprintEditor(agent)
+              }
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
     )
   }
 
@@ -544,13 +585,13 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           ) : (
             <ul className="space-y-0.5">
               {supportAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
+                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
               {visibleTeams.map((team) => (
                 <li key={teamHideId(team.id)}>{renderTeamLink(team, false)}</li>
               ))}
               {otherAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
+                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
             </ul>
           )}

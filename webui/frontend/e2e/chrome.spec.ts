@@ -264,3 +264,30 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /1 hidden/i })).toBeVisible()
 })
+
+test('hover-edit on a role agent opens the modal-end Blueprint editor', async ({ page }) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubAgentApis(page)
+  await page.goto('/')
+
+  const list = page.getByRole('navigation', { name: 'Agent list' })
+  const support = list.getByRole('link', { name: /Support/ })
+  await expect(support).toBeVisible()
+  // REQ-26 seeds gate/skeptic as Hidden on first load; Support stays visible.
+  await expect(list.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
+
+  await support.hover()
+  const edit = page.getByRole('button', { name: 'Edit Support blueprint' })
+  await expect(edit).toBeVisible()
+  await edit.click()
+
+  const sheet = page.getByRole('dialog', { name: 'Settings' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet).toHaveClass(/modal-end/)
+  await expect(sheet.getByRole('heading', { name: 'Blueprint' })).toBeVisible()
+  await expect(sheet.locator('.os-code-python')).toContainText('Socratic')
+  await expect(page.getByRole('dialog', { name: /Teams/i })).toHaveCount(0)
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
