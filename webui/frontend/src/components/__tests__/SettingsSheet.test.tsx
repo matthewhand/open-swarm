@@ -96,18 +96,32 @@ describe('SettingsSheet', () => {
   it('lists LLM models from the existing API when present', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          object: 'list',
-          data: [{ id: 'default', object: 'model', created: 0, owned_by: 'swarm' }],
-        }),
-      } as Response),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/v1/models')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [{ id: 'default', object: 'model', created: 0, owned_by: 'swarm' }],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/remotes')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [], kinds: [] }),
+          } as Response
+        }
+        return { ok: false, status: 404, json: async () => ({}) } as Response
+      }),
     )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
     expect(await screen.findByText('default')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'default' })).not.toBeInTheDocument()
   })
 
   it('calls onClose from the sheet Close button', () => {

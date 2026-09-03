@@ -73,7 +73,20 @@ export interface RemoteBot {
 }
 
 export function fetchRemotes(): Promise<RemotesIndex> {
-  return apiGet<RemotesIndex>('/v1/remotes/')
+  return apiGet<RemotesIndex>('/v1/remotes/').then((payload) => {
+    const rows = Array.isArray(payload?.data) ? payload.data : []
+    const data = rows.filter((item) => {
+      if (!item || typeof item !== 'object') return false
+      return Boolean(item.kind || item.configured || item.base_url || item.api_key_env)
+    })
+    return {
+      object: 'list',
+      data,
+      kinds: Array.isArray(payload?.kinds) ? payload.kinds : [],
+      vocabulary: payload?.vocabulary,
+      team_members: payload?.team_members,
+    }
+  })
 }
 
 export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
