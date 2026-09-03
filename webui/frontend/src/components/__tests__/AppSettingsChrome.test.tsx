@@ -41,5 +41,7 @@ describe('SPA settings chrome (REQ-19)', () => {
     expect(dialog).toHaveClass('modal-end')
     expect(dialog).toHaveClass('modal-open')
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument()
+    // REQ-48: Settings is a sheet over chat, not a route that unmounts the composer.
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
   })
 })

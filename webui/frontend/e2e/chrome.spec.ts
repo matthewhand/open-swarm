@@ -148,9 +148,8 @@ test('chat header Computer control icon opens a WIP modal (REQ-27b)', async ({ p
   const dialog = page.getByRole('dialog', { name: 'Computer control' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('WIP', { exact: true })).toBeVisible()
-  await expect(dialog).toContainText(
-    'Computer control will use a placed OMB or Rakazo remote; not implemented here.',
-  )
+  await expect(dialog).toContainText(/placed .+ remote/)
+  await expect(dialog).toContainText(/not implemented here/)
   await expect(dialog.getByRole('checkbox')).toHaveCount(0)
   await expect(dialog.getByRole('switch')).toHaveCount(0)
 

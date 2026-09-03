@@ -54,15 +54,15 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
     )
     .toBeLessThan(1200)
   await expect(dialog).not.toHaveClass(/drawer/)
+  // REQ-48: Settings is an overlay — chat composer stays mounted.
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
 
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
   await expect(sections.getByRole('button', { name: 'Remotes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Hermes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'OMB' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Rakazo' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()
+  // REQ-59 / REQ-73: do not lock default Hermes / OMB / Rakazo kind cards.
 
   await expect(page.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass(/join/)
   await page.getByRole('radio', { name: 'Trash' }).click()

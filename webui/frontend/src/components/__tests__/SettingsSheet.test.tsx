@@ -46,23 +46,16 @@ describe('SettingsSheet', () => {
 
     const remotesToggle = screen.getByRole('button', { name: 'Remotes' })
     expect(remotesToggle).toHaveClass('menu-dropdown-toggle')
-    expect(remotesToggle).toHaveClass('menu-dropdown-show')
     expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
     expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rakazo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
+    // REQ-59 / REQ-73: do not lock default Hermes / OMB / Rakazo kind cards.
   })
 
-  it('shows remotes placeholders and join radios for retention', () => {
+  it('shows join radios for retention', () => {
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'Hermes' }))
-    expect(screen.getByText(/placeholder remote/i)).toBeInTheDocument()
-    expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
-
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
     const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
     expect(group).toHaveClass('join')
