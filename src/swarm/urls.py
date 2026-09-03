@@ -73,6 +73,7 @@ from swarm.views.remotes_api import (
     RemoteOperateView,
     RemotesListView,
 )
+from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
     custom_login,
@@ -160,14 +161,17 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
-    # Multi-agent team rosters for the AGENTS sidepane (not LLM-alias /v1/teams/).
+    # Static roster file for the AGENTS sidepane (REQ-23). Composition CRUD is
+    # /v1/team-rosters/ below — not LLM-alias /v1/teams/.
     path("team_rosters.json", team_rosters_json, name="team-rosters-json"),
-    path("v1/team-rosters/", team_rosters_json, name="team-rosters-api"),
-    path("v1/team-rosters", team_rosters_json, name="team-rosters-api-no-slash"),
     # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
     path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
+    # Composition rosters (REQ-20 / REQ-28). Not teams.json LLM aliases.
+    path("v1/team-rosters", TeamRostersAPIView.as_view(), name="team-rosters-api-no-slash"),
+    path("v1/team-rosters/", TeamRostersAPIView.as_view(), name="team-rosters-api"),
+    path("v1/team-rosters/<str:roster_id>/", TeamRosterDetailAPIView.as_view(), name="team-rosters-api-detail"),
     # Remote harnesses (Hermes / OpenMausBot / Rakazo) — config + health + operate
     path("v1/remotes", RemotesListView.as_view(), name="remotes-list-no-slash"),
     path("v1/remotes/", RemotesListView.as_view(), name="remotes-list"),

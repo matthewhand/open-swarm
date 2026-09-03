@@ -18,6 +18,17 @@ This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 
 `/v1/teams/` and the Django `/teams/` admin store **LLM-profile aliases** (`id`, `description`, `llm_profile`) in `teams.json`. They run through `DynamicTeamBlueprint` — a thin chat proxy to a profile. Prefer calling that surface **Profiles** in new copy. Do not call those aliases a Team.
 
+## Team roster (composition) / Chief of Staff
+
+A **team roster** (`team_rosters.json`, `/v1/team-rosters/`) is a composition
+of members `{id, kind: api\|cli\|remote\|team\|herdr, role, source}`. This is
+**not** the `/v1/teams` alias. `kind=team` + `team_id` nests a child roster.
+
+**Isolation (REQ-28):** members of Team A cannot `handoff` / `as_tool` to Team B
+unless B is a **direct child** of A or the caller is `chief_of_staff` (`cos`,
+`chief`). Parent talks to the child team as one member (send-to-all on the
+child), not automatically every grandchild. See [TEAM_ISOLATION.md](./TEAM_ISOLATION.md).
+
 ## Persona / MoA
 
 Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):
