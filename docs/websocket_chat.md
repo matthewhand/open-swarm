@@ -36,8 +36,11 @@ Notes:
   authenticate the websocket. Anonymous connects are accept-then-closed
   with close code **4401** (`WS_AUTH_REQUIRED_CODE`) and reason
   `authentication required` so the SPA can show a Sign-in CTA instead of
-  an opaque failure. `receive()` re-checks auth so a frame that races the
-  close cannot append to a transcript or invoke a blueprint/LLM.
+  an opaque failure — except **DEBUG + LAN/loopback**, which mints the
+  preview user so a phone on the LAN can chat without signing in
+  (`SWARM_ALLOW_ANONYMOUS=0` disables that). `receive()` re-checks auth so a
+  frame that races the close cannot append to a transcript or invoke a
+  blueprint/LLM.
 - `Origin` must match `ALLOWED_HOSTS` (AllowedHostsOriginValidator).
 - The consumer streams completions from `OPENAI_API_KEY` / `OPENAI_MODEL`
   (optionally `LITELLM_BASE_URL`/`OPENAI_BASE_URL`).

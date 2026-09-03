@@ -71,23 +71,31 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     expect(window.location.pathname).toBe('/chat')
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
     expect(screen.getByLabelText('Connection status')).toHaveTextContent('Connected')
-    const chatLinks = screen.getAllByRole('link', { name: 'Chat' })
-    expect(chatLinks.length).toBeGreaterThan(0)
-    for (const link of chatLinks) {
-      expect(link).toHaveAttribute('href', '/chat')
+    const chatItems = screen.getAllByRole('menuitem', { name: /Chat/ })
+    expect(chatItems.length).toBeGreaterThan(0)
+    for (const item of chatItems) {
+      expect(item).toHaveAttribute('href', '/chat')
     }
   })
 
-  it('aliases /agents onto /chat and keeps the composer', async () => {
-    renderAppAt('/agents?blueprint=codey')
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/chat')
-    })
-    expect(window.location.search).toBe('?blueprint=codey')
-    await act(async () => {
-      MockWebSocket.instances[0]?.open()
-    })
-    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Connection status')).toHaveTextContent('Connected')
+  it('mounts Agent Router at /agents', async () => {
+    renderAppAt('/agents')
+    expect(window.location.pathname).toBe('/agents')
+    expect(await screen.findByRole('complementary', { name: 'Agent sidebar' })).toBeInTheDocument()
+  })
+
+  it('keeps Agents in the primary nav and parks the rest under More', () => {
+    renderAppAt('/agents')
+    const primary = screen.getByRole('navigation', { name: 'Primary' })
+    expect(primary.querySelector('a[href="/agents"]')).toBeTruthy()
+    const more = screen.getAllByRole('button', { name: 'More' })
+    expect(more.length).toBeGreaterThan(0)
+    const chatItems = screen.getAllByRole('menuitem', { name: /Chat/ })
+    expect(chatItems.length).toBeGreaterThan(0)
+    for (const item of chatItems) {
+      expect(item).toHaveAttribute('href', '/chat')
+    }
+    const blueprintItems = screen.getAllByRole('menuitem', { name: /Blueprints/ })
+    expect(blueprintItems[0]).toHaveAttribute('href', '/blueprint-library/')
   })
 })

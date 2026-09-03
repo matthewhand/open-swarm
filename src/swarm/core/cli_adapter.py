@@ -121,6 +121,8 @@ class CliAgentConfig:
     # a preferred whitelist (falls back to all-available if none match); a dict
     # ``{"panel": [...], "judge": "<cli>"}`` => explicit. None (default) => normal.
     consensus: bool | list[str] | dict[str, Any] | None = None
+    # Swarm ``mcpServers`` to mount into grok/agy/claude when the CLI accepts it.
+    mcp_servers: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.cmd:
@@ -246,6 +248,7 @@ class CliAdapter:
             mode=raw.get("mode", "default"),
             auth_check=raw.get("auth_check"),
             consensus=raw.get("consensus"),
+            mcp_servers=raw.get("mcp_servers") or raw.get("mcpServers"),
         )
         return cls(cfg)
 
@@ -336,8 +339,19 @@ class CliAdapter:
         )
         argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
         env = self._build_env(prompt, effective_workdir, extra_env)
+        mcp_path = None
+        if cfg.mcp_servers:
+            from swarm.core.cli_mcp import cleanup_mcp_config_file, inject_mcp_argv
+
+            argv, mcp_path = inject_mcp_argv(
+                cfg.name, argv, cfg.mcp_servers, executable=cfg.cmd[0]
+            )
 
         if not self.is_available():
+            if mcp_path:
+                from swarm.core.cli_mcp import cleanup_mcp_config_file
+
+                cleanup_mcp_config_file(mcp_path)
             yield CliStreamChunk(
                 final=True,
                 result=CliResult(
@@ -359,6 +373,10 @@ class CliAdapter:
                 start_new_session=True,
             )
         except (OSError, ValueError) as exc:
+            if mcp_path:
+                from swarm.core.cli_mcp import cleanup_mcp_config_file
+
+                cleanup_mcp_config_file(mcp_path)
             yield CliStreamChunk(
                 final=True,
                 result=CliResult(
@@ -485,6 +503,10 @@ class CliAdapter:
                     await stderr_task
                 except asyncio.CancelledError:
                     pass
+            if mcp_path:
+                from swarm.core.cli_mcp import cleanup_mcp_config_file
+
+                cleanup_mcp_config_file(mcp_path)
 
     # Always-passed vars so a locked-down CLI can still run and resolve itself.
     _ESSENTIAL_ENV = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM")

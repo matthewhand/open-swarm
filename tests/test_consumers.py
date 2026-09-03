@@ -117,10 +117,26 @@ class TestConnect:
             mock_fetch.return_value = []
 
             with patch.object(consumer, 'accept', new_callable=AsyncMock) as mock_accept:
+                order = []
+                mock_accept.side_effect = lambda *a, **k: order.append("accept")
+                mock_fetch.side_effect = lambda *a, **k: order.append("fetch") or []
                 await consumer.connect()
 
                 mock_accept.assert_called_once()
                 mock_fetch.assert_called_once_with("test-conv-123")
+                assert order == ["accept", "fetch"]
+
+    @pytest.mark.asyncio
+    async def test_connect_accepts_even_if_fetch_raises(self, consumer):
+        """DB/thread-pool failure must not leave the handshake hanging."""
+        with patch.object(consumer, 'fetch_conversation', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.side_effect = RuntimeError("CurrentThreadExecutor already quit or is broken")
+            with patch.object(consumer, 'accept', new_callable=AsyncMock) as mock_accept:
+                with patch.object(consumer, 'close', new_callable=AsyncMock) as mock_close:
+                    await consumer.connect()
+                    mock_accept.assert_called_once()
+                    mock_close.assert_not_called()
+                    assert consumer.messages == []
 
     @pytest.mark.asyncio
     async def test_connect_authenticated_fetches_conversation(self, consumer):
@@ -152,6 +168,84 @@ class TestConnect:
                     code=WS_AUTH_REQUIRED_CODE,
                     reason="authentication required",
                 )
+
+    @pytest.mark.asyncio
+    async def test_connect_passes_client_ip_to_anonymous_gate(
+        self, mock_scope_unauthenticated
+    ):
+        mock_scope_unauthenticated["client"] = ("10.0.0.199", 51234)
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+        preview = MagicMock()
+        preview.is_authenticated = True
+        preview.pk = 7
+
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=True) as allow:
+            with patch(
+                "swarm.consumers.database_sync_to_async",
+                side_effect=lambda fn: AsyncMock(return_value=preview),
+            ):
+                with patch.object(
+                    consumer, "fetch_conversation", new_callable=AsyncMock, return_value=[]
+                ):
+                    with patch.object(consumer, "accept", new_callable=AsyncMock):
+                        with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                            await consumer.connect()
+        allow.assert_called_with("10.0.0.199")
+        mock_close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_connect_anonymous_preview_does_not_close_4401(
+        self, mock_scope_unauthenticated
+    ):
+        """SWARM_ALLOW_ANONYMOUS preview user: accept and keep the socket."""
+        preview = MagicMock()
+        preview.is_authenticated = True
+        preview.pk = 99
+
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=True):
+            with patch(
+                "swarm.consumers.database_sync_to_async",
+                side_effect=lambda fn: AsyncMock(return_value=preview),
+            ):
+                with patch.object(
+                    consumer, "fetch_conversation", new_callable=AsyncMock
+                ) as mock_fetch:
+                    mock_fetch.return_value = []
+                    with patch.object(consumer, "accept", new_callable=AsyncMock) as mock_accept:
+                        with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                            await consumer.connect()
+
+        mock_accept.assert_called_once()
+        mock_close.assert_not_called()
+        mock_fetch.assert_called_once()
+        assert consumer.user is preview
+
+    @pytest.mark.asyncio
+    async def test_connect_anonymous_preview_mint_failure_keeps_socket(
+        self, mock_scope_unauthenticated
+    ):
+        """If the preview user cannot be minted, do not 4401 — socket stays open."""
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=True):
+            with patch(
+                "swarm.consumers.database_sync_to_async",
+                side_effect=lambda fn: AsyncMock(
+                    side_effect=RuntimeError("CurrentThreadExecutor already quit")
+                ),
+            ):
+                with patch.object(consumer, "accept", new_callable=AsyncMock) as mock_accept:
+                    with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                        await consumer.connect()
+
+        mock_accept.assert_called_once()
+        mock_close.assert_not_called()
+        assert consumer.messages == []
 
     @pytest.mark.asyncio
     async def test_connect_sets_conversation_id(self, consumer, mock_scope):

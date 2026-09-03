@@ -1,8 +1,9 @@
 import { useState, useEffect, useLayoutEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } from 'lucide-react'
+import { Bot, Book, Users, History, MessageSquare, Settings, Ellipsis, PanelLeft } from 'lucide-react'
 import ChatPage from './pages/ChatPage'
 import Dashboard from './pages/Dashboard'
+import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
@@ -43,17 +44,13 @@ export function chatPathWithSearch(search: string): string {
   return search.startsWith('?') ? `/chat${search}` : `/chat?${search}`
 }
 
-/** `/agents` is not a product route — send it to SPA Chat. */
-function RedirectAgentsToChat() {
-  const { search } = useLocation()
-  return <Navigate to={chatPathWithSearch(search)} replace />
-}
+/** `/chat` is the websocket composer; `/agents` is the Agent Router. */
 
 /**
- * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
+ * SPA mounts Dashboard (`/`), Chat (`/chat`), and Agent Router (`/agents`).
  * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
  * Do not remount deleted Teams/Blueprints/Settings/Builder/AgentCreator SPA pages.
- * Legacy `/agents` is an alias of `/chat` (REQ-5d follow-up).
+ * Primary tab is Agents; Chat and Django destinations live under More.
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
@@ -92,7 +89,7 @@ function App() {
         >
           Skip to main content
         </a>
-        <nav className="sticky top-0 z-40 border-b border-base-300 bg-base-200/95 shadow-sm backdrop-blur" aria-label="Primary">
+        <nav className="sticky top-0 z-40 overflow-visible border-b border-base-300 bg-base-200/95 shadow-sm backdrop-blur" aria-label="Primary">
           <div className="flex h-14 items-center justify-between px-3 sm:px-4">
             <div className="flex items-center gap-3 lg:gap-6">
               <button
@@ -103,25 +100,11 @@ function App() {
               >
                 <PanelLeft className="h-5 w-5" aria-hidden="true" />
               </button>
-              <Link to="/" className="flex items-center space-x-2">
+              <Link to="/" className="flex items-center space-x-2" aria-label="Home">
                 <Bot className="h-6 w-6 text-base-content/80" aria-hidden />
-                <span className="text-base font-semibold tracking-tight">Open Swarm</span>
               </Link>
-              <div className="hidden lg:flex items-center gap-1">
-                <NavLink to="/">Home</NavLink>
-                <NavLink to="/chat">Chat</NavLink>
-                <a className="btn btn-ghost btn-sm" href="/blueprint-library/">
-                  Blueprints
-                </a>
-                <a className="btn btn-ghost btn-sm" href="/teams/launch/">
-                  Teams
-                </a>
-                <a className="btn btn-ghost btn-sm" href="/sessions/">
-                  Sessions
-                </a>
-                <a className="btn btn-ghost btn-sm" href="/settings/">
-                  Settings
-                </a>
+              <div className="flex items-center gap-1">
+                <NavLink to="/agents">Agents</NavLink>
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -133,22 +116,20 @@ function App() {
               >
                 {darkMode === 'dark' ? 'Light' : 'Dark'}
               </button>
-              <a href="/settings/" className="btn btn-ghost btn-sm" aria-label="Settings">
-                <Settings className="h-5 w-5" aria-hidden="true" />
-              </a>
+              <MoreMenu />
             </div>
           </div>
         </nav>
 
         <div className="flex min-h-0 flex-1">
-          <AgentSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          <MaybeBlueprintSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <main id="os-main" className="min-w-0 flex-1 overflow-y-auto pb-20 lg:pb-0" tabIndex={-1}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/chat/*" element={<ChatPage />} />
-              <Route path="/agents" element={<RedirectAgentsToChat />} />
-              <Route path="/agents/*" element={<RedirectAgentsToChat />} />
+              <Route path="/agents" element={<AgentRouterPage />} />
+              <Route path="/agents/*" element={<AgentRouterPage />} />
               {/* Bare /teams|/blueprints|/settings|/agent-creator|/builder: Django RedirectView in
                   production; unknown SPA paths fall through to dashboard. */}
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -160,15 +141,78 @@ function App() {
           className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-base-300 bg-base-200 flex justify-around items-stretch h-16"
           aria-label="Mobile primary"
         >
-          {/* Five-tab SPA dock (ADR-001): Settings stays desktop top-nav / gear. */}
-          <MobileTab to="/" icon={<Home className="h-5 w-5" />} label="Home" />
-          <MobileTab to="/chat" icon={<MessageSquare className="h-5 w-5" />} label="Chat" />
-          <MobileTab href="/blueprint-library/" icon={<Book className="h-5 w-5" />} label="Blueprints" />
-          <MobileTab href="/teams/launch/" icon={<Users className="h-5 w-5" />} label="Teams" />
-          <MobileTab href="/sessions/" icon={<History className="h-5 w-5" />} label="Sessions" />
+          <MobileTab to="/agents" icon={<Bot className="h-5 w-5" />} label="Agents" />
+          <div className="flex flex-1 items-center justify-center">
+            <MoreMenu placement="top" />
+          </div>
         </nav>
       </div>
     </Router>
+  )
+}
+
+function MaybeBlueprintSidebar(props: { open: boolean; onClose: () => void }) {
+  const { pathname } = useLocation()
+  if (pathname === '/agents' || pathname.startsWith('/agents/')) return null
+  return <AgentSidebar {...props} />
+}
+
+const MORE_HREFS = [
+  { href: '/chat', label: 'Chat', icon: <MessageSquare className="h-4 w-4" />, spa: true },
+  { href: '/blueprint-library/', label: 'Blueprints', icon: <Book className="h-4 w-4" /> },
+  { href: '/teams/launch/', label: 'Teams', icon: <Users className="h-4 w-4" /> },
+  { href: '/sessions/', label: 'Sessions', icon: <History className="h-4 w-4" /> },
+  { href: '/settings/', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
+] as const
+
+function moreMenuActive(pathname: string): boolean {
+  return (
+    pathname === '/chat' ||
+    pathname.startsWith('/chat/') ||
+    pathname.startsWith('/blueprint') ||
+    pathname.startsWith('/teams') ||
+    pathname.startsWith('/sessions') ||
+    pathname.startsWith('/settings')
+  )
+}
+
+function MoreMenu({ placement = 'bottom' }: { placement?: 'bottom' | 'top' }) {
+  const { pathname } = useLocation()
+  const extraActive = moreMenuActive(pathname)
+  return (
+    <div className={`dropdown ${placement === 'top' ? 'dropdown-top dropdown-end' : 'dropdown-end'}`}>
+      <button
+        type="button"
+        tabIndex={0}
+        className={`btn btn-ghost btn-sm gap-1 ${extraActive ? 'btn-active' : ''}`}
+        aria-label="More"
+        aria-haspopup="menu"
+      >
+        <Ellipsis className="h-4 w-4" aria-hidden="true" />
+        More
+      </button>
+      <ul
+        tabIndex={0}
+        role="menu"
+        className="dropdown-content menu bg-base-200 rounded-box z-50 w-52 p-2 shadow border border-base-300"
+      >
+        {MORE_HREFS.map((item) => (
+          <li key={item.href} role="none">
+            {'spa' in item && item.spa ? (
+              <Link to={item.href} role="menuitem">
+                {item.icon}
+                {item.label}
+              </Link>
+            ) : (
+              <a href={item.href} role="menuitem">
+                {item.icon}
+                {item.label}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

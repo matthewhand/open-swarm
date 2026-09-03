@@ -10,6 +10,11 @@ from django.template.loader import render_to_string
 from django.utils.html import escape
 
 from swarm.models import ChatConversation, ChatMessage
+from swarm.middleware import (
+    client_ip_from_scope,
+    get_or_create_preview_user,
+    swarm_allow_anonymous,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,20 +71,40 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # Optional connection-level default blueprint (?blueprint=<id>).
         query_params = parse_qs(self.scope.get("query_string", b"").decode())
         self.default_blueprint = (query_params.get("blueprint") or [None])[0]
+        self.messages = []
+        # Accept before any DB/thread work. A wedged CurrentThreadExecutor
+        # used to hang handshake (HANDSHAKING, never CONNECT) and loop /chat.
+        await self.accept()
 
-        if self.user.is_authenticated:
-            self.messages = await self.fetch_conversation(self.conversation_id)
-            await self.accept()
-        else:
-            # Accept first so the client sees close code 4401 (not 1006).
-            # Frames may still arrive before the close is processed — receive()
-            # re-checks auth so anonymous clients cannot hit the LLM path.
-            self.messages = []
-            await self.accept()
-            await self.close(
-                code=WS_AUTH_REQUIRED_CODE,
-                reason="authentication required",
-            )
+        try:
+            if (not getattr(self.user, "is_authenticated", False)) and swarm_allow_anonymous(
+                client_ip_from_scope(self.scope)
+            ):
+                try:
+                    self.user = await database_sync_to_async(get_or_create_preview_user)()
+                except Exception:
+                    logger.exception(
+                        "Preview user mint failed for conversation %s; keeping socket open",
+                        self.conversation_id,
+                    )
+                    return
+            if getattr(self.user, "is_authenticated", False):
+                try:
+                    self.messages = await self.fetch_conversation(self.conversation_id)
+                except Exception:
+                    logger.exception(
+                        "fetch_conversation failed after accept; continuing with empty transcript"
+                    )
+                    self.messages = []
+            else:
+                # Close after accept so the client sees 4401 (not 1006).
+                # receive() re-checks auth so anonymous clients cannot hit the LLM.
+                await self.close(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
+        except Exception:
+            logger.exception("post-accept websocket setup failed; socket stays open")
 
     async def disconnect(self, close_code):
         if self.user.is_authenticated:
@@ -99,11 +124,20 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # land before the close is applied. Refuse unauthenticated receives
         # (do not append to transcript or invoke blueprints / LLM).
         if not getattr(self.user, "is_authenticated", False):
-            await self.close(
-                code=WS_AUTH_REQUIRED_CODE,
-                reason="authentication required",
-            )
-            return
+            if swarm_allow_anonymous(client_ip_from_scope(self.scope)):
+                self.user = await database_sync_to_async(get_or_create_preview_user)()
+            else:
+                await self.close(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
+                return
+            if not getattr(self.user, "is_authenticated", False):
+                await self.close(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
+                return
 
         # Tolerate malformed frames without killing the socket: log and drop.
         try:
@@ -224,7 +258,15 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
-        full_message = final_message["content"]
+        from swarm.core.model_text import sanitize_model_text
+
+        full_message = sanitize_model_text(final_message["content"])
+        if not full_message:
+            await self.send_error_message(
+                contents_div_id,
+                "Error: the model returned no usable text (empty or tokenizer leftovers).",
+            )
+            return
         await self.send(text_data=_oob_append_html(contents_div_id, full_message))
 
         self.messages.append(
@@ -325,6 +367,16 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 contents_div_id,
                 "Error: the default model failed while generating a reply. "
                 "Check the server's LLM configuration (LITELLM_* / OPENAI_*).",
+            )
+            return
+
+        from swarm.core.model_text import sanitize_model_text
+
+        full_message = sanitize_model_text(full_message)
+        if not full_message:
+            await self.send_error_message(
+                contents_div_id,
+                "Error: the model returned no usable text (empty or tokenizer leftovers).",
             )
             return
 

@@ -8,8 +8,10 @@ config.
 Each entry runs the CLI **one-shot, non-interactive, auto-approve** (full
 capability) — the flag that matters is the auto-approve one, without which the
 CLI blocks on a permission prompt and is killed on timeout (see
-``docs/CLI_FUSION.md``). Exact flags and JSON shapes drift by CLI version, so
-these are suggestions to verify with each CLI's ``--help``, not guarantees.
+``docs/CLI_FUSION.md``). That is how Open Swarm **simulates always-approve**;
+Agent Router Shift+Tab therefore cycles only plan / auto-edit / default.
+Exact flags and JSON shapes drift by CLI version, so these are suggestions
+to verify with each CLI's ``--help``, not guarantees.
 
 Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
 2026-06-16):
@@ -19,6 +21,10 @@ Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
 * **opencode** has no usable default model in ``run`` mode (its built-in default
   errors as "not supported"), so an explicit ``--model`` is required. The value
   below is account/version-specific — run ``opencode models`` to pick one.
+* **agy** treats ``-p`` / ``--print`` as a flag that *consumes the next argv
+  token as the prompt*. ``agy -p --output-format json 'hi'`` errors with
+  ``-p took "--output-format" as its prompt``. Attach the prompt to the flag
+  (``-p={prompt}``) and keep ``--output-format`` as a sibling flag.
 
 The gemini default uses the fast flash tier (no ``-m``). To select the pro tier
 use ``with_model("gemini", "gemini-3-pro-preview", timeout=600)`` — but note
@@ -37,9 +43,25 @@ CATALOG: dict[str, dict[str, Any]] = {
     "grok": {
         # xAI's grok CLI (also installed as `agent`). -p/--single is the
         # non-interactive print mode; --always-approve auto-approves tool use.
+        # Flags before -p so later argv cannot be swallowed as the prompt.
         # Inherits the full env (auth is file-based, not a single known var).
-        "cmd": ["grok", "-p", "{prompt}", "--output-format", "json", "--always-approve"],
+        "cmd": ["grok", "--output-format", "json", "--always-approve", "-p", "{prompt}"],
         "parse": "json:.text",
+        "mode": "write",
+        "timeout": 240,
+    },
+    "agy": {
+        # Agy print-mode: -p/--print consumes the next argv token as the
+        # prompt, so the prompt MUST be attached (-p={prompt}), not a
+        # following positional. JSON shape is {response, status, ...}.
+        "cmd": [
+            "agy",
+            "--output-format",
+            "json",
+            "--dangerously-skip-permissions",
+            "-p={prompt}",
+        ],
+        "parse": "json:.response",
         "mode": "write",
         "timeout": 240,
     },
@@ -94,10 +116,33 @@ NATIVE_CONSENSUS: dict[str, list[str]] = {
 # cost = cheapness (1.0 = cheapest). gemini defaults to its fast/cheap flash tier.
 CLI_TRAITS: dict[str, dict[str, float]] = {
     "grok":     {"intelligence": 0.90, "speed": 0.60, "cost": 0.55},
+    "agy":      {"intelligence": 0.85, "speed": 0.65, "cost": 0.50},
     "claude":   {"intelligence": 0.95, "speed": 0.55, "cost": 0.35},
     "gemini":   {"intelligence": 0.60, "speed": 0.92, "cost": 0.90},
     "codex":    {"intelligence": 0.75, "speed": 0.60, "cost": 0.50},
     "opencode": {"intelligence": 0.55, "speed": 0.65, "cost": 0.75},
+}
+
+# First-class sidebar CLIs — always listed like remote FRAMEWORKS (OpenMausBot),
+# even when the designer has not created a `kind=cli` record. Other catalog
+# CLIs stay available in the backend picker / designer.
+SIDEBAR_CLIS: tuple[str, ...] = ("grok", "agy")
+
+CLI_SIDEBAR: dict[str, dict[str, str]] = {
+    "grok": {
+        "name": "Grok",
+        "specialty": "xAI Grok CLI",
+        "description": "Host grok CLI in one-shot print mode (--always-approve).",
+        "color": "#22c55e",
+        "icon": "⚡",
+    },
+    "agy": {
+        "name": "Agy",
+        "specialty": "Agy CLI",
+        "description": "Host agy CLI in one-shot print mode (auto-approve tools).",
+        "color": "#38bdf8",
+        "icon": "🛠️",
+    },
 }
 
 
@@ -141,6 +186,26 @@ MODEL_FLAG: dict[str, str] = {
     "gemini": "-m",        # verified live (gemini 0.45): -m gemini-3-pro-preview
     "claude": "--model",   # claude -p --model <name>
     "opencode": "--model", # opencode run --model <name>
+    "agy": "--model",      # agy --model <name>
+    "grok": "-m",          # grok -m/--model <id> (verified: grok-4.6, grok-4.5)
+}
+
+# Suggested model ids for the Agent Router CLI-model dropdown. The UI always
+# offers a custom string on top of these; they are starting points, not a
+# live catalog from the host CLI.
+CLI_MODELS: dict[str, list[str]] = {
+    "grok": ["grok-4.6", "grok-4.5"],
+    "agy": [
+        "gemini-3.8-flash-high",
+        "gemini-3.8-flash-medium",
+        "gemini-3.1-pro-high",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6-thinking",
+        "gpt-oss-120b-medium",
+    ],
+    "gemini": ["gemini-3-flash-preview", "gemini-3-pro-preview"],
+    "claude": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+    "opencode": ["opencode/big-pickle"],
 }
 
 
@@ -203,6 +268,33 @@ def with_model(name: str, model: str, *, timeout: int | None = None) -> dict[str
     if timeout is not None:
         entry["timeout"] = timeout
     return entry
+
+
+def listed_cli_specs() -> list[dict[str, Any]]:
+    """Host grok/agy as Agent Router sidebar specs (OpenMausBot-style).
+
+    Always returned so the sidebar does not require a designer POST. A later
+    ``kind=cli`` design with the same ``agent_id`` may overlay these.
+    """
+    specs: list[dict[str, Any]] = []
+    for name in SIDEBAR_CLIS:
+        if name not in CATALOG:
+            continue
+        meta = CLI_SIDEBAR.get(name) or {}
+        specs.append({
+            "agent_id": name,
+            "name": meta.get("name") or name.title(),
+            "kind": "cli",
+            "agent_type": "cli",
+            "cli": name,
+            "specialty": meta.get("specialty") or f"{name} CLI",
+            "description": meta.get("description") or f"Host {name} CLI, one-shot print mode.",
+            "color": meta.get("color") or "#6366f1",
+            "icon": meta.get("icon") or "⌨️",
+            "group": "tools",
+            "type": "specialist",
+        })
+    return specs
 
 
 def catalog_names() -> list[str]:

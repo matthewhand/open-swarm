@@ -3,9 +3,11 @@ import {
   HIDDEN_AGENTS_STORAGE_KEY,
   agentMarkColor,
   hideAgentId,
+  hideAllAgentIds,
   loadHiddenAgentIds,
   saveHiddenAgentIds,
   unhideAgentId,
+  unhideAllAgentIds,
 } from '../hiddenAgents'
 
 describe('hiddenAgents persistence', () => {
@@ -24,13 +26,14 @@ describe('hiddenAgents persistence', () => {
     expect(loadHiddenAgentIds()).toEqual(['codey'])
   })
 
-  it('does not require hide-all and unhides a single agent', () => {
-    saveHiddenAgentIds(['codey', 'stewie'])
-    const afterHide = hideAgentId('stewie', ['codey'])
-    expect(afterHide).toEqual(['codey', 'stewie'])
-    const afterUnhide = unhideAgentId('codey', afterHide)
+  it('hides all ids and unhides a single agent', () => {
+    const afterAll = hideAllAgentIds(['codey', 'stewie'])
+    expect(afterAll).toEqual(['codey', 'stewie'])
+    expect(loadHiddenAgentIds()).toEqual(['codey', 'stewie'])
+    const afterUnhide = unhideAgentId('codey', afterAll)
     expect(afterUnhide).toEqual(['stewie'])
-    expect(loadHiddenAgentIds()).toEqual(['stewie'])
+    expect(unhideAllAgentIds()).toEqual([])
+    expect(loadHiddenAgentIds()).toEqual([])
   })
 
   it('ignores corrupt storage and empty ids', () => {

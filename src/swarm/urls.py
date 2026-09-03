@@ -33,11 +33,32 @@ from swarm.views.api_views import (
     SupportContextView,
 )
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
+from swarm.views.agent_router_page import agent_router_page
+from swarm.views.agent_router_views import (
+    agent_context_view,
+    agent_conversations_view,
+    agent_delegations_view,
+    create_designed_agent,
+    delete_designed_agent,
+    delegate_agent_view,
+    get_agent_info,
+    get_agent_status_view,
+    generate_agent_quickstarts,
+    get_routing_options,
+    list_agents,
+    list_cli_catalog,
+    list_llm_profiles,
+    launch_remote_framework,
+    list_remote_catalog,
+    route_message,
+    send_to_agent,
+)
 from swarm.views.blueprint_library_views import (
     add_blueprint_to_library,
     blueprint_creator,
     blueprint_library,
     blueprint_requirements_status,
+    blueprint_source_page,
     check_comfyui_status,
     generate_avatar,
     my_blueprints,
@@ -76,19 +97,11 @@ from swarm.views.webui import WebUIView
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
     path("", index, name="index"),  # Root path for web UI
-    # First-class SPA Chat. Must stay /chat (composer + Connected), not /agents.
+    # First-class SPA Chat (composer + Connected). Agent Router is /agents.
     path("chat", spa_chat, name="spa_chat"),
     path("chat/", spa_chat, name="spa_chat_slash"),
-    path(
-        "agents",
-        RedirectView.as_view(url="/chat", permanent=False, query_string=True),
-        name="spa_agents_to_chat",
-    ),
-    path(
-        "agents/",
-        RedirectView.as_view(url="/chat", permanent=False, query_string=True),
-        name="spa_agents_slash_to_chat",
-    ),
+    path("agents", agent_router_page, name="spa_agents"),
+    path("agents/", agent_router_page, name="spa_agents_slash"),
     # Lightweight liveness probe (no auth) — used by the Fly health check.
     path("health", HealthCheckView.as_view(), name="health"),
     path("health/", HealthCheckView.as_view()),
@@ -155,6 +168,24 @@ urlpatterns = [
     path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
     path("v1/library/", LibraryAPIView.as_view(), name="library-api"),
     path("v1/library/<str:blueprint_name>/", LibraryDetailAPIView.as_view(), name="library-api-detail"),
+    # Agent Router API (SPA /agents chat uses these)
+    path("v1/agents/", list_agents, name="list_agents"),
+    path("v1/agents/routing-options/", get_routing_options, name="get_routing_options"),
+    path("v1/agents/route/", route_message, name="route_message"),
+    path("v1/agents/conversations/", agent_conversations_view, name="agent_conversations"),
+    path("v1/agents/delegations/", agent_delegations_view, name="agent_delegations"),
+    path("v1/agents/cli-catalog/", list_cli_catalog, name="list_cli_catalog"),
+    path("v1/agents/llm-profiles/", list_llm_profiles, name="list_llm_profiles"),
+    path("v1/agents/remote-catalog/", list_remote_catalog, name="list_remote_catalog"),
+    path("v1/agents/remote-launch/", launch_remote_framework, name="launch_remote_framework"),
+    path("v1/agents/quickstarts/", generate_agent_quickstarts, name="generate_agent_quickstarts"),
+    path("v1/agents/design/", create_designed_agent, name="create_designed_agent"),
+    path("v1/agents/design/<str:agent_id>/", delete_designed_agent, name="delete_designed_agent"),
+    path("v1/agents/<str:agent_id>/", get_agent_info, name="get_agent_info"),
+    path("v1/agents/<str:agent_id>/send/", send_to_agent, name="send_to_agent"),
+    path("v1/agents/<str:agent_id>/status/", get_agent_status_view, name="get_agent_status"),
+    path("v1/agents/<str:agent_id>/delegate/", delegate_agent_view, name="delegate_agent"),
+    path("v1/agents/<str:agent_id>/context/", agent_context_view, name="agent_context"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),
@@ -181,6 +212,11 @@ urlpatterns = [
     # Blueprint Library endpoints
     path("blueprint-library/", blueprint_library, name="blueprint_library"),
     path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),
+    path(
+        "blueprint-library/<str:blueprint_name>/source/",
+        blueprint_source_page,
+        name="blueprint_source",
+    ),
     path("blueprint-library/my-blueprints/", my_blueprints, name="my_blueprints"),
     path("blueprint-library/requirements/", blueprint_requirements_status, name="blueprint_requirements_status"),
     path("blueprint-library/add/<str:blueprint_name>/", add_blueprint_to_library, name="add_blueprint_to_library"),

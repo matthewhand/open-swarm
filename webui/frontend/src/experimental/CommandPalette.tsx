@@ -64,7 +64,7 @@ export default function CommandPalette() {
 
   const items: PaletteItem[] = useMemo(
     () => [
-      { id: 'home', label: 'Home', hint: 'SPA dashboard', icon: <Bot className="h-4 w-4" />, to: '/' },
+      { id: 'home', label: 'Start', hint: 'Landing', icon: <Bot className="h-4 w-4" />, to: '/' },
       { id: 'chat', label: 'Chat', hint: 'Live websocket chat', icon: <MessageSquare className="h-4 w-4" />, to: '/chat' },
       { id: 'blueprints', label: 'Blueprints', hint: '/blueprint-library/', icon: <Book className="h-4 w-4" />, to: '/blueprint-library/' },
       { id: 'my-blueprints', label: 'My Blueprints', hint: '/blueprint-library/my-blueprints/', icon: <Book className="h-4 w-4" />, to: '/blueprint-library/my-blueprints/' },

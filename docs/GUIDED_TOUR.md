@@ -56,19 +56,18 @@ synthetic `swarm_*` ids from `apply_blueprint_aliases` — they are **not**
 `swarm-cli list`’s **31** package dirs (includes non-runnable `common`) and
 **not** the Blueprint Library’s **38** `discover_blueprints()` keys (library
 PNG: Available **38**, Showing **12 of 38**). Desktop top nav:
-**Home · Chat · Blueprints · Teams · Sessions · Settings** (matches
-`landing.png` / `App.tsx`). Quick Actions: **Launch Team**, **Browse
+**Agents** with **More** (**Chat · Blueprints · Teams · Sessions · Settings**)
+(matches `App.tsx`). Quick Actions: **Launch Team**, **Browse
 Blueprints**, **Manage Teams**, **Settings**. Banner text points operators at
 Django trailing-slash paths for library, sessions, creators, and settings.
 Recaptured after `npm run build` on **2026-08-19**.
 
-![SPA dashboard (mobile): same counts; SPA dock Home · Chat · Blueprints · Teams · Sessions](./screenshots/mobile/landing.png)
+![SPA dashboard (mobile): same counts; SPA dock Agents + More](./screenshots/mobile/landing.png)
 
 *Mobile twin (`screenshots/mobile/landing.png`): stacked cards and the **SPA
-five-tab dock** (**Home · Chat · Blueprints · Teams · Sessions**; Home
-active) from App.tsx — **parked** at end of full-page PNG (not viewport-fixed).
-Django operator pages still use Home · Blueprints · Teams · Sessions ·
-Settings — different chrome.*
+dock** (**Agents** + **More**; **Chat · Blueprints · Teams · Sessions · Settings**
+under More; logo is home) from App.tsx — **parked** at end of full-page PNG
+(not viewport-fixed). Django operator pages use the same Agents + More chrome.*
 
 **What you can do:** confirm the API is reachable, jump into the operator UI.
 
@@ -82,7 +81,7 @@ Settings — different chrome.*
 waits for the connection-status badge. Desktop and mobile `spa-chat.png` both
 show the **Connected** shell with blueprint selector and empty-state prompts
 (“Connected and ready”). Mobile dock is
-**Home · Chat · Blueprints · Teams · Sessions** with **Chat** active
+**Agents** + **More** (Chat under More; **Chat · Blueprints · Teams · Sessions · Settings**)
 (**parked** at end of full-page PNG). If the socket fails, the page also
 exposes a primary **Sign in** (returns to `/chat`) + **Reconnect** alert
 (**Unavailable** — 4401 / unreachable; not these PNGs) that must not
@@ -148,14 +147,13 @@ essentials form after `/agent-creator` → `/agent-creator/`; Django
 
 ## 3. Django operator UI (canonical)
 
-**SPA desktop** top nav: **Home · Chat · Blueprints · Teams · Sessions · Settings**.
-**Django** primary chrome: **Home · Blueprints · Teams · Sessions · Settings**
-(no Chat; GitHub under **More** on Django desktop only). The SPA **mobile**
-dock is **Home · Chat · Blueprints · Teams · Sessions** (Chat instead of
-Settings; Settings stays on SPA desktop top nav / gear). Mobile **Django**
-captures under `screenshots/mobile/` (operator twins + `spa-*` redirects) keep
-the Django five-tab bar. `spa-*` stems document bare-path **redirect landings**
-on that Django shell (sticky “Redirected: …” banner in the checked-in `spa-*` PNGs).
+**SPA desktop** top nav: **Agents** + **More** (**Chat · Blueprints · Teams · Sessions · Settings**).
+**Django** primary chrome: **Agents** + **More** (same destinations; GitHub under
+**More** on Django desktop only). The SPA **mobile** dock is **Agents** + **More**.
+Mobile **Django** captures under `screenshots/mobile/` (operator twins + `spa-*`
+redirects) still show the older five-tab bar in checked-in PNGs. `spa-*` stems
+document bare-path **redirect landings** on that Django shell (sticky
+“Redirected: …” banner in the checked-in `spa-*` PNGs).
 
 **Mobile parked-dock artifact:** journey capture parks fixed bottom navs as
 `position:static` before full-page PNGs (avoids Chromium stitch overlay). Live

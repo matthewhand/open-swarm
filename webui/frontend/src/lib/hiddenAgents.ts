@@ -2,7 +2,7 @@
  * Persist which agents are hidden from the SPA sidepane.
  *
  * Hidden IDs live in localStorage so a reload keeps the same visible list.
- * There is no hide-all control — hide is always per-agent.
+ * Hide all parks every id in Hidden; Unhide restores one at a time.
  */
 
 export const HIDDEN_AGENTS_STORAGE_KEY = 'swarm_hidden_agents'
@@ -39,6 +39,17 @@ export function unhideAgentId(id: string, current: string[]): string[] {
   const next = current.filter((item) => item !== id)
   saveHiddenAgentIds(next)
   return next
+}
+
+export function hideAllAgentIds(ids: string[]): string[] {
+  const next = Array.from(new Set(ids.filter((id) => id.length > 0)))
+  saveHiddenAgentIds(next)
+  return next
+}
+
+export function unhideAllAgentIds(): string[] {
+  saveHiddenAgentIds([])
+  return []
 }
 
 /** Small muted accents for agent marks — not category-flooded buttons. */

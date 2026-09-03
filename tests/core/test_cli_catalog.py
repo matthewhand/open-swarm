@@ -9,7 +9,7 @@ from swarm.core.cli_adapter import CliAdapter
 def test_catalog_names_are_sorted_and_known():
     names = cli_catalog.catalog_names()
     assert names == sorted(names)
-    assert {"claude", "gemini", "codex", "opencode"} <= set(names)
+    assert {"claude", "gemini", "codex", "opencode", "grok", "agy"} <= set(names)
 
 
 def test_every_catalog_entry_is_a_valid_adapter_config():
@@ -70,6 +70,28 @@ def test_grok_is_in_catalog():
     e = cli_catalog.catalog_entry("grok")
     assert e["cmd"][0] == "grok" and e["parse"] == "json:.text"
     assert "--always-approve" in e["cmd"]
+    # -p consumes the next argv token; flags must not follow a bare -p.
+    p = e["cmd"].index("-p")
+    assert e["cmd"][p + 1] == "{prompt}"
+    assert "--output-format" in e["cmd"][:p]
+
+
+def test_agy_attaches_prompt_to_print_flag():
+    e = cli_catalog.catalog_entry("agy")
+    assert e["cmd"][0] == "agy" and e["parse"] == "json:.response"
+    assert "-p={prompt}" in e["cmd"]
+    assert "-p" not in e["cmd"]  # a bare -p would swallow --output-format
+    assert "--dangerously-skip-permissions" in e["cmd"]
+    CliAdapter.from_config("agy", e)
+
+
+def test_listed_cli_specs_are_first_class_sidebar_agents():
+    specs = {s["agent_id"]: s for s in cli_catalog.listed_cli_specs()}
+    assert specs["grok"]["kind"] == "cli" and specs["grok"]["cli"] == "grok"
+    assert specs["agy"]["kind"] == "cli" and specs["agy"]["group"] == "tools"
+    assert specs["agy"]["cli"] == "agy"
+    assert specs["grok"]["agent_type"] == "cli"
+    assert specs["agy"]["agent_type"] == "cli"
 
 
 def test_build_starter_config_prefers_grok_for_single_agent_roles():
@@ -169,9 +191,14 @@ def test_with_model_unknown_cli_is_none():
 
 
 def test_with_model_no_flag_known_returns_entry_unchanged():
-    # grok has no MODEL_FLAG entry: return the base entry, don't guess a flag.
-    base = cli_catalog.catalog_entry("grok")
-    assert cli_catalog.with_model("grok", "whatever")["cmd"] == base["cmd"]
+    # codex has no MODEL_FLAG entry: return the base entry, don't guess a flag.
+    base = cli_catalog.catalog_entry("codex")
+    assert cli_catalog.with_model("codex", "whatever")["cmd"] == base["cmd"]
+
+
+def test_with_model_pins_grok_dash_m():
+    entry = cli_catalog.with_model("grok", "grok-4.5")
+    assert entry["cmd"][-2:] == ["-m", "grok-4.5"]
 
 
 def test_with_model_does_not_mutate_catalog():
@@ -185,5 +212,5 @@ def test_apply_model_noop_on_entry_without_cmd():
 
 
 def test_with_model_unknown_flag_cli_returns_entry_unchanged():
-    base = cli_catalog.catalog_entry("grok")  # grok has no MODEL_FLAG
-    assert cli_catalog.with_model("grok", "anything")["cmd"] == base["cmd"]
+    base = cli_catalog.catalog_entry("codex")
+    assert cli_catalog.with_model("codex", "anything")["cmd"] == base["cmd"]
