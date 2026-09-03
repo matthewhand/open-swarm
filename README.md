@@ -234,6 +234,107 @@ Feature-flag variables for experimental subsystems (`ENABLE_MCP_SERVER`, `ENABLE
 
 ---
 
+## Developer
+
+Runtime maps from the code. GitHub-safe Mermaid: short plain labels, no HTML, no markdown links in nodes. Dates are from git tags and the commits that added each surface.
+
+### Gateway vs workers
+
+Block view below uses flowchart subgraphs (GitHub Mermaid; `block-beta` is not reliable there). The API process is the gateway: `swarm.core.swarm_api` starts uvicorn on `swarm.asgi:application`. Default is one uvicorn worker (`SWARM_UVICORN_WORKERS=1`; `swarm.core.concurrency.resolved_uvicorn_workers` refuses more unless `SWARM_ENFORCE_SINGLE_WORKER` is false). Inflight slots for async work are process-local (`SWARM_MAX_INFLIGHT`). Long `/v1/responses` jobs run in a daemon thread (`_spawn_worker` in `swarm.views.responses_views`), not extra uvicorn workers. The blueprint then calls host CLI adapters or REST/LLM profiles.
+
+```mermaid
+flowchart TB
+  subgraph clients [Clients]
+    C[Client]
+  end
+  subgraph gateway [API gateway]
+    CH[Chat view]
+    RV[Responses view]
+    ST[File store]
+  end
+  subgraph workers [Workers]
+    DW[Daemon worker]
+    BP[Blueprint run]
+    CLI[CLI adapters]
+    LLM[REST LLM]
+  end
+  C --> CH
+  C --> RV
+  RV --> ST
+  RV --> DW
+  CH --> BP
+  DW --> BP
+  BP --> CLI
+  BP --> LLM
+```
+
+### Request sequence
+
+`POST /v1/responses` (`ResponsesView.post` in `swarm.views.responses_views`): authenticate, resolve the blueprint from `model`, persist a queued record (`swarm.core.responses_store`), spawn the daemon worker, then return 200 if the wait window hits completion or 202 to poll. `GET /v1/responses/{id}` reads the store. Chat `background:true` reuses the same worker (`ChatCompletionsView._handle_background_chat`).
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant FileStore
+    participant Worker
+    participant Blueprint
+
+    Client->>Gateway: POST /v1/responses
+    Gateway->>Gateway: auth and load blueprint
+    Gateway->>FileStore: save queued record
+    Gateway->>Worker: spawn daemon thread
+    alt wait is zero
+        Gateway-->>Client: 202 queued handle
+    else wait window
+        Gateway-->>Client: 200 done or 202 poll
+    end
+    Worker->>FileStore: set in_progress
+    Worker->>Blueprint: run messages
+    Blueprint-->>Worker: output
+    Worker->>FileStore: completed or failed
+    Client->>Gateway: GET /v1/responses/id
+    Gateway->>FileStore: load record
+    FileStore-->>Gateway: status and output
+    Gateway-->>Client: JSON body
+```
+
+### History
+
+Real dates only (git). The changelog `0.1.0` row dated 2024-01-01 is not a tag and is omitted.
+
+```mermaid
+gantt
+    title Open Swarm git history
+    dateFormat YYYY-MM-DD
+    axisFormat %Y-%m
+    section Start
+    Initial commit           :milestone, 2024-12-21, 0d
+    Django REST API          :2024-12-26, 2025-01-04
+    section Releases
+    Tag 0.0.1                :milestone, 2026-02-20, 0d
+    React Web UI             :milestone, 2026-04-04, 0d
+    v0.3 MoA                 :2026-06-11, 2026-06-12
+    v0.4 CLI fusion          :2026-06-16, 2026-06-17
+    v0.5 responses           :2026-06-18, 2026-06-19
+    section Later
+    Worker gates             :milestone, 2026-07-22, 0d
+    ADR-001 Django UI        :2026-08-18, 2026-08-24
+```
+
+| Date | What | Evidence |
+|---|---|---|
+| 2024-12-21 | Initial commit | git root commit |
+| 2024-12-26 | Django REST API | commit `c3a092c4` |
+| 2026-02-20 | Tag 0.0.1 | git tag |
+| 2026-04-04 | React Web UI | commit `9077902b` |
+| 2026-06-11 | v0.3.0 MoA | tag `v0.3.0` |
+| 2026-06-16 | CLI fusion | commit `976cbd49` |
+| 2026-06-18 | `/v1/responses` | commit `50492380` |
+| 2026-06-19 | v0.5.4 | tag `v0.5.4` |
+| 2026-07-22 | Worker gates | commit `ff014180` |
+| 2026-08-18 | ADR-001 | commit `3d870d62` |
+
 ## Development
 
 ```bash
@@ -257,6 +358,7 @@ Documentation map:
 * [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/MOA.md](./docs/MOA.md) — Mixture of Agents consensus and consensus→team path.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
+* [Developer](#developer) — gateway vs workers, `/v1/responses` sequence, git-dated history.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.
 * [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) — common issues (CLI/blueprint not found, API errors, the production `ImproperlyConfigured` startup crash) and fixes.
 
