@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -874,5 +874,59 @@ describe('ChatPage jump-to-bottom and working avatars', () => {
     expect(screen.getByRole('img', { name: 'HASS is working' })).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Inter-bot communication in progress' })).toBeInTheDocument()
     expect(document.querySelector('.os-interbot-avatar')).toBeNull()
+  })
+
+  it('stacks composer avatars when the seat and a tasked hop are both working', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-abc123" class="assistant-message"></div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="hop-a" class="os-interbot-hop" data-agent-id="hass" data-agent-name="HASS" data-pending="true"></div></div>',
+        }),
+      )
+    })
+    const stack = screen.getByTestId('os-working-avatars')
+    expect(within(stack).getByRole('img', { name: 'Support is working' })).toBeInTheDocument()
+    expect(within(stack).getByRole('img', { name: 'HASS is working' })).toBeInTheDocument()
+    expect(stack.querySelectorAll('.os-working-avatar')).toHaveLength(2)
+    expect(screen.getByRole('status', { name: 'Inter-bot communication in progress' })).toBeInTheDocument()
+    expect(document.querySelector('.os-interbot-avatar')).toBeNull()
+    expect(within(stack).queryByText(/is working/)).not.toBeInTheDocument()
+  })
+
+  it('keeps working avatars on the left when the jump pill is showing', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-abc123" class="assistant-message"></div></div>',
+        }),
+      )
+    })
+    scrollConversation(240)
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">later</div></div>',
+        }),
+      )
+    })
+    const dock = screen.getByTestId('os-chat-dock')
+    expect(within(dock).getByRole('img', { name: 'Support is working' })).toBeInTheDocument()
+    expect(within(dock).getByRole('button', { name: '1 new message' })).toBeInTheDocument()
+    expect(within(dock).queryByText('Support is working')).not.toBeInTheDocument()
   })
 })

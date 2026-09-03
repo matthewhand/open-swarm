@@ -540,11 +540,18 @@ html[data-theme="light"] #root {
   border-radius: 999px;
   border: 1.5px solid var(--color-base-100);
   flex: 0 0 auto;
+  position: relative;
   animation: os-working-pulse 1.35s ease-in-out infinite;
 }
 .os-working-avatars .os-working-avatar + .os-working-avatar {
-  margin-inline-start: -0.45rem;
+  margin-inline-start: -0.42rem;
 }
+.os-working-avatars .os-working-avatar:nth-child(1) { z-index: 1; }
+.os-working-avatars .os-working-avatar:nth-child(2) { z-index: 2; }
+.os-working-avatars .os-working-avatar:nth-child(3) { z-index: 3; }
+.os-working-avatars .os-working-avatar:nth-child(4) { z-index: 4; }
+.os-working-avatars .os-working-avatar:nth-child(5) { z-index: 5; }
+.os-working-avatars .os-working-avatar:nth-child(n+6) { z-index: 6; }
 @keyframes os-working-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.08); opacity: 0.82; }
