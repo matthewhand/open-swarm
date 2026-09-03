@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import SearchPalette, { SEARCH_PALETTE_TABS } from '../SearchPalette'
+import { THEME_TOGGLE_EVENT } from '../../lib/theme'
 
 const blueprints = [
   {
@@ -81,5 +82,103 @@ describe('SearchPalette', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Messages' }))
     expect(screen.getByText('No results')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
+function LocationProbe() {
+  const loc = useLocation()
+  return <div data-testid="palette-loc">{`${loc.pathname}${loc.search}`}</div>
+}
+
+function renderRoutedPalette() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const onClose = vi.fn()
+  return {
+    onClose,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/']}>
+          <SearchPalette open onClose={onClose} />
+          <LocationProbe />
+          <Routes>
+            <Route path="/" element={<div>home</div>} />
+            <Route path="/chat" element={<div>chat</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  }
+}
+
+describe('SearchPalette choose + actions (REQ-5c #322)', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: blueprints }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('navigates a bot row to /chat?blueprint= and closes the overlay', async () => {
+    const { onClose } = renderRoutedPalette()
+    const codey = await screen.findByRole('option', { name: /Codey/i })
+    fireEvent.click(codey)
+    expect(onClose).toHaveBeenCalled()
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/chat?blueprint=codey')
+  })
+
+  it('chooses the first visible row with Ctrl+1', async () => {
+    const { onClose } = renderRoutedPalette()
+    await screen.findByRole('option', { name: /Support/i })
+    fireEvent.keyDown(window, { key: '1', ctrlKey: true })
+    expect(onClose).toHaveBeenCalled()
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/chat?blueprint=support')
+  })
+
+  it('filters bots by query and Enter chooses the highlighted row', async () => {
+    const { onClose } = renderRoutedPalette()
+    await screen.findByRole('option', { name: /Codey/i })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Search' }), {
+      target: { value: 'codey' },
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: /Support/i })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('option', { name: /Codey/i })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(onClose).toHaveBeenCalled()
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/chat?blueprint=codey')
+  })
+
+  it('Actions → Toggle theme dispatches swarm:toggle-theme without leaving chat', async () => {
+    const toggled = vi.fn()
+    window.addEventListener(THEME_TOGGLE_EVENT, toggled)
+    const { onClose } = renderRoutedPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Toggle theme/i }))
+    expect(onClose).toHaveBeenCalled()
+    expect(toggled).toHaveBeenCalled()
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
+    window.removeEventListener(THEME_TOGGLE_EVENT, toggled)
+  })
+
+  it('Actions Django rows hard-navigate via location.assign', async () => {
+    const assign = vi.fn()
+    vi.spyOn(window.location, 'assign').mockImplementation(assign)
+    const { onClose } = renderRoutedPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    fireEvent.click(await screen.findByRole('option', { name: /^Blueprints/i }))
+    expect(onClose).toHaveBeenCalled()
+    expect(assign).toHaveBeenCalledWith('/blueprint-library/')
   })
 })

@@ -472,4 +472,65 @@ describe('AgentSidebar teams', () => {
       'aria-current',
     )
   })
+
+  it('REQ-24 #342: hides a team roster row as team:<id> and Unhide restores it', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Demo Team \(team\)/ })
+    const zone = screen.getByRole('region', { name: 'Hidden' })
+    dragTo(team, zone)
+
+    await waitFor(() => {
+      expect(within(list).queryByRole('link', { name: /Demo Team \(team\)/ })).not.toBeInTheDocument()
+    })
+    expect(storedHidden()).toEqual(['gate', 'skeptic', 'team:demo-team'])
+
+    fireEvent.click(screen.getByRole('button', { name: /3 hidden/i }))
+    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    expect(within(dialog).getByText('Demo Team')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Demo Team/i }))
+    await waitFor(() => {
+      expect(within(list).getByRole('link', { name: /Demo Team \(team\)/ })).toBeInTheDocument()
+    })
+    expect(storedHidden()).toEqual(['gate', 'skeptic'])
+  })
+})
+
+describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal('fetch', mockFetch())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('unpins from the context menu and clears swarm_pinned_agents', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    fireEvent.contextMenu(codey)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+    const grid = screen.getByLabelText('Pinned agents')
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+
+    fireEvent.contextMenu(codey)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Unpin$/i }))
+    await waitFor(() => {
+      expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    })
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
+  })
+
+  it('opens the Plugins dialog with the shipped empty copy and closes it', async () => {
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.click(screen.getByRole('button', { name: /Plugins/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Plugins' })
+    expect(within(dialog).getByText('No plugins installed.')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close plugins' }))
+    expect(screen.queryByRole('dialog', { name: 'Plugins' })).not.toBeInTheDocument()
+  })
 })

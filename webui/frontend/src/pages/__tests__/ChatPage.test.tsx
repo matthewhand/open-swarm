@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 import { ToastProvider } from '../../components/DaisyUI'
 import { resetConversationThreads } from '../../lib/chatMeter'
@@ -771,5 +771,338 @@ describe('ChatPage team member dropdown', () => {
     expect(options[options.length - 1]).toHaveTextContent('Manage Teams')
     expect(select).toHaveValue('all')
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
+  })
+
+  it('REQ-23 #331: Manage Teams navigates to /teams/ and does not WS-send', async () => {
+    const assign = vi.fn()
+    vi.spyOn(window.location, 'assign').mockImplementation(assign)
+
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: '__manage__' } })
+    expect(assign).toHaveBeenCalledWith('/teams/')
+    expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
+  })
+})
+
+function SearchProbe() {
+  const [params] = useSearchParams()
+  return <div data-testid="search-probe">{params.toString()}</div>
+}
+
+function renderSwitchableChat(initialEntry = '/chat?blueprint=codey') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <nav>
+            <Link to="/chat?blueprint=codey">Go Codey</Link>
+            <Link to="/chat?blueprint=stewie">Go Stewie</Link>
+          </nav>
+          <SearchProbe />
+          <Routes>
+            <Route path="/chat" element={<ChatPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('ChatPage per-agent thread switch (REQ-14 #319)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    window.localStorage.clear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          const agent = new URL(url, 'http://localhost').searchParams.get('agent')
+          if (agent === 'codey') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'codey',
+                conversation_id: 'agt-codey',
+                messages: [
+                  { role: 'user', content: 'prior question A' },
+                  { role: 'assistant', content: 'prior answer A' },
+                ],
+              }),
+            } as Response
+          }
+          if (agent === 'stewie') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'stewie',
+                conversation_id: 'agt-stewie',
+                messages: [
+                  { role: 'user', content: 'prior question B' },
+                  { role: 'assistant', content: 'prior answer B' },
+                ],
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ agent_id: agent, messages: [], summaries: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              { id: 'codey', name: 'Codey', description: 'Code assistant' },
+              { id: 'stewie', name: 'Stewie', description: 'Helpful agent' },
+            ],
+          }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    resetConversationThreads()
+    window.localStorage.clear()
+  })
+
+  it('rehydrates a distinct persisted thread when the rail switches agents', async () => {
+    renderSwitchableChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('prior question A')).toBeInTheDocument()
+    expect(screen.getByText('prior answer A')).toBeInTheDocument()
+    expect(screen.queryByText('prior question B')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Go Stewie' }))
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+
+    expect(await screen.findByText('prior question B')).toBeInTheDocument()
+    expect(screen.queryByText('prior question A')).not.toBeInTheDocument()
+    expect(screen.getByTestId('search-probe')).toHaveTextContent('blueprint=stewie')
+
+    fireEvent.click(screen.getByRole('link', { name: 'Go Codey' }))
+    expect(await screen.findByText('prior question A')).toBeInTheDocument()
+    expect(screen.queryByText('prior question B')).not.toBeInTheDocument()
+
+    const threadCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes('/chat/thread/'))
+    expect(threadCalls.some((url) => url.includes('agent=codey'))).toBe(true)
+    expect(threadCalls.some((url) => url.includes('agent=stewie'))).toBe(true)
+  })
+})
+
+describe('ChatPage Support default URL (REQ-5c #322)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('canonicalizes a missing blueprint onto Support without clobbering ?team=', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/chat']}>
+            <SearchProbe />
+            <Routes>
+              <Route path="/chat" element={<ChatPage />} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('search-probe')).toHaveTextContent('blueprint=support')
+    })
+    expect(await screen.findByRole('heading', { name: 'Support' })).toBeInTheDocument()
+  })
+})
+
+describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('toasts Nothing to compact yet on an empty thread', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+    expect(await screen.findByText('Nothing to compact yet.')).toBeInTheDocument()
+  })
+
+  it('toasts Compact failed when POST /chat/compact/ errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/compact/') && init?.method === 'POST') {
+          return {
+            ok: false,
+            status: 500,
+            json: async () => ({ error: 'boom' }),
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'codey',
+              conversation_id: 'c-fail',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'prior answer' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+    expect(await screen.findByText('Compact failed')).toBeInTheDocument()
+    expect(screen.getByText(/Could not compact this chat/i)).toBeInTheDocument()
+  })
+
+  it('drops the token meter after Compact replaces raw turns with a short summary', async () => {
+    const compactPayload = {
+      summary: {
+        id: 1,
+        conversation_id: 'c-meter',
+        span: { start: 0, end: 1 },
+        parent_summary_id: null,
+        body: 'short',
+        created_at: '2026-09-03T00:00:00Z',
+        replaced_count: 2,
+      },
+      summaries: [
+        {
+          id: 1,
+          conversation_id: 'c-meter',
+          span: { start: 0, end: 1 },
+          parent_summary_id: null,
+          body: 'short',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/compact/') && init?.method === 'POST') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => compactPayload,
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'codey',
+              conversation_id: 'c-meter',
+              messages: [
+                { role: 'user', content: 'aaaaaaaaaaaaaaaa' },
+                { role: 'assistant', content: 'bbbbbbbbbbbbbbbb' },
+              ],
+              summaries: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('aaaaaaaaaaaaaaaa')).toBeInTheDocument()
+    const meter = screen.getByRole('meter', { name: 'Tokens in context' })
+    const before = Number(meter.getAttribute('aria-valuenow'))
+    expect(before).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+    await screen.findByTestId('chat-summary')
+    expect(Number(meter.getAttribute('aria-valuenow'))).toBeLessThan(before)
   })
 })
