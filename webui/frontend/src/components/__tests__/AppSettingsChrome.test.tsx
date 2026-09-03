@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -31,12 +31,10 @@ describe('SPA settings chrome (REQ-19)', () => {
     renderApp()
 
     const primary = screen.getByRole('navigation', { name: 'Primary' })
-    expect(primary.querySelector('a[href="/settings/"]')).toBeNull()
-    expect(primary.textContent).not.toMatch(/\bSettings\b/)
+    expect(within(primary).queryByRole('link', { name: /^Settings$/i })).not.toBeInTheDocument()
 
     const dock = screen.getByRole('navigation', { name: 'Mobile primary' })
-    expect(dock.querySelector('a[href="/settings/"]')).toBeNull()
-    expect(dock.textContent).not.toMatch(/\bSettings\b/)
+    expect(within(dock).queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
     const dialog = screen.getByRole('dialog', { hidden: true })

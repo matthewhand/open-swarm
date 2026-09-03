@@ -73,6 +73,7 @@ export const Modal = ({
   // is full-viewport, so the dialog rect itself is not a useful hit test —
   // especially for `modal-end` sheets that leave a clickable gutter.
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+<<<<<<< HEAD
     const raw = e.target as Node;
     const el = raw instanceof Element ? raw : raw.parentElement;
     // Form `.modal-backdrop` (or its submit button / text node) has its own handler.
@@ -81,6 +82,15 @@ export const Modal = ({
     if (!dialog) return;
     const box = dialog.querySelector('.modal-box');
     if (box && !box.contains(raw)) {
+=======
+    const target = e.target as HTMLElement;
+    // `.modal-backdrop` has its own onClick; don't double-fire onClose.
+    if (target.classList?.contains('modal-backdrop')) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const box = dialog.querySelector('.modal-box');
+    if (box && !box.contains(target)) {
+>>>>>>> a9181c5a (fix(webui): avoid double-close on modal backdrop and unused imports)
       onClose();
     }
   };
