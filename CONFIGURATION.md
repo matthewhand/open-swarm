@@ -5,11 +5,12 @@
 Swarm supports both interactive and manual configuration. The recommended way to set up and manage your config is via the `swarm-cli`, which provides commands to initialize, edit, and validate your configuration interactively. However, you can also hand-edit the config JSON if you prefer full control or need to automate deployment.
 
 - **CLI (`swarm-cli config`):**
-  - `swarm-cli config list [--section llm|mcpServers]` — view profiles / MCP servers.
+  - `swarm-cli config list [--section llm|mcpServers|remotes]` — view profiles / MCP servers / remotes.
   - `swarm-cli config init [--force]` — write a default `swarm_config.json` (refuses to overwrite unless `--force`).
-  - `swarm-cli config add --section llm|mcpServers --name <name> --json '<...>'` — add a profile or MCP server entry.
+  - `swarm-cli config add --section llm|mcpServers|remotes --name <name> --json '<...>'` — add a profile, MCP server, or remote entry.
   - `swarm-cli config remove --section … --name …` — remove an entry.
   - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
+- **Remote harnesses (`swarm-cli remotes`):** persist + probe + operate Hermes / OMB / Rakazo. See [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md).
 - **Manual:**
   - Edit `~/.config/swarm/swarm_config.json` directly (or wherever your config is located).
 
@@ -105,6 +106,7 @@ directory search for a project-local `swarm_config.json`.)
 - **Per-Blueprint Model Overrides:** `blueprints` section allows each blueprint to specify a `default_model`.
 - **Agent/Task Overrides:** Blueprints themselves can choose models per agent/task.
 - **MCP Servers:** The `mcpServers` section defines available MCP servers, their endpoints, and credentials.
+- **Remote harnesses:** The `remotes` section stores `base_url` + auth for Hermes, OpenMausBot, and Rakazo. CLI `swarm-cli remotes set|health|operate`; REST `/v1/remotes/`. Do **not** point these at Fly open-litellm. LAN LLM for this swarm is `http://10.0.0.30:8000/v1`. Full map: [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md).
 - **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 - **Fallbacks:**
   - If a **named** model/profile is requested and missing, the system logs a **warning** and falls back to `settings.default_llm_profile` (else `default`). This is never silent.

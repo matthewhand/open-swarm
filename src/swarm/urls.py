@@ -60,6 +60,12 @@ from swarm.views.settings_views import (
     settings_api,
     settings_dashboard,
 )
+from swarm.views.remotes_api import (
+    RemoteDetailView,
+    RemoteHealthView,
+    RemoteOperateView,
+    RemotesListView,
+)
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
     custom_login,
@@ -149,6 +155,15 @@ urlpatterns = [
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
     path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
+    # Remote harnesses (Hermes / OpenMausBot / Rakazo) — config + health + operate
+    path("v1/remotes", RemotesListView.as_view(), name="remotes-list-no-slash"),
+    path("v1/remotes/", RemotesListView.as_view(), name="remotes-list"),
+    path("v1/remotes/<str:remote_id>", RemoteDetailView.as_view(), name="remotes-detail-no-slash"),
+    path("v1/remotes/<str:remote_id>/", RemoteDetailView.as_view(), name="remotes-detail"),
+    path("v1/remotes/<str:remote_id>/health", RemoteHealthView.as_view(), name="remotes-health-no-slash"),
+    path("v1/remotes/<str:remote_id>/health/", RemoteHealthView.as_view(), name="remotes-health"),
+    path("v1/remotes/<str:remote_id>/operate", RemoteOperateView.as_view(), name="remotes-operate-no-slash"),
+    path("v1/remotes/<str:remote_id>/operate/", RemoteOperateView.as_view(), name="remotes-operate"),
     # JSON Blueprint Library API (REST counterpart to /blueprint-library/)
     path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
     path("v1/library/", LibraryAPIView.as_view(), name="library-api"),

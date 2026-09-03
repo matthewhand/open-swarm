@@ -155,6 +155,21 @@ deferred to the release PR.
 
 ---
 
+## 11b. Remote harnesses (Hermes / OMB / Rakazo) — ✅ config+health · 🟡 operate
+
+Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone.
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `PATCH /v1/remotes/<id>/`; Settings group **Remote Harnesses** |
+| Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops |
+| Hermes operate | ✅ | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`, `POST /v1/runs` (Bearer `API_SERVER_KEY`) |
+| OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OMB source clone) |
+| Rakazo operate | 🟡 | `GET /health` public; `POST /rpc/bots/list` + `/rpc/threads/send` need Better Auth session — honest 401 + gap flag |
+| Agent-as-tool | ✅ | `remote_harness` blueprint: coordinator `as_tool` specialists, not local seat clones |
+
+---
+
 ## 12. MoA / consensus-then-team — ✅ (current shipped)
 
 | Feature | Status | Evidence |

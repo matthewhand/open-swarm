@@ -194,7 +194,23 @@ def create_default_config(config_path: Path):
         "agents": {},
         "settings": {
             "default_markdown_output": True
-        }
+        },
+        "remotes": {
+            "hermes": {
+                "base_url": "http://10.0.0.36:8642",
+                "api_key": "${HERMES_API_KEY}",
+            },
+            "omb": {
+                "base_url": "http://10.0.0.32:8802",
+                "api_key": "${OMB_API_KEY}",
+            },
+            "rakazo": {
+                "base_url": "http://10.0.0.32:3100",
+                "ui_url": "http://10.0.0.32:5173",
+                "api_key": "${RAKAZO_API_KEY}",
+                "cookie": "${RAKAZO_SESSION_COOKIE}",
+            },
+        },
     }
     logger.info(f"Creating default configuration file at {config_path}")
     try:
@@ -297,6 +313,9 @@ def load_full_configuration(
     if "mcpServers" in base_config:
         final_config.setdefault("mcpServers", {}).update(base_config["mcpServers"])
         logger.debug("Merged base 'mcpServers'.")
+    if "remotes" in base_config and isinstance(base_config.get("remotes"), dict):
+        final_config.setdefault("remotes", {}).update(base_config["remotes"])
+        logger.debug("Merged base 'remotes'.")
 
     # 3. Merge blueprint-specific settings
     blueprint_settings = base_config.get("blueprints", {}).get(blueprint_class_name, {})
@@ -351,6 +370,7 @@ def load_full_configuration(
     # Ensure top-level keys exist
     final_config.setdefault("llm", {})
     final_config.setdefault("mcpServers", {})
+    final_config.setdefault("remotes", {})
 
     # 6. Substitute environment variables in the final config
     final_config = _substitute_env_vars(final_config)
@@ -500,6 +520,15 @@ def create_default_config(config_path: Path):
             }
         },
         "settings": {"default_markdown_output": True},
+        "remotes": {
+            "hermes": {"base_url": "http://10.0.0.36:8642", "api_key": "${HERMES_API_KEY}"},
+            "omb": {"base_url": "http://10.0.0.32:8802", "api_key": "${OMB_API_KEY}"},
+            "rakazo": {
+                "base_url": "http://10.0.0.32:3100",
+                "ui_url": "http://10.0.0.32:5173",
+                "api_key": "${RAKAZO_API_KEY}",
+            },
+        },
     }
     save_config(default, config_path)
     logger.warning(_hint("Set OPENAI_API_KEY or run config add for profiles."))
