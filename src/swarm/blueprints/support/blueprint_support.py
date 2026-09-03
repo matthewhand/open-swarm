@@ -18,7 +18,6 @@ from swarm.core.support_context import (
     live_context,
     model_context_block,
     quickstart_section,
-    welcome_markdown,
 )
 
 logger = logging.getLogger(__name__)
@@ -200,12 +199,10 @@ class SupportBlueprint(BlueprintBase):
         return coordinator
 
     def _deterministic_reply(self, user_text: str) -> str:
-        ctx = live_context()
-        welcome = welcome_markdown(ctx)
         if not user_text:
-            return welcome
+            return create_paths_markdown()
         lowered = user_text.lower()
-        parts = [welcome, "", user_text]
+        parts = [user_text]
         if any(word in lowered for word in ("blueprint", "code", "python", "agent team", "write")):
             parts.extend(["", STARTER_BLUEPRINT_PYTHON])
         parts.extend(["", create_paths_markdown()])

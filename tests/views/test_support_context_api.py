@@ -1,4 +1,4 @@
-"""GET /v1/support/context/ — live welcome payload."""
+"""GET /v1/support/context/ — live briefing payload."""
 
 from unittest.mock import patch
 
@@ -13,15 +13,17 @@ def test_support_context_endpoint(api_client):
         "create": {"team": "/teams/launch/", "settings": "/settings/"},
         "chips": {},
     }
+    briefing = "**Agents**\n- Support · support\n\n**Inference** off"
     with patch("swarm.core.support_context.live_context", return_value=fake):
         with patch(
-            "swarm.core.support_context.welcome_markdown",
-            return_value="**Support**\n\n[New team](/teams/launch/)",
+            "swarm.core.support_context.briefing_markdown",
+            return_value=briefing,
         ):
             response = api_client.get("/v1/support/context/")
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
     assert body["object"] == "support.context"
-    assert body["welcome"].startswith("**Support**")
-    assert "[New team](/teams/launch/)" in body["welcome"]
+    assert body["briefing"] == briefing
+    assert body["welcome"] == briefing
+    assert "[New team]" not in body["briefing"]
     assert body["inference"]["configured"] is False

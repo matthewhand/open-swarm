@@ -47,4 +47,7 @@ def test_spa_role_looks_are_distinct():
     assert ".os-agent-row--gate" in css
     assert ".os-agent-row--skeptic" in css
     assert ".os-code-python" in css
-    assert ".os-support-welcome a" in css
+    assert ".os-handoff-chip" in css
+    assert ".os-handoff-chip--system" in css
+    assert ".os-briefing-popover" in css
+    assert ".os-support-chips" in css

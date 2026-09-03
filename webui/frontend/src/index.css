@@ -199,19 +199,88 @@ html[data-theme="light"] #root {
 .os-role-pill--gate { background: #c4a035; color: #1a1403; }
 .os-role-pill--skeptic { background: #7a6b9b; color: #f4f1fb; }
 
-.os-support-welcome a {
-  display: inline-block;
-  margin: 0.15rem 0.2rem 0.15rem 0;
-  padding: 0.12rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-base-content) 22%, transparent);
-  text-decoration: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.4;
+/* Handoff / system pills — same family as “Message from <avatars> <names>” */
+.os-support-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem 0.55rem;
+  margin-bottom: 0.75rem;
 }
-.os-support-welcome a:hover {
-  background: color-mix(in srgb, var(--color-base-content) 10%, transparent);
+.os-support-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.os-handoff-chip-wrap {
+  position: relative;
+}
+.os-handoff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.18rem 0.7rem 0.18rem 0.28rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 18%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.os-handoff-chip--action {
+  padding: 0.18rem 0.7rem;
+}
+.os-handoff-chip--system {
+  color: color-mix(in srgb, var(--color-base-content) 78%, transparent);
+}
+.os-handoff-chip:hover {
+  background: color-mix(in srgb, var(--color-base-content) 12%, transparent);
+}
+.os-handoff-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.os-handoff-avatar {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-100) 80%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.os-handoff-avatar + .os-handoff-avatar {
+  margin-left: -0.35rem;
+}
+.os-handoff-avatar--system {
+  background: color-mix(in srgb, var(--color-base-content) 20%, transparent);
+}
+.os-handoff-avatar--support {
+  background: #2f8f7b;
+  color: #04110e;
+}
+.os-briefing-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  min-width: 16rem;
+  max-width: min(22rem, 90vw);
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  background: var(--color-base-200, #1a1a1a);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 35%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 .os-code-python {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

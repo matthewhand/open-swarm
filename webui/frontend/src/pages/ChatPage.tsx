@@ -17,6 +17,10 @@ import {
   LoadingDots,
   LoadingSpinner,
 } from '../components/DaisyUI'
+import {
+  SupportActionChips,
+  SupportBriefingPill,
+} from '../components/SupportBriefingPill'
 import { fetchBlueprints, fetchSupportContext, isAuthError } from '../lib/api'
 import { findSupportAgent, isSupportAgent } from '../lib/supportAgents'
 import {
@@ -57,11 +61,28 @@ const SUGGESTED_PROMPTS = [
   'Explain how MCP servers extend an agent',
 ]
 
-const SUPPORT_CHIPS = [
-  { label: 'New team', href: '/teams/launch/' },
-  { label: 'Write blueprint', href: '/agent-creator/' },
-  { label: 'Set inference', href: '/settings/' },
-]
+function fallbackSupportBriefing(
+  agents: Array<{ id: string; name?: string; role?: string | null }>,
+): string {
+  const lines = ['**Agents**']
+  if (agents.length) {
+    for (const agent of agents) {
+      const name = agent.name || agent.id
+      const role = agent.role ? ` · ${agent.role}` : ''
+      lines.push(`- ${name}${role}`)
+    }
+  } else {
+    lines.push('- none')
+  }
+  lines.push(
+    '',
+    '**Inference** off',
+    '',
+    '**Gate** — dangerous tool call? yes/no. Until wired, all approved.',
+    '**Skeptic** — prompt done? If not, findings go back to retry.',
+  )
+  return lines.join('\n')
+}
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
 export function chatLoginNext(searchParams: URLSearchParams): string {
@@ -82,9 +103,8 @@ const ChatPage = () => {
   const [selectedBlueprint, setSelectedBlueprint] = useState(
     () => searchParams.get('blueprint') ?? '',
   )
-  const [supportWelcome, setSupportWelcome] = useState('')
+  const [supportBriefing, setSupportBriefing] = useState('')
   const didDefaultRef = useRef(false)
-  const welcomeKeyRef = useRef('')
   const [connectAttempt, setConnectAttempt] = useState(0)
   /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
@@ -143,58 +163,17 @@ const ChatPage = () => {
     let cancelled = false
     fetchSupportContext()
       .then((ctx) => {
-        if (cancelled || !ctx.welcome) return
-        setSupportWelcome(ctx.welcome)
+        if (cancelled) return
+        const text = (ctx.briefing || ctx.welcome || '').trim()
+        if (text) setSupportBriefing(text)
       })
       .catch(() => {
-        if (!cancelled) {
-          const names = blueprints.map((bp) => `- ${bp.name || bp.id}`).join('\n') || '- none'
-          setSupportWelcome(
-            [
-              '**Support**',
-              '',
-              '**Agents**',
-              names,
-              '',
-              '**Inference** —',
-              '[Set inference](/settings/) [Quickstart](docs/QUICKSTART.md#4-configure-your-llm-provider)',
-              '',
-              '**First team**',
-              '[New team](/teams/launch/) [Write blueprint](/agent-creator/)',
-              '',
-              '**Gate** — dangerous tool call? yes/no. Until wired, all approved.',
-              '**Skeptic** — prompt done? If not, findings go back to retry.',
-            ].join('\n'),
-          )
-        }
+        if (!cancelled) setSupportBriefing(fallbackSupportBriefing(blueprints))
       })
     return () => {
       cancelled = true
     }
   }, [supportSelected, blueprints])
-
-  useEffect(() => {
-    if (!supportSelected || !supportWelcome) return
-    const key = `support-welcome:${selectedBlueprint}`
-    if (welcomeKeyRef.current === key) return
-    welcomeKeyRef.current = key
-    setMessages((prev) => {
-      if (prev.some((m) => m.key.startsWith('support-welcome'))) {
-        return prev.map((m) =>
-          m.key.startsWith('support-welcome') ? { ...m, text: supportWelcome } : m,
-        )
-      }
-      if (prev.length > 0) return prev
-      return [
-        {
-          key,
-          role: 'assistant',
-          text: supportWelcome,
-          streaming: false,
-        },
-      ]
-    })
-  }, [supportSelected, supportWelcome, selectedBlueprint])
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
     if (event.kind === 'unknown') {
@@ -565,7 +544,13 @@ const ChatPage = () => {
               el.scrollHeight - el.scrollTop - el.clientHeight < 48
           }}
         >
-          {messages.length === 0 ? (
+          {supportSelected && (
+            <div className="os-support-rail">
+              <SupportBriefingPill briefing={supportBriefing} />
+              <SupportActionChips />
+            </div>
+          )}
+          {messages.length === 0 && !supportSelected ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
               <MessageSquare className="h-10 w-10 opacity-20" aria-hidden="true" />
               <div>
@@ -588,8 +573,7 @@ const ChatPage = () => {
               </div>
               {status === 'open' && (
                 <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-xl">
-                  {(supportSelected ? SUPPORT_CHIPS.map((c) => c.label) : SUGGESTED_PROMPTS).map(
-                    (prompt) => (
+                  {SUGGESTED_PROMPTS.map((prompt) => (
                     <button
                       key={prompt}
                       type="button"
@@ -598,8 +582,7 @@ const ChatPage = () => {
                     >
                       {prompt}
                     </button>
-                    ),
-                  )}
+                  ))}
                 </div>
               )}
             </div>
@@ -630,7 +613,6 @@ const ChatPage = () => {
                     <ChatBubbleBody
                       text={message.text}
                       streaming={message.streaming}
-                      welcome={message.key.startsWith('support-welcome')}
                     />
                   </div>
                   {SHOW_MESSAGE_ACTIONS &&
@@ -686,11 +668,9 @@ const ChatBubbleBody = memo(
   function ChatBubbleBody({
     text,
     streaming,
-    welcome = false,
   }: {
     text: string
     streaming: boolean
-    welcome?: boolean
   }) {
     if (text.length === 0) {
       return streaming ? (
@@ -702,15 +682,12 @@ const ChatBubbleBody = memo(
     return (
       <div
         data-testid="chat-md"
-        className={`chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline${welcome ? ' os-support-welcome' : ''}`}
+        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
         dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
       />
     )
   },
-  (prev, next) =>
-    prev.text === next.text &&
-    prev.streaming === next.streaming &&
-    prev.welcome === next.welcome,
+  (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
 )
 
 function connectionStatusLabel(
