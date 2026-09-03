@@ -36,7 +36,7 @@
       "temperature": 0.0
     },
     "litellm": {
-      "provider": "openai",
+      "provider": "litellm",
       "model": "${LITELLM_MODEL}",
       "base_url": "${LITELLM_BASE_URL}",
       "api_key": "${LITELLM_API_KEY}"
@@ -386,5 +386,25 @@
       ]
     }
   },
-  "blueprints": {}
+  "blueprints": {},
+  "agent_team": {
+    "members": ["hermes", "omb", "rakazo"]
+  },
+  "remotes": {
+    "hermes": {
+      "base_url": "http://10.0.0.36:8642",
+      "ui_url": "http://10.0.0.36:9119",
+      "api_key": "${HERMES_API_KEY}"
+    },
+    "omb": {
+      "base_url": "http://10.0.0.32:8802",
+      "api_key": "${OMB_API_KEY}"
+    },
+    "rakazo": {
+      "base_url": "http://10.0.0.32:3100",
+      "ui_url": "http://10.0.0.32:5173",
+      "api_key": "${RAKAZO_API_KEY}",
+      "cookie": "${RAKAZO_SESSION_COOKIE}"
+    }
+  }
 }

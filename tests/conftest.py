@@ -11,6 +11,12 @@ from asgiref.sync import sync_to_async
 # explicitly set DJANGO_DEBUG.
 os.environ.setdefault("DJANGO_DEBUG", "true")
 
+@pytest.fixture(autouse=True)
+def isolate_swarm_chat_dir(tmp_path, monkeypatch):
+    """Keep per-agent chat JSON off the real XDG/home tree during tests."""
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
+
+
 # --- Fixtures ---
 
 def pytest_collection_modifyitems(config, items):

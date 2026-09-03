@@ -50,5 +50,8 @@ describe('Dashboard quick-action cards', () => {
       expect(card).toHaveClass('os-action-card')
       expect(card.className).not.toMatch(/btn-primary|btn-secondary|btn-accent|btn-info/)
     }
+
+    expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Open Swarm')).not.toBeInTheDocument()
   })
 })

@@ -444,12 +444,20 @@ def test_tour_captions_claim_sticky_banner_in_checked_in_spa_pngs():
 
 
 def test_spa_app_mobile_dock_omits_settings_tab():
-    """SPA mobile dock stays five tabs; Settings is desktop/gear (matches mobile PNGs)."""
+    """SPA product chrome is left rail + chat; Settings is the gear sheet, not a nav eject."""
     app = (REPO / "webui" / "frontend" / "src" / "App.tsx").read_text()
-    # Five MobileTab labels in the bottom nav; no Settings href tab.
-    assert 'label="Sessions"' in app
+    chat = (REPO / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx").read_text()
     assert 'MobileTab href="/settings/"' not in app
-    assert 'label="Chat"' in app
+    assert 'NavLink to="/"' not in app
+    assert "MobileTab" not in app
+    assert 'href="/settings/"' not in app
+    assert "Open settings" in chat
+    sheet = (REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx").read_text()
+    assert "modal-end" in sheet or 'placement="end"' in sheet
+    # REQ-59: Remotes is an opt-in catalog, not a menu-dropdown of unused kinds.
+    assert "Add remote" in sheet
+    assert "menu-dropdown" not in sheet
+    assert "join-item" in sheet
 
 
 def test_feature_status_mobile_dock_omits_settings():

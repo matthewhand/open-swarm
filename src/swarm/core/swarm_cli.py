@@ -673,6 +673,126 @@ def moa(
         raise typer.Exit(code=team_exit_code)
 
 
+@app.command(name="remotes")
+def remotes_cmd(
+    action: str = typer.Argument(
+        "list",
+        help="list | get | set | health | operate | team | place | unplace",
+    ),
+    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | swarm"),
+    op: str = typer.Option("list", "--op", help="For operate: list or send"),
+    base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
+    api_key: str = typer.Option("", "--api-key", help="For set: persist auth token (or ${ENV})"),
+    api_key_env: str = typer.Option("", "--api-key-env", help="For set: store ${ENV} placeholder"),
+    ui_url: str = typer.Option("", "--ui-url", help="For set: persist UI URL (Rakazo/Hermes dashboard)"),
+    cookie: str = typer.Option("", "--cookie", help="For set: persist session cookie (Rakazo)"),
+    prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
+    target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id or swarm blueprint id"),
+    config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
+):
+    """Configure remotes and place them in a handoff Team (not /teams/ profile aliases)."""
+    import json as _json
+
+    from swarm.core import remotes as _remotes
+
+    act = (action or "list").strip().lower()
+    rid = (name or "").strip()
+
+    if act == "list":
+        specs = _remotes.load_all_remotes()
+        typer.echo("Remote harnesses:")
+        for spec in specs.values():
+            key = "set" if spec.public_dict()["api_key_set"] else "unset"
+            typer.echo(f"  {spec.id:<8} {spec.base_url}  auth={key}  ({spec.host_label})")
+        return
+
+    if act == "get":
+        try:
+            spec = _remotes.load_remote(rid)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(_json.dumps(spec.public_dict(), indent=2))
+        return
+
+    if act == "set":
+        if not rid:
+            typer.echo("remotes set requires a name (hermes|omb|rakazo|swarm)", err=True)
+            raise typer.Exit(code=1)
+        kwargs: dict[str, str] = {}
+        if base_url:
+            kwargs["base_url"] = base_url
+        if api_key_env:
+            kwargs["api_key"] = f"${{{api_key_env}}}"
+        elif api_key:
+            kwargs["api_key"] = api_key
+        if ui_url:
+            kwargs["ui_url"] = ui_url
+        if cookie:
+            kwargs["cookie"] = cookie
+        if not kwargs:
+            typer.echo("Nothing to persist. Pass --base-url and/or --api-key[--env].", err=True)
+            raise typer.Exit(code=1)
+        try:
+            spec, path = _remotes.persist_remote(rid, config_path=config, **kwargs)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"Persisted remotes.{spec.id} to {path}")
+        typer.echo(_json.dumps(spec.public_dict(), indent=2))
+        return
+
+    if act == "health":
+        targets = [rid] if rid else list(_remotes.REMOTE_IDS)
+        any_down = False
+        for target_id in targets:
+            try:
+                result = _remotes.check_health(target_id)
+            except _remotes.RemoteError as exc:
+                typer.echo(str(exc), err=True)
+                raise typer.Exit(code=1)
+            mark = "OK" if result.ok else result.state
+            typer.echo(f"  {result.remote:<8} {mark:<8} {result.detail}")
+            if not result.ok:
+                any_down = True
+        raise typer.Exit(code=1 if any_down and rid else 0)
+
+    if act == "operate":
+        if not rid:
+            typer.echo("remotes operate requires a name (hermes|omb|rakazo|swarm)", err=True)
+            raise typer.Exit(code=1)
+        result = _remotes.operate(rid, op, prompt=prompt, target=target)
+        typer.echo(_json.dumps(result.as_dict(), indent=2, default=str))
+        raise typer.Exit(code=0 if result.ok else 1)
+
+    if act == "team":
+        payload = _remotes.agent_team_public(config_path=config)
+        typer.echo(_json.dumps(payload, indent=2))
+        return
+
+    if act in ("place", "unplace"):
+        if not rid:
+            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo|swarm)", err=True)
+            raise typer.Exit(code=1)
+        try:
+            if act == "place":
+                members, path = _remotes.place_team_member(rid, config_path=config)
+            else:
+                members, path = _remotes.unplace_team_member(rid, config_path=config)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"Persisted agent_team.members={members} to {path}")
+        typer.echo(_json.dumps(_remotes.agent_team_public(config_path=path), indent=2))
+        return
+
+    typer.echo(
+        f"Unknown action '{action}'. Use: list, get, set, health, operate, team, place, unplace",
+        err=True,
+    )
+    raise typer.Exit(code=1)
+
+
 @app.command(name="list")
 def list_blueprints(
     installed: bool = typer.Option(False, "--installed", "-i", help="List only installed blueprint executables."),
@@ -1009,7 +1129,7 @@ def moa_init(
 @app.command(name="config")
 def config_cmd(
     action: str = typer.Argument(..., help="list | add | remove | init"),
-    section: str = typer.Option(None, "--section", help="llm or mcpServers"),
+    section: str = typer.Option(None, "--section", help="llm, mcpServers, or remotes"),
     name: str = typer.Option(None, "--name", help="profile or server name"),
     json_str: str = typer.Option(None, "--json", help="JSON string for add"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
@@ -1050,6 +1170,20 @@ def config_cmd(
             typer.echo("MCP Servers:")
             for k in cfg.get("mcpServers", {}):
                 typer.echo(f"  {k}")
+        if section in ("remotes", None):
+            typer.echo("Remote harnesses:")
+            remotes_block = cfg.get("remotes") or {}
+            if remotes_block:
+                for k, v in remotes_block.items():
+                    if isinstance(v, dict):
+                        typer.echo(f"  {k}: {v.get('base_url', '?')}")
+                    else:
+                        typer.echo(f"  {k}")
+            else:
+                from swarm.core import remotes as _remotes
+
+                for spec in _remotes.load_all_remotes().values():
+                    typer.echo(f"  {spec.id}: {spec.base_url}  (default)")
     elif action == "add":
         if not section or not name or not json_str:
             typer.echo("--section, --name, and --json are required for add", err=True)

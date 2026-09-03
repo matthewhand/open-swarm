@@ -1,0 +1,98 @@
+# Herdr connectivity (REQ-21)
+
+Open Swarm can drive **Herdr** as a member `kind=herdr` without owning the TUI.
+
+This is **NOT Hermes**, **NOT OMB**, and **NOT Rakazo**. Those are different
+products. Herdr is the pane session server + CLI at [herdr.dev](https://herdr.dev/).
+
+## Same-host default
+
+The default remote is **localhost**. Invoke the official CLI with **no**
+`--remote`:
+
+```bash
+herdr workspace list
+herdr agent list
+herdr agent read w3:p1
+herdr agent prompt w3:p1 HERDR_PING_OK
+herdr agent wait w3:p1 --until idle
+```
+
+That talks to the Herdr already on this host (local server + unix sockets,
+typically `~/.config/herdr/`). Live `.30` (ubuntu-max) runs `herdr server` plus
+the remote-client-bridge. This cloud agent does **not** SSH there.
+
+## Optional `--remote`
+
+A persisted Herdr row may set `remote` to a string such as
+`matthewh@10.0.0.36`, `workbox`, or `ssh://you@server:2222`. Empty/omitted
+means localhost. When set, **every** CLI call is prefixed:
+
+```bash
+herdr --remote matthewh@10.0.0.36 agent prompt w3:p1 HERDR_PING_OK
+```
+
+See [How to work with Herdr](https://herdr.dev/docs/how-to-work/) and the
+[CLI reference](https://herdr.dev/docs/cli-reference/). Open Swarm does **not**
+invent flags or a socket protocol; it wraps `herdr`.
+
+## Proven prompt shape
+
+Engineer proof on ubuntu-max `10.0.0.30`:
+
+```bash
+herdr agent prompt w3:p1 HERDR_PING_OK
+```
+
+`TEXT` is **one** argv argument. The CLI returned `type: agent_prompted`. The
+pane showed user `HERDR_PING_OK` and grok replied that the ping was OK.
+
+Unquoted TEXT is a quoting bug: herdr then reports `unknown option: with`.
+The Python wrapper always passes TEXT as a single `argv` element (spaces stay
+inside that one argument).
+
+## Blocked and `--wait`
+
+- If the agent is **blocked**, submit is rejected (`HerdrBlockedError` /
+  Herdr `agent_blocked`). Input is not sent.
+- If the agent is already **working**, `herdr agent prompt --wait` may match
+  **that in-flight turn finishing**, not a newly submitted turn. Do not assume
+  `--wait` observed your prompt.
+- Tests must **mock** `herdr`. Do **not** target a WORKING grok pane in CI.
+
+## Addable members
+
+`GET /v1/herdr-agents/discover/` runs `herdr agent list` and
+`herdr workspace list` and returns addable members (`kind=herdr`,
+`remote=""` = localhost). `POST /v1/herdr-agents/` persists a row
+(`name`, optional `remote`). Teams (`/teams/#herdr-members`) and the AGENTS
+sidepane list persisted rows so an operator can pick them.
+
+Cloud CI must mock `herdr` (no live TUI). SQLite is the default DB; this
+feature does not set `DATABASE_URL` or enable Neon.
+
+## API
+
+| Method | Path | Role |
+|--------|------|------|
+| GET | `/v1/herdr-agents/` | List persisted members |
+| POST | `/v1/herdr-agents/` | Add `{name, remote?}` |
+| GET | `/v1/herdr-agents/discover/` | Live agent + workspace list |
+| GET/DELETE | `/v1/herdr-agents/<id>/` | Read / remove (id or name) |
+
+Operator UI: `/settings/#group-herdr` and Django admin. The DaisyUI SPA
+settings sheet is not in this tree (ADR-001); the SPA sidepane still fetches
+`/v1/herdr-agents/` so members appear next to blueprints.
+
+## Python wrapper
+
+```python
+from swarm.herdr import HerdrClient, extract_prompt_type
+
+client = HerdrClient()  # localhost, no --remote
+payload = client.agent_prompt("w3:p1", "HERDR_PING_OK")
+assert extract_prompt_type(payload) == "agent_prompted"
+
+client = HerdrClient(remote="matthewh@10.0.0.36")
+client.agent_list()  # herdr --remote matthewh@10.0.0.36 agent list
+```
