@@ -159,11 +159,11 @@
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
 /* REQ-9 role accents — Support (REQ-7) should reuse these class names */
 .os-agent-item[data-role="support"],
-.os-agent-role-support { box-shadow: inset 2px 0 0 #3d9b8f; }
+.os-agent-item.os-agent-role-support { box-shadow: inset 2px 0 0 #3d9b8f; }
 .os-agent-item[data-role="gate"],
-.os-agent-role-gate { box-shadow: inset 2px 0 0 #c9a227; }
+.os-agent-item.os-agent-role-gate { box-shadow: inset 2px 0 0 #c9a227; }
 .os-agent-item[data-role="skeptic"],
-.os-agent-role-skeptic { box-shadow: inset 2px 0 0 #8a5a9b; }
+.os-agent-item.os-agent-role-skeptic { box-shadow: inset 2px 0 0 #8a5a9b; }
 .os-agent-dot[data-role="support"] { background: #3d9b8f; }
 .os-agent-dot[data-role="gate"] { background: #c9a227; }
 .os-agent-dot[data-role="skeptic"] { background: #8a5a9b; }
