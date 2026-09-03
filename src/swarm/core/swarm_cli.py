@@ -869,6 +869,8 @@ def cli_agents(
     output_json: bool = typer.Option(False, "--json", "-j", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
     init: bool = typer.Option(False, "--init", "-i", help="Print a complete, ready-to-run swarm_config wiring every mode (cli_fusion/cli_orchestrator/cli_map) over the CLIs installed on this host."),
     write: bool = typer.Option(False, "--write", "-w", help="With --init, write the config to your swarm config path (backs up any existing file)."),
+    list_models: bool = typer.Option(False, "--list-models", help="Probe each catalogued CLI's real list-models command and print {cli, models: [...]} (JSON). Missing/failed probes are empty lists + warning, never a crash."),
+    cli: str = typer.Option(None, "--cli", help="With --list-models, probe only this catalog CLI."),
 ):
     """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
     import asyncio
@@ -877,6 +879,10 @@ def cli_agents(
     from swarm.core import cli_catalog
     from swarm.core.cli_adapter import CliAdapterRegistry
     from swarm.core.config_loader import find_config_file, load_config
+
+    if list_models:
+        _emit_list_models(cli)
+        raise typer.Exit(code=0)
 
     if init:
         installed = cli_catalog.installed_catalog_clis()
@@ -964,6 +970,31 @@ def cli_agents(
 
 # Laconic alias: `swarm-cli agents` == `swarm-cli cli-agents`.
 app.command(name="agents", help="Alias for cli-agents.")(cli_agents)
+
+
+@app.command(name="list-models")
+def list_models_command(
+    cli: str = typer.Argument(
+        None,
+        help="Catalog CLI to probe (grok/claude/gemini/codex/opencode). Omit to probe every catalogued CLI.",
+    ),
+):
+    """List models a catalogued CLI actually offers (non-interactive, timed-out probe)."""
+    _emit_list_models(cli)
+
+
+def _emit_list_models(cli: str | None) -> None:
+    """Print ``{cli, models: [...]}`` (one CLI) or a JSON list of those objects."""
+    import json
+
+    from swarm.core.cli_models import list_models, list_models_all
+
+    name = (cli or "").strip() or None
+    if name:
+        typer.echo(json.dumps(list_models(name).as_dict(), indent=2))
+        return
+    payload = [row.as_dict() for row in list_models_all()]
+    typer.echo(json.dumps(payload, indent=2))
 
 
 @app.command(name="skills")

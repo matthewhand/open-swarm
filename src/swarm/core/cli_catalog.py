@@ -3,7 +3,8 @@
 Starting-point ``cli_agents`` configs for popular agentic CLIs. Lets
 ``swarm-cli cli-agents --suggest`` propose a ready-to-paste config block for any
 supported CLI that is installed on the host but not yet in the user's swarm
-config.
+config. ``LIST_MODELS`` documents each CLI's real non-interactive list-models
+argv (see :mod:`swarm.core.cli_models` and ``swarm-cli list-models``).
 
 Each entry runs the CLI **one-shot, non-interactive, auto-approve** (full
 capability) — the flag that matters is the auto-approve one, without which the
@@ -280,6 +281,40 @@ def with_native_consensus(name: str, n: int = 2) -> dict[str, Any] | None:
         return None
     entry["cmd"] = list(entry["cmd"]) + flags
     return entry
+
+
+# Non-interactive argv that lists models each catalog CLI can actually run.
+# Sourced from each CLI's ``--help`` / official docs (not a vendor marketing
+# list). Probe via :mod:`swarm.core.cli_models` — never prompts, always times
+# out. antigravity is omitted until it is wired into ``CATALOG``.
+#
+#   grok      ``grok models``           (xAI CLI reference)
+#   claude    ``claude models``         (same shape as grok/opencode; older
+#                                       builds fail the probe → empty+warning)
+#   gemini    ``gemini --list-models``  (JSON; early-exit, no REPL)
+#   codex     ``codex debug models``    (raw catalog JSON)
+#   opencode  ``opencode models``       (already documented in this catalog)
+LIST_MODELS: dict[str, list[str]] = {
+    "grok": ["grok", "models"],
+    "claude": ["claude", "models"],
+    "gemini": ["gemini", "--list-models"],
+    "codex": ["codex", "debug", "models"],
+    "opencode": ["opencode", "models"],
+}
+
+# List-models probes must stay cheap and never hang a Settings / #358 caller.
+LIST_MODELS_TIMEOUT = 15.0
+
+
+def list_models_argv(name: str) -> list[str] | None:
+    """Copy of the list-models argv for ``name``, or None if unknown."""
+    argv = LIST_MODELS.get(name)
+    return list(argv) if argv is not None else None
+
+
+def has_list_models(name: str) -> bool:
+    """True when the catalog documents a list-models probe for ``name``."""
+    return name in LIST_MODELS
 
 
 # Flag each CLI uses to pin a specific model, so callers can request a

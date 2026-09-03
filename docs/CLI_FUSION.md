@@ -71,6 +71,9 @@ swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
 swarm-cli cli-agents --suggest     # propose config for installed-but-unconfigured CLIs
 swarm-cli cli-agents --smoke       # run one trivial one-shot per CLI to confirm it returns
 swarm-cli cli-agents --json        # machine-readable output (for CI / scripts / Open WebUI)
+swarm-cli cli-agents --list-models # live {cli, models: [...]} per catalog CLI (REQ-44)
+swarm-cli cli-agents --list-models --cli grok
+swarm-cli list-models grok         # same probe; omit the name to probe every catalog CLI
 swarm-cli cli-agents --config ./swarm_config.json
 ```
 
@@ -216,6 +219,36 @@ examples above already include the fixes (verified live 2026-06-16):
 
 The `--model` value for `opencode` is account/version-specific — it's the one
 place you'll likely need to adjust. Everything else runs as shipped.
+
+### List-models probe (REQ-44)
+
+Each catalogued CLI has a **non-interactive** list-models argv (the CLI's own
+flag, not a hardcoded vendor list). Swarm runs it with stdin closed and a
+timeout; missing CLI, unknown name, failed probe, or timeout → `{cli, models: []}`
+plus a warning — never a crash, never a hang.
+
+| CLI | Probe (from `--help` / docs) |
+|---|---|
+| `grok` | `grok models` |
+| `claude` | `claude models` |
+| `gemini` | `gemini --list-models` |
+| `codex` | `codex debug models` |
+| `opencode` | `opencode models` |
+
+```bash
+swarm-cli list-models grok
+# {"cli": "grok", "models": ["grok-4", "..."]}
+
+curl -sf http://localhost:8000/v1/cli-agents/grok/models
+# same {cli, models} shape
+
+curl -sf http://localhost:8000/v1/cli-agents/models
+# [ {cli, models}, ... ] for every catalogued CLI
+```
+
+`GET /v1/cli-agents/` and `GET /v1/config-options/` also expose the argv table
+(`list_models`) so Settings / #358 can auto-pick without guessing flags. The
+catalog GET does **not** run the probe.
 
 **Per-CLI model flag.** When a request (or an inference profile) pins a specific
 model, the catalog rewrites the CLI's command using that CLI's model flag:
