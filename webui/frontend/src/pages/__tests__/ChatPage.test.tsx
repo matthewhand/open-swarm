@@ -286,6 +286,75 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
   })
 })
 
+function deliverMockInference(
+  ws: MockWebSocket,
+  reply: string,
+  id = 'message-response-mock1',
+) {
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">echo</div></div>`,
+    }),
+  )
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-list" hx-swap-oob="beforeend"><div id="${id}" class="assistant-message"></div></div>`,
+    }),
+  )
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="${id}" class="assistant-message" hx-swap-oob="true">${reply}</div>`,
+    }),
+  )
+}
+
+describe('ChatPage Send path with mock inference', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('renders mock assistant content after the user types and clicks Send', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'ping the mock' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).toHaveBeenCalled()
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string).message).toBe(
+      'ping the mock',
+    )
+
+    await act(async () => {
+      deliverMockInference(ws, 'MOCK_INFERENCE_VITEST_REPLY')
+    })
+
+    expect(screen.getByText('MOCK_INFERENCE_VITEST_REPLY')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Chat message' }), {
+      target: { value: 'follow-up' },
+    })
+    expect(screen.getByRole('button', { name: /^Send$/i })).toBeEnabled()
+  })
+})
+
 describe('ChatPage Send button honesty while streaming', () => {
   beforeEach(() => {
     MockWebSocket.instances = []

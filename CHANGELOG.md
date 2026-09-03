@@ -47,6 +47,7 @@ All notable changes to this project will be documented in this file.
 
 
 ### Added
+- **REQ-13 SPA Chat Send mock inference:** Playwright e2e types a message, clicks Send, and asserts a canned assistant reply with no live LLM. FAST mock aims under 2s; SLOW mock delays past 60s via Playwright fake clock (no 61s CI sleep). Ready waits are composer-enabled + conversation log (not a standing Connected badge — REQ-8). Files: `webui/frontend/e2e/chat-send.spec.ts`, `webui/frontend/e2e/helpers/mockInference.ts`. Run: `cd webui/frontend && npx playwright test e2e/chat-send.spec.ts`
 - **REQ-47 Pinokio launcher (local sideload):** root `pinokio.js` menu (Install / Start+Update / Open App) plus `install.js`, `start.js`, and `update.js`. Start is `docker compose up` with REQ-45 `SWARM_RUNTIME=sandbox-home`. Not listed on pinokio.computer; add via git URL only.
 - **REQ-27b Computer-control UI stub:** Grok chat header **Chat tools** toolbar (top-right) Monitor icon labeled Computer control opens a DaisyUI WIP modal (“computer control will use a placed OMB or Rakazo remote; not implemented here”). Icon visible by default (may look muted); clickable; not attached to agent tools; no driver/E2B/CUA/xdotool/CDP/sandbox. `ComputerControlStub` + ChatPage/e2e chrome tests.
 - **REQ-28 Chief of Staff + team isolation + teams-of-teams:** role
