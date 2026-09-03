@@ -421,7 +421,7 @@ describe('ChatPage markdown bubbles', () => {
     expect(streaming?.className).toContain('os-chat-bubble--streaming')
     expect(streaming?.className).not.toContain('os-chat-bubble--complete')
     expect(screen.getAllByRole('status', { name: /is working$|^Working$/ }).length).toBeGreaterThan(0)
-    expect(screen.getByTitle(/is working$|^Working$/)).toBeInTheDocument()
+    expect(screen.getAllByTitle(/is working$|^Working$/).length).toBeGreaterThan(0)
 
     await act(async () => {
       ws.onmessage?.(
@@ -738,5 +738,141 @@ describe('ChatPage gap timestamps and NEW', () => {
     expect(log.indexOf('yesterday line')).toBeLessThan(log.indexOf('7:36 AM'))
     expect(log.indexOf('7:36 AM')).toBeLessThan(log.indexOf('NEW'))
     expect(log.indexOf('NEW')).toBeLessThan(log.indexOf('after the gap'))
+  })
+})
+
+function scrollConversation(distanceFromBottom: number) {
+  const log = screen.getByRole('log', { name: 'Conversation' })
+  Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 900 })
+  Object.defineProperty(log, 'clientHeight', { configurable: true, value: 200 })
+  Object.defineProperty(log, 'scrollTop', {
+    configurable: true,
+    writable: true,
+    value: 900 - 200 - distanceFromBottom,
+  })
+  fireEvent.scroll(log)
+}
+
+describe('ChatPage jump-to-bottom and working avatars', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  it('hides the jump arrow at the bottom and shows it after scrolling up', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(screen.queryByRole('button', { name: 'Jump to latest messages' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('os-working-avatars')).not.toBeInTheDocument()
+
+    scrollConversation(240)
+    expect(screen.getByRole('button', { name: 'Jump to latest messages' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest messages' }))
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Jump to latest messages' })).not.toBeInTheDocument()
+  })
+
+  it('increments N new messages while scrolled up and restores pin on click', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    scrollConversation(240)
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">one</div></div>',
+        }),
+      )
+    })
+    expect(screen.getByRole('button', { name: '1 new message' })).toBeInTheDocument()
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">two</div></div>',
+        }),
+      )
+    })
+    expect(screen.getByRole('button', { name: '2 new messages' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss new message count' }))
+    expect(screen.queryByRole('button', { name: '2 new messages' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jump to latest messages' })).toBeInTheDocument()
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">three</div></div>',
+        }),
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: '3 new messages' }))
+    expect(screen.queryByRole('button', { name: /new messages?/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Jump to latest messages' })).not.toBeInTheDocument()
+  })
+
+  it('shows a hover-only working avatar above the composer while streaming', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-abc123" class="assistant-message"></div></div>',
+        }),
+      )
+    })
+    const avatar = screen.getByRole('img', { name: 'Support is working' })
+    expect(avatar).toHaveAttribute('title', 'Support is working')
+    expect(screen.queryByText('Support is working')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('status', { name: /is working$|^Working$/ }).length).toBeGreaterThan(0)
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-abc123" hx-swap-oob="true" class="assistant-message">done</div>',
+        }),
+      )
+    })
+    expect(screen.queryByRole('img', { name: 'Support is working' })).not.toBeInTheDocument()
+  })
+
+  it('stacks a pending hop avatar without turning stream dots into that avatar', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="hop-a" class="os-interbot-hop" data-agent-id="hass" data-agent-name="HASS" data-pending="true"></div></div>',
+        }),
+      )
+    })
+    expect(screen.getByRole('img', { name: 'HASS is working' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Inter-bot communication in progress' })).toBeInTheDocument()
+    expect(document.querySelector('.os-interbot-avatar')).toBeNull()
   })
 })

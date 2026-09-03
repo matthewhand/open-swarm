@@ -35,6 +35,7 @@ import {
   parseHandoffAssistant,
   type ChatItem,
 } from '../lib/interBot'
+import { ChatComposerDock } from '../components/ChatComposerDock'
 import { ChatGapLabel, ChatNewRule } from '../components/ChatLogMarkers'
 import InterBotLine from '../components/InterBotLine'
 import {
@@ -335,6 +336,12 @@ const ChatPage = () => {
         }
         return { ...prev, [selectedBlueprint]: next }
       })
+      const addedMessage =
+        event.kind === 'user_echo' || event.kind === 'assistant_start'
+      if (addedMessage && !pinnedToBottomRef.current) {
+        setNewMessageCount((current) => current + 1)
+        setNewCountDismissed(false)
+      }
       if (event.kind === 'user_echo') rememberThreadLine('user', event.text)
       if (event.kind === 'assistant_final' && !parseHandoffAssistant(event.text)) {
         rememberThreadLine('assistant', event.text)
@@ -414,10 +421,32 @@ const ChatPage = () => {
   }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint])
 
   const pinnedToBottomRef = useRef(true)
+  const [pinnedToBottom, setPinnedToBottom] = useState(true)
+  const [newMessageCount, setNewMessageCount] = useState(0)
+  const [newCountDismissed, setNewCountDismissed] = useState(false)
+  const prevMessageCountRef = useRef(0)
+
+  const jumpToBottom = useCallback(() => {
+    pinnedToBottomRef.current = true
+    setPinnedToBottom(true)
+    setNewMessageCount(0)
+    setNewCountDismissed(false)
+    listEndRef.current?.scrollIntoView({ block: 'end' })
+  }, [])
+
+  useEffect(() => {
+    pinnedToBottomRef.current = true
+    setPinnedToBottom(true)
+    setNewMessageCount(0)
+    setNewCountDismissed(false)
+    prevMessageCountRef.current = 0
+  }, [selectedBlueprint])
+
   useEffect(() => {
     if (pinnedToBottomRef.current) {
       listEndRef.current?.scrollIntoView({ block: 'end' })
     }
+    prevMessageCountRef.current = messages.length
   }, [messages])
 
   useEffect(() => {
@@ -542,6 +571,18 @@ const ChatPage = () => {
   }, [plusOpen])
 
   const streamingMessage = messages.find((message) => message.streaming)
+  const workingAgents = useMemo(() => {
+    const marks = new Map<string, { id: string; name: string }>()
+    if (streamingMessage) {
+      marks.set(selectedBlueprint, { id: selectedBlueprint, name: selectedAgentName })
+    }
+    for (const item of threadItems) {
+      if (item.type === 'hop' && item.hop.pending) {
+        marks.set(item.hop.agentId, { id: item.hop.agentId, name: item.hop.name })
+      }
+    }
+    return [...marks.values()]
+  }, [selectedAgentName, selectedBlueprint, streamingMessage, threadItems])
   useEffect(() => {
     if (!streamingMessage) {
       streamStartedAtRef.current = null
@@ -639,7 +680,13 @@ const ChatPage = () => {
         tabIndex={0}
         onScroll={(e) => {
           const el = e.currentTarget
-          pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+          pinnedToBottomRef.current = nearBottom
+          setPinnedToBottom(nearBottom)
+          if (nearBottom) {
+            setNewMessageCount(0)
+            setNewCountDismissed(false)
+          }
         }}
       >
         {conversationRows.length === 0 ? (
@@ -701,6 +748,15 @@ const ChatPage = () => {
         )}
         <div ref={listEndRef} />
       </div>
+
+      <ChatComposerDock
+        workingAgents={workingAgents}
+        scrolledUp={!pinnedToBottom}
+        newMessageCount={newMessageCount}
+        showNewPill={!pinnedToBottom && newMessageCount > 0 && !newCountDismissed}
+        onJumpToBottom={jumpToBottom}
+        onDismissNewCount={() => setNewCountDismissed(true)}
+      />
 
       <form onSubmit={handleSend} className="os-composer-wrap">
         <div className="os-composer">
