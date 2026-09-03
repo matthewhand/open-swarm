@@ -257,3 +257,68 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedHidden()).toEqual(['codey'])
   })
 })
+
+describe('AgentSidebar teams', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'demo-team',
+                  object: 'team_roster',
+                  name: 'Demo Team',
+                  description: 'Example multi-agent roster',
+                  members: [
+                    { id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' },
+                  ],
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('mixes a visually distinct team row with agent rows', async () => {
+    renderSidebar()
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Demo Team \(team\)/ })
+    expect(team).toHaveAttribute('href', '/chat?team=demo-team')
+    expect(team.className).toMatch(/os-team-item/)
+    expect(within(team).getByText('Team')).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+  })
+
+  it('selects a team like an agent via ?team=', async () => {
+    renderSidebar('/chat?team=demo-team')
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Demo Team \(team\)/ })
+    expect(team).toHaveAttribute('aria-current', 'page')
+    expect(within(list).getByRole('link', { name: /Codey/ })).not.toHaveAttribute(
+      'aria-current',
+    )
+  })
+})

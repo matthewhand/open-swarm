@@ -47,11 +47,19 @@ export function buildChatWsUrl(
     : base
 }
 
+/** Optional per-message params (team target, CLI, …) forwarded to the consumer. */
+export type ChatWsParams = Record<string, unknown>
+
 /** Build the JSON frame sent to DjangoChatConsumer.receive(). */
-export function buildChatWsFrame(message: string, blueprintId?: string): string {
-  return JSON.stringify(
-    blueprintId ? { message, blueprint: blueprintId } : { message },
-  )
+export function buildChatWsFrame(
+  message: string,
+  blueprintId?: string,
+  params?: ChatWsParams,
+): string {
+  const frame: Record<string, unknown> = { message }
+  if (blueprintId) frame.blueprint = blueprintId
+  if (params && Object.keys(params).length > 0) frame.params = params
+  return JSON.stringify(frame)
 }
 
 export function newConversationId(): string {

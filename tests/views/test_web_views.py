@@ -459,3 +459,26 @@ class TestTeamsExportView:
 
         assert response.status_code in (301, 302)
         assert "/login" in response.url
+
+
+class TestTeamRostersJson:
+    """REQ-23 roster file — not the Django LLM-alias /v1/teams/ admin."""
+
+    def test_team_rosters_json_is_a_roster_list(self, client):
+        response = client.get("/team_rosters.json")
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        assert data.get("object") == "list"
+        assert isinstance(data.get("data"), list)
+        assert data["data"]
+        first = data["data"][0]
+        assert first.get("id")
+        assert "members" in first
+        assert "llm_profile" not in first
+
+    def test_v1_team_rosters_matches_file(self, client):
+        file_res = client.get("/team_rosters.json")
+        api_res = client.get("/v1/team-rosters/")
+        assert file_res.status_code == 200
+        assert api_res.status_code == 200
+        assert json.loads(file_res.content) == json.loads(api_res.content)

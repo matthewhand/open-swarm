@@ -279,6 +279,31 @@ def _webui_enabled() -> bool:
     return is_enable_webui()
 
 
+_DEMO_TEAM_ROSTER = {
+    "id": "demo-team",
+    "object": "team_roster",
+    "name": "Demo Team",
+    "description": "Example multi-agent roster",
+    "members": [
+        {"id": "codey", "name": "Codey", "kind": "agent", "role": "coder"},
+        {"id": "stewie", "name": "Stewie", "kind": "agent", "role": "ops"},
+    ],
+}
+
+
+def team_rosters_json(request):
+    """Serve team_rosters.json for the AGENTS sidepane (not /v1/teams/ aliases)."""
+    candidates = [
+        Path("webui/frontend/public/team_rosters.json"),
+        Path("webui/frontend/dist/team_rosters.json"),
+        Path("src/swarm/static/team_rosters.json"),
+    ]
+    for path in candidates:
+        if path.is_file():
+            return FileResponse(open(path, "rb"), content_type="application/json")
+    return JsonResponse({"object": "list", "data": [_DEMO_TEAM_ROSTER]})
+
+
 def team_launcher(request):
     """
     Render a minimal Team Launcher UI that allows selecting a blueprint (team),

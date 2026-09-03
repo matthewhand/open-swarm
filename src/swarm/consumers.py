@@ -92,6 +92,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     ``blueprint`` field overrides it. When neither is given, the legacy
     behaviour (server-configured OpenAI model) is preserved.
 
+    Team compose (REQ-23) sends ``params: {team, target: "all"|memberId}``.
+    Runtime for that path is stubbed until a real roster executor exists.
+
     Auth is Django **session** only (``AuthMiddlewareStack`` cookie). A
     Settings-page API bearer token does not authenticate this socket.
     """
@@ -162,6 +165,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             self, "default_blueprint", None
         )
         self.active_agent = blueprint_id or getattr(self, "active_agent", None)
+        params = text_data_json.get("params")
+        if not isinstance(params, dict):
+            params = None
+
 
         self.messages.append(
             {
@@ -184,10 +191,29 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=system_message_html)
 
-        if blueprint_id:
+        if params and params.get("team"):
+            await self.respond_with_team_stub(params, message_text, contents_div_id)
+        elif blueprint_id:
             await self.respond_with_blueprint(blueprint_id, contents_div_id)
         else:
             await self.respond_with_default_model(contents_div_id)
+
+    async def respond_with_team_stub(self, params, message_text, contents_div_id):
+        """Stub team send-to-all / member-target runtime (REQ-23).
+
+        Echoes ``[team:<id> target:<all|memberId>]`` so the compose path is
+        exercisable without a multi-agent roster executor.
+        """
+        team = str(params.get("team") or "")
+        target = str(params.get("target") or "all")
+        canned = f"[team:{team} target:{target}] {message_text}"
+        await self.send(text_data=_oob_append_html(contents_div_id, canned))
+        self.messages.append({"role": "assistant", "content": canned})
+        final_html = render_to_string(
+            "websocket_partials/final_system_message.html",
+            {"contents_div_id": contents_div_id, "message": canned},
+        )
+        await self.send(text_data=final_html)
 
     async def respond_with_blueprint(self, blueprint_id, contents_div_id):
         """Generate the assistant reply by running a discovered blueprint."""
