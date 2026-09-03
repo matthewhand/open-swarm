@@ -509,3 +509,55 @@ describe('ChatPage markdown bubbles', () => {
     expect(screen.getByText('code').tagName).toBe('CODE')
   })
 })
+
+describe('ChatPage per-agent persistence (no retention chrome)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
+
+  it('restores a persisted agent thread after load and keeps retention off the chrome', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'jeeves',
+              conversation_id: 'agt-1-jeeves',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'prior answer' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'jeeves', name: 'Jeeves', description: 'Butler' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+    expect(screen.getByText('prior answer')).toBeInTheDocument()
+    expect(screen.queryByText(/Move to trash/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Empty trash/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Disk used/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument()
+  })
+})

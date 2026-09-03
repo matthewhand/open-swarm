@@ -30,6 +30,42 @@ IN_MEMORY_CONVERSATIONS = {}
 WS_AUTH_REQUIRED_CODE = 4401
 
 
+def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
+    """Best-effort write of the per-agent JSON thread (Settings + reload)."""
+    if not getattr(user, "is_authenticated", False) or not messages:
+        return
+    try:
+        from swarm.core import chat_store
+
+        chat_store.save(
+            chat_store.user_key_for(user),
+            agent_id,
+            messages,
+            conversation_id=conversation_id,
+        )
+    except Exception:
+        logger.exception("Failed to persist agent chat JSON")
+
+
+def _load_agent_json(user, agent_id):
+    """Best-effort load of the per-agent JSON thread."""
+    if not getattr(user, "is_authenticated", False):
+        return []
+    try:
+        from swarm.core import chat_store
+
+        record = chat_store.load(chat_store.user_key_for(user), agent_id)
+    except Exception:
+        logger.exception("Failed to load agent chat JSON")
+        return []
+    if not record:
+        return []
+    return [
+        {"role": m.get("role", "user"), "content": m.get("content", "")}
+        for m in record.get("messages") or []
+    ]
+
+
 def _conversation_cache_key(user, conversation_id):
     """Composite cache key so one user's transcript never leaks to another."""
     user_id = getattr(user, "pk", None)
@@ -89,6 +125,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                     )
                     return
             if getattr(self.user, "is_authenticated", False):
+                self.active_agent = self.default_blueprint
                 try:
                     self.messages = await self.fetch_conversation(self.conversation_id)
                 except Exception:
@@ -158,6 +195,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         blueprint_id = text_data_json.get("blueprint") or getattr(
             self, "default_blueprint", None
         )
+        self.active_agent = blueprint_id or getattr(self, "active_agent", None)
 
         self.messages.append(
             {
@@ -417,7 +455,13 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return list(messages)
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
-            return []
+
+        # Disk fallback: per-agent JSON (survives a new conversation UUID).
+        disk = _load_agent_json(self.user, getattr(self, "default_blueprint", None))
+        if disk:
+            IN_MEMORY_CONVERSATIONS[cache_key] = disk
+            return list(disk)
+        return []
 
     @database_sync_to_async
     def save_conversation(self, conversation_id, new_messages):
@@ -458,6 +502,12 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         ChatMessage.objects.bulk_create(chat_messages)
 
         IN_MEMORY_CONVERSATIONS[cache_key] = list(new_messages)
+        _save_agent_json(
+            self.user,
+            getattr(self, "active_agent", None) or getattr(self, "default_blueprint", None),
+            new_messages,
+            conversation_id=conversation_id,
+        )
 
     @database_sync_to_async
     def delete_conversation(self, conversation_id):

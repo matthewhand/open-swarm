@@ -162,17 +162,83 @@ function showToast(message, type = 'info') {
   }, 5000);
 }
 
+function csrfToken() {
+  return document.querySelector('.chat-retention-card [name=csrfmiddlewaretoken]')?.value
+    || document.querySelector('[name=csrfmiddlewaretoken]')?.value
+    || '';
+}
+
+async function postChatRetention(action, agentId) {
+  const body = new URLSearchParams({ action });
+  if (agentId) body.set('agent_id', agentId);
+  const response = await fetch('/settings/chats/action/', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'X-CSRFToken': csrfToken(),
+    },
+    body,
+  });
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+  if (!response.ok || !data.success) {
+    showToast(data.error || 'Chat retention action failed', 'danger');
+    return;
+  }
+  showToast('Chat files updated', 'success');
+  window.location.reload();
+}
+
+function chatArchiveAll() {
+  if (!window.confirm('Move all active agent chats to trash? You can restore them until you empty trash.')) {
+    return;
+  }
+  postChatRetention('archive_all');
+}
+
+function chatEmptyTrash() {
+  if (!window.confirm('Permanently delete every file in chat trash? This cannot be undone.')) {
+    return;
+  }
+  postChatRetention('empty_trash');
+}
+
+function chatArchiveOne(agentId) {
+  if (!agentId) return;
+  postChatRetention('archive', agentId);
+}
+
+function chatRestoreOne(agentId) {
+  if (!agentId) return;
+  postChatRetention('restore', agentId);
+}
+
 const SETTINGS_DASHBOARD_ACTIONS = {
   'export-settings': exportSettings,
   'refresh-settings': refreshSettings,
   'view-environment': viewEnvironment,
   'copy-object-content': copyObjectContent,
+  'chat-archive-all': chatArchiveAll,
+  'chat-empty-trash': chatEmptyTrash,
 };
 
 document.querySelector('.settings-page')?.addEventListener('click', (event) => {
   const btn = event.target.closest('[data-action]');
-  if (!btn || !event.currentTarget.contains(btn)) return;
-  const handler = SETTINGS_DASHBOARD_ACTIONS[btn.getAttribute('data-action')];
+  if (!btn || !event.currentTarget.contains(btn) || btn.disabled) return;
+  const action = btn.getAttribute('data-action');
+  if (action === 'chat-archive-one') {
+    chatArchiveOne(btn.getAttribute('data-agent-id') || '');
+    return;
+  }
+  if (action === 'chat-restore-one') {
+    chatRestoreOne(btn.getAttribute('data-agent-id') || '');
+    return;
+  }
+  const handler = SETTINGS_DASHBOARD_ACTIONS[action];
   if (typeof handler === 'function') handler();
 });
 

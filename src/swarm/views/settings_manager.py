@@ -117,6 +117,12 @@ class SettingsManager:
                 'description': 'Web interface feature toggles',
                 'icon': '🎨',
                 'settings': {}
+            },
+            'chat_persistence': {
+                'title': 'Chat persistence',
+                'description': 'Per-agent JSON chat threads and Settings-only retention',
+                'icon': '💬',
+                'settings': {}
             }
         }
 
@@ -152,6 +158,9 @@ class SettingsManager:
 
         # UI feature settings
         self._collect_ui_settings()
+
+        # Per-agent chat JSON store + retention
+        self._collect_chat_persistence_settings()
 
         return self.settings_groups
 
@@ -600,6 +609,38 @@ class SettingsManager:
         }
 
         self.settings_groups['ui_features']['settings'] = ui_settings
+
+    def _collect_chat_persistence_settings(self):
+        """Collect per-agent chat JSON store + retention settings."""
+        from swarm.core import chat_store
+
+        chat_settings = {
+            'SWARM_CHAT_DIR': {
+                'value': str(chat_store.store_dir()),
+                'env_var': chat_store.ENV_CHAT_DIR,
+                'type': 'path',
+                'description': (
+                    'Directory for per-agent chat JSON files '
+                    '(active/<user>/<agent>.json and trash/). '
+                    'Unset uses $SWARM_USER_DATA_DIR/chats or the platformdirs data dir.'
+                ),
+                'category': 'storage',
+                'sensitive': False,
+            },
+            'SWARM_CHAT_MAX_AGE_DAYS': {
+                'value': str(chat_store.get_max_age_days()),
+                'env_var': chat_store.ENV_CHAT_MAX_AGE_DAYS,
+                'type': 'integer',
+                'description': (
+                    'Auto-move inactive agent chats to trash after this many days '
+                    f'(default {chat_store.DEFAULT_MAX_AGE_DAYS}). Set 0 to disable. '
+                    'Never hard-deletes; Empty trash on this page is manual.'
+                ),
+                'category': 'retention',
+                'sensitive': False,
+            },
+        }
+        self.settings_groups['chat_persistence']['settings'] = chat_settings
 
 
 # Global settings manager instance
