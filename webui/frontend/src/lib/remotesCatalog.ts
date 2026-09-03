@@ -11,6 +11,8 @@
 import { parseStartedAt } from './avatarStack'
 
 export const REMOTES_URL = '/v1/remotes/'
+/** Optional local fixture (no LAN). Checked before GET /v1/remotes/. */
+export const REMOTES_FIXTURE_URL = '/remotes_catalog.json'
 export const OPENMOUSBOT_LABEL = 'OpenMousBot'
 export const OPENMOUSBOT_IDS = new Set(['omb', 'openmousbot', 'openmausbot'])
 
@@ -142,15 +144,20 @@ export function parseRailRemotes(payload: unknown): RemoteEntry[] {
 }
 
 /**
- * GET /v1/remotes/ — list only. Empty on auth/network/unexpected shape.
- * Does not POST health or operate (no live LAN).
+ * Optional /remotes_catalog.json, then GET /v1/remotes/ — list only.
+ * Empty on auth/network/unexpected shape. Does not POST health or operate
+ * (no live LAN).
  */
 export async function fetchConfiguredRemotes(): Promise<RemoteEntry[]> {
-  try {
-    const response = await fetch(REMOTES_URL, { headers: { Accept: 'application/json' } })
-    if (!response.ok) return []
-    return parseRailRemotes(await response.json())
-  } catch {
-    return []
+  for (const url of [REMOTES_FIXTURE_URL, REMOTES_URL]) {
+    try {
+      const response = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (!response.ok) continue
+      const parsed = parseRailRemotes(await response.json())
+      if (parsed.length > 0) return parsed
+    } catch {
+      // Try the next candidate; empty list is the last resort.
+    }
   }
+  return []
 }

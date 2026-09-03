@@ -30,7 +30,7 @@ export default function AvatarStack({
   const earliest = earliestStartedAt(faces)
   return (
     <span
-      className={`os-avatar-stack ${stacked ? 'os-avatar-stack--stacked' : ''}`}
+      className={`os-avatar-stack shrink-0 ${stacked ? 'os-avatar-stack--stacked' : ''}`}
       data-avatar-stack={stacked ? 'true' : 'false'}
       data-stack-count={String(faces.length)}
       data-remainder={String(remainder)}

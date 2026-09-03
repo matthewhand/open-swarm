@@ -59,7 +59,12 @@ describe('remotesCatalog (REQ-68)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     await expect(fetchConfiguredRemotes()).resolves.toEqual([])
+    expect(fetchMock).toHaveBeenCalledWith('/remotes_catalog.json', {
+      headers: { Accept: 'application/json' },
+    })
     expect(fetchMock).toHaveBeenCalledWith('/v1/remotes/', { headers: { Accept: 'application/json' } })
-    expect(String(fetchMock.mock.calls[0][0])).not.toMatch(/health|operate/)
+    expect(fetchMock.mock.calls.map((call) => String(call[0])).join(' ')).not.toMatch(
+      /health|operate/,
+    )
   })
 })
