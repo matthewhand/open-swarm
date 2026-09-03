@@ -131,6 +131,20 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PUT',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -520,4 +534,71 @@ export interface BlueprintTools {
 
 export function fetchBlueprintTools(id: string): Promise<BlueprintTools> {
   return apiGet<BlueprintTools>(`/v1/blueprints/${encodeURIComponent(id)}/tools`)
+}
+
+// ---------------------------------------------------------------------------
+// Team rosters (composition contract — NOT /v1/teams/ LLM aliases)
+// ---------------------------------------------------------------------------
+
+export type TeamMemberKind = 'api' | 'cli' | 'remote'
+export type TeamMemberRole = 'support' | 'gate' | 'skeptic' | 'default'
+
+export interface TeamRosterMember {
+  id: string
+  kind: TeamMemberKind
+  role: TeamMemberRole
+  source: string
+}
+
+export interface TeamRosterWires {
+  handoff: boolean
+  as_tool: boolean
+}
+
+/** GET/POST /v1/team-rosters/ and GET/PUT/DELETE /v1/team-rosters/<id>/ */
+export interface TeamRoster {
+  id: string
+  object: 'team_roster'
+  name: string
+  members: TeamRosterMember[]
+  wires: TeamRosterWires
+}
+
+export interface CreateTeamRosterRequest {
+  name: string
+  members?: TeamRosterMember[]
+  wires?: TeamRosterWires
+}
+
+export interface TeamAgent {
+  id: string
+  name: string
+  kind: TeamMemberKind
+  source: string
+  description?: string
+  placeholder?: boolean
+  note?: string
+}
+
+export function fetchTeamRosters(): Promise<ListResponse<TeamRoster>> {
+  return apiGet<ListResponse<TeamRoster>>('/v1/team-rosters/')
+}
+
+export function createTeamRoster(roster: CreateTeamRosterRequest): Promise<TeamRoster> {
+  return apiPost<TeamRoster>('/v1/team-rosters/', roster)
+}
+
+export function updateTeamRoster(
+  rosterId: string,
+  roster: Partial<CreateTeamRosterRequest>,
+): Promise<TeamRoster> {
+  return apiPut<TeamRoster>(`/v1/team-rosters/${encodeURIComponent(rosterId)}/`, roster)
+}
+
+export function deleteTeamRoster(rosterId: string): Promise<void> {
+  return apiDelete(`/v1/team-rosters/${encodeURIComponent(rosterId)}/`)
+}
+
+export function fetchTeamAgents(): Promise<ListResponse<TeamAgent>> {
+  return apiGet<ListResponse<TeamAgent>>('/v1/team-agents/')
 }

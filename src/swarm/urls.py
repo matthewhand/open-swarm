@@ -73,6 +73,11 @@ from swarm.views.remotes_api import (
     RemoteOperateView,
     RemotesListView,
 )
+from swarm.views.team_rosters_api import (
+    TeamAgentsAPIView,
+    TeamRosterDetailAPIView,
+    TeamRostersAPIView,
+)
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
     custom_login,
@@ -160,10 +165,8 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
-    # Multi-agent team rosters for the AGENTS sidepane (not LLM-alias /v1/teams/).
+    # Sidepane fixture file (REQ-23). CRUD lives on /v1/team-rosters/ below.
     path("team_rosters.json", team_rosters_json, name="team-rosters-json"),
-    path("v1/team-rosters/", team_rosters_json, name="team-rosters-api"),
-    path("v1/team-rosters", team_rosters_json, name="team-rosters-api-no-slash"),
     # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
@@ -180,6 +183,16 @@ urlpatterns = [
     # Handoff Team (API/CLI/remote members) — not /v1/teams/ Profiles aliases.
     path("v1/agent-team", AgentTeamView.as_view(), name="agent-team-no-slash"),
     path("v1/agent-team/", AgentTeamView.as_view(), name="agent-team"),
+    # Team roster composition contract (REQ-20) — separate from teams.json aliases
+    path("v1/team-rosters", TeamRostersAPIView.as_view(), name="team-rosters-api-no-slash"),
+    path("v1/team-rosters/", TeamRostersAPIView.as_view(), name="team-rosters-api"),
+    path(
+        "v1/team-rosters/<str:roster_id>/",
+        TeamRosterDetailAPIView.as_view(),
+        name="team-rosters-api-detail",
+    ),
+    path("v1/team-agents", TeamAgentsAPIView.as_view(), name="team-agents-api-no-slash"),
+    path("v1/team-agents/", TeamAgentsAPIView.as_view(), name="team-agents-api"),
     # JSON Blueprint Library API (REST counterpart to /blueprint-library/)
     path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
     path("v1/library/", LibraryAPIView.as_view(), name="library-api"),

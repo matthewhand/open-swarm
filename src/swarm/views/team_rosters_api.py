@@ -1,0 +1,218 @@
+"""
+Team roster composition API (REQ-20).
+
+REST over ``team_rosters.json`` — a composition contract separate from the
+LLM-profile alias registry at ``teams.json`` / ``/v1/teams/`` / Django
+``/teams/``.
+
+Honesty: Django Team Launcher / Admin / Swarm Creator stay as-is. This API
+does not overwrite the alias schema and does not register remotes or CLIs
+as Blueprint classes.
+
+Endpoints:
+    GET    /v1/team-rosters/          -> {"object": "list", "data": [roster, ...]}
+    POST   /v1/team-rosters/          -> 201 + roster
+    GET    /v1/team-rosters/<id>/     -> roster
+    PUT    /v1/team-rosters/<id>/     -> roster (full replace of members/wires/name)
+    DELETE /v1/team-rosters/<id>/     -> 204
+    GET    /v1/team-agents/           -> available API / CLI / remote members
+"""
+
+from __future__ import annotations
+
+import logging
+
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, extend_schema, inline_serializer
+from rest_framework import serializers, status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from swarm.core.team_rosters import (
+    delete_roster,
+    get_roster,
+    list_available_team_agents,
+    load_team_rosters,
+    serialize_roster,
+    slugify_roster_name,
+    upsert_roster,
+)
+from swarm.permissions import HasValidTokenOrSession
+from swarm.settings import ENABLE_API_AUTH
+
+logger = logging.getLogger(__name__)
+
+ROSTER_API_PERMISSIONS = [HasValidTokenOrSession] if ENABLE_API_AUTH else [AllowAny]
+
+
+def _error(message: str, code: int) -> Response:
+    return Response({"error": message}, status=code)
+
+
+class TeamRostersAPIView(APIView):
+    """GET /v1/team-rosters/  POST /v1/team-rosters/"""
+
+    permission_classes = ROSTER_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_team_rosters_list",
+        summary="List team rosters (composition, not LLM aliases)",
+        description=(
+            "List saved team rosters from team_rosters.json. Each entry is a "
+            "composition roster (members + handoff/as_tool wires) — not a "
+            "teams.json LLM-profile alias. Django /teams/ remains aliases."
+        ),
+        responses={200: OpenApiTypes.OBJECT, 500: OpenApiTypes.OBJECT},
+    )
+    def get(self, request, *_args, **_kwargs):
+        try:
+            rosters = list(load_team_rosters().values())
+            data = [serialize_roster(r) for r in rosters]
+            return Response({"object": "list", "data": data}, status=status.HTTP_200_OK)
+        except Exception:
+            logger.exception("Error retrieving team rosters.")
+            return _error("Failed to retrieve team rosters.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @extend_schema(
+        operation_id="v1_team_rosters_create",
+        summary="Create a team roster (composition contract)",
+        description=(
+            "Persist a composition roster to team_rosters.json. `name` is "
+            "required and is slugified into the roster id. This does not "
+            "write teams.json or create a DynamicTeamBlueprint alias."
+        ),
+        request=inline_serializer(
+            name="TeamRosterCreateRequest",
+            fields={
+                "name": serializers.CharField(
+                    help_text="Roster name (required). Slugified into the roster id."
+                ),
+                "members": serializers.ListField(required=False, child=serializers.DictField()),
+                "wires": serializers.DictField(required=False),
+            },
+        ),
+        examples=[
+            OpenApiExample(
+                "Minimal roster",
+                value={
+                    "name": "research-squad",
+                    "members": [
+                        {
+                            "id": "jeeves",
+                            "kind": "api",
+                            "role": "default",
+                            "source": "blueprint:jeeves",
+                        }
+                    ],
+                    "wires": {"handoff": True, "as_tool": True},
+                },
+                request_only=True,
+            )
+        ],
+        responses={
+            201: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            409: OpenApiTypes.OBJECT,
+        },
+    )
+    def post(self, request, *_args, **_kwargs):
+        try:
+            body = request.data or {}
+            name = (body.get("name") or body.get("id") or "").strip()
+            if not name:
+                return _error("Team name is required.", status.HTTP_400_BAD_REQUEST)
+            slug = slugify_roster_name(name)
+            if not slug:
+                return _error("Team name must contain letters or numbers.", status.HTTP_400_BAD_REQUEST)
+            if len(slug) > 64:
+                return _error("Team name too long (max 64).", status.HTTP_400_BAD_REQUEST)
+            if slug in load_team_rosters():
+                return _error(f"Roster '{slug}' already exists.", status.HTTP_409_CONFLICT)
+
+            stored = upsert_roster(
+                {
+                    "id": slug,
+                    "name": name,
+                    "members": body.get("members") or [],
+                    "wires": body.get("wires"),
+                }
+            )
+            return Response(serialize_roster(stored), status=status.HTTP_201_CREATED)
+        except ValueError as exc:
+            return _error(str(exc), status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception("Error creating team roster.")
+            return _error("Failed to create team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TeamRosterDetailAPIView(APIView):
+    """GET/PUT/DELETE /v1/team-rosters/<roster_id>/"""
+
+    permission_classes = ROSTER_API_PERMISSIONS
+
+    def get(self, request, roster_id: str, *_args, **_kwargs):
+        try:
+            entry = get_roster(roster_id)
+            if not entry:
+                return _error("not found", status.HTTP_404_NOT_FOUND)
+            return Response(serialize_roster(entry), status=status.HTTP_200_OK)
+        except Exception:
+            logger.exception("Error reading team roster '%s'.", roster_id)
+            return _error("Failed to retrieve team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def put(self, request, roster_id: str, *_args, **_kwargs):
+        try:
+            existing = get_roster(roster_id)
+            if not existing:
+                return _error("not found", status.HTTP_404_NOT_FOUND)
+            body = request.data or {}
+            name = (body.get("name") or existing.get("name") or roster_id).strip()
+            stored = upsert_roster(
+                {
+                    "id": roster_id,
+                    "name": name,
+                    "members": body.get("members", existing.get("members") or []),
+                    "wires": body.get("wires", existing.get("wires")),
+                }
+            )
+            return Response(serialize_roster(stored), status=status.HTTP_200_OK)
+        except ValueError as exc:
+            return _error(str(exc), status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception("Error updating team roster '%s'.", roster_id)
+            return _error("Failed to update team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request, roster_id: str, *_args, **_kwargs):
+        try:
+            if delete_roster(roster_id):
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            return _error("not found", status.HTTP_404_NOT_FOUND)
+        except Exception:
+            logger.exception("Error deleting team roster '%s'.", roster_id)
+            return _error("Failed to delete team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TeamAgentsAPIView(APIView):
+    """GET /v1/team-agents/ — available composition members (API / CLI / remote)."""
+
+    permission_classes = ROSTER_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_team_agents_list",
+        summary="List agents available to compose a team roster",
+        description=(
+            "Palette for the Teams composition UI: API members from discovered "
+            "blueprints, CLI members from the CLI catalog (placeholders if the "
+            "catalog is missing), and remote harness placeholders. Remotes and "
+            "CLIs are not Blueprint classes."
+        ),
+        responses={200: OpenApiTypes.OBJECT, 500: OpenApiTypes.OBJECT},
+    )
+    def get(self, request, *_args, **_kwargs):
+        try:
+            data = list_available_team_agents()
+            return Response({"object": "list", "data": data}, status=status.HTTP_200_OK)
+        except Exception:
+            logger.exception("Error listing team agents.")
+            return _error("Failed to list available team agents.", status.HTTP_500_INTERNAL_SERVER_ERROR)

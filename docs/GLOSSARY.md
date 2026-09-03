@@ -18,6 +18,12 @@ This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 
 `/v1/teams/` and the Django `/teams/` admin store **LLM-profile aliases** (`id`, `description`, `llm_profile`) in `teams.json`. They run through `DynamicTeamBlueprint` — a thin chat proxy to a profile. Prefer calling that surface **Profiles** in new copy. Do not call those aliases a Team.
 
+## Team roster (composition / `team_rosters.json`)
+
+A named **roster of members** (API from a blueprint, CLI, or remote harness) plus per-team openai-agents wire toggles (`handoff`, `as_tool`; both default on). Stored in `team_rosters.json` (`members[{id, kind, role, source}]`). CRUD via `/v1/team-rosters/`. SPA entry is the chat-header **Compose team** `+` overlay (not a top-nav Teams tab). Remotes/CLIs may be placeholders; they are not Blueprint classes.
+
+Docs: [TEAM_ROSTERS.md](./TEAM_ROSTERS.md). Do not call a `/v1/teams` alias a roster. This store does not write `teams.json` or `/v1/agent-team/` config.
+
 ## Persona / MoA
 
 Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):

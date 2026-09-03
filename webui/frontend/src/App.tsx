@@ -5,6 +5,7 @@ import ChatPage from './pages/ChatPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
 import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from './components/SettingsSheet'
+import TeamComposer from './components/TeamComposer'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
@@ -50,6 +51,7 @@ function RedirectAgentsToChat() {
  * Operator Django pages stay reachable from the composer + menu.
  * Legacy `/agents` aliases `/chat` (REQ-5d) without restoring Home/Chat top nav.
  * Gear opens the REQ-19 DaisyUI settings sheet over chat.
+ * Compose-team `+` is a TeamComposer overlay, not a SPA Teams tab.
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
@@ -57,6 +59,7 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsBlueprintId, setSettingsBlueprintId] = useState<string | null>(null)
+  const [teamComposerOpen, setTeamComposerOpen] = useState(false)
 
   useLayoutEffect(() => {
     applyDocumentTheme(darkMode)
@@ -88,6 +91,13 @@ function App() {
       window.removeEventListener('swarm:open-search', onOpenSearch)
       window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
     }
+  }, [])
+
+  // + → Teams composition overlay (REQ-20). Not a top-nav Teams tab.
+  useEffect(() => {
+    const onOpen = () => setTeamComposerOpen(true)
+    window.addEventListener('swarm:open-team-composer', onOpen)
+    return () => window.removeEventListener('swarm:open-team-composer', onOpen)
   }, [])
 
   return (
@@ -140,6 +150,9 @@ function App() {
             </div>
           </div>
         </div>
+        {teamComposerOpen ? (
+          <TeamComposer isOpen onClose={() => setTeamComposerOpen(false)} />
+        ) : null}
       </ToastProvider>
     </Router>
   )
