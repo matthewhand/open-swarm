@@ -21,6 +21,11 @@ const ROLE_ALIASES: Record<string, AgentRole> = {
   toolgate: 'gate',
   skeptic: 'skeptic',
   reviewer: 'skeptic',
+  chief_of_staff: 'chief_of_staff',
+  'chief-of-staff': 'chief_of_staff',
+  chiefofstaff: 'chief_of_staff',
+  cos: 'chief_of_staff',
+  chief: 'chief_of_staff',
 }
 
 export const SYNTHETIC_GATE: Blueprint = {
@@ -132,7 +137,32 @@ export function agentRole(agent: {
   const name = (agent.name || '').trim().toLowerCase()
   if (id === GATE_AGENT_ID || name === 'gate' || name === 'tool gate') return 'gate'
   if (id === SKEPTIC_AGENT_ID || name === 'skeptic') return 'skeptic'
+  if (id === 'cos' || id === 'chief' || id === 'chief_of_staff' || name === 'chief of staff') {
+    return 'chief_of_staff'
+  }
   return normalizeAgentRole(id) === 'default' ? 'default' : normalizeAgentRole(id)
+}
+
+export const ROLE_CHIEF_OF_STAFF = 'chief_of_staff'
+
+export const ROLE_BADGE_LABELS: Record<AgentRole, string> = {
+  default: '',
+  support: 'Support',
+  gate: 'Gate',
+  skeptic: 'Skeptic',
+  chief_of_staff: 'CoS',
+}
+
+export function isChiefOfStaff(role: unknown): boolean {
+  return normalizeAgentRole(role) === ROLE_CHIEF_OF_STAFF
+}
+
+export function roleBadgeLabel(role: unknown): string {
+  return ROLE_BADGE_LABELS[normalizeAgentRole(role)]
+}
+
+export function roleFromAgent(agent: { role?: unknown; id?: string; name?: string | null }): AgentRole {
+  return agentRole(agent)
 }
 
 export function isExampleRole(role: string): role is ExampleRole {
