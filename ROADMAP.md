@@ -10,6 +10,8 @@ a web UI.
 **Current direction** (not all live): a harness for *other* harnesses (Hermes,
 OpenMausBot, Rakazo) via openai-agents handoff / `as_tool`, not extra concurrent
 Grok/Rakazo/OMB seats. Short honesty table: [docs/VISION.md](./docs/VISION.md).
+**Teams:** live `/teams/` is an LLM-profile alias registry; intended Team wires
+API/CLI/remote agents to talk — Teams Admin does **not** do that yet.
 Remotes (REQ-11) are **not landed**. Grok-Bot chrome is **not shipping**.
 Support/gate/skeptic are **in flight**.
 

@@ -73,7 +73,8 @@ Short and dated. Do not treat “intended” as shipped.
 
 | Surface | Status | Honesty |
 |---|---|---|
-| **Running today** | OpenAI-compatible `/v1/chat/completions` + `/v1/responses`, blueprint discovery, `swarm-cli`, Django operator UI + SPA `/` + `/chat` ([ADR-001](./ADR-001-primary-ui.md)), CLI fusion / MoA, in-process persona / `as_tool` teams, `harness_fleet` **LAN health probes** | This is the live product. |
+| **Running today** | OpenAI-compatible `/v1/chat/completions` + `/v1/responses`, blueprint discovery, `swarm-cli`, Django operator UI + SPA `/` + `/chat` ([ADR-001](./ADR-001-primary-ui.md)), CLI fusion / MoA, in-process persona / `as_tool` specialists, `harness_fleet` **LAN health probes** | This is the live product. |
+| **Teams (`/teams/`, `/v1/teams`)** | **Live:** LLM-profile alias registry (`id` / `description` / `llm_profile` in `teams.json`). Admin/launcher CRUD that proxy chat through `DynamicTeamBlueprint`. **Intended:** a Team wires API / CLI / remote agents so they can **see and talk to each other** (handoff / `as_tool`). | **Collision.** Multi-agent talk today is **Blueprints / MoA**, not Teams Admin. Do not claim `/teams/` already does inter-agent talk. |
 | **Dark chrome** | REQ-5 / REQ-5d on `main` — near-black operator shell, large home cards, AGENTS sidepane on Django too | Colour/chrome only. **Not** a Grok-Bot UI. |
 | **Grok-Bot-like UI** | Intended look (roster, remotes, Bot chrome) | **Not live. Not shipping.** Do not demo or document it as current. |
 | **Support / gate / skeptic** | openai-agents roles via `as_tool` / handoff (Support talks about the roster; gate classifies dangerous tool calls; skeptic reviews then bounded retry) | **In flight** (open PRs; not on `main`). Until those land, there is no Support landing agent and no live gate/skeptic engine. |
@@ -90,6 +91,7 @@ Verified capabilities — still true, still not the new headline:
   `cli_map`, pipeline / roundtable / planner, persona councils, …)
 - `swarm-cli cli-agents` autodiscovery; Skills (`SKILL.md`); inference profiles
 - Web: Django trailing-slash operator pages; SPA dashboard + websocket chat
+- `/teams/` — LLM-profile **aliases** only (not inter-agent talk)
 - `harness_fleet` — LLM-free probe of configured LAN endpoints (placeholders
   for Rakazo / OpenMausBot ports are **UNKNOWN** until configured)
 
@@ -103,6 +105,9 @@ Proof transcripts for *cross-CLI* fusion (not remotes) remain under
 - Remotes work, or Chat can target Hermes / OpenMausBot / Rakazo.
 - Grok-Bot chrome is shipping (dark theme ≠ Bot product).
 - Support, gate, or skeptic are on `main`.
+- **Teams Admin / `/teams/` already lets agents see and talk to each other.**
+  Live Teams is an LLM-profile alias registry. Multi-agent talk is Blueprints
+  / MoA until the intended Team lands.
 - Extra concurrent Grok / Rakazo / OMB seats are the differentiator.
 - Neon / Oracle / Fly are part of this direction. They are ops; they are not
   enabled or resumed here.
@@ -127,7 +132,7 @@ Proof transcripts for *cross-CLI* fusion (not remotes) remain under
 
 ## See also
 
-- [GLOSSARY.md](./GLOSSARY.md) — Blueprint, Team alias, Remote, Role
+- [GLOSSARY.md](./GLOSSARY.md) — Blueprint, Team (live alias vs intended wiring), Remote, Role
 - [SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md) — MoA vs persona / `as_tool`
 - [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) — today's patterns
 - [ADR-001](./ADR-001-primary-ui.md) — Django operator UI; SPA `/` + `/chat`

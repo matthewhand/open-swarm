@@ -25,7 +25,7 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 
 > **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 1100+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
-> 🧭 **Start with the [Vision](docs/VISION.md)** — harness-of-harnesses direction, differentiator (handoff / `as_tool` vs poly-agent concurrent), and a short **live vs intended** table (Grok-Bot UI not live; Support/gate/skeptic in flight; remotes REQ-11 not landed). Pattern mechanics: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
+> 🧭 **Start with the [Vision](docs/VISION.md)** — harness-of-harnesses direction, differentiator (handoff / `as_tool` vs poly-agent concurrent), and a short **live vs intended** table (Teams Admin is an alias registry, not inter-agent talk; Grok-Bot UI not live; Support/gate/skeptic in flight; remotes REQ-11 not landed). Pattern mechanics: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
 
 ---
 
@@ -139,7 +139,7 @@ Vocabulary for the v1 cut: [docs/GLOSSARY.md](docs/GLOSSARY.md) · UI boundary: 
 
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
 * **Blueprints** — `BlueprintBase` subclasses defining a multi-agent (or single-agent) workflow: agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
-* **Team (`/v1/teams`)** — a dynamic **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`), also editable under Django `/teams/`. Appears as an OpenAI-compatible model id and proxies chat through `DynamicTeamBlueprint`. **Not** a multi-agent team builder — for that, author or run a Blueprint (or MoA / persona patterns).
+* **Team (`/v1/teams`, `/teams/`)** — **live:** an **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`) via Teams Admin/launcher and `DynamicTeamBlueprint`. **Intended:** wire API / CLI / remote agents so they can see and talk to each other (handoff / `as_tool`). Teams Admin does **not** do that today — multi-agent talk is Blueprints / MoA. See [Vision](docs/VISION.md) and [GLOSSARY](docs/GLOSSARY.md).
 * **Persona / MoA** — two multi-agent styles: MoA = read-only consensus seats then orchestrator act (`swarm-cli moa`); Persona = openai-agents coordinator switching specialists (`persona_council` and most coding blueprints). See [docs/SWARM_WORKFLOWS.md](docs/SWARM_WORKFLOWS.md).
 * **MCP servers** — external tool providers (filesystem, search, databases, …) declared **in config, not code**; agents get their tools at runtime via the Model Context Protocol.
 * **CLI agents & fusion** — wrap your installed agentic CLIs (`grok`/`agent`, `claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API, and compose them four ways:
