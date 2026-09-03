@@ -109,6 +109,20 @@ class TestRemoteDetail:
         resp = api_client.delete("/v1/remotes/omb/")
         assert resp.status_code == 404
 
+    @patch("swarm.views.remotes_api.remotes_core.persist_remote")
+    def test_patch_swarm_refuses_self(self, mock_persist, api_client):
+        mock_persist.side_effect = RemoteError(
+            "Refusing to nest this server as its own remote "
+            "(base_url http://127.0.0.1:8000 matches this process listen URL)."
+        )
+        resp = api_client.patch(
+            "/v1/remotes/swarm/",
+            {"base_url": "http://127.0.0.1:8000", "api_key": "${CHANGE_ME}"},
+            format="json",
+        )
+        assert resp.status_code == 400
+        assert "own remote" in resp.json()["error"]
+
 
 class TestRemoteHealth:
     @patch("swarm.views.remotes_api.remotes_core.check_health")
@@ -136,6 +150,24 @@ class TestRemoteOperate:
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
         mock_op.assert_called_once()
+
+    @patch("swarm.views.remotes_api.remotes_core.operate")
+    def test_swarm_send(self, mock_op, api_client):
+        mock_op.return_value = OperateResult(
+            remote="swarm",
+            op="send",
+            ok=True,
+            detail="sent nested swarm turn",
+            data={"model": "echo"},
+        )
+        resp = api_client.post(
+            "/v1/remotes/swarm/operate/",
+            {"op": "send", "prompt": "ping", "target": "echo"},
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        assert resp.json()["remote"] == "swarm"
 
 
 class TestAgentTeam:

@@ -510,10 +510,16 @@ function RemotesCatalogPane() {
             name="remote-url"
             value={baseUrl}
             onChange={(event) => setBaseUrl(event.target.value)}
-            placeholder="http://127.0.0.1:8802"
+            placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
             autoComplete="off"
             spellCheck={false}
           />
+          {kind === 'swarm' ? (
+            <p className="text-sm text-base-content/70">
+              Nested open-swarm is another process (own DB). Do not add this
+              instance as its own remote.
+            </p>
+          ) : null}
           <Input
             label="API key"
             name="remote-api-key"

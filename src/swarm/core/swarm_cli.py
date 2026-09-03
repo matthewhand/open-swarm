@@ -679,7 +679,7 @@ def remotes_cmd(
         "list",
         help="list | get | set | health | operate | team | place | unplace",
     ),
-    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo"),
+    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | swarm"),
     op: str = typer.Option("list", "--op", help="For operate: list or send"),
     base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
     api_key: str = typer.Option("", "--api-key", help="For set: persist auth token (or ${ENV})"),
@@ -687,7 +687,7 @@ def remotes_cmd(
     ui_url: str = typer.Option("", "--ui-url", help="For set: persist UI URL (Rakazo/Hermes dashboard)"),
     cookie: str = typer.Option("", "--cookie", help="For set: persist session cookie (Rakazo)"),
     prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
-    target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id"),
+    target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id or swarm blueprint id"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
 ):
     """Configure remotes and place them in a handoff Team (not /teams/ profile aliases)."""
@@ -717,7 +717,7 @@ def remotes_cmd(
 
     if act == "set":
         if not rid:
-            typer.echo("remotes set requires a name (hermes|omb|rakazo)", err=True)
+            typer.echo("remotes set requires a name (hermes|omb|rakazo|swarm)", err=True)
             raise typer.Exit(code=1)
         kwargs: dict[str, str] = {}
         if base_url:
@@ -759,7 +759,7 @@ def remotes_cmd(
 
     if act == "operate":
         if not rid:
-            typer.echo("remotes operate requires a name (hermes|omb|rakazo)", err=True)
+            typer.echo("remotes operate requires a name (hermes|omb|rakazo|swarm)", err=True)
             raise typer.Exit(code=1)
         result = _remotes.operate(rid, op, prompt=prompt, target=target)
         typer.echo(_json.dumps(result.as_dict(), indent=2, default=str))
@@ -772,7 +772,7 @@ def remotes_cmd(
 
     if act in ("place", "unplace"):
         if not rid:
-            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo)", err=True)
+            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo|swarm)", err=True)
             raise typer.Exit(code=1)
         try:
             if act == "place":
