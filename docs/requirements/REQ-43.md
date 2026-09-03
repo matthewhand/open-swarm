@@ -26,6 +26,11 @@ use delegation.
 - React 18 + Vite + Tailwind 4 + DaisyUI 5. Reuse existing LLM profile config.
 - No guest auth. No Neon. No secrets in the PR or tests.
 - New PR from current main — do not fold into #344 or #356.
+- Sibling #360 (REQ-44) owns CLI list-models probes. Auto-pick consumes
+  `{cli, models: [...]}` from `swarm.core.cli_models` / `GET /v1/cli-agents/<cli>/models`
+  when that helper is present. This PR does **not** scrape each CLI's `--help`.
+  Until #360 merges, the picker stubs on the OpenAI `/v1/models` list shape +
+  fixtures (`tests/core/fixtures/llm_list_models/`).
 
 ## Owner
 
