@@ -81,9 +81,10 @@ Django templates when `dist/` exists.
 
 ## DaisyUI Components
 
-This project uses DaisyUI v5 with the following themes configured:
-- `light` (default)
-- `dark`
-- `cupcake`
+This project uses DaisyUI v5 with two chrome themes:
+- `dark` (default in the SPA — near-black, muted greys, small steel accents)
+- `light`
+
+Rainbow / cupcake category colours are intentionally not used on the dashboard.
 
 All DaisyUI components are available for use in the React components.

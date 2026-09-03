@@ -292,7 +292,7 @@ const ChatPage = () => {
         : 'Websocket not connected — sending is disabled'
 
   return (
-    <div className="container mx-auto flex h-[calc(100vh-13rem)] lg:h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4 px-4 py-6">
+    <div className="mx-auto flex h-[calc(100vh-13rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-6.5rem)]">
       {/* Header: title + blueprint selector + connection status.
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
@@ -355,7 +355,7 @@ const ChatPage = () => {
                 </span>
               </div>
               <select
-                className="select select-sm w-full border border-base-300"
+                className="select select-md h-12 w-full border border-base-300"
                 value={selectedBlueprint}
                 onChange={(e) => setSelectedBlueprint(e.target.value)}
                 aria-label="Blueprint"
@@ -522,7 +522,9 @@ const ChatPage = () => {
                   </div>
                   <div
                     className={`chat-bubble ${
-                      message.role === 'user' ? 'chat-bubble-primary' : ''
+                      message.role === 'user'
+                        ? 'bg-neutral text-neutral-content'
+                        : 'bg-base-200 text-base-content'
                     }`}
                   >
                     <ChatBubbleBody
@@ -559,7 +561,7 @@ const ChatPage = () => {
           <input
             ref={composerRef}
             type="text"
-            className="input input-sm h-10 flex-1"
+            className="input input-md h-12 flex-1"
             placeholder={composerPlaceholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -567,7 +569,7 @@ const ChatPage = () => {
             disabled={status !== 'open'}
             aria-label="Chat message"
           />
-          <Button type="submit" variant="primary" disabled={!canSend}>
+          <Button type="submit" variant="primary" size="lg" disabled={!canSend}>
             <Send className="h-4 w-4 mr-1" aria-hidden="true" />
             Send
           </Button>

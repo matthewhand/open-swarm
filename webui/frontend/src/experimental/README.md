@@ -18,6 +18,7 @@ localStorage.setItem('swarm_experimental_chat_message_actions', 'off')
 
 - Theme preference now persists (`swarm_theme`, default dark to match Django).
 - Dashboard stats poll every 30s via react-query instead of a one-shot fetch.
+  Home quick actions are large chrome cards (not rainbow buttons).
 - Scroll anchoring during streaming only follows when you're already near the
   bottom (reading history mid-stream is no longer yanked).
 - Assistant bubbles are memoized so finished messages don't re-render markdown

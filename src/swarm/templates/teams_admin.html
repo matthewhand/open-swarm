@@ -13,6 +13,26 @@
     <span class="os-chip"><strong>{{ teams|length }}</strong>&nbsp;team{{ teams|length|pluralize }}</span>
   </div>
 
+  <h2 class="visually-hidden">Primary actions</h2>
+  <div class="os-action-grid mb-4">
+    <a href="{% url 'teams_launch' %}" class="os-action-card">
+      <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+      <span>
+        <span class="os-action-card__title">Launch Team</span>
+        <span class="os-action-card__desc">
+          {% if teams|length == 0 %}0 teams registered. Launch a blueprint team to expose a model id.{% else %}Run a blueprint team and stream the result.{% endif %}
+        </span>
+      </span>
+    </a>
+    <a href="{% url 'blueprint_library' %}" class="os-action-card">
+      <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-book"></i></span>
+      <span>
+        <span class="os-action-card__title">Browse Blueprints</span>
+        <span class="os-action-card__desc">Choose a catalog team to register or run.</span>
+      </span>
+    </a>
+  </div>
+
   {% if message %}<div class="alert alert-success" role="status">{{ message }}</div>{% endif %}
   {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
 
@@ -84,10 +104,11 @@
           </tbody>
         </table>
         {% else %}
-        <div class="os-empty">
+        <div class="os-empty" role="status">
           <div class="os-empty-icon" aria-hidden="true">👥</div>
-          <div>No teams yet.</div>
-          <div class="os-meta">Use the create form above — the team will appear here and be exposed at <code>/v1/models</code>.</div>
+          <div>0 teams registered.</div>
+          <div class="os-meta mb-3">Launch a blueprint team to expose a custom model id on the API.</div>
+          <a href="{% url 'teams_launch' %}" class="btn btn-primary os-launch-btn">Launch your first team</a>
         </div>
         {% endif %}
       </div>

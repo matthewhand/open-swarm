@@ -86,12 +86,15 @@ class TestIndexView:
         assert response.status_code == 200
         content = response.content.decode()
         assert "Welcome to Open Swarm" in content    # real template header
-        assert "Launch a Team" in content             # CTA appears when blueprints exist
+        assert "Launch Team" in content
+        assert "Browse Blueprints" in content
+        assert "Manage Teams" in content
+        assert "os-action-card" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
     def test_index_with_blueprints(self, mock_discover, mock_frontend, client, mock_blueprints_metadata):
-        """With blueprints present, the New Conversation CTA is rendered."""
+        """With blueprints present, the four chrome action cards render."""
         mock_discover.return_value = mock_blueprints_metadata
 
         response = client.get("/")
@@ -99,7 +102,10 @@ class TestIndexView:
         assert response.status_code == 200
         content = response.content.decode()
         assert "Welcome to Open Swarm" in content
-        assert "Launch a Team" in content
+        assert "Launch Team" in content
+        assert "Browse Blueprints" in content
+        assert "Manage Teams" in content
+        assert "Settings" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
     @patch("swarm.views.web_views.discover_blueprints")
