@@ -72,7 +72,8 @@ async function discoverHerdrAgents() {
     const li = document.createElement("li");
     li.className = "d-flex align-items-center gap-2 mb-1";
     const label = document.createElement("span");
-    label.textContent = (item.name || "") + " · " + (item.source || "agent") + " · localhost";
+    const remoteLabel = item.remote ? item.remote : "localhost";
+    label.textContent = (item.name || "") + " · " + (item.source || "agent") + " · " + remoteLabel;
     li.appendChild(label);
     const btn = document.createElement("button");
     btn.type = "button";
@@ -85,6 +86,9 @@ async function discoverHerdrAgents() {
         btn.textContent = "Added";
         btn.disabled = true;
         setHerdrStatus("Added " + item.name + ".");
+        // Reload so the persisted kind=herdr table (and sidepane) can pick it.
+        window.location.hash = "herdr-members";
+        window.location.reload();
         return;
       }
       setHerdrStatus("Add failed (" + res.status + ").");
