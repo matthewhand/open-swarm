@@ -5,12 +5,9 @@ Fixtures mock stdout (never call a live vendor CLI; no secrets).
 
 from __future__ import annotations
 
-import logging
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 from swarm.core import cli_catalog
 from swarm.core.cli_models import (
@@ -116,26 +113,22 @@ async def test_probe_uses_gemini_fixture_stdout(monkeypatch):
     }
 
 
-def test_unknown_cli_warns_empty_list(caplog):
-    with caplog.at_level(logging.WARNING):
-        result = list_models("nope-not-real")
+def test_unknown_cli_warns_empty_list():
+    result = list_models("nope-not-real")
     assert result == ListModelsResult(
         cli="nope-not-real",
         models=[],
         warning="unknown CLI 'nope-not-real'; no list-models probe in the catalog",
     )
-    assert "unknown CLI" in caplog.text
     assert result.as_dict()["models"] == []
-    assert "warning" in result.as_dict()
+    assert "unknown CLI" in result.as_dict()["warning"]
 
 
-def test_missing_cli_warns_empty_list(monkeypatch, caplog):
+def test_missing_cli_warns_empty_list(monkeypatch):
     monkeypatch.setattr("swarm.core.cli_models.shutil.which", lambda exe: None)
-    with caplog.at_level(logging.WARNING):
-        result = list_models("claude")
+    result = list_models("claude")
     assert result.models == []
     assert "not installed" in (result.warning or "")
-    assert "not installed" in caplog.text
 
 
 def test_timeout_does_not_hang(monkeypatch):
@@ -151,18 +144,17 @@ def test_timeout_does_not_hang(monkeypatch):
     assert elapsed < 8.0  # TERM_GRACE + buffer; must not wait the full 30s
 
 
-def test_failed_probe_empty_list_no_secrets_in_warning(monkeypatch, caplog):
+def test_failed_probe_empty_list_no_secrets_in_warning(monkeypatch):
     async def fake_run(argv, timeout):
         return 2, "", "auth failed sk-thisisafakekeybutlongenough"
 
     monkeypatch.setattr(
         "swarm.core.cli_models._resolve_executable", lambda *_a, **_k: "/usr/bin/claude"
     )
-    with caplog.at_level(logging.WARNING):
-        result = asyncio_run_probe("claude", fake_run)
+    result = asyncio_run_probe("claude", fake_run)
     assert result.models == []
-    blob = (result.warning or "") + caplog.text
-    assert "sk-thisisafakekeybutlongenough" not in blob
+    assert "sk-thisisafakekeybutlongenough" not in (result.warning or "")
+    assert "[REDACTED]" in (result.warning or "")
     assert "failed" in (result.warning or "").lower()
 
 

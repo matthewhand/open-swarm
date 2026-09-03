@@ -24,7 +24,7 @@ from typing import Any
 
 from swarm.core import cli_catalog
 from swarm.core.cli_adapter import TERM_GRACE
-from swarm.utils.redact import is_sensitive_key, redact_sensitive_data
+from swarm.utils.redact import SENSITIVE_PATTERNS, is_sensitive_key, redact_uri_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -232,8 +232,13 @@ def _strip_ansi(text: str) -> str:
 
 
 def _safe_warning(message: str) -> str:
-    redacted = redact_sensitive_data(message)
-    return redacted if isinstance(redacted, str) else str(redacted)
+    """Redact key-shaped tokens from probe warnings (never emit secrets)."""
+    redacted = message
+    for pattern in SENSITIVE_PATTERNS:
+        redacted = re.sub(pattern, "[REDACTED]", redacted)
+    redacted = redact_uri_credentials(redacted)
+    redacted = _SECRET_PREFIX_RE.sub("[REDACTED]", redacted)
+    return redacted
 
 
 def _resolve_executable(
