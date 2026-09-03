@@ -49,6 +49,7 @@ from swarm.views.herdr_api import (
     HerdrAgentsAPIView,
     HerdrDiscoverAPIView,
 )
+from swarm.views.llm_profiles_api import LlmProfilesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.responses_views import (
     ResponsesCancelView,
@@ -129,6 +130,8 @@ urlpatterns = [
     path("v1/blueprints/<str:blueprint_id>/tools/", BlueprintToolsView.as_view(), name="blueprint-tools-slash"),
     path("v1/cli-agents", CliAgentsView.as_view(), name="cli-agents-api-no-slash"),
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
+    path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),
+    path("v1/llm-profiles/", LlmProfilesView.as_view(), name="llm-profiles-api"),
     path("v1/config-options", ConfigOptionsView.as_view(), name="config-options-api-no-slash"),
     path("v1/config-options/", ConfigOptionsView.as_view(), name="config-options-api"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),

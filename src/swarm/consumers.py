@@ -341,6 +341,13 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             or os.environ.get("OPENAI_MODEL")
             or os.environ.get("DEFAULT_LLM")
         )
+        if not model:
+            from swarm.core.llm_task_routing import model_id_for_profile, resolve_chat_model
+
+            route = resolve_chat_model()
+            model = model_id_for_profile(route.profile)
+            if route.warning:
+                logger.warning("Default chat model: %s", route.warning)
         client = _cls(**client_kwargs)
 
         if base_url:
