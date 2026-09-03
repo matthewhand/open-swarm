@@ -121,6 +121,10 @@ class HerdrAgentSerializer(serializers.ModelSerializer):
         model = HerdrAgent
         fields = ["id", "object", "kind", "name", "remote", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
+        extra_kwargs = {
+            # Uniqueness is enforced in the view as 409 (same as /v1/teams/).
+            "name": {"validators": []},
+        }
 
     def get_object(self, _obj):
         return "herdr.agent"
