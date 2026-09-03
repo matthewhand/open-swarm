@@ -107,6 +107,18 @@ async function throwApiError(path: string, response: Response): Promise<never> {
   throw new ApiError(response.status, message)
 }
 
+/** Session/bearer fetch used by Agent Router (`agent-api.ts`). */
+export async function fetchWithAuth(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = {
+    ...buildHeaders(Boolean(init.body)),
+    ...(init.headers as Record<string, string> | undefined),
+  }
+  return fetch(path, { ...init, headers, credentials: 'include' })
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(path, { headers: buildHeaders(false) })
 
@@ -176,6 +188,40 @@ export interface Blueprint {
   gate_agent?: string | null
   skeptic_agent?: string | null
   chief_of_staff_agent?: string | null
+}
+
+/** GET /v1/support/context/ — live agents + inference for the System → Support pill. */
+export interface SupportChip {
+  label: string
+  href: string
+}
+
+export interface SupportContext {
+  object: 'support.context'
+  agents: Array<Pick<Blueprint, 'id' | 'name' | 'description' | 'role'>>
+  agent_count: number
+  inference: {
+    configured: boolean
+    profiles: string[]
+    env_signals: string[]
+    quickstart: {
+      doc: string
+      anchor: string
+      settings: string
+      profiles: string
+      cli: string
+    }
+  }
+  create: Record<string, string>
+  chips?: Record<string, SupportChip>
+  /** Compressed intel for the System → Support pill popover. */
+  briefing?: string
+  /** Back-compat alias of briefing. */
+  welcome?: string
+}
+
+export function fetchSupportContext(): Promise<SupportContext> {
+  return apiGet<SupportContext>('/v1/support/context/')
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
@@ -313,6 +359,62 @@ export function discoverHerdrAgents(
 ): Promise<ListResponse<HerdrDiscoverMember> & { herdr_available?: boolean }> {
   const qs = remote ? `?remote=${encodeURIComponent(remote)}` : ''
   return apiGet(`/v1/herdr-agents/discover/${qs}`)
+}
+
+/**
+ * GET/POST /v1/remotes/ and DELETE /v1/remotes/<id>/
+ * (swarm/views/remotes_api.py). Settings and remote dropdowns use
+ * ``configured`` — unused kinds do not occupy those surfaces (REQ-59).
+ * Internal id ``omb`` is labelled OpenMousBot in UI copy.
+ */
+export type RemoteKindId = 'hermes' | 'omb' | 'rakazo' | 'herdr' | 'open-swarm'
+
+export interface RemoteKind {
+  id: string
+  label: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind?: string
+  label?: string
+  title: string
+  host_label: string
+  base_url: string
+  ui_url?: string
+  api_key_set?: boolean
+  cookie_set?: boolean
+  source?: string
+  notes?: string
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  kinds?: RemoteKind[]
+  data?: RemoteConnection[]
+  configured?: RemoteConnection[]
+  vocabulary?: Record<string, string>
+  team_members?: unknown[]
+}
+
+export interface CreateRemoteRequest {
+  kind: string
+  base_url?: string
+  api_key?: string
+  ui_url?: string
+  cookie?: string
+}
+
+export function fetchRemotes(): Promise<RemotesListResponse> {
+  return apiGet<RemotesListResponse>('/v1/remotes/')
+}
+
+export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
+  return apiPost<RemoteConnection>('/v1/remotes/', remote)
+}
+
+export function deleteRemote(remoteId: string): Promise<void> {
+  return apiDelete(`/v1/remotes/${encodeURIComponent(remoteId)}/`)
 }
 
 // ---------------------------------------------------------------------------
@@ -485,10 +587,21 @@ export function fetchBlueprintSource(id: string, file?: string): Promise<Bluepri
 }
 
 /** GET /v1/cli-agents/ — CLI catalog + native (built-in) consensus capability. */
+export interface CliRailAgent {
+  id: string
+  object: 'cli.agent'
+  name: string
+  cli: string
+  kind: 'cli'
+  description: string
+  installed: boolean
+}
+
 export interface CliAgentsInfo {
   clis: string[]
   native_consensus: Record<string, string[]>
   catalog: Record<string, Record<string, unknown>>
+  rail?: CliRailAgent[]
 }
 
 export function fetchCliAgents(): Promise<CliAgentsInfo> {

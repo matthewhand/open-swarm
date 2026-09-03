@@ -1,8 +1,10 @@
-"""REST surface for remote agent harnesses (Hermes, OMB, Rakazo).
+"""REST surface for remote agent harnesses (Hermes, OpenMousBot, Rakazo, nested swarm).
 
-GET    /v1/remotes/                 list remotes (secrets redacted)
+GET    /v1/remotes/                 kinds + configured remotes (secrets redacted)
+POST   /v1/remotes/                 add a remote (kind + URL / auth)
 GET    /v1/remotes/<id>/            one remote
 PATCH  /v1/remotes/<id>/            persist base_url + auth
+DELETE /v1/remotes/<id>/            remove a configured remote
 POST   /v1/remotes/<id>/health/     connectivity check (honest fail)
 POST   /v1/remotes/<id>/operate/    list or send a job via the real API
 
@@ -36,14 +38,61 @@ class RemotesListView(APIView):
     )
     def get(self, _request, *_args, **_kwargs):
         specs = remotes_core.load_all_remotes()
+        configured = remotes_core.list_configured_remotes()
         return Response(
             {
                 "object": "list",
+                "kinds": remotes_core.list_remote_kinds(),
                 "vocabulary": remotes_core.TEAM_VOCABULARY,
+                # ``data`` stays the operate trio (defaults included) for REQ-11 clients.
                 "data": [spec.public_dict() for spec in specs.values()],
+                # Settings / dropdowns use ``configured`` — empty until the user adds one.
+                "configured": [spec.public_dict() for spec in configured],
                 "team_members": remotes_core.list_team_members(),
             }
         )
+
+    @extend_schema(
+        operation_id="v1_remotes_create",
+        summary="Add a remote harness (opt-in catalog)",
+        request=inline_serializer(
+            name="RemoteCreateRequest",
+            fields={
+                "kind": serializers.CharField(required=False, help_text="hermes, omb, rakazo, herdr, swarm"),
+                "id": serializers.CharField(required=False),
+                "base_url": serializers.CharField(required=False, allow_blank=True),
+                "api_key": serializers.CharField(required=False, allow_blank=True),
+                "ui_url": serializers.CharField(required=False, allow_blank=True),
+                "cookie": serializers.CharField(required=False, allow_blank=True),
+            },
+        ),
+        responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+    )
+    def post(self, request, *_args, **_kwargs):
+        body = request.data if isinstance(request.data, dict) else {}
+        kind = body.get("kind") or body.get("id") or body.get("remote_id")
+        if not kind:
+            return Response(
+                {"error": "Provide kind (hermes, omb, rakazo, herdr, or swarm)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        kwargs: dict[str, str] = {}
+        for field in ("base_url", "api_key", "ui_url", "cookie"):
+            if field in body:
+                kwargs[field] = "" if body[field] is None else str(body[field])
+        try:
+            spec, path = remotes_core.persist_remote(str(kind), **kwargs)
+        except remotes_core.RemoteError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except OSError as exc:
+            logger.exception("Failed to persist remotes.%s", kind)
+            return Response(
+                {"error": f"failed to persist: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        payload = spec.public_dict()
+        payload["persisted_to"] = str(path)
+        return Response(payload, status=status.HTTP_201_CREATED)
 
 
 class RemoteDetailView(APIView):
@@ -98,6 +147,22 @@ class RemoteDetailView(APIView):
         payload = spec.public_dict()
         payload["persisted_to"] = str(path)
         return Response(payload)
+
+    @extend_schema(
+        operation_id="v1_remotes_delete",
+        summary="Remove a configured remote from the opt-in catalog",
+        responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def delete(self, _request, remote_id: str, *_args, **_kwargs):
+        try:
+            rid, path = remotes_core.delete_remote(remote_id)
+        except remotes_core.RemoteError as exc:
+            code = status.HTTP_404_NOT_FOUND if "not configured" in str(exc) or "Unknown remote" in str(exc) else status.HTTP_400_BAD_REQUEST
+            return Response({"error": str(exc)}, status=code)
+        except OSError as exc:
+            logger.exception("Failed to delete remotes.%s", remote_id)
+            return Response({"error": f"failed to delete: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"id": rid, "deleted": True, "persisted_to": str(path)})
 
 
 class RemoteHealthView(APIView):

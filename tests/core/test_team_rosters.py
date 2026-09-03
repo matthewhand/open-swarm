@@ -76,6 +76,31 @@ def test_agent_team_alias_accepted():
     assert roster["members"][0]["role"] == "skeptic"
 
 
+def test_persist_remote_hermes_omb_rakazo_members():
+    """PR #318 / REQ-28: remotes are roster members (kind=remote), not /v1/teams aliases."""
+    stored = upsert_roster(
+        {
+            "id": "harness",
+            "name": "Harness",
+            "members": [
+                {"id": "hermes", "kind": "remote", "role": "default"},
+                {"id": "omb", "kind": "remote", "role": "default"},
+                {"id": "rakazo", "kind": "remote", "role": "default"},
+            ],
+        }
+    )
+    kinds = {m["id"]: m for m in stored["members"]}
+    assert kinds["hermes"]["kind"] == "remote"
+    assert kinds["omb"]["kind"] == "remote"
+    assert kinds["rakazo"]["kind"] == "remote"
+    assert kinds["hermes"]["source"] == "placeholder:remote:hermes"
+    assert kinds["omb"]["source"] == "placeholder:remote:omb"
+    assert kinds["rakazo"]["source"] == "placeholder:remote:rakazo"
+    for member in stored["members"]:
+        assert member["kind"] != "team"
+        assert "llm_profile" not in member
+
+
 def test_self_nest_rejected():
     with pytest.raises(ValueError, match="cannot nest itself"):
         normalize_roster(

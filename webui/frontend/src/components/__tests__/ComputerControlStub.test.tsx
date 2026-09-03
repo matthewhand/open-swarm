@@ -26,7 +26,8 @@ describe('ComputerControlStub (REQ-27b)', () => {
     expect(dialog).toHaveClass('modal-open')
     expect(dialog).toHaveTextContent('WIP')
     expect(dialog).toHaveTextContent(COMPUTER_CONTROL_WIP_COPY)
-    expect(dialog).toHaveTextContent(/placed .+ remote/i)
+    expect(dialog).toHaveTextContent(/OpenMousBot or Rakazo remote/i)
+    expect(dialog.textContent).not.toMatch(/\bOMB\b/)
 
     expect(dialog.textContent).not.toMatch(/E2B|xdotool|CDP|CUA|sandbox|enable/i)
     expect(

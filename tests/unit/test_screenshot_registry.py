@@ -442,7 +442,9 @@ def test_spa_app_mobile_dock_omits_settings_tab():
     assert "Open settings" in chat
     sheet = (REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx").read_text()
     assert "modal-end" in sheet or 'placement="end"' in sheet
-    assert "menu-dropdown" in sheet
+    # REQ-59: Remotes is an opt-in catalog, not a menu-dropdown of unused kinds.
+    assert "Add remote" in sheet
+    assert "menu-dropdown" not in sheet
     assert "join-item" in sheet
 
 
