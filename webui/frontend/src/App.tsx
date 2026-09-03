@@ -57,7 +57,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsBlueprintId, setSettingsBlueprintId] = useState<string | null>(null)
+  const [settingsDetail, setSettingsDetail] = useState<OpenSettingsDetail | null>(null)
 
   useLayoutEffect(() => {
     applyDocumentTheme(darkMode)
@@ -75,8 +75,8 @@ function App() {
     }
     const onOpenSearch = () => setSearchOpen(true)
     const onOpenSettings = (event: Event) => {
-      const detail = (event as CustomEvent<OpenSettingsDetail>).detail
-      setSettingsBlueprintId(detail?.blueprintId ?? null)
+      const detail = (event as CustomEvent<OpenSettingsDetail>).detail ?? {}
+      setSettingsDetail(detail)
       setSettingsOpen(true)
     }
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
@@ -99,7 +99,11 @@ function App() {
         <SettingsSheet
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
-          blueprintId={settingsBlueprintId}
+          blueprintId={settingsDetail?.blueprintId}
+          teamId={settingsDetail?.teamId}
+          initialSection={settingsDetail?.section}
+          definitionKind={settingsDetail?.definitionKind}
+          definitionId={settingsDetail?.definitionId}
         />
         <div
           className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"

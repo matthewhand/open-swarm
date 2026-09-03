@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
+import DefinitionPane from './DefinitionPane'
 import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
 import {
   agentRole,
@@ -9,6 +10,7 @@ import {
   isExampleRole,
   runtimeModulesFor,
 } from '../lib/agentRoles'
+import type { DefinitionKind } from '../lib/definitionExplain'
 import { PYTHON_CODE_CLASS, highlightPython } from '../lib/highlightPython'
 import {
   RETENTION_MODES,
@@ -26,6 +28,7 @@ import { agentLabel } from '../lib/supportAgent'
 export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
+  | 'definition'
   | 'blueprint'
   | 'remotes-hermes'
   | 'remotes-omb'
@@ -37,6 +40,9 @@ export type SettingsSection =
 export interface OpenSettingsDetail {
   section?: SettingsSection
   blueprintId?: string
+  teamId?: string
+  definitionKind?: DefinitionKind
+  definitionId?: string
 }
 
 export function openSettingsSheet(detail?: OpenSettingsDetail): void {
@@ -57,6 +63,10 @@ export interface SettingsSheetProps {
   isOpen: boolean
   onClose: () => void
   blueprintId?: string | null
+  teamId?: string | null
+  initialSection?: SettingsSection | null
+  definitionKind?: DefinitionKind | null
+  definitionId?: string | null
 }
 
 /**
@@ -67,23 +77,38 @@ export interface SettingsSheetProps {
  * roled agent selects the Blueprint editor for that agent's blueprint id —
  * not the Teams drop-zone roster. Django `/settings/` stays the operator dump.
  */
-export default function SettingsSheet({ isOpen, onClose, blueprintId }: SettingsSheetProps) {
+export default function SettingsSheet({
+  isOpen,
+  onClose,
+  blueprintId,
+  teamId,
+  initialSection,
+  definitionKind,
+  definitionId,
+}: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
   const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const resolvedDefinitionId = definitionId || teamId || blueprintId || ''
+  const resolvedKind: DefinitionKind =
+    definitionKind || (teamId ? 'team' : blueprintId ? 'role' : 'blueprint')
 
   useEffect(() => {
     if (!isOpen) return
     setHostname(loadHostnameOverride())
     setRetention(loadRetentionMode())
-    if (blueprintId) {
+    if (initialSection) {
+      setSection(initialSection)
+    } else if (blueprintId) {
       setSection('blueprint')
     } else {
-      setSection((current) => (current === 'blueprint' ? 'retention' : current))
+      setSection((current) =>
+        current === 'blueprint' || current === 'definition' ? 'retention' : current,
+      )
     }
-  }, [isOpen, blueprintId])
+  }, [isOpen, blueprintId, initialSection])
 
   const handleSaveHostname = (event: FormEvent) => {
     event.preventDefault()
@@ -110,6 +135,16 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
       <div className="flex min-h-[24rem] flex-1 flex-col gap-0 overflow-hidden rounded-box border border-base-300 md:flex-row">
         <nav aria-label="Settings sections" className="w-full shrink-0 border-b border-base-300 bg-base-200 md:w-52 md:border-b-0 md:border-r">
           <ul className="menu menu-md w-full rounded-none p-2">
+            <li>
+              <button
+                type="button"
+                className={section === 'definition' ? 'menu-active' : undefined}
+                aria-current={section === 'definition' ? 'page' : undefined}
+                onClick={() => setSection('definition')}
+              >
+                Definition
+              </button>
+            </li>
             <li>
               <button
                 type="button"
@@ -178,6 +213,13 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-base-100 p-4 sm:p-5">
+          {section === 'definition' && (
+            <DefinitionPane
+              kind={resolvedKind}
+              definitionId={resolvedDefinitionId}
+              role={resolvedDefinitionId ? agentRole({ id: resolvedDefinitionId }) : undefined}
+            />
+          )}
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}

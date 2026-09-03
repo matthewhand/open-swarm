@@ -131,6 +131,20 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PATCH',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -151,7 +165,7 @@ export interface ListResponse<T> {
   data: T[]
 }
 
-/** Visual / wiring role on a Team member (REQ-9 / REQ-25). */
+/** Visual / wiring role on a Team member (REQ-9 / REQ-25 / REQ-28 / REQ-42). */
 export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff'
 
 export interface BlueprintAgent {
@@ -540,4 +554,14 @@ export interface BlueprintTools {
 
 export function fetchBlueprintTools(id: string): Promise<BlueprintTools> {
   return apiGet<BlueprintTools>(`/v1/blueprints/${encodeURIComponent(id)}/tools`)
+}
+
+export function updateCustomBlueprint(
+  blueprintId: string,
+  body: Partial<CustomBlueprint>,
+): Promise<CustomBlueprint> {
+  return apiPatch<CustomBlueprint>(
+    `/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`,
+    body,
+  )
 }

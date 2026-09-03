@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-42 role-badge definition pane:** Clicking a role badge (or Team / chat-header identity) opens the DaisyUI Settings sheet on a Definition pane that leads with a human brief (gate YES/NO, skeptic retry, support Socratic, CoS talk-to-any-team). When `LITELLM_MODEL` / `OPENAI_MODEL` / `DEFAULT_LLM` is set, the existing default-model client summarises source plus injected context. Edit code + Re-summarise refresh after save. Hover-edit (REQ-25) still opens the Blueprint Python editor.
 - **REQ-37 nested conversation compact:** Composer `+` menu Compact summarises the backlog into a Django/sqlite `ConversationSummary` (`span`, `parent_summary_id`, `body`). Raw JSON + `ChatMessage` rows stay. Later compacts nest. UI renders bordered `.chat-summary` blocks. Model context walks the summary tree. No Neon.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 

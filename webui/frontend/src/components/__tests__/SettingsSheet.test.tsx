@@ -11,9 +11,15 @@ import {
 function renderSheet({
   isOpen = true,
   blueprintId,
+  initialSection,
+  definitionKind,
+  definitionId,
 }: {
   isOpen?: boolean
   blueprintId?: string
+  initialSection?: 'definition' | 'blueprint'
+  definitionKind?: 'role' | 'blueprint' | 'team'
+  definitionId?: string
 } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -22,7 +28,14 @@ function renderSheet({
   const view = render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <SettingsSheet isOpen={isOpen} onClose={onClose} blueprintId={blueprintId} />
+        <SettingsSheet
+          isOpen={isOpen}
+          onClose={onClose}
+          blueprintId={blueprintId}
+          initialSection={initialSection}
+          definitionKind={definitionKind}
+          definitionId={definitionId}
+        />
       </ToastProvider>
     </QueryClientProvider>,
   )
@@ -48,6 +61,7 @@ describe('SettingsSheet', () => {
     expect(remotesToggle).toHaveClass('menu-dropdown-toggle')
     expect(remotesToggle).toHaveClass('menu-dropdown-show')
     expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
+    expect(screen.getByRole('button', { name: 'Definition' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
@@ -202,5 +216,50 @@ describe('SettingsSheet blueprint editor', () => {
     const { onClose } = renderSheet({ blueprintId: 'gate' })
     fireEvent.click(screen.getByRole('button', { name: /^Close$/ }))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('SettingsSheet definition pane (REQ-42)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens focused on the role definition with the static explanation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          kind: 'role',
+          id: 'gate',
+          title: 'Gate',
+          role: 'gate',
+          explanation: 'Gate is a YES/NO classifier.',
+          source: 'GATE_INSTRUCTIONS',
+          injected: {
+            system_prompt: '',
+            tools: {},
+            metadata: {},
+            handoff: '',
+            extra: 'fixture',
+          },
+          default_llm: { configured: false, model: null },
+        }),
+      } as Response),
+    )
+    renderSheet({
+      blueprintId: 'gate',
+      initialSection: 'definition',
+      definitionKind: 'role',
+      definitionId: 'gate',
+    })
+    const dialog = screen.getByRole('dialog', { hidden: true })
+    expect(dialog).toHaveClass('modal-end')
+    expect(screen.getByRole('button', { name: 'Definition' })).toHaveClass('menu-active')
+    const pane = await screen.findByRole('region', { name: /gate/i })
+    expect(pane).toHaveAttribute('data-definition-id', 'gate')
+    expect(screen.getByTestId('definition-explanation').textContent).toMatch(/YES\/NO/)
+    expect(screen.queryByLabelText(/Gate blueprint Python/i)).not.toBeInTheDocument()
   })
 })
