@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
@@ -242,12 +242,16 @@ describe('AgentSidebar Grok rail', () => {
     await screen.findByRole('navigation', { name: 'Agent list' })
     expect(screen.getByTestId('os-rail-hostname-icon')).not.toHaveClass('text-error')
 
-    publishChatConnection('closed')
+    act(() => {
+      publishChatConnection('closed')
+    })
     const dropped = await screen.findByTestId('os-rail-hostname-icon')
     expect(dropped).toHaveAttribute('data-tone', 'error')
     expect(dropped).toHaveClass('text-error')
 
-    publishChatConnection('open')
+    act(() => {
+      publishChatConnection('open')
+    })
     const restored = await screen.findByTestId('os-rail-hostname-icon')
     expect(restored).toHaveAttribute('data-tone', 'bland')
     expect(restored).not.toHaveClass('text-error')
