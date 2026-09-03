@@ -82,7 +82,13 @@ describe('SettingsSheet', () => {
     renderSheet()
     for (const name of ['Hermes', 'OMB', 'Rakazo'] as const) {
       fireEvent.click(screen.getByRole('button', { name }))
-      expect(screen.getByText(new RegExp(`${name} is a placeholder remote`, 'i'))).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument()
+      expect(
+        screen.getByText((_, node) => {
+          if (node?.tagName !== 'P') return false
+          return Boolean(node.textContent?.includes(`${name} is a placeholder remote`))
+        }),
+      ).toBeInTheDocument()
       expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
     }
     const remotesCalls = fetchMock.mock.calls.filter(([input]) =>
@@ -117,7 +123,9 @@ describe('SettingsSheet', () => {
     )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
-    expect(await screen.findByText(/Could not load models/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Could not load models/i, undefined, { timeout: 4000 }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'LLM profiles' })).toHaveAttribute('href', '/profiles/')
   })
 

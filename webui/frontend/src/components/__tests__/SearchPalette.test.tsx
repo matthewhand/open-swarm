@@ -174,7 +174,7 @@ describe('SearchPalette choose + actions (REQ-5c #322)', () => {
 
   it('Actions Django rows hard-navigate via location.assign', async () => {
     const assign = vi.fn()
-    vi.spyOn(window.location, 'assign').mockImplementation(assign)
+    vi.stubGlobal('location', { ...window.location, assign })
     const { onClose } = renderRoutedPalette()
     fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
     fireEvent.click(await screen.findByRole('option', { name: /^Blueprints/i }))

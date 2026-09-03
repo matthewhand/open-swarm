@@ -775,7 +775,7 @@ describe('ChatPage team member dropdown', () => {
 
   it('REQ-23 #331: Manage Teams navigates to /teams/ and does not WS-send', async () => {
     const assign = vi.fn()
-    vi.spyOn(window.location, 'assign').mockImplementation(assign)
+    vi.stubGlobal('location', { ...window.location, assign })
 
     renderChat('/chat?team=demo-team')
     await act(async () => {
