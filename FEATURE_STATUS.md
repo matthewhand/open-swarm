@@ -151,6 +151,7 @@ one-shot, API-addressable subagents. See `docs/CLI_FUSION.md`.
 | Auth autodiscovery | ✅ | `CliAgentConfig.auth_check` + `discover_auth()` + `--check-auth` (PR 3) |
 | Full-capability panelists + workdir isolation | ✅ | Yolo-flag example adapters; `cli_fusion.isolate_workdir` git-worktree/temp-dir isolation (PR 4); isolation tests incl. real-git end-to-end |
 | Built-in adapter catalog + `--suggest` | ✅ | `src/swarm/core/cli_catalog.py`; `swarm-cli cli-agents --suggest`; `tests/core/test_cli_catalog.py` (PR 5) |
+| CLI session resume (REQ-52) | ✅ | Per-CLI `--resume` / `--session` / `exec resume` in `cli_catalog.SESSION`; id stored on the chat thread (`cli_sessions`); honest new-session line; `tests/core/test_cli_sessions.py`, fixture two-turn resume in `tests/blueprints/test_cli_agent.py` |
 | Non-interactive smoke probe + `--smoke` | ✅ | `CliAdapter.smoke_check()` / `smoke_check_all()`; classifies ok/hang/error/not_installed (PR 6) |
 | End-to-end API coverage | ✅ | `tests/api/test_cli_fusion_api.py`: real panel→synthesize and `params` selection over `/v1/chat/completions` (PR 7) |
 

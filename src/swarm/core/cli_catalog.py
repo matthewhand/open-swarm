@@ -87,6 +87,65 @@ NATIVE_CONSENSUS: dict[str, list[str]] = {
 }
 
 
+# How each catalogued CLI names and resumes a session. First-turn ``cmd`` stays
+# one-shot; Swarm inserts ``resume_argv`` only when a stored id exists.
+# ``{session_id}`` is replaced with the stored id. Distinct from Django/API
+# conversation ids and from OS ``start_new_session`` (process-group kill).
+#
+# antigravity is **not** in CATALOG (not wired). If it is added later, headless
+# resume is ``agy -p --conversation <id>`` (JSON often includes conversation_id).
+SESSION: dict[str, dict[str, Any]] = {
+    "grok": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".sessionId", ".session_id"],
+        "notes": (
+            "grok -p --resume <uuid> (also -r). --session-id / -s names a NEW "
+            "session; do not use it to resume. JSON often includes sessionId."
+        ),
+    },
+    "claude": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session_id"],
+        "notes": (
+            "claude -p --resume <uuid> (also -r). JSON result includes session_id "
+            "even when parse is json:.result. A resume may mint a new session_id; "
+            "store the latest. --session-id names a new session, not a resume."
+        ),
+    },
+    "gemini": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session_id", ".sessionId"],
+        "notes": (
+            "gemini -p --resume <uuid> (also -r). --session-id starts a NEW "
+            "session and conflicts with --resume. Capture id from JSON when present."
+        ),
+    },
+    "codex": {
+        "resume_argv": ["resume", "{session_id}"],
+        "resume_insert": 2,  # after `codex exec` → `codex exec resume <id> …`
+        "session_id_paths": [".thread_id", ".session_id"],
+        "notes": (
+            "codex exec resume <SESSION_ID> <prompt> (subcommand, not a --flag). "
+            "Default catalog parse is text; thread_id appears when --json is used. "
+            "Interactive `codex resume` is a TUI — do not use it here."
+        ),
+    },
+    "opencode": {
+        "resume_argv": ["--session", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session", ".sessionID", ".id"],
+        "notes": (
+            "opencode run --session <id> (also -s). --continue/-c is last-session "
+            "in the cwd, not thread-scoped — do not use it. Capture id when the "
+            "CLI emits JSON; the default catalog parse is text."
+        ),
+    },
+}
+
+
 # Default capability traits (0..1) per known CLI for inference-profile matching
 # (see swarm.core.inference_profile). These are sensible starting points the
 # USER is expected to tune for their own plans/models via a per-agent ``traits``
@@ -203,6 +262,12 @@ def with_model(name: str, model: str, *, timeout: int | None = None) -> dict[str
     if timeout is not None:
         entry["timeout"] = timeout
     return entry
+
+
+def session_policy(name: str) -> dict[str, Any] | None:
+    """How ``name`` names and resumes a CLI session, or None if undocumented."""
+    entry = SESSION.get(name)
+    return _deepcopy(entry) if entry is not None else None
 
 
 def catalog_names() -> list[str]:

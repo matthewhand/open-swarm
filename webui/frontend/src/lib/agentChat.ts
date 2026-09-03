@@ -32,7 +32,7 @@ export function conversationIdForAgent(agentId: string): string {
 }
 
 export interface AgentThreadMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   content: string
 }
 
@@ -53,7 +53,7 @@ function isThreadMessage(value: unknown): value is AgentThreadMessage {
   if (!value || typeof value !== 'object') return false
   const row = value as { role?: unknown; content?: unknown }
   return (
-    (row.role === 'user' || row.role === 'assistant') &&
+    (row.role === 'user' || row.role === 'assistant' || row.role === 'status') &&
     typeof row.content === 'string'
   )
 }

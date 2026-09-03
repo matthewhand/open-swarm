@@ -465,6 +465,17 @@ html[data-theme="light"] #root {
   background: color-mix(in srgb, var(--color-base-300) 55%, transparent);
 }
 
+.os-chat-status {
+  display: block;
+  margin: 0.45rem auto;
+  max-width: 36rem;
+  padding: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+}
+
 .chat-summary {
   border: 1px solid color-mix(in srgb, var(--color-base-content) 28%, transparent);
   border-left-width: 3px;
