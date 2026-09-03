@@ -70,6 +70,7 @@ describe('AgentSidebar hide / unhide', () => {
 
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const codey = await within(list).findByRole('link', { name: /Codey/ })
+    expect(codey).toHaveAttribute('draggable', 'true')
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
 
     fireEvent.contextMenu(codey)

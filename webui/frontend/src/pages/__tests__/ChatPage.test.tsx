@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { Link, MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 
 type WsHandler = ((ev?: Event) => void) | null
@@ -290,6 +290,45 @@ describe('ChatPage blueprint query-param honesty', () => {
     const select = await screen.findByRole('combobox', { name: 'Blueprint' })
     expect(select).toHaveValue('codey')
     expect(screen.queryByText(/not in the discoverable list/i)).not.toBeInTheDocument()
+  })
+
+  it('follows a later ?blueprint= change (pin / sidepane click while already on chat)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { id: 'codey', name: 'Codey', description: 'Code assistant' },
+            { id: 'stewie', name: 'Stewie', description: 'Helpful agent' },
+          ],
+        }),
+      } as Response),
+    )
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/chat?blueprint=codey']}>
+          <Link to="/chat?blueprint=stewie">Open Stewie pin</Link>
+          <ChatPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
+    expect(select).toHaveValue('codey')
+    fireEvent.click(screen.getByRole('link', { name: 'Open Stewie pin' }))
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Blueprint' })).toHaveValue('stewie')
+    })
   })
 })
 

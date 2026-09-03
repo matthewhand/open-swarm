@@ -92,8 +92,24 @@
       var link = document.createElement("a");
       link.href = "/chat?blueprint=" + encodeURIComponent(agent.id);
       link.className = "os-agent-item";
+      link.draggable = true;
+      link.setAttribute("data-agent-id", agent.id);
       var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
+      link.addEventListener("dragstart", function (event) {
+        var payload = { id: agent.id, name: name };
+        window.__osAgentDrag = payload;
+        try {
+          event.dataTransfer.setData("application/x-swarm-agent", JSON.stringify(payload));
+          event.dataTransfer.setData("text/plain", agent.id);
+          event.dataTransfer.effectAllowed = "copy";
+        } catch (err) {
+          /* some browsers reject custom MIME types */
+        }
+      });
+      link.addEventListener("dragend", function () {
+        window.__osAgentDrag = null;
+      });
 
       var dot = document.createElement("span");
       dot.className = "os-agent-dot";

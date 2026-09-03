@@ -113,3 +113,46 @@ test('right-click hide from sidebar persists across reload; unhide restores', as
   await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
+
+test('drag an AGENTS row onto the unlabeled top grid; pin survives reload', async ({ page }) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubAgentApis(page)
+  await page.goto('/')
+
+  const list = page.getByRole('navigation', { name: 'Agent list' })
+  const codey = list.getByRole('link', { name: /Codey/ })
+  await expect(codey).toBeVisible()
+  const grid = page.getByTestId('agent-pin-grid')
+  await expect(grid).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Favourites/i })).toHaveCount(0)
+
+  await page.evaluate(() => {
+    const source = document.querySelector<HTMLElement>('[data-agent-id="codey"]')
+    const target = document.querySelector<HTMLElement>('[data-testid="agent-pin-grid"]')
+    if (!source || !target) throw new Error('missing drag source or pin grid')
+    const dt = new DataTransfer()
+    source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }))
+  })
+
+  const tile = grid.getByRole('link', { name: /Codey/ })
+  await expect(tile).toBeVisible()
+  await expect(tile).toHaveAttribute('href', '/chat?blueprint=codey')
+  await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
+
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_pinned_agents')))
+    .toBe(JSON.stringify([{ id: 'codey', name: 'Codey' }]))
+
+  await page.reload()
+  await expect(page.getByTestId('agent-pin-grid').getByRole('link', { name: /Codey/ })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Agent list' }).getByRole('link', { name: /Codey/ })).toBeVisible()
+
+  await page.getByRole('button', { name: /Remove Codey/i }).click()
+  await expect(page.getByTestId('agent-pin-grid').getByRole('link', { name: /Codey/ })).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Agent list' }).getByRole('link', { name: /Codey/ })).toBeVisible()
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})

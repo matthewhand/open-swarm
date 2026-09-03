@@ -4,6 +4,7 @@ import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } f
 import ChatPage from './pages/ChatPage'
 import Dashboard from './pages/Dashboard'
 import AgentSidebar from './components/AgentSidebar'
+import AgentPinGrid from './components/AgentPinGrid'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
 
@@ -64,8 +65,8 @@ function App() {
         >
           Skip to main content
         </a>
-        <nav className="sticky top-0 z-40 border-b border-base-300 bg-base-200/95 shadow-sm backdrop-blur" aria-label="Primary">
-          <div className="flex h-14 items-center justify-between px-3 sm:px-4">
+        <header className="sticky top-0 z-40 border-b border-base-300 bg-base-200/95 shadow-sm backdrop-blur">
+          <nav className="flex h-14 items-center justify-between px-3 sm:px-4" aria-label="Primary">
             <div className="flex items-center gap-3 lg:gap-6">
               <button
                 type="button"
@@ -109,8 +110,9 @@ function App() {
                 <Settings className="h-5 w-5" aria-hidden="true" />
               </a>
             </div>
-          </div>
-        </nav>
+          </nav>
+          <AgentPinGrid />
+        </header>
 
         <div className="flex min-h-0 flex-1">
           <AgentSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />

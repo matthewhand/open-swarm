@@ -75,6 +75,10 @@ const ChatPage = () => {
   const [selectedBlueprint, setSelectedBlueprint] = useState(
     () => searchParams.get('blueprint') ?? '',
   )
+
+  useEffect(() => {
+    setSelectedBlueprint(searchParams.get('blueprint') ?? '')
+  }, [searchParams])
   const [connectAttempt, setConnectAttempt] = useState(0)
   /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
@@ -292,7 +296,7 @@ const ChatPage = () => {
         : 'Websocket not connected — sending is disabled'
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-13rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-6.5rem)]">
+    <div className="mx-auto flex h-[calc(100vh-16rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-9.25rem)]">
       {/* Header: title + blueprint selector + connection status.
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">

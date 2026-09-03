@@ -9,6 +9,7 @@ import {
   loadHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
+import { endAgentDrag, writeAgentDragPayload } from '../lib/pinnedAgents'
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
@@ -120,7 +121,9 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     return (
       <Link
         to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+        draggable
+        data-agent-id={agent.id}
+        className={`flex min-w-0 flex-1 cursor-grab items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors active:cursor-grabbing ${
           active
             ? 'bg-base-300/70 text-base-content'
             : 'text-base-content/90 hover:bg-base-300/40'
@@ -128,6 +131,10 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
         aria-current={active ? 'page' : undefined}
         onClick={onClose}
         onContextMenu={(event) => openMenu(event, agent, hidden)}
+        onDragStart={(event) => {
+          writeAgentDragPayload(event.dataTransfer, { id: agent.id, name })
+        }}
+        onDragEnd={() => endAgentDrag()}
       >
         <span
           className="os-agent-dot mt-1.5"
