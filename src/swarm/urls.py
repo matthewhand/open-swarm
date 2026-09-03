@@ -75,6 +75,7 @@ from swarm.views.web_views import (
     spa_chat,
     team_admin,
     team_launcher,
+    team_rosters_json,
     teams_export,
 )
 from swarm.views.webui import WebUIView
@@ -152,6 +153,10 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
+    # Multi-agent team rosters for the AGENTS sidepane (not LLM-alias /v1/teams/).
+    path("team_rosters.json", team_rosters_json, name="team-rosters-json"),
+    path("v1/team-rosters/", team_rosters_json, name="team-rosters-api"),
+    path("v1/team-rosters", team_rosters_json, name="team-rosters-api-no-slash"),
     # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),

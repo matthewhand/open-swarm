@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pin, PinOff, Plug, Search, X } from 'lucide-react'
+import { Eye, EyeOff, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
   agentMarkIndex,
@@ -33,6 +33,7 @@ import {
   isSupportAgent,
   supportFirstAgents,
 } from '../lib/supportAgent'
+import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { openSearchPalette } from './SearchPalette'
 
 export interface AgentSidebarProps {
@@ -54,9 +55,11 @@ interface ContextMenuState {
 export default function AgentSidebar({ open = false, onClose, onOpenSearch }: AgentSidebarProps) {
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
-  const selectedId = defaultBlueprintId(
-    pathname.startsWith('/chat') || pathname === '/' ? searchParams.get('blueprint') : '',
-  )
+  const onChat = pathname.startsWith('/chat') || pathname === '/'
+  const selectedTeamId = onChat ? (searchParams.get('team') ?? '') : ''
+  const selectedId = selectedTeamId
+    ? ''
+    : defaultBlueprintId(onChat ? searchParams.get('blueprint') : '')
 
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenAgentIds())
   const [pins, setPins] = useState<PinnedAgent[]>(() => loadPinnedAgents())
@@ -75,7 +78,13 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     queryFn: fetchBlueprints,
     retry: 1,
   })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: fetchTeamRosters,
+    retry: 1,
+  })
   const agents = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const teams = teamsQuery.data ?? []
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !hiddenIds.includes(agent.id)),
@@ -85,6 +94,20 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     () => agents.filter((agent) => hiddenIds.includes(agent.id)),
     [agents, hiddenIds],
   )
+  const visibleTeams = useMemo(
+    () => teams.filter((team) => !hiddenIds.includes(teamHideId(team.id))),
+    [teams, hiddenIds],
+  )
+  const hiddenTeams = useMemo(
+    () => teams.filter((team) => hiddenIds.includes(teamHideId(team.id))),
+    [teams, hiddenIds],
+  )
+  const hiddenCount = hiddenAgents.length + hiddenTeams.length
+  const visibleCount = visibleAgents.length + visibleTeams.length
+  const loadingList = blueprintsQuery.isPending && teamsQuery.isPending
+  const loadFailed = blueprintsQuery.isError && teamsQuery.isError && visibleCount === 0
+  const supportAgents = visibleAgents.filter((agent) => isSupportAgent(agent))
+  const otherAgents = visibleAgents.filter((agent) => !isSupportAgent(agent))
   const visiblePins = useMemo(
     () => pins.filter((pin) => !hiddenIds.includes(pin.id)),
     [pins, hiddenIds],
@@ -115,7 +138,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     }
   }, [menu, closeMenu])
 
-  const openMenu = (event: ReactMouseEvent, agent: Blueprint, hidden: boolean) => {
+  const openMenu = (event: ReactMouseEvent, hideId: string, label: string, hidden: boolean) => {
     event.preventDefault()
     const pad = 8
     const width = 200
@@ -123,10 +146,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     const x = Math.min(event.clientX, window.innerWidth - width - pad)
     const y = Math.min(event.clientY, window.innerHeight - height - pad)
     setMenu({
-      agentId: agent.id,
-      agentName: agentLabel(agent),
+      agentId: hideId,
+      agentName: label,
       hidden,
-      pinned: pins.some((pin) => pin.id === agent.id),
+      pinned: pins.some((pin) => pin.id === hideId),
       x: Math.max(pad, x),
       y: Math.max(pad, y),
     })
@@ -235,7 +258,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         }}
         onDrop={dropOnSelf}
         onClick={onClose}
-        onContextMenu={(event) => openMenu(event, agent, hidden)}
+        onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
       >
         <span
           className="os-agent-dot mt-1.5"
@@ -248,6 +271,57 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}
+            </span>
+          ) : null}
+        </span>
+      </Link>
+    )
+  }
+
+  const renderTeamLink = (team: TeamRoster, hidden: boolean) => {
+    const name = team.name || team.id
+    const hideId = teamHideId(team.id)
+    const active = selectedTeamId === team.id
+    const dragging = draggingId === hideId
+    return (
+      <Link
+        to={`/chat?team=${encodeURIComponent(team.id)}`}
+        className={`os-team-item os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+          dragging ? 'os-agent-row--dragging' : ''
+        }`}
+        aria-current={active ? 'page' : undefined}
+        aria-label={`${name} (team)`}
+        data-agent-id={hideId}
+        draggable={!hidden}
+        onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
+        onDragEnd={finishDrag}
+        onDragOver={(event) => {
+          try {
+            event.dataTransfer.dropEffect = 'none'
+          } catch {
+            /* synthetic events may omit dataTransfer */
+          }
+        }}
+        onDrop={dropOnSelf}
+        onClick={onClose}
+        onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
+      >
+        <span
+          className="os-team-mark mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
+          aria-hidden="true"
+        >
+          <Users className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            <span className="badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55">
+              Team
+            </span>
+          </span>
+          {team.description ? (
+            <span className="mt-0.5 block truncate text-xs text-base-content/45">
+              {team.description}
             </span>
           ) : null}
         </span>
@@ -352,15 +426,21 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
-          {blueprintsQuery.isPending ? (
+          {loadingList ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
-          ) : blueprintsQuery.isError && visibleAgents.length === 0 ? (
+          ) : loadFailed ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
-          ) : visibleAgents.length === 0 ? (
+          ) : visibleCount === 0 ? (
             <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
           ) : (
             <ul className="space-y-0.5">
-              {visibleAgents.map((agent) => (
+              {supportAgents.map((agent) => (
+                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
+              ))}
+              {visibleTeams.map((team) => (
+                <li key={teamHideId(team.id)}>{renderTeamLink(team, false)}</li>
+              ))}
+              {otherAgents.map((agent) => (
                 <li key={agent.id}>{renderAgentLink(agent, false)}</li>
               ))}
             </ul>
@@ -394,7 +474,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             }}
             onDrop={dropHide}
           >
-            {hiddenAgents.length > 0 ? (
+            {hiddenCount > 0 ? (
               <button
                 type="button"
                 className="os-hide-drop__action"
@@ -402,7 +482,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                 aria-expanded={hiddenOpen}
                 onClick={() => setHiddenOpen(true)}
               >
-                {hiddenAgents.length} hidden
+                {hiddenCount} hidden
               </button>
             ) : (
               <p className="os-hide-drop__hint">drop here to hide</p>
@@ -470,10 +550,23 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            {hiddenAgents.length === 0 ? (
+            {hiddenCount === 0 ? (
               <p className="text-sm text-base-content/60">No hidden agents.</p>
             ) : (
               <ul className="space-y-1">
+                {hiddenTeams.map((team) => (
+                  <li key={teamHideId(team.id)} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">{team.name || team.id}</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      aria-label={`Unhide ${team.name || team.id}`}
+                      onClick={() => unhideAgent(teamHideId(team.id))}
+                    >
+                      Unhide
+                    </button>
+                  </li>
+                ))}
                 {hiddenAgents.map((agent) => (
                   <li key={agent.id} className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>

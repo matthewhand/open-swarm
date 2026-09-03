@@ -505,3 +505,6 @@ html[data-theme="light"] #root {
   font-size: 0.875rem;
   color: color-mix(in srgb, currentColor 50%, transparent);
 }
+.os-team-mark {
+  color: color-mix(in srgb, var(--color-base-content) 80%, var(--color-primary));
+}

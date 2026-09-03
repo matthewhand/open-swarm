@@ -64,9 +64,51 @@
     if (!listEl || !hiddenListEl || !statusEl || !menuEl || !sidebar) return;
 
     var agents = [];
+    var teams = [];
     var hiddenIds = loadHidden();
     var hiddenOpen = false;
     var filter = "";
+
+    var DEMO_TEAM = {
+      id: "demo-team",
+      name: "Demo Team",
+      description: "Example multi-agent roster",
+      members: [
+        { id: "codey", name: "Codey", kind: "agent", role: "coder" },
+        { id: "stewie", name: "Stewie", kind: "agent", role: "ops" },
+      ],
+    };
+
+    function teamHideId(id) {
+      return "team:" + id;
+    }
+
+    function parseRosters(payload) {
+      var list = [];
+      if (Array.isArray(payload)) list = payload;
+      else if (payload && Array.isArray(payload.data)) list = payload.data;
+      else if (payload && Array.isArray(payload.teams)) list = payload.teams;
+      return list.filter(function (row) {
+        return row && row.object !== "blueprint" && (row.object === "team_roster" || Array.isArray(row.members));
+      });
+    }
+
+    function loadTeams(done) {
+      fetch("/team_rosters.json")
+        .then(function (res) {
+          if (!res.ok) throw new Error("status " + res.status);
+          return res.json();
+        })
+        .then(function (payload) {
+          var parsed = parseRosters(payload);
+          teams = parsed.length ? parsed : [DEMO_TEAM];
+          done();
+        })
+        .catch(function () {
+          teams = [DEMO_TEAM];
+          done();
+        });
+    }
 
     function closeMenu() {
       menuEl.hidden = true;
@@ -117,12 +159,55 @@
       link.appendChild(text);
       link.addEventListener("contextmenu", function (event) {
         event.preventDefault();
-        openMenu(event, agent, hidden);
+        openMenu(event, agent.id, hidden);
       });
       return link;
     }
 
-    function openMenu(event, agent, hidden) {
+    function makeTeamLink(team, hidden) {
+      var link = document.createElement("a");
+      link.href = "/chat?team=" + encodeURIComponent(team.id);
+      link.className = "os-agent-item os-team-item";
+      var name = team.name || team.id;
+      link.setAttribute("aria-label", name + " (team)");
+
+      var mark = document.createElement("span");
+      mark.className = "os-team-mark";
+      mark.setAttribute("aria-hidden", "true");
+      var icon = document.createElement("i");
+      icon.className = "fas fa-users";
+      mark.appendChild(icon);
+
+      var text = document.createElement("span");
+      text.className = "os-agent-item__text";
+      var titleRow = document.createElement("span");
+      titleRow.className = "os-team-item__title";
+      var title = document.createElement("span");
+      title.className = "os-agent-item__name";
+      title.textContent = name;
+      var badge = document.createElement("span");
+      badge.className = "os-team-badge";
+      badge.textContent = "Team";
+      titleRow.appendChild(title);
+      titleRow.appendChild(badge);
+      text.appendChild(titleRow);
+      if (team.description) {
+        var desc = document.createElement("span");
+        desc.className = "os-agent-item__desc";
+        desc.textContent = team.description;
+        text.appendChild(desc);
+      }
+
+      link.appendChild(mark);
+      link.appendChild(text);
+      link.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+        openMenu(event, teamHideId(team.id), hidden);
+      });
+      return link;
+    }
+
+    function openMenu(event, hideId, hidden) {
       menuEl.replaceChildren();
       var item = document.createElement("button");
       item.type = "button";
@@ -131,9 +216,9 @@
       item.textContent = hidden ? "Unhide" : "Hide from sidebar";
       item.addEventListener("click", function () {
         if (hidden) {
-          hiddenIds = saveHidden(hiddenIds.filter(function (id) { return id !== agent.id; }));
+          hiddenIds = saveHidden(hiddenIds.filter(function (id) { return id !== hideId; }));
         } else {
-          hiddenIds = saveHidden(hiddenIds.concat([agent.id]));
+          hiddenIds = saveHidden(hiddenIds.concat([hideId]));
         }
         closeMenu();
         render();
@@ -147,28 +232,40 @@
 
     function render() {
       var q = filter.trim().toLowerCase();
+      var visibleTeams = teams.filter(function (team) {
+        return hiddenIds.indexOf(teamHideId(team.id)) === -1 && matchesFilter(team, q);
+      });
+      var hiddenTeams = teams.filter(function (team) {
+        return hiddenIds.indexOf(teamHideId(team.id)) !== -1 && matchesFilter(team, q);
+      });
       var visible = agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
       });
       var hidden = agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);
       });
+      var hiddenTotal = hidden.length + hiddenTeams.length;
 
       listEl.replaceChildren();
       hiddenListEl.replaceChildren();
 
-      if (!agents.length) {
+      if (!agents.length && !teams.length) {
         statusEl.hidden = false;
         return;
       }
       statusEl.hidden = true;
 
-      if (!visible.length) {
+      if (!visible.length && !visibleTeams.length) {
         var empty = document.createElement("p");
         empty.className = "os-agent-status";
         empty.textContent = "No matching agents.";
         listEl.appendChild(empty);
       } else {
+        visibleTeams.forEach(function (team) {
+          var tli = document.createElement("li");
+          tli.appendChild(makeTeamLink(team, false));
+          listEl.appendChild(tli);
+        });
         visible.forEach(function (agent) {
           var li = document.createElement("li");
           li.appendChild(makeLink(agent, false));
@@ -177,11 +274,28 @@
       }
 
       if (hiddenWrap) {
-        hiddenWrap.hidden = hidden.length === 0;
+        hiddenWrap.hidden = hiddenTotal === 0;
       }
-      if (hiddenCount) hiddenCount.textContent = "(" + hidden.length + ")";
+      if (hiddenCount) hiddenCount.textContent = "(" + hiddenTotal + ")";
       hiddenListEl.hidden = !hiddenOpen;
       if (hiddenToggle) hiddenToggle.setAttribute("aria-expanded", hiddenOpen ? "true" : "false");
+
+      hiddenTeams.forEach(function (team) {
+        var trow = document.createElement("li");
+        trow.className = "os-agent-hidden__row";
+        trow.appendChild(makeTeamLink(team, true));
+        var unhideTeam = document.createElement("button");
+        unhideTeam.type = "button";
+        unhideTeam.className = "os-agent-unhide";
+        unhideTeam.setAttribute("aria-label", "Unhide " + (team.name || team.id));
+        unhideTeam.textContent = "Unhide";
+        unhideTeam.addEventListener("click", function () {
+          hiddenIds = saveHidden(hiddenIds.filter(function (id) { return id !== teamHideId(team.id); }));
+          render();
+        });
+        trow.appendChild(unhideTeam);
+        hiddenListEl.appendChild(trow);
+      });
 
       hidden.forEach(function (agent) {
         var li = document.createElement("li");
@@ -235,13 +349,19 @@
       })
       .then(function (payload) {
         agents = Array.isArray(payload && payload.data) ? payload.data : [];
-        if (!agents.length) statusEl.textContent = "No agents yet.";
-        render();
+        if (!agents.length && !teams.length) statusEl.textContent = "No agents yet.";
+        loadTeams(render);
       })
       .catch(function () {
         agents = [];
-        statusEl.textContent = "Could not load agents.";
-        statusEl.hidden = false;
+        loadTeams(function () {
+          if (!teams.length) {
+            statusEl.textContent = "Could not load agents.";
+            statusEl.hidden = false;
+            return;
+          }
+          render();
+        });
       });
   }
 
