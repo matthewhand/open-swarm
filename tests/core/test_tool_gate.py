@@ -18,6 +18,8 @@ def test_parse_gate_token_single_token_and_structured():
     assert parse_gate_token({"dangerous": True}) is True
     assert parse_gate_token({"approved": True}) is False
     assert parse_gate_token("") is False
+    assert parse_gate_token("   ") is False
+    assert parse_gate_token("\n\n") is False
 
 
 def test_unwired_gate_does_not_prompt():

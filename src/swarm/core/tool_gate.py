@@ -24,6 +24,7 @@ from swarm.core.agent_roles import (
     find_role_agent,
     normalize_agent_role,
 )
+from swarm.core.async_utils import run_coro_sync
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,10 @@ def parse_gate_token(text: Any) -> bool:
             return not bool(text["approved"])
         text = text.get("token") or text.get("answer") or text.get("content") or ""
     raw = str(text or "").strip()
-    if not raw:
+    parts = raw.split()
+    if not parts:
         return False
-    token = raw.split()[0].upper().strip(".,!?;:\"'")
+    token = parts[0].upper().strip(".,!?;:\"'")
     if token in _DANGEROUS_TOKENS:
         return True
     if token in _SAFE_TOKENS:
@@ -151,31 +153,18 @@ def _invoke_gate_agent(
             if callable(on_invoke):
                 result = on_invoke(None, prompt)
                 if hasattr(result, "__await__"):
-                    import asyncio
-
-                    result = asyncio.get_event_loop().run_until_complete(result)
+                    result = run_coro_sync(result)
                 return str(result)
         except Exception as exc:
             logger.debug("gate as_tool invoke skipped: %s", exc)
     try:
         from agents import Runner
 
-        import asyncio
-
         async def _run() -> str:
             result = await Runner.run(gate, prompt, max_turns=1)
             return str(getattr(result, "final_output", None) or result)
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    return pool.submit(lambda: asyncio.run(_run())).result()
-            return loop.run_until_complete(_run())
-        except RuntimeError:
-            return asyncio.run(_run())
+        return run_coro_sync(_run())
     except Exception as exc:
         logger.info("gate Runner unavailable (%s); treating as unclassified", exc)
         raise

@@ -19,6 +19,12 @@ def test_parse_skeptic_verdict_yes_no():
     assert "decision.md" in no.findings
     structured = parse_skeptic_verdict({"accomplished": True})
     assert structured.accomplished is True
+    blank = parse_skeptic_verdict("   \n   \n")
+    assert blank.accomplished is False
+    # First line whitespace-only after a non-empty remainder (ZWSP + blank).
+    weird = parse_skeptic_verdict("\u200b   \nNO\nmissing file")
+    assert weird.accomplished is False
+    assert "missing file" in weird.findings or "NO" in weird.findings
 
 
 @pytest.mark.asyncio

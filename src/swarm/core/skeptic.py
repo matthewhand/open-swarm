@@ -24,6 +24,7 @@ from swarm.core.agent_roles import (
     find_role_agent,
     normalize_agent_role,
 )
+from swarm.core.async_utils import run_coro_sync
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,12 @@ def parse_skeptic_verdict(text: Any) -> SkepticVerdict:
     raw = str(text or "").strip()
     if not raw:
         return SkepticVerdict(accomplished=False, findings="empty skeptic reply", raw=raw)
-    lines = raw.splitlines()
-    token = lines[0].strip().split()[0].upper().strip(".,!?;:\"'")
+    lines = raw.splitlines() or [""]
+    first = (lines[0] if lines else "").strip()
+    parts = first.split()
+    if not parts:
+        return SkepticVerdict(accomplished=False, findings=raw, raw=raw)
+    token = parts[0].upper().strip(".,!?;:\"'")
     rest = "\n".join(lines[1:]).strip()
     if token in _YES:
         return SkepticVerdict(accomplished=True, findings="", raw=raw)
@@ -150,31 +155,18 @@ def _invoke_skeptic(
             if callable(on_invoke):
                 result = on_invoke(None, prompt)
                 if hasattr(result, "__await__"):
-                    import asyncio
-
-                    result = asyncio.get_event_loop().run_until_complete(result)
+                    result = run_coro_sync(result)
                 return parse_skeptic_verdict(result)
         except Exception as exc:
             logger.debug("skeptic as_tool invoke skipped: %s", exc)
     try:
         from agents import Runner
 
-        import asyncio
-
         async def _run() -> str:
             result = await Runner.run(skeptic, prompt, max_turns=1)
             return _stringify_output(result)
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    return parse_skeptic_verdict(pool.submit(lambda: asyncio.run(_run())).result())
-            return parse_skeptic_verdict(loop.run_until_complete(_run()))
-        except RuntimeError:
-            return parse_skeptic_verdict(asyncio.run(_run()))
+        return parse_skeptic_verdict(run_coro_sync(_run()))
     except Exception as exc:
         logger.info("skeptic Runner unavailable (%s)", exc)
         raise
