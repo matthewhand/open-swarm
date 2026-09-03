@@ -1,6 +1,6 @@
 // Pinokio install — README API quickstart is `docker compose up`.
-// Build the image here; start.js brings the stack up. No secrets, no host
-// home paths, no pinokio.computer network.
+// Build the image here; start.js brings the stack up. No secrets and no
+// host home paths in this script.
 
 module.exports = {
   run: [

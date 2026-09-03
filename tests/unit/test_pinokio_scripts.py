@@ -153,7 +153,7 @@ class TestPinokioMenu:
     def test_exports_version_title_menu(self, pinokio):
         assert pinokio["version"]
         assert pinokio["title"] == "Open Swarm"
-        assert "swarm" in pinokio["description"].lower()
+        assert "open swarm" in pinokio["description"].lower()
         assert pinokio["hasMenu"] is True
 
     def test_not_installed_offers_install(self, pinokio):

@@ -1,6 +1,5 @@
 // Open Swarm — Pinokio launcher (local sideload only).
-// Not listed on pinokio.computer / public Discover. Do not add a git tag or
-// GitHub `pinokio` topic from this tree.
+// Sideload via git URL. No public Discover listing from this tree.
 //
 // Menu shape follows matthewhand/gpt-terminal-plus (Install / Start+Update /
 // Open App) but this repo ships the root install.js + start.js that repo
@@ -103,7 +102,7 @@ async function menu(kernel, info) {
 module.exports = {
   version: "2.0",
   title: "Open Swarm",
-  description: "Multi-agent AI workflows as a local CLI, OpenAI-compatible API, and web UI.",
+  description: "Open Swarm — multi-agent AI workflows as a local CLI, OpenAI-compatible API, and web UI.",
   icon: "src/swarm/static/rest_mode/svg/logo.svg",
   menu,
 }
