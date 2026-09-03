@@ -533,6 +533,7 @@ class CliAgentsView(APIView):
             "clis": cli_catalog.catalog_names(),
             "native_consensus": cli_catalog.NATIVE_CONSENSUS,
             "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
+            "rail": cli_catalog.rail_cli_rows(),
         })
 
 
@@ -636,3 +637,37 @@ class BlueprintToolsView(APIView):
             "skipped_optional": res.skipped_optional,
             "ok": res.ok,
         })
+
+
+class SupportContextView(APIView):
+    """Live snapshot for the System → Support briefing pill.
+
+    GET /v1/support/context/ — no secrets. Same auth as /v1/blueprints/.
+    ``briefing`` is Support-only intel (not transcript copy). ``welcome`` is
+    a back-compat alias of the same string.
+    """
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core.support_context import briefing_markdown, live_context
+
+        try:
+            context = live_context()
+            briefing = briefing_markdown(context)
+            return Response(
+                {
+                    "object": "support.context",
+                    **context,
+                    "briefing": briefing,
+                    "welcome": briefing,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            logger.exception("Error building Support live context.")
+            return Response(
+                {"error": "Failed to build Support context."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

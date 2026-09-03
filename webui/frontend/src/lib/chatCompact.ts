@@ -12,7 +12,7 @@ export interface ConversationSummary {
 
 export interface ChatBubble {
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   text: string
   streaming: boolean
 }
