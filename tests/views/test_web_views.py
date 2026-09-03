@@ -476,9 +476,19 @@ class TestTeamRostersJson:
         assert "members" in first
         assert "llm_profile" not in first
 
-    def test_v1_team_rosters_matches_file(self, client):
+    def test_v1_team_rosters_is_composition_api_not_the_file(self, client):
+        """REQ-23 fixture vs REQ-20 CRUD: same list envelope, different views."""
+        from django.urls import resolve
+
         file_res = client.get("/team_rosters.json")
         api_res = client.get("/v1/team-rosters/")
         assert file_res.status_code == 200
         assert api_res.status_code == 200
-        assert json.loads(file_res.content) == json.loads(api_res.content)
+        file_data = json.loads(file_res.content)
+        api_data = json.loads(api_res.content)
+        assert file_data.get("object") == "list"
+        assert isinstance(file_data.get("data"), list)
+        assert api_data.get("object") == "list"
+        assert isinstance(api_data.get("data"), list)
+        assert resolve("/team_rosters.json").url_name == "team-rosters-json"
+        assert resolve("/v1/team-rosters/").url_name == "team-rosters-api"
