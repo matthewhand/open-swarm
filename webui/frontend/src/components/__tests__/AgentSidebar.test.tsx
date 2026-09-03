@@ -72,11 +72,25 @@ describe('AgentSidebar Grok rail', () => {
     localStorage.clear()
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ object: 'list', data: blueprints }),
-      } as Response),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        const data = url.includes('/v1/herdr-agents')
+          ? [{
+              id: 1,
+              object: 'herdr.agent' as const,
+              kind: 'herdr' as const,
+              name: 'w3:p1',
+              remote: '',
+              created_at: '2026-09-03T00:00:00Z',
+              updated_at: '2026-09-03T00:00:00Z',
+            }]
+          : blueprints
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data }),
+        } as Response
+      }),
     )
   })
 
@@ -299,6 +313,37 @@ describe('AgentSidebar Grok rail', () => {
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'codey'])
   })
+
+  it('lists persisted Herdr members (kind=herdr) so Teams/sidepane can pick them', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const herdr = await within(list).findByRole('link', { name: /w3:p1/ })
+    expect(herdr).toHaveAttribute('href', '/teams/#herdr-members')
+    expect(herdr).toHaveTextContent(/Herdr · localhost/)
+  })
+
+  it('reveals a focusable hover-edit on role rows and opens Settings via Enter', async () => {
+    // REQ-26 first-load seed hides gate/skeptic; show all roles for this check.
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
+    const opened: Array<{ blueprintId?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent).detail || {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    renderSidebar()
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const supportEdit = await screen.findByRole('button', { name: 'Edit Support blueprint' })
+    expect(screen.getByRole('button', { name: 'Edit Gate blueprint' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Skeptic blueprint' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Codey blueprint' })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()
+
+    supportEdit.focus()
+    fireEvent.keyDown(supportEdit, { key: 'Enter' })
+    expect(opened).toEqual([{ section: 'blueprint', blueprintId: 'support' }])
+    window.removeEventListener('swarm:open-settings', onOpen)
+  })
 })
 
 describe('AgentSidebar teams', () => {
@@ -326,6 +371,13 @@ describe('AgentSidebar teams', () => {
                 },
               ],
             }),
+          } as Response
+        }
+        if (url.includes('/v1/herdr-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [] }),
           } as Response
         }
         return {

@@ -171,6 +171,8 @@ html[data-theme="light"] #root {
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
 .os-agent-dot[data-role="support"] { background: #3d8f8a; }
+.os-agent-dot[data-role="gate"] { background: #c47a3a; }
+.os-agent-dot[data-role="skeptic"] { background: #7a6b9b; }
 
 .os-rail-search {
   display: flex;
@@ -239,13 +241,92 @@ html[data-theme="light"] #root {
   background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
   color: var(--color-base-content);
 }
+.os-agent-row-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.15rem;
+  position: relative;
+}
 .os-agent-row--support {
   box-shadow: inset 2px 0 0 #3d8f8a;
+}
+.os-agent-row--gate {
+  box-shadow: inset 2px 0 0 #c47a3a;
+}
+.os-agent-row--skeptic {
+  box-shadow: inset 2px 0 0 #7a6b9b;
 }
 .os-agent-row--dragging,
 .os-fav-tile--dragging {
   opacity: 0.4;
 }
+.os-agent-role-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  line-height: 1.3;
+  color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+}
+.os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
+.os-agent-role-badge[data-role="gate"] { color: #c47a3a; }
+.os-agent-role-badge[data-role="skeptic"] { color: #7a6b9b; }
+.os-agent-edit {
+  opacity: 0;
+  flex: 0 0 auto;
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.4rem;
+  color: color-mix(in srgb, var(--color-base-content) 65%, transparent);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.os-agent-row-wrap:hover .os-agent-edit,
+.os-agent-row-wrap:focus-within .os-agent-edit,
+.os-agent-edit:focus {
+  opacity: 1;
+}
+.os-agent-edit:hover,
+.os-agent-edit:focus-visible {
+  color: var(--color-base-content);
+  background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
+  outline: none;
+}
+.os-agent-edit:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 55%, transparent);
+}
+
+.os-code-python {
+  margin: 0;
+  overflow: auto;
+  max-height: min(36rem, 70vh);
+  padding: 0.9rem 1rem;
+  border-radius: 0.6rem;
+  background: #101218;
+  color: #d6deeb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+.os-code-python code {
+  font-family: inherit;
+}
+.os-py-kw { color: #c792ea; }
+.os-py-str { color: #c3e88d; }
+.os-py-cmt { color: #697098; font-style: italic; }
+.os-py-num { color: #f78c6c; }
+.os-py-fn { color: #82aaff; }
 
 .os-hide-drop,
 .os-drop-target {

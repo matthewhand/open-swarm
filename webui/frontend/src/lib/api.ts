@@ -151,6 +151,14 @@ export interface ListResponse<T> {
   data: T[]
 }
 
+/** Visual / wiring role on a Team member (REQ-9 / REQ-25). */
+export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic'
+
+export interface BlueprintAgent {
+  name: string
+  role: AgentRole
+}
+
 /** GET /v1/blueprints/ (BlueprintsListView) */
 export interface Blueprint {
   id: string
@@ -162,6 +170,11 @@ export interface Blueprint {
   tags: string[]
   installed: boolean | null
   compiled: boolean | null
+  /** First-class role for sidepane highlighting when the API sends it. */
+  role?: AgentRole | string | null
+  agents?: BlueprintAgent[]
+  gate_agent?: string | null
+  skeptic_agent?: string | null
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
@@ -228,6 +241,58 @@ export function addToLibrary(name: string): Promise<LibraryEntry> {
 
 export function removeFromLibrary(name: string): Promise<void> {
   return apiDelete(`/v1/library/${encodeURIComponent(name)}/`)
+}
+
+/**
+ * GET/POST /v1/herdr-agents/ and DELETE /v1/herdr-agents/<id>/
+ * (swarm/views/herdr_api.py). DaisyUI settings sheet is not in this tree
+ * (ADR-001); Django /settings/ and admin list/add/remove these rows.
+ * Empty `remote` means localhost (no `herdr --remote`).
+ */
+export interface HerdrAgent {
+  id: number
+  object: 'herdr.agent'
+  kind: 'herdr'
+  name: string
+  remote: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HerdrDiscoverMember {
+  object: 'herdr.member'
+  kind: 'herdr'
+  name: string
+  remote: string
+  source: 'agent' | 'workspace'
+  state: string | null
+  added?: boolean
+}
+
+export interface CreateHerdrAgentRequest {
+  name: string
+  remote?: string
+}
+
+export function fetchHerdrAgents(): Promise<ListResponse<HerdrAgent>> {
+  return apiGet<ListResponse<HerdrAgent>>('/v1/herdr-agents/')
+}
+
+export function createHerdrAgent(
+  agent: CreateHerdrAgentRequest,
+): Promise<HerdrAgent> {
+  return apiPost<HerdrAgent>('/v1/herdr-agents/', agent)
+}
+
+export function deleteHerdrAgent(agentId: string | number): Promise<void> {
+  return apiDelete(`/v1/herdr-agents/${encodeURIComponent(String(agentId))}/`)
+}
+
+export function discoverHerdrAgents(
+  remote?: string,
+): Promise<ListResponse<HerdrDiscoverMember> & { herdr_available?: boolean }> {
+  const qs = remote ? `?remote=${encodeURIComponent(remote)}` : ''
+  return apiGet(`/v1/herdr-agents/discover/${qs}`)
 }
 
 // ---------------------------------------------------------------------------

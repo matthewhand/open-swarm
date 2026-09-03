@@ -9,8 +9,14 @@ import {
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
-import { fetchBlueprints, type Blueprint } from '../lib/api'
+import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
+import { fetchBlueprints, fetchHerdrAgents, type Blueprint, type HerdrAgent } from '../lib/api'
+import {
+  agentRole,
+  exampleRoleAgents,
+  roleCssClass,
+  showsBlueprintEdit,
+} from '../lib/agentRoles'
 import {
   agentMarkIndex,
   hasHiddenAgentsStorage,
@@ -29,14 +35,10 @@ import {
   unpinAgent,
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
-import {
-  agentLabel,
-  defaultBlueprintId,
-  isSupportAgent,
-  supportFirstAgents,
-} from '../lib/supportAgent'
+import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { openSearchPalette } from './SearchPalette'
+import { openSettingsSheet } from './SettingsSheet'
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
 
@@ -54,6 +56,36 @@ interface ContextMenuState {
   pinned: boolean
   x: number
   y: number
+}
+
+type SidebarAgent = Blueprint & {
+  kind?: string
+  remote?: string
+}
+
+function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
+  return agent.kind === 'herdr' || String(agent.id).startsWith('herdr:')
+}
+
+function sidebarHref(agent: { id: string; kind?: string }): string {
+  if (isHerdrAgent(agent)) return '/teams/#herdr-members'
+  return `/chat?blueprint=${encodeURIComponent(agent.id)}`
+}
+
+function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
+  return {
+    id: `herdr:${row.name}`,
+    object: 'blueprint',
+    name: row.name,
+    description: row.remote ? `Herdr · ${row.remote}` : 'Herdr · localhost',
+    abbreviation: null,
+    required_mcp_servers: [],
+    tags: [],
+    installed: true,
+    compiled: true,
+    kind: 'herdr',
+    remote: row.remote || '',
+  }
 }
 
 export default function AgentSidebar({ open = false, onClose, onOpenSearch }: AgentSidebarProps) {
@@ -89,8 +121,17 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     queryFn: fetchTeamRosters,
     retry: 1,
   })
+  const herdrQuery = useQuery({
+    queryKey: ['herdr-agents'],
+    queryFn: fetchHerdrAgents,
+    retry: 1,
+  })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
-  const agents = useMemo(() => supportFirstAgents(catalog), [catalog])
+  const agents = useMemo<SidebarAgent[]>(() => {
+    const blueprints = exampleRoleAgents(catalog)
+    const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
+    return [...blueprints, ...herdr]
+  }, [catalog, herdrQuery.data])
   const teams = teamsQuery.data ?? []
   const resolvedHiddenIds =
     hiddenIds ?? (blueprintsQuery.isPending ? [] : loadOrSeedHiddenAgentIds(agents))
@@ -246,49 +287,119 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     setDraggingId(agent.id)
   }
 
-  const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
+  const openBlueprintEditor = (agent: Blueprint) => {
+    openSettingsSheet({ section: 'blueprint', blueprintId: agent.id })
+    onClose?.()
+  }
+
+  const renderAgentRow = (agent: SidebarAgent, hidden: boolean) => {
     const name = agentLabel(agent)
-    const active = selectedId === agent.id
-    const support = isSupportAgent(agent)
+    const herdr = isHerdrAgent(agent)
+    const active = !herdr && selectedId === agent.id
+    const role = agentRole(agent)
+    const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
-    return (
-      <Link
-        to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
-          support ? 'os-agent-row--support' : ''
-        } ${dragging ? 'os-agent-row--dragging' : ''}`}
-        data-agent-id={agent.id}
-        aria-current={active ? 'page' : undefined}
-        draggable={!hidden}
-        onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
-        onDragEnd={finishDrag}
-        onDragOver={(event) => {
-          // Rows are not drop targets; dropping onto the source is a no-op.
-          try {
-            event.dataTransfer.dropEffect = 'none'
-          } catch {
-            /* synthetic events may omit dataTransfer */
-          }
-        }}
-        onDrop={dropOnSelf}
-        onClick={onClose}
-        onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
-      >
+    const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+      role !== 'default' ? `os-agent-row--${role}` : ''
+    } ${dragging ? 'os-agent-row--dragging' : ''}`
+    const body = (
+      <>
         <span
           className="os-agent-dot mt-1.5"
           data-mark={String(agentMarkIndex(agent.id))}
-          data-role={support ? 'support' : undefined}
+          data-role={role !== 'default' ? role : undefined}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {role !== 'default' ? (
+              <span className={`os-agent-role-badge ${roleCssClass(role)}`} data-role={role}>
+                {role}
+              </span>
+            ) : null}
+          </span>
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}
             </span>
           ) : null}
         </span>
-      </Link>
+      </>
+    )
+    if (herdr) {
+      return (
+        <a
+          href={sidebarHref(agent)}
+          className={className}
+          data-agent-id={agent.id}
+          draggable={!hidden}
+          onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
+          onDragEnd={finishDrag}
+          onDragOver={(event) => {
+            try {
+              event.dataTransfer.dropEffect = 'none'
+            } catch {
+              /* synthetic events may omit dataTransfer */
+            }
+          }}
+          onDrop={dropOnSelf}
+          onClick={onClose}
+          onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
+        >
+          {body}
+        </a>
+      )
+    }
+    return (
+      <div
+        className={`os-agent-row-wrap ${roleCssClass(role)}`}
+        data-role={role}
+      >
+        <Link
+          to={sidebarHref(agent)}
+          className={className}
+          data-agent-id={agent.id}
+          aria-current={active ? 'page' : undefined}
+          draggable={!hidden}
+          onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
+          onDragEnd={finishDrag}
+          onDragOver={(event) => {
+            // Rows are not drop targets; dropping onto the source is a no-op.
+            try {
+              event.dataTransfer.dropEffect = 'none'
+            } catch {
+              /* synthetic events may omit dataTransfer */
+            }
+          }}
+          onDrop={dropOnSelf}
+          onClick={onClose}
+          onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
+        >
+          {body}
+        </Link>
+        {showEdit ? (
+          <button
+            type="button"
+            className="os-agent-edit"
+            aria-label={`Edit ${name} blueprint`}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openBlueprintEditor(agent)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                event.stopPropagation()
+                openBlueprintEditor(agent)
+              }
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
     )
   }
 
@@ -406,19 +517,14 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           onDragLeave={() => setDropActive(false)}
           onDrop={dropPin}
         >
-          {visiblePins.map((pin) => (
-            <Link
-              key={pin.id}
-              to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
-              className={`os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`}
-              title={pin.name}
-              aria-label={pin.name}
-              data-agent-id={pin.id}
-              draggable
-              onDragStart={(event) => beginRowDrag(event, pin)}
-              onDragEnd={finishDrag}
-              onClick={onClose}
-              onContextMenu={(event) => {
+          {visiblePins.map((pin) => {
+            const pinClass = `os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`
+            const pinHandlers = {
+              draggable: true as const,
+              onDragStart: (event: ReactDragEvent) => beginRowDrag(event, pin),
+              onDragEnd: finishDrag,
+              onClick: onClose,
+              onContextMenu: (event: ReactMouseEvent) => {
                 event.preventDefault()
                 setMenu({
                   agentId: pin.id,
@@ -428,15 +534,45 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                   x: event.clientX,
                   y: event.clientY,
                 })
-              }}
-            >
-              <span
-                className="os-agent-dot"
-                data-mark={String(agentMarkIndex(pin.id))}
-                aria-hidden="true"
-              />
-            </Link>
-          ))}
+              },
+            }
+            if (isHerdrAgent(pin)) {
+              return (
+                <a
+                  key={pin.id}
+                  href="/teams/#herdr-members"
+                  className={pinClass}
+                  title={pin.name}
+                  aria-label={pin.name}
+                  data-agent-id={pin.id}
+                  {...pinHandlers}
+                >
+                  <span
+                    className="os-agent-dot"
+                    data-mark={String(agentMarkIndex(pin.id))}
+                    aria-hidden="true"
+                  />
+                </a>
+              )
+            }
+            return (
+              <Link
+                key={pin.id}
+                to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
+                className={pinClass}
+                title={pin.name}
+                aria-label={pin.name}
+                data-agent-id={pin.id}
+                {...pinHandlers}
+              >
+                <span
+                  className="os-agent-dot"
+                  data-mark={String(agentMarkIndex(pin.id))}
+                  aria-hidden="true"
+                />
+              </Link>
+            )
+          })}
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
@@ -449,13 +585,13 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           ) : (
             <ul className="space-y-0.5">
               {supportAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
+                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
               {visibleTeams.map((team) => (
                 <li key={teamHideId(team.id)}>{renderTeamLink(team, false)}</li>
               ))}
               {otherAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
+                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
             </ul>
           )}
