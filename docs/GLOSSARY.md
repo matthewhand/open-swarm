@@ -14,6 +14,10 @@ A named **LLM-profile alias** stored in `teams.json` (`id`, `description`, `llm_
 
 **Not** a multi-agent team builder or graph editor. For multi-agent workflows, use a **Blueprint** (or MoA / persona patterns below).
 
+## Team roster (`/v1/team-rosters`, REQ-23)
+
+A multi-agent roster stored in `team_rosters.json` (`id`, `name`, `description`, `members[{id,name,kind,role}]`). Listed in the AGENTS sidepane next to blueprints. Chat compose targets `{team, target: "all"|memberId}`. **Not** the `/v1/teams` LLM-profile alias registry.
+
 ## Persona / MoA
 
 Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):

@@ -43,6 +43,26 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/team-rosters**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        data: [
+          {
+            id: 'demo-council',
+            object: 'team_roster',
+            name: 'Demo Council',
+            description: 'Example multi-agent roster',
+            members: [
+              { id: 'planner', name: 'Planner', kind: 'coordinator', role: 'coordinator' },
+            ],
+          },
+        ],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,

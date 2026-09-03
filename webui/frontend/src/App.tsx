@@ -4,6 +4,7 @@ import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } f
 import ChatPage from './pages/ChatPage'
 import Dashboard from './pages/Dashboard'
 import AgentSidebar from './components/AgentSidebar'
+import TeamsSheet from './components/TeamsSheet'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
 
@@ -54,6 +55,7 @@ function App() {
   return (
     <Router>
       {SHOW_COMMAND_PALETTE && <CommandPalette />}
+      <TeamsSheet />
       <div
         className="flex min-h-screen flex-col bg-base-100 text-base-content"
         data-theme={darkMode === 'dark' ? 'dark' : 'light'}

@@ -9,6 +9,7 @@ import {
   loadHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
+import { loadTeamRosters, type TeamRoster } from '../lib/teamRosters'
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
@@ -28,10 +29,19 @@ function agentLabel(agent: Blueprint): string {
   return agent.name || agent.id
 }
 
+function teamLabel(team: TeamRoster): string {
+  return team.name || team.id
+}
+
+type SidebarRow =
+  | { kind: 'agent'; id: string; label: string; agent: Blueprint }
+  | { kind: 'team'; id: string; label: string; team: TeamRoster }
+
 export default function AgentSidebar({ open = false, onClose }: AgentSidebarProps) {
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
   const selectedId = pathname.startsWith('/chat') ? (searchParams.get('blueprint') ?? '') : ''
+  const selectedTeamId = pathname.startsWith('/chat') ? (searchParams.get('team') ?? '') : ''
 
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenAgentIds())
   const [hiddenOpen, setHiddenOpen] = useState(false)
@@ -44,9 +54,15 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     queryFn: fetchBlueprints,
     retry: 1,
   })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: loadTeamRosters,
+    retry: 1,
+  })
   const agents = blueprintsQuery.data?.data ?? []
+  const teams = teamsQuery.data ?? []
 
-  const matchesFilter = useCallback(
+  const matchesAgent = useCallback(
     (agent: Blueprint) => {
       const q = filter.trim().toLowerCase()
       if (!q) return true
@@ -59,14 +75,56 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     [filter],
   )
 
+  const matchesTeam = useCallback(
+    (team: TeamRoster) => {
+      const q = filter.trim().toLowerCase()
+      if (!q) return true
+      const memberHay = team.members
+        .map((member) => `${member.name} ${member.kind} ${member.role}`)
+        .join(' ')
+      return (
+        teamLabel(team).toLowerCase().includes(q) ||
+        team.id.toLowerCase().includes(q) ||
+        (team.description || '').toLowerCase().includes(q) ||
+        memberHay.toLowerCase().includes(q)
+      )
+    },
+    [filter],
+  )
+
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !hiddenIds.includes(agent.id) && matchesFilter(agent)),
-    [agents, hiddenIds, matchesFilter],
+    () => agents.filter((agent) => !hiddenIds.includes(agent.id) && matchesAgent(agent)),
+    [agents, hiddenIds, matchesAgent],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => hiddenIds.includes(agent.id) && matchesFilter(agent)),
-    [agents, hiddenIds, matchesFilter],
+    () => agents.filter((agent) => hiddenIds.includes(agent.id) && matchesAgent(agent)),
+    [agents, hiddenIds, matchesAgent],
   )
+  const visibleTeams = useMemo(
+    () => teams.filter((team) => matchesTeam(team)),
+    [teams, matchesTeam],
+  )
+  const mixedRows = useMemo(() => {
+    const rows: SidebarRow[] = [
+      ...visibleAgents.map((agent) => ({
+        kind: 'agent' as const,
+        id: `agent:${agent.id}`,
+        label: agentLabel(agent),
+        agent,
+      })),
+      ...visibleTeams.map((team) => ({
+        kind: 'team' as const,
+        id: `team:${team.id}`,
+        label: teamLabel(team),
+        team,
+      })),
+    ]
+    rows.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
+    return rows
+  }, [visibleAgents, visibleTeams])
+  const listPending = blueprintsQuery.isPending && teamsQuery.isPending
+  const listError = blueprintsQuery.isError && teamsQuery.isError
+  const listEmpty = !listPending && !listError && mixedRows.length === 0
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
@@ -116,7 +174,7 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
 
   const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
     const name = agentLabel(agent)
-    const active = selectedId === agent.id
+    const active = !selectedTeamId && selectedId === agent.id
     return (
       <Link
         to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
@@ -141,6 +199,42 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
               {agent.description}
             </span>
           ) : null}
+        </span>
+      </Link>
+    )
+  }
+
+  const renderTeamLink = (team: TeamRoster) => {
+    const name = teamLabel(team)
+    const active = selectedTeamId === team.id
+    const memberHint =
+      team.members.length === 0
+        ? 'No members yet'
+        : `${team.members.length} member${team.members.length === 1 ? '' : 's'}`
+    return (
+      <Link
+        to={`/chat?team=${encodeURIComponent(team.id)}`}
+        className={`flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+          active
+            ? 'bg-base-300/70 text-base-content'
+            : 'text-base-content/90 hover:bg-base-300/40'
+        }`}
+        aria-current={active ? 'page' : undefined}
+        aria-label={`${name} team`}
+        data-kind="team"
+        onClick={onClose}
+      >
+        <span className="os-team-mark mt-0.5" aria-hidden="true">
+          <Users className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            <span className="badge badge-ghost badge-xs shrink-0">Team</span>
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-base-content/45">
+            {team.description || memberHint}
+          </span>
         </span>
       </Link>
     )
@@ -184,26 +278,32 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
             id="os-agent-filter"
             type="search"
             className="input input-sm h-9 w-full rounded-full border border-base-300 bg-base-100/40 text-sm"
-            placeholder="Search agents"
+            placeholder="Search agents & teams"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           />
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
-          {blueprintsQuery.isPending ? (
+          {listPending ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
-          ) : blueprintsQuery.isError ? (
+          ) : listError ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
-          ) : visibleAgents.length === 0 ? (
+          ) : listEmpty ? (
             <p className="px-2 py-3 text-sm text-base-content/45">
-              {agents.length === 0 ? 'No agents yet.' : 'No matching agents.'}
+              {agents.length === 0 && teams.length === 0
+                ? 'No agents or teams yet.'
+                : 'No matching agents or teams.'}
             </p>
           ) : (
             <ul className="space-y-0.5">
-              {visibleAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
-              ))}
+              {mixedRows.map((row) =>
+                row.kind === 'team' ? (
+                  <li key={row.id}>{renderTeamLink(row.team)}</li>
+                ) : (
+                  <li key={row.id}>{renderAgentLink(row.agent, false)}</li>
+                ),
+              )}
             </ul>
           )}
 

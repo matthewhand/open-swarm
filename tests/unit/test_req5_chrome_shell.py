@@ -40,7 +40,10 @@ def test_agent_sidebar_js_hides_and_persists():
     assert "Unhide" in js
     assert "localStorage.setItem" in js
     assert "/v1/blueprints/" in js
+    assert "/v1/team-rosters" in js
+    assert 'fetch("/v1/teams/' not in js
     assert "no hide-all" in js
+    assert "Hide-all" not in js
 
 
 def test_theme_js_shares_spa_storage_key():

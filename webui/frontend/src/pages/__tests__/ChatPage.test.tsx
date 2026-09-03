@@ -386,6 +386,134 @@ describe('ChatPage auto-reconnect backoff', () => {
   })
 })
 
+describe('ChatPage team member dropdown (REQ-23)', () => {
+  const council = {
+    id: 'demo-council',
+    object: 'team_roster' as const,
+    name: 'Demo Council',
+    description: 'Example',
+    members: [
+      { id: 'planner', name: 'Planner', kind: 'coordinator', role: 'coordinator' },
+      { id: 'researcher', name: 'Researcher', kind: 'agent', role: 'researcher' },
+    ],
+  }
+  const emptySquad = {
+    id: 'empty-squad',
+    object: 'team_roster' as const,
+    name: 'Empty Squad',
+    description: '',
+    members: [],
+  }
+
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubRosters(teams: unknown[]) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: teams }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+          }),
+        } as Response
+      }),
+    )
+  }
+
+  it('lists All members first, then members, then Manage Teams — unlabeled', async () => {
+    stubRosters([council])
+    renderChat('/chat?team=demo-council')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    const options = Array.from(select.querySelectorAll('option')).map((opt) => opt.textContent)
+    expect(options[0]).toMatch(/All members/)
+    expect(options).toContain('Planner (coordinator)')
+    expect(options).toContain('Researcher (agent · researcher)')
+    expect(options[options.length - 1]).toBe('Manage Teams')
+    expect(screen.queryByText(/^Blueprint$/)).not.toBeInTheDocument()
+  })
+
+  it('sends {team, target: all} then a member id on compose', async () => {
+    stubRosters([council])
+    renderChat('/chat?team=demo-council')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'hello all' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    expect(JSON.parse(ws.send.mock.calls[0][0])).toEqual({
+      message: 'hello all',
+      team: 'demo-council',
+      target: 'all',
+    })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'planner' },
+    })
+    fireEvent.change(composer, { target: { value: 'just you' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+    expect(JSON.parse(ws.send.mock.calls[1][0])).toEqual({
+      message: 'just you',
+      team: 'demo-council',
+      target: 'planner',
+    })
+  })
+
+  it('disables All members and hints when the roster is empty', async () => {
+    stubRosters([emptySquad])
+    renderChat('/chat?team=empty-squad')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    const allMembers = select.querySelector('option[value="all"]') as HTMLOptionElement
+    expect(allMembers).toBeDisabled()
+    expect(screen.getByRole('note')).toHaveTextContent(/Add members/i)
+    expect(screen.getByRole('option', { name: 'Manage Teams' })).toBeInTheDocument()
+  })
+
+  it('opens the teams overlay instead of navigating away on Manage Teams', async () => {
+    stubRosters([council])
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    renderChat('/chat?team=demo-council')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
+      target: { value: '__manage_teams__' },
+    })
+    expect(assign).not.toHaveBeenCalled()
+  })
+})
+
 describe('ChatPage markdown bubbles', () => {
   beforeEach(() => {
     MockWebSocket.instances = []

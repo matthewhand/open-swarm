@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { AlertCircle, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
 import {
   Alert,
   Badge,
@@ -18,6 +18,12 @@ import {
   LoadingSpinner,
 } from '../components/DaisyUI'
 import { fetchBlueprints, isAuthError } from '../lib/api'
+import {
+  loadTeamRosters,
+  memberKindLabel,
+  openTeamsSheet,
+  type TeamRoster,
+} from '../lib/teamRosters'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
@@ -36,6 +42,10 @@ import { ChatMessageActions } from '../experimental/ChatMessageActions'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
+
+const MANAGE_BLUEPRINTS_VALUE = '__manage_blueprints__'
+const MANAGE_TEAMS_VALUE = '__manage_teams__'
+const ALL_MEMBERS_VALUE = 'all'
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 
@@ -75,6 +85,10 @@ const ChatPage = () => {
   const [selectedBlueprint, setSelectedBlueprint] = useState(
     () => searchParams.get('blueprint') ?? '',
   )
+  const [selectedTeam, setSelectedTeam] = useState(
+    () => searchParams.get('team') ?? '',
+  )
+  const [teamTarget, setTeamTarget] = useState<string>(ALL_MEMBERS_VALUE)
   const [connectAttempt, setConnectAttempt] = useState(0)
   /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
@@ -96,13 +110,33 @@ const ChatPage = () => {
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: loadTeamRosters,
+  })
   const blueprints = blueprintsQuery.data?.data ?? []
+  const teams = teamsQuery.data ?? []
+  const activeTeam: TeamRoster | undefined = teams.find((team) => team.id === selectedTeam)
+  const teamRosterEmpty = Boolean(selectedTeam && activeTeam && activeTeam.members.length === 0)
   const blueprintMissingFromList =
     Boolean(selectedBlueprint) &&
+    !selectedTeam &&
     !blueprintsQuery.isPending &&
     !blueprintsQuery.isError &&
     !blueprints.some((bp) => bp.id === selectedBlueprint)
   const signInHref = chatLoginHref(searchParams)
+
+  useEffect(() => {
+    const team = searchParams.get('team') ?? ''
+    const blueprint = searchParams.get('blueprint') ?? ''
+    if (team) {
+      setSelectedTeam(team)
+      setTeamTarget(ALL_MEMBERS_VALUE)
+    } else {
+      setSelectedTeam('')
+      setSelectedBlueprint(blueprint)
+    }
+  }, [searchParams])
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
     if (event.kind === 'unknown') {
@@ -243,7 +277,9 @@ const ChatPage = () => {
   }, [status, connectAttempt])
 
   const canSend =
-    status === 'open' && input.trim().length > 0
+    status === 'open' &&
+    input.trim().length > 0 &&
+    !(teamRosterEmpty && teamTarget === ALL_MEMBERS_VALUE)
 
   /** Last user prompt, kept for the experimental Retry action. */
   const lastUserTextRef = useRef('')
@@ -255,11 +291,20 @@ const ChatPage = () => {
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
       lastUserTextRef.current = trimmed
       // Protocol from DjangoChatConsumer.receive():
-      // {"message": "<text>", "blueprint": "<id>"} — the blueprint field is
-      // optional and selects which blueprint generates the reply.
+      // {"message": "<text>", "blueprint": "<id>"} or
+      // {"message": "<text>", "team": "<id>", "target": "all"|memberId}.
+      if (selectedTeam) {
+        ws.send(
+          buildChatWsFrame(trimmed, {
+            team: selectedTeam,
+            target: teamTarget || ALL_MEMBERS_VALUE,
+          }),
+        )
+        return
+      }
       ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
     },
-    [selectedBlueprint],
+    [selectedBlueprint, selectedTeam, teamTarget],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -286,14 +331,20 @@ const ChatPage = () => {
 
   const composerPlaceholder =
     status === 'open'
-      ? 'Type a message…'
+      ? selectedTeam
+        ? teamRosterEmpty
+          ? 'Add members to this team before sending'
+          : teamTarget === ALL_MEMBERS_VALUE
+            ? 'Message all members…'
+            : `Message ${activeTeam?.members.find((m) => m.id === teamTarget)?.name || teamTarget}…`
+        : 'Type a message…'
       : status === 'connecting'
         ? 'Connecting… sending is disabled'
         : 'Websocket not connected — sending is disabled'
 
   return (
     <div className="mx-auto flex h-[calc(100vh-13rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-6.5rem)]">
-      {/* Header: title + blueprint selector + connection status.
+      {/* Header: title + unlabeled destination dropdown + connection status.
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -301,9 +352,22 @@ const ChatPage = () => {
           Chat
         </h1>
 
-        {/* Blueprint selector (from /v1/blueprints/) */}
         <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
-          {blueprintsQuery.isPending ? (
+          {selectedTeam ? (
+            <TeamMemberDropdown
+              team={activeTeam}
+              teamId={selectedTeam}
+              target={teamTarget}
+              emptyRoster={teamRosterEmpty}
+              onChange={(value) => {
+                if (value === MANAGE_TEAMS_VALUE) {
+                  openTeamsSheet()
+                  return
+                }
+                setTeamTarget(value)
+              }}
+            />
+          ) : blueprintsQuery.isPending ? (
             <div className="flex items-center gap-2 py-2">
               <LoadingSpinner size="sm" />
               <span className="text-sm">Loading blueprints…</span>
@@ -334,35 +398,19 @@ const ChatPage = () => {
             </Alert>
           ) : (
             <div className="w-full max-w-xs flex flex-col gap-1">
-              <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-sm font-medium">
-                  Blueprint
-                </span>
-                {/* Focusable so keyboard users can reveal the tooltip;
-                    aria-describedby keeps the note available to screen readers. */}
-                <span
-                  className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
-                  data-tip="Sent with every message — the selected blueprint generates the reply. Choose “Server default model” to use the server-configured model instead."
-                >
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs btn-circle p-0 min-h-0 h-auto"
-                    aria-label="About blueprint selection"
-                    tabIndex={0}
-                  >
-                    <Info className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-                  </button>
-                </span>
-              </div>
               <select
                 className="select select-md h-12 w-full border border-base-300"
                 value={selectedBlueprint}
-                onChange={(e) => setSelectedBlueprint(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === MANAGE_BLUEPRINTS_VALUE) {
+                    window.location.assign('/blueprint-library/')
+                    return
+                  }
+                  setSelectedBlueprint(e.target.value)
+                }}
                 aria-label="Blueprint"
               >
                 <option value="">Server default model</option>
-                {/* Keep a ?blueprint= preselection visible even if it is not
-                    in the fetched list (e.g. a just-created team). */}
                 {blueprintMissingFromList && (
                   <option value={selectedBlueprint}>
                     {selectedBlueprint} (not in list)
@@ -373,6 +421,7 @@ const ChatPage = () => {
                     {bp.name || bp.id}
                   </option>
                 ))}
+                <option value={MANAGE_BLUEPRINTS_VALUE}>Manage Blueprints</option>
               </select>
             </div>
           )}
@@ -606,6 +655,53 @@ const ChatBubbleBody = memo(
   (prev, next) =>
     prev.text === next.text && prev.streaming === next.streaming,
 )
+
+function TeamMemberDropdown({
+  team,
+  teamId,
+  target,
+  emptyRoster,
+  onChange,
+}: {
+  team: TeamRoster | undefined
+  teamId: string
+  target: string
+  emptyRoster: boolean
+  onChange: (value: string) => void
+}) {
+  const members = team?.members ?? []
+  return (
+    <div className="w-full max-w-xs flex flex-col gap-1">
+      <select
+        className="select select-md h-12 w-full border border-base-300"
+        value={emptyRoster ? ALL_MEMBERS_VALUE : target}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label="Team members"
+      >
+        <option value={ALL_MEMBERS_VALUE} disabled={emptyRoster}>
+          All members
+        </option>
+        {members.map((member) => (
+          <option key={member.id} value={member.id}>
+            {member.name} ({memberKindLabel(member)})
+          </option>
+        ))}
+        <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
+      </select>
+      {emptyRoster ? (
+        <p className="text-xs text-base-content/55" role="note">
+          Add members to send to this team. All members is disabled until the
+          roster has at least one member.
+        </p>
+      ) : !team ? (
+        <p className="text-xs text-base-content/55" role="note">
+          Team <code>{teamId}</code> is selected. Roster will appear when it
+          loads.
+        </p>
+      ) : null}
+    </div>
+  )
+}
 
 function connectionStatusLabel(
   status: ConnectionStatus,

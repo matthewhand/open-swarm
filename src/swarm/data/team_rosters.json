@@ -1,0 +1,31 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "demo-council",
+      "object": "team_roster",
+      "name": "Demo Council",
+      "description": "Example multi-agent roster (not a /v1/teams LLM-profile alias).",
+      "members": [
+        {
+          "id": "planner",
+          "name": "Planner",
+          "kind": "coordinator",
+          "role": "coordinator"
+        },
+        {
+          "id": "researcher",
+          "name": "Researcher",
+          "kind": "agent",
+          "role": "researcher"
+        },
+        {
+          "id": "writer",
+          "name": "Writer",
+          "kind": "agent",
+          "role": "writer"
+        }
+      ]
+    }
+  ]
+}

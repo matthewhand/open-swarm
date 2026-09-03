@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
+import { DEMO_TEAM_ROSTER } from '../../lib/teamRosters'
 
 const blueprints = [
   {
@@ -52,11 +53,22 @@ describe('AgentSidebar hide / unhide', () => {
     localStorage.clear()
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ object: 'list', data: blueprints }),
-      } as Response),
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        expect(url).not.toMatch(/\/v1\/teams\/?$/)
+        if (url.includes('/v1/team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [DEMO_TEAM_ROSTER] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
     )
   })
 
@@ -104,5 +116,20 @@ describe('AgentSidebar hide / unhide', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Hidden/i }))
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+  })
+
+  it('mixes a visually distinct team row with agents and selects the team thread', async () => {
+    renderSidebar('/chat')
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Demo Council team/i })
+    expect(team).toHaveAttribute('href', '/chat?team=demo-council')
+    expect(team).toHaveAttribute('data-kind', 'team')
+    expect(within(team).getByText('Team')).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+
+    const fetched = vi.mocked(fetch)
+    expect(fetched.mock.calls.some(([url]) => String(url).includes('/v1/team-rosters'))).toBe(true)
+    expect(fetched.mock.calls.some(([url]) => /\/v1\/teams\/?$/.test(String(url)))).toBe(false)
   })
 })

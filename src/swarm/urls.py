@@ -59,6 +59,7 @@ from swarm.views.settings_views import (
     settings_api,
     settings_dashboard,
 )
+from swarm.views.team_rosters import TeamRostersAPIView, team_rosters_file
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
     custom_login,
@@ -134,6 +135,10 @@ urlpatterns = [
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
     path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
+    # Multi-agent rosters for the AGENTS sidepane (REQ-23). Not /v1/teams aliases.
+    path("v1/team-rosters", TeamRostersAPIView.as_view(), name="team-rosters-api-no-slash"),
+    path("v1/team-rosters/", TeamRostersAPIView.as_view(), name="team-rosters-api"),
+    path("team_rosters.json", team_rosters_file, name="team-rosters-file"),
     # JSON Blueprint Library API (REST counterpart to /blueprint-library/)
     path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
     path("v1/library/", LibraryAPIView.as_view(), name="library-api"),

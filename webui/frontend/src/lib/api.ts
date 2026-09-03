@@ -210,6 +210,26 @@ export function fetchTeams(): Promise<ListResponse<Team>> {
   return apiGet<ListResponse<Team>>('/v1/teams/')
 }
 
+/** GET /v1/team-rosters/ — multi-agent rosters (REQ-23). Not /v1/teams aliases. */
+export interface TeamRosterMember {
+  id: string
+  name: string
+  kind: string
+  role: string
+}
+
+export interface TeamRoster {
+  id: string
+  object: 'team_roster'
+  name: string
+  description: string
+  members: TeamRosterMember[]
+}
+
+export function fetchTeamRosters(): Promise<ListResponse<TeamRoster>> {
+  return apiGet<ListResponse<TeamRoster>>('/v1/team-rosters/')
+}
+
 export function createTeam(team: CreateTeamRequest): Promise<Team> {
   return apiPost<Team>('/v1/teams/', team)
 }

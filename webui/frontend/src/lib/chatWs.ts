@@ -11,7 +11,9 @@
  * - Client -> server: JSON text frames: {"message": "<user text>"} with an
  *   optional "blueprint": "<id>" field selecting which discovered blueprint
  *   answers (per-message field overrides the URL default; omitting both
- *   falls back to the server-configured model).
+ *   falls back to the server-configured model). Team compose (REQ-23) adds
+ *   optional "team": "<id>" and "target": "all"|memberId. When team is
+ *   present it wins over blueprint. Fan-out is stubbed on the server.
  * - Server -> client: HTML partials with HTMx out-of-band swap attributes:
  *   1. user echo:        <div id="message-list" hx-swap-oob="beforeend">
  *                          <div class="user-message ...">{text}</div></div>
@@ -36,22 +38,52 @@ export type ChatWsEvent =
 const OOB_CHUNK_PREFIX = 'beforeend:#'
 const ASSISTANT_ID_PREFIX = 'message-response-'
 
+export interface ChatWsUrlOpts {
+  blueprint?: string
+  team?: string
+  target?: string
+}
+
 export function buildChatWsUrl(
   conversationId: string,
-  blueprintId?: string,
+  blueprintId?: string | ChatWsUrlOpts,
 ): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const base = `${scheme}://${window.location.host}/ws/ai-demo/${encodeURIComponent(conversationId)}/`
-  return blueprintId
-    ? `${base}?blueprint=${encodeURIComponent(blueprintId)}`
-    : base
+  const opts: ChatWsUrlOpts =
+    typeof blueprintId === 'object' && blueprintId !== null
+      ? blueprintId
+      : { blueprint: blueprintId }
+  const params = new URLSearchParams()
+  if (opts.blueprint) params.set('blueprint', opts.blueprint)
+  if (opts.team) params.set('team', opts.team)
+  if (opts.team && opts.target) params.set('target', opts.target)
+  const qs = params.toString()
+  return qs ? `${base}?${qs}` : base
+}
+
+export interface ChatWsFrameOpts {
+  blueprint?: string
+  team?: string
+  target?: 'all' | string
 }
 
 /** Build the JSON frame sent to DjangoChatConsumer.receive(). */
-export function buildChatWsFrame(message: string, blueprintId?: string): string {
-  return JSON.stringify(
-    blueprintId ? { message, blueprint: blueprintId } : { message },
-  )
+export function buildChatWsFrame(
+  message: string,
+  blueprintId?: string | ChatWsFrameOpts,
+): string {
+  const opts: ChatWsFrameOpts =
+    typeof blueprintId === 'object' && blueprintId !== null
+      ? blueprintId
+      : { blueprint: blueprintId }
+  const frame: Record<string, string> = { message }
+  if (opts.blueprint) frame.blueprint = opts.blueprint
+  if (opts.team) {
+    frame.team = opts.team
+    frame.target = opts.target || 'all'
+  }
+  return JSON.stringify(frame)
 }
 
 export function newConversationId(): string {

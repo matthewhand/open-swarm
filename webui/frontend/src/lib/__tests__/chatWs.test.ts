@@ -16,6 +16,15 @@ describe('buildChatWsUrl', () => {
     expect(buildChatWsUrl('conv1', 'bp-7')).toMatch(/\/ws\/ai-demo\/conv1\/\?blueprint=bp-7$/)
   })
 
+  it('appends team and target query params when given', () => {
+    expect(buildChatWsUrl('conv1', { team: 'demo-council', target: 'all' })).toMatch(
+      /[?&]team=demo-council/,
+    )
+    expect(buildChatWsUrl('conv1', { team: 'demo-council', target: 'all' })).toMatch(
+      /[?&]target=all/,
+    )
+  })
+
   it('URL-encodes both the conversation id and blueprint id', () => {
     const url = buildChatWsUrl('a/b c', 'x&y')
     expect(url).toContain('/ws/ai-demo/a%2Fb%20c/')
@@ -41,6 +50,27 @@ describe('buildChatWsFrame', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',
     )
+  })
+
+  it('includes team and target for send-to-all and a member', () => {
+    expect(JSON.parse(buildChatWsFrame('hi', { team: 'demo-council', target: 'all' }))).toEqual({
+      message: 'hi',
+      team: 'demo-council',
+      target: 'all',
+    })
+    expect(JSON.parse(buildChatWsFrame('hi', { team: 'demo-council', target: 'planner' }))).toEqual({
+      message: 'hi',
+      team: 'demo-council',
+      target: 'planner',
+    })
+  })
+
+  it('defaults target to all when team is set without a target', () => {
+    expect(JSON.parse(buildChatWsFrame('hi', { team: 'demo-council' }))).toEqual({
+      message: 'hi',
+      team: 'demo-council',
+      target: 'all',
+    })
   })
 })
 

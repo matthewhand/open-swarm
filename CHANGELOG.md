@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 
 
 ### Added
+- **REQ-23 Teams in the AGENTS sidepane:** multi-agent rosters from `team_rosters.json` / `GET /v1/team-rosters/` mix with agent rows (Users/team badge). Selecting a team opens that team's chat; the unlabeled dropdown lists **All members**, each member, then **Manage Teams** (overlay). Compose sends `{team, target: "all"|memberId}` (handoff/as_tool fan-out stubbed). Not the Django `/v1/teams` LLM-alias admin.
 - **SPA ChatPage markdown + auto-reconnect:** bubbles render GFM via `marked` then allowlist-sanitize (`htmlSafe`, same model as rest_mode); unexpected WS closes retry with exponential backoff (skip **4401** auth gate)
 - **Responses store prune:** `swarm.core.responses_store.prune_expired` deletes terminal records older than `max_age_days` / `SWARM_RESPONSES_MAX_AGE_DAYS` (skips `queued`/`in_progress`; not automatic — operator/cron); notes in CONFIGURATION.md, ASYNC_RESPONSES.md, ORACLE_DEPLOY.md
 - **SPA build wiring (ADR-001):** `make frontend` → `scripts/build_frontend.sh` (`npm ci` + verify `dist/index.html`); multi-stage `Dockerfile` bakes `webui/frontend/dist` for Docker/Fly; CI `frontend` job in `python-pytest.yml` runs the same script. After pull: `make frontend` (DEPLOYMENT.md / webui/README)

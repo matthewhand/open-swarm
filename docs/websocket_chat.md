@@ -43,6 +43,10 @@ Notes:
   (optionally `LITELLM_BASE_URL`/`OPENAI_BASE_URL`).
 - Frames are HTMx-style HTML partials (`websocket_partials/*.html`); the SPA
   parses the same frames.
+- Client JSON may include optional `"team": "<roster-id>"` and
+  `"target": "all"|<memberId>` (REQ-23). When `team` is present it wins over
+  `blueprint`. Fan-out (handoff / `as_tool`) is stubbed until the
+  openai-agents team runtime is wired; the stub reply records the params.
 - No channel layer is required (the consumer never uses group sends), so
   `CHANNEL_LAYERS`/`channels-redis` configuration is unnecessary for chat.
 

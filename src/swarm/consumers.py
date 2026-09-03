@@ -56,6 +56,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     ``blueprint`` field overrides it. When neither is given, the legacy
     behaviour (server-configured OpenAI model) is preserved.
 
+    Team compose (REQ-23) adds optional ``"team": "<id>"`` and
+    ``"target": "all"|<memberId>``. When ``team`` is present it wins over
+    blueprint. Fan-out (handoff / ``as_tool``) is stubbed until the
+    openai-agents team runtime is wired in this tree.
+
     Auth is Django **session** only (``AuthMiddlewareStack`` cookie). A
     Settings-page API bearer token does not authenticate this socket.
     """
@@ -63,9 +68,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
         self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
-        # Optional connection-level default blueprint (?blueprint=<id>).
+        # Optional connection-level defaults (?blueprint=<id>&team=<id>&target=).
         query_params = parse_qs(self.scope.get("query_string", b"").decode())
         self.default_blueprint = (query_params.get("blueprint") or [None])[0]
+        self.default_team = (query_params.get("team") or [None])[0]
+        self.default_target = (query_params.get("target") or [None])[0]
 
         if self.user.is_authenticated:
             self.messages = await self.fetch_conversation(self.conversation_id)
@@ -120,10 +127,16 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if not message_text.strip():
             return
 
-        # Per-message blueprint selection wins over the connection default.
+        # Per-message blueprint/team selection wins over the connection default.
         blueprint_id = text_data_json.get("blueprint") or getattr(
             self, "default_blueprint", None
         )
+        team_id = text_data_json.get("team") or getattr(self, "default_team", None)
+        target = text_data_json.get("target") or getattr(self, "default_target", None) or "all"
+        if not isinstance(team_id, str):
+            team_id = None
+        if not isinstance(target, str) or not target.strip():
+            target = "all"
 
         self.messages.append(
             {
@@ -146,7 +159,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=system_message_html)
 
-        if blueprint_id:
+        if team_id:
+            await self.respond_with_team(team_id, target, contents_div_id)
+        elif blueprint_id:
             await self.respond_with_blueprint(blueprint_id, contents_div_id)
         else:
             await self.respond_with_default_model(contents_div_id)
@@ -242,6 +257,27 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             },
         )
         await self.send(text_data=final_message_html)
+
+    async def respond_with_team(self, team_id, target, contents_div_id):
+        """Stub handoff/as_tool fan-out for a team roster compose (REQ-23).
+
+        Frames carry ``{team, target: "all"|memberId}``. The openai-agents
+        runtime is not wired in this tree, so the reply records the params
+        instead of invoking specialists.
+        """
+        instruction = self.messages[-1]["content"] if self.messages else ""
+        canned = (
+            f"[TEAM-STUB] team={team_id} target={target}. "
+            "Handoff/as_tool fan-out is not wired in this tree. "
+            f"You said: '{instruction}'"
+        )
+        await self.send(text_data=_oob_append_html(contents_div_id, canned))
+        self.messages.append({"role": "assistant", "content": canned})
+        final_html = render_to_string(
+            "websocket_partials/final_system_message.html",
+            {"contents_div_id": contents_div_id, "message": canned},
+        )
+        await self.send(text_data=final_html)
 
     async def send_error_message(self, contents_div_id, error_text):
         """Replace the streaming placeholder with an error partial.

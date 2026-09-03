@@ -548,6 +548,35 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
+.os-team-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--os-text-strong) 12%, transparent);
+  color: var(--os-muted);
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+}
+.os-agent-item--team .os-agent-item__name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.os-team-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--os-border);
+  color: var(--os-muted);
+}
 .os-agent-hidden { margin-top: 0.65rem; padding-top: 0.5rem; border-top: 1px solid var(--os-border); }
 .os-agent-hidden__toggle {
   width: 100%;
