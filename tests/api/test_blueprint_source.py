@@ -68,12 +68,16 @@ def test_cli_agents_endpoint_exposes_native_consensus(client):
 @pytest.mark.django_db
 def test_cli_agents_endpoint_exposes_installed_and_configured(client, monkeypatch):
     """Chat CLI dropdown reads installed (host PATH) + configured (swarm_config)."""
+    from django.apps import apps
+
     from swarm.core import cli_catalog
 
     monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok", "claude"])
+    swarm_cfg = apps.get_app_config("swarm")
     monkeypatch.setattr(
-        "django.apps.apps.get_app_config",
-        lambda _name: type("Cfg", (), {"config": {"cli_agents": {"grok": {}, "custom_cli": {}}}})(),
+        swarm_cfg,
+        "config",
+        {"cli_agents": {"grok": {}, "custom_cli": {}}},
     )
     resp = client.get("/v1/cli-agents/")
     assert resp.status_code == 200
