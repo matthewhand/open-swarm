@@ -57,25 +57,39 @@
   </div>
 
   <!-- Quick Actions -->
-  <div class="mb-3">
+  <div class="mb-4">
     <h2 class="visually-hidden">Quick actions</h2>
-    <div class="d-flex flex-wrap gap-2">
-      <button type="button" class="btn btn-primary" data-action="export-settings">
-        <i class="fas fa-download" aria-hidden="true"></i> Export Settings
+    <div class="os-action-grid">
+      <button type="button" class="os-action-card" data-action="export-settings">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-download"></i></span>
+        <span>
+          <span class="os-action-card__title">Export Settings</span>
+          <span class="os-action-card__desc">Download the current settings snapshot as JSON.</span>
+        </span>
       </button>
-      <button type="button" class="btn btn-outline-secondary" data-action="refresh-settings">
-        <i class="fas fa-sync" aria-hidden="true"></i> Refresh
+      <button type="button" class="os-action-card" data-action="refresh-settings">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-sync"></i></span>
+        <span>
+          <span class="os-action-card__title">Refresh</span>
+          <span class="os-action-card__desc">Reload this page to pick up environment changes.</span>
+        </span>
       </button>
-      <button type="button" class="btn btn-outline-info" data-action="view-environment">
-        <i class="fas fa-list" aria-hidden="true"></i> Environment Variables
+      <button type="button" class="os-action-card" data-action="view-environment">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-list"></i></span>
+        <span>
+          <span class="os-action-card__title">Environment Variables</span>
+          <span class="os-action-card__desc">Inspect the process environment the operator can see.</span>
+        </span>
       </button>
-      <button type="button" class="btn btn-outline-secondary" disabled
-              title="Config validation is not available"
-              aria-disabled="true">
-        <i class="fas fa-check-circle" aria-hidden="true"></i> Validate Config (not available)
-      </button>
-      <a class="btn btn-outline-secondary" href="{% url 'profiles_page' %}">LLM profiles</a>
+      <a class="os-action-card" href="{% url 'profiles_page' %}">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-sliders"></i></span>
+        <span>
+          <span class="os-action-card__title">LLM profiles</span>
+          <span class="os-action-card__desc">Review detected model profiles used by teams.</span>
+        </span>
+      </a>
     </div>
+    <p class="os-meta mt-2 mb-0">Validate Config (not available)</p>
   </div>
 
   <!-- Settings Groups -->

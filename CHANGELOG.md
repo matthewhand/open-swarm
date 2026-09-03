@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- **SPA dark chrome (REQ-5):** DaisyUI cupcake/rainbow operator skin replaced with near-black Grok-like chrome (muted greys, small steel accents). Home dashboard four quick actions are large cards (Launch Team, Browse Blueprints, Manage Teams, Settings). Agent sidepane supports right-click **Hide from sidebar**, expandable Hidden + Unhide, persisted in `localStorage` (`swarm_hidden_agents`). Django operator CSS (`rest_mode_style.css` / login) aligned to the same chrome palette.
+- **SPA + Django dark chrome (REQ-5 / REQ-5c):** DaisyUI cupcake/rainbow operator skin replaced with near-black Grok-like chrome. Home dashboard four quick actions are large cards. Django Blueprints / Teams / Sessions / Settings share the same nav + AGENTS sidepane (right-click Hide from sidebar, Hidden + Unhide, `localStorage.swarm_hidden_agents`). Settings purple gradient header removed. Primary actions on those pages are large cards, not tiny rainbow buttons.
 - **Mobile dock PNG honesty:** GUIDED_TOUR / SCREENSHOTS admit journey capture parks fixed bottom navs as `position:static` so full-page mobile PNGs show the tab bar after scrolled content (not a live viewport overlay) — locked by `tests/unit/test_screenshot_registry.py`
 - **Journey screenshots (2026-08-19):** regenerated desktop + mobile via `capture_user_journey.py`; captions/registry now match **Connected** `spa-chat`, **`fs_introspect`** launcher default, sticky **Redirected:** banners on `spa-*`, dashboard 0/45/45 + library 12 of 38, ADR-001 nav honesty (`tests/unit/test_screenshot_registry.py`)
 

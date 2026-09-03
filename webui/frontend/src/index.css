@@ -151,3 +151,9 @@
   flex: 0 0 auto;
   transform: rotate(45deg);
 }
+.os-agent-dot[data-mark="0"] { background: #c45c5c; }
+.os-agent-dot[data-mark="1"] { background: #c47a3a; }
+.os-agent-dot[data-mark="2"] { background: #6b8f71; }
+.os-agent-dot[data-mark="3"] { background: #4a7a9b; }
+.os-agent-dot[data-mark="4"] { background: #7a6b9b; }
+.os-agent-dot[data-mark="5"] { background: #8a6a5a; }

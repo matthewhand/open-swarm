@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Eye, EyeOff, Settings, Users, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
-  agentMarkColor,
+  agentMarkIndex,
   hideAgentId,
   loadHiddenAgentIds,
   unhideAgentId,
@@ -131,7 +131,7 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
       >
         <span
           className="os-agent-dot mt-1.5"
-          style={{ background: agentMarkColor(agent.id) }}
+          data-mark={String(agentMarkIndex(agent.id))}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">

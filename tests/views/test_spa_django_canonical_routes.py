@@ -80,12 +80,14 @@ class TestUxShellTemplateContracts:
         response = client.get("/settings/")
         assert response.status_code == 200
         html = response.content.decode()
-        for label in ("Home", "Blueprints", "Teams", "Sessions", "Settings"):
+        for label in ("Home", "Chat", "Blueprints", "Teams", "Sessions", "Settings"):
             assert label in html
         assert "More" in html
         assert "os-bottom-nav" in html
         assert "Skip to main content" in html
         assert 'id="os-main"' in html
+        assert 'id="os-agent-sidebar"' in html
+        assert 'id="os-theme-toggle"' in html
         # GitHub not a bare primary peer string next to Settings as sole link —
         # demoted under More dropdown.
         assert 'id="moreNavDropdown"' in html
@@ -100,19 +102,18 @@ class TestUxShellTemplateContracts:
         response = client.get("/profiles/")
         assert response.status_code == 200
         html = response.content.decode()
-        # LLM profiles dropdown item is current page
-        profiles_item = re.search(
-            r'<a class="dropdown-item active"[^>]*href="/profiles/"[^>]*aria-current="page"',
+        # Settings is the parent chrome item for /profiles/ (flat Home-matching nav).
+        settings_link = re.search(
+            r'<a class="nav-link active"[^>]*href="/settings/"[^>]*aria-current="page"',
             html,
         )
-        assert profiles_item, "expected active Profiles dropdown item with aria-current"
-        # Teams primary toggle must not be active for /profiles/
-        teams_toggle = re.search(
-            r'<a class="nav-link dropdown-toggle([^"]*)"[^>]*id="teamsNavDropdown"',
+        assert settings_link, "expected active Settings nav link on /profiles/"
+        teams_link = re.search(
+            r'<a class="nav-link([^"]*)"[^>]*href="/teams/launch/"',
             html,
         )
-        assert teams_toggle, "expected Teams dropdown toggle"
-        assert "active" not in teams_toggle.group(1)
+        assert teams_link, "expected Teams nav link"
+        assert "active" not in teams_link.group(1)
         # Mobile bottom: Teams is-active only for /teams/, not /profiles/
         teams_bottom = re.search(
             r'<a class="os-bottom-nav__item([^"]*)"[^>]*>\s*'
@@ -137,11 +138,11 @@ class TestUxShellTemplateContracts:
             html,
         )
         assert sessions_link, "expected active Sessions nav link"
-        teams_toggle = re.search(
-            r'<a class="nav-link dropdown-toggle([^"]*)"[^>]*id="teamsNavDropdown"',
+        teams_link = re.search(
+            r'<a class="nav-link([^"]*)"[^>]*href="/teams/launch/"',
             html,
         )
-        assert teams_toggle and "active" not in teams_toggle.group(1)
+        assert teams_link and "active" not in teams_link.group(1)
 
     def test_blueprint_library_ships_client_pagination(self, client):
         from pathlib import Path

@@ -355,7 +355,7 @@ const ChatPage = () => {
                 </span>
               </div>
               <select
-                className="select select-sm w-full border border-base-300"
+                className="select select-md h-12 w-full border border-base-300"
                 value={selectedBlueprint}
                 onChange={(e) => setSelectedBlueprint(e.target.value)}
                 aria-label="Blueprint"
@@ -561,7 +561,7 @@ const ChatPage = () => {
           <input
             ref={composerRef}
             type="text"
-            className="input input-sm h-10 flex-1"
+            className="input input-md h-12 flex-1"
             placeholder={composerPlaceholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -569,7 +569,7 @@ const ChatPage = () => {
             disabled={status !== 'open'}
             aria-label="Chat message"
           />
-          <Button type="submit" variant="primary" disabled={!canSend}>
+          <Button type="submit" variant="primary" size="lg" disabled={!canSend}>
             <Send className="h-4 w-4 mr-1" aria-hidden="true" />
             Send
           </Button>

@@ -51,10 +51,14 @@ const AGENT_MARK_COLORS = [
   '#8a6a5a',
 ]
 
-export function agentMarkColor(id: string): string {
+export function agentMarkIndex(id: string): number {
   let hash = 0
   for (let i = 0; i < id.length; i += 1) {
     hash = (hash * 31 + id.charCodeAt(i)) >>> 0
   }
-  return AGENT_MARK_COLORS[hash % AGENT_MARK_COLORS.length]
+  return hash % AGENT_MARK_COLORS.length
+}
+
+export function agentMarkColor(id: string): string {
+  return AGENT_MARK_COLORS[agentMarkIndex(id)]
 }

@@ -23,6 +23,24 @@
     </div>
   </div>
 
+  <h2 class="visually-hidden">Primary actions</h2>
+  <div class="os-action-grid mb-4">
+    <a href="/chat" class="os-action-card">
+      <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-comment-dots"></i></span>
+      <span>
+        <span class="os-action-card__title">Open Chat</span>
+        <span class="os-action-card__desc">Start a live conversation that creates a session.</span>
+      </span>
+    </a>
+    <a href="{% url 'teams_launch' %}" class="os-action-card">
+      <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+      <span>
+        <span class="os-action-card__title">Launch Team</span>
+        <span class="os-action-card__desc">Run a blueprint team when you need a new session.</span>
+      </span>
+    </a>
+  </div>
+
   <div id="se-trunc-banner" class="alert alert-secondary py-2 px-3 mb-3{% if not truncated %} os-hide{% endif %}" role="status">
     Showing newest <strong id="se-shown">{{ shown }}</strong> of <strong id="se-total-banner">{{ total }}</strong> sessions
     (limit=<span id="se-limit-label">{{ limit }}</span>). Open a session for detail; use the API for full export.
@@ -52,7 +70,8 @@
       <div class="se-empty os-empty" role="status">
         <div class="os-empty-icon" aria-hidden="true">🧭</div>
         <div>No sessions for your account yet.</div>
-        <div class="os-meta mt-1">Create one with <code>POST /v1/responses</code> (include API credentials when auth is enabled). This list shows only sessions you own.</div>
+        <div class="os-meta mt-2 mb-3">Create one with <code>POST /v1/responses</code> (include API credentials when auth is enabled). This list shows only sessions you own.</div>
+        <a href="{% url 'teams_launch' %}" class="btn btn-primary os-launch-btn">Launch a team</a>
       </div>
     {% endfor %}
   </div>
