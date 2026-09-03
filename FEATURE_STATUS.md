@@ -159,17 +159,17 @@ deferred to the release PR.
 
 ---
 
-## 11b. Remote harnesses (Hermes / OMB / Rakazo) — ✅ config+health · 🟡 operate
+## 11b. Remote harnesses (Hermes / OMB / Rakazo) — ✅ config+health · ✅ operate
 
 Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `PATCH /v1/remotes/<id>/`; Settings group **Remote Harnesses** |
+| Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `POST/PATCH /v1/remotes/`; Settings **Add remote**. Auth is env-var names only (`api_key_env` / `session_cookie_env`) |
 | Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops |
 | Hermes operate | ✅ | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`, `POST /v1/runs` (Bearer `API_SERVER_KEY`) |
 | OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OMB source clone) |
-| Rakazo operate | 🟡 | `GET /health` public; `POST /rpc/bots/list` + `/rpc/threads/send` need Better Auth session — honest 401 + gap flag |
+| Rakazo operate | ✅ | Kind `rakazo` after add: Settings health / list bots / send. Public `GET /health` may succeed; RPC list/send reports `rakazo_rpc_requires_better_auth_session` without crashing. Stub HTTP in tests; no live LAN |
 | Agent-as-tool Team members | ✅ | Remotes are Team members (`consult_hermes`/`consult_omb`/`consult_rakazo`) that see/talk via as_tool — **not** `/teams/` LLM-profile aliases. `GET /v1/remotes/` returns `vocabulary` + `team_members` |
 | Place remotes in a Team | ✅ | Persist `agent_team.members`; `swarm-cli remotes team\|place\|unplace`; `GET/PATCH /v1/agent-team/`; `remote_harness` attaches `as_tool` only for **placed** members |
 

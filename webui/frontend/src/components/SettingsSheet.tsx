@@ -4,6 +4,12 @@ import { AlertCircle, FileCode2, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
 import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
 import {
+  RemotesNavItems,
+  RemotesPane,
+  isRemoteSection,
+  useRemotesCatalog,
+} from './RemotesSettings'
+import {
   agentRole,
   fallbackBlueprintSource,
   isExampleRole,
@@ -27,9 +33,8 @@ export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
   | 'blueprint'
-  | 'remotes-hermes'
-  | 'remotes-omb'
-  | 'remotes-rakazo'
+  | 'remotes'
+  | `remotes-${string}`
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
@@ -41,16 +46,6 @@ export interface OpenSettingsDetail {
 
 export function openSettingsSheet(detail?: OpenSettingsDetail): void {
   window.dispatchEvent(new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail }))
-}
-
-const REMOTE_PANES = [
-  { id: 'remotes-hermes' as const, label: 'Hermes' },
-  { id: 'remotes-omb' as const, label: 'OMB' },
-  { id: 'remotes-rakazo' as const, label: 'Rakazo' },
-]
-
-function isRemoteSection(section: SettingsSection): boolean {
-  return section.startsWith('remotes-')
 }
 
 export interface SettingsSheetProps {
@@ -73,6 +68,9 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
   const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const remotesQuery = useRemotesCatalog(isOpen)
+  const remotes = remotesQuery.data?.data ?? []
+  const remoteKinds = remotesQuery.data?.kinds ?? []
 
   useEffect(() => {
     if (!isOpen) return
@@ -130,18 +128,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
                 Remotes
               </button>
               <ul className={`menu-dropdown ${remotesOpen ? 'menu-dropdown-show' : ''}`}>
-                {REMOTE_PANES.map((remote) => (
-                  <li key={remote.id}>
-                    <button
-                      type="button"
-                      className={section === remote.id ? 'menu-active' : undefined}
-                      aria-current={section === remote.id ? 'page' : undefined}
-                      onClick={() => setSection(remote.id)}
-                    >
-                      {remote.label}
-                    </button>
-                  </li>
-                ))}
+                <RemotesNavItems remotes={remotes} section={section} onSelect={setSection} />
               </ul>
             </li>
             <li>
@@ -181,7 +168,27 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {isRemoteSection(section) && (
+            remotesQuery.isPending ? (
+              <p className="text-sm text-base-content/60">Loading remotes…</p>
+            ) : (
+              <div className="space-y-3">
+                {remotesQuery.isError && (
+                  <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+                    <span className="text-sm">
+                      Could not refresh the remotes catalog. You can still add a kind.
+                    </span>
+                  </Alert>
+                )}
+                <RemotesPane
+                  section={section}
+                  remotes={remotes}
+                  kinds={remoteKinds}
+                  onAdded={(remote) => setSection(`remotes-${remote.id}`)}
+                />
+              </div>
+            )
+          )}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -357,28 +364,6 @@ function ModuleLink({
     <code title={file.path} className="font-mono">
       {file.label}
     </code>
-  )
-}
-
-function RemotePane({ section }: { section: SettingsSection }) {
-  const remote = REMOTE_PANES.find((item) => item.id === section)
-  const label = remote?.label ?? 'Remote'
-  return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">{label}</h4>
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="font-medium">{label}</span> is a placeholder remote.
-            The remotes API has not landed — this pane is the settings-sheet
-            shell only.
-          </p>
-          <p className="text-base-content/70">
-            Hermes, OMB, and Rakazo will connect here once the backend exists.
-          </p>
-        </div>
-      </Alert>
-    </div>
   )
 }
 

@@ -32,6 +32,24 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ status: 'ok' }),
     })
   })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        data: [],
+        kinds: [
+          {
+            id: 'rakazo',
+            label: 'Rakazo',
+            fields: ['base_url', 'ui_url', 'api_key_env', 'session_cookie_env'],
+            ops: ['health', 'list', 'send'],
+          },
+        ],
+      }),
+    })
+  })
 }
 
 test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page }) => {
@@ -57,9 +75,10 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
 
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
   await expect(sections.getByRole('button', { name: 'Remotes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Hermes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'OMB' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Rakazo' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: /add remote/i })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'Rakazo' })).toHaveCount(0)
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()

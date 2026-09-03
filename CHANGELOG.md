@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-63 Rakazo remote kind:** Settings remotes stay empty until **Add remote**. Kind `rakazo` takes API base URL, optional UI URL, and `api-key-env` / `session-cookie-env` names (never pasted tokens). After add: health, list bots, send. Unauthenticated health may succeed while RPC reports auth-needed. `POST /v1/remotes/` + `GET /v1/remotes/` configured list + kinds catalog. Stub HTTP tests; no live LAN.
 - **REQ-37 nested conversation compact:** Composer `+` menu Compact summarises the backlog into a Django/sqlite `ConversationSummary` (`span`, `parent_summary_id`, `body`). Raw JSON + `ChatMessage` rows stay. Later compacts nest. UI renders bordered `.chat-summary` blocks. Model context walks the summary tree. No Neon.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 

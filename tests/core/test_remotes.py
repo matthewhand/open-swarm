@@ -233,3 +233,123 @@ def test_operate_unknown_op():
     result = remotes_core.operate("hermes", "explode", config={"remotes": {"hermes": {"base_url": "http://127.0.0.1:1"}}})
     assert result.ok is False
     assert "Unknown op" in result.detail
+
+
+def test_kinds_catalog_includes_rakazo():
+    kinds = remotes_core.list_kinds()
+    ids = {item["id"] for item in kinds}
+    assert ids == {"hermes", "omb", "rakazo"}
+    rakazo = next(item for item in kinds if item["id"] == "rakazo")
+    assert rakazo["label"] == "Rakazo"
+    assert "session_cookie_env" in rakazo["fields"]
+    assert rakazo["ops"] == ["health", "list", "send"]
+    omb = next(item for item in kinds if item["id"] == "omb")
+    assert omb["label"] == "OpenMousBot"
+
+
+def test_configured_remotes_empty_until_add():
+    cfg = {"llm": {}, "remotes": {}}
+    assert remotes_core.load_configured_remotes(cfg) == {}
+    index = remotes_core.remotes_index(cfg)
+    assert index["data"] == []
+    assert any(k["id"] == "rakazo" for k in index["kinds"])
+    assert remotes_core.remote_is_configured("rakazo", cfg) is False
+
+
+def test_add_rakazo_stores_env_names_only(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    monkeypatch.delenv("RAKAZO_BASE_URL", raising=False)
+    spec, path = remotes_core.add_remote(
+        "rakazo",
+        base_url="http://127.0.0.1:9",
+        ui_url="http://127.0.0.1:9",
+        api_key_env="RAKAZO_API_KEY",
+        session_cookie_env="RAKAZO_SESSION_COOKIE",
+        config_path=cfg,
+    )
+    assert path == cfg
+    assert spec.id == "rakazo"
+    assert spec.kind == "rakazo"
+    assert spec.configured is True
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    entry = data["remotes"]["rakazo"]
+    assert entry["base_url"] == "http://127.0.0.1:9"
+    assert entry["api_key_env"] == "RAKAZO_API_KEY"
+    assert entry["session_cookie_env"] == "RAKAZO_SESSION_COOKIE"
+    assert entry["api_key"] == "${RAKAZO_API_KEY}"
+    assert entry["cookie"] == "${RAKAZO_SESSION_COOKIE}"
+    dumped = json.dumps(data)
+    assert "sid=" not in dumped
+    assert "token" not in dumped.lower()
+    pub = spec.public_dict()
+    assert pub["api_key_env"] == "RAKAZO_API_KEY"
+    assert pub["session_cookie_env"] == "RAKAZO_SESSION_COOKIE"
+    assert "sid=" not in json.dumps(pub)
+    assert remotes_core.remotes_index(data)["data"][0]["id"] == "rakazo"
+
+
+def test_persist_refuses_plaintext_cookie(tmp_path: Path):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    with pytest.raises(remotes_core.RemoteError, match="env-var name"):
+        remotes_core.persist_remote(
+            "rakazo",
+            cookie="sid=super-secret",
+            config_path=cfg,
+        )
+    with pytest.raises(remotes_core.RemoteError, match="env-var name"):
+        remotes_core.persist_remote(
+            "rakazo",
+            api_key="rkz-live-token",
+            config_path=cfg,
+        )
+    assert "sid=" not in cfg.read_text(encoding="utf-8")
+
+
+def test_rakazo_health_public_list_auth_needed(http_router):
+    host, port, router = http_router
+    router.routes = {
+        ("GET", "/health"): (200, {"ok": True, "runtime": "pi"}),
+        ("POST", "/rpc/bots/list"): (401, {"error": "UNAUTHORIZED"}),
+        ("POST", "/rpc/threads/send"): (401, {"error": "UNAUTHORIZED"}),
+    }
+    cfg = {
+        "llm": {},
+        "remotes": {
+            "rakazo": {
+                "base_url": f"http://{host}:{port}",
+                "api_key_env": "RAKAZO_API_KEY",
+                "session_cookie_env": "RAKAZO_SESSION_COOKIE",
+            }
+        },
+    }
+    health = remotes_core.check_health("rakazo", config=cfg, timeout=2.0)
+    assert health.ok is True
+    assert health.state == "UP"
+    listed = remotes_core.operate("rakazo", "list", config=cfg)
+    assert listed.ok is False
+    assert listed.http_status == 401
+    assert listed.gap == "rakazo_rpc_requires_better_auth_session"
+    sent = remotes_core.operate("rakazo", "send", prompt="go", target="bot-1", config=cfg)
+    assert sent.ok is False
+    assert sent.gap == "rakazo_rpc_requires_better_auth_session"
+
+
+def test_rakazo_list_and_send_ok(http_router):
+    host, port, router = http_router
+    router.routes = {
+        ("GET", "/health"): (200, {"ok": True}),
+        ("POST", "/rpc/bots/list"): (200, {"json": [{"id": "bot-9", "name": "alpha"}]}),
+        ("POST", "/rpc/threads/send"): (200, {"json": {"taskId": "t1"}}),
+    }
+    cfg = {
+        "llm": {},
+        "remotes": {"rakazo": {"base_url": f"http://{host}:{port}"}},
+    }
+    listed = remotes_core.operate("rakazo", "list", config=cfg)
+    assert listed.ok is True
+    assert "bot" in listed.detail.lower()
+    sent = remotes_core.operate("rakazo", "send", prompt="go", target="bot-9", config=cfg)
+    assert sent.ok is True
+    assert "bot-9" in sent.detail

@@ -48,18 +48,23 @@ Defaults (override anytime):
 ```bash
 swarm-cli remotes set hermes --base-url http://10.0.0.36:8642 --api-key-env HERMES_API_KEY
 swarm-cli remotes set omb --base-url http://10.0.0.32:8802 --api-key-env OMB_API_KEY
-swarm-cli remotes set rakazo --base-url http://10.0.0.32:3100 --ui-url http://10.0.0.32:5173 --api-key-env RAKAZO_API_KEY
+swarm-cli remotes set rakazo --base-url http://127.0.0.1:3100 --ui-url http://127.0.0.1:5173 --api-key-env RAKAZO_API_KEY --session-cookie-env RAKAZO_SESSION_COOKIE
 ```
 
 Equivalent persist:
 
-* `PATCH /v1/remotes/hermes/` `{"base_url":"http://10.0.0.36:8642","api_key":"${HERMES_API_KEY}"}`
+* `POST /v1/remotes/` `{"kind":"rakazo","base_url":"http://127.0.0.1:3100","ui_url":"http://127.0.0.1:5173","api_key_env":"RAKAZO_API_KEY","session_cookie_env":"RAKAZO_SESSION_COOKIE"}`
+* `PATCH /v1/remotes/hermes/` `{"base_url":"http://10.0.0.36:8642","api_key_env":"HERMES_API_KEY"}`
 * `swarm-cli config add --section remotes --name hermes --json '{...}'`
 * Edit `~/.config/swarm/swarm_config.json` → `"remotes"` (or `SWARM_CONFIG_PATH`)
 
+Auth is **env-var names only**. Persist refuses pasted tokens/cookies. Settings shows the env name or `redacted`, never the secret.
+
+`GET /v1/remotes/` returns **configured** remotes in `data` plus the kind catalog in `kinds`. Unused kinds are not default cards (compatible with REQ-59 / #384). Kind `rakazo` is complete: after add, Settings can health, list bots, and send.
+
 Env overrides win over the file: `HERMES_BASE_URL`, `OMB_BASE_URL`, `RAKAZO_BASE_URL`.
 
-Settings → **Remote Harnesses** shows the same values with secrets redacted.
+Settings → **Remotes** → **Add remote**. Operator dump **Remote Harnesses** shows the same values with secrets redacted.
 `swarm-cli remotes get hermes` prints the redacted view.
 
 ## Health

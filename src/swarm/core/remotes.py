@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import socket
 import time
 import urllib.error
@@ -32,6 +33,46 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
+
+# Kind catalog for Settings + Add remote (REQ-59 / REQ-63). Unused kinds are
+# not configured remotes — they only appear after the user adds them.
+REMOTE_KINDS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "hermes",
+        "label": "Hermes",
+        "fields": ("base_url", "ui_url", "api_key_env"),
+        "ops": ("health", "list", "send"),
+        "notes": "Hermes list/send via /v1/models, /api/sessions, /api/jobs, POST /v1/runs.",
+    },
+    {
+        "id": "omb",
+        "label": "OpenMousBot",
+        "fields": ("base_url", "api_key_env"),
+        "ops": ("health", "list", "send"),
+        "notes": "OpenMousBot HTTP adapter: /api/health, /api/bots, POST /api/bots/{id}/messages.",
+    },
+    {
+        "id": "rakazo",
+        "label": "Rakazo",
+        "fields": ("base_url", "ui_url", "api_key_env", "session_cookie_env"),
+        "ops": ("health", "list", "send"),
+        "notes": (
+            "Rakazo GET /health may succeed without auth. "
+            "POST /rpc/bots/list and /rpc/threads/send need Better Auth "
+            "(api-key-env and/or session-cookie-env names — never pasted secrets)."
+        ),
+    },
+)
+
+_ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_CONFIGURED_KEYS = (
+    "base_url",
+    "ui_url",
+    "api_key_env",
+    "session_cookie_env",
+    "api_key",
+    "cookie",
+)
 
 # Team (REQ-11 vocabulary): agents that SEE and TALK to each other via
 # openai-agents handoff / as_tool. This is NOT the /teams/ LLM-profile alias
@@ -62,6 +103,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "base_url": "http://10.0.0.36:8642",
         "ui_url": "http://10.0.0.36:9119",
         "api_key": "${HERMES_API_KEY}",
+        "api_key_env": "HERMES_API_KEY",
         "health_path": "/health",
         "version_path": "/v1/models",
         "notes": (
@@ -77,6 +119,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "base_url": "http://10.0.0.32:8802",
         "ui_url": "",
         "api_key": "${OMB_API_KEY}",
+        "api_key_env": "OMB_API_KEY",
         "health_path": "/api/health",
         "version_path": "/api/health",
         "notes": (
@@ -93,6 +136,8 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "ui_url": "http://10.0.0.32:5173",
         "api_key": "${RAKAZO_API_KEY}",
         "cookie": "${RAKAZO_SESSION_COOKIE}",
+        "api_key_env": "RAKAZO_API_KEY",
+        "session_cookie_env": "RAKAZO_SESSION_COOKIE",
         "health_path": "/health",
         "version_path": "/health",
         "notes": (
@@ -140,10 +185,14 @@ class RemoteSpec:
     ui_url: str = ""
     api_key: str = ""
     cookie: str = ""
+    api_key_env: str = ""
+    session_cookie_env: str = ""
     health_path: str = "/health"
     version_path: str = "/health"
     notes: str = ""
     source: str = "default"
+    kind: str = ""
+    configured: bool = False
 
     def origin(self) -> tuple[str, int]:
         parsed = urlparse(self.base_url)
@@ -152,22 +201,31 @@ class RemoteSpec:
         return host, int(port)
 
     def public_dict(self) -> dict[str, Any]:
-        """JSON-safe view with secrets redacted."""
+        """JSON-safe view with secrets redacted.
+
+        Auth is env-var names only. Never include cookie/token values.
+        """
+        kind = self.kind or self.id
         return {
             "id": self.id,
+            "kind": kind,
             "title": self.title,
+            "label": kind_label(kind),
             "host_label": self.host_label,
             "base_url": self.base_url,
             "ui_url": self.ui_url,
+            "api_key_env": self.api_key_env,
+            "session_cookie_env": self.session_cookie_env,
             "api_key_set": bool(self.api_key and not _is_unresolved_placeholder(self.api_key)),
             "cookie_set": bool(self.cookie and not _is_unresolved_placeholder(self.cookie)),
             "health_path": self.health_path,
             "version_path": self.version_path,
             "notes": self.notes,
             "source": self.source,
+            "configured": self.configured,
             "member": {
                 "kind": "remote",
-                "talk": _TOOL_NAMES[self.id],
+                "talk": _TOOL_NAMES.get(self.id, f"consult_{self.id}"),
                 "via": "as_tool",
                 "place_in": "Team (handoff members — not /teams/ profile aliases)",
             },
@@ -219,6 +277,74 @@ def _is_unresolved_placeholder(value: str) -> bool:
     return raw.startswith("${") and raw.endswith("}") and len(raw) > 3
 
 
+def _placeholder_env_name(value: str) -> str:
+    raw = (value or "").strip()
+    if raw.startswith("${") and raw.endswith("}") and len(raw) > 3:
+        return raw[2:-1].strip()
+    return ""
+
+
+def is_env_var_name(value: str) -> bool:
+    """True when value is an env-var name (FOO_BAR), not a token or cookie."""
+    raw = (value or "").strip()
+    name = _placeholder_env_name(raw) or raw
+    return bool(name) and bool(_ENV_NAME_RE.fullmatch(name))
+
+
+def normalize_env_var_name(value: str, *, field: str = "auth") -> str:
+    """Accept ``FOO`` or ``${FOO}``. Refuse cookies, tokens, and blanks."""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    name = _placeholder_env_name(raw) or raw
+    if not _ENV_NAME_RE.fullmatch(name):
+        raise RemoteError(
+            f"{field} must be an env-var name (A-Z / digits / underscore), "
+            "not a pasted token or cookie."
+        )
+    return name
+
+
+def kind_label(kind_id: str) -> str:
+    kid = (kind_id or "").strip().lower()
+    aliases = {"openmausbot": "omb", "openmaus": "omb", "rakoza": "rakazo"}
+    kid = aliases.get(kid, kid)
+    for item in REMOTE_KINDS:
+        if item["id"] == kid:
+            return str(item["label"])
+    return kid or kind_id
+
+
+def list_kinds() -> list[dict[str, Any]]:
+    """JSON-safe kind catalog (not configured remotes)."""
+    out: list[dict[str, Any]] = []
+    for item in REMOTE_KINDS:
+        out.append(
+            {
+                "id": item["id"],
+                "label": item["label"],
+                "fields": list(item["fields"]),
+                "ops": list(item["ops"]),
+                "notes": item.get("notes", ""),
+            }
+        )
+    return out
+
+
+def remote_is_configured(remote_id: str, config: dict[str, Any] | None = None) -> bool:
+    """True when the user (or env) added this remote — not a catalog default."""
+    try:
+        rid = _require_id(remote_id)
+    except RemoteError:
+        return False
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    block = (cfg.get("remotes") or {}).get(rid) if isinstance(cfg.get("remotes"), dict) else None
+    if isinstance(block, dict) and any(block.get(key) for key in _CONFIGURED_KEYS):
+        return True
+    env_base = os.environ.get(_ENV_BASE.get(rid, ""), "").strip()
+    return bool(env_base)
+
+
 def _expand(value: Any) -> Any:
     if isinstance(value, str):
         expanded = os.path.expandvars(value)
@@ -249,7 +375,7 @@ def _normalize_base_url(url: str) -> str:
 def default_spec(remote_id: str) -> RemoteSpec:
     rid = _require_id(remote_id)
     raw = dict(_DEFAULTS[rid])
-    return RemoteSpec(id=rid, source="default", **raw)
+    return RemoteSpec(id=rid, kind=rid, source="default", configured=False, **raw)
 
 
 def _require_id(remote_id: str) -> str:
@@ -294,39 +420,87 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
     block = (cfg.get("remotes") or {}).get(rid) if isinstance(cfg.get("remotes"), dict) else None
     if isinstance(block, dict):
         spec.source = "config"
-        for key in ("title", "host_label", "base_url", "ui_url", "api_key", "cookie", "health_path", "version_path", "notes"):
+        for key in (
+            "title",
+            "host_label",
+            "base_url",
+            "ui_url",
+            "api_key",
+            "cookie",
+            "api_key_env",
+            "session_cookie_env",
+            "health_path",
+            "version_path",
+            "notes",
+            "kind",
+        ):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
+    spec.kind = spec.kind or rid
+    if spec.api_key and not spec.api_key_env:
+        spec.api_key_env = _placeholder_env_name(str(spec.api_key))
+    if spec.cookie and not spec.session_cookie_env:
+        spec.session_cookie_env = _placeholder_env_name(str(spec.cookie))
+
     env_base = os.environ.get(_ENV_BASE[rid], "").strip()
     if env_base:
         spec.base_url = env_base
         spec.source = "env"
-    env_key = os.environ.get(_ENV_KEY[rid], "").strip()
-    if env_key:
-        spec.api_key = env_key
+    key_env = spec.api_key_env or _ENV_KEY.get(rid, "")
+    if key_env and os.environ.get(key_env, "").strip():
+        spec.api_key = os.environ[key_env].strip()
+    else:
+        env_key = os.environ.get(_ENV_KEY[rid], "").strip()
+        if env_key:
+            spec.api_key = env_key
     env_ui = _ENV_UI.get(rid)
     if env_ui and os.environ.get(env_ui, "").strip():
         spec.ui_url = os.environ[env_ui].strip()
-    env_cookie = _ENV_COOKIE.get(rid)
-    if env_cookie and os.environ.get(env_cookie, "").strip():
-        spec.cookie = os.environ[env_cookie].strip()
+    cookie_env = spec.session_cookie_env or _ENV_COOKIE.get(rid, "")
+    if cookie_env and os.environ.get(cookie_env, "").strip():
+        spec.cookie = os.environ[cookie_env].strip()
+    else:
+        env_cookie = _ENV_COOKIE.get(rid)
+        if env_cookie and os.environ.get(env_cookie, "").strip():
+            spec.cookie = os.environ[env_cookie].strip()
 
     spec.base_url = _normalize_base_url(_expand(spec.base_url))
     spec.ui_url = _normalize_base_url(_expand(spec.ui_url)) if spec.ui_url else ""
     spec.api_key = str(_expand(spec.api_key) or "")
     spec.cookie = str(_expand(spec.cookie) or "")
+    spec.api_key_env = str(spec.api_key_env or "")
+    spec.session_cookie_env = str(spec.session_cookie_env or "")
     spec.health_path = spec.health_path or "/health"
     spec.version_path = spec.version_path or spec.health_path
     if not spec.health_path.startswith("/"):
         spec.health_path = "/" + spec.health_path
     if not spec.version_path.startswith("/"):
         spec.version_path = "/" + spec.version_path
+    spec.configured = remote_is_configured(rid, cfg)
     return spec
 
 
 def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     return {rid: load_remote(rid, cfg) for rid in REMOTE_IDS}
+
+
+def load_configured_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
+    """Remotes the user added. Empty until + Add (REQ-59 compatible)."""
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    return {rid: spec for rid, spec in load_all_remotes(cfg).items() if spec.configured}
+
+
+def remotes_index(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Settings/API catalog: configured remotes + kinds (no default cards)."""
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    return {
+        "object": "list",
+        "vocabulary": TEAM_VOCABULARY,
+        "data": [spec.public_dict() for spec in load_configured_remotes(cfg).values()],
+        "kinds": list_kinds(),
+        "team_members": list_team_members(cfg),
+    }
 
 
 def load_placed_members(config: dict[str, Any] | None = None) -> list[str]:
@@ -437,9 +611,17 @@ def persist_remote(
     api_key: str | None = None,
     ui_url: str | None = None,
     cookie: str | None = None,
+    api_key_env: str | None = None,
+    session_cookie_env: str | None = None,
+    kind: str | None = None,
     config_path: str | Path | None = None,
 ) -> tuple[RemoteSpec, Path]:
-    """Merge fields into ``remotes.<id>`` and write swarm_config.json."""
+    """Merge fields into ``remotes.<id>`` and write swarm_config.json.
+
+    Auth fields are env-var names only (``api_key_env`` / ``session_cookie_env``).
+    Placeholders like ``${RAKAZO_API_KEY}`` are accepted; pasted tokens/cookies
+    are refused so Settings and the repo never store plaintext secrets.
+    """
     rid = _require_id(remote_id)
     cfg, path = load_raw_config(config_path)
     remotes = cfg.setdefault("remotes", {})
@@ -450,25 +632,83 @@ def persist_remote(
     entry = dict(entry)
     if "llm" not in cfg or not isinstance(cfg.get("llm"), dict):
         cfg.setdefault("llm", {})
+    if kind is not None:
+        entry["kind"] = _require_id(kind)
+    else:
+        entry.setdefault("kind", rid)
     if base_url is not None:
         normalized = _normalize_base_url(base_url)
         if _looks_like_forbidden_llm_proxy(normalized):
             raise RemoteError(
                 "Refusing to persist a Fly open-litellm URL as a harness remote. "
-                "Hermes/OMB/Rakazo are LAN harnesses; LAN LLM is http://10.0.0.30:8000/v1."
+                "Hermes/OpenMousBot/Rakazo are LAN harnesses; LAN LLM is http://10.0.0.30:8000/v1."
             )
         entry["base_url"] = normalized
-    if api_key is not None:
-        entry["api_key"] = api_key
+    if api_key_env is not None:
+        name = normalize_env_var_name(api_key_env, field="api_key_env")
+        if name:
+            entry["api_key_env"] = name
+            entry["api_key"] = f"${{{name}}}"
+        else:
+            entry.pop("api_key_env", None)
+            entry.pop("api_key", None)
+    elif api_key is not None:
+        name = normalize_env_var_name(api_key, field="api_key")
+        if name:
+            entry["api_key_env"] = name
+            entry["api_key"] = f"${{{name}}}"
+        else:
+            entry.pop("api_key_env", None)
+            entry.pop("api_key", None)
     if ui_url is not None:
         entry["ui_url"] = _normalize_base_url(ui_url) if ui_url else ""
-    if cookie is not None:
-        entry["cookie"] = cookie
+    if session_cookie_env is not None:
+        name = normalize_env_var_name(session_cookie_env, field="session_cookie_env")
+        if name:
+            entry["session_cookie_env"] = name
+            entry["cookie"] = f"${{{name}}}"
+        else:
+            entry.pop("session_cookie_env", None)
+            entry.pop("cookie", None)
+    elif cookie is not None:
+        name = normalize_env_var_name(cookie, field="session_cookie_env")
+        if name:
+            entry["session_cookie_env"] = name
+            entry["cookie"] = f"${{{name}}}"
+        else:
+            entry.pop("session_cookie_env", None)
+            entry.pop("cookie", None)
     remotes[rid] = entry
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
     logger.info("Persisted remotes.%s to %s", rid, path)
     return load_remote(rid, cfg), path
+
+
+def add_remote(
+    kind: str,
+    *,
+    base_url: str,
+    ui_url: str | None = None,
+    api_key_env: str | None = None,
+    session_cookie_env: str | None = None,
+    remote_id: str | None = None,
+    config_path: str | Path | None = None,
+) -> tuple[RemoteSpec, Path]:
+    """Add a configured remote of ``kind`` (id defaults to the kind)."""
+    kind_id = _require_id(kind)
+    rid = _require_id(remote_id) if remote_id else kind_id
+    if not (base_url or "").strip():
+        raise RemoteError("base_url is required to add a remote.")
+    return persist_remote(
+        rid,
+        base_url=base_url,
+        ui_url=ui_url,
+        api_key_env=api_key_env,
+        session_cookie_env=session_cookie_env,
+        kind=kind_id,
+        config_path=config_path,
+    )
 
 
 def _auth_headers(spec: RemoteSpec) -> dict[str, str]:
@@ -846,8 +1086,8 @@ def _rakazo_list(spec: RemoteSpec, timeout: float) -> OperateResult:
             detail=(
                 "Rakazo /rpc/bots/list requires a Better Auth session. "
                 "Health (GET /health) is public; operate is not. "
-                "Set remotes.rakazo.cookie (or RAKAZO_SESSION_COOKIE) from a signed-in UI session, "
-                "or a bearer if this deploy added API-key auth."
+                "Set remotes.rakazo.session_cookie_env (or api_key_env) to an env-var name — "
+                "never paste the session cookie or API key into Settings."
             ),
             http_status=result.status,
             data=result.body,
@@ -911,7 +1151,10 @@ def _rakazo_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> 
             remote="rakazo",
             op="send",
             ok=False,
-            detail="Rakazo /rpc/threads/send requires Better Auth. Health still works without it.",
+            detail=(
+                "Rakazo /rpc/threads/send requires Better Auth. "
+                "Health still works without it. Set session-cookie-env or api-key-env."
+            ),
             http_status=result.status,
             data=result.body,
             gap="rakazo_rpc_requires_better_auth_session",

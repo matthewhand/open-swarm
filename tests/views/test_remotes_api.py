@@ -1,6 +1,7 @@
 """API tests for /v1/remotes/."""
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -27,9 +28,15 @@ def _spec(rid: str = "hermes") -> RemoteSpec:
 
 
 class TestRemotesList:
-    @patch("swarm.views.remotes_api.remotes_core.load_all_remotes")
-    def test_list(self, mock_load, api_client):
-        mock_load.return_value = {"hermes": _spec()}
+    @patch("swarm.views.remotes_api.remotes_core.remotes_index")
+    def test_list(self, mock_index, api_client):
+        mock_index.return_value = {
+            "object": "list",
+            "vocabulary": {"not_teams_page": "Profiles"},
+            "data": [_spec().public_dict()],
+            "kinds": [{"id": "rakazo", "label": "Rakazo"}],
+            "team_members": [{"id": "hermes", "talk": "consult_hermes"}],
+        }
         resp = api_client.get("/v1/remotes/")
         assert resp.status_code == 200
         data = resp.json()
@@ -39,6 +46,51 @@ class TestRemotesList:
         assert "team_members" in data
         assert data["vocabulary"]["not_teams_page"]
         assert any(m["talk"] == "consult_hermes" for m in data["team_members"])
+        assert any(k["id"] == "rakazo" for k in data["kinds"])
+
+    @patch("swarm.views.remotes_api.remotes_core.remotes_index")
+    def test_list_empty_until_add(self, mock_index, api_client):
+        mock_index.return_value = {
+            "object": "list",
+            "vocabulary": {},
+            "data": [],
+            "kinds": [{"id": "rakazo", "label": "Rakazo"}],
+            "team_members": [],
+        }
+        resp = api_client.get("/v1/remotes/")
+        assert resp.status_code == 200
+        assert resp.json()["data"] == []
+        assert resp.json()["kinds"][0]["id"] == "rakazo"
+
+    @patch("swarm.views.remotes_api.remotes_core.add_remote")
+    def test_add_rakazo(self, mock_add, api_client):
+        spec = _spec("rakazo")
+        spec.kind = "rakazo"
+        spec.api_key_env = "RAKAZO_API_KEY"
+        spec.session_cookie_env = "RAKAZO_SESSION_COOKIE"
+        spec.configured = True
+        mock_add.return_value = (spec, "/tmp/swarm_config.json")
+        resp = api_client.post(
+            "/v1/remotes/",
+            {
+                "kind": "rakazo",
+                "base_url": "http://127.0.0.1:9",
+                "ui_url": "http://127.0.0.1:9",
+                "api_key_env": "RAKAZO_API_KEY",
+                "session_cookie_env": "RAKAZO_SESSION_COOKIE",
+            },
+            format="json",
+        )
+        assert resp.status_code == 200
+        mock_add.assert_called_once()
+        body = resp.json()
+        assert body["id"] == "rakazo"
+        assert body["api_key_env"] == "RAKAZO_API_KEY"
+        assert "sid=" not in json.dumps(body)
+
+    def test_add_missing_kind(self, api_client):
+        resp = api_client.post("/v1/remotes/", {"base_url": "http://127.0.0.1:9"}, format="json")
+        assert resp.status_code == 400
 
 
 class TestRemoteDetail:
@@ -60,12 +112,23 @@ class TestRemoteDetail:
         mock_persist.return_value = (_spec(), "/tmp/swarm_config.json")
         resp = api_client.patch(
             "/v1/remotes/hermes/",
-            {"base_url": "http://10.0.0.36:8642", "api_key": "${HERMES_API_KEY}"},
+            {"base_url": "http://10.0.0.36:8642", "api_key_env": "HERMES_API_KEY"},
             format="json",
         )
         assert resp.status_code == 200
         mock_persist.assert_called_once()
         assert resp.json()["persisted_to"] == "/tmp/swarm_config.json"
+
+    @patch("swarm.views.remotes_api.remotes_core.persist_remote")
+    def test_patch_refuses_plaintext_via_core(self, mock_persist, api_client):
+        mock_persist.side_effect = RemoteError("session_cookie_env must be an env-var name")
+        resp = api_client.patch(
+            "/v1/remotes/rakazo/",
+            {"cookie": "sid=abc"},
+            format="json",
+        )
+        assert resp.status_code == 400
+        assert "env-var" in resp.json()["error"]
 
     def test_patch_empty(self, api_client):
         resp = api_client.patch("/v1/remotes/hermes/", {}, format="json")
