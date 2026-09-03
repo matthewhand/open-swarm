@@ -4,6 +4,7 @@ import { PanelLeft } from 'lucide-react'
 import ChatPage from './pages/ChatPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
+import AgentEditor, { OPEN_AGENT_EDITOR_EVENT, type OpenAgentEditorDetail } from './components/AgentEditor'
 import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from './components/SettingsSheet'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
@@ -50,7 +51,8 @@ function RedirectAgentsToChat() {
  * Composer + menu is Compact (REQ-37). Operator Django pages stay on
  * Search / the settings gear.
  * Legacy `/agents` aliases `/chat` (REQ-5d) without restoring Home/Chat top nav.
- * Gear opens the REQ-19 DaisyUI settings sheet over chat.
+ * Gear opens the REQ-19 DaisyUI settings sheet over chat. Hover-edit opens
+ * the REQ-58 agent editor overlay (chat stays mounted).
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
@@ -58,6 +60,8 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsBlueprintId, setSettingsBlueprintId] = useState<string | null>(null)
+  const [agentEditorOpen, setAgentEditorOpen] = useState(false)
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
 
   useLayoutEffect(() => {
     applyDocumentTheme(darkMode)
@@ -79,15 +83,22 @@ function App() {
       setSettingsBlueprintId(detail?.blueprintId ?? null)
       setSettingsOpen(true)
     }
+    const onOpenAgentEditor = (event: Event) => {
+      const detail = (event as CustomEvent<OpenAgentEditorDetail>).detail
+      setEditingAgentId(detail?.agentId ?? null)
+      setAgentEditorOpen(true)
+    }
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
     window.addEventListener(THEME_SET_EVENT, onSet)
     window.addEventListener('swarm:open-search', onOpenSearch)
     window.addEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
+    window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
     return () => {
       window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
       window.removeEventListener(THEME_SET_EVENT, onSet)
       window.removeEventListener('swarm:open-search', onOpenSearch)
       window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
+      window.removeEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
     }
   }, [])
 
@@ -100,6 +111,11 @@ function App() {
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           blueprintId={settingsBlueprintId}
+        />
+        <AgentEditor
+          isOpen={agentEditorOpen}
+          onClose={() => setAgentEditorOpen(false)}
+          agentId={editingAgentId}
         />
         <div
           className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"

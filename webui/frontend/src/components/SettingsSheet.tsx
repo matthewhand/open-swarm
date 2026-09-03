@@ -2,9 +2,16 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
-import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
+import {
+  fetchBlueprintSource,
+  fetchBlueprints,
+  fetchModels,
+  type Blueprint,
+  type BlueprintSource,
+} from '../lib/api'
 import {
   agentRole,
+  exampleRoleAgents,
   fallbackBlueprintSource,
   isExampleRole,
   runtimeModulesFor,
@@ -20,7 +27,7 @@ import {
   saveRetentionMode,
   type RetentionMode,
 } from '../lib/settingsPrefs'
-import { agentLabel } from '../lib/supportAgent'
+import { agentLabel, catalogLabel } from '../lib/supportAgent'
 
 /** Window event so the rail hover-edit, command palette, and tests can open the sheet. */
 export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
@@ -63,9 +70,9 @@ export interface SettingsSheetProps {
  * Right-docked DaisyUI settings sheet (REQ-19 + REQ-25).
  *
  * Opens as `modal` + `modal-end` over the SPA (not a top-nav eject to Django).
- * Gear opens Remotes / Retention / Hostname / LLM profiles. Hover-edit on a
- * roled agent selects the Blueprint editor for that agent's blueprint id —
- * not the Teams drop-zone roster. Django `/settings/` stays the operator dump.
+ * Gear opens Remotes / Retention / Hostname / LLM profiles. Blueprints is a
+ * catalog list (same ids the agent-editor picker uses). Selecting an item
+ * shows that recipe — not Remotes. Django `/settings/` stays the operator dump.
  */
 export default function SettingsSheet({ isOpen, onClose, blueprintId }: SettingsSheetProps) {
   const { success } = useToast()
@@ -73,6 +80,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
   const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const [selectedBlueprintId, setSelectedBlueprintId] = useState(blueprintId || '')
 
   useEffect(() => {
     if (!isOpen) return
@@ -80,6 +88,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
     setRetention(loadRetentionMode())
     if (blueprintId) {
       setSection('blueprint')
+      setSelectedBlueprintId(blueprintId)
     } else {
       setSection((current) => (current === 'blueprint' ? 'retention' : current))
     }
@@ -117,7 +126,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
                 aria-current={section === 'blueprint' ? 'page' : undefined}
                 onClick={() => setSection('blueprint')}
               >
-                Blueprint
+                Blueprints
               </button>
             </li>
             <li>
@@ -179,7 +188,10 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-base-100 p-4 sm:p-5">
           {section === 'blueprint' && (
-            <BlueprintEditorPane blueprintId={blueprintId || ''} />
+            <BlueprintsListPane
+              selectedId={selectedBlueprintId}
+              onSelect={setSelectedBlueprintId}
+            />
           )}
           {isRemoteSection(section) && <RemotePane section={section} />}
           {section === 'retention' && (
@@ -209,6 +221,69 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
         </Button>
       </div>
     </Modal>
+  )
+}
+
+const EMPTY_BLUEPRINTS: Blueprint[] = []
+
+export function BlueprintsListPane({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  const headingId = useId()
+  const blueprintsQuery = useQuery({
+    queryKey: ['blueprints'],
+    queryFn: fetchBlueprints,
+    retry: 1,
+  })
+  const catalog = exampleRoleAgents(blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS)
+  const ids = new Set(catalog.map((item) => item.id))
+  const extras =
+    selectedId && !ids.has(selectedId)
+      ? [{ id: selectedId, name: selectedId } as Blueprint]
+      : []
+  const items = [...catalog, ...extras]
+
+  return (
+    <section aria-labelledby={headingId} className="space-y-4">
+      <div>
+        <h4 id={headingId} className="text-lg font-semibold">
+          Blueprints
+        </h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Catalog recipes this instance can assign to an agent. Select one to
+          inspect its Python — this is not Remotes or other instance Settings.
+        </p>
+      </div>
+      {blueprintsQuery.isPending ? (
+        <p className="text-sm text-base-content/60">Loading blueprints…</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-base-content/60">No blueprints in the catalog.</p>
+      ) : (
+        <ul role="listbox" aria-label="Blueprints" className="menu menu-md rounded-box border border-base-300 bg-base-200 p-2">
+          {items.map((item) => {
+            const selected = item.id === selectedId
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={selected ? 'menu-active' : undefined}
+                  onClick={() => onSelect(item.id)}
+                >
+                  {catalogLabel(item)}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {selectedId ? <BlueprintEditorPane blueprintId={selectedId} /> : null}
+    </section>
   )
 }
 

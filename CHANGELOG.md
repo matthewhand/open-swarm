@@ -5,8 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-58 agent-scoped editor:** Hover-edit on a role agent opens an overlay for that seat only (name, role, blueprint picker, optional LLM override). Blueprint is a catalog selector, not a nested Settings sheet. Assignment persists on the agent. **Edit blueprint…** opens Settings → Blueprints with that item selected. Remotes stay under Settings. (#382)
 - **REQ-37 nested conversation compact:** Composer `+` menu Compact summarises the backlog into a Django/sqlite `ConversationSummary` (`span`, `parent_summary_id`, `body`). Raw JSON + `ChatMessage` rows stay. Later compacts nest. UI renders bordered `.chat-summary` blocks. Model context walks the summary tree. No Neon.
-- **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
+- **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens the REQ-58 agent editor (not the global Settings Remotes sheet). **Edit blueprint…** still reaches the Settings → Blueprints list and the Python recipe for the assigned id. Does not open the Teams drop-zone and does not rewrite role runtime.
 
 ### Changed
 - **REQ-26 first-load Hidden seed:** First visit (no `localStorage.swarm_hidden_agents`) hides gate and skeptic (`gate` / `tool_gate` / `skeptic` — whatever ids the catalog ships). Support stays visible and highlighted. An existing hidden list, including `[]` after Unhide, is not re-seeded. Hidden drop zone + N hidden popup still work; role agents remain hideable.

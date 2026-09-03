@@ -38,7 +38,8 @@ import {
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { openSearchPalette } from './SearchPalette'
-import { openSettingsSheet } from './SettingsSheet'
+import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
+import { openAgentEditor } from './AgentEditor'
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
 
@@ -108,8 +109,15 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [, setEditsTick] = useState(0)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const hideDropDepth = useRef(0)
+
+  useEffect(() => {
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+  }, [])
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -287,8 +295,8 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     setDraggingId(agent.id)
   }
 
-  const openBlueprintEditor = (agent: Blueprint) => {
-    openSettingsSheet({ section: 'blueprint', blueprintId: agent.id })
+  const openEditor = (agent: Blueprint) => {
+    openAgentEditor({ agentId: agent.id })
     onClose?.()
   }
 
@@ -382,17 +390,17 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           <button
             type="button"
             className="os-agent-edit"
-            aria-label={`Edit ${name} blueprint`}
+            aria-label={`Edit ${name}`}
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              openBlueprintEditor(agent)
+              openEditor(agent)
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault()
                 event.stopPropagation()
-                openBlueprintEditor(agent)
+                openEditor(agent)
               }
             }}
           >

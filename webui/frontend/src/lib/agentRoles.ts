@@ -1,4 +1,5 @@
 import type { AgentRole, Blueprint } from './api'
+import { loadAgentEdit } from './agentEdits'
 import { SUPPORT_AGENT_ID, SYNTHETIC_SUPPORT, isSupportAgent } from './supportAgent'
 
 /** Example roles that demonstrate blueprint design (REQ-25). */
@@ -125,6 +126,8 @@ export function agentRole(agent: {
   name?: string | null
   role?: string | null
 }): AgentRole {
+  const edited = agent.id ? loadAgentEdit(agent.id).role : undefined
+  if (edited) return normalizeAgentRole(edited)
   const explicit = normalizeAgentRole(agent.role)
   if (explicit !== 'default') return explicit
   if (isSupportAgent({ id: agent.id || '', name: agent.name })) return 'support'
