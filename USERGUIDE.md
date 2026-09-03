@@ -337,6 +337,8 @@ swarm-cli config add --section llm --name auxiliary --json \
   '{"provider":"openai","model":"auxiliary","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","speed":0.9,"cost":0.9}'
 ```
 
+In the SPA, **Settings → LLM profiles** is the picker (not the Django operator dump). Default is any connected CLI / API / remote id — `gpt-5.6-terra` is fine. If you never pick, swarm auto-assigns auxiliary (cheap/fast), orchestration (mid/chat), and delegation (smart/expensive). **Override per task** off keeps every job on Default; on routes code summary to auxiliary and design/coding to delegation. Missing ids warn and fall back to Default.
+
 **Honest notes:**
 
 * Profile **names** are config keys; the gateway **slug** is the `model` field.

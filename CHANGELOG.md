@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-43 Settings default LLM + per-task override:** SPA Settings → LLM profiles lists configured CLI/API/remote ids (boring names welcome) and a Default picker persisted as `settings.default_llm_profile`. Auto-pick chooses auxiliary / orchestration / delegation from the live catalog (named aliases win). Override-per-task routes summary → auxiliary and design → delegation; missing ids warn and fall back to Default. Chat uses that default when `LITELLM_MODEL` / `DEFAULT_LLM` are unset. #356 summariser hook: `resolve_summary_model()`.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 
 ### Changed
