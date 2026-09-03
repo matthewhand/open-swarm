@@ -291,3 +291,79 @@ test('hover-edit on a role agent opens the modal-end Blueprint editor', async ({
   await expect(page.getByRole('dialog', { name: /Teams/i })).toHaveCount(0)
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
+
+test('composer + Compact borders nested summaries and keeps leftover operator links out', async ({
+  page,
+}) => {
+  await stubAgentApis(page)
+  await page.route('**/chat/thread/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        agent_id: 'codey',
+        conversation_id: 'c-e2e',
+        messages: [
+          { role: 'user', content: 'prior question' },
+          { role: 'assistant', content: 'prior answer' },
+        ],
+        summaries: [],
+      }),
+    })
+  })
+  await page.route('**/chat/compact/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        summary: {
+          id: 2,
+          conversation_id: 'c-e2e',
+          span: { start: 0, end: 1 },
+          parent_summary_id: 1,
+          body: 'outer digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+        summaries: [
+          {
+            id: 1,
+            conversation_id: 'c-e2e',
+            span: { start: 0, end: 1 },
+            parent_summary_id: null,
+            body: 'inner digest',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 2,
+          },
+          {
+            id: 2,
+            conversation_id: 'c-e2e',
+            span: { start: 0, end: 1 },
+            parent_summary_id: 1,
+            body: 'outer digest',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 2,
+          },
+        ],
+      }),
+    })
+  })
+  await page.goto('/chat?blueprint=codey')
+  await expect(page.getByText('prior question')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Compact' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Blueprints' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Teams' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Settings' })).toHaveCount(0)
+
+  await page.getByRole('menuitem', { name: 'Compact' }).click()
+  const blocks = page.getByTestId('chat-summary')
+  await expect(blocks).toHaveCount(2)
+  await expect(blocks.first()).toHaveClass(/chat-summary/)
+  await expect(page.locator('.chat-summary--nested')).toBeVisible()
+  await expect(page.getByText('Summary').first()).toBeVisible()
+  await expect(page.getByText('outer digest')).toBeVisible()
+  await expect(page.getByText('inner digest')).toBeVisible()
+  await expect(page.getByText('prior question')).toHaveCount(0)
+})
