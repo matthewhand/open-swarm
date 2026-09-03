@@ -35,6 +35,42 @@ class ChatMessage(models.Model):
     def __str__(self):
         return self.content[:50]
 
+
+class ConversationSummary(models.Model):
+    """Nested compact of a conversation span (REQ-37).
+
+    Raw turns stay in ``ChatMessage`` / JSON on disk. This row is the
+    summarised equivalent used as model context going forward.
+    ``span`` is inclusive raw-transcript offsets: ``{"start": int, "end": int}``.
+    ``parent_summary`` points at an earlier summary nested inside this one.
+    """
+
+    conversation = models.ForeignKey(
+        ChatConversation,
+        related_name="summaries",
+        on_delete=models.CASCADE,
+    )
+    span = models.JSONField(default=dict)
+    parent_summary = models.ForeignKey(
+        "self",
+        related_name="child_summaries",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "swarm"
+        ordering = ["created_at", "id"]
+        verbose_name = "Conversation Summary"
+        verbose_name_plural = "Conversation Summaries"
+
+    def __str__(self):
+        return f"ConversationSummary({self.pk}, {self.conversation_id})"
+
+
 # Marketplace models live in a submodule; import them here so they are always
 # registered with Django when the app loads. Otherwise a stray import of
 # swarm.models.core_models at test collection registers them without
@@ -44,12 +80,15 @@ from swarm.models.core_models import (  # noqa: E402
     MarketplaceIndex,
     MCPConfig,
 )
+from swarm.models.herdr import HerdrAgent  # noqa: E402
 
 __all__ = [
     "ChatConversation",
     "ChatMessage",
+    "ConversationSummary",
     "Blueprint",
     "MCPConfig",
     "MarketplaceIndex",
+    "HerdrAgent",
 ]
 

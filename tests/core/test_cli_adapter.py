@@ -96,6 +96,49 @@ async def test_json_parse_dotpath():
     assert res.parse_error is None
 
 
+async def test_json_parse_captures_sibling_session_id():
+    code = (
+        "import json,sys; "
+        "print(json.dumps({'result': 'answer', 'session_id': 'sess-42'}))"
+    )
+    adapter = CliAdapter.from_config(
+        "claude", {"cmd": [PY, "-c", code, "{prompt}"], "parse": "json:.result"}
+    )
+    res = await adapter.run("Q")
+    assert res.ok is True
+    assert res.text == "answer"
+    assert res.session_id == "sess-42"
+
+
+async def test_resume_argv_injected_only_when_id_given(tmp_path):
+    script = tmp_path / "echo_resume.py"
+    script.write_text(
+        "import json,sys\n"
+        "args=sys.argv[1:]\n"
+        "resume=None\n"
+        "if '--resume' in args:\n"
+        "    resume=args[args.index('--resume')+1]\n"
+        "print(json.dumps({'result': 'ok', 'session_id': resume or 'sid-new', "
+        "'argv': args}))\n"
+    )
+    raw = {
+        "cmd": [PY, str(script), "{prompt}"],
+        "parse": "json:.result",
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 2,
+        "session_id_paths": [".session_id"],
+    }
+    adapter = CliAdapter.from_config("echo", raw)
+    first = await adapter.run("hello")
+    assert first.ok and first.session_id == "sid-new"
+    argv = adapter._build_invocation("hello", ".", session_id=None)[0]
+    assert "--resume" not in argv
+    resumed = adapter._build_invocation("next", ".", session_id="sid-new")[0]
+    assert resumed[2:4] == ["--resume", "sid-new"]
+    second = await adapter.run("next", session_id="sid-new")
+    assert second.ok and second.session_id == "sid-new"
+
+
 async def test_json_parse_nested_list_index():
     code = (
         "import json; "

@@ -5,7 +5,7 @@ Each test pins down a real regression class that previously shipped green:
 - ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file
 - ``test_blueprint_cards_have_borders``-> DaisyUI 5 removed ``card-bordered``
 - ``test_teams_navbar_has_no_zero_text_links`` -> white-box navbar links
-- ``test_chat_websocket_connects``     -> ASGI/daphne wiring (silent healthy status)
+- ``test_chat_websocket_connects``     -> ASGI/daphne wiring
 - ``test_dark_mode_toggle``            -> theme CSS actually compiled in
 
 Run locally with::
@@ -42,16 +42,23 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    # Grok chrome has no standing primary CTA. The closed settings sheet still
-    # mounts a hidden "Save retention" .btn-primary — do not match that.
-    # Open the sheet and assert the visible primary button is DaisyUI-styled.
-    page.get_by_role("button", name="Open settings").click()
-    btn = page.get_by_role("button", name="Save retention")
+    # `/` is ChatPage (`/?blueprint=support`). SettingsSheet keeps a hidden
+    # `.btn-primary` ("Save retention"), so `.btn-primary`.first is never
+    # visible. Use a visible DaisyUI `.btn` plus the themed composer fill.
+    btn = page.locator("button.btn").locator("visible=true").first
     btn.wait_for(state="visible", timeout=10_000)
-    bg = _computed(page, btn, "backgroundColor")
+    pad = _computed(page, btn, "paddingLeft")
+    assert pad not in ("0px", "0"), (
+        f"visible .btn padding-left is {pad!r}; DaisyUI button styles "
+        "are missing from the bundle"
+    )
+
+    composer = page.locator(".os-composer").first
+    composer.wait_for(state="visible", timeout=10_000)
+    bg = _computed(page, composer, "backgroundColor")
     assert bg not in TRANSPARENT, (
-        "visible .btn-primary has a transparent background; DaisyUI component "
-        "styles are missing from the bundle"
+        ".os-composer has a transparent background; theme / DaisyUI "
+        "tokens are missing from the bundle"
     )
 
     # The empty-CSS guard: fetch every stylesheet the page links and demand
@@ -86,21 +93,12 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """Healthy Grok chrome keeps the WS badge silent (empty sr-only status).
-
-    A visible “Connected” label was removed in #322; wait until the
-    connection-status region is attached and no longer “Connecting…”.
-    Empty text means ws.onopen fired (ASGI/daphne wiring).
-    """
+    """Composer enables only after ws.onopen (REQ-8: healthy WS is silent;
+    do not wait on a standing Connected badge)."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    status = page.get_by_label("Connection status")
-    status.wait_for(state="attached", timeout=10_000)
-    page.wait_for_function(
-        """() => {
-          const el = document.querySelector('[aria-label="Connection status"]');
-          return el && el.textContent.trim() === '';
-        }""",
-        timeout=20_000,
+    page.get_by_label("Connection status").wait_for(state="attached", timeout=20_000)
+    page.locator('[aria-label="Chat message"]:not([disabled])').wait_for(
+        state="visible", timeout=20_000
     )
 
 

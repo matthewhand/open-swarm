@@ -1,8 +1,29 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, Server } from 'lucide-react'
-import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
-import { fetchModels } from '../lib/api'
+import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, FileCode2, Plus, Server } from 'lucide-react'
+import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
+import {
+  createRemote,
+  deleteRemote,
+  fetchBlueprintSource,
+  fetchModels,
+  fetchRemotes,
+  type BlueprintSource,
+} from '../lib/api'
+import { RemoteSelect } from './RemoteSelect'
+import {
+  configuredRemotes,
+  remoteKindLabel,
+  remoteKinds,
+  unusedRemoteKinds,
+} from '../lib/remotes'
+import {
+  agentRole,
+  fallbackBlueprintSource,
+  isExampleRole,
+  runtimeModulesFor,
+} from '../lib/agentRoles'
+import { PYTHON_CODE_CLASS, highlightPython } from '../lib/highlightPython'
 import {
   RETENTION_MODES,
   RETENTION_MODE_LABELS,
@@ -13,45 +34,50 @@ import {
   saveRetentionMode,
   type RetentionMode,
 } from '../lib/settingsPrefs'
+import { agentLabel } from '../lib/supportAgent'
 
-/** Window event so the command palette (and tests) can open the sheet. */
+/** Window event so the rail hover-edit, command palette, and tests can open the sheet. */
 export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
-  | 'remotes-hermes'
-  | 'remotes-omb'
-  | 'remotes-rakazo'
+  | 'blueprint'
+  | 'remotes'
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
 
-const REMOTE_PANES = [
-  { id: 'remotes-hermes' as const, label: 'Hermes' },
-  { id: 'remotes-omb' as const, label: 'OMB' },
-  { id: 'remotes-rakazo' as const, label: 'Rakazo' },
-]
+export interface OpenSettingsDetail {
+  section?: SettingsSection
+  blueprintId?: string
+}
 
-function isRemoteSection(section: SettingsSection): boolean {
-  return section.startsWith('remotes-')
+export function openSettingsSheet(detail?: OpenSettingsDetail): void {
+  window.dispatchEvent(new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail }))
 }
 
 export interface SettingsSheetProps {
   isOpen: boolean
   onClose: () => void
+  blueprintId?: string | null
+  initialSection?: SettingsSection
 }
 
 /**
- * Right-docked DaisyUI settings sheet (REQ-19).
+ * Right-docked DaisyUI settings sheet (REQ-19 + REQ-25).
  *
  * Opens as `modal` + `modal-end` over the SPA (not a top-nav eject to Django).
- * Inner nav is DaisyUI `menu` + `menu-dropdown`. Retention uses `join` radios.
- * Remotes are placeholders until a remotes API lands. Django `/settings/` stays
- * the operator dump.
+ * Gear opens Remotes / Retention / Hostname / LLM profiles. Hover-edit on a
+ * roled agent selects the Blueprint editor for that agent's blueprint id —
+ * not the Teams drop-zone roster. Django `/settings/` stays the operator dump.
  */
-export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
+export default function SettingsSheet({
+  isOpen,
+  onClose,
+  blueprintId,
+  initialSection,
+}: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
-  const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
 
@@ -59,7 +85,14 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
     if (!isOpen) return
     setHostname(loadHostnameOverride())
     setRetention(loadRetentionMode())
-  }, [isOpen])
+    if (blueprintId) {
+      setSection('blueprint')
+    } else if (initialSection) {
+      setSection(initialSection)
+    } else {
+      setSection((current) => (current === 'blueprint' ? 'retention' : current))
+    }
+  }, [isOpen, blueprintId, initialSection])
 
   const handleSaveHostname = (event: FormEvent) => {
     event.preventDefault()
@@ -89,26 +122,22 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
             <li>
               <button
                 type="button"
-                className={`menu-dropdown-toggle ${remotesOpen ? 'menu-dropdown-show' : ''}`}
-                aria-expanded={remotesOpen}
-                onClick={() => setRemotesOpen((open) => !open)}
+                className={section === 'blueprint' ? 'menu-active' : undefined}
+                aria-current={section === 'blueprint' ? 'page' : undefined}
+                onClick={() => setSection('blueprint')}
+              >
+                Blueprint
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                className={section === 'remotes' ? 'menu-active' : undefined}
+                aria-current={section === 'remotes' ? 'page' : undefined}
+                onClick={() => setSection('remotes')}
               >
                 Remotes
               </button>
-              <ul className={`menu-dropdown ${remotesOpen ? 'menu-dropdown-show' : ''}`}>
-                {REMOTE_PANES.map((remote) => (
-                  <li key={remote.id}>
-                    <button
-                      type="button"
-                      className={section === remote.id ? 'menu-active' : undefined}
-                      aria-current={section === remote.id ? 'page' : undefined}
-                      onClick={() => setSection(remote.id)}
-                    >
-                      {remote.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </li>
             <li>
               <button
@@ -144,7 +173,10 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-base-100 p-4 sm:p-5">
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {section === 'blueprint' && (
+            <BlueprintEditorPane blueprintId={blueprintId || ''} />
+          )}
+          {section === 'remotes' && <RemotesCatalogPane />}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -175,24 +207,357 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
   )
 }
 
-function RemotePane({ section }: { section: SettingsSection }) {
-  const remote = REMOTE_PANES.find((item) => item.id === section)
-  const label = remote?.label ?? 'Remote'
+export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
+  const headingId = useId()
+  const role = agentRole({ id: blueprintId, name: blueprintId })
+  const [selectedFile, setSelectedFile] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    setSelectedFile(undefined)
+  }, [blueprintId])
+
+  const sourceQuery = useQuery({
+    queryKey: ['blueprint-source', blueprintId, selectedFile],
+    queryFn: () => fetchBlueprintSource(blueprintId, selectedFile),
+    enabled: Boolean(blueprintId),
+    retry: false,
+  })
+
+  const live = sourceQuery.data
+  const files = Array.isArray(live?.files) ? live.files : []
+  const content = live?.content || (blueprintId ? fallbackBlueprintSource(blueprintId, role) : '')
+  const fromLive = Boolean(live?.content)
+  const modules = runtimeModulesFor(role)
+  const highlighted = highlightPython(content)
+  const label = blueprintId ? agentLabel({ id: blueprintId, name: titleCase(blueprintId) }) : 'Blueprint'
+
   return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">{label}</h4>
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="font-medium">{label}</span> is a placeholder remote.
-            The remotes API has not landed — this pane is the settings-sheet
-            shell only.
-          </p>
-          <p className="text-base-content/70">
-            Hermes, OMB, and Rakazo will connect here once the backend exists.
-          </p>
+    <section id="os-blueprint-editor" aria-labelledby={headingId} className="space-y-3">
+      <div>
+        <h4 id={headingId} className="text-lg font-semibold">
+          Blueprint
+        </h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          {blueprintId ? (
+            <>
+              Editing <span className="font-medium">{label}</span>
+              {isExampleRole(role) ? (
+                <>
+                  {' '}
+                  (<span className="font-mono">{role}</span> role).
+                </>
+              ) : (
+                '.'
+              )}{' '}
+              This editor opens the Python/API recipe (tools, prompts, code) — not the Teams roster.
+            </>
+          ) : (
+            'Select a roled agent in the rail to open its blueprint.'
+          )}
+        </p>
+      </div>
+
+      {modules.length > 0 && (
+        <p className="text-xs text-base-content/60">
+          Runtime modules (open when present on this checkout):{' '}
+          {modules.map((mod, index) => (
+            <span key={mod.path}>
+              {index > 0 ? ', ' : null}
+              <ModuleLink blueprintId={blueprintId} file={mod} source={live} />
+            </span>
+          ))}
+        </p>
+      )}
+
+      {sourceQuery.isError && (
+        <Alert type="info" icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">
+            No live <code>/v1/blueprints/{blueprintId}/source</code> file. Showing the
+            design recipe so you can see how the role behaves.
+          </span>
+        </Alert>
+      )}
+
+      {files.length > 1 && (
+        <div className="flex flex-wrap gap-1" role="tablist" aria-label="Blueprint files">
+          {files.map((file) => {
+            const name = file.name
+            const active = (live?.selected || live?.primary) === name
+            return (
+              <button
+                key={name}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`btn btn-xs ${active ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSelectedFile(name)}
+              >
+                {name}
+              </button>
+            )
+          })}
         </div>
-      </Alert>
+      )}
+
+      {blueprintId ? (
+        <pre className={PYTHON_CODE_CLASS} tabIndex={0} aria-label={`${label} blueprint Python`}>
+          <code
+            className="language-python"
+            dangerouslySetInnerHTML={{ __html: highlighted }}
+          />
+        </pre>
+      ) : (
+        <p className="text-sm text-base-content/60">No blueprint selected.</p>
+      )}
+
+      {fromLive && live?.selected && (
+        <p className="text-xs text-base-content/50">
+          <FileCode2 className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+          {live.selected}
+        </p>
+      )}
+    </section>
+  )
+}
+
+function titleCase(id: string): string {
+  if (!id) return id
+  return id.charAt(0).toUpperCase() + id.slice(1)
+}
+
+function ModuleLink({
+  blueprintId,
+  file,
+  source,
+}: {
+  blueprintId: string
+  file: { label: string; path: string }
+  source?: BlueprintSource
+}) {
+  const fileName = file.path.split('/').pop() || file.path
+  const listed = source?.files?.some((entry) => entry.name === fileName)
+  if (listed) {
+    return (
+      <a
+        className="link font-mono"
+        href={`/v1/blueprints/${encodeURIComponent(blueprintId)}/source?file=${encodeURIComponent(fileName)}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {file.label}
+      </a>
+    )
+  }
+  return (
+    <code title={file.path} className="font-mono">
+      {file.label}
+    </code>
+  )
+}
+
+function RemotesCatalogPane() {
+  const { success, error: toastError } = useToast()
+  const queryClient = useQueryClient()
+  const [adding, setAdding] = useState(false)
+  const [kind, setKind] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [selectedId, setSelectedId] = useState('')
+
+  const remotesQuery = useQuery({
+    queryKey: ['settings-remotes'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
+  const catalog = remotesQuery.data
+  const configured = configuredRemotes(catalog)
+  const kinds = remoteKinds(catalog)
+  const unused = unusedRemoteKinds(catalog)
+
+  useEffect(() => {
+    if (!kind && unused[0]) setKind(unused[0].id)
+  }, [kind, unused])
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      createRemote({
+        kind,
+        ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+        ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+      }),
+    onSuccess: (created) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: [...configuredRemotes(prev).filter((row) => row.id !== created.id), created],
+        data: prev?.data ?? [],
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+      void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      setAdding(false)
+      setBaseUrl('')
+      setApiKey('')
+      setKind('')
+      setSelectedId(created.id)
+      success('Remote added', `${remoteKindLabel(created.kind || created.id, kinds)} is now configured.`)
+    },
+    onError: (err: Error) => {
+      toastError('Could not add remote', err.message)
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (remoteId: string) => deleteRemote(remoteId),
+    onSuccess: (_void, remoteId) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: configuredRemotes(prev).filter((row) => row.id !== remoteId),
+        data: prev?.data ?? [],
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+      void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      if (selectedId === remoteId) setSelectedId('')
+      success('Remote removed', 'Dropped from Settings and remote dropdowns.')
+    },
+    onError: (err: Error) => {
+      toastError('Could not remove remote', err.message)
+    },
+  })
+
+  const handleAdd = (event: FormEvent) => {
+    event.preventDefault()
+    if (!kind) return
+    addMutation.mutate()
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Remotes</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Only remotes you add appear here and in remote dropdowns. Unused kinds
+          stay off the list.
+        </p>
+      </div>
+
+      {configured.length > 0 ? (
+        <RemoteSelect
+          remotes={catalog}
+          value={selectedId}
+          onChange={setSelectedId}
+          label="Remote"
+        />
+      ) : null}
+
+      {configured.length === 0 && !adding ? (
+        <Alert type="info" icon={<Server className="h-5 w-5" />}>
+          <span className="text-sm">No remotes configured yet.</span>
+        </Alert>
+      ) : configured.length === 0 ? null : (
+        <ul className="space-y-2" aria-label="Configured remotes">
+          {configured.map((remote) => {
+            const label = remoteKindLabel(remote.kind || remote.id, kinds)
+            return (
+              <li
+                key={remote.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">{label}</p>
+                  <p className="truncate font-mono text-xs text-base-content/60">
+                    {remote.base_url || 'localhost'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => removeMutation.mutate(remote.id)}
+                  disabled={removeMutation.isPending}
+                >
+                  Remove
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {adding ? (
+        <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>
+          <Select
+            label="Kind"
+            name="remote-kind"
+            size="sm"
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+          >
+            {unused.length === 0 ? (
+              <option value="" disabled>
+                All kinds added
+              </option>
+            ) : (
+              unused.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))
+            )}
+          </Select>
+          <Input
+            label="URL"
+            name="remote-url"
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {kind === 'swarm' ? (
+            <p className="text-sm text-base-content/70">
+              Nested open-swarm is another process (own DB). Do not add this
+              instance as its own remote.
+            </p>
+          ) : null}
+          <Input
+            label="API key"
+            name="remote-api-key"
+            type="password"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder="${API_KEY}"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!kind || addMutation.isPending}
+            >
+              Save remote
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setAdding(false)
+                setApiKey('')
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add remote
+        </Button>
+      )}
     </div>
   )
 }

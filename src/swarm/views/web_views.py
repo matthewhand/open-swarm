@@ -10,7 +10,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -62,6 +62,16 @@ def _safe_post_login_redirect(request, next_url: str | None) -> str:
     ):
         return fallback
     return candidate
+
+
+def asgi_file_response(path: Path, content_type: str) -> HttpResponse:
+    """Buffer a file into HttpResponse.
+
+    Django 4.2 FileResponse.streaming_content is a map(); ASGI/Daphne then
+    TypeErrors on async-for and can leave CurrentThreadExecutor dead so later
+    requests hang (LAN GET / looks like a hung launch). See issue #425.
+    """
+    return HttpResponse(path.read_bytes(), content_type=content_type)
 
 
 def _get_frontend_path():
@@ -132,7 +142,7 @@ def spa_chat(request):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             logger.debug("Serving SPA Chat from %s", index_file)
-            return FileResponse(open(index_file, "rb"), content_type="text/html")
+            return asgi_file_response(index_file, "text/html")
     return HttpResponse("Not Found", status=404)
 
 
@@ -144,7 +154,7 @@ def index(request):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             logger.debug("Serving static frontend from " + str(index_file))
-            return FileResponse(open(index_file, 'rb'), content_type='text/html')
+            return asgi_file_response(index_file, "text/html")
 
     # Fallback to Django template rendering
     logger.debug("Rendering index page with Django templates")
@@ -481,7 +491,22 @@ def team_admin(request):
         return redirect("teams_admin")
 
     teams = list(load_dynamic_registry().values())
-    return render(request, "teams_admin.html", {"teams": teams, **_profiles_ctx()})
+    return render(
+        request,
+        "teams_admin.html",
+        {"teams": teams, **_profiles_ctx(), **_herdr_members_ctx()},
+    )
+
+
+def _herdr_members_ctx():
+    """Persisted Herdr members (kind=herdr) for Teams to pick."""
+    try:
+        from swarm.models import HerdrAgent
+
+        return {"herdr_agents": list(HerdrAgent.objects.all().order_by("name"))}
+    except Exception:
+        logger.exception("Error loading Herdr members for Teams")
+        return {"herdr_agents": []}
 
 
 def _profiles_ctx():

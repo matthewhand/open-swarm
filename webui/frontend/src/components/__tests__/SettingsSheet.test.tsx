@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SettingsSheet from '../SettingsSheet'
@@ -8,7 +8,13 @@ import {
   RETENTION_MODE_KEY,
 } from '../../lib/settingsPrefs'
 
-function renderSheet(isOpen = true) {
+function renderSheet({
+  isOpen = true,
+  blueprintId,
+}: {
+  isOpen?: boolean
+  blueprintId?: string
+} = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -16,7 +22,7 @@ function renderSheet(isOpen = true) {
   const view = render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <SettingsSheet isOpen={isOpen} onClose={onClose} />
+        <SettingsSheet isOpen={isOpen} onClose={onClose} blueprintId={blueprintId} />
       </ToastProvider>
     </QueryClientProvider>,
   )
@@ -39,22 +45,51 @@ describe('SettingsSheet', () => {
     expect(dialog.className).not.toMatch(/btn-group/)
 
     const remotesToggle = screen.getByRole('button', { name: 'Remotes' })
-    expect(remotesToggle).toHaveClass('menu-dropdown-toggle')
-    expect(remotesToggle).toHaveClass('menu-dropdown-show')
+    expect(remotesToggle).not.toHaveClass('menu-dropdown-toggle')
     expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
-    expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rakazo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
   })
 
-  it('shows remotes placeholders and join radios for retention', () => {
+  it('shows remotes empty state and join radios for retention', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          kinds: [
+            { id: 'hermes', label: 'Hermes' },
+            { id: 'omb', label: 'OpenMousBot' },
+            { id: 'rakazo', label: 'Rakazo' },
+            { id: 'swarm', label: 'Swarm' },
+          ],
+          configured: [],
+          data: [],
+        }),
+      } as Response),
+    )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'Hermes' }))
-    expect(screen.getByText(/placeholder remote/i)).toBeInTheDocument()
-    expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    expect(await screen.findByRole('button', { name: /Add remote/i })).toBeInTheDocument()
+    expect(screen.getByText(/No remotes configured/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Swarm' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Add remote/i }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Kind' }), {
+      target: { value: 'swarm' },
+    })
+    expect(screen.getByText(/do not add this instance as its own remote/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
     const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
@@ -63,6 +98,64 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Disk' })).toHaveClass('join-item')
     expect(screen.getByRole('radio', { name: 'Archive' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
+  })
+
+  it('adds an OpenMousBot remote then lists it in Settings and the dropdown', async () => {
+    const configured: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method || 'GET').toUpperCase()
+        if (url.includes('/v1/remotes/') && method === 'POST') {
+          const body = JSON.parse(String(init?.body || '{}')) as { kind?: string }
+          const created = {
+            id: body.kind || 'omb',
+            kind: body.kind || 'omb',
+            label: body.kind === 'omb' ? 'OpenMousBot' : body.kind,
+            title: 'OpenMousBot',
+            host_label: '',
+            base_url: 'http://127.0.0.1:8802',
+            source: 'config',
+          }
+          configured.push(created)
+          return { ok: true, status: 201, json: async () => created } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            kinds: [
+              { id: 'hermes', label: 'Hermes' },
+              { id: 'omb', label: 'OpenMousBot' },
+              { id: 'rakazo', label: 'Rakazo' },
+            ],
+            configured,
+            data: [],
+          }),
+        } as Response
+      }),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Add remote/i }))
+    const kindSelect = await screen.findByRole('combobox', { name: 'Kind' })
+    expect(within(kindSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+    fireEvent.change(kindSelect, { target: { value: 'omb' } })
+    expect(kindSelect).toHaveValue('omb')
+    fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), {
+      target: { value: 'http://127.0.0.1:8802' },
+    })
+    fireEvent.submit(kindSelect.closest('form') as HTMLFormElement)
+
+    const rows = await screen.findByRole('list', { name: 'Configured remotes' })
+    expect(within(rows).getByText('OpenMousBot')).toBeInTheDocument()
+    expect(within(rows).getByText('http://127.0.0.1:8802')).toBeInTheDocument()
+    const remoteSelect = screen.getByRole('combobox', { name: 'Remote' })
+    expect(within(remoteSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {
@@ -113,5 +206,87 @@ describe('SettingsSheet', () => {
       'href',
       '/settings/',
     )
+  })
+})
+
+describe('SettingsSheet blueprint editor', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens as a DaisyUI modal-end sheet selected to Blueprint', () => {
+    renderSheet({ blueprintId: 'gate' })
+    const dialog = screen.getByRole('dialog', { hidden: true })
+    expect(dialog).toHaveClass('modal')
+    expect(dialog).toHaveClass('modal-end')
+    expect(dialog).not.toHaveClass('drawer')
+    expect(screen.getByRole('button', { name: 'Blueprint' })).toHaveClass('menu-active')
+    expect(screen.getByRole('heading', { name: 'Blueprint' })).toBeInTheDocument()
+  })
+
+  it('shows highlighted gate YES/NO Python when source is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'blueprint not found' }),
+      } as Response),
+    )
+    renderSheet({ blueprintId: 'gate' })
+    const code = await screen.findByLabelText(/Gate blueprint Python/i)
+    expect(code).toHaveClass('os-code-python')
+    expect(code.textContent).toMatch(/YES/)
+    expect(code.textContent).toMatch(/NO/)
+    expect(code.querySelector('.os-py-kw')).toBeTruthy()
+    expect(screen.getByTitle('src/swarm/core/tool_gate.py')).toHaveTextContent('tool_gate')
+    expect(screen.queryByText(/Teams drop-zone/i)).not.toBeInTheDocument()
+  })
+
+  it('shows skeptic retry recipe', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'blueprint not found' }),
+      } as Response),
+    )
+    renderSheet({ blueprintId: 'skeptic' })
+    const code = await screen.findByLabelText(/Skeptic blueprint Python/i)
+    expect(code.textContent).toMatch(/SKEPTIC_MAX_RETRIES/)
+    expect(code.textContent).toMatch(/retry/)
+  })
+
+  it('renders live source when the API returns Python', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 'support',
+          files: [{ name: 'blueprint_support.py', path: 'blueprint_support.py' }],
+          primary: 'blueprint_support.py',
+          selected: 'blueprint_support.py',
+          content: 'def ask_user(question):\n    return question\n',
+        }),
+      } as Response),
+    )
+    renderSheet({ blueprintId: 'support' })
+    const code = await screen.findByLabelText(/Support blueprint Python/i)
+    await waitFor(() => {
+      expect(code.textContent).toMatch(/ask_user/)
+    })
+    expect(screen.getByRole('link', { name: 'blueprint_support.py' })).toHaveAttribute(
+      'href',
+      '/v1/blueprints/support/source?file=blueprint_support.py',
+    )
+  })
+
+  it('calls onClose from the sheet Close button', () => {
+    const { onClose } = renderSheet({ blueprintId: 'gate' })
+    fireEvent.click(screen.getByRole('button', { name: /^Close$/ }))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

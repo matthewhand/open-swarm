@@ -37,7 +37,7 @@ describe('SPA settings chrome (REQ-19)', () => {
     expect(screen.queryByRole('link', { name: /^Settings$/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
-    const dialog = screen.getByRole('dialog', { hidden: true })
+    const dialog = screen.getByRole('dialog', { name: 'Settings', hidden: true })
     expect(dialog).toHaveClass('modal-end')
     expect(dialog).toHaveClass('modal-open')
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument()

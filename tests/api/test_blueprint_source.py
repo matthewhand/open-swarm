@@ -8,6 +8,7 @@ def test_blueprint_source_and_cli_agents_urls_accept_trailing_slash():
     """Slash + no-slash twins (same pattern as /v1/responses and /v1/chat/completions)."""
     assert resolve("/v1/blueprints/cli_fusion/source").url_name == "blueprint-source"
     assert resolve("/v1/blueprints/cli_fusion/source/").url_name == "blueprint-source-slash"
+    assert resolve("/blueprint-library/cli_fusion/source/").url_name == "blueprint_source"
     assert resolve("/v1/cli-agents").url_name == "cli-agents-api-no-slash"
     assert resolve("/v1/cli-agents/").url_name == "cli-agents-api"
 
@@ -53,6 +54,45 @@ def test_source_selects_requested_file(client):
     assert data["selected"] == "README.md"
     assert data["primary"] == "blueprint_cli_fusion.py"
     assert len(data["content"]) > 0
+
+
+@pytest.mark.django_db
+def test_source_html_accept_is_pretty_python_not_json(client):
+    """Browsers asking for HTML get highlighted Python, not the JSON envelope."""
+    resp = client.get(
+        "/v1/blueprints/cli_fusion/source/",
+        HTTP_ACCEPT="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    )
+    assert resp.status_code == 200
+    assert "application/json" not in resp["Content-Type"]
+    html = resp.content.decode()
+    assert "language-python" in html
+    assert "class CliFusionBlueprint" in html
+    assert '"content":' not in html
+    assert html.strip()[:1] != "{"
+
+
+@pytest.mark.django_db
+def test_source_json_accept_stays_json(client):
+    resp = client.get(
+        "/v1/blueprints/cli_fusion/source/",
+        HTTP_ACCEPT="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == "cli_fusion"
+    assert "class CliFusionBlueprint" in data["content"]
+
+
+@pytest.mark.django_db
+def test_library_source_page_is_pretty_python(client, test_user):
+    client.force_login(test_user)
+    resp = client.get("/blueprint-library/cli_fusion/source/")
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert "language-python" in html
+    assert "class CliFusionBlueprint" in html
+    assert '"primary":' not in html
 
 
 @pytest.mark.django_db
