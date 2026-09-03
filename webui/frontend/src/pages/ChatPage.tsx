@@ -18,6 +18,7 @@ import {
   LoadingSpinner,
 } from '../components/DaisyUI'
 import { AgentMark, agentDisplayName } from '../components/AgentMark'
+import { QuestionCard } from '../components/QuestionCard'
 import {
   SupportActionChips,
   SupportBriefingPill,
@@ -40,6 +41,10 @@ import {
   shouldAutoReconnect,
   WS_AUTH_REQUIRED_CODE,
 } from '../lib/chatReconnect'
+import {
+  parseDecisionQuestion,
+  stripDecisionQuestion,
+} from '../lib/decisionQuestion'
 import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
@@ -647,6 +652,14 @@ const ChatPage = () => {
                 message.role === 'assistant' &&
                 !message.streaming &&
                 lastUserTextRef.current.length > 0
+              const question =
+                message.role === 'assistant' && !message.streaming
+                  ? parseDecisionQuestion(message.text)
+                  : null
+              const prose = question
+                ? stripDecisionQuestion(message.text)
+                : message.text
+              const questionOpen = Boolean(question) && isLast
               return (
                 <div
                   key={message.key}
@@ -655,18 +668,27 @@ const ChatPage = () => {
                   <div className="chat-header text-xs opacity-60">
                     {message.role === 'user' ? 'You' : headerName}
                   </div>
-                  <div
-                    className={`chat-bubble ${
-                      message.role === 'user'
-                        ? 'bg-neutral text-neutral-content'
-                        : 'bg-base-200 text-base-content'
-                    }`}
-                  >
-                    <ChatBubbleBody
-                      text={message.text}
-                      streaming={message.streaming}
+                  {prose.length > 0 || message.streaming ? (
+                    <div
+                      className={`chat-bubble ${
+                        message.role === 'user'
+                          ? 'bg-neutral text-neutral-content'
+                          : 'bg-base-200 text-base-content'
+                      }`}
+                    >
+                      <ChatBubbleBody
+                        text={prose}
+                        streaming={message.streaming && !question}
+                      />
+                    </div>
+                  ) : null}
+                  {question ? (
+                    <QuestionCard
+                      question={question}
+                      disabled={!questionOpen || status !== 'open'}
+                      onChoose={sendText}
                     />
-                  </div>
+                  ) : null}
                   {SHOW_MESSAGE_ACTIONS &&
                     message.role === 'assistant' &&
                     !message.streaming && (

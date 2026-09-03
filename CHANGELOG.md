@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - **Support agent (REQ-7):** discoverable `support` blueprint (`role=support`) is first in the AGENTS sidepane (life-ring, not a diamond) and the default `/chat` landing. Config intel (agents, inference on/off, gate/skeptic) is a one-way **System → Support** pill — click to expand a popover; it is not transcript copy and Support cannot reply. Laconic chips the user cares about stay visible: `New team`, `Set inference`, `Write blueprint`. Missing inference still links `/settings/`, `/profiles/`, and `docs/QUICKSTART.md#4-configure-your-llm-provider`. Coordinator uses openai-agents `as_tool` specialists (no extra Grok/OMB/Rakazo seats). Chat Python fences get syntax highlighting. Stub `gate` / `skeptic` role markers are registered (one-line copy behind the pill; execution loop later).
+- **Socratic question cards:** any agent can emit a ` ```question ` fence; chat renders a card with multiple-choice chips plus a last open-string. Support uses this to configure tools/prompts for *other* agents (not itself). Distinct from one-way system pills.
 
 ### Changed
 - **Per-agent chat threads:** each AGENTS row / favourite tile (`/chat?blueprint=<id>`) has its own persisted conversation id and transcript. Switching agents swaps the visible thread and websocket session; returning restores that agent’s history. Chat header name/avatar match the selected agent. Support keeps the one-way System → Support pill.

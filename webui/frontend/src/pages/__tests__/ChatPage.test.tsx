@@ -589,6 +589,69 @@ describe('ChatPage markdown bubbles', () => {
   })
 })
 
+describe('ChatPage decision question card', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal('fetch', mockAgentListFetch())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('renders choices plus an open-string; a choice answers, the system pill stays one-way', async () => {
+    renderChat('/chat?blueprint=support')
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Blueprint' })).toHaveValue(
+        'support',
+      )
+    })
+    const ws = await openLatestSocket()
+    const fence =
+      '```question\n{"id":"q1","ask":"Configure which agent?","choices":["hybrid_team","skeptic"],"other":"Name an agent"}\n```'
+    await act(async () => {
+      ws?.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-q1" class="assistant-message"></div></div>',
+        }),
+      )
+      ws?.onmessage?.(
+        new MessageEvent('message', {
+          data: `<div id="message-response-q1" hx-swap-oob="true" class="assistant-message">${fence}</div>`,
+        }),
+      )
+    })
+
+    const card = await screen.findByTestId('question-card')
+    expect(card).toHaveTextContent('Configure which agent?')
+    expect(card.closest('.os-handoff-chip--system')).toBeNull()
+    expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /System → Support/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'hybrid_team' }))
+    expect(ws?.send).toHaveBeenCalledWith(
+      expect.stringContaining('"message":"hybrid_team"'),
+    )
+
+    const other = screen.getByLabelText('Name an agent')
+    fireEvent.change(other, { target: { value: 'gate' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Send' }))
+    expect(ws?.send).toHaveBeenCalledWith(expect.stringContaining('"message":"gate"'))
+
+    await act(async () => {
+      ws?.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">hybrid_team</div></div>',
+        }),
+      )
+    })
+    expect(screen.getByRole('button', { name: 'hybrid_team' })).toBeDisabled()
+    expect(other).toBeDisabled()
+  })
+})
+
 describe('ChatPage per-agent threads', () => {
   beforeEach(() => {
     MockWebSocket.instances = []

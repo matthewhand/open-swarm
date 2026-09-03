@@ -272,6 +272,76 @@ html[data-theme="light"] #root {
   background: #2f8f7b;
   color: #04110e;
 }
+.os-question-card {
+  margin-top: 0.35rem;
+  max-width: 22rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 5%, transparent);
+}
+.os-question-card--answered {
+  opacity: 0.65;
+}
+.os-question-ask {
+  margin: 0 0 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.os-question-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.os-question-choice {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.18rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 20%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.os-question-choice:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-base-content) 14%, transparent);
+}
+.os-question-choice:disabled,
+.os-question-other-send:disabled,
+.os-question-other-input:disabled {
+  cursor: default;
+}
+.os-question-other {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.os-question-other-input {
+  flex: 1;
+  min-width: 0;
+  height: 1.85rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 20%, transparent);
+  background: color-mix(in srgb, var(--color-base-100) 80%, transparent);
+  color: inherit;
+  font-size: 0.78rem;
+}
+.os-question-other-send {
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 20%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
 .os-briefing-popover {
   position: absolute;
   z-index: 20;
