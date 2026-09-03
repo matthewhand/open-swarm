@@ -111,3 +111,17 @@ def test_spa_document_chrome_is_near_black():
     assert "dark --default" in css
     assert "applyDocumentTheme" in app
     assert "document.documentElement.setAttribute('data-theme'" in app
+
+
+def test_spa_chat_nav_and_routes_stay_on_chat_not_agents():
+    """REQ-5d follow-up: Chat is /chat (composer). /agents is only an alias."""
+    app = SPA_APP.read_text(encoding="utf-8")
+    base = BASE.read_text(encoding="utf-8")
+    assert 'to="/chat"' in app
+    assert 'path="/chat"' in app
+    assert 'href="/chat"' in base
+    assert 'to="/agents"' not in app
+    assert 'href="/agents"' not in base
+    assert "RedirectAgentsToChat" in app
+    assert "chatPathWithSearch" in app
+    assert 'path="/agents"' in app

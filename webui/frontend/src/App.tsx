@@ -37,10 +37,23 @@ function applyDocumentTheme(theme: Theme) {
 
 applyDocumentTheme(initialTheme())
 
+/** Keep query string when aliasing a legacy chat path onto `/chat`. */
+export function chatPathWithSearch(search: string): string {
+  if (!search) return '/chat'
+  return search.startsWith('?') ? `/chat${search}` : `/chat?${search}`
+}
+
+/** `/agents` is not a product route — send it to SPA Chat. */
+function RedirectAgentsToChat() {
+  const { search } = useLocation()
+  return <Navigate to={chatPathWithSearch(search)} replace />
+}
+
 /**
  * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
  * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
  * Do not remount deleted Teams/Blueprints/Settings/Builder/AgentCreator SPA pages.
+ * Legacy `/agents` is an alias of `/chat` (REQ-5d follow-up).
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
@@ -133,6 +146,9 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/chat" element={<ChatPage />} />
+              <Route path="/chat/*" element={<ChatPage />} />
+              <Route path="/agents" element={<RedirectAgentsToChat />} />
+              <Route path="/agents/*" element={<RedirectAgentsToChat />} />
               {/* Bare /teams|/blueprints|/settings|/agent-creator|/builder: Django RedirectView in
                   production; unknown SPA paths fall through to dashboard. */}
               <Route path="*" element={<Navigate to="/" replace />} />

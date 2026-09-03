@@ -82,6 +82,23 @@ test('dashboard shows four large chrome action cards', async ({ page }) => {
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
+test('Chat nav and /agents stay on /chat with composer', async ({ page }) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubAgentApis(page)
+
+  await page.goto('/')
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Chat' }).click()
+  await expect(page).toHaveURL(/\/chat\/?(\?|$)/)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
+  await expect(page.getByLabel('Connection status')).toBeVisible()
+
+  await page.goto('/agents?blueprint=codey')
+  await expect(page).toHaveURL(/\/chat\/?\?blueprint=codey/)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
+
 test('right-click hide from sidebar persists across reload; unhide restores', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))

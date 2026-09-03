@@ -119,6 +119,23 @@ def _ensure_frontend_built():
 
     return None
 
+def spa_chat(request):
+    """Serve the React Chat shell at ``/chat`` (first-class, not fallback-only).
+
+    REQ-5d follow-up: ``/chat`` must stay the SPA chat (composer + Connected),
+    not bounce to ``/agents``. Looks up ``dist/`` at request time so Chat still
+    works if assets appear after process start. Does **not** call
+    ``_ensure_frontend_built()`` (that would npm-build in tests).
+    """
+    frontend_path = _get_frontend_path()
+    if frontend_path:
+        index_file = frontend_path / "index.html"
+        if index_file.exists():
+            logger.debug("Serving SPA Chat from %s", index_file)
+            return FileResponse(open(index_file, "rb"), content_type="text/html")
+    return HttpResponse("Not Found", status=404)
+
+
 def index(request):
     """Render the main index page with dynamically discovered blueprint options."""
     # Try to serve static frontend first if available
