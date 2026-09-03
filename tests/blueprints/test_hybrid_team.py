@@ -171,6 +171,64 @@ async def test_grok_failure_degrades_gracefully():
     assert ("A:" in final) or ("B:" in final)
 
 
+def test_resolve_prefers_grok_then_agy_not_claude():
+    class _Reg:
+        def names(self):
+            return ["claude", "agy", "grok"]
+
+        def available(self):
+            return ["claude", "agy", "grok"]
+
+    bp = HybridTeamBlueprint(
+        config={"cli_agents": {"claude": _echo("C"), "agy": _echo("A"), "grok": _echo("G")}}
+    )
+    grok, _panel, _judge = bp._resolve({}, _Reg())
+    assert grok == "grok"
+
+    no_grok = HybridTeamBlueprint(
+        config={"cli_agents": {"claude": _echo("C"), "agy": _echo("A")}}
+    )
+
+    class _Agy:
+        def names(self):
+            return ["claude", "agy"]
+
+        def available(self):
+            return ["claude", "agy"]
+
+    grok2, _p, _j = no_grok._resolve({}, _Agy())
+    assert grok2 == "agy"
+
+
+def test_claude_persona_ignored_unless_in_config():
+    """Host claude on PATH / registry must not become the orchestrator."""
+    bp = HybridTeamBlueprint(config={"cli_agents": {"grok": _echo("GROK")}})
+
+    class _Reg:
+        def names(self):
+            return ["grok", "claude"]
+
+        def get(self, name):
+            raise AssertionError(f"must not fetch {name}")
+
+    assert bp._claude_persona(_Reg()) is None
+
+    bp_explicit = HybridTeamBlueprint(
+        config={"cli_agents": {"claude": _echo("C"), "grok": _echo("GROK")}}
+    )
+    assert bp_explicit._claude_persona(_RegGet()) is not None
+
+
+class _RegGet:
+    def names(self):
+        return ["grok", "claude"]
+
+    def get(self, name):
+        from swarm.core.cli_adapter import CliAdapter
+
+        return CliAdapter.from_config(name, _echo(name.upper()))
+
+
 async def test_all_panel_fail_reports_no_consensus():
     cfg = {
         "cli_agents": {"grok": _echo("GROK"), "boom": _boom()},

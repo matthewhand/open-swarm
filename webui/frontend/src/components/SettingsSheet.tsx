@@ -1,21 +1,37 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, FileCode2, HardDrive, Server } from 'lucide-react'
-import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, FileCode2, HardDrive, Plus, Server } from 'lucide-react'
+import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
+import DefinitionPane from './DefinitionPane'
 import {
   EMPTY_LOCAL_STORE,
+  createRemote,
+  deleteRemote,
   fetchBlueprintSource,
+  fetchLlmProfiles,
   fetchLocalStore,
   fetchModels,
+  fetchRemotes,
+  patchLlmProfiles,
   type BlueprintSource,
+  type LlmTaskClass,
 } from '../lib/api'
 import { formatStoreSize } from '../lib/localStore'
+import { RemoteSelect } from './RemoteSelect'
+import {
+  configuredRemotes,
+  remoteKindLabel,
+  remoteKinds,
+  unusedRemoteKinds,
+} from '../lib/remotes'
+import { TASK_CLASS_LABELS, missingProfileWarning } from '../lib/llmProfiles'
 import {
   agentRole,
   fallbackBlueprintSource,
   isExampleRole,
   runtimeModulesFor,
 } from '../lib/agentRoles'
+import type { DefinitionKind } from '../lib/definitionExplain'
 import { PYTHON_CODE_CLASS, highlightPython } from '../lib/highlightPython'
 import {
   RETENTION_MODES,
@@ -33,10 +49,9 @@ import { agentLabel } from '../lib/supportAgent'
 export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
+  | 'definition'
   | 'blueprint'
-  | 'remotes-hermes'
-  | 'remotes-omb'
-  | 'remotes-rakazo'
+  | 'remotes'
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
@@ -45,26 +60,23 @@ export type SettingsSection =
 export interface OpenSettingsDetail {
   section?: SettingsSection
   blueprintId?: string
+  teamId?: string
+  definitionKind?: DefinitionKind
+  definitionId?: string
 }
 
 export function openSettingsSheet(detail?: OpenSettingsDetail): void {
   window.dispatchEvent(new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail }))
 }
 
-const REMOTE_PANES = [
-  { id: 'remotes-hermes' as const, label: 'Hermes' },
-  { id: 'remotes-omb' as const, label: 'OMB' },
-  { id: 'remotes-rakazo' as const, label: 'Rakazo' },
-]
-
-function isRemoteSection(section: SettingsSection): boolean {
-  return section.startsWith('remotes-')
-}
-
 export interface SettingsSheetProps {
   isOpen: boolean
   onClose: () => void
   blueprintId?: string | null
+  teamId?: string | null
+  initialSection?: SettingsSection | null
+  definitionKind?: DefinitionKind | null
+  definitionId?: string | null
 }
 
 /**
@@ -75,23 +87,39 @@ export interface SettingsSheetProps {
  * on a roled agent selects the Blueprint editor for that agent's blueprint id —
  * not the Teams drop-zone roster. Django `/settings/` stays the operator dump.
  */
-export default function SettingsSheet({ isOpen, onClose, blueprintId }: SettingsSheetProps) {
+export default function SettingsSheet({
+  isOpen,
+  onClose,
+  blueprintId,
+  teamId,
+  initialSection,
+  definitionKind,
+  definitionId,
+}: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
-  const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const resolvedDefinitionId = definitionId || teamId || blueprintId || ''
+  const resolvedKind: DefinitionKind =
+    definitionKind || (teamId ? 'team' : blueprintId ? 'role' : 'blueprint')
 
   useEffect(() => {
     if (!isOpen) return
     setHostname(loadHostnameOverride())
     setRetention(loadRetentionMode())
-    if (blueprintId) {
+    if (initialSection) {
+      setSection(initialSection)
+    } else if (blueprintId) {
       setSection('blueprint')
+    } else if (initialSection) {
+      setSection(initialSection)
     } else {
-      setSection((current) => (current === 'blueprint' ? 'retention' : current))
+      setSection((current) =>
+        current === 'blueprint' || current === 'definition' ? 'retention' : current,
+      )
     }
-  }, [isOpen, blueprintId])
+  }, [isOpen, blueprintId, initialSection])
 
   const handleSaveHostname = (event: FormEvent) => {
     event.preventDefault()
@@ -121,6 +149,16 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
             <li>
               <button
                 type="button"
+                className={section === 'definition' ? 'menu-active' : undefined}
+                aria-current={section === 'definition' ? 'page' : undefined}
+                onClick={() => setSection('definition')}
+              >
+                Definition
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
                 className={section === 'blueprint' ? 'menu-active' : undefined}
                 aria-current={section === 'blueprint' ? 'page' : undefined}
                 onClick={() => setSection('blueprint')}
@@ -131,26 +169,12 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
             <li>
               <button
                 type="button"
-                className={`menu-dropdown-toggle ${remotesOpen ? 'menu-dropdown-show' : ''}`}
-                aria-expanded={remotesOpen}
-                onClick={() => setRemotesOpen((open) => !open)}
+                className={section === 'remotes' ? 'menu-active' : undefined}
+                aria-current={section === 'remotes' ? 'page' : undefined}
+                onClick={() => setSection('remotes')}
               >
                 Remotes
               </button>
-              <ul className={`menu-dropdown ${remotesOpen ? 'menu-dropdown-show' : ''}`}>
-                {REMOTE_PANES.map((remote) => (
-                  <li key={remote.id}>
-                    <button
-                      type="button"
-                      className={section === remote.id ? 'menu-active' : undefined}
-                      aria-current={section === remote.id ? 'page' : undefined}
-                      onClick={() => setSection(remote.id)}
-                    >
-                      {remote.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </li>
             <li>
               <button
@@ -196,10 +220,17 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-base-100 p-4 sm:p-5">
+          {section === 'definition' && (
+            <DefinitionPane
+              kind={resolvedKind}
+              definitionId={resolvedDefinitionId}
+              role={resolvedDefinitionId ? agentRole({ id: resolvedDefinitionId }) : undefined}
+            />
+          )}
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {section === 'remotes' && <RemotesCatalogPane />}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -379,24 +410,209 @@ function ModuleLink({
   )
 }
 
-function RemotePane({ section }: { section: SettingsSection }) {
-  const remote = REMOTE_PANES.find((item) => item.id === section)
-  const label = remote?.label ?? 'Remote'
+function RemotesCatalogPane() {
+  const { success, error: toastError } = useToast()
+  const queryClient = useQueryClient()
+  const [adding, setAdding] = useState(false)
+  const [kind, setKind] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [selectedId, setSelectedId] = useState('')
+
+  const remotesQuery = useQuery({
+    queryKey: ['settings-remotes'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
+  const catalog = remotesQuery.data
+  const configured = configuredRemotes(catalog)
+  const kinds = remoteKinds(catalog)
+  const unused = unusedRemoteKinds(catalog)
+
+  useEffect(() => {
+    if (!kind && unused[0]) setKind(unused[0].id)
+  }, [kind, unused])
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      createRemote({
+        kind,
+        ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+        ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+      }),
+    onSuccess: (created) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: [...configuredRemotes(prev).filter((row) => row.id !== created.id), created],
+        data: prev?.data ?? [],
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+      void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      setAdding(false)
+      setBaseUrl('')
+      setApiKey('')
+      setKind('')
+      setSelectedId(created.id)
+      success('Remote added', `${remoteKindLabel(created.kind || created.id, kinds)} is now configured.`)
+    },
+    onError: (err: Error) => {
+      toastError('Could not add remote', err.message)
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (remoteId: string) => deleteRemote(remoteId),
+    onSuccess: (_void, remoteId) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: configuredRemotes(prev).filter((row) => row.id !== remoteId),
+        data: prev?.data ?? [],
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+      void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      if (selectedId === remoteId) setSelectedId('')
+      success('Remote removed', 'Dropped from Settings and remote dropdowns.')
+    },
+    onError: (err: Error) => {
+      toastError('Could not remove remote', err.message)
+    },
+  })
+
+  const handleAdd = (event: FormEvent) => {
+    event.preventDefault()
+    if (!kind) return
+    addMutation.mutate()
+  }
+
   return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">{label}</h4>
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="font-medium">{label}</span> is a placeholder remote.
-            The remotes API has not landed — this pane is the settings-sheet
-            shell only.
-          </p>
-          <p className="text-base-content/70">
-            Hermes, OMB, and Rakazo will connect here once the backend exists.
-          </p>
-        </div>
-      </Alert>
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Remotes</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Only remotes you add appear here and in remote dropdowns. Unused kinds
+          stay off the list.
+        </p>
+      </div>
+
+      {configured.length > 0 ? (
+        <RemoteSelect
+          remotes={catalog}
+          value={selectedId}
+          onChange={setSelectedId}
+          label="Remote"
+        />
+      ) : null}
+
+      {configured.length === 0 && !adding ? (
+        <Alert type="info" icon={<Server className="h-5 w-5" />}>
+          <span className="text-sm">No remotes configured yet.</span>
+        </Alert>
+      ) : configured.length === 0 ? null : (
+        <ul className="space-y-2" aria-label="Configured remotes">
+          {configured.map((remote) => {
+            const label = remoteKindLabel(remote.kind || remote.id, kinds)
+            return (
+              <li
+                key={remote.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">{label}</p>
+                  <p className="truncate font-mono text-xs text-base-content/60">
+                    {remote.base_url || 'localhost'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => removeMutation.mutate(remote.id)}
+                  disabled={removeMutation.isPending}
+                >
+                  Remove
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {adding ? (
+        <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>
+          <Select
+            label="Kind"
+            name="remote-kind"
+            size="sm"
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+          >
+            {unused.length === 0 ? (
+              <option value="" disabled>
+                All kinds added
+              </option>
+            ) : (
+              unused.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))
+            )}
+          </Select>
+          <Input
+            label="URL"
+            name="remote-url"
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {kind === 'swarm' ? (
+            <p className="text-sm text-base-content/70">
+              Nested open-swarm is another process (own DB). Do not add this
+              instance as its own remote.
+            </p>
+          ) : null}
+          <Input
+            label="API key"
+            name="remote-api-key"
+            type="password"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder="${API_KEY}"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!kind || addMutation.isPending}
+            >
+              Save remote
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setAdding(false)
+                setApiKey('')
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add remote
+        </Button>
+      )}
     </div>
   )
 }
@@ -537,58 +753,206 @@ function SystemPane() {
 }
 
 function LlmProfilesPane() {
+  const { success, error: toastError } = useToast()
   const profilesQuery = useQuery({
     queryKey: ['settings-llm-profiles'],
-    queryFn: fetchModels,
+    queryFn: fetchLlmProfiles,
     retry: 1,
   })
-  const models = profilesQuery.data?.data ?? []
+  const remote = profilesQuery.data
+  const [defaultId, setDefaultId] = useState('')
+  const [overrideOn, setOverrideOn] = useState(false)
+  const [taskMap, setTaskMap] = useState<Partial<Record<LlmTaskClass, string>>>({})
+  const [saving, setSaving] = useState(false)
+  const hydrated = useRef(false)
+
+  useEffect(() => {
+    if (!remote || hydrated.current) return
+    hydrated.current = true
+    setDefaultId(remote.default_llm_profile || '')
+    setOverrideOn(Boolean(remote.override_per_task))
+    setTaskMap({ ...remote.task_llm_profiles })
+  }, [remote])
+
+  const profiles = remote?.profiles ?? []
+  const ids = profiles.map((profile) => profile.id)
+  const fallback = defaultId || remote?.default_llm_profile || 'default'
+  const warnings = [
+    ...(remote?.warnings ?? []),
+    missingProfileWarning(defaultId, remote, fallback),
+    ...((['orchestration', 'auxiliary', 'delegation'] as const).map((cls) =>
+      overrideOn ? missingProfileWarning(taskMap[cls], remote, fallback) : null,
+    )),
+  ].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index)
+
+  const optionIds = Array.from(
+    new Set(
+      [
+        ...ids,
+        defaultId,
+        ...Object.values(taskMap),
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  )
+
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault()
+    setSaving(true)
+    try {
+      const saved = await patchLlmProfiles({
+        default_llm_profile: defaultId,
+        override_per_task: overrideOn,
+        task_llm_profiles: overrideOn
+          ? {
+              orchestration: taskMap.orchestration || defaultId,
+              auxiliary: taskMap.auxiliary || defaultId,
+              delegation: taskMap.delegation || defaultId,
+            }
+          : taskMap,
+      })
+      setDefaultId(saved.default_llm_profile || defaultId)
+      setOverrideOn(Boolean(saved.override_per_task))
+      setTaskMap({ ...saved.task_llm_profiles })
+      success('LLM profiles saved', 'Default stored in settings.default_llm_profile.')
+    } catch (err) {
+      toastError(
+        'Could not save LLM profiles',
+        err instanceof Error ? err.message : 'Request failed.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">LLM profiles</h4>
-      <p className="text-sm text-base-content/70">
-        Detected models from <code>/v1/models/</code>. Edit profiles on the
-        Django operator dump.
-      </p>
+    <form className="space-y-4" onSubmit={handleSave}>
+      <div>
+        <h4 className="text-lg font-semibold">LLM profiles</h4>
+        <p className="text-sm text-base-content/70">
+          Pick a Default from any connected CLI, API, or remote. Task-class
+          names (orchestration / auxiliary / delegation) are roles, not required
+          model ids. Auto-picks fill the map until you change them.
+        </p>
+      </div>
+
       {profilesQuery.isPending ? (
         <p className="text-sm text-base-content/60">Loading profiles…</p>
       ) : profilesQuery.isError ? (
         <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
           <span className="text-sm">
-            Could not load models. Open the{' '}
-            <a href="/profiles/" className="link">
-              LLM profiles
-            </a>{' '}
-            operator page.
+            Could not load configured profiles. Chat still uses the server
+            default when one is stored.
           </span>
         </Alert>
-      ) : models.length === 0 ? (
+      ) : profiles.length === 0 ? (
         <Alert type="info" icon={<Server className="h-5 w-5" />}>
           <span className="text-sm">
-            No models reported. Review{' '}
-            <a href="/profiles/" className="link">
-              /profiles/
-            </a>{' '}
-            or the full{' '}
-            <a href="/settings/" className="link">
-              settings dump
-            </a>
-            .
+            No connected models yet. Add a CLI, API, or remote — swarm will
+            auto-assign a default from whatever you connect.
           </span>
         </Alert>
       ) : (
-        <ul className="space-y-1 text-sm">
-          {models.map((model) => (
+        <ul className="space-y-1 text-sm" aria-label="Configured LLM profiles">
+          {profiles.map((profile) => (
             <li
-              key={model.id}
-              className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2 font-mono"
+              key={`${profile.source}:${profile.id}`}
+              className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
             >
-              {model.id}
+              <span className="font-mono">{profile.id}</span>
+              <span className="ml-2 text-xs text-base-content/60">
+                {profile.source}
+                {profile.owned_by ? ` · ${profile.owned_by}` : ''}
+              </span>
             </li>
           ))}
         </ul>
       )}
-    </div>
+
+      <Select
+        label="Default"
+        name="default-llm-profile"
+        value={defaultId}
+        onChange={(event) => setDefaultId(event.target.value)}
+        size="sm"
+        disabled={optionIds.length === 0}
+      >
+        {optionIds.length === 0 ? (
+          <option value="">No models connected</option>
+        ) : null}
+        {optionIds.map((id) => (
+          <option key={id} value={id}>
+            {id}
+            {remote?.auto_picks?.default === id && remote.default_is_auto ? ' (auto)' : ''}
+          </option>
+        ))}
+      </Select>
+      {remote?.default_is_auto && remote.auto_picks?.default ? (
+        <p className="text-xs text-base-content/60">
+          Auto-picked Default: <code>{remote.auto_picks.default}</code>. Chat
+          uses this until you save another id.
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={overrideOn}
+        className="flex items-center gap-3 text-left"
+        onClick={() => setOverrideOn((on) => !on)}
+      >
+        <input
+          type="checkbox"
+          className="toggle toggle-primary pointer-events-none"
+          checked={overrideOn}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+        <span className="label-text">Override per task</span>
+      </button>
+      <p className="text-xs text-base-content/60">
+        Off: every job uses Default. On: cheap summary stays on auxiliary,
+        design / coding can use delegation.
+      </p>
+
+      {overrideOn ? (
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium">Task class map</legend>
+          {(['orchestration', 'auxiliary', 'delegation'] as const).map((cls) => (
+            <Select
+              key={cls}
+              label={TASK_CLASS_LABELS[cls]}
+              name={`task-llm-${cls}`}
+              value={taskMap[cls] || defaultId}
+              onChange={(event) =>
+                setTaskMap((current) => ({ ...current, [cls]: event.target.value }))
+              }
+              size="sm"
+              disabled={optionIds.length === 0}
+            >
+              {optionIds.map((id) => (
+                <option key={`${cls}-${id}`} value={id}>
+                  {id}
+                </option>
+              ))}
+            </Select>
+          ))}
+        </fieldset>
+      ) : null}
+
+      {warnings.length > 0 ? (
+        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+          <ul className="space-y-1 text-sm">
+            {warnings.map((text) => (
+              <li key={text}>{text}</li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+
+      <Button type="submit" variant="primary" size="sm" disabled={saving}>
+        {saving ? 'Saving…' : 'Save LLM profiles'}
+      </Button>
+    </form>
   )
 }
