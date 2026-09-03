@@ -83,8 +83,8 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
       size="sheet"
       className="flex min-h-0 flex-col"
     >
-      <div className="flex min-h-[24rem] flex-1 gap-0 overflow-hidden rounded-box border border-base-300">
-        <nav aria-label="Settings sections" className="w-44 shrink-0 border-r border-base-300 bg-base-200 sm:w-52">
+      <div className="flex min-h-[24rem] flex-1 flex-col gap-0 overflow-hidden rounded-box border border-base-300 md:flex-row">
+        <nav aria-label="Settings sections" className="w-full shrink-0 border-b border-base-300 bg-base-200 md:w-52 md:border-b-0 md:border-r">
           <ul className="menu menu-md w-full rounded-none p-2">
             <li>
               <button

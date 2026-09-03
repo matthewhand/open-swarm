@@ -46,6 +46,12 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   const dialog = page.getByRole('dialog', { name: 'Settings' })
   await expect(dialog).toBeVisible()
   await expect(dialog).toHaveClass(/modal-end/)
+  // DaisyUI modal-end slides in from the right; wait until the box is on-screen.
+  await expect
+    .poll(async () =>
+      page.locator('dialog.modal-open .modal-box').evaluate((el) => el.getBoundingClientRect().x),
+    )
+    .toBeLessThan(1200)
   await expect(dialog).not.toHaveClass(/drawer/)
 
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
