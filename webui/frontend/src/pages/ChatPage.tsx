@@ -10,11 +10,12 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Layers, Mic, Plus, Settings } from 'lucide-react'
+import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
+import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
 import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
@@ -98,6 +99,7 @@ export {
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
+  const { narrow, railOpen, openRail } = useRailChrome()
   const teamFromUrl = searchParams.get('team') ?? ''
   const sessionFromUrl = searchParams.get('session') ?? ''
   const selectedBlueprint = teamFromUrl
@@ -591,7 +593,18 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <div className="os-chat-header__identity" data-testid="selected-agent-header">
+        <div className="os-chat-header__identity flex min-w-0 items-center gap-2" data-testid="selected-agent-header">
+          {narrow ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square shrink-0"
+              aria-label="Open agent list"
+              aria-expanded={railOpen}
+              onClick={openRail}
+            >
+              <PanelLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
           {!teamFromUrl ? (
             <AgentAvatar
               src={selectedAgent?.avatar_path}

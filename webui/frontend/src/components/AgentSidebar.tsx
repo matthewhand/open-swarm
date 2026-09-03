@@ -64,7 +64,11 @@ const EMPTY_BLUEPRINTS: Blueprint[] = []
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
   open?: boolean
+  /** Below Tailwind `lg` — drawer + inert when closed. */
+  narrow?: boolean
   onClose?: () => void
+  /** Agent / conversation / team pick — parent may tuck the rail (REQ-54). */
+  onPick?: () => void
   onOpenSearch?: () => void
 }
 
@@ -135,7 +139,15 @@ function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
   }
 }
 
-export default function AgentSidebar({ open = false, onClose, onOpenSearch }: AgentSidebarProps) {
+export default function AgentSidebar({
+  open = false,
+  narrow = false,
+  onClose,
+  onPick,
+  onOpenSearch,
+}: AgentSidebarProps) {
+  const pickOrClose = onPick ?? onClose
+  const drawerHidden = Boolean(narrow && !open)
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -518,7 +530,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             }
           }}
           onDrop={dropOnSelf}
-          onClick={onClose}
+          onClick={pickOrClose}
           onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
         >
           {body}
@@ -601,7 +613,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           data-role={dataRole}
           aria-current={active ? 'page' : undefined}
           {...dragHandlers}
-          onClick={onClose}
+          onClick={pickOrClose}
         >
           {body}
         </Link>
@@ -656,7 +668,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           }
         }}
         onDrop={dropOnSelf}
-        onClick={onClose}
+        onClick={pickOrClose}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
       >
         <span
@@ -761,6 +773,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
       <button
         type="button"
         className={`fixed inset-0 z-30 bg-black/50 lg:hidden ${open ? '' : 'hidden'}`}
+        hidden={!open}
         aria-label="Close agents sidebar"
         onClick={onClose}
       />
@@ -770,6 +783,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Agents"
+        data-testid="os-agent-rail"
+        data-rail-open={open ? 'true' : 'false'}
+        aria-hidden={drawerHidden || undefined}
+        {...(drawerHidden ? { inert: '' } : {})}
       >
         <div className="flex items-center justify-end px-3 pt-3 lg:hidden">
           <button
@@ -825,7 +842,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
               draggable: true as const,
               onDragStart: (event: ReactDragEvent) => beginRowDrag(event, pin),
               onDragEnd: finishDrag,
-              onClick: onClose,
+              onClick: pickOrClose,
               onContextMenu: (event: ReactMouseEvent) => {
                 event.preventDefault()
                 setMenu({

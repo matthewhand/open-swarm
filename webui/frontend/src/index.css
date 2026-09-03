@@ -753,6 +753,28 @@ button.os-agent-row {
   font-size: 0.875rem;
   color: color-mix(in srgb, currentColor 50%, transparent);
 }
+
+.os-swipe-hint {
+  position: fixed;
+  top: 4.25rem;
+  left: 0.75rem;
+  z-index: 45;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  max-width: min(18rem, calc(100vw - 1.5rem));
+  padding: 0.65rem 0.55rem 0.65rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
+  background: var(--color-base-100);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+.os-swipe-hint__text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--color-base-content);
+}
 .os-team-mark {
   color: color-mix(in srgb, var(--color-base-content) 80%, var(--color-primary));
 }
