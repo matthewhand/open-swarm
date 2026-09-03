@@ -25,6 +25,18 @@ from swarm.views.utils import get_available_blueprints
 logger = logging.getLogger(__name__)
 
 
+def _metadata_avatar_path(meta: dict) -> str | None:
+    """Pass through a custom face URL from blueprint metadata.
+
+    Does not invent a Bert/default file — SPA owns the bland fallback (REQ-60)
+    and REQ-6 owns default art. Empty/missing stays ``None``.
+    """
+    raw = meta.get("avatar_path") or meta.get("avatar")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
 def _github_marketplace_error_response(exc: gh_service.GitHubAPIError) -> Response:
     """Map upstream GitHub failures to a non-200 JSON error for marketplace clients."""
     http_status = (
@@ -192,6 +204,7 @@ class BlueprintsListView(APIView):
                         "tags": meta.get("tags") or [],
                         "installed": None,
                         "compiled": None,
+                        "avatar_path": _metadata_avatar_path(meta),
                         **blueprint_role_fields(meta),
                     })
             else:

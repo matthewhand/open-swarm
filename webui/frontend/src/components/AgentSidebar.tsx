@@ -18,6 +18,7 @@ import {
   type CliRailAgent,
   type HerdrAgent,
 } from '../lib/api'
+import AgentAvatar from './AgentAvatar'
 import {
   agentRole,
   exampleRoleAgents,
@@ -28,7 +29,6 @@ import {
   showsBlueprintEdit,
 } from '../lib/agentRoles'
 import {
-  agentMarkIndex,
   hasHiddenAgentsStorage,
   hideAgentId,
   loadHiddenAgentIds,
@@ -455,11 +455,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
         <StackedAvatars sessions={sessions} />
       ) : (
-        <span
-          className="os-agent-dot mt-1.5"
-          data-mark={String(agentMarkIndex(agent.id))}
-          data-role={dataRole}
-          aria-hidden="true"
+        <AgentAvatar
+          src={agent.avatar_path}
+          size="sm"
+          className="mt-1.5"
         />
       )
     )
@@ -851,10 +850,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                   data-agent-id={pin.id}
                   {...pinHandlers}
                 >
-                  <span
-                    className="os-agent-dot"
-                    data-mark={String(agentMarkIndex(pin.id))}
-                    aria-hidden="true"
+                  <AgentAvatar
+                    src={agents.find((agent) => agent.id === pin.id)?.avatar_path}
+                    size="sm"
                   />
                 </a>
               )
@@ -869,10 +867,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                 data-agent-id={pin.id}
                 {...pinHandlers}
               >
-                <span
-                  className="os-agent-dot"
-                  data-mark={String(agentMarkIndex(pin.id))}
-                  aria-hidden="true"
+                <AgentAvatar
+                  src={agents.find((agent) => agent.id === pin.id)?.avatar_path}
+                  size="sm"
                 />
               </Link>
             )

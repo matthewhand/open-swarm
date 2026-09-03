@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 import { ToastProvider } from '../../components/DaisyUI'
+import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAvatar'
 import { resetConversationThreads } from '../../lib/chatMeter'
 
 type WsHandler = ((ev?: Event) => void) | null
@@ -283,6 +284,77 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
 
     expect(await screen.findByRole('heading', { name: 'Codey' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
+  })
+
+  it('renders the selected agent avatar next to the name (REQ-60)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const identity = await screen.findByTestId('selected-agent-header')
+    const heading = within(identity).getByRole('heading', { name: 'Codey' })
+    const avatar = identity.querySelector('[data-agent-avatar]')
+    expect(avatar).toBeTruthy()
+    expect(avatar).toHaveAttribute('data-agent-avatar', 'default')
+    expect(avatar).toHaveClass('os-chat-header__avatar')
+    expect(identity.firstElementChild).toBe(avatar)
+    expect(heading.compareDocumentPosition(avatar!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(identity.querySelector('button')).toBeNull()
+    expect(identity.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
+  })
+
+  it('uses the same custom face in the header as AgentAvatar would on the rail', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              id: 'codey',
+              name: 'Codey',
+              description: 'Code assistant',
+              avatar_path: '/avatars/codey_avatar.png',
+            },
+          ],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const identity = await screen.findByTestId('selected-agent-header')
+    const headerImg = identity.querySelector('img')
+    expect(identity.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-agent-avatar',
+      'custom',
+    )
+    expect(headerImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+
+    const rail = render(
+      <AgentAvatar src="/avatars/codey_avatar.png" size="sm" />,
+    )
+    expect(rail.container.querySelector('img')).toHaveAttribute(
+      'src',
+      headerImg?.getAttribute('src'),
+    )
+    rail.unmount()
   })
 })
 

@@ -8,7 +8,15 @@ import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
 import { saveAgentSessions, type AgentSession } from '../../lib/scaleOutSessions'
 
-function blueprint(id: string, name: string, description: string, role?: string) {
+function blueprint(
+  id: string,
+  name: string,
+  description: string,
+  role?: string,
+  avatar_path?: string,
+) {
+  const actualRole = role && !role.startsWith('/') ? role : undefined
+  const actualAvatar = avatar_path || (role && role.startsWith('/') ? role : undefined)
   return {
     id,
     object: 'blueprint' as const,
@@ -19,12 +27,13 @@ function blueprint(id: string, name: string, description: string, role?: string)
     tags: [] as string[],
     installed: true,
     compiled: true,
-    ...(role ? { role } : {}),
+    ...(actualRole ? { role: actualRole } : {}),
+    ...(actualAvatar ? { avatar_path: actualAvatar } : {}),
   }
 }
 
 const blueprints = [
-  blueprint('codey', 'Codey', 'Code assistant'),
+  blueprint('codey', 'Codey', 'Code assistant', '/avatars/codey_avatar.png'),
   blueprint('stewie', 'Stewie', 'Helpful agent'),
   blueprint('gate', 'Gate', 'Role: gate'),
   blueprint('skeptic', 'Skeptic', 'Role: skeptic'),
@@ -183,6 +192,20 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
   })
 
+  it('paints the same custom face on the Codey rail tile as the header would', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const face = codey.querySelector('[data-agent-avatar]')
+    expect(face).toHaveAttribute('data-agent-avatar', 'custom')
+    expect(codey.querySelector('img')).toHaveAttribute('src', '/avatars/codey_avatar.png')
+    const support = within(list).getByRole('link', { name: /Support/ })
+    expect(support.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-agent-avatar',
+      'default',
+    )
+  })
+
   it('lists grok_agent, agy_agent, opencode_agent, and pi_agent after Support', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
@@ -211,6 +234,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(list).getByRole('link', { name: /opencode_agent/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /pi_agent/ })).toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+  })
   })
 
   it('seeds Hidden with gate and skeptic on first load; Support stays visible', async () => {

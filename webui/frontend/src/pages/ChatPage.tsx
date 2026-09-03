@@ -11,6 +11,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Layers, Mic, Plus, Settings } from 'lucide-react'
+import AgentAvatar from '../components/AgentAvatar'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
@@ -590,37 +591,46 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <h1 className="truncate text-base font-semibold tracking-tight">
-          <button
-            type="button"
-            className="os-identity-btn truncate text-left"
-            aria-label={`Open ${selectedAgentName} definition`}
-            onClick={() => {
-              if (teamFromUrl) {
+        <div className="os-chat-header__identity" data-testid="selected-agent-header">
+          {!teamFromUrl ? (
+            <AgentAvatar
+              src={selectedAgent?.avatar_path}
+              size="lg"
+              className="os-chat-header__avatar"
+            />
+          ) : null}
+          <h1 className="truncate text-base font-semibold tracking-tight">
+            <button
+              type="button"
+              className="os-identity-btn truncate text-left"
+              aria-label={`Open ${selectedAgentName} definition`}
+              onClick={() => {
+                if (teamFromUrl) {
+                  openSettingsSheet({
+                    section: 'definition',
+                    definitionKind: 'team',
+                    definitionId: teamFromUrl,
+                    teamId: teamFromUrl,
+                  })
+                  return
+                }
+                const role = agentRole({
+                  id: selectedBlueprint,
+                  name: selectedAgentName,
+                  role: selectedAgent?.role,
+                })
                 openSettingsSheet({
                   section: 'definition',
-                  definitionKind: 'team',
-                  definitionId: teamFromUrl,
-                  teamId: teamFromUrl,
+                  definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
+                  definitionId: selectedBlueprint,
+                  blueprintId: selectedBlueprint,
                 })
-                return
-              }
-              const role = agentRole({
-                id: selectedBlueprint,
-                name: selectedAgentName,
-                role: selectedAgent?.role,
-              })
-              openSettingsSheet({
-                section: 'definition',
-                definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
-                definitionId: selectedBlueprint,
-                blueprintId: selectedBlueprint,
-              })
-            }}
-          >
-            {selectedAgentName}
-          </button>
-        </h1>
+              }}
+            >
+              {selectedAgentName}
+            </button>
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <RemoteSelect
             remotes={remotesQuery.data}

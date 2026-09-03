@@ -323,6 +323,34 @@ class TestBlueprintsListView:
         assert len(data["data"]) == 0
 
     @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_forwards_metadata_avatar_path(
+        self, mock_get_blueprints, api_client
+    ):
+        """Custom face URL is passed through; missing stays null (SPA default)."""
+        mock_get_blueprints.return_value = {
+            "codey": {
+                "metadata": {
+                    "name": "Codey",
+                    "description": "Code assistant",
+                    "avatar_path": "/avatars/codey_avatar.png",
+                }
+            },
+            "stewie": {
+                "metadata": {
+                    "name": "Stewie",
+                    "description": "Helpful agent",
+                }
+            },
+        }
+
+        response = api_client.get("/v1/blueprints/")
+
+        assert response.status_code == status.HTTP_200_OK
+        by_id = {row["id"]: row for row in response.json()["data"]}
+        assert by_id["codey"]["avatar_path"] == "/avatars/codey_avatar.png"
+        assert by_id["stewie"]["avatar_path"] is None
+
+    @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_error(self, mock_get_blueprints, api_client):
         """Test listing blueprints handles exceptions gracefully."""
         mock_get_blueprints.side_effect = Exception("Discovery error")

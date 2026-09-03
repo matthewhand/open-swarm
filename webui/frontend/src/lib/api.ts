@@ -202,6 +202,8 @@ export interface Blueprint {
   gate_agent?: string | null
   skeptic_agent?: string | null
   chief_of_staff_agent?: string | null
+  /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
+  avatar_path?: string | null
 }
 
 /** GET /v1/support/context/ — live agents + inference for the System → Support pill. */
@@ -236,6 +238,7 @@ export interface SupportContext {
 
 export function fetchSupportContext(): Promise<SupportContext> {
   return apiGet<SupportContext>('/v1/support/context/')
+>>>>>>> origin/main
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
