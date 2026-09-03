@@ -16,6 +16,7 @@ function renderApp() {
 
 describe('SPA + team composer entry', () => {
   beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
