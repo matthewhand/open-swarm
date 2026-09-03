@@ -420,6 +420,21 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     onClose?.()
   }
 
+  const openDefinition = (
+    kind: 'role' | 'blueprint' | 'team',
+    id: string,
+    extras?: { blueprintId?: string; teamId?: string },
+  ) => {
+    openSettingsSheet({
+      section: 'definition',
+      definitionKind: kind,
+      definitionId: id,
+      blueprintId: extras?.blueprintId,
+      teamId: extras?.teamId,
+    })
+    onClose?.()
+  }
+
   const renderAgentRow = (agent: SidebarAgent, hidden: boolean) => {
     const name = agentLabel(agent)
     const herdr = isHerdrAgent(agent)
@@ -455,7 +470,26 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           <span className="flex items-center gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
             {badge ? (
-              <span className={`os-agent-role-badge ${roleCssClass(role)}`} data-role={role}>
+              <span
+                className={`os-agent-role-badge ${roleCssClass(role)}`}
+                data-role={role}
+                data-definition-id={agent.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${role} settings`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openDefinition('role', agent.id, { blueprintId: agent.id })
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    openDefinition('role', agent.id, { blueprintId: agent.id })
+                  }
+                }}
+              >
                 {badge}
               </span>
             ) : null}
@@ -639,6 +673,22 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             <span
               className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
               data-kind="team"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${name} team settings`}
+              data-definition-id={team.id}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                openDefinition('team', team.id, { teamId: team.id })
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openDefinition('team', team.id, { teamId: team.id })
+                }
+              }}
             >
               Team
             </span>
@@ -673,7 +723,28 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                       <span className="block truncate text-sm font-semibold leading-5">
                         {m.team_id || m.id}
                       </span>
-                      <span className="os-agent-role-badge" data-kind="team">
+                      <span
+                        className="os-agent-role-badge"
+                        data-kind="team"
+                        data-definition-id={m.team_id || m.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open ${m.team_id || m.id} team settings`}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          const teamId = m.team_id || m.id
+                          openDefinition('team', teamId, { teamId })
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            const teamId = m.team_id || m.id
+                            openDefinition('team', teamId, { teamId })
+                          }
+                        }}
+                      >
                         Team
                       </span>
                     </span>

@@ -414,6 +414,30 @@ describe('AgentSidebar Grok rail', () => {
     expect(herdr).toHaveTextContent(/Herdr · localhost/)
   })
 
+  it('opens the definition Settings pane when a role badge is clicked', async () => {
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
+    const opened: Array<Record<string, unknown>> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent).detail || {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    renderSidebar()
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const badge = await within(list).findByRole('button', { name: 'Open gate settings' })
+    expect(badge).toHaveAttribute('data-definition-id', 'gate')
+    fireEvent.click(badge)
+    expect(opened).toEqual([
+      {
+        section: 'definition',
+        definitionKind: 'role',
+        definitionId: 'gate',
+        blueprintId: 'gate',
+      },
+    ])
+    window.removeEventListener('swarm:open-settings', onOpen)
+  })
+
   it('reveals a focusable hover-edit on role rows and opens Settings via Enter', async () => {
     // REQ-26 first-load seed hides gate/skeptic; show all roles for this check.
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
@@ -673,6 +697,27 @@ describe('AgentSidebar teams', () => {
     expect(within(team).getByText('Team')).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+  })
+
+  it('opens the definition pane when the Team badge is clicked', async () => {
+    const opened: Array<Record<string, unknown>> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent).detail || {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    renderSidebar()
+
+    const badge = await screen.findByRole('button', { name: 'Open Demo Team team settings' })
+    fireEvent.click(badge)
+    expect(opened).toEqual([
+      {
+        section: 'definition',
+        definitionKind: 'team',
+        definitionId: 'demo-team',
+        teamId: 'demo-team',
+      },
+    ])
+    window.removeEventListener('swarm:open-settings', onOpen)
   })
 
   it('selects a team like an agent via ?team=', async () => {

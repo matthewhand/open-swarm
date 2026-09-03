@@ -33,6 +33,7 @@ from swarm.views.api_views import (
     MarketplaceGitHubMCPConfigsView,
     SupportContextView,
 )
+from swarm.views.definition_views import DefinitionDetailView, DefinitionSummarizeView
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
 from swarm.views.agent_router_page import agent_router_page
 from swarm.views.agent_router_views import (
@@ -144,6 +145,26 @@ urlpatterns = [
     path("v1/blueprints/<str:blueprint_id>/source/", BlueprintSourceView.as_view(), name="blueprint-source-slash"),
     path("v1/blueprints/<str:blueprint_id>/tools", BlueprintToolsView.as_view(), name="blueprint-tools"),
     path("v1/blueprints/<str:blueprint_id>/tools/", BlueprintToolsView.as_view(), name="blueprint-tools-slash"),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>/summarize",
+        DefinitionSummarizeView.as_view(),
+        name="definition-summarize",
+    ),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>/summarize/",
+        DefinitionSummarizeView.as_view(),
+        name="definition-summarize-slash",
+    ),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>",
+        DefinitionDetailView.as_view(),
+        name="definition-detail",
+    ),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>/",
+        DefinitionDetailView.as_view(),
+        name="definition-detail-slash",
+    ),
     path("v1/cli-agents", CliAgentsView.as_view(), name="cli-agents-api-no-slash"),
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
     path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),

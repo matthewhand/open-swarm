@@ -366,6 +366,12 @@ button.os-agent-row {
   line-height: 1.3;
   color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
   background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  cursor: pointer;
+}
+.os-agent-role-badge:hover,
+.os-agent-role-badge:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
 }
 .os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
 .os-agent-role-badge[data-role="gate"] { color: #c47a3a; }
@@ -377,6 +383,19 @@ button.os-agent-row {
   font-weight: 700;
 }
 .os-agent-role-badge[data-kind="team"] { color: #6b7c8a; }
+.os-identity-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.os-identity-btn:hover,
+.os-identity-btn:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
 .os-agent-edit {
   opacity: 0;
   flex: 0 0 auto;

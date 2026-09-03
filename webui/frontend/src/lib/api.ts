@@ -177,7 +177,7 @@ export interface ListResponse<T> {
   data: T[]
 }
 
-/** Visual / wiring role on a Team member (REQ-9 / REQ-25). */
+/** Visual / wiring role on a Team member (REQ-9 / REQ-25 / REQ-28 / REQ-42). */
 export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff'
 
 export interface BlueprintAgent {
@@ -726,4 +726,14 @@ export interface BlueprintTools {
 
 export function fetchBlueprintTools(id: string): Promise<BlueprintTools> {
   return apiGet<BlueprintTools>(`/v1/blueprints/${encodeURIComponent(id)}/tools`)
+}
+
+export function updateCustomBlueprint(
+  blueprintId: string,
+  body: Partial<CustomBlueprint>,
+): Promise<CustomBlueprint> {
+  return apiPatch<CustomBlueprint>(
+    `/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`,
+    body,
+  )
 }
