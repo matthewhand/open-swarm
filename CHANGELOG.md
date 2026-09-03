@@ -43,6 +43,7 @@ All notable changes to this project will be documented in this file.
 
 
 ### Added
+- **REQ-47 Pinokio launcher (local sideload):** root `pinokio.js` menu (Install / Start+Update / Open App) plus `install.js`, `start.js`, and `update.js`. Start is `docker compose up` with REQ-45 `SWARM_RUNTIME=sandbox-home`. Not listed on pinokio.computer; add via git URL only.
 - **REQ-27b Computer-control UI stub:** Grok chat header **Chat tools** toolbar (top-right) Monitor icon labeled Computer control opens a DaisyUI WIP modal (“computer control will use a placed OMB or Rakazo remote; not implemented here”). Icon visible by default (may look muted); clickable; not attached to agent tools; no driver/E2B/CUA/xdotool/CDP/sandbox. `ComputerControlStub` + ChatPage/e2e chrome tests.
 - **REQ-28 Chief of Staff + team isolation + teams-of-teams:** role
   `chief_of_staff` (aliases `cos`, `chief`) with an ice-steel rail badge
