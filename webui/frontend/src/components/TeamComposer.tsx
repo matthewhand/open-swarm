@@ -81,6 +81,14 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
     return data ?? []
   }, [agentsQuery.data, agentsQuery.isError, agentsQuery.isSuccess])
 
+  const agentsByKind = useMemo(() => {
+    return {
+      api: availableAgents.filter((agent) => agent.kind === 'api'),
+      cli: availableAgents.filter((agent) => agent.kind === 'cli'),
+      remote: availableAgents.filter((agent) => agent.kind === 'remote'),
+    }
+  }, [availableAgents])
+
   const resetDraft = useCallback(() => {
     const draft = emptyRosterDraft()
     setName(draft.name)
@@ -386,50 +394,67 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
             {agentsQuery.isPending && availableAgents.length === 0 ? (
               <p className="text-sm text-base-content/45">Loading agents…</p>
             ) : (
-              <ul className="flex flex-col gap-1" aria-label="Available agents list">
-                {availableAgents.map((agent) => {
-                  const already = rosterHasMember(members, agent)
-                  return (
-                    <li
-                      key={`${agent.kind}:${agent.source}`}
-                      draggable
-                      onDragStart={(event) => onDragStart(event, agent)}
-                      onContextMenu={(event) => {
-                        event.preventDefault()
-                        setMenu({
-                          mode: already ? 'remove' : 'add',
-                          agent,
-                          x: event.clientX,
-                          y: event.clientY,
+              <div
+                className="flex max-h-[22rem] flex-col gap-3 overflow-y-auto pr-1"
+                aria-label="Available agents list"
+                role="list"
+              >
+                {(['api', 'cli', 'remote'] as const).map((kind) => (
+                  <div key={kind}>
+                    <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-base-content/45">
+                      {KIND_LABEL[kind]}
+                    </h4>
+                    <ul className="flex flex-col gap-1">
+                      {agentsByKind[kind].length === 0 ? (
+                        <li className="px-2 py-1 text-xs text-base-content/40">None</li>
+                      ) : (
+                        agentsByKind[kind].map((agent) => {
+                          const already = rosterHasMember(members, agent)
+                          return (
+                            <li
+                              key={`${agent.kind}:${agent.source}`}
+                              draggable
+                              onDragStart={(event) => onDragStart(event, agent)}
+                              onContextMenu={(event) => {
+                                event.preventDefault()
+                                setMenu({
+                                  mode: already ? 'remove' : 'add',
+                                  agent,
+                                  x: event.clientX,
+                                  y: event.clientY,
+                                })
+                              }}
+                              className="flex cursor-grab items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 active:cursor-grabbing"
+                            >
+                              <div className="flex w-full items-center gap-2">
+                                <span className="min-w-0 flex-1 truncate font-medium">
+                                  {agentDisplayName(agent)}
+                                </span>
+                                <Badge type={kindBadgeType(agent.kind)} size="sm">
+                                  {KIND_LABEL[agent.kind]}
+                                </Badge>
+                                {agent.placeholder && (
+                                  <Badge type="ghost" size="xs">
+                                    placeholder
+                                  </Badge>
+                                )}
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  disabled={already}
+                                  onClick={() => addFromAgent(agent)}
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            </li>
+                          )
                         })
-                      }}
-                      className="flex cursor-grab items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 active:cursor-grabbing"
-                    >
-                      <div className="flex w-full items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate font-medium">
-                          {agentDisplayName(agent)}
-                        </span>
-                        <Badge type={kindBadgeType(agent.kind)} size="sm">
-                          {KIND_LABEL[agent.kind]}
-                        </Badge>
-                        {agent.placeholder && (
-                          <Badge type="ghost" size="xs">
-                            placeholder
-                          </Badge>
-                        )}
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs"
-                          disabled={already}
-                          onClick={() => addFromAgent(agent)}
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
+                      )}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         </div>

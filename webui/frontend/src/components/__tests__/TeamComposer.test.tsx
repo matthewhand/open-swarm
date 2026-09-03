@@ -79,9 +79,9 @@ describe('TeamComposer first-launch overlay', () => {
 
     const available = await screen.findByRole('list', { name: /available agents list/i })
     expect(within(available).getByText('Jeeves')).toBeInTheDocument()
-    expect(within(available).getByText('API')).toBeInTheDocument()
-    expect(within(available).getByText('CLI')).toBeInTheDocument()
-    expect(within(available).getByText('remote')).toBeInTheDocument()
+    expect(within(available).getAllByText('API').length).toBeGreaterThan(0)
+    expect(within(available).getAllByText('CLI').length).toBeGreaterThan(0)
+    expect(within(available).getAllByText('remote').length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: /new team/i })).toBeInTheDocument()
   })
 
