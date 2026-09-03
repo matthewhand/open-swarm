@@ -109,6 +109,49 @@ def test_remotes_place_unplace_team(tmp_path: Path):
     assert "not_teams_page" in payload["vocabulary"]
 
 
+def test_remotes_set_herdr_and_missing_is_error(tmp_path: Path):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    missing = run_swarm_cli(
+        "remotes",
+        "get",
+        "herdr",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert missing.returncode == 1
+    blob = (missing.stderr + missing.stdout).lower()
+    assert "not configured" in blob
+    assert "10.0.0." not in missing.stderr + missing.stdout
+
+    listed = run_swarm_cli("remotes", "list", "--config", str(cfg), xdg_root=tmp_path / "xdg", timeout=30)
+    assert listed.returncode == 0
+    assert "herdr" not in listed.stdout
+
+    proc = run_swarm_cli(
+        "remotes",
+        "set",
+        "herdr",
+        "--base-url",
+        "http://127.0.0.1:9",
+        "--api-key-env",
+        "HERDR_API_KEY",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["herdr"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["herdr"]["api_key"] == "${HERDR_API_KEY}"
+    listed = run_swarm_cli("remotes", "list", "--config", str(cfg), xdg_root=tmp_path / "xdg", timeout=30)
+    assert listed.returncode == 0
+    assert "herdr" in listed.stdout
+
+
 def test_remotes_get_json(tmp_path: Path):
     from typer.testing import CliRunner
 

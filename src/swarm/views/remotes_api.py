@@ -1,4 +1,4 @@
-"""REST surface for remote agent harnesses (Hermes, OMB, Rakazo).
+"""REST surface for remote agent harnesses (Hermes, OMB, Rakazo, Herdr).
 
 GET    /v1/remotes/                 list remotes (secrets redacted)
 GET    /v1/remotes/<id>/            one remote
@@ -40,6 +40,7 @@ class RemotesListView(APIView):
             {
                 "object": "list",
                 "vocabulary": remotes_core.TEAM_VOCABULARY,
+                "kinds": remotes_core.remote_kind_catalog(),
                 "data": [spec.public_dict() for spec in specs.values()],
                 "team_members": remotes_core.list_team_members(),
             }
@@ -185,7 +186,7 @@ class AgentTeamView(APIView):
                 "members": serializers.ListField(
                     child=serializers.CharField(),
                     required=False,
-                    help_text="Full roster of remote ids (hermes, omb, rakazo).",
+                    help_text="Full roster of remote ids (hermes, omb, rakazo, herdr).",
                 ),
                 "place": serializers.CharField(
                     required=False, allow_blank=True, help_text="Remote id to add"

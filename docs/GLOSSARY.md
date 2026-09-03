@@ -50,7 +50,7 @@ A stateful `/v1/responses` record (and related conversation/delegation data) own
 
 ## Herdr member (`kind=herdr`)
 
-A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
+A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Remotes kind** (REQ-64): add `herdr` in Settings (base URL + api-key-env); CLI `--remote` uses that configured base; missing config is an error, not a silent other-host. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
 
 ## Operator UI vs SPA Chat
 

@@ -1,8 +1,17 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, FileCode2, Server } from 'lucide-react'
-import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
-import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, FileCode2, Plus, Server } from 'lucide-react'
+import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
+import {
+  fetchBlueprintSource,
+  fetchModels,
+  fetchRemotes,
+  operateRemote,
+  persistRemote,
+  probeRemoteHealth,
+  type BlueprintSource,
+  type RemoteConnection,
+} from '../lib/api'
 import {
   agentRole,
   fallbackBlueprintSource,
@@ -27,9 +36,11 @@ export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
   | 'blueprint'
+  | 'remotes-add'
   | 'remotes-hermes'
   | 'remotes-omb'
   | 'remotes-rakazo'
+  | 'remotes-herdr'
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
@@ -48,6 +59,8 @@ const REMOTE_PANES = [
   { id: 'remotes-omb' as const, label: 'OMB' },
   { id: 'remotes-rakazo' as const, label: 'Rakazo' },
 ]
+
+const REMOTES_QUERY_KEY = ['settings-remotes'] as const
 
 function isRemoteSection(section: SettingsSection): boolean {
   return section.startsWith('remotes-')
@@ -73,6 +86,21 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
   const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const remotesQuery = useQuery({
+    queryKey: REMOTES_QUERY_KEY,
+    queryFn: async () => {
+      if (typeof fetch !== 'function') {
+        return { object: 'list' as const, data: [], kinds: [] }
+      }
+      return fetchRemotes()
+    },
+    enabled: isOpen,
+    retry: false,
+  })
+  const herdrRemote = useMemo(
+    () => (remotesQuery.data?.data ?? []).find((row) => row.id === 'herdr'),
+    [remotesQuery.data],
+  )
 
   useEffect(() => {
     if (!isOpen) return
@@ -142,6 +170,28 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
                     </button>
                   </li>
                 ))}
+                {herdrRemote ? (
+                  <li>
+                    <button
+                      type="button"
+                      className={section === 'remotes-herdr' ? 'menu-active' : undefined}
+                      aria-current={section === 'remotes-herdr' ? 'page' : undefined}
+                      onClick={() => setSection('remotes-herdr')}
+                    >
+                      Herdr
+                    </button>
+                  </li>
+                ) : null}
+                <li>
+                  <button
+                    type="button"
+                    className={section === 'remotes-add' ? 'menu-active' : undefined}
+                    aria-current={section === 'remotes-add' ? 'page' : undefined}
+                    onClick={() => setSection('remotes-add')}
+                  >
+                    + Add remote
+                  </button>
+                </li>
               </ul>
             </li>
             <li>
@@ -181,7 +231,13 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {isRemoteSection(section) && (
+            <RemotePane
+              section={section}
+              herdr={herdrRemote}
+              onAddedHerdr={() => setSection('remotes-herdr')}
+            />
+          )}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -360,7 +416,21 @@ function ModuleLink({
   )
 }
 
-function RemotePane({ section }: { section: SettingsSection }) {
+function RemotePane({
+  section,
+  herdr,
+  onAddedHerdr,
+}: {
+  section: SettingsSection
+  herdr?: RemoteConnection
+  onAddedHerdr?: () => void
+}) {
+  if (section === 'remotes-add') {
+    return <AddRemotePane onAddedHerdr={onAddedHerdr} />
+  }
+  if (section === 'remotes-herdr') {
+    return <HerdrRemotePane remote={herdr} />
+  }
   const remote = REMOTE_PANES.find((item) => item.id === section)
   const label = remote?.label ?? 'Remote'
   return (
@@ -378,6 +448,168 @@ function RemotePane({ section }: { section: SettingsSection }) {
           </p>
         </div>
       </Alert>
+    </div>
+  )
+}
+
+function AddRemotePane({ onAddedHerdr }: { onAddedHerdr?: () => void }) {
+  const { success, error } = useToast()
+  const queryClient = useQueryClient()
+  const [kind, setKind] = useState('herdr')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKeyEnv, setApiKeyEnv] = useState('HERDR_API_KEY')
+  const addRemote = useMutation({
+    mutationFn: () =>
+      persistRemote(kind, {
+        base_url: baseUrl.trim(),
+        api_key: apiKeyEnv.trim() ? `\${${apiKeyEnv.trim()}}` : undefined,
+      }),
+    onSuccess: async (saved) => {
+      await queryClient.invalidateQueries({ queryKey: REMOTES_QUERY_KEY })
+      success('Remote added', `${saved.id} · ${saved.base_url}`)
+      if (saved.id === 'herdr') {
+        onAddedHerdr?.()
+      }
+    },
+    onError: (err: unknown) => {
+      error('Could not add remote', err instanceof Error ? err.message : String(err))
+    },
+  })
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!baseUrl.trim()) {
+      error('Base URL required', 'Add a base URL. Missing config is an error, not another host.')
+      return
+    }
+    addRemote.mutate()
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div>
+        <h4 className="text-lg font-semibold">Add remote</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Pick a kind, then a base URL and api-key-env name. Herdr appears in
+          Settings Remotes only after you add it. CLI <code>--remote</code> uses
+          that configured base. Localhost omits the flag only when you set a
+          loopback URL.
+        </p>
+      </div>
+      <Select
+        label="Kind"
+        name="remote-kind"
+        value={kind}
+        onChange={(event) => {
+          const next = event.target.value
+          setKind(next)
+          if (next === 'herdr' && !apiKeyEnv.trim()) setApiKeyEnv('HERDR_API_KEY')
+        }}
+      >
+        <option value="herdr">Herdr</option>
+        <option value="hermes">Hermes</option>
+        <option value="omb">OpenMousBot</option>
+        <option value="rakazo">Rakazo</option>
+      </Select>
+      <Input
+        label="Base URL"
+        name="remote-base-url"
+        value={baseUrl}
+        onChange={(event) => setBaseUrl(event.target.value)}
+        placeholder="http://127.0.0.1:9"
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <Input
+        label="API key env name"
+        name="remote-api-key-env"
+        value={apiKeyEnv}
+        onChange={(event) => setApiKeyEnv(event.target.value)}
+        placeholder="HERDR_API_KEY"
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <Button type="submit" variant="primary" size="sm" loading={addRemote.isPending}>
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Add remote
+      </Button>
+    </form>
+  )
+}
+
+function HerdrRemotePane({ remote }: { remote?: RemoteConnection }) {
+  const { error } = useToast()
+  const [health, setHealth] = useState<string>('')
+  const [listed, setListed] = useState<string>('')
+  const healthMut = useMutation({
+    mutationFn: () => probeRemoteHealth('herdr'),
+    onSuccess: (result) => {
+      setHealth(`${result.state} — ${result.detail}`)
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err)
+      setHealth(message)
+      error('Herdr health failed', message)
+    },
+  })
+  const listMut = useMutation({
+    mutationFn: () => operateRemote('herdr', { op: 'list' }),
+    onSuccess: (result) => {
+      setListed(result.detail)
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err)
+      setListed(message)
+      error('Herdr list failed', message)
+    },
+  })
+
+  if (!remote) {
+    return (
+      <div className="space-y-3">
+        <h4 className="text-lg font-semibold">Herdr</h4>
+        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">
+            Herdr remote is not configured. Add kind=herdr with a base URL and
+            api-key-env name. We will not guess another host.
+          </span>
+        </Alert>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Herdr</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Configured base <code>{remote.base_url}</code>. CLI{' '}
+          <code>--remote</code> uses this base. Auth env placeholder only
+          {remote.api_key_set ? ' (resolved).' : ' (unset).'}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          loading={healthMut.isPending}
+          onClick={() => healthMut.mutate()}
+        >
+          Health
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          loading={listMut.isPending}
+          onClick={() => listMut.mutate()}
+        >
+          List
+        </Button>
+      </div>
+      {health ? <p className="text-sm">Health: {health}</p> : null}
+      {listed ? <p className="text-sm">List: {listed}</p> : null}
     </div>
   )
 }

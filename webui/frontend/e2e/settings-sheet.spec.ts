@@ -25,6 +25,22 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+          { id: 'herdr', label: 'Herdr', opt_in: true },
+        ],
+        data: [],
+      }),
+    })
+  })
   await page.route('**/health**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -60,6 +76,8 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect(sections.getByRole('button', { name: 'Hermes' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'OMB' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Rakazo' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: '+ Add remote' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Herdr' })).toHaveCount(0)
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()

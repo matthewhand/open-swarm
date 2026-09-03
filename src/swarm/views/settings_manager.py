@@ -97,8 +97,9 @@ class SettingsManager:
             'remotes': {
                 'title': 'Remote Harnesses',
                 'description': (
-                    'Hermes, OpenMausBot, and Rakazo as Team members (handoff/as_tool). '
-                    'Persist base URL + auth. Not the /teams/ profile-alias registry.'
+                    'Hermes, OpenMausBot, Rakazo, and Herdr as Team members '
+                    '(handoff/as_tool). Persist base URL + auth. Herdr is opt-in '
+                    '(add in Settings). Not the /teams/ profile-alias registry.'
                 ),
                 'icon': '🛰️',
                 'settings': {}
@@ -530,6 +531,7 @@ class SettingsManager:
                         "hermes": "HERMES_BASE_URL / HERMES_API_KEY",
                         "omb": "OMB_BASE_URL / OMB_API_KEY",
                         "rakazo": "RAKAZO_BASE_URL / RAKAZO_API_KEY / RAKAZO_SESSION_COOKIE",
+                        "herdr": "HERDR_BASE_URL / HERDR_API_KEY",
                     }.get(spec.id),
                     "type": "object",
                     "description": spec.notes,

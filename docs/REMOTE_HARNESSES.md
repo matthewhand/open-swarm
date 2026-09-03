@@ -1,11 +1,11 @@
-# Remote harnesses — Hermes, OpenMausBot, Rakazo
+# Remote harnesses — Hermes, OpenMausBot, Rakazo, Herdr
 
 Open Swarm can sit **in front of** other agent harnesses: configure them, check
 they are up, and send work through **their** APIs. This is not a concurrent
 Grok / OMB / Rakazo seat clone, and **Grok-Bot chrome is not claimed live**.
 
 **Team vocabulary (REQ-11):** a Team is how you wire API agents, CLI agents, and
-**remote** agents (Hermes / OMB / Rakazo) so they can see and talk to each
+**remote** agents (Hermes / OpenMousBot / Rakazo / Herdr) so they can see and talk to each
 other via openai-agents **handoff / as_tool**. Hermes, OMB, and Rakazo are
 Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`).
 
@@ -44,12 +44,19 @@ Defaults (override anytime):
 | **hermes** | ubuntu-gtx | `http://10.0.0.36:8642` (UI `:9119`) | `HERMES_API_KEY` (Hermes `API_SERVER_KEY`) |
 | **omb** | Windows2 | `http://10.0.0.32:8802` | `OMB_API_KEY` (optional Bearer) |
 | **rakazo** | Windows2 | API `http://10.0.0.32:3100`, UI `:5173`, tree `C:\rakazo` | `RAKAZO_API_KEY` and/or `RAKAZO_SESSION_COOKIE` |
+| **herdr** | *opt-in* | **none until you add it** (no baked LAN host) | `HERDR_API_KEY` |
 
 ```bash
 swarm-cli remotes set hermes --base-url http://10.0.0.36:8642 --api-key-env HERMES_API_KEY
 swarm-cli remotes set omb --base-url http://10.0.0.32:8802 --api-key-env OMB_API_KEY
 swarm-cli remotes set rakazo --base-url http://10.0.0.32:3100 --ui-url http://10.0.0.32:5173 --api-key-env RAKAZO_API_KEY
+swarm-cli remotes set herdr --base-url http://127.0.0.1:9 --api-key-env HERDR_API_KEY
 ```
+
+Herdr (REQ-64) is opt-in. It appears in Settings Remotes only after add.
+`herdr --remote` uses that configured base. Localhost omits the flag only when
+you set a loopback URL. Missing config is a clear error, not a silent other-host.
+Health is `GET /health`; list is `GET /agents` (tests stub HTTP; no live LAN).
 
 Equivalent persist:
 
@@ -78,6 +85,7 @@ report, not an exception. Auth-gated 401/403 on a live port counts as **UP**
 | Hermes | `GET /health` → `{"status":"ok"}`; version via `GET /v1/models` |
 | OMB | `GET /api/health` → `{"app":"openmausbot",...}` |
 | Rakazo | `GET /health` → `{"ok":true,"runtime":"pi",...}` |
+| Herdr | `GET /health` on the **configured** base only |
 
 ## Operate today vs not
 
@@ -86,6 +94,7 @@ report, not an exception. Auth-gated 401/403 on a live port counts as **UP**
 | **Hermes** | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs` | `POST /v1/runs` `{"input":"..."}` | Needs Bearer `API_SERVER_KEY`. Do not bounce Hermes to read config; do not delete `SKILL.md`. Dashboard `:9119` is not the operate API. |
 | **OMB** | `GET /api/bots` | `POST /api/bots/{id}/messages` `{"text":"..."}` (202). Creates a bot if none exist. | HTTP only — no OMB source clone. Upstream default bind is `127.0.0.1:8799`; this LAN install is `:8802`. |
 | **Rakazo** | `POST /rpc/bots/list` | `POST /rpc/threads/send` `{botId,text}` | **Better Auth session required** for RPC. Public `GET /health` works without auth. Set `RAKAZO_SESSION_COOKIE` from a signed-in UI session. No unauthenticated job API in upstream. |
+| **Herdr** | `GET /agents` | CLI `herdr agent prompt` via `HerdrClient.from_remote_config()` | Opt-in kind. No baked LAN default. `--remote` = configured base. |
 
 ```bash
 swarm-cli remotes operate hermes --op list

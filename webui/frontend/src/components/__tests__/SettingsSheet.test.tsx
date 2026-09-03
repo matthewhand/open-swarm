@@ -52,6 +52,8 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rakazo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add remote' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Herdr' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
@@ -112,6 +114,68 @@ describe('SettingsSheet', () => {
     const { onClose } = renderSheet()
     fireEvent.click(screen.getByRole('button', { name: /^Close$/ }))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds kind=herdr then shows it in Remotes', async () => {
+    const remotesState = {
+      object: 'list' as const,
+      kinds: [
+        { id: 'herdr', label: 'Herdr', opt_in: true },
+        { id: 'omb', label: 'OpenMousBot', opt_in: false },
+      ],
+      data: [] as Array<Record<string, unknown>>,
+    }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method || 'GET').toUpperCase()
+      if (url.includes('/v1/remotes/herdr') && method === 'PATCH') {
+        const saved = {
+          id: 'herdr',
+          kind: 'herdr',
+          title: 'Herdr',
+          base_url: 'http://127.0.0.1:9',
+          api_key_set: false,
+        }
+        remotesState.data = [saved]
+        return {
+          ok: true,
+          status: 200,
+          json: async () => saved,
+        } as Response
+      }
+      if (url.includes('/v1/remotes') && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => remotesState,
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: [] }),
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderSheet()
+    expect(screen.queryByRole('button', { name: 'Herdr' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add remote' }))
+    expect(screen.getByRole('combobox', { name: 'Kind' })).toHaveValue('herdr')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Base URL' }), {
+      target: { value: 'http://127.0.0.1:9' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'API key env name' }), {
+      target: { value: 'HERDR_API_KEY' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Add remote$/ }))
+    expect(await screen.findByRole('button', { name: 'Herdr' })).toBeInTheDocument()
+    expect(await screen.findByText(/http:\/\/127.0.0.1:9/)).toBeInTheDocument()
+    const patchCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url).includes('/v1/remotes/herdr') && (init?.method || '') === 'PATCH',
+    )
+    expect(patchCall).toBeTruthy()
+    expect(String(patchCall?.[1]?.body)).toContain('HERDR_API_KEY')
+    expect(String(patchCall?.[1]?.body)).not.toContain('sk-')
   })
 
   it('keeps the Django operator dump link', () => {

@@ -131,6 +131,20 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PATCH',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -313,6 +327,83 @@ export function discoverHerdrAgents(
 ): Promise<ListResponse<HerdrDiscoverMember> & { herdr_available?: boolean }> {
   const qs = remote ? `?remote=${encodeURIComponent(remote)}` : ''
   return apiGet(`/v1/herdr-agents/discover/${qs}`)
+}
+
+/** GET /v1/remotes/ — configured remotes (herdr is opt-in until added). */
+export interface RemoteKind {
+  id: string
+  label: string
+  opt_in?: boolean
+}
+
+export interface RemoteConnection {
+  id: string
+  kind?: string
+  title: string
+  host_label?: string
+  base_url: string
+  ui_url?: string
+  api_key_set: boolean
+  cookie_set?: boolean
+  health_path?: string
+  notes?: string
+  source?: string
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  kinds?: RemoteKind[]
+  data: RemoteConnection[]
+  team_members?: Array<Record<string, unknown>>
+}
+
+export interface PersistRemoteRequest {
+  base_url?: string
+  api_key?: string
+  ui_url?: string
+  cookie?: string
+}
+
+export interface RemoteHealthResult {
+  remote: string
+  ok: boolean
+  state: string
+  detail: string
+  http_status?: number | null
+  version?: unknown
+  url?: string
+}
+
+export interface RemoteOperateResult {
+  remote: string
+  op: string
+  ok: boolean
+  detail: string
+  http_status?: number | null
+  data?: unknown
+  gap?: string
+}
+
+export function fetchRemotes(): Promise<RemotesListResponse> {
+  return apiGet<RemotesListResponse>('/v1/remotes/')
+}
+
+export function persistRemote(
+  remoteId: string,
+  body: PersistRemoteRequest,
+): Promise<RemoteConnection & { persisted_to?: string }> {
+  return apiPatch(`/v1/remotes/${encodeURIComponent(remoteId)}/`, body)
+}
+
+export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
+  return apiPost<RemoteHealthResult>(`/v1/remotes/${encodeURIComponent(remoteId)}/health/`, {})
+}
+
+export function operateRemote(
+  remoteId: string,
+  body: { op?: string; prompt?: string; target?: string } = {},
+): Promise<RemoteOperateResult> {
+  return apiPost<RemoteOperateResult>(`/v1/remotes/${encodeURIComponent(remoteId)}/operate/`, body)
 }
 
 // ---------------------------------------------------------------------------

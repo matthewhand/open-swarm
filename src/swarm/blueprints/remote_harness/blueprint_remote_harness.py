@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 def _health_tool(name: str = "") -> str:
     """Probe Hermes, OMB, and/or Rakazo. Honest DOWN if unreachable."""
-    targets = [name] if name.strip() else list(remotes_core.REMOTE_IDS)
+    targets = [name] if name.strip() else list(remotes_core.load_all_remotes())
     lines = []
     for rid in targets:
         try:
@@ -265,13 +265,15 @@ class RemoteHarnessBlueprint(BlueprintBase):
                 body = _list_tool(name)
             else:
                 if not name:
-                    body = "Usage: send <hermes|omb|rakazo> <prompt>"
+                    body = "Usage: send <hermes|omb|rakazo|herdr> <prompt>"
                 else:
                     body = _send_tool(name, prompt, target)
             yield support.message_chunk(
                 body,
                 final=True,
-                meta=support.backend_meta(["remote_harness"] + ([name] if name else list(remotes_core.REMOTE_IDS))),
+                meta=support.backend_meta(
+                    ["remote_harness"] + ([name] if name else list(remotes_core.load_all_remotes()))
+                ),
             )
             return
 

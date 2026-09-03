@@ -1,4 +1,4 @@
-"""Remote agent-harness connectivity: Hermes, OpenMausBot (OMB), Rakazo.
+"""Remote agent-harness connectivity: Hermes, OpenMausBot (OMB), Rakazo, Herdr.
 
 Open Swarm is a harness *for* other harnesses. This module is the single
 source of truth for:
@@ -7,9 +7,11 @@ source of truth for:
 * honest health/version probes (one request, no retry/crash-loop)
 * operate: list / send a job via each harness's real HTTP API
 
-LAN defaults are operator facts (ubuntu-gtx / Windows2). They are not
-invented cloud hosts. Do **not** point these remotes at Fly open-litellm;
-the LAN LLM for *this* swarm is ``http://10.0.0.30:8000/v1``.
+    LAN defaults are operator facts (ubuntu-gtx / Windows2) for Hermes / OMB /
+Rakazo. They are not invented cloud hosts. **Herdr** (REQ-64) is opt-in: no
+baked LAN host; missing config is a clear error. Do **not** point these
+remotes at Fly open-litellm; the LAN LLM for *this* swarm is
+``http://10.0.0.30:8000/v1``.
 
 Auth is optional per remote. Missing auth is reported honestly; we never
 enable ``SWARM_ALLOW_ANONYMOUS`` and we never clone OMB source.
@@ -31,7 +33,18 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
+# Known remotes kinds. Hermes/OMB/Rakazo keep LAN defaults (REQ-11).
+# Herdr (REQ-64) is opt-in: listed only after the user adds it.
+REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo", "herdr")
+DEFAULT_TEAM_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
+OPT_IN_REMOTE_IDS: frozenset[str] = frozenset({"herdr"})
+
+REMOTE_KIND_CATALOG: tuple[dict[str, str], ...] = (
+    {"id": "hermes", "label": "Hermes"},
+    {"id": "omb", "label": "OpenMousBot"},
+    {"id": "rakazo", "label": "Rakazo"},
+    {"id": "herdr", "label": "Herdr"},
+)
 
 # Team (REQ-11 vocabulary): agents that SEE and TALK to each other via
 # openai-agents handoff / as_tool. This is NOT the /teams/ LLM-profile alias
@@ -39,7 +52,7 @@ REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
 TEAM_VOCABULARY: dict[str, str] = {
     "team": (
         "A Team wires API agents, CLI agents, and remote agents "
-        "(Hermes / OMB / Rakazo) so they can see and talk to each other "
+        "(Hermes / OpenMousBot / Rakazo / Herdr) so they can see and talk to each other "
         "via openai-agents handoff or as_tool."
     ),
     "not_teams_page": (
@@ -52,6 +65,7 @@ _TOOL_NAMES: dict[str, str] = {
     "hermes": "consult_hermes",
     "omb": "consult_omb",
     "rakazo": "consult_rakazo",
+    "herdr": "consult_herdr",
 }
 
 # Verified operator LAN facts (not reachable from every cloud VM).
@@ -102,17 +116,35 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
             "Health works without auth; operate fails honestly on 401."
         ),
     },
+    "herdr": {
+        "title": "Herdr",
+        "host_label": "",
+        "base_url": "",
+        "ui_url": "",
+        "api_key": "${HERDR_API_KEY}",
+        "health_path": "/health",
+        "version_path": "/health",
+        "notes": (
+            "Herdr remote kind (REQ-64). Opt-in: add a base URL + api-key-env "
+            "in Settings. No baked LAN host. CLI herdr --remote uses that "
+            "configured base; localhost omits the flag only when the user set "
+            "a loopback URL. HTTP health is GET /health; list is GET /agents. "
+            "Reuse swarm.herdr. Not Hermes/OMB/Rakazo."
+        ),
+    },
 }
 
 _ENV_BASE = {
     "hermes": "HERMES_BASE_URL",
     "omb": "OMB_BASE_URL",
     "rakazo": "RAKAZO_BASE_URL",
+    "herdr": "HERDR_BASE_URL",
 }
 _ENV_KEY = {
     "hermes": "HERMES_API_KEY",
     "omb": "OMB_API_KEY",
     "rakazo": "RAKAZO_API_KEY",
+    "herdr": "HERDR_API_KEY",
 }
 _ENV_UI = {"rakazo": "RAKAZO_UI_URL", "hermes": "HERMES_UI_URL"}
 _ENV_COOKIE = {"rakazo": "RAKAZO_SESSION_COOKIE"}
@@ -155,6 +187,7 @@ class RemoteSpec:
         """JSON-safe view with secrets redacted."""
         return {
             "id": self.id,
+            "kind": self.id,
             "title": self.title,
             "host_label": self.host_label,
             "base_url": self.base_url,
@@ -254,11 +287,41 @@ def default_spec(remote_id: str) -> RemoteSpec:
 
 def _require_id(remote_id: str) -> str:
     rid = (remote_id or "").strip().lower()
-    aliases = {"openmausbot": "omb", "openmaus": "omb", "rakoza": "rakazo"}
+    aliases = {
+        "openmausbot": "omb",
+        "openmaus": "omb",
+        "openmousbot": "omb",
+        "rakoza": "rakazo",
+    }
     rid = aliases.get(rid, rid)
     if rid not in REMOTE_IDS:
         raise RemoteError(f"Unknown remote '{remote_id}'. Known: {', '.join(REMOTE_IDS)}")
     return rid
+
+
+def _opt_in_configured(remote_id: str, cfg: dict[str, Any]) -> bool:
+    """True when an opt-in kind (herdr) has a user-set base URL or env base."""
+    rid = (remote_id or "").strip().lower()
+    block = (cfg.get("remotes") or {}).get(rid) if isinstance(cfg.get("remotes"), dict) else None
+    if isinstance(block, dict) and str(block.get("base_url") or "").strip():
+        return True
+    env_name = _ENV_BASE.get(rid)
+    if env_name and os.environ.get(env_name, "").strip():
+        return True
+    return False
+
+
+def remote_kind_catalog() -> list[dict[str, Any]]:
+    """Addable remotes kinds for Settings (+ Add). OpenMousBot, not OMB."""
+    configured_hint = {item["id"]: item["id"] in OPT_IN_REMOTE_IDS for item in REMOTE_KIND_CATALOG}
+    return [
+        {
+            "id": item["id"],
+            "label": item["label"],
+            "opt_in": bool(configured_hint[item["id"]]),
+        }
+        for item in REMOTE_KIND_CATALOG
+    ]
 
 
 def resolve_config_path(explicit: str | Path | None = None) -> Path:
@@ -287,10 +350,18 @@ def load_raw_config(config_path: str | Path | None = None) -> tuple[dict[str, An
 
 
 def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteSpec:
-    """Defaults ← swarm_config.json remotes ← env (env wins)."""
+    """Defaults ← swarm_config.json remotes ← env (env wins).
+
+    Opt-in kinds (herdr) raise when the user has not added a base URL — no
+    silent LAN / other-host default.
+    """
     rid = _require_id(remote_id)
-    spec = default_spec(rid)
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    if rid in OPT_IN_REMOTE_IDS and not _opt_in_configured(rid, cfg):
+        from swarm.herdr.remote import not_configured_message
+
+        raise RemoteError(not_configured_message())
+    spec = default_spec(rid)
     block = (cfg.get("remotes") or {}).get(rid) if isinstance(cfg.get("remotes"), dict) else None
     if isinstance(block, dict):
         spec.source = "config"
@@ -325,23 +396,34 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
 
 
 def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
+    """Load remotes that should appear in Settings / CLI list.
+
+    Opt-in kinds (herdr) are omitted until the user adds them — compatible
+    with REQ-59 empty-until-+. Hermes/OMB/Rakazo keep their existing defaults.
+    """
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
-    return {rid: load_remote(rid, cfg) for rid in REMOTE_IDS}
+    out: dict[str, RemoteSpec] = {}
+    for rid in REMOTE_IDS:
+        if rid in OPT_IN_REMOTE_IDS and not _opt_in_configured(rid, cfg):
+            continue
+        out[rid] = load_remote(rid, cfg)
+    return out
 
 
 def load_placed_members(config: dict[str, Any] | None = None) -> list[str]:
     """Remote ids currently placed in the handoff Team (not /teams/ aliases).
 
-    Missing ``agent_team.members`` means all three remotes are placed (default
-    REQ-11 roster). An explicit empty list is an empty Team.
+    Missing ``agent_team.members`` means the default REQ-11 roster
+    (hermes/omb/rakazo). Herdr is opt-in and is not auto-placed. An explicit
+    empty list is an empty Team.
     """
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     block = cfg.get("agent_team") if isinstance(cfg.get("agent_team"), dict) else {}
     if "members" not in block:
-        return list(REMOTE_IDS)
+        return list(DEFAULT_TEAM_IDS)
     raw = block.get("members") or []
     if not isinstance(raw, list):
-        return list(REMOTE_IDS)
+        return list(DEFAULT_TEAM_IDS)
     out: list[str] = []
     for item in raw:
         try:
@@ -455,7 +537,7 @@ def persist_remote(
         if _looks_like_forbidden_llm_proxy(normalized):
             raise RemoteError(
                 "Refusing to persist a Fly open-litellm URL as a harness remote. "
-                "Hermes/OMB/Rakazo are LAN harnesses; LAN LLM is http://10.0.0.30:8000/v1."
+                "Hermes/OMB/Rakazo/Herdr are harness remotes; LAN LLM is http://10.0.0.30:8000/v1."
             )
         entry["base_url"] = normalized
     if api_key is not None:
@@ -656,7 +738,7 @@ def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeou
 
 
 def check_all_health(*, config: dict[str, Any] | None = None, timeout: float = _DEFAULT_TIMEOUT_S) -> list[HealthResult]:
-    return [check_health(rid, config=config, timeout=timeout) for rid in REMOTE_IDS]
+    return [check_health(rid, config=config, timeout=timeout) for rid in load_all_remotes(config)]
 
 
 def _hermes_list(spec: RemoteSpec, timeout: float) -> OperateResult:
@@ -926,6 +1008,63 @@ def _rakazo_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> 
     )
 
 
+def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
+    from swarm.herdr.remote import LIST_PATH, cli_remote_from_base, members_from_http_list
+
+    result = http_json(
+        "GET",
+        f"{spec.base_url}{LIST_PATH}",
+        headers=_auth_headers(spec),
+        timeout=timeout,
+    )
+    try:
+        remote_flag = cli_remote_from_base(spec.base_url)
+    except ValueError:
+        remote_flag = ""
+    members = members_from_http_list(result.body, remote=remote_flag)
+    if result.status in _UP:
+        return OperateResult(
+            remote="herdr",
+            op="list",
+            ok=True,
+            detail=f"Herdr listed {len(members)} member(s) via GET {LIST_PATH}",
+            http_status=result.status,
+            data={"members": members, "raw": result.body},
+        )
+    if result.status in _AUTH:
+        return OperateResult(
+            remote="herdr",
+            op="list",
+            ok=False,
+            detail="Herdr GET /agents requires auth. Set remotes.herdr.api_key or HERDR_API_KEY.",
+            http_status=result.status,
+            data=result.body,
+        )
+    return OperateResult(
+        remote="herdr",
+        op="list",
+        ok=False,
+        detail=result.error or f"Herdr list failed (http {result.status})",
+        http_status=result.status,
+        data=result.body or result.text,
+    )
+
+
+def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:
+    del spec, timeout
+    return OperateResult(
+        remote="herdr",
+        op="send",
+        ok=False,
+        detail=(
+            "Herdr send is the CLI wrapper (herdr agent prompt), not this HTTP "
+            "health/list slice. Use swarm.herdr.HerdrClient.from_remote_config()."
+        ),
+        gap="herdr_send_uses_cli_prompt",
+        data={"prompt": prompt, "target": target},
+    )
+
+
 def operate(
     remote_id: str,
     op: str,
@@ -957,7 +1096,16 @@ def operate(
             return _hermes_list(spec, timeout) if action == "list" else _hermes_send(spec, prompt, timeout)
         if rid == "omb":
             return _omb_list(spec, timeout) if action == "list" else _omb_send(spec, prompt, target, timeout)
+        if rid == "herdr":
+            return _herdr_list(spec, timeout) if action == "list" else _herdr_send(spec, prompt, target, timeout)
         return _rakazo_list(spec, timeout) if action == "list" else _rakazo_send(spec, prompt, target, timeout)
+    except RemoteError as exc:
+        return OperateResult(
+            remote=str(remote_id),
+            op=str(op or "list"),
+            ok=False,
+            detail=str(exc),
+        )
     except Exception as exc:  # never let operate take down the process
         logger.warning("remotes.operate failed for %s %s: %s", remote_id, op, exc)
         return OperateResult(
