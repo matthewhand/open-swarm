@@ -131,6 +131,20 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PATCH',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -217,6 +231,62 @@ export function fetchBlueprints(): Promise<ListResponse<Blueprint>> {
 
 export function fetchModels(): Promise<ListResponse<Model>> {
   return apiGet<ListResponse<Model>>('/v1/models/')
+}
+
+/** Task-class roles for REQ-43. These are not required model ids. */
+export const LLM_TASK_CLASSES = ['orchestration', 'auxiliary', 'delegation'] as const
+export type LlmTaskClass = (typeof LLM_TASK_CLASSES)[number]
+
+export interface LlmProfile {
+  id: string
+  object: 'llm_profile'
+  source: string
+  owned_by: string
+  model?: string
+  intelligence?: number
+  speed?: number
+  cost?: number
+}
+
+export interface LlmTaskRoute {
+  profile: string
+  task_class: string
+  used_fallback: boolean
+  warning: string | null
+  override_on: boolean
+  source: string
+}
+
+/** GET/PATCH /v1/llm-profiles/ — settings.default_llm_profile SoT. */
+export interface LlmProfilesSettings {
+  object: 'llm_profiles'
+  profiles: LlmProfile[]
+  default_llm_profile: string
+  default_is_auto: boolean
+  override_per_task: boolean
+  task_llm_profiles: Partial<Record<LlmTaskClass, string>>
+  auto_picks: Partial<Record<LlmTaskClass | 'default', string>>
+  aliases_used?: string[]
+  warnings: string[]
+  routes: Partial<Record<LlmTaskClass, LlmTaskRoute>>
+  task_classes: LlmTaskClass[]
+  persisted_to?: string
+}
+
+export interface PatchLlmProfilesRequest {
+  default_llm_profile?: string
+  override_per_task?: boolean
+  task_llm_profiles?: Partial<Record<LlmTaskClass, string>>
+}
+
+export function fetchLlmProfiles(): Promise<LlmProfilesSettings> {
+  return apiGet<LlmProfilesSettings>('/v1/llm-profiles/')
+}
+
+export function patchLlmProfiles(
+  body: PatchLlmProfilesRequest,
+): Promise<LlmProfilesSettings> {
+  return apiPatch<LlmProfilesSettings>('/v1/llm-profiles/', body)
 }
 
 export function fetchTeams(): Promise<ListResponse<Team>> {

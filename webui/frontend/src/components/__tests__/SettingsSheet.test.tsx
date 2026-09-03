@@ -91,21 +91,171 @@ describe('SettingsSheet', () => {
     expect(await screen.findByText('Hostname saved')).toBeInTheDocument()
   })
 
-  it('lists LLM models from the existing API when present', async () => {
+  it('lists configured profiles and persists the Default picker', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method || 'GET').toUpperCase()
+      if (url.includes('/v1/llm-profiles') && method === 'PATCH') {
+        const body = JSON.parse(String(init?.body || '{}'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'llm_profiles',
+            profiles: [
+              { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+              { id: 'gpt-4o-mini', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+            ],
+            default_llm_profile: body.default_llm_profile,
+            default_is_auto: false,
+            override_per_task: Boolean(body.override_per_task),
+            task_llm_profiles: body.task_llm_profiles || {},
+            auto_picks: { default: 'gpt-5.6-terra' },
+            warnings: [],
+            routes: {},
+            task_classes: ['orchestration', 'auxiliary', 'delegation'],
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'llm_profiles',
+          profiles: [
+            { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+            { id: 'gpt-4o-mini', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+          ],
+          default_llm_profile: 'gpt-5.6-terra',
+          default_is_auto: true,
+          override_per_task: false,
+          task_llm_profiles: {
+            orchestration: 'gpt-5.6-terra',
+            auxiliary: 'gpt-4o-mini',
+            delegation: 'gpt-5.6-terra',
+          },
+          auto_picks: { default: 'gpt-5.6-terra', auxiliary: 'gpt-4o-mini' },
+          warnings: [],
+          routes: {},
+          task_classes: ['orchestration', 'auxiliary', 'delegation'],
+        }),
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    expect(await screen.findByRole('list', { name: 'Configured LLM profiles' })).toBeInTheDocument()
+    const defaultSelect = await screen.findByLabelText('Default')
+    expect(defaultSelect).toHaveValue('gpt-5.6-terra')
+    fireEvent.change(defaultSelect, { target: { value: 'gpt-4o-mini' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save LLM profiles' }))
+    expect(await screen.findByText('LLM profiles saved')).toBeInTheDocument()
+    const patchCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).includes('/v1/llm-profiles') && call[1]?.method === 'PATCH',
+    )
+    expect(patchCall).toBeTruthy()
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      default_llm_profile: 'gpt-4o-mini',
+      override_per_task: false,
+    })
+  })
+
+  it('hides the per-task map when override is off', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         json: async () => ({
-          object: 'list',
-          data: [{ id: 'default', object: 'model', created: 0, owned_by: 'swarm' }],
+          object: 'llm_profiles',
+          profiles: [
+            { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+            { id: 'o3', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+          ],
+          default_llm_profile: 'gpt-5.6-terra',
+          default_is_auto: false,
+          override_per_task: false,
+          task_llm_profiles: { delegation: 'o3' },
+          auto_picks: { default: 'gpt-5.6-terra' },
+          warnings: [],
+          routes: {},
+          task_classes: ['orchestration', 'auxiliary', 'delegation'],
         }),
       } as Response),
     )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
-    expect(await screen.findByText('default')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Default')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Override per task' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    expect(screen.queryByLabelText('Delegation (design / coding)')).not.toBeInTheDocument()
+  })
+
+  it('shows the per-task map when override is on', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'llm_profiles',
+          profiles: [
+            { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+            { id: 'o3', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+          ],
+          default_llm_profile: 'gpt-5.6-terra',
+          default_is_auto: false,
+          override_per_task: true,
+          task_llm_profiles: {
+            orchestration: 'gpt-5.6-terra',
+            auxiliary: 'gpt-5.6-terra',
+            delegation: 'o3',
+          },
+          auto_picks: { default: 'gpt-5.6-terra' },
+          warnings: [],
+          routes: {},
+          task_classes: ['orchestration', 'auxiliary', 'delegation'],
+        }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    expect(await screen.findByLabelText('Delegation (design / coding)')).toHaveValue('o3')
+    expect(screen.getByLabelText('Auxiliary (code summary)')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Override per task' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+  })
+
+  it('warns when a selected profile is missing from the catalog', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'llm_profiles',
+          profiles: [
+            { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+          ],
+          default_llm_profile: 'missing-slug',
+          default_is_auto: false,
+          override_per_task: false,
+          task_llm_profiles: {},
+          auto_picks: { default: 'gpt-5.6-terra' },
+          warnings: ["LLM profile 'missing-slug' not found; falling back to 'gpt-5.6-terra'."],
+          routes: {},
+          task_classes: ['orchestration', 'auxiliary', 'delegation'],
+        }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/missing-slug/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/gpt-5.6-terra/)
   })
 
   it('calls onClose from the sheet Close button', () => {

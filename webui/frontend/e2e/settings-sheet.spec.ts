@@ -18,6 +18,26 @@ async function stubApis(page: import('@playwright/test').Page) {
       }),
     })
   })
+  await page.route('**/v1/llm-profiles**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'llm_profiles',
+        profiles: [
+          { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+        ],
+        default_llm_profile: 'gpt-5.6-terra',
+        default_is_auto: true,
+        override_per_task: false,
+        task_llm_profiles: {},
+        auto_picks: { default: 'gpt-5.6-terra' },
+        warnings: [],
+        routes: {},
+        task_classes: ['orchestration', 'auxiliary', 'delegation'],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,
