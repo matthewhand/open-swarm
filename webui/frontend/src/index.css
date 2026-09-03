@@ -451,12 +451,47 @@ html[data-theme="light"] #root {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  border: 0;
   border-radius: 0.45rem;
   padding: 0.45rem 0.6rem;
+  background: transparent;
+  color: inherit;
   font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
 }
 .os-plus-menu__item:hover {
   background: color-mix(in srgb, var(--color-base-300) 55%, transparent);
+}
+
+.chat-summary {
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 28%, transparent);
+  border-left-width: 3px;
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--color-base-200) 70%, transparent);
+  margin: 0.35rem 0;
+}
+.chat-summary--nested {
+  margin-top: 0.55rem;
+  margin-left: 0.65rem;
+  border-style: dashed;
+}
+.chat-summary__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 0.35rem;
+}
+.chat-summary__body {
+  font-size: 0.875rem;
+}
+.chat-summary__meta {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  opacity: 0.5;
 }
 
 .os-chat-footer {

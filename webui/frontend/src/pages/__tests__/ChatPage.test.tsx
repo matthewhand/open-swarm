@@ -597,12 +597,10 @@ describe('ChatPage Grok composer and per-agent threads', () => {
       'Message …',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('menuitem', { name: 'Blueprints' })).toHaveAttribute(
-      'href',
-      '/blueprint-library/',
-    )
-    expect(screen.getByRole('menuitem', { name: 'Teams' })).toHaveAttribute('href', '/teams/launch/')
-    expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings/')
+    expect(screen.getByRole('menuitem', { name: 'Compact' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Blueprints' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Teams' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
@@ -618,6 +616,94 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     const stewieUrl = MockWebSocket.instances[MockWebSocket.instances.length - 1]!.url
     expect(stewieUrl).toContain('/ws/ai-demo/')
     expect(stewieUrl).not.toBe(codeyUrl)
+  })
+
+  it('renders a bordered Summary block after Compact (nested parent stays inside)', async () => {
+    const compactPayload = {
+      summary: {
+        id: 2,
+        conversation_id: 'c-compact',
+        span: { start: 0, end: 1 },
+        parent_summary_id: 1,
+        body: 'outer digest',
+        created_at: '2026-09-03T00:00:00Z',
+        replaced_count: 2,
+      },
+      summaries: [
+        {
+          id: 1,
+          conversation_id: 'c-compact',
+          span: { start: 0, end: 1 },
+          parent_summary_id: null,
+          body: 'inner digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+        {
+          id: 2,
+          conversation_id: 'c-compact',
+          span: { start: 0, end: 1 },
+          parent_summary_id: 1,
+          body: 'outer digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/compact/') && init?.method === 'POST') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => compactPayload,
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'jeeves',
+              conversation_id: 'c-compact',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'prior answer' },
+              ],
+              summaries: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+
+    const blocks = await screen.findAllByTestId('chat-summary')
+    expect(blocks.length).toBe(2)
+    expect(blocks[0]).toHaveClass('chat-summary')
+    expect(blocks[1]).toHaveClass('chat-summary')
+    expect(blocks[1]).toHaveClass('chat-summary--nested')
+    expect(screen.getAllByText('Summary').length).toBe(2)
+    expect(screen.getByText('outer digest')).toBeInTheDocument()
+    expect(screen.getByText('inner digest')).toBeInTheDocument()
+    expect(screen.queryByText('prior question')).not.toBeInTheDocument()
   })
 })
 

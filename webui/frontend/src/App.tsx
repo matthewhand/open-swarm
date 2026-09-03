@@ -43,6 +43,8 @@ export function chatPathWithSearch(search: string): string {
 /**
  * Product chrome is Grok-Bot: left rail + the selected agent's chat.
  * `/agents` is Agent Router (own chrome). `/` and `/chat` are the rail + composer.
+ * Composer + menu is Compact (REQ-37). Operator Django pages stay on
+ * Search / the settings gear.
  * Gear opens the REQ-19 DaisyUI settings sheet over chat.
  */
 function App() {

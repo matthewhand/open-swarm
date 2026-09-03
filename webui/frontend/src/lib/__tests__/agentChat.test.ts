@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_AGENT_ID,
   agentIdFromBlueprint,
+  compactAgentThread,
   conversationIdForAgent,
   fetchAgentThread,
 } from '../agentChat'
@@ -56,6 +57,36 @@ describe('fetchAgentThread', () => {
       { role: 'assistant', content: 'hello' },
     ])
     expect(thread.conversation_id).toBe('agt-1-jeeves')
+    expect(thread.summaries).toEqual([])
+  })
+
+  it('returns summaries from the thread endpoint', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'jeeves',
+          conversation_id: 'agt-1-jeeves',
+          messages: [{ role: 'user', content: 'hi' }],
+          summaries: [
+            {
+              id: 1,
+              conversation_id: 'agt-1-jeeves',
+              span: { start: 0, end: 0 },
+              parent_summary_id: null,
+              body: 'digest',
+              created_at: '2026-09-03T00:00:00Z',
+              replaced_count: 1,
+            },
+          ],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('jeeves')
+    expect(thread.summaries).toHaveLength(1)
+    expect(thread.summaries[0].body).toBe('digest')
   })
 
   it('returns an empty thread when fetch fails', async () => {
@@ -67,5 +98,66 @@ describe('fetchAgentThread', () => {
     expect(thread.messages).toEqual([])
     expect(thread.agent_id).toBe('jeeves')
     expect(thread.conversation_id).toBeTruthy()
+    expect(thread.summaries).toEqual([])
+  })
+})
+
+describe('compactAgentThread', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('posts the backlog and returns the summary tree', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        summary: {
+          id: 2,
+          conversation_id: 'c1',
+          span: { start: 0, end: 1 },
+          parent_summary_id: 1,
+          body: 'outer',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+        summaries: [
+          {
+            id: 1,
+            conversation_id: 'c1',
+            span: { start: 0, end: 1 },
+            parent_summary_id: null,
+            body: 'inner',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 2,
+          },
+          {
+            id: 2,
+            conversation_id: 'c1',
+            span: { start: 0, end: 1 },
+            parent_summary_id: 1,
+            body: 'outer',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 2,
+          },
+        ],
+        raw_count: 2,
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await compactAgentThread({
+      conversationId: 'c1',
+      agentId: 'jeeves',
+      messages: [
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: 'hello' },
+      ],
+    })
+    expect(result.summary.parent_summary_id).toBe(1)
+    expect(result.summaries).toHaveLength(2)
+    expect(fetchMock).toHaveBeenCalled()
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('/chat/compact/')
+    expect(init.method).toBe('POST')
   })
 })
