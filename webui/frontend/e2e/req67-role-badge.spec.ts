@@ -1,10 +1,5 @@
 import { test, expect } from '@playwright/test'
 
-test.use({
-  channel: 'chrome',
-  launchOptions: { args: ['--no-sandbox', '--disable-gpu'] },
-})
-
 const ROLE_ACCENT_COLORS = ['#3d8f8a', '#c47a3a', '#7a6b9b', '#4f8ec9', '#c9a227', '#8a5a9b']
 
 const BLUEPRINTS = {
