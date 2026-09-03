@@ -168,8 +168,11 @@ describe('SettingsSheet', () => {
       target: { value: 'HERDR_API_KEY' },
     })
     fireEvent.click(screen.getByRole('button', { name: /^Add remote$/ }))
+    expect(await screen.findByText('Remote added')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Herdr' })).toBeInTheDocument()
-    expect(await screen.findByText(/http:\/\/127.0.0.1:9/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Herdr' }))
+    expect(await screen.findByRole('heading', { name: 'Herdr' })).toBeInTheDocument()
+    expect(screen.getByText(/Configured base/)).toBeInTheDocument()
     const patchCall = fetchMock.mock.calls.find(
       ([url, init]) => String(url).includes('/v1/remotes/herdr') && (init?.method || '') === 'PATCH',
     )
