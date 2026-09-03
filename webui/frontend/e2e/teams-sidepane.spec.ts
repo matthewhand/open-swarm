@@ -82,7 +82,8 @@ test('sidepane mixes a team row; selecting it shows the unlabeled member dropdow
 
   const dropdown = page.getByRole('combobox')
   await expect(dropdown).toBeVisible()
-  await expect(page.getByText('Blueprint')).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: 'Blueprint' })).toHaveCount(0)
+  await expect(page.getByText('Blueprint', { exact: true })).toHaveCount(0)
   await expect(dropdown.locator('option')).toHaveText([
     'All members',
     'Codey (agent/coder)',
