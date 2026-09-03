@@ -78,6 +78,10 @@ services:
       # Async /v1/responses cancel + inflight limits are process-local until a
       # shared queue exists. Keep a single uvicorn worker (see Dockerfile CMD).
       SWARM_UVICORN_WORKERS: "${SWARM_UVICORN_WORKERS:-1}"
+      # REQ-45: this file does not bind-mount $HOME / SWARM_SANDBOX_ROOT.
+      # Honest isolated-sandbox banner. Override to sandbox-home if you map
+      # that tree, or bare-metal when running natively (not this compose).
+      SWARM_RUNTIME_MODE: "${SWARM_RUNTIME_MODE:-sandbox-isolated}"
     volumes:
       # Your swarm config (llm profiles + any cli_agents) — read-only.
       - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"
