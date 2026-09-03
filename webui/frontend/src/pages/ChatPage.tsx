@@ -15,7 +15,8 @@ import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import { fetchBlueprints } from '../lib/api'
+import { RemoteSelect } from '../components/RemoteSelect'
+import { fetchBlueprints, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
@@ -113,6 +114,7 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
@@ -157,6 +159,11 @@ const ChatPage = () => {
   const teamsQuery = useQuery({
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
+  })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchRemotes,
+    retry: 1,
   })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const teams = teamsQuery.data ?? []
@@ -565,6 +572,13 @@ const ChatPage = () => {
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
         <div className="flex items-center gap-2">
+          <RemoteSelect
+            remotes={remotesQuery.data}
+            value={selectedRemoteId}
+            onChange={setSelectedRemoteId}
+            size="sm"
+            className="h-8 max-w-[10rem]"
+          />
           {teamFromUrl ? (
             <select
               className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"

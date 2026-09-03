@@ -108,6 +108,37 @@ def test_alias_openmausbot():
     spec = remotes_core.load_remote("openmausbot", {"llm": {}, "remotes": {}})
     assert spec.id == "omb"
     assert spec.base_url.endswith(":8802")
+    assert remotes_core.kind_label("omb") == "OpenMousBot"
+    assert remotes_core.kind_label("openmousbot") == "OpenMousBot"
+    assert remotes_core.load_remote("openmousbot", {"llm": {}, "remotes": {}}).id == "omb"
+    assert all(kind["label"] != "OMB" for kind in remotes_core.list_remote_kinds())
+    assert any(kind["id"] == "omb" and kind["label"] == "OpenMousBot" for kind in remotes_core.list_remote_kinds())
+
+
+def test_configured_catalog_starts_empty_then_add_and_remove(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    monkeypatch.delenv("HERMES_BASE_URL", raising=False)
+    monkeypatch.delenv("OMB_BASE_URL", raising=False)
+    monkeypatch.delenv("RAKAZO_BASE_URL", raising=False)
+    empty = remotes_core.list_configured_remotes({"llm": {}, "remotes": {}})
+    assert empty == []
+    spec, path = remotes_core.persist_remote(
+        "omb",
+        base_url="http://127.0.0.1:8802",
+        api_key="${API_KEY}",
+        config_path=cfg,
+    )
+    assert path == cfg
+    assert spec.id == "omb"
+    assert spec.public_dict()["label"] == "OpenMousBot"
+    listed = remotes_core.list_configured_remotes(json.loads(cfg.read_text(encoding="utf-8")))
+    assert [item.id for item in listed] == ["omb"]
+    rid, _ = remotes_core.delete_remote("omb", config_path=cfg)
+    assert rid == "omb"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert "omb" not in (data.get("remotes") or {})
+    assert remotes_core.list_configured_remotes(data) == []
 
 
 def test_persist_and_reload(tmp_path: Path, monkeypatch):

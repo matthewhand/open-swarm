@@ -1,4 +1,4 @@
-"""Remote agent-harness connectivity: Hermes, OpenMausBot (OMB), Rakazo.
+"""Remote agent-harness connectivity: Hermes, OpenMousBot (id omb), Rakazo.
 
 Open Swarm is a harness *for* other harnesses. This module is the single
 source of truth for:
@@ -6,13 +6,14 @@ source of truth for:
 * persisted ``remotes`` config (base URL + auth)
 * honest health/version probes (one request, no retry/crash-loop)
 * operate: list / send a job via each harness's real HTTP API
+* opt-in catalog (REQ-59): only *configured* remotes appear in Settings / dropdowns
 
 LAN defaults are operator facts (ubuntu-gtx / Windows2). They are not
 invented cloud hosts. Do **not** point these remotes at Fly open-litellm;
 the LAN LLM for *this* swarm is ``http://10.0.0.30:8000/v1``.
 
 Auth is optional per remote. Missing auth is reported honestly; we never
-enable ``SWARM_ALLOW_ANONYMOUS`` and we never clone OMB source.
+enable ``SWARM_ALLOW_ANONYMOUS`` and we never clone OpenMousBot source.
 """
 
 from __future__ import annotations
@@ -31,7 +32,25 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
+# Operate / health trio (PR 318). Extra kinds are addable in Settings (REQ-59)
+# but do not gain list/send here — that is REQ-61+.
 REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
+REMOTE_KIND_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo", "herdr", "open-swarm")
+REMOTE_KIND_LABELS: dict[str, str] = {
+    "hermes": "Hermes",
+    "omb": "OpenMousBot",
+    "rakazo": "Rakazo",
+    "herdr": "Herdr",
+    "open-swarm": "open-swarm",
+}
+_KIND_ALIASES: dict[str, str] = {
+    "openmausbot": "omb",
+    "openmaus": "omb",
+    "openmousbot": "omb",
+    "rakoza": "rakazo",
+    "openswarm": "open-swarm",
+    "open_swarm": "open-swarm",
+}
 
 # Team (REQ-11 vocabulary): agents that SEE and TALK to each other via
 # openai-agents handoff / as_tool. This is NOT the /teams/ LLM-profile alias
@@ -39,7 +58,7 @@ REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
 TEAM_VOCABULARY: dict[str, str] = {
     "team": (
         "A Team wires API agents, CLI agents, and remote agents "
-        "(Hermes / OMB / Rakazo) so they can see and talk to each other "
+        "(Hermes / OpenMousBot / Rakazo) so they can see and talk to each other "
         "via openai-agents handoff or as_tool."
     ),
     "not_teams_page": (
@@ -101,6 +120,29 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
             "/rpc/* and require a Better Auth session (cookie or bearer). "
             "Health works without auth; operate fails honestly on 401."
         ),
+    },
+    "herdr": {
+        "title": "Herdr",
+        "host_label": "",
+        "base_url": "",
+        "ui_url": "",
+        "api_key": "",
+        "health_path": "",
+        "version_path": "",
+        "notes": (
+            "Herdr pane. Empty URL means localhost (no herdr --remote). "
+            "List/send for this kind lands in a later REQ."
+        ),
+    },
+    "open-swarm": {
+        "title": "open-swarm",
+        "host_label": "",
+        "base_url": "",
+        "ui_url": "",
+        "api_key": "${SWARM_API_TOKEN}",
+        "health_path": "/health",
+        "version_path": "/health",
+        "notes": "Nested Open Swarm remote. Add a base URL; send lands in a later REQ.",
     },
 }
 
@@ -164,10 +206,12 @@ class RemoteSpec:
             "health_path": self.health_path,
             "version_path": self.version_path,
             "notes": self.notes,
+            "kind": self.id,
+            "label": kind_label(self.id),
             "source": self.source,
             "member": {
                 "kind": "remote",
-                "talk": _TOOL_NAMES[self.id],
+                "talk": _TOOL_NAMES.get(self.id, ""),
                 "via": "as_tool",
                 "place_in": "Team (handoff members — not /teams/ profile aliases)",
             },
@@ -246,16 +290,35 @@ def _normalize_base_url(url: str) -> str:
     return raw
 
 
+def kind_label(remote_id: str) -> str:
+    """UI kind label. OpenMousBot for ``omb`` — never the letters OMB."""
+    rid = (remote_id or "").strip().lower()
+    rid = _KIND_ALIASES.get(rid, rid)
+    return REMOTE_KIND_LABELS.get(rid, rid)
+
+
+def list_remote_kinds() -> list[dict[str, str]]:
+    """Kinds the user can add. Unused kinds do not appear as catalog rows."""
+    return [{"id": kid, "label": REMOTE_KIND_LABELS[kid]} for kid in REMOTE_KIND_IDS]
+
+
 def default_spec(remote_id: str) -> RemoteSpec:
-    rid = _require_id(remote_id)
+    rid = _require_kind_id(remote_id)
     raw = dict(_DEFAULTS[rid])
     return RemoteSpec(id=rid, source="default", **raw)
 
 
-def _require_id(remote_id: str) -> str:
+def _require_kind_id(remote_id: str) -> str:
     rid = (remote_id or "").strip().lower()
-    aliases = {"openmausbot": "omb", "openmaus": "omb", "rakoza": "rakazo"}
-    rid = aliases.get(rid, rid)
+    rid = _KIND_ALIASES.get(rid, rid)
+    if rid not in REMOTE_KIND_IDS:
+        raise RemoteError(f"Unknown remote '{remote_id}'. Known: {', '.join(REMOTE_KIND_IDS)}")
+    return rid
+
+
+def _require_id(remote_id: str) -> str:
+    """Operate/health trio. Extra kinds use ``_require_kind_id``."""
+    rid = _require_kind_id(remote_id)
     if rid not in REMOTE_IDS:
         raise RemoteError(f"Unknown remote '{remote_id}'. Known: {', '.join(REMOTE_IDS)}")
     return rid
@@ -288,7 +351,7 @@ def load_raw_config(config_path: str | Path | None = None) -> tuple[dict[str, An
 
 def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteSpec:
     """Defaults ← swarm_config.json remotes ← env (env wins)."""
-    rid = _require_id(remote_id)
+    rid = _require_kind_id(remote_id)
     spec = default_spec(rid)
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     block = (cfg.get("remotes") or {}).get(rid) if isinstance(cfg.get("remotes"), dict) else None
@@ -297,11 +360,13 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
         for key in ("title", "host_label", "base_url", "ui_url", "api_key", "cookie", "health_path", "version_path", "notes"):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
-    env_base = os.environ.get(_ENV_BASE[rid], "").strip()
+    env_base_key = _ENV_BASE.get(rid)
+    env_base = os.environ.get(env_base_key, "").strip() if env_base_key else ""
     if env_base:
         spec.base_url = env_base
         spec.source = "env"
-    env_key = os.environ.get(_ENV_KEY[rid], "").strip()
+    env_key_name = _ENV_KEY.get(rid)
+    env_key = os.environ.get(env_key_name, "").strip() if env_key_name else ""
     if env_key:
         spec.api_key = env_key
     env_ui = _ENV_UI.get(rid)
@@ -327,6 +392,34 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
 def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     return {rid: load_remote(rid, cfg) for rid in REMOTE_IDS}
+
+
+def configured_remote_ids(config: dict[str, Any] | None = None) -> list[str]:
+    """Remote kind ids the user (or env) has actually added. Defaults do not count."""
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    remotes = cfg.get("remotes") if isinstance(cfg.get("remotes"), dict) else {}
+    ids: list[str] = []
+    for key in remotes:
+        if not isinstance(remotes.get(key), dict):
+            continue
+        try:
+            rid = _require_kind_id(str(key))
+        except RemoteError:
+            continue
+        if rid not in ids:
+            ids.append(rid)
+    for rid, env_name in _ENV_BASE.items():
+        if os.environ.get(env_name, "").strip() and rid not in ids:
+            ids.append(rid)
+    order = {kid: index for index, kid in enumerate(REMOTE_KIND_IDS)}
+    ids.sort(key=lambda item: order.get(item, len(order)))
+    return ids
+
+
+def list_configured_remotes(config: dict[str, Any] | None = None) -> list[RemoteSpec]:
+    """Opt-in catalog: empty until the user adds a remote (REQ-59)."""
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    return [load_remote(rid, cfg) for rid in configured_remote_ids(cfg)]
 
 
 def load_placed_members(config: dict[str, Any] | None = None) -> list[str]:
@@ -440,7 +533,7 @@ def persist_remote(
     config_path: str | Path | None = None,
 ) -> tuple[RemoteSpec, Path]:
     """Merge fields into ``remotes.<id>`` and write swarm_config.json."""
-    rid = _require_id(remote_id)
+    rid = _require_kind_id(remote_id)
     cfg, path = load_raw_config(config_path)
     remotes = cfg.setdefault("remotes", {})
     if not isinstance(remotes, dict):
@@ -469,6 +562,31 @@ def persist_remote(
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
     logger.info("Persisted remotes.%s to %s", rid, path)
     return load_remote(rid, cfg), path
+
+
+def delete_remote(
+    remote_id: str,
+    *,
+    config_path: str | Path | None = None,
+) -> tuple[str, Path]:
+    """Remove ``remotes.<id>`` so the kind disappears from Settings / dropdowns."""
+    rid = _require_kind_id(remote_id)
+    cfg, path = load_raw_config(config_path)
+    remotes = cfg.get("remotes") if isinstance(cfg.get("remotes"), dict) else {}
+    if rid not in remotes:
+        raise RemoteError(f"Remote '{rid}' is not configured")
+    remotes = dict(remotes)
+    remotes.pop(rid, None)
+    cfg["remotes"] = remotes
+    team = cfg.get("agent_team") if isinstance(cfg.get("agent_team"), dict) else None
+    if isinstance(team, dict) and isinstance(team.get("members"), list):
+        team = dict(team)
+        team["members"] = [item for item in team["members"] if str(item).strip().lower() != rid]
+        cfg["agent_team"] = team
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
+    logger.info("Deleted remotes.%s from %s", rid, path)
+    return rid, path
 
 
 def _auth_headers(spec: RemoteSpec) -> dict[str, str]:
@@ -957,7 +1075,14 @@ def operate(
             return _hermes_list(spec, timeout) if action == "list" else _hermes_send(spec, prompt, timeout)
         if rid == "omb":
             return _omb_list(spec, timeout) if action == "list" else _omb_send(spec, prompt, target, timeout)
-        return _rakazo_list(spec, timeout) if action == "list" else _rakazo_send(spec, prompt, target, timeout)
+        if rid == "rakazo":
+            return _rakazo_list(spec, timeout) if action == "list" else _rakazo_send(spec, prompt, target, timeout)
+        return OperateResult(
+            remote=rid,
+            op=action,
+            ok=False,
+            detail=f"{kind_label(rid)} list/send is not implemented here",
+        )
     except Exception as exc:  # never let operate take down the process
         logger.warning("remotes.operate failed for %s %s: %s", remote_id, op, exc)
         return OperateResult(

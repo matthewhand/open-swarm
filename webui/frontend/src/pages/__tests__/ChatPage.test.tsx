@@ -413,7 +413,8 @@ describe('ChatPage computer-control stub (REQ-27b)', () => {
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
     expect(dialog).toHaveClass('modal-open')
-    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OMB or Rakazo remote/)
+    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OpenMousBot or Rakazo remote/)
+    expect(dialog.textContent).not.toMatch(/\bOMB\b/)
     expect(dialog).toHaveTextContent(/not implemented here/i)
   })
 })
@@ -740,6 +741,71 @@ function stubTeamAndBlueprints() {
   )
 }
 
+describe('ChatPage remotes dropdown (REQ-59)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists only configured remotes plus Add remote', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/remotes')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              kinds: [
+                { id: 'hermes', label: 'Hermes' },
+                { id: 'omb', label: 'OpenMousBot' },
+                { id: 'rakazo', label: 'Rakazo' },
+              ],
+              configured: [
+                {
+                  id: 'omb',
+                  kind: 'omb',
+                  label: 'OpenMousBot',
+                  title: 'OpenMousBot',
+                  host_label: '',
+                  base_url: 'http://127.0.0.1:8802',
+                  source: 'config',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const select = await screen.findByRole('combobox', { name: 'Remote' })
+    const options = within(select)
+      .getAllByRole('option')
+      .map((opt) => opt.textContent)
+    expect(options).toContain('OpenMousBot')
+    expect(options).toContain('Add remote')
+    expect(options).not.toContain('Hermes')
+    expect(options).not.toContain('Rakazo')
+    expect(options).not.toContain('OMB')
+    expect(select.textContent).not.toMatch(/\bOMB\b/)
+  })
+})
+
 describe('ChatPage team member dropdown', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
@@ -758,7 +824,7 @@ describe('ChatPage team member dropdown', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox')
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
     expect(select).not.toHaveAccessibleName('Blueprint')
     const options = within(select).getAllByRole('option')
     expect(options.map((opt) => opt.textContent)).toEqual([
@@ -791,7 +857,9 @@ describe('ChatPage team member dropdown', () => {
       params: { team: 'demo-team', target: 'all' },
     })
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'codey' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'codey' },
+    })
     fireEvent.change(composer, { target: { value: 'just codey' } })
     fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
 
@@ -810,7 +878,7 @@ describe('ChatPage team member dropdown', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox')
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
     const options = within(select).getAllByRole('option')
     expect(options[options.length - 1]).toHaveValue('__manage__')
     expect(options[options.length - 1]).toHaveTextContent('Manage Teams')
