@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } from 'lucide-react'
 import ChatPage from './pages/ChatPage'
@@ -26,6 +26,17 @@ function initialTheme(): Theme {
   return 'dark'
 }
 
+function applyDocumentTheme(theme: Theme) {
+  if (typeof document === 'undefined') return
+  const value = theme === 'dark' ? 'dark' : 'light'
+  const bg = theme === 'dark' ? '#0c0c0c' : '#f4f4f5'
+  document.documentElement.setAttribute('data-theme', value)
+  document.documentElement.style.backgroundColor = bg
+  if (document.body) document.body.style.backgroundColor = bg
+}
+
+applyDocumentTheme(initialTheme())
+
 /**
  * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
  * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
@@ -34,6 +45,10 @@ function initialTheme(): Theme {
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useLayoutEffect(() => {
+    applyDocumentTheme(darkMode)
+  }, [darkMode])
 
   useEffect(() => {
     try {

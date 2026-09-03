@@ -28,9 +28,30 @@
 }
 
 /* ---- page shell --------------------------------------------------------- */
+html {
+  background: #0c0c0c;
+  min-height: 100%;
+}
+html[data-os-theme="light"] {
+  background: #f4f4f5;
+}
 body {
   background: var(--os-bg);
   color: var(--os-text);
+}
+/* Operator pages: column chrome matching SPA Chat (header, then AGENTS+main).
+   Must beat any leftover flex-centering so the header stays in the first
+   viewport and the sidepane docks flush left — no reserved gutter. */
+body.os-app {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  margin: 0;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--os-bg);
+  background-image: none;
 }
 main { min-height: calc(100vh - 56px); }
 
@@ -455,9 +476,18 @@ html[data-os-theme="light"] .os-navbar .nav-link.active {
   align-items: center;
   justify-content: center;
 }
+.os-header {
+  flex: 0 0 auto;
+  width: 100%;
+  z-index: 1030;
+}
 .os-shell {
   display: flex;
+  flex-direction: row;
   align-items: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: calc(100vh - 56px);
 }
 .os-agent-sidebar {
@@ -468,6 +498,7 @@ html[data-os-theme="light"] .os-navbar .nav-link.active {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 html[data-os-theme="light"] .os-agent-sidebar {
   background: #ececee;
@@ -522,9 +553,22 @@ html[data-os-theme="light"] .os-agent-sidebar {
   border-radius: 0.65rem;
   color: var(--os-text-strong);
   text-decoration: none;
+  min-width: 0;
 }
 .os-agent-item:hover { background: var(--os-panel-2); color: var(--os-text-strong); }
-.os-agent-item__name { display: block; font-size: 0.88rem; font-weight: 650; }
+.os-agent-item__text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.os-agent-item__name {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .os-agent-item__desc {
   display: block;
   font-size: 0.75rem;
@@ -532,7 +576,7 @@ html[data-os-theme="light"] .os-agent-sidebar {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 12rem;
+  max-width: 100%;
 }
 .os-agent-dot {
   width: 0.7rem;
@@ -615,6 +659,7 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-main {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   padding: 1rem 1.15rem 1.5rem;
 }
 @media (max-width: 991.98px) {

@@ -92,6 +92,36 @@ class TestUxShellTemplateContracts:
         # demoted under More dropdown.
         assert 'id="moreNavDropdown"' in html
 
+    @pytest.mark.parametrize(
+        "path",
+        ("/teams/", "/sessions/", "/settings/", "/blueprint-library/"),
+    )
+    def test_operator_pages_use_chat_matched_shell(self, client, path):
+        """REQ-5d: Django tabs share Chat chrome — header then AGENTS+main, no login body."""
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(
+            username="uxreq5d" + path.strip("/").replace("/", "_"),
+            password="ux-req5d-pass",
+        )
+        client.force_login(user)
+        response = client.get(path)
+        assert response.status_code == 200, path
+        html = response.content.decode()
+        assert 'class="os-app"' in html
+        assert 'class="os-header sticky-top"' in html
+        assert 'class="os-shell"' in html
+        assert 'id="os-agent-sidebar"' in html
+        assert 'id="os-main"' in html
+        header_at = html.find('class="os-header sticky-top"')
+        shell_at = html.find('class="os-shell"')
+        sidebar_at = html.find('id="os-agent-sidebar"')
+        main_at = html.find('id="os-main"')
+        assert 0 <= header_at < shell_at < sidebar_at < main_at
+        assert "os-login" not in html
+        for label in ("Home", "Chat", "Blueprints", "Teams", "Sessions", "Settings"):
+            assert label in html
+
     def test_profiles_marks_profiles_item_active_not_teams(self, client):
         import re
 
