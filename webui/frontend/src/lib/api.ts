@@ -107,6 +107,18 @@ async function throwApiError(path: string, response: Response): Promise<never> {
   throw new ApiError(response.status, message)
 }
 
+/** Session/bearer fetch used by Agent Router (`agent-api.ts`). */
+export async function fetchWithAuth(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = {
+    ...buildHeaders(Boolean(init.body)),
+    ...(init.headers as Record<string, string> | undefined),
+  }
+  return fetch(path, { ...init, headers, credentials: 'include' })
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(path, { headers: buildHeaders(false) })
 
