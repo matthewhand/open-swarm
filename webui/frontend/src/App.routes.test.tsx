@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App, { chatPathWithSearch } from './App'
 
@@ -63,39 +63,21 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders composer + connection status at /chat', async () => {
+  it('renders composer + silent healthy status at /chat', async () => {
     renderAppAt('/chat')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
     expect(window.location.pathname).toBe('/chat')
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Connection status')).toHaveTextContent('Connected')
-    const chatItems = screen.getAllByRole('menuitem', { name: /Chat/ })
-    expect(chatItems.length).toBeGreaterThan(0)
-    for (const item of chatItems) {
-      expect(item).toHaveAttribute('href', '/chat')
-    }
+    expect(screen.getByLabelText('Connection status')).toHaveTextContent('')
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Chat$/ })).not.toBeInTheDocument()
   })
 
-  it('mounts Agent Router at /agents', async () => {
+  it('keeps /agents as Agent Router (not an alias of /chat)', async () => {
     renderAppAt('/agents')
     expect(window.location.pathname).toBe('/agents')
-    expect(await screen.findByRole('complementary', { name: 'Agent sidebar' })).toBeInTheDocument()
-  })
-
-  it('keeps Agents in the primary nav and parks the rest under More', () => {
-    renderAppAt('/agents')
-    const primary = screen.getByRole('navigation', { name: 'Primary' })
-    expect(primary.querySelector('a[href="/agents"]')).toBeTruthy()
-    const more = screen.getAllByRole('button', { name: 'More' })
-    expect(more.length).toBeGreaterThan(0)
-    const chatItems = screen.getAllByRole('menuitem', { name: /Chat/ })
-    expect(chatItems.length).toBeGreaterThan(0)
-    for (const item of chatItems) {
-      expect(item).toHaveAttribute('href', '/chat')
-    }
-    const blueprintItems = screen.getAllByRole('menuitem', { name: /Blueprints/ })
-    expect(blueprintItems[0]).toHaveAttribute('href', '/blueprint-library/')
+    expect(screen.getByLabelText('Agent sidebar')).toBeInTheDocument()
   })
 })

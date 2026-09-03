@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
+import { ToastProvider } from '../../components/DaisyUI'
+import { resetConversationThreads } from '../../lib/chatMeter'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -21,7 +23,10 @@ class MockWebSocket {
     this.onclose?.(new CloseEvent('close', { code: 1000 }))
   })
 
-  constructor(_url: string) {
+  url: string
+
+  constructor(url: string) {
+    this.url = url
     MockWebSocket.instances.push(this)
   }
 
@@ -52,9 +57,11 @@ function renderChat(initialEntry = '/chat') {
   })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <ChatPage />
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <ChatPage />
+        </MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -88,6 +95,7 @@ describe('ChatPage reconnect focus', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('does not auto-focus the composer on the initial connect', async () => {
@@ -147,9 +155,10 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
-  it('disables send while connecting and announces status via aria-live', async () => {
+  it('disables send while connecting and stays silent when healthy', async () => {
     renderChat()
 
     const statusRegion = screen.getByRole('status', { name: 'Connection status' })
@@ -158,20 +167,19 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
 
     const composer = screen.getByRole('textbox', { name: 'Chat message' })
     expect(composer).toBeDisabled()
-    expect(composer).toHaveAttribute(
-      'placeholder',
-      expect.stringMatching(/Connecting/i),
-    )
+    expect(composer).toHaveAttribute('placeholder', 'Message …')
     expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled()
+    expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
 
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
 
     await waitFor(() => {
-      expect(statusRegion).toHaveTextContent(/^Connected$/)
+      expect(composer).not.toBeDisabled()
     })
-    expect(composer).not.toBeDisabled()
+    expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
+    expect(statusRegion).toHaveTextContent('')
   })
 
   it('shows session-cookie Sign-in CTA when the server closes with 4401', async () => {
@@ -190,12 +198,6 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     const statusRegion = screen.getByRole('status', { name: 'Connection status' })
     expect(statusRegion).toHaveTextContent(/Unavailable — sign in required/i)
     expect(screen.getByText(/session cookie/i)).toBeInTheDocument()
-    expect(screen.getByText(/REST API bearer token/i)).toBeInTheDocument()
-    // Fixed-height chat column must not flex-shrink the Unavailable CTA away.
-    const unavailableAlert = screen
-      .getAllByRole('alert')
-      .find((el) => /sign in required/i.test(el.textContent || ''))
-    expect(unavailableAlert?.className).toMatch(/shrink-0/)
   })
 
   it('does not blame login when the socket never opens (ASGI/network)', async () => {
@@ -227,7 +229,7 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
   })
 })
 
-describe('ChatPage blueprint query-param honesty', () => {
+describe('ChatPage agent header (no blueprint dropdown)', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
@@ -236,9 +238,10 @@ describe('ChatPage blueprint query-param honesty', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
-  it('keeps an unknown ?blueprint= preselect and warns honestly', async () => {
+  it('uses the ?blueprint= id as the chat header without a catalog dropdown', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -256,20 +259,11 @@ describe('ChatPage blueprint query-param honesty', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    expect(select).toHaveValue('just_launched_team')
-    expect(
-      screen.getByRole('option', { name: /just_launched_team \(not in list\)/i }),
-    ).toBeInTheDocument()
-
-    const honesty = await screen.findByRole('alert')
-    expect(honesty).toHaveTextContent(/not in the discoverable list/i)
-    expect(honesty).toHaveTextContent('just_launched_team')
-    expect(honesty).toHaveTextContent(/reply errors/i)
-    expect(honesty).toHaveTextContent(/does not fall back to the default model/i)
+    expect(await screen.findByRole('heading', { name: 'just_launched_team' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
   })
 
-  it('does not warn when the ?blueprint= id is discoverable', async () => {
+  it('shows the discoverable agent name in the header', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -287,9 +281,8 @@ describe('ChatPage blueprint query-param honesty', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    expect(select).toHaveValue('codey')
-    expect(screen.queryByText(/not in the discoverable list/i)).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Codey' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
   })
 })
 
@@ -310,6 +303,7 @@ describe('ChatPage Send button honesty while streaming', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('keeps a real Send control (no busy spinner) while an assistant reply streams', async () => {
@@ -354,6 +348,7 @@ describe('ChatPage auto-reconnect backoff', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('reconnects with backoff after unexpected drop, and skips auth 4401', async () => {
@@ -403,6 +398,7 @@ describe('ChatPage markdown bubbles', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('defaults /chat to Support with a quiet system pill, not a transcript dump', async () => {
@@ -447,42 +443,13 @@ describe('ChatPage markdown bubbles', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    await waitFor(() => {
-      expect(select).toHaveValue('support')
-    })
-
+    expect(screen.getByRole('heading', { name: 'Support' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
     expect(screen.queryByText('Connected and ready')).not.toBeInTheDocument()
     expect(screen.queryByText(/Welcome —/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Inference/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Gate/)).not.toBeInTheDocument()
-
-    const pill = await screen.findByRole('button', { name: /System → Support/ })
-    expect(pill).toHaveAttribute('aria-expanded', 'false')
-    expect(pill).toHaveClass('os-handoff-chip--system')
-
-    const newTeam = screen.getByRole('link', { name: 'New team' })
-    expect(newTeam).toHaveAttribute('href', '/teams/launch/')
-    expect(screen.getByRole('link', { name: 'Set inference' })).toHaveAttribute(
-      'href',
-      '/settings/',
-    )
-    expect(screen.getByRole('link', { name: 'Write blueprint' })).toHaveAttribute(
-      'href',
-      '/agent-creator/',
-    )
-
-    fireEvent.click(pill)
-    expect(pill).toHaveAttribute('aria-expanded', 'true')
-    const briefingEl = await screen.findByTestId('support-briefing')
-    expect(briefingEl).toHaveTextContent(/Agents/)
-    expect(briefingEl).toHaveTextContent(/Support/)
-    expect(briefingEl).toHaveTextContent(/Inference/)
-    expect(briefingEl).toHaveTextContent(/Gate/)
-    expect(briefingEl).toHaveTextContent(/Skeptic/)
-    expect(briefingEl.closest('.chat-bubble')).toBeNull()
-    expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
   })
 
   it('renders assistant markdown (bold/code) in the bubble', async () => {
@@ -559,5 +526,59 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(screen.queryByText(/Empty trash/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Disk used/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('ChatPage Grok composer and per-agent threads', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('uses a pill composer with + operator menu and mic', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toHaveAttribute(
+      'placeholder',
+      'Message …',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('menuitem', { name: 'Blueprints' })).toHaveAttribute(
+      'href',
+      '/blueprint-library/',
+    )
+    expect(screen.getByRole('menuitem', { name: 'Teams' })).toHaveAttribute('href', '/teams/launch/')
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings/')
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
+  })
+
+  it('opens a unique websocket thread per agent', async () => {
+    const first = renderChat('/chat?blueprint=codey')
+    expect(MockWebSocket.instances[0]?.url).toContain('/ws/ai-demo/')
+    const codeyUrl = MockWebSocket.instances[0]!.url
+    first.unmount()
+
+    renderChat('/chat?blueprint=stewie')
+    const stewieUrl = MockWebSocket.instances[MockWebSocket.instances.length - 1]!.url
+    expect(stewieUrl).toContain('/ws/ai-demo/')
+    expect(stewieUrl).not.toBe(codeyUrl)
   })
 })

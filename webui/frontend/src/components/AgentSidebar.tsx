@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Eye, EyeOff, LifeBuoy, ScanSearch, Settings, Shield, Users, X } from 'lucide-react'
+import { Eye, EyeOff, Pin, PinOff, Plug, Search, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
   agentMarkIndex,
@@ -9,35 +17,54 @@ import {
   loadHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
-import { isSupportAgent, roleTone, sortSupportFirst } from '../lib/supportAgents'
+import { defaultHostname, loadHostname, saveHostname } from '../lib/hostname'
+import {
+  endAgentDrag,
+  loadPinnedAgents,
+  parseAgentDragPayload,
+  pinAgent,
+  type PinnedAgent,
+  unpinAgent,
+  writeAgentDragPayload,
+} from '../lib/pinnedAgents'
+import {
+  agentLabel,
+  defaultBlueprintId,
+  isSupportAgent,
+  supportFirstAgents,
+} from '../lib/supportAgent'
+import { openSearchPalette } from './SearchPalette'
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
   open?: boolean
   onClose?: () => void
+  onOpenSearch?: () => void
 }
 
 interface ContextMenuState {
   agentId: string
   agentName: string
   hidden: boolean
+  pinned: boolean
   x: number
   y: number
 }
 
-function agentLabel(agent: Blueprint): string {
-  return agent.name || agent.id
-}
-
-export default function AgentSidebar({ open = false, onClose }: AgentSidebarProps) {
+export default function AgentSidebar({ open = false, onClose, onOpenSearch }: AgentSidebarProps) {
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
-  const selectedId = pathname.startsWith('/chat') ? (searchParams.get('blueprint') ?? '') : ''
+  const selectedId = defaultBlueprintId(
+    pathname.startsWith('/chat') || pathname === '/' ? searchParams.get('blueprint') : '',
+  )
 
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenAgentIds())
+  const [pins, setPins] = useState<PinnedAgent[]>(() => loadPinnedAgents())
   const [hiddenOpen, setHiddenOpen] = useState(false)
-  const [filter, setFilter] = useState('')
+  const [pluginsOpen, setPluginsOpen] = useState(false)
+  const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [dropActive, setDropActive] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   const blueprintsQuery = useQuery({
@@ -45,43 +72,23 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     queryFn: fetchBlueprints,
     retry: 1,
   })
-  const agents = blueprintsQuery.data?.data ?? []
-
-  const matchesFilter = useCallback(
-    (agent: Blueprint) => {
-      const q = filter.trim().toLowerCase()
-      if (!q) return true
-      return (
-        agentLabel(agent).toLowerCase().includes(q) ||
-        agent.id.toLowerCase().includes(q) ||
-        (agent.description || '').toLowerCase().includes(q)
-      )
-    },
-    [filter],
-  )
+  const agents = supportFirstAgents(blueprintsQuery.data?.data ?? [])
 
   const visibleAgents = useMemo(
-    () =>
-      sortSupportFirst(
-        agents.filter(
-          (agent) =>
-            (isSupportAgent(agent) || !hiddenIds.includes(agent.id)) && matchesFilter(agent),
-        ),
-      ),
-    [agents, hiddenIds, matchesFilter],
+    () => agents.filter((agent) => !hiddenIds.includes(agent.id)),
+    [agents, hiddenIds],
   )
   const hiddenAgents = useMemo(
-    () =>
-      sortSupportFirst(
-        agents.filter(
-          (agent) =>
-            !isSupportAgent(agent) && hiddenIds.includes(agent.id) && matchesFilter(agent),
-        ),
-      ),
-    [agents, hiddenIds, matchesFilter],
+    () => agents.filter((agent) => hiddenIds.includes(agent.id)),
+    [agents, hiddenIds],
   )
 
   const closeMenu = useCallback(() => setMenu(null), [])
+
+  const openPalette = useCallback(() => {
+    onOpenSearch?.()
+    openSearchPalette()
+  }, [onOpenSearch])
 
   useEffect(() => {
     if (!menu) return
@@ -105,13 +112,14 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     event.preventDefault()
     const pad = 8
     const width = 200
-    const height = 44
+    const height = 88
     const x = Math.min(event.clientX, window.innerWidth - width - pad)
     const y = Math.min(event.clientY, window.innerHeight - height - pad)
     setMenu({
       agentId: agent.id,
       agentName: agentLabel(agent),
       hidden,
+      pinned: pins.some((pin) => pin.id === agent.id),
       x: Math.max(pad, x),
       y: Math.max(pad, y),
     })
@@ -123,53 +131,60 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
   }
 
   const unhideAgent = (id: string) => {
-    setHiddenIds((current) => unhideAgentId(id, current))
+    setHiddenIds((current) => {
+      const next = unhideAgentId(id, current)
+      if (next.length === 0) setHiddenOpen(false)
+      return next
+    })
     closeMenu()
+  }
+
+  const togglePin = (agent: { id: string; name: string }) => {
+    setPins((current) =>
+      current.some((pin) => pin.id === agent.id)
+        ? unpinAgent(agent.id, current)
+        : pinAgent(agent, current),
+    )
+    closeMenu()
+  }
+
+  const dropPin = (event: ReactDragEvent) => {
+    event.preventDefault()
+    setDropActive(false)
+    const payload = parseAgentDragPayload(event.dataTransfer)
+    endAgentDrag()
+    if (!payload) return
+    setPins((current) => pinAgent(payload, current))
   }
 
   const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
     const name = agentLabel(agent)
     const active = selectedId === agent.id
-    const tone = roleTone(agent)
-    const pinned = isSupportAgent(agent)
+    const support = isSupportAgent(agent)
     return (
       <Link
         to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`os-agent-row flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-          tone ? `os-agent-row--${tone}` : ''
-        } ${
-          active
-            ? 'bg-base-300/70 text-base-content'
-            : 'text-base-content/90 hover:bg-base-300/40'
+        className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+          support ? 'os-agent-row--support' : ''
         }`}
-        data-role={tone || undefined}
         aria-current={active ? 'page' : undefined}
-        onClick={onClose}
-        onContextMenu={(event) => {
-          if (pinned) return
-          openMenu(event, agent, hidden)
+        draggable={!hidden}
+        onDragStart={(event) => {
+          writeAgentDragPayload(event.dataTransfer, { id: agent.id, name })
+          event.dataTransfer.effectAllowed = 'copy'
         }}
+        onDragEnd={() => endAgentDrag()}
+        onClick={onClose}
+        onContextMenu={(event) => openMenu(event, agent, hidden)}
       >
-        {tone === 'support' ? (
-          <LifeBuoy className="os-agent-role-mark mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        ) : tone === 'gate' ? (
-          <Shield className="os-agent-role-mark mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        ) : tone === 'skeptic' ? (
-          <ScanSearch className="os-agent-role-mark mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        ) : (
-          <span
-            className="os-agent-dot mt-1.5"
-            data-mark={String(agentMarkIndex(agent.id))}
-            aria-hidden="true"
-          />
-        )}
+        <span
+          className="os-agent-dot mt-1.5"
+          data-mark={String(agentMarkIndex(agent.id))}
+          data-role={support ? 'support' : undefined}
+          aria-hidden="true"
+        />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            {tone ? (
-              <span className={`os-role-pill os-role-pill--${tone}`}>{tone}</span>
-            ) : null}
-          </span>
+          <span className="block truncate text-sm font-semibold leading-5">{name}</span>
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}
@@ -182,7 +197,6 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
 
   return (
     <>
-      {/* Mobile overlay */}
       <button
         type="button"
         className={`fixed inset-0 z-30 bg-black/50 lg:hidden ${open ? '' : 'hidden'}`}
@@ -191,18 +205,15 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
       />
 
       <aside
-        className={`os-agent-sidebar fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col pt-14 transition-transform duration-200 lg:static lg:z-0 lg:translate-x-0 lg:pt-0 ${
+        className={`os-agent-sidebar fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col transition-transform duration-200 lg:static lg:z-0 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Agents"
       >
-        <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-3 lg:pt-3">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-base-content/45">
-            Agents
-          </p>
+        <div className="flex items-center justify-end px-3 pt-3 lg:hidden">
           <button
             type="button"
-            className="btn btn-ghost btn-xs btn-circle lg:hidden"
+            className="btn btn-ghost btn-xs btn-circle"
             aria-label="Close agents sidebar"
             onClick={onClose}
           >
@@ -210,29 +221,75 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
           </button>
         </div>
 
-        <div className="px-3 pb-2">
-          <label className="sr-only" htmlFor="os-agent-filter">
-            Filter agents
+        <div className="px-3 pb-2 pt-3">
+          <label className="sr-only" htmlFor="os-rail-search">
+            Search
           </label>
-          <input
-            id="os-agent-filter"
-            type="search"
-            className="input input-sm h-9 w-full rounded-full border border-base-300 bg-base-100/40 text-sm"
-            placeholder="Search agents"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          />
+          <div className="os-rail-search">
+            <Search className="h-3.5 w-3.5 shrink-0 text-base-content/40" aria-hidden="true" />
+            <input
+              id="os-rail-search"
+              type="search"
+              className="os-rail-search__input"
+              placeholder="Search"
+              readOnly
+              autoComplete="off"
+              onFocus={(event) => {
+                event.currentTarget.blur()
+                openPalette()
+              }}
+              onClick={openPalette}
+            />
+          </div>
+        </div>
+
+        <div
+          className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''}`}
+          aria-label="Pinned agents"
+          onDragOver={(event) => {
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'copy'
+            setDropActive(true)
+          }}
+          onDragLeave={() => setDropActive(false)}
+          onDrop={dropPin}
+        >
+          {pins.map((pin) => (
+            <Link
+              key={pin.id}
+              to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
+              className="os-fav-tile"
+              title={pin.name}
+              aria-label={pin.name}
+              onClick={onClose}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                setMenu({
+                  agentId: pin.id,
+                  agentName: pin.name,
+                  hidden: hiddenIds.includes(pin.id),
+                  pinned: true,
+                  x: event.clientX,
+                  y: event.clientY,
+                })
+              }}
+            >
+              <span
+                className="os-agent-dot"
+                data-mark={String(agentMarkIndex(pin.id))}
+                aria-hidden="true"
+              />
+            </Link>
+          ))}
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
           {blueprintsQuery.isPending ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
-          ) : blueprintsQuery.isError ? (
+          ) : blueprintsQuery.isError && visibleAgents.length === 0 ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
           ) : visibleAgents.length === 0 ? (
-            <p className="px-2 py-3 text-sm text-base-content/45">
-              {agents.length === 0 ? 'No agents yet.' : 'No matching agents.'}
-            </p>
+            <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
           ) : (
             <ul className="space-y-0.5">
               {visibleAgents.map((agent) => (
@@ -242,59 +299,138 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
           )}
 
           {hiddenAgents.length > 0 && (
-            <div className="mt-3 border-t border-base-300/70 pt-2">
-              <button
-                type="button"
-                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-[0.06em] text-base-content/45 hover:bg-base-300/30"
-                aria-expanded={hiddenOpen}
-                onClick={() => setHiddenOpen((value) => !value)}
-              >
-                {hiddenOpen ? (
-                  <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
-                Hidden
-                <span className="font-normal normal-case tracking-normal">({hiddenAgents.length})</span>
-              </button>
-              {hiddenOpen && (
-                <ul className="mt-1 space-y-0.5">
-                  {hiddenAgents.map((agent) => (
-                    <li key={agent.id} className="flex items-start gap-1">
-                      {renderAgentLink(agent, true)}
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs mt-1.5 text-base-content/60"
-                        aria-label={`Unhide ${agentLabel(agent)}`}
-                        onClick={() => unhideAgent(agent.id)}
-                      >
-                        <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <button
+              type="button"
+              className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/30 hover:text-base-content/80"
+              aria-haspopup="dialog"
+              aria-expanded={hiddenOpen}
+              onClick={() => setHiddenOpen(true)}
+            >
+              {hiddenAgents.length} hidden
+            </button>
           )}
         </nav>
 
-        <div className="mt-auto border-t border-base-300/70 px-3 py-3 text-sm text-base-content/60">
-          <a href="/teams/" className="flex items-center gap-2 rounded-md px-1 py-1.5 hover:text-base-content">
-            <Users className="h-4 w-4" aria-hidden="true" />
-            Teams
-          </a>
-          <a href="/settings/" className="flex items-center gap-2 rounded-md px-1 py-1.5 hover:text-base-content">
-            <Settings className="h-4 w-4" aria-hidden="true" />
-            Settings
-          </a>
+        <div className="mt-auto border-t border-base-300/70 px-3 py-3">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-sm text-base-content/60 hover:bg-base-300/30 hover:text-base-content"
+            onClick={() => setPluginsOpen(true)}
+          >
+            <Plug className="h-4 w-4" aria-hidden="true" />
+            Plugins
+          </button>
+          <label className="sr-only" htmlFor="os-rail-hostname">
+            Hostname
+          </label>
+          <input
+            id="os-rail-hostname"
+            type="text"
+            className="os-rail-hostname"
+            value={hostname}
+            spellCheck={false}
+            onChange={(event) => setHostname(event.target.value)}
+            onBlur={() => setHostname(saveHostname(hostname))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.currentTarget.blur()
+              }
+              if (event.key === 'Escape') {
+                setHostname(loadHostname() || defaultHostname())
+                event.currentTarget.blur()
+              }
+            }}
+          />
         </div>
       </aside>
+
+      {hiddenOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-50 bg-black/45"
+            aria-label="Close hidden agents"
+            onClick={() => setHiddenOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="os-hidden-agents-title"
+            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="os-hidden-agents-title" className="text-sm font-semibold">
+                Hidden agents
+              </h2>
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle"
+                aria-label="Close hidden agents"
+                onClick={() => setHiddenOpen(false)}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            {hiddenAgents.length === 0 ? (
+              <p className="text-sm text-base-content/60">No hidden agents.</p>
+            ) : (
+              <ul className="space-y-1">
+                {hiddenAgents.map((agent) => (
+                  <li key={agent.id} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      aria-label={`Unhide ${agentLabel(agent)}`}
+                      onClick={() => unhideAgent(agent.id)}
+                    >
+                      Unhide
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+
+      {pluginsOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-50 bg-black/45"
+            aria-label="Close plugins"
+            onClick={() => setPluginsOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="os-plugins-title"
+            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="os-plugins-title" className="text-sm font-semibold">
+                Plugins
+              </h2>
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle"
+                aria-label="Close plugins"
+                onClick={() => setPluginsOpen(false)}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <p className="text-sm text-base-content/60">No plugins installed.</p>
+          </div>
+        </>
+      )}
 
       {menu && (
         <div
           ref={menuRef}
           role="menu"
-          aria-label={menu.hidden ? `Actions for hidden ${menu.agentName}` : `Actions for ${menu.agentName}`}
+          aria-label={`Actions for ${menu.agentName}`}
           className="fixed z-50 min-w-[12.5rem] rounded-lg border border-base-300 bg-neutral py-1 text-sm shadow-xl"
           style={{ left: menu.x, top: menu.y }}
         >
@@ -319,6 +455,19 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
               Hide from sidebar
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+            onClick={() => togglePin({ id: menu.agentId, name: menu.agentName })}
+          >
+            {menu.pinned ? (
+              <PinOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Pin className="h-4 w-4" aria-hidden="true" />
+            )}
+            {menu.pinned ? 'Unpin' : 'Pin'}
+          </button>
         </div>
       )}
     </>
