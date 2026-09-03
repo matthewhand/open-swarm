@@ -18,72 +18,64 @@
     <script defer src="{% static 'contrib/prism/prism.min.js' %}"></script>
     <script defer src="{% static 'contrib/prism/prism-python.min.js' %}"></script>
     <script src="{% static 'js/chrome_theme.js' %}"></script>
+    <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body class="os-app">
+    {% csrf_token %}
     <a class="visually-hidden-focusable btn btn-sm btn-primary position-absolute top-0 start-0 m-2 z-3" href="#os-main">Skip to main content</a>
     {% with path=request.path %}
     <header class="os-header sticky-top">
-        <nav class="navbar navbar-expand-lg navbar-dark os-navbar py-1" aria-label="Primary">
+        <nav class="navbar navbar-dark os-navbar py-1" aria-label="Primary">
             <div class="os-navbar-inner">
                 <button type="button" class="os-sidebar-toggle d-lg-none" id="os-sidebar-open" aria-label="Open agents sidebar">
                     <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
-                <a class="navbar-brand fw-semibold" href="/">Open Swarm</a>
-
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    {# Primary IA matches SPA Home: Home · Chat · Blueprints · Teams · Sessions · Settings #}
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link {% if path == '/' %}active{% endif %}"
-                               href="/" {% if path == '/' %}aria-current="page"{% endif %}>Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if path == '/chat' or path|slice:':6' == '/chat/' %}active{% endif %}"
-                               href="/chat" {% if path == '/chat' or path|slice:':6' == '/chat/' %}aria-current="page"{% endif %}>Chat</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}active{% endif %}"
-                               href="/blueprint-library/"
-                               {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}aria-current="page"{% endif %}>Blueprints</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if path|slice:':7' == '/teams/' %}active{% endif %}"
-                               href="/teams/launch/"
-                               {% if path|slice:':7' == '/teams/' %}aria-current="page"{% endif %}>Teams</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if path|slice:':10' == '/sessions/' %}active{% endif %}"
-                               href="/sessions/"
-                               {% if path|slice:':10' == '/sessions/' %}aria-current="page"{% endif %}>Sessions</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}active{% endif %}"
-                               href="/settings/"
-                               {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}aria-current="page"{% endif %}>Settings</a>
-                        </li>
-                    </ul>
-                    <ul class="navbar-nav ms-lg-auto align-items-lg-center">
-                        <li class="nav-item">
-                            <button type="button" class="os-theme-toggle nav-link" id="os-theme-toggle"
-                                    aria-label="Switch to light theme">Light</button>
-                        </li>
-                        <li class="nav-item dropdown d-none d-lg-block">
-                            <a class="nav-link dropdown-toggle opacity-75" href="#" id="moreNavDropdown"
-                               role="button" data-bs-toggle="dropdown" aria-expanded="false">More</a>
-                            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="moreNavDropdown">
-                                <li>
-                                    <a class="dropdown-item" href="https://github.com/matthewhand/open-swarm"
-                                       target="_blank" rel="noopener noreferrer">GitHub</a>
-                                </li>
-                            </ul>
-                        </li>
-                    </ul>
-                </div>
+                <a class="navbar-brand fw-semibold" href="/" aria-label="Home"><i class="fas fa-robot" aria-hidden="true"></i></a>
+                <ul class="navbar-nav flex-row flex-nowrap align-items-center gap-1 me-auto mb-0">
+                    <li class="nav-item">
+                        <a class="nav-link {% if path == '/agents' or path|slice:':8' == '/agents/' %}active{% endif %}"
+                           href="/agents"
+                           {% if path == '/agents' or path|slice:':8' == '/agents/' %}aria-current="page"{% endif %}>Agents</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav flex-row flex-nowrap align-items-center gap-1 ms-auto mb-0">
+                    <li class="nav-item">
+                        <button type="button" class="os-theme-toggle nav-link" id="os-theme-toggle"
+                                aria-label="Switch to light theme">Light</button>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if path == '/chat' or path|slice:':6' == '/chat/' or '/blueprint' in path or path|slice:':7' == '/teams/' or path|slice:':10' == '/sessions/' or path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}active{% endif %}"
+                           href="#" id="moreNavDropdown" role="button" data-bs-toggle="dropdown"
+                           data-bs-display="static" aria-expanded="false" aria-haspopup="true">More</a>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="moreNavDropdown">
+                            <li>
+                                <a class="dropdown-item {% if path == '/chat' or path|slice:':6' == '/chat/' %}active{% endif %}"
+                                   href="/chat">Chat</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}active{% endif %}"
+                                   href="/blueprint-library/">Blueprints</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if path|slice:':7' == '/teams/' %}active{% endif %}"
+                                   href="/teams/launch/">Teams</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if path|slice:':10' == '/sessions/' %}active{% endif %}"
+                                   href="/sessions/">Sessions</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}active{% endif %}"
+                                   href="/settings/">Settings</a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="https://github.com/matthewhand/open-swarm"
+                                   target="_blank" rel="noopener noreferrer">GitHub</a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
         </nav>
     </header>
@@ -92,9 +84,8 @@
     <div class="os-shell">
         <button type="button" class="os-sidebar-backdrop" id="os-sidebar-backdrop" hidden aria-label="Close agents sidebar"></button>
         <aside class="os-agent-sidebar" id="os-agent-sidebar" aria-label="Agents">
-            <div class="os-agent-sidebar__head">
-                <p class="os-agent-sidebar__kicker">Agents</p>
-                <button type="button" class="os-sidebar-close d-lg-none" id="os-sidebar-close" aria-label="Close agents sidebar">
+            <div class="os-agent-sidebar__head d-lg-none">
+                <button type="button" class="os-sidebar-close" id="os-sidebar-close" aria-label="Close agents sidebar">
                     <i class="fas fa-xmark" aria-hidden="true"></i>
                 </button>
             </div>
@@ -113,6 +104,7 @@
                 </div>
             </nav>
             <div class="os-agent-sidebar__foot">
+                <button type="button" class="os-agent-hide-all" id="os-agent-hide-all">Hide all</button>
                 <a href="/teams/"><i class="fas fa-users" aria-hidden="true"></i> Teams</a>
                 <a href="/settings/"><i class="fas fa-gear" aria-hidden="true"></i> Settings</a>
             </div>
@@ -124,32 +116,43 @@
         </main>
     </div>
 
-    {# Mobile primary tabs — match SPA five-tab dock; Settings stays header/gear. #}
+    {# Mobile primary: Agents + More popup (Chat/Blueprints/Teams/Sessions/Settings). #}
     {% with path=request.path %}
     <nav class="os-bottom-nav d-lg-none" aria-label="Mobile primary">
-        <a class="os-bottom-nav__item {% if path == '/' %}is-active{% endif %}"
-           href="/" {% if path == '/' %}aria-current="page"{% endif %}>
-            <span class="os-bottom-nav__label">Home</span>
+        <a class="os-bottom-nav__item {% if path == '/agents' or path|slice:':8' == '/agents/' %}is-active{% endif %}"
+           href="/agents" {% if path == '/agents' or path|slice:':8' == '/agents/' %}aria-current="page"{% endif %}>
+            <span class="os-bottom-nav__label">Agents</span>
         </a>
-        <a class="os-bottom-nav__item {% if path == '/chat' or path|slice:':6' == '/chat/' %}is-active{% endif %}"
-           href="/chat" {% if path == '/chat' or path|slice:':6' == '/chat/' %}aria-current="page"{% endif %}>
-            <span class="os-bottom-nav__label">Chat</span>
-        </a>
-        <a class="os-bottom-nav__item {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}is-active{% endif %}"
-           href="/blueprint-library/"
-           {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}aria-current="page"{% endif %}>
-            <span class="os-bottom-nav__label">Blueprints</span>
-        </a>
-        <a class="os-bottom-nav__item {% if path|slice:':7' == '/teams/' %}is-active{% endif %}"
-           href="/teams/launch/"
-           {% if path|slice:':7' == '/teams/' %}aria-current="page"{% endif %}>
-            <span class="os-bottom-nav__label">Teams</span>
-        </a>
-        <a class="os-bottom-nav__item {% if path|slice:':10' == '/sessions/' %}is-active{% endif %}"
-           href="/sessions/"
-           {% if path|slice:':10' == '/sessions/' %}aria-current="page"{% endif %}>
-            <span class="os-bottom-nav__label">Sessions</span>
-        </a>
+        <div class="dropup os-bottom-nav__more">
+            <button type="button"
+                    class="os-bottom-nav__item os-bottom-nav__more-btn {% if path == '/chat' or path|slice:':6' == '/chat/' or '/blueprint' in path or path|slice:':7' == '/teams/' or path|slice:':10' == '/sessions/' or path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}is-active{% endif %}"
+                    id="moreNavDropdownMobile" data-bs-toggle="dropdown" data-bs-display="static"
+                    aria-expanded="false" aria-haspopup="true" aria-label="More">
+                <span class="os-bottom-nav__label">More</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="moreNavDropdownMobile">
+                <li>
+                    <a class="dropdown-item {% if path == '/chat' or path|slice:':6' == '/chat/' %}active{% endif %}"
+                       href="/chat">Chat</a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if '/blueprint' in path or '/agent-creator' in path or '/team-creator' in path %}active{% endif %}"
+                       href="/blueprint-library/">Blueprints</a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if path|slice:':7' == '/teams/' %}active{% endif %}"
+                       href="/teams/launch/">Teams</a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if path|slice:':10' == '/sessions/' %}active{% endif %}"
+                       href="/sessions/">Sessions</a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if path|slice:':10' == '/settings/' or path|slice:':10' == '/profiles/' %}active{% endif %}"
+                       href="/settings/">Settings</a>
+                </li>
+            </ul>
+        </div>
     </nav>
     {% endwith %}
     <script src="{% static 'js/agent_sidebar.js' %}"></script>

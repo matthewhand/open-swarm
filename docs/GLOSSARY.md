@@ -8,14 +8,26 @@ Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.
 
 A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed).
 
-## Team (live vs intended)
+## Team (handoff members — REQ-11)
 
-| | Meaning |
-|---|---|
-| **Live today** (`/teams/`, `/v1/teams`) | A named **LLM-profile alias** in `teams.json` (`id`, `description`, `llm_profile`). CRUD via the JSON API and Django `/teams/` admin/launcher. Surfaces as a model id and proxies chat through `DynamicTeamBlueprint` — one profile, no graph. |
-| **Intended** | A Team **wires** API / CLI / remote agents so they can **see and talk to each other** (openai-agents handoff / `as_tool`). Same composition axis as the [VISION](./VISION.md) harness-of-harnesses turn. |
+A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo, nested open-swarm) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`, `consult_swarm`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`. Nested swarm is a network remote (own process, own DB); do not auto-add this instance as its own remote.
 
-**Do not claim Teams Admin already does inter-agent talk.** Multi-agent talk that works today is a **Blueprint** or **MoA** / persona pattern — not `/teams/`. Do not call `/v1/teams` aliases “MoA teams” or “persona teams.”
+This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
+
+## Profiles (`/teams/` — name collision)
+
+`/v1/teams/` and the Django `/teams/` admin store **LLM-profile aliases** (`id`, `description`, `llm_profile`) in `teams.json`. They run through `DynamicTeamBlueprint` — a thin chat proxy to a profile. Prefer calling that surface **Profiles** in new copy. Do not call those aliases a Team.
+
+## Team roster (composition) / Chief of Staff
+
+A **team roster** (`team_rosters.json`, `/v1/team-rosters/`) is a composition
+of members `{id, kind: api\|cli\|remote\|team\|herdr, role, source}`. This is
+**not** the `/v1/teams` alias. `kind=team` + `team_id` nests a child roster.
+
+**Isolation (REQ-28):** members of Team A cannot `handoff` / `as_tool` to Team B
+unless B is a **direct child** of A or the caller is `chief_of_staff` (`cos`,
+`chief`). Parent talks to the child team as one member (send-to-all on the
+child), not automatically every grandchild. See [TEAM_ISOLATION.md](./TEAM_ISOLATION.md).
 
 ## Persona / MoA
 
@@ -26,17 +38,7 @@ Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):
 | **MoA** (Mixture of Agents) | Read-only participant seats → orchestrator determination → optional act / scripted `--team` specialists (`swarm.core.moa`, `swarm-cli moa`). |
 | **Persona** (agent-as-tool swarm) | A coordinator switches specialists via the `openai-agents` SDK (handoffs / `as_tool()`). Includes blueprints such as `persona_council` (diverse-lens consensus). |
 
-## Harness / Remote / Role (direction)
-
-Intended vocabulary for the harness-of-harnesses turn. See [VISION.md](./VISION.md).
-
-| Name | Meaning | Honesty |
-|------|---------|---------|
-| **Harness** | An agent runtime you already run (Hermes, OpenMausBot, Rakazo, or an agentic CLI). Open Swarm's intended job is to *compose* those. | Live today: wrap **CLIs** (`cli_agent` / fusion) and in-process openai-agents specialists. `/teams/` is not that composition. |
-| **Remote** (REQ-11) | A first-class connection to another harness, invoked by handoff / `as_tool` — not another concurrent Grok/OMB/Rakazo seat. | **Not landed.** Chat has no Remote selector. `harness_fleet` is LAN health probes only. Do not claim remotes work. |
-| **Role** (`support` / `gate` / `skeptic`) | Seats in an openai-agents graph (`as_tool` / handoff). Support talks about the roster; gate classifies a pending tool call; skeptic reviews then bounded retry. | **In flight.** Not on `main`. Assigning a role is not an extra concurrent worker. |
-
-**Grok-Bot-like UI** (roster + remotes + Bot chrome) is intended, **not live**. REQ-5 dark chrome on `main` is colour/shell only.
+Do not call `/v1/teams` aliases “MoA teams” or “persona teams.”
 
 ## CLI Fusion
 
@@ -45,6 +47,14 @@ Wrapping installed agentic CLIs (`grok` / `claude` / `gemini` / …) behind the 
 ## Session
 
 A stateful `/v1/responses` record (and related conversation/delegation data) owned by an operator or API-token principal. The Django **Session Explorer** at `/sessions/` is a read-only observability UI over those records — not a chat composer.
+
+## CLI session
+
+An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id file). Open Swarm stores it next to the chat thread (`cli_sessions`) and passes it back so the CLI restores its own context (REQ-52). Not a Django `conversation_id`, not a `/v1/responses` Session, and not OS `start_new_session` (process-group kill). Remotes keep the remote’s session.
+
+## Herdr member (`kind=herdr`)
+
+A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
 
 ## Operator UI vs SPA Chat
 

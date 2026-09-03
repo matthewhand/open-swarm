@@ -3,9 +3,7 @@
 > **Live status board** — per-feature evidence for what is shipped, partial, or
 > planned. Last updated: **2026-08-18**. Nested checklist:
 > [ROADMAP.md](./ROADMAP.md); release notes: [CHANGELOG.md](./CHANGELOG.md).
-> Product direction + live-vs-intended honesty: [docs/VISION.md](./docs/VISION.md)
-> (remotes and Grok-Bot chrome are **not** claimed here). The original 2026-06-10
-> point-in-time audit is archived at
+> The original 2026-06-10 point-in-time audit is archived at
 > [docs/archive/FEATURE_STATUS_2026-06-10.md](./docs/archive/FEATURE_STATUS_2026-06-10.md).
 
 Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded (exists, not wired) · 📋 planned (flags/docs only) · ❌ broken/fake/dead · 🗑 removed
@@ -39,7 +37,8 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | `/v1/chat/completions` SSE streaming | ✅ | `chat_views.py:128-162` `_handle_streaming` yields `text/event-stream` + `[DONE]`; `test_post_streaming_success` asserts Content-Type `text/event-stream` (`test_chat_views.py:214-241`) |
 | `/v1/models` | ✅ | `urls.py:56-57` → `OpenAIModelsView`; `tests/views/test_api_views.py::TestModelsListView` (5 tests) pass in isolation |
 | `/v1/blueprints` + custom CRUD | ✅ | `urls.py:58-61` (`BlueprintsListView`, `CustomBlueprintsView`, `CustomBlueprintDetailView`); 33 tests in `tests/views/test_api_views.py` incl. create/patch/delete custom blueprints |
-| `/v1/teams/` JSON Teams API | ✅ | `views/teams_api.py` list/create/delete over `teams.json`. **Live honesty:** each team is an LLM-profile alias (`id`/`description`/`llm_profile`) via `DynamicTeamBlueprint` — **not** inter-agent talk. **Intended** Team (wire API/CLI/remotes via handoff / `as_tool`) is in [VISION](./docs/VISION.md) / [GLOSSARY](./docs/GLOSSARY.md); Teams Admin does not do that. Tests: `tests/views/test_teams_api.py` |
+| `/v1/teams/` JSON Teams API | ✅ | `views/teams_api.py` list/create/delete over `teams.json`. **Honesty:** prefer **Profiles** — each entry is an LLM-profile alias (`id`/`description`/`llm_profile`) via `DynamicTeamBlueprint`, **not** a REQ-11 Team. Handoff Team is `/v1/agent-team/`. `/teams/` admin banner documents the collision. Tests: `tests/views/test_teams_api.py` |
+| Team rosters + CoS isolation (REQ-28) | 🟡 | Composition store `team_rosters.json` + `/v1/team-rosters/` (`kind` includes `team` / `herdr`). Role `chief_of_staff` (`cos`/`chief`) ice-steel rail badge. Isolation: no cross-team handoff/`as_tool` unless nested child team (send-to-all as one member) or CoS. **Honesty:** Django `/teams/` stays aliases. Tests: `tests/core/test_team_isolation.py`, `test_agent_roles.py`, `test_team_rosters.py` |
 | WebSocket chat consumer | ✅ | ROUTED 2026-06-11: `swarm/asgi.py` (ProtocolTypeRouter + AuthMiddlewareStack + origin validator) + `swarm/routing.py` (`ws/ai-demo/<id>/`); daphne+channels in INSTALLED_APPS; session-cookie auth only (Settings API bearer does **not** auth WS); anonymous accept-then-close **4401**; tests in `tests/test_asgi_routing.py` / `tests/test_consumers.py` |
 
 ## 4. Web UI — Django templates + HTMx (operator UI) — ✅ 6 · 🗑 2
@@ -49,7 +48,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | Feature | Status | Evidence |
 |---|---|---|
 | Index/dashboard | ✅ | `web_views.index` serves SPA `dist/index.html` when present, else Django `index.html`; `tests/views/test_web_views.py::TestIndexView`. After pull: `make frontend`. Docker multi-stage Node bake; CI `frontend` job runs `scripts/build_frontend.sh` |
-| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; same `teams.json` **LLM-profile alias** registry as `/v1/teams/`. **Not** inter-agent talk — that is Blueprints/MoA today; intended Team is [VISION](./docs/VISION.md). **Auth:** `team_admin` + `teams_export` are `@login_required`; `team_launcher` stays public |
+| Teams (launch/admin/export) | ✅ | `urls.py` → `team_launcher`/`team_admin`/`teams_export` at `/teams/launch/`, `/teams/`, `/teams/export`; same `teams.json` LLM-profile alias registry as `/v1/teams/` (not a multi-agent builder — [GLOSSARY](./docs/GLOSSARY.md)). **Auth:** `team_admin` + `teams_export` are `@login_required`; `team_launcher` stays public |
 | Blueprint library (+ my-blueprints) | ✅ | `views/blueprint_library_views.py` renders `blueprint_library.html`; routes under `/blueprint-library/`; `tests/views/test_blueprint_library_views.py`. **Auth:** browse + add/remove/creator/avatar mutators are `@login_required` (CSRF on POSTs). **Creator:** POST writes under `get_user_blueprints_dir()` (+ JSON catalog); discovery opt-in via `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY`. **Runner:** My Blueprints posts to `/v1/chat/completions` (+ links to `/chat?blueprint=` and `/teams/launch/`) |
 | Agent creator | ✅ | `/agent-creator/` + generate/validate/save in `views/agent_creator_views.py`. **Auth:** GET page is public; generate/validate/save mutators are `@login_required`. **Codegen:** `AgentPersonaGenerator` emits `AsyncOpenAI` + `chat.completions.create(stream=True)` (same contract as library `generate_blueprint_code`; no `chat_completion_stream`) — `tests/unit/test_agent_creator_codegen.py` |
 | Agent Creator Pro | 🗑 removed | **Deleted** (was unwired clickware). `/agent-creator-pro/` soft-redirects to `/agent-creator/` (query preserved). View/template/JS/CSS removed; redirect kept in `urls.py`. |
@@ -58,15 +57,20 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | 🗑 removed | Deleted 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 
-## 5. Web UI — React SPA (`webui/frontend`) — 🔲 1 · 🟡 1 · 🗑 3
+## 5. Web UI — React SPA (`webui/frontend`) — 🔲 2 · 🟡 1 · 🗑 3
 
-Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts **only** `/` (dashboard) and `/chat`. Teams / Blueprints / Settings / Builder / AgentCreator SPA pages were **deleted** (not quarantined for remount). Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app.
+Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts `/` + `/chat` as Grok-Bot (selected agent's chat) and **`/agents` as Agent Router** (own chrome). Teams / Blueprints / Settings / Builder / AgentCreator SPA pages were **deleted** (not quarantined for remount). Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` continue to **redirect to Django** when served behind the app. Django operator pages are reached from the composer **+** menu, not a top tab bar.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; dashboard + chat still use these. |
-| Dashboard (`/`) + Chat (`/chat`) | 🟡 | `App.tsx` routes only these two; desktop nav Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings); **mobile five-tab dock** Home·Chat + Django hrefs (Blueprints·Teams·Sessions) — Settings is desktop top-nav/gear only (matches `mobile/*.png`). Home uses large chrome action cards (Launch Team / Browse Blueprints / Manage Teams / Settings). ChatPage WS via ASGI; needs Django **session cookie** (bearer does **not** auth websockets). Anonymous sockets close **4401**. Safe GFM markdown (`marked` + `htmlSafe`) + WS auto-reconnect (skips 4401). |
-| Agent sidepane hide | ✅ | SPA `AgentSidebar` + Django `agent_sidebar.js` list `/v1/blueprints` agents; right-click **Hide from sidebar** moves an item into expandable Hidden; Unhide restores it. Persist `localStorage.swarm_hidden_agents` (no hide-all). Shared on Home, Chat, Blueprints, Teams, Sessions, Settings. |
+| DaisyUI component library | 🔲 | 13 components built (`src/components/DaisyUI/*.tsx`: Alert, Badge, Button, Card, FormValidation, Input, Loading, Modal, Pagination, Select, Tabs, Textarea, Toast; 13 exports in `index.ts`); builds to `dist/`. Primary operator chrome is Django; SPA chat chrome uses these. |
+| Grok-Bot chrome (`/` + `/chat`) | 🟡 | Left rail + chat-only main (no Home/Chat/Blueprints/Teams/Settings top nav; no mobile five-tab dock). Rail: Search command palette, unlabeled favourite tiles, Support-first conversations, CLI verify rows (`grok_agent` / `agy_agent` / `opencode_agent` / `pi_agent`), hidden-agents popup (Unhide, no hide-all), Plugins, editable hostname. Header is agent name + icon tools (theme is an icon, not a Light text button). Gear (`Open settings`) opens a DaisyUI `modal` + `modal-end` settings sheet (Remotes catalog starts empty + Add remote / Retention / Hostname / LLM profiles) — Settings is not a top-nav or dock eject to Django. Kind label is OpenMousBot (id `omb`). Django `/settings/` remains the operator dump (REQ-14 chat count / disk / trash). Composer pill `[+] Compact [ Message … ] [mic]` (REQ-37; leftover operator links removed from `+`). Footer is tokens / who+how-long. Errors toast; no standing Connected. Per-agent websocket threads persist as JSON (`SWARM_CHAT_DIR`); Chat silently restores on reload / agent switch. Retention (counts, disk, trash, `SWARM_CHAT_MAX_AGE_DAYS`) is **Settings-only**. ChatPage WS via ASGI; needs Django **session cookie** (bearer does **not** auth websockets). Anonymous sockets close **4401**. Safe GFM markdown (`marked` + `htmlSafe`) + WS auto-reconnect (skips 4401). |
+| Agent Router (`/agents`) | 🟡 | Own chrome (typed Support/CLI/API/Remote starters, REST `/v1/agents/`). Not aliased to `/chat`. Nested inside the same App shell as the Grok rail today (possible double rail until a later split). |
+| Nested compact / summaries (REQ-37) | ✅ | `ConversationSummary` on local Django sqlite (`span`, `parent_summary_id`, `body`). `POST /chat/compact/` + `GET /chat/thread/` summaries. Consumer walks the summary tree for model context; raw JSON / `ChatMessage` stay. SPA `+` Compact; `.chat-summary` bordered blocks nest. Tests: `tests/core/test_chat_compact.py`, `chatCompact.test.ts`, ChatPage compact menu. No Neon. |
+| Role hover-edit → Blueprint settings (REQ-25) | ✅ | Rail rows with role `support` / `gate` / `skeptic` reveal a focusable pencil on hover (default-role rows stay clean). Enter/click opens DaisyUI `modal-end` Settings sheet at `#os-blueprint-editor` for that blueprint id. Editor shows Python via `highlightPython` / `os-code-python` (gate YES/NO, skeptic retry, support Socratic). Links live `blueprint_support.py` / `tool_gate` / `skeptic` when the source API lists them. Does **not** open the Teams drop-zone. Tests: `AgentSidebar.test.tsx`, `SettingsSheet.test.tsx`, `e2e/chrome.spec.ts`. |
+| Computer control chrome stub (REQ-27b) | 🔲 | SPA Grok chat header **Chat tools** toolbar (top-right): Monitor icon labeled **Computer control** opens a DaisyUI WIP modal (OpenMousBot/Rakazo remote later). Icon may look muted; stays clickable. No driver/E2B/CUA/xdotool/CDP; not attached to agent tools; no enable-that-drives-a-machine. `webui/frontend/src/components/ComputerControlStub.tsx`; tests in `ComputerControlStub.test.tsx`, `ChatPage.test.tsx`, `e2e/chrome.spec.ts`. |
+| Agent sidepane hide | ✅ | SPA `AgentSidebar` lists `/v1/blueprints` agents (Support first); first load seeds Hidden with gate + skeptic catalog ids (REQ-26) unless `localStorage.swarm_hidden_agents` already exists. Native HTML5 drag from any rail row — including role seats support/gate/skeptic — onto the end-of-list **Hidden** drop zone (`os-drop-target`, `data-drag-over`; empty state still shows “drop here to hide”). Persist `localStorage.swarm_hidden_agents` (no hide-all). Hide wins: the row leaves the conversation list **and** the favourite pin grid. Context-menu **Hide from sidebar** remains for a11y; **N hidden** popup is Unhide-only. Pin/Unpin + drag onto the favourite grid (`localStorage.swarm_pinned_agents`). |
+| Teams in AGENTS sidepane (REQ-23) | ✅ | Team rows mix with agents after Support (Users icon + Team badge). Click opens `/chat?team=<id>` as that team's thread. Unlabeled dropdown: **All members**, then `name (kind/role)`, last **Manage Teams**. Send params `{team, target: "all"\|memberId}`; consumer stubs the runtime. Data from `team_rosters.json` / `GET /v1/team-rosters/` — **not** Django LLM-alias `/v1/teams/`. Empty/missing → one demo-team stub. |
 | TeamsPage / BlueprintsPage / SettingsPage | 🗑 deleted | Deleted from the SPA tree (ADR-001). Canonical UI: `/teams/launch/`, `/blueprint-library/`, `/settings/`. Bare paths redirect to Django; SPA `*` → `/`. |
 | BuilderPage / AgentCreatorPage | 🗑 deleted | Removed (same cut). Do not remount. Canonical creator UI is Django `/agent-creator/`. |
 | Orphan Builder React panels | 🗑 deleted | Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + unused AuthContext removed; `@uiw/react-codemirror` deps dropped. Pure helpers remain in `src/lib/{inferenceProfile,skills,toolCapabilities}.ts`. |
@@ -149,11 +153,29 @@ one-shot, API-addressable subagents. See `docs/CLI_FUSION.md`.
 | Auth autodiscovery | ✅ | `CliAgentConfig.auth_check` + `discover_auth()` + `--check-auth` (PR 3) |
 | Full-capability panelists + workdir isolation | ✅ | Yolo-flag example adapters; `cli_fusion.isolate_workdir` git-worktree/temp-dir isolation (PR 4); isolation tests incl. real-git end-to-end |
 | Built-in adapter catalog + `--suggest` | ✅ | `src/swarm/core/cli_catalog.py`; `swarm-cli cli-agents --suggest`; `tests/core/test_cli_catalog.py` (PR 5) |
+| CLI session resume (REQ-52) | ✅ | Per-CLI `--resume` / `--session` / `exec resume` in `cli_catalog.SESSION`; id stored on the chat thread (`cli_sessions`); honest new-session line; `tests/core/test_cli_sessions.py`, fixture two-turn resume in `tests/blueprints/test_cli_agent.py` |
 | Non-interactive smoke probe + `--smoke` | ✅ | `CliAdapter.smoke_check()` / `smoke_check_all()`; classifies ok/hang/error/not_installed (PR 6) |
 | End-to-end API coverage | ✅ | `tests/api/test_cli_fusion_api.py`: real panel→synthesize and `params` selection over `/v1/chat/completions` (PR 7) |
 
 Remaining v0.4.0 work (PRs 8–13): not yet specced; version bump + CHANGELOG + tag
 deferred to the release PR.
+
+---
+
+## 11b. Remote harnesses (Hermes / OMB / Rakazo / swarm) — ✅ config+health · 🟡 operate
+
+Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone.
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `PATCH /v1/remotes/<id>/`; Settings group **Remote Harnesses** |
+| Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops |
+| Hermes operate | ✅ | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`, `POST /v1/runs` (Bearer `API_SERVER_KEY`) |
+| OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OMB source clone) |
+| Rakazo operate | 🟡 | `GET /health` public; `POST /rpc/bots/list` + `/rpc/threads/send` need Better Auth session — honest 401 + gap flag |
+| Nested swarm operate (REQ-57) | ✅ | Catalog id `swarm` (alias `open-swarm`). List `GET /v1/blueprints/`; send `POST /v1/chat/completions/`. Default stub `http://127.0.0.1:9`. `persist_remote` refuses this process listen URL. Not auto-placed. |
+| Agent-as-tool Team members | ✅ | Remotes are Team members (`consult_hermes`/`consult_omb`/`consult_rakazo`/`consult_swarm`) that see/talk via as_tool — **not** `/teams/` LLM-profile aliases. `GET /v1/remotes/` returns `vocabulary` + `team_members` |
+| Place remotes in a Team | ✅ | Persist `agent_team.members`; `swarm-cli remotes team\|place\|unplace`; `GET/PATCH /v1/agent-team/`; `remote_harness` attaches `as_tool` only for **placed** members |
 
 ---
 
@@ -164,6 +186,14 @@ deferred to the release PR.
 | Consensus → scripted team (Grok panel; no live Runner default) | ✅ | `run_moa_consensus` / `run_moa_then_team` / `TeamTask` in `swarm.core.moa.team`; live seats via `GrokParticipantBackend`; CLI `swarm-cli moa --team --workdir`; `moa_orchestrator` → `run_moa_agents_orchestrator` is scripted specialists by default — not a live openai-agents `Runner` (optional only via `build_moa_orchestrator_agents`). Soft `--team` failure still prints payload then exit 1 + `MoA team soft-fail:…` on stderr (`format_team_text` does not relabel as “consensus only”). Docs: `docs/MOA.md`. |
 
 ---
+
+## 13. Herdr connectivity (REQ-21) — ✅
+
+| Feature | Status | Evidence |
+|---|---|---|
+| `herdr` CLI wrapper | ✅ | `src/swarm/herdr/client.py` — workspace/agent list, agent read, `agent prompt TARGET TEXT` (one argv), wait-until idle\|working\|blocked\|done. Empty remote omits `--remote`. Tests mock the binary: `tests/herdr/test_herdr_client.py` (includes spaces in TEXT + proven `w3:p1` / `HERDR_PING_OK` → `agent_prompted`) |
+| Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. SQLite default (no DATABASE_URL / Neon) |
+| Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
 
 ## Regeneration
 

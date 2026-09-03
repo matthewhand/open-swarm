@@ -10,7 +10,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -62,6 +62,16 @@ def _safe_post_login_redirect(request, next_url: str | None) -> str:
     ):
         return fallback
     return candidate
+
+
+def asgi_file_response(path: Path, content_type: str) -> HttpResponse:
+    """Buffer a file into HttpResponse.
+
+    Django 4.2 FileResponse.streaming_content is a map(); ASGI/Daphne then
+    TypeErrors on async-for and can leave CurrentThreadExecutor dead so later
+    requests hang (LAN GET / looks like a hung launch). See issue #425.
+    """
+    return HttpResponse(path.read_bytes(), content_type=content_type)
 
 
 def _get_frontend_path():
@@ -132,7 +142,7 @@ def spa_chat(request):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             logger.debug("Serving SPA Chat from %s", index_file)
-            return FileResponse(open(index_file, "rb"), content_type="text/html")
+            return asgi_file_response(index_file, "text/html")
     return HttpResponse("Not Found", status=404)
 
 
@@ -144,7 +154,7 @@ def index(request):
         index_file = frontend_path / "index.html"
         if index_file.exists():
             logger.debug("Serving static frontend from " + str(index_file))
-            return FileResponse(open(index_file, 'rb'), content_type='text/html')
+            return asgi_file_response(index_file, "text/html")
 
     # Fallback to Django template rendering
     logger.debug("Rendering index page with Django templates")
@@ -277,6 +287,36 @@ def serve_swarm_config(_request):
 
 def _webui_enabled() -> bool:
     return is_enable_webui()
+
+
+_DEMO_TEAM_ROSTER = {
+    "id": "demo-team",
+    "object": "team_roster",
+    "name": "Demo Team",
+    "description": "Example multi-agent roster",
+    "members": [
+        {"id": "codey", "name": "Codey", "kind": "agent", "role": "coder"},
+        {"id": "stewie", "name": "Stewie", "kind": "agent", "role": "ops"},
+    ],
+}
+
+
+def team_rosters_json(request):
+    """Serve team_rosters.json for the AGENTS sidepane (not /v1/teams/ aliases)."""
+    candidates = [
+        Path("webui/frontend/public/team_rosters.json"),
+        Path("webui/frontend/dist/team_rosters.json"),
+        Path("src/swarm/static/team_rosters.json"),
+    ]
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        return JsonResponse(payload, safe=False)
+    return JsonResponse({"object": "list", "data": [_DEMO_TEAM_ROSTER]})
 
 
 def team_launcher(request):
@@ -451,7 +491,22 @@ def team_admin(request):
         return redirect("teams_admin")
 
     teams = list(load_dynamic_registry().values())
-    return render(request, "teams_admin.html", {"teams": teams, **_profiles_ctx()})
+    return render(
+        request,
+        "teams_admin.html",
+        {"teams": teams, **_profiles_ctx(), **_herdr_members_ctx()},
+    )
+
+
+def _herdr_members_ctx():
+    """Persisted Herdr members (kind=herdr) for Teams to pick."""
+    try:
+        from swarm.models import HerdrAgent
+
+        return {"herdr_agents": list(HerdrAgent.objects.all().order_by("name"))}
+    except Exception:
+        logger.exception("Error loading Herdr members for Teams")
+        return {"herdr_agents": []}
 
 
 def _profiles_ctx():

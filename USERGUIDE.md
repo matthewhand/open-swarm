@@ -25,10 +25,9 @@ here is verified against `swarm-cli --help`.
 > Session vs Bearer, websocket **4401**, and Explorer bridge:
 > **[docs/AUTH.md](./docs/AUTH.md)**.
 > **`/v1/teams` / Django `/teams/`** register **LLM-profile aliases**
-> (`id`/`description`/`llm_profile`). Teams Admin does **not** let agents
-> talk to each other — that is Blueprints / MoA today. Intended Team
-> (wire API/CLI/remotes via handoff / `as_tool`): [docs/VISION.md](./docs/VISION.md)
-> · [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
+> (prefer **Profiles**: `id`/`description`/`llm_profile`). A **Team** is
+> API/CLI/remote members that see/talk via handoff (`/v1/agent-team/`) —
+> see [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
 > `scripts/capture_user_journey.py`.
 
 ---

@@ -403,6 +403,37 @@ body.os-login button[type="submit"]:focus-visible {
   white-space: nowrap;
 }
 
+.chat-retention-card {
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.chat-retention-subhead {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.chat-retention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chat-retention-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--os-border);
+}
+
+.chat-retention-row .os-meta {
+  display: block;
+}
+
 .configuration-progress {
   margin-top: 1.5rem;
 }

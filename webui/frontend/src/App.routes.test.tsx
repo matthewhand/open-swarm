@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App, { chatPathWithSearch } from './App'
 
@@ -63,31 +63,21 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders composer + connection status at /chat', async () => {
+  it('renders composer + silent healthy status at /chat', async () => {
     renderAppAt('/chat')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
     expect(window.location.pathname).toBe('/chat')
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Connection status')).toHaveTextContent('Connected')
-    const chatLinks = screen.getAllByRole('link', { name: 'Chat' })
-    expect(chatLinks.length).toBeGreaterThan(0)
-    for (const link of chatLinks) {
-      expect(link).toHaveAttribute('href', '/chat')
-    }
+    expect(screen.getByLabelText('Connection status')).toHaveTextContent('')
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Chat$/ })).not.toBeInTheDocument()
   })
 
-  it('aliases /agents onto /chat and keeps the composer', async () => {
-    renderAppAt('/agents?blueprint=codey')
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/chat')
-    })
-    expect(window.location.search).toBe('?blueprint=codey')
-    await act(async () => {
-      MockWebSocket.instances[0]?.open()
-    })
-    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Connection status')).toHaveTextContent('Connected')
+  it('keeps /agents as Agent Router (not an alias of /chat)', async () => {
+    renderAppAt('/agents')
+    expect(window.location.pathname).toBe('/agents')
+    expect(screen.getByLabelText('Agent sidebar')).toBeInTheDocument()
   })
 })

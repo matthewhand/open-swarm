@@ -11,7 +11,7 @@
 
 Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python). Derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm) (see [Attribution](#acknowledgements--attribution)).
 
-**Elevator pitch:** define a team once — as a *blueprint* — and run it as a CLI, a compiled executable, or an OpenAI-compatible API. The **intended** product is a harness *for other harnesses* (Hermes, OpenMausBot, Rakazo) via openai-agents handoff / `as_tool`, not extra concurrent Grok/OMB seats. Remotes and Grok-Bot chrome are **not** live — see [Vision](docs/VISION.md).
+**Elevator pitch:** define a team of AI agents once — as a *blueprint* — and run it anywhere: as a local CLI command, a compiled standalone executable, or behind an OpenAI-compatible API that any OpenAI client, SDK, or chat UI can talk to. Web dashboard, live websocket chat, MCP tool integration, and opt-in agent memory included.
 
 <div align="center">
 <img src="docs/screenshots/landing.png" alt="Open Swarm dashboard" width="85%"/>
@@ -25,7 +25,7 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 
 > **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 1100+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
-> 🧭 **Start with the [Vision](docs/VISION.md)** — harness-of-harnesses direction, differentiator (handoff / `as_tool` vs poly-agent concurrent), and a short **live vs intended** table (Teams Admin is an alias registry, not inter-agent talk; Grok-Bot UI not live; Support/gate/skeptic in flight; remotes REQ-11 not landed). Pattern mechanics: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
+> 🧭 **Start with the [Vision](docs/VISION.md)** — where Open Swarm is going (one OpenAI-compatible endpoint that *adapts and orchestrates* your agentic CLIs), with an honest built-vs-remaining table and live cross-CLI proofs. Pattern mechanics with sequence diagrams: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
 
 ---
 
@@ -50,7 +50,7 @@ uv run swarm-cli launch codey --message "Explain this repo's structure"
 uv run swarm-cli install codey
 ```
 
-`swarm-cli` commands available today: `list`, `launch`, `install` / `install-executable`, `uninstall`, `add`, `delete`, `config` (list/add/remove LLM profiles and MCP servers), `cli-agents` (alias `agents`) — autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated — `skills` (reusable `SKILL.md` capabilities via the `cli_agent` `skill=` param), `wizard`, `moa` (Mixture of Agents consensus; optional `--team --workdir` for post-consensus specialists without openai-agents), and `moa-init`. See [docs/MOA.md](docs/MOA.md).
+`swarm-cli` commands available today: `list`, `launch`, `install` / `install-executable`, `uninstall`, `add`, `delete`, `config` (list/add/remove LLM profiles, MCP servers, and remotes), `remotes` (Hermes / OpenMausBot / Rakazo — persist, health, operate, and place in a handoff Team; see [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md)), `cli-agents` (alias `agents`) — autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated — `skills` (reusable `SKILL.md` capabilities via the `cli_agent` `skill=` param), `wizard`, `moa` (Mixture of Agents consensus; optional `--team --workdir` for post-consensus specialists without openai-agents), and `moa-init`. See [docs/MOA.md](docs/MOA.md).
 
 **MoA team path** — multi-seat read-only consensus, then optional scripted specialists (no openai-agents required):
 
@@ -86,6 +86,16 @@ curl -sf http://localhost:8000/v1/responses \
 ```
 
 The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). **Web UI:** when `webui/frontend/dist/` is built, `/` prefers that React SPA dashboard (falls back to Django templates otherwise). Day-to-day operator UI is Django server-rendered + HTMx at trailing-slash routes (`/teams/`, `/blueprint-library/`, `/agent-creator/`, `/settings/`, `/sessions/`, …). The SPA is experimental and not at parity with those pages — see [USERGUIDE.md](./USERGUIDE.md) and [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md).
+
+## Pinokio (local sideload)
+
+Open Swarm is **not** in the Pinokio public catalog. In Pinokio, add the git URL only (Download from URL / sideload) — do not search Discover:
+
+```
+https://github.com/matthewhand/open-swarm.git
+```
+
+Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home` (REQ-45).
 
 ---
 
@@ -139,7 +149,8 @@ Vocabulary for the v1 cut: [docs/GLOSSARY.md](docs/GLOSSARY.md) · UI boundary: 
 
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
 * **Blueprints** — `BlueprintBase` subclasses defining a multi-agent (or single-agent) workflow: agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
-* **Team (`/v1/teams`, `/teams/`)** — **live:** an **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`) via Teams Admin/launcher and `DynamicTeamBlueprint`. **Intended:** wire API / CLI / remote agents so they can see and talk to each other (handoff / `as_tool`). Teams Admin does **not** do that today — multi-agent talk is Blueprints / MoA. See [Vision](docs/VISION.md) and [GLOSSARY](docs/GLOSSARY.md).
+* **Team** — API agents, CLI agents, and **remote** agents (Hermes / OpenMausBot / Rakazo) that **see and talk** via openai-agents handoff / as_tool. Place remotes with `swarm-cli remotes place|unplace` or `PATCH /v1/agent-team/`. Blueprint: `remote_harness`. See [docs/GLOSSARY.md](docs/GLOSSARY.md).
+* **Profiles (`/v1/teams`)** — a dynamic **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`), also editable under Django `/teams/`. Appears as an OpenAI-compatible model id and proxies chat through `DynamicTeamBlueprint`. Prefer this name in new copy; the URL still says teams (name collision with Team above).
 * **Persona / MoA** — two multi-agent styles: MoA = read-only consensus seats then orchestrator act (`swarm-cli moa`); Persona = openai-agents coordinator switching specialists (`persona_council` and most coding blueprints). See [docs/SWARM_WORKFLOWS.md](docs/SWARM_WORKFLOWS.md).
 * **MCP servers** — external tool providers (filesystem, search, databases, …) declared **in config, not code**; agents get their tools at runtime via the Model Context Protocol.
 * **CLI agents & fusion** — wrap your installed agentic CLIs (`grok`/`agent`, `claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API, and compose them four ways:
@@ -357,6 +368,7 @@ Documentation map:
 * [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) — visual page-by-page tour of the web UI (React SPA + Django templates).
 * [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/MOA.md](./docs/MOA.md) — Mixture of Agents consensus and consensus→team path.
+* [docs/HERDR.md](./docs/HERDR.md) — Herdr members (`kind=herdr`): same-host CLI default, optional `--remote`, mocked in CI.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
 * [Developer](#developer) — gateway vs workers, `/v1/responses` sequence, git-dated history.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.
