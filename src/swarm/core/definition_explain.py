@@ -407,16 +407,22 @@ def summarize_with_default_llm(prompt: str) -> tuple[bool, str | None, str | Non
     except Exception:
         return True, status["model"], None
 
-    client = OpenAI(**openai_client_kwargs())
-    response = client.chat.completions.create(
-        model=status["model"],
-        messages=[
-            {"role": "system", "content": SUMMARIZER_SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-        max_tokens=400,
-    )
+    try:
+        client = OpenAI(**openai_client_kwargs())
+        response = client.chat.completions.create(
+            model=status["model"],
+            messages=[
+                {"role": "system", "content": SUMMARIZER_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=400,
+        )
+    except Exception:
+        # Network / auth / rate-limit / provider errors: stay on the default-LLM
+        # path (configured=True) without crashing the Settings pane request.
+        return True, status["model"], None
+
     choice = (response.choices or [None])[0]
     message = getattr(choice, "message", None) if choice is not None else None
     text = getattr(message, "content", None) if message is not None else None

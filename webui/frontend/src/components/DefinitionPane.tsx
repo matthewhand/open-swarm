@@ -78,6 +78,9 @@ export default function DefinitionPane({
         return
       }
       setSummary(result.summary)
+      if (!result.summary) {
+        setSummaryError('Default LLM is configured but returned no summary.')
+      }
       setNeedResummarise(false)
     } catch (error) {
       setSummaryError(error instanceof Error ? error.message : 'Summarise failed')

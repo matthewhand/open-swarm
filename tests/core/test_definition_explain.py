@@ -100,3 +100,15 @@ def test_summarize_with_default_llm_calls_existing_openai_client(monkeypatch):
     sent = fake_client.chat.completions.create.call_args.kwargs
     assert sent["model"] == "stub-llm"
     assert "sk-" not in str(sent["messages"])
+
+
+def test_summarize_with_default_llm_swallows_provider_errors(monkeypatch):
+    monkeypatch.setenv("DEFAULT_LLM", "stub-llm")
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.side_effect = RuntimeError("rate limited")
+    monkeypatch.setattr("openai.OpenAI", MagicMock(return_value=fake_client))
+    monkeypatch.setattr("swarm.utils.env_utils.openai_client_kwargs", lambda: {})
+    configured, model, text = summarize_with_default_llm("placeholder source")
+    assert configured is True
+    assert model == "stub-llm"
+    assert text is None
