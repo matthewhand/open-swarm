@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Unplug, Users, Wifi, X } from 'lucide-react'
 import { fetchBlueprints, fetchHerdrAgents, type Blueprint, type HerdrAgent } from '../lib/api'
 import {
   agentRole,
@@ -25,6 +25,14 @@ import {
   loadOrSeedHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
+import {
+  CHAT_CONNECTION_EVENT,
+  getChatConnection,
+  hostnameIconTone,
+  isChatConnectionStatus,
+  type ChatConnectionStatus,
+  type HostnameIconTone,
+} from '../lib/chatConnection'
 import { defaultHostname, loadHostname, saveHostname } from '../lib/hostname'
 import {
   endAgentDrag,
@@ -47,6 +55,8 @@ export interface AgentSidebarProps {
   open?: boolean
   onClose?: () => void
   onOpenSearch?: () => void
+  /** Left-rail footer hostname + connection icon. Hidden row = no icon. */
+  showHostname?: boolean
 }
 
 interface ContextMenuState {
@@ -88,7 +98,12 @@ function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
   }
 }
 
-export default function AgentSidebar({ open = false, onClose, onOpenSearch }: AgentSidebarProps) {
+export default function AgentSidebar({
+  open = false,
+  onClose,
+  onOpenSearch,
+  showHostname = true,
+}: AgentSidebarProps) {
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
   const onChat = pathname.startsWith('/chat') || pathname === '/'
@@ -104,6 +119,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [hiddenOpen, setHiddenOpen] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
+  const [wsStatus, setWsStatus] = useState<ChatConnectionStatus>(() => getChatConnection())
+  const [iconTone, setIconTone] = useState<HostnameIconTone>(() =>
+    hostnameIconTone(getChatConnection()),
+  )
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
@@ -192,6 +211,20 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
       window.removeEventListener('mousedown', onPointer)
     }
   }, [menu, closeMenu])
+
+  useEffect(() => {
+    const onStatus = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail
+      if (!isChatConnectionStatus(detail)) return
+      setWsStatus(detail)
+      setIconTone((previous) => hostnameIconTone(detail, previous))
+    }
+    window.addEventListener(CHAT_CONNECTION_EVENT, onStatus)
+    const current = getChatConnection()
+    setWsStatus(current)
+    setIconTone((previous) => hostnameIconTone(current, previous))
+    return () => window.removeEventListener(CHAT_CONNECTION_EVENT, onStatus)
+  }, [])
 
   const openMenu = (event: ReactMouseEvent, hideId: string, label: string, hidden: boolean) => {
     event.preventDefault()
@@ -649,27 +682,46 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             <Plug className="h-4 w-4" aria-hidden="true" />
             Plugins
           </button>
-          <label className="sr-only" htmlFor="os-rail-hostname">
-            Hostname
-          </label>
-          <input
-            id="os-rail-hostname"
-            type="text"
-            className="os-rail-hostname"
-            value={hostname}
-            spellCheck={false}
-            onChange={(event) => setHostname(event.target.value)}
-            onBlur={() => setHostname(saveHostname(hostname))}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.currentTarget.blur()
-              }
-              if (event.key === 'Escape') {
-                setHostname(loadHostname() || defaultHostname())
-                event.currentTarget.blur()
-              }
-            }}
-          />
+          {showHostname ? (
+            <>
+              <label className="sr-only" htmlFor="os-rail-hostname">
+                Hostname
+              </label>
+              <div className="os-rail-hostname-row" data-testid="os-rail-hostname-row">
+                <span
+                  data-testid="os-rail-hostname-icon"
+                  data-tone={iconTone}
+                  data-connection={wsStatus}
+                  className={`os-rail-hostname-icon ${iconTone === 'error' ? 'text-error' : ''}`}
+                  aria-hidden="true"
+                >
+                  {iconTone === 'error' ? (
+                    <Unplug className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  ) : (
+                    <Wifi className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  )}
+                </span>
+                <input
+                  id="os-rail-hostname"
+                  type="text"
+                  className="os-rail-hostname"
+                  value={hostname}
+                  spellCheck={false}
+                  onChange={(event) => setHostname(event.target.value)}
+                  onBlur={() => setHostname(saveHostname(hostname))}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.currentTarget.blur()
+                    }
+                    if (event.key === 'Escape') {
+                      setHostname(loadHostname() || defaultHostname())
+                      event.currentTarget.blur()
+                    }
+                  }}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       </aside>
 

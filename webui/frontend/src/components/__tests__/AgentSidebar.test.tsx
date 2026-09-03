@@ -6,6 +6,8 @@ import AgentSidebar from '../AgentSidebar'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
+import { publishChatConnection } from '../../lib/chatConnection'
+import type { AgentSidebarProps } from '../AgentSidebar'
 
 function blueprint(id: string, name: string, description: string) {
   return {
@@ -50,14 +52,23 @@ function dragTo(source: Element, target: Element) {
   fireEvent.dragEnd(source, { dataTransfer })
 }
 
-function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
+function renderSidebar(
+  initialEntry = '/chat',
+  onOpenSearch = () => undefined,
+  props: Partial<AgentSidebarProps> = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <AgentSidebar open onClose={() => undefined} onOpenSearch={onOpenSearch} />
+        <AgentSidebar
+          open
+          onClose={() => undefined}
+          onOpenSearch={onOpenSearch}
+          {...props}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -210,6 +221,44 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.change(hostname, { target: { value: 'lab-box' } })
     fireEvent.blur(hostname)
     expect(localStorage.getItem(HOSTNAME_STORAGE_KEY)).toBe('lab-box')
+  })
+
+  it('shows a bland hostname icon when the websocket is connected', async () => {
+    publishChatConnection('open')
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    const icon = screen.getByTestId('os-rail-hostname-icon')
+    const row = screen.getByTestId('os-rail-hostname-row')
+    expect(row.firstElementChild).toBe(icon)
+    expect(icon).toHaveAttribute('data-tone', 'bland')
+    expect(icon).toHaveAttribute('data-connection', 'open')
+    expect(icon).not.toHaveClass('text-error')
+    expect(icon.className).not.toMatch(/text-error|text-success|text-green/)
+  })
+
+  it('paints a red disconnected icon after a mocked socket drop', async () => {
+    publishChatConnection('open')
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    expect(screen.getByTestId('os-rail-hostname-icon')).not.toHaveClass('text-error')
+
+    publishChatConnection('closed')
+    const dropped = await screen.findByTestId('os-rail-hostname-icon')
+    expect(dropped).toHaveAttribute('data-tone', 'error')
+    expect(dropped).toHaveClass('text-error')
+
+    publishChatConnection('open')
+    const restored = await screen.findByTestId('os-rail-hostname-icon')
+    expect(restored).toHaveAttribute('data-tone', 'bland')
+    expect(restored).not.toHaveClass('text-error')
+  })
+
+  it('omits the connection icon when the hostname row is hidden', async () => {
+    renderSidebar('/chat', () => undefined, { showHostname: false })
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    expect(screen.queryByLabelText('Hostname')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('os-rail-hostname-icon')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('os-rail-hostname-row')).not.toBeInTheDocument()
   })
 
   it('always shows a Hidden drop zone, including when empty', async () => {
