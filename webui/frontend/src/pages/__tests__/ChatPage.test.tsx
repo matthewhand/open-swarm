@@ -468,6 +468,28 @@ describe('ChatPage Send button honesty while streaming', () => {
     const loaders = screen.getAllByRole('status', { name: 'Loading' })
     expect(loaders.length).toBeGreaterThan(0)
   })
+
+  it('notifies rail bump when a generation completes', async () => {
+    const completed: string[] = []
+    const onComplete = (event: Event) => {
+      completed.push((event as CustomEvent<{ agentId?: string }>).detail?.agentId || '')
+    }
+    window.addEventListener('swarm:generation-complete', onComplete)
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-done1" hx-swap-oob="true">finished</div>',
+        }),
+      )
+    })
+    expect(completed).toEqual(['codey'])
+    window.removeEventListener('swarm:generation-complete', onComplete)
+  })
 })
 
 describe('ChatPage auto-reconnect backoff', () => {

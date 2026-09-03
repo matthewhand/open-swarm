@@ -37,6 +37,23 @@ import {
 } from '../lib/hiddenAgents'
 import { defaultHostname, loadHostname, saveHostname } from '../lib/hostname'
 import {
+  GENERATION_COMPLETE_EVENT,
+  applyRailOrder,
+  beginRailDrag,
+  bumpRailIdToTop,
+  endRailDrag,
+  generationCompleteAgentId,
+  loadRailOrder,
+  mergeRailOrder,
+  moveRailId,
+  peekRailDrag,
+  saveRailOrder,
+} from '../lib/railOrder'
+import {
+  BUMP_COMPLETED_EVENT,
+  loadBumpCompleted,
+} from '../lib/settingsPrefs'
+import {
   endAgentDrag,
   loadPinnedAgents,
   parseAgentDragPayload,
@@ -92,6 +109,10 @@ type SidebarAgent = Blueprint & {
   remote?: string
   cli?: string
 }
+
+type RailRow =
+  | { kind: 'agent'; id: string; agent: SidebarAgent }
+  | { kind: 'team'; id: string; team: TeamRoster }
 
 function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
   return agent.kind === 'herdr' || String(agent.id).startsWith('herdr:')
@@ -168,6 +189,9 @@ export default function AgentSidebar({
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+  const [railOrder, setRailOrder] = useState<string[]>(() => loadRailOrder())
+  const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const [sessionTick, setSessionTick] = useState(0)
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -302,6 +326,34 @@ export default function AgentSidebar({
   const otherAgents = visibleAgents.filter(
     (agent) => !isSupportAgent(agent) && agent.kind !== 'cli',
   )
+  const catalogRows = useMemo<RailRow[]>(() => {
+    const supportRows: RailRow[] = supportAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    const cliRows: RailRow[] = cliAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    const teamRows: RailRow[] = visibleRootTeams.map((team) => ({
+      kind: 'team',
+      id: teamHideId(team.id),
+      team,
+    }))
+    const otherRows: RailRow[] = otherAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    return [...supportRows, ...cliRows, ...teamRows, ...otherRows]
+  }, [supportAgents, cliAgents, visibleRootTeams, otherAgents])
+  const orderedRows = useMemo(
+    () => applyRailOrder(catalogRows, railOrder),
+    [catalogRows, railOrder],
+  )
+  const visibleRowIds = useMemo(() => orderedRows.map((row) => row.id), [orderedRows])
   const visiblePins = useMemo(
     () => pins.filter((pin) => !resolvedHiddenIds.includes(pin.id)),
     [pins, resolvedHiddenIds],
@@ -313,6 +365,37 @@ export default function AgentSidebar({
     onOpenSearch?.()
     openSearchPalette()
   }, [onOpenSearch])
+
+  const persistVisibleOrder = useCallback((nextVisible: string[]) => {
+    setRailOrder(saveRailOrder(nextVisible))
+  }, [])
+
+  const reorderBefore = useCallback(
+    (fromId: string, beforeId: string) => {
+      if (!fromId || !beforeId || fromId === beforeId) return
+      const base = mergeRailOrder(railOrder, visibleRowIds)
+      persistVisibleOrder(moveRailId(base, fromId, beforeId))
+    },
+    [railOrder, visibleRowIds, persistVisibleOrder],
+  )
+
+  useEffect(() => {
+    const onBump = () => setBumpCompleted(loadBumpCompleted())
+    window.addEventListener(BUMP_COMPLETED_EVENT, onBump)
+    return () => window.removeEventListener(BUMP_COMPLETED_EVENT, onBump)
+  }, [])
+
+  useEffect(() => {
+    const onComplete = (event: Event) => {
+      if (!bumpCompleted) return
+      const agentId = generationCompleteAgentId(event)
+      if (!agentId || !visibleRowIds.includes(agentId)) return
+      const base = mergeRailOrder(railOrder, visibleRowIds)
+      persistVisibleOrder(bumpRailIdToTop(base, agentId))
+    }
+    window.addEventListener(GENERATION_COMPLETE_EVENT, onComplete)
+    return () => window.removeEventListener(GENERATION_COMPLETE_EVENT, onComplete)
+  }, [bumpCompleted, visibleRowIds, railOrder, persistVisibleOrder])
 
   useEffect(() => {
     if (!menu) return
@@ -351,7 +434,9 @@ export default function AgentSidebar({
 
   const finishDrag = () => {
     endAgentDrag()
+    endRailDrag()
     setDraggingId(null)
+    setDropTargetId(null)
     setDropActive(false)
     setHideDropActive(false)
     hideDropDepth.current = 0
@@ -411,14 +496,38 @@ export default function AgentSidebar({
     hideFromRail(payload.id)
   }
 
-  const dropOnSelf = (event: ReactDragEvent) => {
+  const allowRowDrop = (event: ReactDragEvent, targetId: string) => {
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (!fromId || fromId === targetId) {
+      try {
+        event.dataTransfer.dropEffect = 'none'
+      } catch {
+        /* synthetic events may omit dataTransfer */
+      }
+      return
+    }
+    event.preventDefault()
+    try {
+      event.dataTransfer.dropEffect = 'move'
+    } catch {
+      /* synthetic events may omit dataTransfer */
+    }
+    setDropTargetId(targetId)
+  }
+
+  const dropReorder = (event: ReactDragEvent, targetId: string) => {
     event.preventDefault()
     event.stopPropagation()
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (fromId && fromId !== targetId) {
+      reorderBefore(fromId, targetId)
+    }
     finishDrag()
   }
 
   const beginRowDrag = (event: ReactDragEvent, agent: { id: string; name: string }) => {
     writeAgentDragPayload(event.dataTransfer, agent)
+    beginRailDrag(agent.id)
     try {
       event.dataTransfer.effectAllowed = 'copyMove'
     } catch {
@@ -456,11 +565,12 @@ export default function AgentSidebar({
     const role = agentRole(agent)
     const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
+    const dropping = dropTargetId === agent.id
     const badge = roleBadgeLabel(role)
     const dataRole = role !== 'default' ? role : undefined
     const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
       dragging ? 'os-agent-row--dragging' : ''
-    }`
+    } ${dropping ? 'os-agent-row--drop' : ''}`
     const mark = (
       scaleOut ? (
         // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
@@ -522,14 +632,8 @@ export default function AgentSidebar({
           draggable={!hidden}
           onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
           onDragEnd={finishDrag}
-          onDragOver={(event) => {
-            try {
-              event.dataTransfer.dropEffect = 'none'
-            } catch {
-              /* synthetic events may omit dataTransfer */
-            }
-          }}
-          onDrop={dropOnSelf}
+          onDragOver={(event) => allowRowDrop(event, agent.id)}
+          onDrop={(event) => dropReorder(event, agent.id)}
           onClick={pickOrClose}
           onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
         >
@@ -541,15 +645,8 @@ export default function AgentSidebar({
       draggable: !hidden,
       onDragStart: (event: ReactDragEvent) => beginRowDrag(event, { id: agent.id, name }),
       onDragEnd: finishDrag,
-      onDragOver: (event: ReactDragEvent) => {
-        // Rows are not drop targets; dropping onto the source is a no-op.
-        try {
-          event.dataTransfer.dropEffect = 'none'
-        } catch {
-          /* synthetic events may omit dataTransfer */
-        }
-      },
-      onDrop: dropOnSelf,
+      onDragOver: (event: ReactDragEvent) => allowRowDrop(event, agent.id),
+      onDrop: (event: ReactDragEvent) => dropReorder(event, agent.id),
       onContextMenu: (event: ReactMouseEvent) => openMenu(event, agent.id, name, hidden),
     }
 
@@ -647,12 +744,15 @@ export default function AgentSidebar({
     const hideId = teamHideId(team.id)
     const active = selectedTeamId === team.id
     const dragging = draggingId === hideId
+    const dropping = dropTargetId === hideId
     return (
       <Link
         to={`/chat?team=${encodeURIComponent(team.id)}`}
         className={`os-team-item os-agent-row os-agent-row--team ${
           active ? 'os-agent-row--active' : ''
-        } ${nested ? 'os-agent-row--nested' : ''} ${dragging ? 'os-agent-row--dragging' : ''}`}
+        } ${nested ? 'os-agent-row--nested' : ''} ${dragging ? 'os-agent-row--dragging' : ''} ${
+          dropping ? 'os-agent-row--drop' : ''
+        }`}
         aria-current={active ? 'page' : undefined}
         aria-label={`${name} (team)`}
         data-agent-id={hideId}
@@ -660,14 +760,8 @@ export default function AgentSidebar({
         draggable={!hidden}
         onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
         onDragEnd={finishDrag}
-        onDragOver={(event) => {
-          try {
-            event.dataTransfer.dropEffect = 'none'
-          } catch {
-            /* synthetic events may omit dataTransfer */
-          }
-        }}
-        onDrop={dropOnSelf}
+        onDragOver={(event) => allowRowDrop(event, hideId)}
+        onDrop={(event) => dropReorder(event, hideId)}
         onClick={pickOrClose}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
       >
@@ -901,15 +995,12 @@ export default function AgentSidebar({
             <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
           ) : (
             <ul className="space-y-0.5">
-              {supportAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
-              ))}
-              {cliAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
-              ))}
-              {visibleRootTeams.map((team) => renderTeamRow(team))}
-              {otherAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
+              {orderedRows.map((row, index) => (
+                <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
+                  {row.kind === 'team'
+                    ? renderTeamRow(row.team)
+                    : renderAgentRow(row.agent, false)}
+                </li>
               ))}
             </ul>
           )}

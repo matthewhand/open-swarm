@@ -6,6 +6,11 @@ import AgentSidebar from '../AgentSidebar'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
+import {
+  GENERATION_COMPLETE_EVENT,
+  RAIL_ORDER_STORAGE_KEY,
+} from '../../lib/railOrder'
+import { BUMP_COMPLETED_KEY } from '../../lib/settingsPrefs'
 import { saveAgentSessions, type AgentSession } from '../../lib/scaleOutSessions'
 
 function blueprint(
@@ -157,6 +162,16 @@ function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
 
 function storedHidden(): string[] {
   return JSON.parse(localStorage.getItem(HIDDEN_AGENTS_STORAGE_KEY) || '[]')
+}
+
+function storedRailOrder(): string[] {
+  return JSON.parse(localStorage.getItem(RAIL_ORDER_STORAGE_KEY) || '[]')
+}
+
+function railIds(list: HTMLElement): string[] {
+  return [...list.querySelectorAll('[data-rail-id]')].map(
+    (node) => node.getAttribute('data-rail-id') || '',
+  )
 }
 
 describe('AgentSidebar Grok rail', () => {
@@ -485,6 +500,78 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.keyDown(supportEdit, { key: 'Enter' })
     expect(opened).toEqual([{ section: 'blueprint', blueprintId: 'support' }])
     window.removeEventListener('swarm:open-settings', onOpen)
+  })
+
+  it('persists a native drag reorder and leaves favourite tiles alone', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const stewie = await within(list).findByRole('link', { name: /Stewie/ })
+    const support = await within(list).findByRole('link', { name: /Support/ })
+    const codey = within(list).getByRole('link', { name: /Codey/ })
+
+    fireEvent.contextMenu(codey)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+    const grid = screen.getByLabelText('Pinned agents')
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+
+    expect(railIds(list)[0]).toBe('support')
+    dragTo(stewie, support)
+
+    await waitFor(() => {
+      expect(railIds(list)[0]).toBe('stewie')
+    })
+    expect(storedRailOrder()[0]).toBe('stewie')
+    expect(within(list).getByRole('link', { name: /Support/ })).toBeInTheDocument()
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'codey', name: 'Codey' },
+    ])
+    expect(within(grid).getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Codey',
+    ])
+  })
+
+  it('reloads a persisted rail order without scrambling favourite tiles', async () => {
+    localStorage.setItem(RAIL_ORDER_STORAGE_KEY, JSON.stringify(['stewie', 'support', 'codey']))
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([{ id: 'codey', name: 'Codey' }]),
+    )
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await waitFor(() => {
+      expect(railIds(list)[0]).toBe('stewie')
+    })
+    const grid = screen.getByLabelText('Pinned agents')
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    expect(within(grid).getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('moves a just-completed fixture to index 0 when bump is on', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await within(list).findByRole('link', { name: /Stewie/ })
+    expect(railIds(list)[0]).toBe('support')
+
+    fireEvent(window, new CustomEvent(GENERATION_COMPLETE_EVENT, { detail: { agentId: 'stewie' } }))
+
+    await waitFor(() => {
+      expect(railIds(list)[0]).toBe('stewie')
+    })
+    expect(storedRailOrder()[0]).toBe('stewie')
+  })
+
+  it('does not bump a completed fixture when the toggle is off', async () => {
+    localStorage.setItem(BUMP_COMPLETED_KEY, '0')
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await within(list).findByRole('link', { name: /Stewie/ })
+    expect(railIds(list)[0]).toBe('support')
+
+    fireEvent(window, new CustomEvent(GENERATION_COMPLETE_EVENT, { detail: { agentId: 'stewie' } }))
+
+    expect(railIds(list)[0]).toBe('support')
+    expect(storedRailOrder()).toEqual([])
   })
 
   it('keeps a scale-out agent as one stacked row and opens a session picker', async () => {

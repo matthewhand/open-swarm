@@ -37,8 +37,10 @@ import {
   RETENTION_MODES,
   RETENTION_MODE_LABELS,
   detectedHostname,
+  loadBumpCompleted,
   loadHostnameOverride,
   loadRetentionMode,
+  saveBumpCompleted,
   saveHostnameOverride,
   saveRetentionMode,
   type RetentionMode,
@@ -55,6 +57,7 @@ export type SettingsSection =
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
+  | 'rail'
   | 'system'
 
 export interface OpenSettingsDetail {
@@ -100,6 +103,7 @@ export default function SettingsSheet({
   const [section, setSection] = useState<SettingsSection>('retention')
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const resolvedDefinitionId = definitionId || teamId || blueprintId || ''
   const resolvedKind: DefinitionKind =
     definitionKind || (teamId ? 'team' : blueprintId ? 'role' : 'blueprint')
@@ -108,12 +112,11 @@ export default function SettingsSheet({
     if (!isOpen) return
     setHostname(loadHostnameOverride())
     setRetention(loadRetentionMode())
+    setBumpCompleted(loadBumpCompleted())
     if (initialSection) {
       setSection(initialSection)
     } else if (blueprintId) {
       setSection('blueprint')
-    } else if (initialSection) {
-      setSection(initialSection)
     } else {
       setSection((current) =>
         current === 'blueprint' || current === 'definition' ? 'retention' : current,
@@ -209,6 +212,16 @@ export default function SettingsSheet({
             <li>
               <button
                 type="button"
+                className={section === 'rail' ? 'menu-active' : undefined}
+                aria-current={section === 'rail' ? 'page' : undefined}
+                onClick={() => setSection('rail')}
+              >
+                Rail
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
                 className={section === 'system' ? 'menu-active' : undefined}
                 aria-current={section === 'system' ? 'page' : undefined}
                 onClick={() => setSection('system')}
@@ -246,6 +259,15 @@ export default function SettingsSheet({
             />
           )}
           {section === 'llm-profiles' && <LlmProfilesPane />}
+          {section === 'rail' && (
+            <RailPane
+              bumpCompleted={bumpCompleted}
+              onBumpCompleted={(next) => {
+                setBumpCompleted(next)
+                saveBumpCompleted(next)
+              }}
+            />
+          )}
           {section === 'system' && <SystemPane />}
         </div>
       </div>
@@ -690,6 +712,40 @@ function HostnamePane({
         Save hostname
       </Button>
     </form>
+  )
+}
+
+function RailPane({
+  bumpCompleted,
+  onBumpCompleted,
+}: {
+  bumpCompleted: boolean
+  onBumpCompleted: (next: boolean) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Rail</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Drag conversation rows to reorder them. Hidden stays its own list.
+          Favourite tiles keep their own order.
+        </p>
+      </div>
+      <label className="label cursor-pointer justify-start gap-4">
+        <input
+          type="checkbox"
+          className="toggle"
+          checked={bumpCompleted}
+          onChange={(event) => onBumpCompleted(event.target.checked)}
+          aria-label="Bump completed agents to top"
+        />
+        <span className="label-text">Bump completed agents to top</span>
+      </label>
+      <p className="text-sm text-base-content/60">
+        On: when a generation finishes, that agent moves to the top of the
+        visible list. Off: order changes only by drag.
+      </p>
+    </div>
   )
 }
 

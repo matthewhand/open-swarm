@@ -8,6 +8,8 @@
 
 export const HOSTNAME_OVERRIDE_KEY = 'swarm_hostname_override'
 export const RETENTION_MODE_KEY = 'swarm_retention_mode'
+export const BUMP_COMPLETED_KEY = 'swarm_bump_completed'
+export const BUMP_COMPLETED_EVENT = 'swarm:bump-completed-changed'
 
 export const RETENTION_MODES = ['count', 'disk', 'archive', 'trash'] as const
 export type RetentionMode = (typeof RETENTION_MODES)[number]
@@ -67,4 +69,30 @@ export function detectedHostname(): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * When on (default), a finished generation moves that agent to the top of
+ * the visible rail. Off: order changes only by drag.
+ */
+export function loadBumpCompleted(): boolean {
+  try {
+    const raw = localStorage.getItem(BUMP_COMPLETED_KEY)
+    if (raw == null) return true
+    return raw === '1' || raw === 'true'
+  } catch {
+    return true
+  }
+}
+
+export function saveBumpCompleted(enabled: boolean): boolean {
+  try {
+    localStorage.setItem(BUMP_COMPLETED_KEY, enabled ? '1' : '0')
+    window.dispatchEvent(
+      new CustomEvent(BUMP_COMPLETED_EVENT, { detail: { enabled } }),
+    )
+  } catch {
+    /* persistence is best-effort */
+  }
+  return enabled
 }

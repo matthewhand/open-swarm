@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import SettingsSheet from '../SettingsSheet'
 import { ToastProvider } from '../DaisyUI'
 import {
+  BUMP_COMPLETED_KEY,
   HOSTNAME_OVERRIDE_KEY,
   RETENTION_MODE_KEY,
 } from '../../lib/settingsPrefs'
@@ -46,6 +47,7 @@ describe('SettingsSheet', () => {
   afterEach(() => {
     localStorage.removeItem(HOSTNAME_OVERRIDE_KEY)
     localStorage.removeItem(RETENTION_MODE_KEY)
+    localStorage.removeItem(BUMP_COMPLETED_KEY)
     vi.unstubAllGlobals()
   })
 
@@ -68,7 +70,18 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
+  })
+
+  it('defaults the rail bump toggle on and persists off', () => {
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Rail' }))
+    const toggle = screen.getByRole('checkbox', { name: 'Bump completed agents to top' })
+    expect(toggle).toBeChecked()
+    fireEvent.click(toggle)
+    expect(toggle).not.toBeChecked()
+    expect(localStorage.getItem(BUMP_COMPLETED_KEY)).toBe('0')
   })
 
   it('shows remotes empty state and join radios for retention', async () => {
