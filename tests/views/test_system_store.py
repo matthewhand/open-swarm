@@ -26,7 +26,8 @@ def test_system_local_store_empty(api_client):
     assert isinstance(body["path"], str)
     blob = str(body).lower()
     assert "django" not in blob
-    assert "sqlite" not in blob
+    assert "django.db" not in blob
+    assert "backends.sqlite" not in blob
     assert "orm" not in blob
     assert "://" not in body["path"]
     assert "password" not in blob

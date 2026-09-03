@@ -482,7 +482,7 @@ function SystemPane() {
   const storeQuery = useQuery({
     queryKey: ['settings-local-store'],
     queryFn: fetchLocalStore,
-    retry: 1,
+    retry: false,
     staleTime: 0,
     refetchOnMount: 'always',
   })
