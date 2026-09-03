@@ -406,6 +406,7 @@ const ChatPage = () => {
 
   const addFiles = useCallback((incoming: File[]) => {
     if (incoming.length === 0) return
+    setPlusOpen(false)
     const created = incoming.map((file) => createPendingAttachment(file))
     setAttachments((prev) => [...prev, ...created])
     for (const item of created) {
