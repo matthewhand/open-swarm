@@ -103,7 +103,13 @@ class TestSpaChatStaysChat:
         monkeypatch.setattr("swarm.views.web_views._get_frontend_path", lambda: dist)
         response = client.get("/chat", follow=False)
         assert response.status_code == 200
-        body = b"".join(response.streaming_content)
+        # #428 buffers SPA HTML into HttpResponse so ASGI/Daphne does not hang
+        # on FileResponse.streaming_content. FileResponse (pre-#428) still has
+        # streaming=True — accept both so this lock stays honest on merge.
+        if getattr(response, "streaming", False):
+            body = b"".join(response.streaming_content)
+        else:
+            body = response.content
         assert b"spa-chat-composer" in body
         assert b"Connected" in body
         assert response.get("Location") is None
