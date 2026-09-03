@@ -19,9 +19,22 @@ import {
   SLOW_INFERENCE_DELAY_MS,
 } from './helpers/mockInference'
 
-async function sendChatMessage(page: import('@playwright/test').Page, text: string) {
+/**
+ * REQ-8 (PR 312) removes the standing Connected badge — healthy is silent,
+ * errors toast. Ready = conversation log + enabled composer, not a status chip.
+ * Do not reintroduce Connected here.
+ */
+async function awaitComposerReady(page: import('@playwright/test').Page) {
+  const conversation = page.getByRole('log', { name: 'Conversation' })
+  await expect(conversation).toBeVisible()
   const composer = page.getByRole('textbox', { name: 'Chat message' })
   await expect(composer).toBeEnabled()
+  await expect(composer).toHaveAttribute('placeholder', /Type a message/i)
+  return { conversation, composer }
+}
+
+async function sendChatMessage(page: import('@playwright/test').Page, text: string) {
+  const { composer } = await awaitComposerReady(page)
   await composer.fill(text)
   const send = page.getByRole('button', { name: /^Send$/i })
   await expect(send).toBeEnabled()
@@ -35,13 +48,12 @@ test.describe('REQ-13 chat Send mock inference', () => {
     await installMockInference(page, { delayMs: 0, reply: MOCK_FAST_REPLY })
     await page.goto('/chat')
 
-    await expect(page.getByLabel('Connection status')).toHaveText(/^Connected$/)
+    const { conversation } = await awaitComposerReady(page)
 
     const prompt = 'Hello from the FAST mock'
     const started = Date.now()
     await sendChatMessage(page, prompt)
 
-    const conversation = page.getByRole('log', { name: 'Conversation' })
     await expect(conversation.getByText(prompt)).toBeVisible()
     await expect(conversation.getByText(MOCK_FAST_REPLY)).toBeVisible()
     const elapsedMs = Date.now() - started
@@ -74,12 +86,11 @@ test.describe('REQ-13 chat Send mock inference', () => {
     })
     await page.goto('/chat')
 
-    await expect(page.getByLabel('Connection status')).toHaveText(/^Connected$/)
+    const { conversation } = await awaitComposerReady(page)
 
     const prompt = 'Hello from the SLOW mock'
     await sendChatMessage(page, prompt)
 
-    const conversation = page.getByRole('log', { name: 'Conversation' })
     await expect(conversation.getByText(prompt)).toBeVisible()
     await expect(conversation.getByText(MOCK_SLOW_REPLY)).toHaveCount(0)
 
