@@ -14,6 +14,7 @@ import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
+import { ComputerControlStub } from '../components/ComputerControlStub'
 import { fetchBlueprints } from '../lib/api'
 import {
   agentIdFromBlueprint,
@@ -526,16 +527,23 @@ const ChatPage = () => {
               <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
             </select>
           ) : null}
-          <ThemeToggle />
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-square"
-            aria-label="Open settings"
-            aria-haspopup="dialog"
-            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))}
+          <div
+            className="flex items-center gap-2"
+            role="toolbar"
+            aria-label="Chat tools"
           >
-            <Settings className="h-4 w-4" aria-hidden="true" />
-          </button>
+            <ComputerControlStub />
+            <ThemeToggle />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              aria-label="Open settings"
+              aria-haspopup="dialog"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))}
+            >
+              <Settings className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 
