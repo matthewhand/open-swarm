@@ -91,6 +91,22 @@ describe('fetchAgentThread', () => {
     expect(thread.summaries[0].body).toBe('digest')
   })
 
+  it('requests a specific conversation id for a scale-out session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        agent_id: 'codey',
+        conversation_id: 'sess-worker-2',
+        messages: [],
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const thread = await fetchAgentThread('codey', 'sess-worker-2')
+    expect(thread.conversation_id).toBe('sess-worker-2')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('conversation_id=sess-worker-2')
+  })
+
   it('returns an empty thread when fetch fails', async () => {
     vi.stubGlobal(
       'fetch',

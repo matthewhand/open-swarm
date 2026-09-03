@@ -63,9 +63,13 @@ function parseSummaries(value: unknown): ConversationSummary[] {
 }
 
 /** GET /chat/thread/?agent= — empty on auth/network failure (chat still works). */
-export async function fetchAgentThread(agentId: string): Promise<AgentThread> {
+export async function fetchAgentThread(
+  agentId: string,
+  conversationIdOverride?: string,
+): Promise<AgentThread> {
   const agent = agentIdFromBlueprint(agentId)
-  const conversationId = conversationIdForAgent(agent)
+  const conversationId =
+    (conversationIdOverride || '').trim() || conversationIdForAgent(agent)
   try {
     const data = await apiGet<AgentThread>(
       `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
