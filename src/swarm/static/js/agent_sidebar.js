@@ -6,6 +6,29 @@
   var STORAGE_KEY = "swarm_hidden_agents";
   var MARK_COUNT = 6;
 
+  var DEFAULT_HIDDEN = ["gate", "tool_gate", "skeptic"];
+
+  function hasHiddenStorage() {
+    try {
+      return localStorage.getItem(STORAGE_KEY) !== null;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function isDefaultHiddenAgent(agent) {
+    var id = String((agent && agent.id) || "").toLowerCase();
+    var name = String((agent && agent.name) || "").toLowerCase();
+    return (
+      id === "gate" ||
+      id === "tool_gate" ||
+      id === "tool-gate" ||
+      id === "skeptic" ||
+      name === "gate" ||
+      name === "skeptic"
+    );
+  }
+
   function loadHidden() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -18,6 +41,17 @@
     } catch (err) {
       return [];
     }
+  }
+
+  function seedHidden(agents) {
+    if (hasHiddenStorage()) return loadHidden();
+    var fromCatalog = [];
+    (agents || []).forEach(function (agent) {
+      if (agent && agent.id && isDefaultHiddenAgent(agent) && fromCatalog.indexOf(agent.id) === -1) {
+        fromCatalog.push(agent.id);
+      }
+    });
+    return saveHidden(fromCatalog.length ? fromCatalog : DEFAULT_HIDDEN);
   }
 
   function saveHidden(ids) {
@@ -92,7 +126,7 @@
 
     var agents = [];
     var teams = [];
-    var hiddenIds = loadHidden();
+    var hiddenIds = hasHiddenStorage() ? loadHidden() : [];
     var hiddenOpen = false;
     var filter = "";
 
@@ -392,6 +426,7 @@
       })
       .then(function (payload) {
         agents = Array.isArray(payload && payload.data) ? payload.data : [];
+        hiddenIds = seedHidden(agents);
         if (!agents.length && !teams.length) statusEl.textContent = "No agents yet.";
         loadTeams(render);
       })

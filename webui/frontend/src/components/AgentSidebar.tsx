@@ -13,8 +13,10 @@ import { Eye, EyeOff, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
   agentMarkIndex,
+  hasHiddenAgentsStorage,
   hideAgentId,
   loadHiddenAgentIds,
+  loadOrSeedHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
 import { defaultHostname, loadHostname, saveHostname } from '../lib/hostname'
@@ -35,6 +37,8 @@ import {
 } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { openSearchPalette } from './SearchPalette'
+
+const EMPTY_BLUEPRINTS: Blueprint[] = []
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
@@ -61,7 +65,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     ? ''
     : defaultBlueprintId(onChat ? searchParams.get('blueprint') : '')
 
-  const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenAgentIds())
+  const [hiddenIds, setHiddenIds] = useState<string[] | null>(() =>
+    hasHiddenAgentsStorage() ? loadHiddenAgentIds() : null,
+  )
   const [pins, setPins] = useState<PinnedAgent[]>(() => loadPinnedAgents())
   const [hiddenOpen, setHiddenOpen] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
@@ -83,24 +89,32 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     queryFn: fetchTeamRosters,
     retry: 1,
   })
-  const agents = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
+  const agents = useMemo(() => supportFirstAgents(catalog), [catalog])
   const teams = teamsQuery.data ?? []
+  const resolvedHiddenIds =
+    hiddenIds ?? (blueprintsQuery.isPending ? [] : loadOrSeedHiddenAgentIds(agents))
+
+  useEffect(() => {
+    if (hiddenIds !== null || blueprintsQuery.isPending) return
+    setHiddenIds(loadOrSeedHiddenAgentIds(agents))
+  }, [hiddenIds, blueprintsQuery.isPending, agents])
 
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !hiddenIds.includes(agent.id)),
-    [agents, hiddenIds],
+    () => agents.filter((agent) => !resolvedHiddenIds.includes(agent.id)),
+    [agents, resolvedHiddenIds],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => hiddenIds.includes(agent.id)),
-    [agents, hiddenIds],
+    () => agents.filter((agent) => resolvedHiddenIds.includes(agent.id)),
+    [agents, resolvedHiddenIds],
   )
   const visibleTeams = useMemo(
-    () => teams.filter((team) => !hiddenIds.includes(teamHideId(team.id))),
-    [teams, hiddenIds],
+    () => teams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
+    [teams, resolvedHiddenIds],
   )
   const hiddenTeams = useMemo(
-    () => teams.filter((team) => hiddenIds.includes(teamHideId(team.id))),
-    [teams, hiddenIds],
+    () => teams.filter((team) => resolvedHiddenIds.includes(teamHideId(team.id))),
+    [teams, resolvedHiddenIds],
   )
   const hiddenCount = hiddenAgents.length + hiddenTeams.length
   const visibleCount = visibleAgents.length + visibleTeams.length
@@ -109,8 +123,8 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const supportAgents = visibleAgents.filter((agent) => isSupportAgent(agent))
   const otherAgents = visibleAgents.filter((agent) => !isSupportAgent(agent))
   const visiblePins = useMemo(
-    () => pins.filter((pin) => !hiddenIds.includes(pin.id)),
-    [pins, hiddenIds],
+    () => pins.filter((pin) => !resolvedHiddenIds.includes(pin.id)),
+    [pins, resolvedHiddenIds],
   )
 
   const closeMenu = useCallback(() => setMenu(null), [])
@@ -170,7 +184,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
    */
   const hideFromRail = (id: string) => {
     if (!id) return
-    setHiddenIds((current) => hideAgentId(id, current))
+    setHiddenIds((current) => hideAgentId(id, current ?? resolvedHiddenIds))
     setPins((current) => unpinAgent(id, current))
   }
 
@@ -181,7 +195,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
 
   const unhideAgent = (id: string) => {
     setHiddenIds((current) => {
-      const next = unhideAgentId(id, current)
+      const next = unhideAgentId(id, current ?? resolvedHiddenIds)
       if (next.length === 0) setHiddenOpen(false)
       return next
     })
@@ -212,7 +226,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     finishDrag()
     if (!payload?.id) return
     // Already hidden (or a drop that never left the source row) is a no-op.
-    if (hiddenIds.includes(payload.id)) return
+    if (resolvedHiddenIds.includes(payload.id)) return
     hideFromRail(payload.id)
   }
 
@@ -409,7 +423,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                 setMenu({
                   agentId: pin.id,
                   agentName: pin.name,
-                  hidden: hiddenIds.includes(pin.id),
+                  hidden: resolvedHiddenIds.includes(pin.id),
                   pinned: true,
                   x: event.clientX,
                   y: event.clientY,
