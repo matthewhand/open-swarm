@@ -293,7 +293,6 @@ html[data-theme="light"] #root {
 }
 .os-agent-row-wrap:hover .os-agent-edit,
 .os-agent-row-wrap:focus-within .os-agent-edit,
-.os-agent-row-wrap:has(.os-agent-row--active) .os-agent-edit,
 .os-agent-edit:focus {
   opacity: 1;
 }
