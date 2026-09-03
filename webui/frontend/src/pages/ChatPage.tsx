@@ -172,6 +172,8 @@ const ChatPage = () => {
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
+    // REQ-28: a selected composition team uses ?team=; do not clobber it
+    // with the Support default (REQ-23 owns send-to-all).
     if (searchParams.get('team')) return
     if (!searchParams.get('blueprint')) {
       setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })

@@ -164,7 +164,7 @@ export interface ListResponse<T> {
 }
 
 /** Visual / wiring role on a Team member (REQ-9 / REQ-25). */
-export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic'
+export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff'
 
 export interface BlueprintAgent {
   name: string
@@ -187,6 +187,7 @@ export interface Blueprint {
   agents?: BlueprintAgent[]
   gate_agent?: string | null
   skeptic_agent?: string | null
+  chief_of_staff_agent?: string | null
 }
 
 /** GET /v1/support/context/ — live agents + inference for the System → Support pill. */
@@ -267,6 +268,25 @@ export function fetchModels(): Promise<ListResponse<Model>> {
 
 export function fetchTeams(): Promise<ListResponse<Team>> {
   return apiGet<ListResponse<Team>>('/v1/teams/')
+}
+
+/** GET /v1/team-rosters/ — composition contract (not LLM-profile aliases). */
+export interface TeamRosterRecord {
+  id: string
+  object: 'team_roster'
+  name: string
+  members: Array<{
+    id: string
+    kind: string
+    role: string
+    source: string
+    team_id?: string
+  }>
+  wires: { handoff: boolean; as_tool: boolean }
+}
+
+export function fetchTeamRosters(): Promise<ListResponse<TeamRosterRecord>> {
+  return apiGet<ListResponse<TeamRosterRecord>>('/v1/team-rosters/')
 }
 
 export function createTeam(team: CreateTeamRequest): Promise<Team> {

@@ -475,9 +475,13 @@ class TestTeamRostersJson:
         assert "members" in first
         assert "llm_profile" not in first
 
-    def test_v1_team_rosters_matches_file(self, client):
-        file_res = client.get("/team_rosters.json")
+    def test_v1_team_rosters_is_composition_list(self, client):
+        """REQ-28 composition API. Static sidepane file stays /team_rosters.json."""
         api_res = client.get("/v1/team-rosters/")
-        assert file_res.status_code == 200
         assert api_res.status_code == 200
-        assert json.loads(file_res.content) == json.loads(api_res.content)
+        data = json.loads(api_res.content)
+        assert data.get("object") == "list"
+        assert isinstance(data.get("data"), list)
+        for row in data["data"]:
+            assert row.get("object") == "team_roster"
+            assert "llm_profile" not in row
