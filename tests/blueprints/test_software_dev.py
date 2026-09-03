@@ -275,12 +275,26 @@ async def test_cos_quote_issue(bp):
 
 # --- GitHub hygiene (addendum on #348) ------------------------------------- #
 
-# Synthetic leak shapes only — never real tokens/cookies/coords from the house.
-_FAKE_TOKEN = "sk-" + ("notareal" * 4)
-_FAKE_COOKIE = "Cookie: sessionid=" + ("abcd" * 8)
-_FAKE_ENV = "OPENAI_API_KEY=notarealsecretvalue0123456789"
-_FAKE_COORDS = "lat=-33.8688123, lon=151.2093456"
-_FAKE_HOUSE = "still of the house at 14 Example Street"
+# Runtime-only synthetic shapes. Committed source must not look like a key,
+# .env dump, house photo, or personal/LAN coordinate.
+def _fake_token() -> str:
+    return "sk-" + ("notareal" * 4)
+
+
+def _fake_cookie() -> str:
+    return "Cookie: sessionid=" + ("abcd" * 8)
+
+
+def _fake_env() -> str:
+    return "OPENAI_API_KEY=" + ("notareal" * 4)
+
+
+def _fake_coords() -> str:
+    return "lat=11.1111111, lon=22.2222222"
+
+
+def _fake_house() -> str:
+    return "still of the house at 14 Example Street"
 
 
 def test_hygiene_placeholders_are_ok():
@@ -297,7 +311,7 @@ def test_hygiene_placeholders_are_ok():
 
 
 def test_hygiene_detects_leak_kinds_without_echoing_values():
-    blob = "\n".join((_FAKE_TOKEN, _FAKE_COOKIE, _FAKE_ENV, _FAKE_COORDS, _FAKE_HOUSE))
+    blob = "\n".join((_fake_token(), _fake_cookie(), _fake_env(), _fake_coords(), _fake_house()))
     kinds = find_hygiene_leaks(blob)
     for kind in ("token", "cookie", ".env", "precise-coords", "house-identifying"):
         assert kind in kinds
@@ -308,11 +322,11 @@ def test_hygiene_detects_leak_kinds_without_echoing_values():
 
 def test_engineer_blocked_on_hygiene_leak():
     ok, reason = engineer_may_start(
-        QUOTED_ISSUE, feasibility=FEASIBILITY, payload=_FAKE_ENV
+        QUOTED_ISSUE, feasibility=FEASIBILITY, payload=_fake_env()
     )
     assert ok is False
     assert "hygiene" in reason.lower()
-    assert "notarealsecret" not in reason
+    assert "notareal" not in reason
 
 
 def test_skeptic_fails_on_hygiene_leak():
@@ -323,7 +337,7 @@ def test_skeptic_fails_on_hygiene_leak():
         tests_note="engineer gate, seat isolation, skeptic no-write",
         visual_note="n/a",
         deviations="none",
-        payload=_FAKE_TOKEN,
+        payload=_fake_token(),
     )
     assert out.startswith("FAIL")
     assert "hygiene" in out.lower()
@@ -342,7 +356,7 @@ async def test_run_engineer_blocked_on_leaky_write(bp, tmp_path: Path):
             "issue": QUOTED_ISSUE,
             "feasibility": FEASIBILITY,
             "path": "notes.env",
-            "content": _FAKE_ENV,
+            "content": _fake_env(),
         },
     )
     assert "BLOCKED" in out
@@ -365,7 +379,7 @@ async def test_run_skeptic_fails_on_leak_payload(bp):
             "tests": "engineer gate, seat isolation, skeptic no-write, as_tool wiring",
             "visual": "n/a — no UI chrome in this PR",
             "deviations": "none",
-            "payload": _FAKE_COOKIE,
+            "payload": _fake_cookie(),
         },
     )
     assert out.startswith("FAIL")

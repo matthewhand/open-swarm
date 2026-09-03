@@ -255,7 +255,7 @@ Before any write:
 
 Then implement to Success with real tests (not stubs). PRs must say Fixes #N.
 Do not invent a parallel docs/requirements/ SoT. Do not enable Neon/oracle,
-LiteLLM catalog edits, OMB :8802, extra Grok trio seats, or :8001 deploys
+LiteLLM catalog edits, extra Grok trio seats, or a live preview deploy
 unless the quoted Issue says so.
 
 """ + _HYGIENE_SKILL + """
