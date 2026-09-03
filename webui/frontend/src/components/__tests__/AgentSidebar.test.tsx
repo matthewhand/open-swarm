@@ -179,6 +179,9 @@ describe('AgentSidebar special roles', () => {
   it('lists Support first with a role=support look, not a diamond', async () => {
     renderSidebar('/chat?blueprint=support')
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await waitFor(() => {
+      expect(within(list).getAllByRole('link').length).toBeGreaterThan(0)
+    })
     const links = within(list).getAllByRole('link')
     expect(links[0]).toHaveTextContent('Support')
     expect(links[0]).toHaveAttribute('data-role', 'support')

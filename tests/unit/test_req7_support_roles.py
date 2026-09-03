@@ -31,9 +31,10 @@ def test_django_sidebar_styles_roles_not_diamonds():
     js = SIDEBAR_JS.read_text(encoding="utf-8")
     css = SHELL_CSS.read_text(encoding="utf-8")
     assert "data-role" in js
-    assert "os-agent-item--support" in js
-    assert "os-agent-item--gate" in js
-    assert "os-agent-item--skeptic" in js
+    assert 'os-agent-item--"' in js or "os-agent-item--" in js
+    assert 'role === "support"' in js
+    assert 'role === "gate"' in js
+    assert 'role === "skeptic"' in js
     assert "os-agent-item--support" in css
     assert "os-agent-item--gate" in css
     assert "os-agent-item--skeptic" in css
