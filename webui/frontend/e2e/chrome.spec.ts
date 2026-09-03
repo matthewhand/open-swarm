@@ -43,11 +43,45 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/llm-profiles**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'llm_profiles',
+        profiles: [],
+        default_llm_profile: 'default',
+        default_is_auto: true,
+        override_per_task: false,
+        task_llm_profiles: {},
+        auto_picks: { default: 'default' },
+        warnings: [],
+        routes: {},
+        task_classes: ['orchestration', 'auxiliary', 'delegation'],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ object: 'list', data: [] }),
+    })
+  })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+        ],
+        configured: [],
+        data: [],
+      }),
     })
   })
   await page.route('**/health**', async (route) => {
@@ -122,13 +156,13 @@ test('left-rail Search opens the command palette overlay, not an in-place filter
   await expect(palette).toHaveCount(0)
 })
 
-test('legacy /agents lands on chat chrome with query', async ({ page }) => {
+test('/agents is Agent Router (not redirected to /chat)', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
-  await page.goto('/agents?blueprint=codey')
-  await expect(page).toHaveURL(/\/chat\/?\?blueprint=codey/)
-  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
+  await page.goto('/agents')
+  await expect(page).toHaveURL(/\/agents\/?$/)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
@@ -149,7 +183,7 @@ test('chat header Computer control icon opens a WIP modal (REQ-27b)', async ({ p
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('WIP', { exact: true })).toBeVisible()
   await expect(dialog).toContainText(
-    'Computer control will use a placed OMB or Rakazo remote; not implemented here.',
+    'Computer control will use a placed OpenMousBot or Rakazo remote; not implemented here.',
   )
   await expect(dialog.getByRole('checkbox')).toHaveCount(0)
   await expect(dialog.getByRole('switch')).toHaveCount(0)

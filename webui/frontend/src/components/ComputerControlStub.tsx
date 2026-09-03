@@ -6,13 +6,13 @@ import { Monitor } from 'lucide-react'
  * no CUA, no xdotool, no CDP.
  *
  * Intent: Show what browser/computer control will look like in open-swarm
- * chrome. Real control comes later via OMB/Rakazo remotes.
+ * chrome. Real control comes later via OpenMousBot/Rakazo remotes.
  *
  * Success:
  * 1. Chat header top-right icon tools: computer/monitor icon labeled
  *    Computer control.
  * 2. Click opens a DaisyUI modal or small pane whose body is clearly WIP
- *    (short copy: computer control will use a placed OMB or Rakazo remote;
+ *    (short copy: computer control will use a placed OpenMousBot or Rakazo remote;
  *    not implemented here).
  * 3. Default: icon visible, feature not attached to any agent tools. No
  *    enable-that-drives-a-machine in this PR.
@@ -21,7 +21,7 @@ import { Monitor } from 'lucide-react'
  * Constraints: React 18 + DaisyUI 5. No Neon. No guest auth.
  */
 export const COMPUTER_CONTROL_WIP_COPY =
-  'Computer control will use a placed OMB or Rakazo remote; not implemented here.'
+  'Computer control will use a placed OpenMousBot or Rakazo remote; not implemented here.'
 
 export function ComputerControlStub() {
   const [open, setOpen] = useState(false)

@@ -68,7 +68,7 @@ describe('agentRoles (REQ-28)', () => {
     expect(isChiefOfStaff('CoS')).toBe(true)
   })
 
-  it('uses a distinct rail class from support / gate / skeptic', () => {
+  it('uses a distinct badge class from support / gate / skeptic', () => {
     expect(roleCssClass('cos')).toBe('os-agent-role-chief_of_staff')
     expect(roleCssClass('cos')).not.toBe(roleCssClass('support'))
     expect(roleCssClass('cos')).not.toBe(roleCssClass('gate'))

@@ -154,10 +154,15 @@ class HybridTeamBlueprint(BlueprintBase):
             judge = judge or preset.get("judge")
 
         known = set(registry.names())
-        # grok defaults to the first available CLI if still unset.
+        # Prefer grok, then agy — never pick claude just because it sorts first.
         if not grok:
-            avail = registry.available() or registry.names()
-            grok = avail[0] if avail else None
+            avail = list(registry.available() or registry.names())
+            for preferred in ("grok", "agy"):
+                if preferred in known or preferred in avail:
+                    grok = preferred
+                    break
+            if not grok:
+                grok = next((n for n in avail if n != "claude"), None)
         if grok and grok not in known:
             grok = None
         panel = [n for n in (panel or []) if n in known]
@@ -188,11 +193,14 @@ class HybridTeamBlueprint(BlueprintBase):
     # --- claude-orchestrated delegation ----------------------------------- #
 
     def _claude_persona(self, registry):
-        """An async ``(str) -> str`` persona backed by the ``claude`` cli_agent.
+        """Claude orchestrator only when ``cli_agents.claude`` is in config.
 
-        Returns None when no ``claude`` CLI is configured, so the coordinator
-        degrades to the orchestration-role LLM instead.
+        A host ``claude`` binary on PATH (catalog merge) must not become the
+        planning brain — operator default is LiteLLM + grok.
         """
+        configured = ((self._config or {}).get("cli_agents") or {})
+        if "claude" not in configured:
+            return None
         try:
             if "claude" in set(registry.names()):
                 return cli_persona(registry.get("claude"))
@@ -485,16 +493,34 @@ class HybridTeamBlueprint(BlueprintBase):
                 consensus_answer = await consensus(sub_question)
 
         # ---- 4. combine REST + delegated + CLI outputs into the answer --- #
-        parts = [f"REST plan:\n{plan}"]
+        from swarm.core.model_text import is_usable_model_text, sanitize_model_text
+
+        plan = sanitize_model_text(plan)
+        grok_answer = sanitize_model_text(grok_answer)
+        consensus_answer = sanitize_model_text(consensus_answer)
+        if not is_usable_model_text(plan) or "claude unavailable" in plan.lower():
+            plan = ""
+        parts: list[str] = []
+        if plan:
+            parts.append(f"REST plan:\n{plan}")
         for role, out in delegated:
-            parts.append(f"Delegated [{role}]:\n{out}")
+            cleaned = sanitize_model_text(out)
+            if is_usable_model_text(cleaned):
+                parts.append(f"Delegated [{role}]:\n{cleaned}")
         if grok_answer:
             parts.append(f"grok persona:\n{grok_answer}")
         if consensus_answer:
             parts.append(f"Consensus:\n{consensus_answer}")
-        if not (grok_answer or consensus_answer):
+        if not (grok_answer or consensus_answer or delegated):
+            if registry.names():
+                parts.append("(CLI persona produced no text)")
+            else:
+                parts.append(
+                    "(no CLI agents configured — add a 'cli_agents' block; see docs/CLI_FUSION.md)"
+                )
+        if not parts:
             parts.append(
-                "(no CLI agents configured — add a 'cli_agents' block; see docs/CLI_FUSION.md)"
+                "(planner returned no usable text — check the orchestration LLM profile)"
             )
 
         # Optional cheap "auxiliary" synthesis pass (off by default / in tests):

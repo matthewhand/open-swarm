@@ -179,6 +179,8 @@ def build_model_context(
             out.append({"role": "system", "content": f"[Conversation summary]\n{tree}"})
             continue
         role = item.get("role") or "user"
+        if str(role) == "status":
+            continue  # bubble-less session/status lines are not model context
         role_s = "assistant" if str(role) == "assistant" else "user"
         if str(role) == "system":
             role_s = "system"
@@ -195,6 +197,7 @@ def context_for_conversation(
         return [
             {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
             for m in (messages or [])
+            if (m.get("role") or "user") != "status"
         ]
     try:
         rows = list(
@@ -204,6 +207,7 @@ def context_for_conversation(
         return [
             {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
             for m in (messages or [])
+            if (m.get("role") or "user") != "status"
         ]
     return build_model_context(messages, rows)
 

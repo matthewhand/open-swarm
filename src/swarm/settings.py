@@ -155,6 +155,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     # Add custom middleware to handle async user loading after standard auth
     'swarm.middleware.AsyncAuthMiddleware',
+    'swarm.middleware.AllowAnonymousPreviewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # CSP header when CONTENT_SECURITY_POLICY is set (prod DEBUG=False block).
