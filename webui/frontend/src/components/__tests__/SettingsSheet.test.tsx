@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SettingsSheet from '../SettingsSheet'
@@ -45,23 +45,43 @@ describe('SettingsSheet', () => {
     expect(dialog.className).not.toMatch(/btn-group/)
 
     const remotesToggle = screen.getByRole('button', { name: 'Remotes' })
-    expect(remotesToggle).toHaveClass('menu-dropdown-toggle')
-    expect(remotesToggle).toHaveClass('menu-dropdown-show')
+    expect(remotesToggle).not.toHaveClass('menu-dropdown-toggle')
     expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
     expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rakazo' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
   })
 
-  it('shows remotes placeholders and join radios for retention', () => {
+  it('shows remotes empty state and join radios for retention', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          kinds: [
+            { id: 'hermes', label: 'Hermes' },
+            { id: 'omb', label: 'OpenMousBot' },
+            { id: 'rakazo', label: 'Rakazo' },
+          ],
+          configured: [],
+          data: [],
+        }),
+      } as Response),
+    )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'Hermes' }))
-    expect(screen.getByText(/placeholder remote/i)).toBeInTheDocument()
-    expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    expect(await screen.findByRole('button', { name: /Add remote/i })).toBeInTheDocument()
+    expect(screen.getByText(/No remotes configured/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
     const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
@@ -70,6 +90,60 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Disk' })).toHaveClass('join-item')
     expect(screen.getByRole('radio', { name: 'Archive' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
+  })
+
+  it('adds an OpenMousBot remote then lists it in Settings and the dropdown', async () => {
+    const configured: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method || 'GET').toUpperCase()
+        if (url.includes('/v1/remotes/') && method === 'POST') {
+          const body = JSON.parse(String(init?.body || '{}')) as { kind?: string }
+          const created = {
+            id: body.kind || 'omb',
+            kind: body.kind || 'omb',
+            label: body.kind === 'omb' ? 'OpenMousBot' : body.kind,
+            title: 'OpenMousBot',
+            host_label: '',
+            base_url: 'http://127.0.0.1:8802',
+            source: 'config',
+          }
+          configured.push(created)
+          return { ok: true, status: 201, json: async () => created } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            kinds: [
+              { id: 'hermes', label: 'Hermes' },
+              { id: 'omb', label: 'OpenMousBot' },
+              { id: 'rakazo', label: 'Rakazo' },
+            ],
+            configured,
+            data: [],
+          }),
+        } as Response
+      }),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Add remote/i }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Kind' }), { target: { value: 'omb' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), {
+      target: { value: 'http://127.0.0.1:8802' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save remote' }))
+
+    expect(await screen.findByText('OpenMousBot')).toBeInTheDocument()
+    expect(screen.getByText('http://127.0.0.1:8802')).toBeInTheDocument()
+    const remoteSelect = screen.getByRole('combobox', { name: 'Remote' })
+    expect(within(remoteSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {
