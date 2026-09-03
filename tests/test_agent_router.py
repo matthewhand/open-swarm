@@ -372,16 +372,12 @@ def test_agent_delegations_endpoint(client):
 
 @pytest.mark.django_db
 def test_agent_router_page_template(client):
-    from django.http import FileResponse
-
     response = client.get("/agents/")
     assert response.status_code == 200
     # Built SPA (ADR-001) is served as index.html; Django template is the fallback.
-    if isinstance(response, FileResponse):
-        body = b"".join(response.streaming_content).decode("utf-8", errors="replace")
-        assert "root" in body
-        return
     content = response.content.decode("utf-8")
+    if 'id="root"' in content:
+        return
     assert "Available Agents" in content
     assert "Agent Overview" in content
     assert "Delegations Timeline" in content

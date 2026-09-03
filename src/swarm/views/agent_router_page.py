@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from django.http import FileResponse
 from django.shortcuts import render
+from swarm.views.web_views import asgi_file_response
 
 
 def agent_router_page(request):
     index = Path("webui/frontend/dist/index.html")
     if index.is_file():
-        return FileResponse(index.open("rb"), content_type="text/html")
+        return asgi_file_response(index, "text/html")
     return render(request, "agent_router.html")
