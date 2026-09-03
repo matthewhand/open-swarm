@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } from 'lucide-react'
 import ChatPage from './pages/ChatPage'
@@ -26,14 +26,42 @@ function initialTheme(): Theme {
   return 'dark'
 }
 
+function applyDocumentTheme(theme: Theme) {
+  if (typeof document === 'undefined') return
+  const value = theme === 'dark' ? 'dark' : 'light'
+  const bg = theme === 'dark' ? '#0c0c0c' : '#f4f4f5'
+  document.documentElement.setAttribute('data-theme', value)
+  document.documentElement.style.backgroundColor = bg
+  if (document.body) document.body.style.backgroundColor = bg
+}
+
+applyDocumentTheme(initialTheme())
+
+/** Keep query string when aliasing a legacy chat path onto `/chat`. */
+export function chatPathWithSearch(search: string): string {
+  if (!search) return '/chat'
+  return search.startsWith('?') ? `/chat${search}` : `/chat?${search}`
+}
+
+/** `/agents` is not a product route — send it to SPA Chat. */
+function RedirectAgentsToChat() {
+  const { search } = useLocation()
+  return <Navigate to={chatPathWithSearch(search)} replace />
+}
+
 /**
  * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
  * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
  * Do not remount deleted Teams/Blueprints/Settings/Builder/AgentCreator SPA pages.
+ * Legacy `/agents` is an alias of `/chat` (REQ-5d follow-up).
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useLayoutEffect(() => {
+    applyDocumentTheme(darkMode)
+  }, [darkMode])
 
   useEffect(() => {
     try {
@@ -118,6 +146,9 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/chat" element={<ChatPage />} />
+              <Route path="/chat/*" element={<ChatPage />} />
+              <Route path="/agents" element={<RedirectAgentsToChat />} />
+              <Route path="/agents/*" element={<RedirectAgentsToChat />} />
               {/* Bare /teams|/blueprints|/settings|/agent-creator|/builder: Django RedirectView in
                   production; unknown SPA paths fall through to dashboard. */}
               <Route path="*" element={<Navigate to="/" replace />} />

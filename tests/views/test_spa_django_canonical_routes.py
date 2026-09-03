@@ -49,6 +49,8 @@ class TestSpaToDjangoCanonicalRedirects:
         assert reverse("spa_blueprints_to_django") == "/blueprints"
         assert reverse("spa_settings_to_django") == "/settings"
         assert reverse("spa_agent_creator_to_django") == "/agent-creator"
+        assert reverse("spa_agents_to_chat") == "/agents"
+        assert reverse("spa_chat") == "/chat"
 
     def test_trailing_slash_django_routes_not_redirect_loops(self, client, webui_on):
         """Canonical Django routes keep working (no redirect-to-self loops)."""
@@ -64,6 +66,60 @@ class TestSpaToDjangoCanonicalRedirects:
             )
             if response.status_code in (301, 302):
                 assert response.url != path
+
+
+@pytest.mark.django_db
+class TestSpaChatStaysChat:
+    """REQ-5d follow-up: GET /chat must not land on /agents."""
+
+    @pytest.mark.parametrize("path", ("/chat", "/chat/"))
+    def test_chat_does_not_redirect_to_agents(self, client, path):
+        response = client.get(path, follow=False)
+        location = response.get("Location", "")
+        assert "/agents" not in location
+        if response.status_code in (301, 302):
+            assert "/chat" in response.url
+        else:
+            assert response.status_code in (200, 404)
+
+    @pytest.mark.parametrize("path", ("/agents", "/agents/"))
+    def test_agents_redirects_to_chat(self, client, path):
+        response = client.get(path, follow=False)
+        assert response.status_code in (301, 302)
+        assert response.url == "/chat"
+
+    def test_agents_preserves_query_string(self, client):
+        response = client.get("/agents?blueprint=codey", follow=False)
+        assert response.status_code in (301, 302)
+        assert response.url == "/chat?blueprint=codey"
+
+    def test_chat_serves_spa_when_dist_exists(self, client, tmp_path, monkeypatch):
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text(
+            "<html><body>spa-chat-composer Connected</body></html>",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("swarm.views.web_views._get_frontend_path", lambda: dist)
+        response = client.get("/chat", follow=False)
+        assert response.status_code == 200
+        body = b"".join(response.streaming_content)
+        assert b"spa-chat-composer" in body
+        assert b"Connected" in body
+        assert response.get("Location") is None
+
+    def test_django_chat_nav_href_is_chat_not_agents(self):
+        from pathlib import Path
+
+        base = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "templates"
+            / "base.html"
+        ).read_text(encoding="utf-8")
+        assert 'href="/chat"' in base
+        assert 'href="/agents"' not in base
 
 
 @pytest.mark.django_db
@@ -91,6 +147,36 @@ class TestUxShellTemplateContracts:
         # GitHub not a bare primary peer string next to Settings as sole link —
         # demoted under More dropdown.
         assert 'id="moreNavDropdown"' in html
+
+    @pytest.mark.parametrize(
+        "path",
+        ("/teams/", "/sessions/", "/settings/", "/blueprint-library/"),
+    )
+    def test_operator_pages_use_chat_matched_shell(self, client, path):
+        """REQ-5d: Django tabs share Chat chrome — header then AGENTS+main, no login body."""
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(
+            username="uxreq5d" + path.strip("/").replace("/", "_"),
+            password="ux-req5d-pass",
+        )
+        client.force_login(user)
+        response = client.get(path)
+        assert response.status_code == 200, path
+        html = response.content.decode()
+        assert 'class="os-app"' in html
+        assert 'class="os-header sticky-top"' in html
+        assert 'class="os-shell"' in html
+        assert 'id="os-agent-sidebar"' in html
+        assert 'id="os-main"' in html
+        header_at = html.find('class="os-header sticky-top"')
+        shell_at = html.find('class="os-shell"')
+        sidebar_at = html.find('id="os-agent-sidebar"')
+        main_at = html.find('id="os-main"')
+        assert 0 <= header_at < shell_at < sidebar_at < main_at
+        assert "os-login" not in html
+        for label in ("Home", "Chat", "Blueprints", "Teams", "Sessions", "Settings"):
+            assert label in html
 
     def test_profiles_marks_profiles_item_active_not_teams(self, client):
         import re

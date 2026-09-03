@@ -64,6 +64,7 @@ from swarm.views.web_views import (
     custom_login,
     index,
     profiles_page,
+    spa_chat,
     team_admin,
     team_launcher,
     teams_export,
@@ -74,6 +75,19 @@ from swarm.views.webui import WebUIView
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
     path("", index, name="index"),  # Root path for web UI
+    # First-class SPA Chat. Must stay /chat (composer + Connected), not /agents.
+    path("chat", spa_chat, name="spa_chat"),
+    path("chat/", spa_chat, name="spa_chat_slash"),
+    path(
+        "agents",
+        RedirectView.as_view(url="/chat", permanent=False, query_string=True),
+        name="spa_agents_to_chat",
+    ),
+    path(
+        "agents/",
+        RedirectView.as_view(url="/chat", permanent=False, query_string=True),
+        name="spa_agents_slash_to_chat",
+    ),
     # Lightweight liveness probe (no auth) — used by the Fly health check.
     path("health", HealthCheckView.as_view(), name="health"),
     path("health/", HealthCheckView.as_view()),
@@ -255,5 +269,5 @@ if frontend_path and frontend_path.exists():
         return HttpResponse("Not Found", status=404)
 
     urlpatterns += [
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/).*$', spa_fallback),
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/).*$', spa_fallback),
     ]
