@@ -447,6 +447,28 @@ describe('AgentSidebar Grok rail', () => {
     expect(research).toHaveAttribute('data-kind', 'team')
     expect(research.closest('ul')).toHaveClass('os-agent-team-nest')
   })
+
+  it('nested team row keeps ?team= and does not clobber with ?blueprint= (REQ-28 / #345)', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const research = await within(list).findByRole('link', { name: /Research \(team\)/ })
+    expect(research).toHaveAttribute('href', '/chat?team=research')
+    expect(research.getAttribute('href')).not.toMatch(/blueprint=/)
+    const office = within(list).getByRole('link', { name: /Office \(team\)/ })
+    expect(office).toHaveAttribute('href', '/chat?team=office')
+  })
+
+  it('Plugins overlay is an empty honest dialog over the rail (PR #322)', async () => {
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.click(screen.getByRole('button', { name: /Plugins/i }))
+    const dialog = screen.getByRole('dialog', { name: 'Plugins' })
+    expect(dialog).toHaveTextContent(/No plugins installed/i)
+    expect(within(dialog).queryByRole('link')).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close plugins' }))
+    expect(screen.queryByRole('dialog', { name: 'Plugins' })).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Agent list' })).toBeInTheDocument()
+  })
 })
 
 describe('AgentSidebar special roles', () => {

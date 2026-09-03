@@ -543,6 +543,24 @@ class TestBlueprintSelection:
         assert consumer.messages[-1]["role"] == "assistant"
 
     @pytest.mark.asyncio
+    async def test_team_stub_echoes_remote_member_target(self, consumer):
+        """PR #318 / REQ-23: target may be a kind=remote member id (no live LAN)."""
+        consumer.messages = [{"role": "user", "content": "ping hermes"}]
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_team_stub(
+                    {"team": "harness-team", "target": "hermes"},
+                    "ping hermes",
+                    "message-response-remote",
+                )
+        sent = "".join(
+            call.kwargs.get("text_data") or call.args[0]
+            for call in mock_send.await_args_list
+        )
+        assert "team:harness-team" in sent
+        assert "target:hermes" in sent
+
+    @pytest.mark.asyncio
     async def test_unknown_blueprint_sends_error_partial(self, consumer):
         """Unknown blueprint -> error partial; no assistant message recorded."""
         consumer.messages = [{"role": "user", "content": "Hello"}]
