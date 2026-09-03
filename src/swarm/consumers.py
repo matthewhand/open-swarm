@@ -69,6 +69,23 @@ def _conversation_cache_key(user, conversation_id):
     return (user_id, conversation_id)
 
 
+@database_sync_to_async
+def _compacted_context(conversation_id, messages):
+    """Model context: summary tree replaces covered raw turns (REQ-37).
+
+    Raw ``messages`` stay on the consumer and on disk. Failures fall back
+    to the raw list so tests without a DB and live sessions without
+    summaries keep working.
+    """
+    try:
+        from swarm.core.chat_compact import context_for_conversation
+
+        return context_for_conversation(conversation_id, messages)
+    except Exception:
+        logger.debug("compact context unavailable; using raw transcript", exc_info=True)
+        return list(messages or [])
+
+
 def _oob_append_html(contents_div_id: str, text: str) -> str:
     """HTMX OOB append chunk with HTML-escaped body text.
 
@@ -264,7 +281,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         final_message = None
         try:
-            async for chunk in blueprint_instance.run(self.messages):
+            model_messages = await _compacted_context(self.conversation_id, self.messages)
+            async for chunk in blueprint_instance.run(model_messages):
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     continue
@@ -368,9 +386,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         full_message = ""
         try:
+            model_messages = await _compacted_context(self.conversation_id, self.messages)
             stream = await client.chat.completions.create(
                 model=model,
-                messages=self.messages,
+                messages=model_messages,
                 stream=True,
             )
             async for chunk in stream:
