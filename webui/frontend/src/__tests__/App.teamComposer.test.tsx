@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import App from '../App'
@@ -30,16 +30,15 @@ describe('SPA + team composer entry', () => {
     vi.unstubAllGlobals()
   })
 
-  it('opens the overlay from + without adding a top-nav Teams tab', async () => {
+  it('opens the overlay from + without restoring a Home/Chat top nav', async () => {
     renderApp()
 
-    const primary = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(primary).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
-    expect(within(primary).getByRole('link', { name: 'Chat' })).toHaveAttribute('href', '/chat')
-    const spaTeamsTab = within(primary)
-      .queryAllByRole('link')
-      .find((el) => el.textContent?.trim() === 'Teams' && el.getAttribute('href') === '/teams')
-    expect(spaTeamsTab).toBeUndefined()
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Home' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Chat' })).toBeNull()
+    expect(
+      screen.queryByRole('link', { name: 'Teams' }),
+    ).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /compose team/i }))
     expect(await screen.findByRole('heading', { name: /new team/i })).toBeInTheDocument()

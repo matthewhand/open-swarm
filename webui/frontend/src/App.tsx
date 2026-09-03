@@ -51,7 +51,7 @@ function RedirectAgentsToChat() {
  * Operator Django pages stay reachable from the composer + menu.
  * Legacy `/agents` aliases `/chat` (REQ-5d) without restoring Home/Chat top nav.
  * Gear opens the REQ-19 DaisyUI settings sheet over chat.
- * Compose-team `+` is a TeamComposer overlay, not a SPA Teams tab.
+ * Compose-team `+` lives in chat header icon tools, not a restored top nav.
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)

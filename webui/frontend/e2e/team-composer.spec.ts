@@ -81,14 +81,11 @@ test(' + opens two-pane team composer; add/remove and save roster', async ({ pag
   await stubComposerApis(page)
   await page.goto('/')
 
-  const primary = page.getByRole('navigation', { name: 'Primary' })
-  await expect(primary.getByRole('link', { name: 'Home' })).toBeVisible()
-  await expect(primary.getByRole('link', { name: 'Chat' })).toBeVisible()
-  // Existing Django Teams href is fine; there must be no SPA /teams tab.
-  await expect(primary.getByRole('link', { name: 'Teams', exact: true })).toHaveAttribute(
-    'href',
-    '/teams/launch/',
-  )
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Home$/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Chat$/ })).toHaveCount(0)
+  // Grok chrome: no SPA /teams tab. Django Teams stays on the composer + menu.
+  await expect(page.getByRole('link', { name: 'Teams', exact: true })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Compose team' }).click()
   await expect(page.getByRole('heading', { name: /new team/i })).toBeVisible()

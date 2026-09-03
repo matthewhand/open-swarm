@@ -502,7 +502,7 @@ const ChatPage = () => {
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {teamFromUrl ? (
             <select
               className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
@@ -526,6 +526,14 @@ const ChatPage = () => {
               <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
             </select>
           ) : null}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            aria-label="Compose team"
+            onClick={() => window.dispatchEvent(new CustomEvent('swarm:open-team-composer'))}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
           <ThemeToggle />
           <button
             type="button"
@@ -623,6 +631,20 @@ const ChatPage = () => {
                 aria-label="Operator pages"
                 className="os-plus-menu"
               >
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="os-plus-menu__item"
+                    onClick={() => {
+                      setPlusOpen(false)
+                      window.dispatchEvent(new CustomEvent('swarm:open-team-composer'))
+                    }}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Compose team
+                  </button>
+                </li>
                 {OPERATOR_LINKS.map((item) => {
                   const Icon = item.icon
                   return (

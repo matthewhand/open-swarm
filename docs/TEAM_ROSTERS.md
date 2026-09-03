@@ -13,8 +13,8 @@ This is **not** the Django `/teams/` LLM-profile alias admin.
 | **Intended composition** — `team_rosters.json`, `/v1/team-rosters/`, SPA `+` overlay | Roster of members (`api` from a blueprint, `cli`, or `remote` harness) plus per-team wire toggles | `members[{id, kind, role, source}]` + `wires{handoff, as_tool}` |
 
 Django `/teams/` remains aliases. The SPA does **not** add a top-nav Teams tab
-(Grok chrome is a different PR). Entry is the header **`+`** control (DaisyUI
-`modal-end` Settings sheet is not in this tree).
+or restore Home/Chat chrome. Entry is the chat-header **Compose team** `+`
+control (DaisyUI `modal-end` Settings sheet is not in this tree).
 
 ## File
 

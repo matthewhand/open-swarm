@@ -102,6 +102,13 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
         href: '/teams/launch/',
       },
       {
+        id: 'action-compose-team',
+        tab: 'Actions',
+        name: 'Compose team',
+        description: 'Drag-drop roster overlay (team_rosters.json)',
+        action: () => window.dispatchEvent(new CustomEvent('swarm:open-team-composer')),
+      },
+      {
         id: 'action-settings',
         tab: 'Actions',
         name: 'Settings',
