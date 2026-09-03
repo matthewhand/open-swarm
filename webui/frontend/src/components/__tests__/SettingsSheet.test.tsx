@@ -100,6 +100,38 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
   })
 
+  it('LLM profiles shows the empty-models copy when /v1/models/ returns none', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: [] }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    expect(await screen.findByText(/No models reported/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '/profiles/' })).toHaveAttribute('href', '/profiles/')
+  })
+
+  it('LLM profiles shows the operator fallback when /v1/models/ errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'down' }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    expect(
+      await screen.findByText(/Could not load models/i, undefined, { timeout: 4000 }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'LLM profiles' })).toHaveAttribute('href', '/profiles/')
+  })
+
   it('adds an OpenMousBot remote then lists it in Settings and the dropdown', async () => {
     const configured: Array<Record<string, unknown>> = []
     vi.stubGlobal(
@@ -156,6 +188,7 @@ describe('SettingsSheet', () => {
     expect(within(remoteSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+  })
   })
 
   it('persists retention via join radios and shows a save toast', async () => {
@@ -281,6 +314,44 @@ describe('SettingsSheet blueprint editor', () => {
     expect(screen.getByRole('link', { name: 'blueprint_support.py' })).toHaveAttribute(
       'href',
       '/v1/blueprints/support/source?file=blueprint_support.py',
+    )
+  })
+
+  it('REQ-19 #334: switches Blueprint file tabs and refetches the selected file', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo) => {
+      const url = String(input)
+      const selected = url.includes('roles.py') ? 'roles.py' : 'blueprint_support.py'
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 'support',
+          files: [
+            { name: 'blueprint_support.py', path: 'blueprint_support.py' },
+            { name: 'roles.py', path: 'roles.py' },
+          ],
+          primary: 'blueprint_support.py',
+          selected,
+          content:
+            selected === 'roles.py'
+              ? 'ROLE = "support"\n'
+              : 'def ask_user(question):\n    return question\n',
+        }),
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderSheet({ blueprintId: 'support' })
+    const tabs = await screen.findByRole('tablist', { name: 'Blueprint files' })
+    expect(within(tabs).getByRole('tab', { name: 'blueprint_support.py' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    fireEvent.click(within(tabs).getByRole('tab', { name: 'roles.py' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Support blueprint Python/i).textContent).toMatch(/ROLE/)
+    })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('file=roles.py'))).toBe(
+      true,
     )
   })
 
