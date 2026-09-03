@@ -86,6 +86,8 @@ Session users who hit REST with a cookie get `user:<username>` and the same stri
 
 Anonymous websocket connects are **accept-then-close** with code **4401** (`WS_AUTH_REQUIRED_CODE`) and reason `authentication required`, so the SPA can show a Sign-in CTA instead of an opaque failure. `receive()` also re-checks session auth so a frame that races the close cannot append to a transcript or invoke a blueprint/LLM.
 
+**Dev LAN exception (REQ-13):** when `DJANGO_DEBUG=true`, loopback and RFC1918/link-local clients are auto-logged as `swarm-anon-preview` (HTTP middleware + the same mint on the websocket if no cookie yet). Pytest does not get this implicit path. Force on with `SWARM_ALLOW_ANONYMOUS=1`; force off with `SWARM_ALLOW_ANONYMOUS=0`. Production stays 4401 / login-required.
+
 Login: `/login/` and `/accounts/login/` → `custom_login`. POST is **not** CSRF-exempt; `next` is open-redirect hardened (rooted relative paths only).
 
 ---

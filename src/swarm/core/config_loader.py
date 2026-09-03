@@ -210,6 +210,10 @@ def create_default_config(config_path: Path):
                 "api_key": "${RAKAZO_API_KEY}",
                 "cookie": "${RAKAZO_SESSION_COOKIE}",
             },
+            "swarm": {
+                "base_url": "http://127.0.0.1:9",
+                "api_key": "${SWARM_REMOTE_API_KEY}",
+            },
         },
     }
     logger.info(f"Creating default configuration file at {config_path}")
@@ -527,6 +531,10 @@ def create_default_config(config_path: Path):
                 "base_url": "http://10.0.0.32:3100",
                 "ui_url": "http://10.0.0.32:5173",
                 "api_key": "${RAKAZO_API_KEY}",
+            },
+            "swarm": {
+                "base_url": "http://127.0.0.1:9",
+                "api_key": "${SWARM_REMOTE_API_KEY}",
             },
         },
     }

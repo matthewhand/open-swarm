@@ -1,6 +1,6 @@
 import type { Blueprint } from './api'
 
-/** Default Support seat — first + highlighted in the conversation rail. */
+/** Default Support seat — first in the conversation rail (badge-only role colour). */
 export const SUPPORT_AGENT_ID = 'support'
 /** Catalog ids that ship for the gate seat (`tool_gate` is an alias). */
 export const GATE_AGENT_ID = 'gate'
