@@ -16,7 +16,7 @@ full-page PNGs.
 
 | File | Page / URL | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- | --- |
-| `landing.png` | `/` (React SPA dashboard) | Counts **0/45/45** from `/v1/teams`+`/v1/blueprints`+`/v1/models` (aliases + `swarm_*`; **≠** CLI 31 dirs / library 38); Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; desktop top nav Home·Chat·Blueprints·Teams·Sessions·Settings (SPA routes `/` + `/chat` only per ADR-001; rebuild `dist/` then recapture if dock/nav lag) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-19 | current |
+| `landing.png` | `/` (React SPA dashboard) | Counts **0/45/45** from `/v1/teams`+`/v1/blueprints`+`/v1/models` (aliases + `swarm_*`; **≠** CLI 31 dirs / library 38); Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; desktop top nav **Agents** + **More** (**Chat · Blueprints · Teams · Sessions · Settings**; rebuild `dist/` then recapture if dock/nav lag) | USER_JOURNEY.md, GUIDED_TOUR.md, README.md | 2026-08-19 | current |
 | `spa-chat.png` | `/chat` (React SPA) | **Connected** shell after journey login (session cookie + Channels/ASGI `/ws/`); blueprint selector + empty-state prompts (“Connected and ready”). **Unavailable** Sign-in CTA is for close **4401** / no session; unreachable badge is ASGI/network — not Settings API token (not the frame in this PNG) | GUIDED_TOUR.md | 2026-08-19 | current |
 | `spa-teams.png` | `/teams` → **`/teams/launch/`** | Django redirect landing (SPA no longer mounts `/teams`; ADR-001) with sticky capture **“Redirected: /teams → /teams/launch/ …”** banner; Team Launcher underneath with **`fs_introspect`** selected | GUIDED_TOUR.md | 2026-08-19 | current (redirect stem) |
 | `spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Django redirect landing (SPA unmounted `/blueprints`; ADR-001) with sticky **“Redirected: …”** banner over Blueprint Library | GUIDED_TOUR.md | 2026-08-19 | current (redirect stem) |
@@ -51,13 +51,12 @@ content** (end of the PNG), not floating over the viewport. Captions that name
 
 **Bottom nav honesty (as of these PNGs):**
 
-* **SPA** shell (`mobile/landing.png`, `mobile/spa-chat.png`) dock is
-  **Home · Chat · Blueprints · Teams · Sessions** (SPA router tabs Home/Chat
-  only; Blueprints/Teams/Sessions are Django hrefs — ADR-001). Settings stays
-  desktop top-nav / gear (not in the SPA mobile dock). Rebuild `dist/` after
-  pull so `/` serves the Dashboard+Chat-only shell.
-* **Django** operator pages keep **Home · Blueprints · Teams · Sessions ·
-  Settings** (no Chat tab; chat stays SPA-only).
+* **SPA** shell (`mobile/landing.png`, `mobile/spa-chat.png`) live dock is
+  **Agents** + **More** (**Chat · Blueprints · Teams · Sessions · Settings**
+  under More; logo is home). Checked-in PNGs may still show the older four-tab
+  dock until recapture. Rebuild `dist/` after pull so `/` serves the current shell.
+* **Django** operator pages keep **Agents** + **More** (same destinations;
+  logo is home). Checked-in mobile PNGs may still show the older five-tab bar.
 * Bare `/teams` `/blueprints` `/settings` `/agent-creator` **redirect** to
   Django; `spa-*` stems are redirect captures (not live SPA pages).
 * Desktop and mobile `spa-chat.png` both show the **Connected** composer after
@@ -68,7 +67,7 @@ content** (end of the PNG), not floating over the viewport. Captions that name
 
 | File | Page / URL | Mobile-specific notes | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `mobile/landing.png` | `/` | Stat cards stack (**0/45/45**, same API bridge as desktop landing); Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; SPA dock Home · Chat · Blueprints · Teams · Sessions (Home/Chat are SPA; rest Django hrefs — ADR-001); dock **parked** at end of full-page PNG. Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
+| `mobile/landing.png` | `/` | Stat cards stack (**0/45/45**, same API bridge as desktop landing); Quick Actions **Launch Team / Browse Blueprints / Manage Teams / Settings**; SPA dock Chat · Blueprints · Teams · Sessions (Home/Chat are SPA; rest Django hrefs — ADR-001); dock **parked** at end of full-page PNG. Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
 | `mobile/spa-chat.png` | `/chat` | **Connected** + blueprint selector + empty-state prompts; SPA dock with **Chat** active (**parked** at PNG end). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
 | `mobile/spa-teams.png` | `/teams` → **`/teams/launch/`** | Redirect landing with sticky **“Redirected: …”** banner; Team Launcher (`fs_introspect` selected); Django **5-tab** bar (Teams active). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |
 | `mobile/spa-blueprints.png` | `/blueprints` → **`/blueprint-library/`** | Redirect landing with sticky **“Redirected: …”** banner; single-column cards; Django **5-tab** (Blueprints active). Embedded in GUIDED_TOUR.md | 2026-08-19 | current |

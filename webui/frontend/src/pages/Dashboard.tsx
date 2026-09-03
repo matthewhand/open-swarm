@@ -70,15 +70,7 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-      <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/40">
-          Open Swarm
-        </p>
-        <h1 className="text-4xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="max-w-2xl text-sm text-base-content/55">
-          Multi-agent blueprints behind an OpenAI-compatible API.
-        </p>
-      </header>
+      <h1 className="sr-only">Home</h1>
 
       <section aria-labelledby="quick-actions-heading">
         <h2 id="quick-actions-heading" className="sr-only">

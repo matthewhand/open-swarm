@@ -31,6 +31,7 @@ describe('agentRoles', () => {
     expect(normalizeAgentRole('tool-gate')).toBe('gate')
     expect(normalizeAgentRole('reviewer')).toBe('skeptic')
     expect(normalizeAgentRole('support')).toBe('support')
+    expect(normalizeAgentRole('chief-of-staff')).toBe('chief_of_staff')
     expect(normalizeAgentRole('Writer')).toBe('default')
     expect(normalizeAgentRole(null)).toBe('default')
   })
@@ -39,6 +40,7 @@ describe('agentRoles', () => {
     expect(agentRole({ id: 'support', name: 'Support' })).toBe('support')
     expect(agentRole({ id: 'gate', name: 'Gate' })).toBe('gate')
     expect(agentRole({ id: 'skeptic', name: 'Skeptic' })).toBe('skeptic')
+    expect(agentRole({ id: 'cos', name: 'Chief of Staff' })).toBe('chief_of_staff')
     expect(agentRole(codey)).toBe('default')
   })
 
@@ -66,7 +68,7 @@ describe('agentRoles (REQ-28)', () => {
     expect(isChiefOfStaff('CoS')).toBe(true)
   })
 
-  it('uses a distinct rail class from support / gate / skeptic', () => {
+  it('uses a distinct badge class from support / gate / skeptic', () => {
     expect(roleCssClass('cos')).toBe('os-agent-role-chief_of_staff')
     expect(roleCssClass('cos')).not.toBe(roleCssClass('support'))
     expect(roleCssClass('cos')).not.toBe(roleCssClass('gate'))

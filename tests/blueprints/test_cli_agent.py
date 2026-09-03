@@ -50,6 +50,20 @@ def test_render_prompt_single():
     assert support.render_prompt([{"role": "user", "content": "hi"}]) == "hi"
 
 
+def test_latest_user_prompt_skips_status_and_assistant():
+    assert (
+        support.latest_user_prompt(
+            [
+                {"role": "user", "content": "first"},
+                {"role": "assistant", "content": "ok"},
+                {"role": "status", "content": "Started a new echo session."},
+                {"role": "user", "content": "second"},
+            ]
+        )
+        == "second"
+    )
+
+
 def test_render_prompt_multiturn_transcript():
     out = support.render_prompt(
         [
@@ -249,6 +263,116 @@ async def test_blueprint_reports_cli_failure():
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
     assert "failed" in _final_content(chunks)
+
+
+def _session_notices(chunks):
+    return [
+        c["content"]
+        for c in chunks
+        if isinstance(c, dict) and c.get("type") == "cli_session_notice"
+    ]
+
+
+async def test_second_turn_passes_stored_resume_id(tmp_path, monkeypatch):
+    """Fixture CLI echoes --resume ID; turn two must pass the stored id."""
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    script = tmp_path / "fixture_cli.py"
+    script.write_text(
+        "import json, sys\n"
+        "args = sys.argv[1:]\n"
+        "resume = None\n"
+        "if '--resume' in args:\n"
+        "    resume = args[args.index('--resume') + 1]\n"
+        "prompt = args[-1] if args else ''\n"
+        "print(json.dumps({\n"
+        "    'result': f'resume={resume} prompt={prompt}',\n"
+        "    'session_id': resume or 'sid-1',\n"
+        "}))\n"
+    )
+    cfg = {
+        "cli_agents": {
+            "echo": {
+                "cmd": [PY, str(script), "{prompt}"],
+                "parse": "json:.result",
+                "resume_argv": ["--resume", "{session_id}"],
+                "resume_insert": 2,
+                "session_id_paths": [".session_id"],
+            }
+        },
+        "cli_fusion": {"default_cli": "echo"},
+    }
+    thread = {"user_key": "u1", "agent": "cli_agent", "conversation_id": "t-echo"}
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({**thread, "cli": "echo", "failover": False})
+    first = await _collect(bp.run([{"role": "user", "content": "hello"}]))
+    assert _final_content(first) == "resume=None prompt=hello"
+    assert _session_notices(first) == ["Started a new echo session."]
+    assert "restored" not in " ".join(_session_notices(first)).lower()
+
+    from swarm.core.cli_sessions import get_cli_session
+
+    assert get_cli_session("u1", "cli_agent", "echo") == "sid-1"
+
+    bp.set_params({**thread, "cli": "echo", "failover": False})
+    second = await _collect(
+        bp.run(
+            [
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "resume=None prompt=hello"},
+                {"role": "user", "content": "again"},
+            ]
+        )
+    )
+    assert _final_content(second) == "resume=sid-1 prompt=again"
+    assert _session_notices(second) == ["Resumed echo session."]
+
+
+async def test_missing_session_starts_new_and_is_honest(tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    script = tmp_path / "expire_cli.py"
+    script.write_text(
+        "import json, sys\n"
+        "args = sys.argv[1:]\n"
+        "if '--resume' in args:\n"
+        "    sys.stderr.write('No conversation found with session ID\\n')\n"
+        "    sys.exit(2)\n"
+        "print(json.dumps({'result': 'fresh', 'session_id': 'sid-new'}))\n"
+    )
+    cfg = {
+        "cli_agents": {
+            "echo": {
+                "cmd": [PY, str(script), "{prompt}"],
+                "parse": "json:.result",
+                "resume_argv": ["--resume", "{session_id}"],
+                "resume_insert": 2,
+            }
+        },
+        "cli_fusion": {"default_cli": "echo"},
+    }
+    from swarm.core.cli_sessions import put_cli_session
+
+    put_cli_session("u1", "cli_agent", "echo", "sid-expired")
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params(
+        {"user_key": "u1", "agent": "cli_agent", "cli": "echo", "failover": False}
+    )
+    chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
+    assert _final_content(chunks) == "fresh"
+    assert _session_notices(chunks) == ["Started a new echo session."]
+    assert "restored" not in " ".join(_session_notices(chunks)).lower()
+    from swarm.core.cli_sessions import get_cli_session
+
+    assert get_cli_session("u1", "cli_agent", "echo") == "sid-new"
+
+
+async def test_cli_without_resume_never_claims_restore(tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    bp.set_params({"user_key": "u1", "agent": "cli_agent", "cli": "echo", "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    assert _final_content(chunks) == "ECHO: ping"
+    assert _session_notices(chunks) == ["Started a new echo session."]
+    assert all("Resumed" not in n and "restored" not in n.lower() for n in _session_notices(chunks))
 
 
 # --------------------------------------------------------------------------- #
