@@ -88,6 +88,15 @@ describe('parseChatWsMessage', () => {
     })
   })
 
+  it('parses a bubble-less session status line', () => {
+    const raw =
+      '<div id="message-list" hx-swap-oob="beforeend"><p class="os-chat-status chat-status-line" role="status">Starting a new CLI session.</p></div>'
+    expect(parseChatWsMessage(raw)).toEqual({
+      kind: 'status_line',
+      text: 'Starting a new CLI session.',
+    })
+  })
+
   it('falls back to unknown for empty or unrecognized frames', () => {
     expect(parseChatWsMessage('')).toEqual({ kind: 'unknown', raw: '' })
     const weird = '<div id="something-else" hx-swap-oob="beforeend"><span>x</span></div>'

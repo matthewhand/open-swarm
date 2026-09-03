@@ -138,13 +138,20 @@ get a panelist that actually *does work*, pin down two flags from its `--help`:
 1. its **print/exec/run** flag (one-shot, non-interactive), and
 2. its **auto-approve / skip-permissions** flag (so it never waits on a prompt).
 
-| CLI | Print/exec | Auto-approve (full-capability) | Structured output → `parse` |
-|---|---|---|---|
-| `grok` | `-p` / `--single` (also installed as `agent`) | `--always-approve` | `--output-format json` → `json:.text` |
-| `claude` | `-p` | `--dangerously-skip-permissions` | `--output-format json` → `json:.result` |
-| `gemini` | `-p` | `--yolo` | `-o json` → `json:.response` |
-| `codex` | `exec` | `--dangerously-bypass-approvals-and-sandbox` (or `--full-auto`) | text |
-| `opencode` | `run` | (none needed — `run` acts without an approval gate) | text |
+| CLI | Print/exec | Auto-approve (full-capability) | Structured output → `parse` | Resume (CLI owns the session) |
+|---|---|---|---|---|
+| `grok` | `-p` / `--single` (also installed as `agent`) | `--always-approve` | `--output-format json` → `json:.text` | `--resume <id>` (`~/.grok/sessions`) |
+| `claude` | `-p` | `--dangerously-skip-permissions` | `--output-format json` → `json:.result` | `--resume <session_id>` (JSON `session_id`) |
+| `gemini` | `-p` | `--yolo` | `-o json` → `json:.response` | `--resume` / `-r` `<id>` |
+| `codex` | `exec` | `--dangerously-bypass-approvals-and-sandbox` (or `--full-auto`) | text | `codex exec resume <SESSION_ID>` |
+| `opencode` | `run` | (none needed — `run` acts without an approval gate) | text | `--session` / `-s` `<id>` |
+| `antigravity` | not in catalog | — | — | `agy --conversation <id>` (documented, not wired) |
+
+Swarm does **not** own CLI conversation state. After a successful one-shot it
+stores the CLI’s session id on the REQ-14 chat JSON (`cli_sessions`) and passes
+it back on the next send. A missing or expired id starts a new session (honest
+status line — never a fake “restored”). Override per adapter with `resume_argv`
+/ `session_id_paths`; disable with `params.resume=false`.
 
 ### Example adapters
 

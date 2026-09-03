@@ -194,7 +194,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if params and params.get("team"):
             await self.respond_with_team_stub(params, message_text, contents_div_id)
         elif blueprint_id:
-            await self.respond_with_blueprint(blueprint_id, contents_div_id)
+            await self.respond_with_blueprint(blueprint_id, contents_div_id, params=params)
         else:
             await self.respond_with_default_model(contents_div_id)
 
@@ -215,7 +215,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=final_html)
 
-    async def respond_with_blueprint(self, blueprint_id, contents_div_id):
+    async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
         # In test mode, skip slow blueprint instantiation and return canned output.
         if os.environ.get("SWARM_TEST_MODE"):
@@ -247,8 +247,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
 
         try:
+            from swarm.blueprints.common import cli_fusion_support as support
             from swarm.views.utils import get_blueprint_instance
-            blueprint_instance = await get_blueprint_instance(blueprint_id)
+
+            bp_params = support.inject_chat_persist(params, self.user, blueprint_id)
+            blueprint_instance = await get_blueprint_instance(blueprint_id, params=bp_params)
         except Exception:
             logger.error(
                 f"Error loading blueprint '{blueprint_id}'", exc_info=True
@@ -264,7 +267,23 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         final_message = None
         try:
+            from swarm.blueprints.common import cli_fusion_support as support
+
             async for chunk in blueprint_instance.run(self.messages):
+                if (
+                    isinstance(chunk, dict)
+                    and chunk.get("type") == support.PROGRESS_TYPE
+                    and support.is_session_status_line(chunk.get("content"))
+                ):
+                    status_text = str(chunk.get("content") or "").strip()
+                    self.messages.append({"role": "status", "content": status_text})
+                    await self.send(
+                        text_data=render_to_string(
+                            "websocket_partials/status_line.html",
+                            {"message": status_text},
+                        )
+                    )
+                    continue
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     continue

@@ -31,6 +31,7 @@ export type ChatWsEvent =
   | { kind: 'assistant_start'; id: string }
   | { kind: 'assistant_chunk'; id: string; text: string }
   | { kind: 'assistant_final'; id: string; text: string }
+  | { kind: 'status_line'; text: string }
   | { kind: 'unknown'; raw: string }
 
 const OOB_CHUNK_PREFIX = 'beforeend:#'
@@ -102,6 +103,12 @@ export function parseChatWsMessage(raw: string): ChatWsEvent {
     }
     if (child?.id.startsWith(ASSISTANT_ID_PREFIX)) {
       return { kind: 'assistant_start', id: child.id }
+    }
+    if (
+      child?.classList.contains('os-chat-status') ||
+      child?.classList.contains('chat-status-line')
+    ) {
+      return { kind: 'status_line', text: (child.textContent ?? '').trim() }
     }
     return { kind: 'unknown', raw }
   }

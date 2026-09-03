@@ -402,6 +402,14 @@ class ChatCompletionsView(APIView):
         messages = validated_data['messages']
         stream = validated_data.get('stream', False)
         blueprint_params = validated_data.get('params', None)
+        try:
+            from swarm.blueprints.common import cli_fusion_support as support
+
+            blueprint_params = support.inject_chat_persist(
+                blueprint_params, request.user, model_name
+            )
+        except Exception:
+            blueprint_params = dict(blueprint_params or {})
 
         # --- Model Access Validation ---
         # This function likely performs sync DB lookups, so wrap it.

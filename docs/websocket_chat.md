@@ -68,5 +68,9 @@ mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
 SPA after reload or agent switch. Retention (counts, disk, trash,
 `SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
 
+CLI agents (REQ-52) also store `cli_sessions` on that JSON file — the CLI owns
+the conversation; Swarm only keeps the id and passes it back on the next send.
+A bubble-less status line says whether we resumed or started a new session.
+
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).

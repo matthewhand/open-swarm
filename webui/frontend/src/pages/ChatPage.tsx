@@ -64,7 +64,7 @@ type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
@@ -251,6 +251,17 @@ const ChatPage = () => {
             next = current.map((m) =>
               m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
             )
+            break
+          case 'status_line':
+            next = [
+              ...current,
+              {
+                key: `status-${current.length}-${Date.now()}`,
+                role: 'status',
+                text: event.text,
+                streaming: false,
+              },
+            ]
             break
         }
         return { ...prev, [threadKey]: next }
@@ -576,6 +587,13 @@ const ChatPage = () => {
               message.role === 'assistant' &&
               !message.streaming &&
               lastUserTextRef.current.length > 0
+            if (message.role === 'status') {
+              return (
+                <p key={message.key} className="os-chat-status chat-status-line" role="status">
+                  {message.text}
+                </p>
+              )
+            }
             return (
               <div
                 key={message.key}

@@ -113,6 +113,60 @@ def test_format_bytes():
     assert chat_store.format_bytes(2048) == "2.0 KB"
 
 
+def test_cli_sessions_roundtrip_and_preserve_on_message_save(tmp_path):
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        [{"role": "user", "content": "hi"}],
+        conversation_id="agt-1-cli_agent",
+        cli_sessions={"claude": "sess-aaa"},
+        base_dir=tmp_path,
+    )
+    loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert loaded["cli_sessions"] == {"claude": "sess-aaa"}
+    assert chat_store.get_cli_session("u1", "cli_agent", "claude", base_dir=tmp_path) == "sess-aaa"
+
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "yo"}],
+        conversation_id="agt-1-cli_agent",
+        base_dir=tmp_path,
+    )
+    assert chat_store.get_cli_session("u1", "cli_agent", "claude", base_dir=tmp_path) == "sess-aaa"
+
+    chat_store.set_cli_session("u1", "cli_agent", "claude", "sess-bbb", base_dir=tmp_path)
+    assert chat_store.get_cli_session("u1", "cli_agent", "claude", base_dir=tmp_path) == "sess-bbb"
+    chat_store.set_cli_session("u1", "cli_agent", "claude", None, base_dir=tmp_path)
+    assert chat_store.get_cli_session("u1", "cli_agent", "claude", base_dir=tmp_path) is None
+
+
+def test_cli_sessions_reject_secrets(tmp_path):
+    assert chat_store.normalize_cli_session_id("sk-super-secret") is None
+    assert chat_store.normalize_cli_sessions({"claude": "sk-abc", "grok": "ok-id"}) == {"grok": "ok-id"}
+    assert (
+        chat_store.set_cli_session("u1", "cli_agent", "claude", "sk-nope", base_dir=tmp_path)
+        is None
+    )
+
+
+def test_status_role_survives_normalize(tmp_path):
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "status", "content": "Starting a new CLI session."},
+        ],
+        base_dir=tmp_path,
+    )
+    loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert loaded["messages"][1] == {
+        "role": "status",
+        "content": "Starting a new CLI session.",
+    }
+
+
 def test_user_key_and_conversation_id():
     class U:
         pk = 42

@@ -121,6 +121,10 @@ class CliAgentConfig:
     # a preferred whitelist (falls back to all-available if none match); a dict
     # ``{"panel": [...], "judge": "<cli>"}`` => explicit. None (default) => normal.
     consensus: bool | list[str] | dict[str, Any] | None = None
+    # Optional override of catalog SESSION_RESUME (argv with ``{session_id}``).
+    resume_argv: list[str] | None = None
+    session_id_paths: list[str] | None = None
+    resume_insert_after: str | None = None
 
     def __post_init__(self) -> None:
         if not self.cmd:
@@ -143,6 +147,21 @@ class CliAgentConfig:
             raise CliAdapterError(
                 f"CLI adapter '{self.name}': auth_check must be a non-empty list of strings"
             )
+        if self.resume_argv is not None and (
+            not isinstance(self.resume_argv, list)
+            or not all(isinstance(p, str) for p in self.resume_argv)
+            or not self.resume_argv
+        ):
+            raise CliAdapterError(
+                f"CLI adapter '{self.name}': resume_argv must be a non-empty list of strings"
+            )
+        if self.session_id_paths is not None and (
+            not isinstance(self.session_id_paths, list)
+            or not all(isinstance(p, str) for p in self.session_id_paths)
+        ):
+            raise CliAdapterError(
+                f"CLI adapter '{self.name}': session_id_paths must be a list of strings"
+            )
 
 
 @dataclass
@@ -158,6 +177,7 @@ class CliResult:
     parse_error: str | None = None
     error: str | None = None
     stderr: str = ""
+    session_id: str | None = None
 
 
 @dataclass
@@ -246,6 +266,9 @@ class CliAdapter:
             mode=raw.get("mode", "default"),
             auth_check=raw.get("auth_check"),
             consensus=raw.get("consensus"),
+            resume_argv=raw.get("resume_argv"),
+            session_id_paths=raw.get("session_id_paths"),
+            resume_insert_after=raw.get("resume_insert_after"),
         )
         return cls(cfg)
 
@@ -257,10 +280,20 @@ class CliAdapter:
         return shutil.which(exe) is not None
 
     def _build_invocation(
-        self, prompt: str, workdir: str
+        self, prompt: str, workdir: str, session_id: str | None = None
     ) -> tuple[list[str], bytes | None]:
         """Return (argv, stdin_bytes) for the given prompt."""
+        from swarm.core import cli_catalog
+
         argv = [_apply_tokens(part, prompt, workdir) for part in self.config.cmd]
+        if session_id:
+            argv = cli_catalog.apply_session_id(
+                argv,
+                self.name,
+                session_id,
+                resume_argv=self.config.resume_argv,
+                insert_after=self.config.resume_insert_after,
+            )
         stdin_bytes: bytes | None = None
         if self.config.prompt_mode == "stdin":
             stdin_bytes = prompt.encode("utf-8")
@@ -289,12 +322,24 @@ class CliAdapter:
             return (value if isinstance(value, str) else json.dumps(value)), None
         return stdout.strip(), f"unknown parse spec {spec!r}"
 
+    def _attach_session_id(self, result: CliResult, stdout: str) -> CliResult:
+        """Stamp ``result.session_id`` from stdout JSON when the CLI echoed one."""
+        from swarm.core import cli_catalog
+
+        result.session_id = cli_catalog.extract_session_id_from_text(
+            stdout,
+            name=self.config.name,
+            paths=self.config.session_id_paths,
+        )
+        return result
+
     async def run(
         self,
         prompt: str,
         *,
         workdir: str | None = None,
         extra_env: dict[str, str] | None = None,
+        session_id: str | None = None,
     ) -> CliResult:
         """Launch the CLI, await its answer, and parse the result.
 
@@ -305,7 +350,9 @@ class CliAdapter:
         result (``stream_run`` always emits exactly one ``final`` chunk).
         """
         result: CliResult | None = None
-        async for chunk in self.stream_run(prompt, workdir=workdir, extra_env=extra_env):
+        async for chunk in self.stream_run(
+            prompt, workdir=workdir, extra_env=extra_env, session_id=session_id
+        ):
             if chunk.final:
                 result = chunk.result
         assert result is not None  # stream_run guarantees a terminal chunk
@@ -317,6 +364,7 @@ class CliAdapter:
         *,
         workdir: str | None = None,
         extra_env: dict[str, str] | None = None,
+        session_id: str | None = None,
     ) -> AsyncIterator[CliStreamChunk]:
         """Like :meth:`run`, but yield stdout incrementally as it arrives.
 
@@ -334,7 +382,9 @@ class CliAdapter:
             if cfg.cwd
             else (workdir or os.getcwd())
         )
-        argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
+        argv, stdin_bytes = self._build_invocation(
+            prompt, effective_workdir, session_id=session_id
+        )
         env = self._build_env(prompt, effective_workdir, extra_env)
 
         if not self.is_available():
@@ -438,10 +488,13 @@ class CliAdapter:
                 stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
                 yield CliStreamChunk(
                     final=True,
-                    result=CliResult(
-                        name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                        duration=duration, timed_out=True, stderr=stderr.strip(),
-                        error=f"timed out after {cfg.timeout}s",
+                    result=self._attach_session_id(
+                        CliResult(
+                            name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                            duration=duration, timed_out=True, stderr=stderr.strip(),
+                            error=f"timed out after {cfg.timeout}s",
+                        ),
+                        stdout,
                     ),
                 )
                 return
@@ -456,10 +509,13 @@ class CliAdapter:
             if proc.returncode != 0:
                 yield CliStreamChunk(
                     final=True,
-                    result=CliResult(
-                        name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
-                        duration=duration, stderr=stderr.strip(),
-                        error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
+                    result=self._attach_session_id(
+                        CliResult(
+                            name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                            duration=duration, stderr=stderr.strip(),
+                            error=f"exited {proc.returncode}: {stderr.strip()[:500]}",
+                        ),
+                        stdout,
                     ),
                 )
                 return
@@ -467,9 +523,12 @@ class CliAdapter:
             text, parse_error = self._parse_output(stdout)
             yield CliStreamChunk(
                 final=True,
-                result=CliResult(
-                    name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
-                    parse_error=parse_error, stderr=stderr.strip(),
+                result=self._attach_session_id(
+                    CliResult(
+                        name=cfg.name, ok=True, text=text, returncode=0, duration=duration,
+                        parse_error=parse_error, stderr=stderr.strip(),
+                    ),
+                    stdout,
                 ),
             )
         finally:

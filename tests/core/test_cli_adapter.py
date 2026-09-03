@@ -110,6 +110,29 @@ async def test_json_parse_nested_list_index():
     assert res.text == "deep"
 
 
+async def test_resume_flag_is_injected_and_session_id_extracted():
+    code = (
+        "import json,sys; "
+        "sid='fresh-1'; "
+        "args=sys.argv[1:]; "
+        "sid=args[args.index('--resume')+1] if '--resume' in args else sid; "
+        "print(json.dumps({'text': 'RESUMED:'+sid if '--resume' in args else 'NEW', 'session_id': sid}))"
+    )
+    adapter = CliAdapter.from_config(
+        "echo",
+        {
+            "cmd": [PY, "-c", code, "{prompt}"],
+            "parse": "json:.text",
+            "resume_argv": ["--resume", "{session_id}"],
+        },
+    )
+    first = await adapter.run("hi")
+    assert first.ok and first.text == "NEW" and first.session_id == "fresh-1"
+    second = await adapter.run("hi", session_id=first.session_id)
+    assert second.ok and second.text == "RESUMED:fresh-1"
+    assert second.session_id == "fresh-1"
+
+
 async def test_json_parse_failure_falls_back_to_raw():
     adapter = CliAdapter.from_config(
         "j", {"cmd": [PY, "-c", "print('not json')", "{prompt}"], "parse": "json:.result"}

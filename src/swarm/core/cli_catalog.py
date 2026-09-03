@@ -29,6 +29,8 @@ paid ``GEMINI_API_KEY``. Flash answers in a few seconds.
 
 from __future__ import annotations
 
+import json
+import re
 import shutil
 from typing import Any
 
@@ -84,6 +86,50 @@ CATALOG: dict[str, dict[str, Any]] = {
 # substituted for the candidate count.
 NATIVE_CONSENSUS: dict[str, list[str]] = {
     "grok": ["--best-of-n", "{n}"],  # verified live: grok runs an N-candidate tournament
+}
+
+
+# Token substituted into resume_argv when a stored CLI session id is replayed.
+SESSION_ID_TOKEN = "{session_id}"
+
+# How each CLI names / resumes a session it owns. Swarm stores the id next to
+# the chat thread (REQ-52) and injects resume_argv on the next send.
+# ``wired`` is False when the CLI is documented but not in CATALOG yet.
+SESSION_RESUME: dict[str, dict[str, Any]] = {
+    "grok": {
+        "resume_argv": ["--resume", SESSION_ID_TOKEN],
+        "id_paths": ["session_id", "sessionId"],
+        "store": "~/.grok/sessions",
+    },
+    "claude": {
+        "resume_argv": ["--resume", SESSION_ID_TOKEN],
+        "id_paths": ["session_id"],
+        "store": "claude session files (JSON session_id)",
+    },
+    "gemini": {
+        "resume_argv": ["--resume", SESSION_ID_TOKEN],
+        "id_paths": ["session_id", "sessionId"],
+        "store": "gemini project sessions",
+    },
+    "codex": {
+        # `codex exec resume <SESSION_ID> <prompt> …` — insert after `exec`.
+        "resume_argv": ["resume", SESSION_ID_TOKEN],
+        "resume_insert_after": "exec",
+        "id_paths": ["session_id", "thread_id", "id"],
+        "store": "codex session / rollout store",
+    },
+    "opencode": {
+        "resume_argv": ["--session", SESSION_ID_TOKEN],
+        "id_paths": ["sessionID", "session_id", "id"],
+        "store": "opencode session store",
+    },
+    # Documented for when an adapter is wired; not a catalog entry today.
+    "antigravity": {
+        "resume_argv": ["--conversation", SESSION_ID_TOKEN],
+        "id_paths": ["conversation_id", "session_id"],
+        "store": "agy conversation id",
+        "wired": False,
+    },
 }
 
 
@@ -294,3 +340,123 @@ def _deepcopy(cfg: dict[str, Any]) -> dict[str, Any]:
         k: (list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v)
         for k, v in cfg.items()
     }
+
+
+# Session ids are opaque CLI handles, never credentials. Reject key-shaped values.
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+_SECRETISH_RE = re.compile(r"(?i)(sk-|api[_-]?key|bearer\s|-----begin)")
+_SESSION_JSON_KEY_RE = re.compile(
+    r'"(?:session_id|sessionId|sessionID|conversation_id|thread_id)"\s*:\s*"([^"]+)"'
+)
+_DEFAULT_ID_PATHS = ("session_id", "sessionId", "sessionID", "conversation_id", "thread_id")
+
+
+def session_resume_spec(name: str) -> dict[str, Any] | None:
+    """Copy of the resume spec for ``name``, or None if unknown."""
+    entry = SESSION_RESUME.get(name)
+    if entry is None:
+        return None
+    out = dict(entry)
+    if isinstance(out.get("resume_argv"), list):
+        out["resume_argv"] = list(out["resume_argv"])
+    if isinstance(out.get("id_paths"), list):
+        out["id_paths"] = list(out["id_paths"])
+    return out
+
+
+def has_session_resume(name: str) -> bool:
+    """True when Swarm can inject a resume flag for this CLI (wired + argv)."""
+    spec = SESSION_RESUME.get(name)
+    return bool(spec and spec.get("resume_argv") and spec.get("wired", True))
+
+
+def normalize_cli_session_id(raw: Any) -> str | None:
+    """Return a safe session id, or None if missing / secret-shaped / invalid."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text or not _SESSION_ID_RE.match(text) or _SECRETISH_RE.search(text):
+        return None
+    return text
+
+
+def extract_session_id(
+    data: Any, *, name: str | None = None, paths: list[str] | None = None
+) -> str | None:
+    """Pull a session id out of parsed JSON (top-level, then one nested dict)."""
+    keys: list[str] = []
+    for key in (*(paths or ()), *(((session_resume_spec(name) or {}).get("id_paths")) or ()), *_DEFAULT_ID_PATHS):
+        if key not in keys:
+            keys.append(key)
+    if isinstance(data, dict):
+        for key in keys:
+            sid = normalize_cli_session_id(data.get(key))
+            if sid:
+                return sid
+        for value in data.values():
+            if isinstance(value, dict):
+                sid = extract_session_id(value, paths=keys)
+                if sid:
+                    return sid
+    return None
+
+
+def extract_session_id_from_text(
+    text: str | None, *, name: str | None = None, paths: list[str] | None = None
+) -> str | None:
+    """Parse a session id from JSON / NDJSON stdout, or a quoted key in text."""
+    if not text or not str(text).strip():
+        return None
+    raw = str(text).strip()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = None
+    if parsed is not None:
+        sid = extract_session_id(parsed, name=name, paths=paths)
+        if sid:
+            return sid
+    last: Any = None
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            last = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    if last is not None:
+        sid = extract_session_id(last, name=name, paths=paths)
+        if sid:
+            return sid
+    for match in _SESSION_JSON_KEY_RE.finditer(raw):
+        sid = normalize_cli_session_id(match.group(1))
+        if sid:
+            return sid
+    return None
+
+
+def apply_session_id(
+    cmd: list[str],
+    name: str,
+    session_id: str,
+    *,
+    resume_argv: list[str] | None = None,
+    insert_after: str | None = None,
+) -> list[str]:
+    """Return ``cmd`` with this CLI's resume argv injected, or ``cmd`` unchanged."""
+    sid = normalize_cli_session_id(session_id)
+    spec = session_resume_spec(name) or {}
+    tmpl = resume_argv if resume_argv is not None else spec.get("resume_argv")
+    after = insert_after if insert_after is not None else spec.get("resume_insert_after")
+    if not sid or not tmpl or spec.get("wired", True) is False and resume_argv is None:
+        return list(cmd)
+    extra = [sid if part == SESSION_ID_TOKEN else str(part) for part in tmpl]
+    out = list(cmd)
+    if after:
+        try:
+            idx = out.index(after)
+            return out[: idx + 1] + extra + out[idx + 1 :]
+        except ValueError:
+            pass
+    return out + extra

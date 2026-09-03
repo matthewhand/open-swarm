@@ -187,3 +187,59 @@ def test_apply_model_noop_on_entry_without_cmd():
 def test_with_model_unknown_flag_cli_returns_entry_unchanged():
     base = cli_catalog.catalog_entry("grok")  # grok has no MODEL_FLAG
     assert cli_catalog.with_model("grok", "anything")["cmd"] == base["cmd"]
+
+
+def test_every_catalog_cli_has_resume_spec():
+    for name in cli_catalog.catalog_names():
+        spec = cli_catalog.session_resume_spec(name)
+        assert spec is not None, name
+        assert spec.get("resume_argv"), name
+        assert cli_catalog.has_session_resume(name)
+
+
+def test_antigravity_resume_is_documented_but_not_wired():
+    spec = cli_catalog.session_resume_spec("antigravity")
+    assert spec is not None
+    assert spec["resume_argv"] == ["--conversation", "{session_id}"]
+    assert spec.get("wired") is False
+    assert cli_catalog.has_session_resume("antigravity") is False
+    assert "antigravity" not in cli_catalog.catalog_names()
+
+
+def test_apply_session_id_appends_resume_flag():
+    cmd = ["grok", "-p", "hi", "--always-approve"]
+    out = cli_catalog.apply_session_id(cmd, "grok", "abc-123")
+    assert out[-2:] == ["--resume", "abc-123"]
+    assert cmd[-1] == "--always-approve"  # original unchanged
+
+
+def test_apply_session_id_inserts_codex_resume_subcommand():
+    cmd = ["codex", "exec", "do it", "--dangerously-bypass-approvals-and-sandbox"]
+    out = cli_catalog.apply_session_id(cmd, "codex", "thread-9")
+    assert out == [
+        "codex",
+        "exec",
+        "resume",
+        "thread-9",
+        "do it",
+        "--dangerously-bypass-approvals-and-sandbox",
+    ]
+
+
+def test_apply_session_id_rejects_secret_shaped_values():
+    cmd = ["claude", "-p", "hi"]
+    assert cli_catalog.apply_session_id(cmd, "claude", "sk-secret-key") == cmd
+    assert cli_catalog.normalize_cli_session_id("sk-abc") is None
+
+
+def test_extract_session_id_from_json_and_text():
+    assert cli_catalog.extract_session_id({"result": "ok", "session_id": "s1"}, name="claude") == "s1"
+    assert (
+        cli_catalog.extract_session_id_from_text(
+            '{"text": "hi", "session_id": "sess-2"}', name="grok"
+        )
+        == "sess-2"
+    )
+    ndjson = '{"type":"init"}\n{"session_id":"nd-3","text":"x"}\n'
+    assert cli_catalog.extract_session_id_from_text(ndjson, name="grok") == "nd-3"
+    assert cli_catalog.extract_session_id_from_text('noise "session_id":"quoted-4" tail') == "quoted-4"

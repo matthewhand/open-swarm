@@ -28,6 +28,11 @@ PARAM_FAILOVER = "failover"  # single-CLI: enable auto-failover (default True)
 PARAM_CONSENSUS = "consensus"  # single-CLI: per-request consensus override (bool/int/list/dict)
 PARAM_SKILL = "skill"        # apply a named skill's instructions to the prompt
 PARAM_PROFILE = "profile"    # desired inference traits {intelligence,speed,cost} 0..1
+PARAM_SESSION_ID = "session_id"  # explicit CLI session id to resume
+PARAM_RESUME = "resume"      # falsy disables CLI session resume
+# Injected by the server only (never trust a client-supplied copy).
+PARAM_CHAT_USER_KEY = "_chat_user_key"
+PARAM_CHAT_AGENT_ID = "_chat_agent_id"
 
 
 def resolve_workdir(
@@ -64,7 +69,13 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
     is rendered as a simple ``ROLE: content`` transcript so a one-shot CLI sees
     the full context.
     """
-    msgs = [m for m in (messages or []) if isinstance(m, dict) and m.get("content")]
+    msgs = [
+        m
+        for m in (messages or [])
+        if isinstance(m, dict)
+        and m.get("content")
+        and str(m.get("role") or "") != "status"
+    ]
     if not msgs:
         return ""
     if len(msgs) == 1:
@@ -393,3 +404,85 @@ def progress_chunk(content: str) -> dict:
 
 def format_cli_error(adapter: CliAdapter, error: str) -> str:
     return f"[{adapter.name}] failed: {error}"
+
+
+def inject_chat_persist(params: dict[str, Any] | None, user, agent_id: str) -> dict[str, Any]:
+    """Copy ``params``, drop client persist keys, stamp the authenticated user."""
+    out = dict(params or {})
+    out.pop(PARAM_CHAT_USER_KEY, None)
+    out.pop(PARAM_CHAT_AGENT_ID, None)
+    if not getattr(user, "is_authenticated", False):
+        return out
+    try:
+        from swarm.core import chat_store
+
+        pk = getattr(user, "pk", None)
+        if pk is None:
+            pk = getattr(user, "id", None)
+        if pk is None:
+            return out
+        out[PARAM_CHAT_USER_KEY] = chat_store.user_key_for(user)
+        out[PARAM_CHAT_AGENT_ID] = chat_store.normalize_agent_id(agent_id)
+    except (TypeError, ValueError):
+        return out
+    return out
+
+
+def load_stored_cli_session(params: dict[str, Any] | None, cli_name: str) -> str | None:
+    """Session id from explicit param, else the chat-thread map for ``cli_name``."""
+    from swarm.core import chat_store
+    from swarm.core.cli_catalog import normalize_cli_session_id
+
+    params = params or {}
+    explicit = normalize_cli_session_id(params.get(PARAM_SESSION_ID))
+    if explicit:
+        return explicit
+    user_key = params.get(PARAM_CHAT_USER_KEY)
+    agent_id = params.get(PARAM_CHAT_AGENT_ID)
+    if not user_key or not agent_id:
+        return None
+    return chat_store.get_cli_session(str(user_key), str(agent_id), cli_name)
+
+
+def store_cli_session(params: dict[str, Any] | None, cli_name: str, session_id: str | None) -> None:
+    """Persist or clear the CLI session id next to the chat thread. Never raises."""
+    from swarm.core import chat_store
+
+    params = params or {}
+    user_key = params.get(PARAM_CHAT_USER_KEY)
+    agent_id = params.get(PARAM_CHAT_AGENT_ID)
+    if not user_key or not agent_id:
+        return
+    try:
+        chat_store.set_cli_session(str(user_key), str(agent_id), cli_name, session_id)
+    except (OSError, TypeError, ValueError):
+        logger.exception("Failed to persist CLI session id for %s/%s", user_key, cli_name)
+
+
+def resume_enabled(params: dict[str, Any] | None) -> bool:
+    """False only when the request explicitly disables resume."""
+    if not params or PARAM_RESUME not in params:
+        return True
+    value = params[PARAM_RESUME]
+    if isinstance(value, str):
+        return value.strip().lower() not in {"0", "false", "no", "off"}
+    return bool(value)
+
+
+def session_status_line(*, resumed: bool, can_resume: bool, expired: bool = False) -> str:
+    """Honest bubble-less copy: never claim restore when we started fresh."""
+    if expired:
+        return "Stored CLI session could not be resumed — starting a new session."
+    if resumed:
+        return "Resuming the stored CLI session."
+    if can_resume:
+        return "Starting a new CLI session."
+    return "Starting a new session (this CLI has no resume flag)."
+
+
+def is_session_status_line(text: str | None) -> bool:
+    """True for the REQ-52 session progress lines (not skill/failover chatter)."""
+    t = (text or "").lower()
+    return "session" in t and (
+        "resum" in t or "new session" in t or "no resume flag" in t
+    )

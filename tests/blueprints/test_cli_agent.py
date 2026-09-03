@@ -50,6 +50,19 @@ def test_render_prompt_single():
     assert support.render_prompt([{"role": "user", "content": "hi"}]) == "hi"
 
 
+def test_render_prompt_skips_status_lines():
+    out = support.render_prompt(
+        [
+            {"role": "user", "content": "hello"},
+            {"role": "status", "content": "Starting a new CLI session."},
+            {"role": "assistant", "content": "hi"},
+        ]
+    )
+    assert "STATUS" not in out
+    assert "Starting a new CLI session." not in out
+    assert "USER: hello" in out and "ASSISTANT: hi" in out
+
+
 def test_render_prompt_multiturn_transcript():
     out = support.render_prompt(
         [
@@ -502,3 +515,85 @@ async def test_param_consensus_overrides_config_to_single():
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
     assert _final_content(chunks) == "SOLO:ping"
     assert "consensus agent" not in _progress_text(chunks)
+
+
+# --------------------------------------------------------------------------- #
+# REQ-52 CLI session persist + resume
+# --------------------------------------------------------------------------- #
+
+def _resume_echo_config() -> dict:
+    # Echo --resume ID when present; always emit a session_id in JSON.
+    code = (
+        "import json,sys;"
+        "args=sys.argv[1:];"
+        "sid='sess-fresh';"
+        "r=args[args.index('--resume')+1] if '--resume' in args else None;"
+        "sid=r or sid;"
+        "print(json.dumps({'text': ('RESUMED:'+r) if r else 'NEW', 'session_id': sid}))"
+    )
+    return {
+        "cli_agents": {
+            "echo": {
+                "cmd": [PY, "-c", code, "{prompt}"],
+                "parse": "json:.text",
+                "resume_argv": ["--resume", "{session_id}"],
+            }
+        },
+        "cli_fusion": {"default_cli": "echo"},
+    }
+
+
+async def test_second_turn_passes_stored_session_id(tmp_path, monkeypatch):
+    from swarm.core import chat_store
+
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_resume_echo_config())
+    persist = {"_chat_user_key": "u1", "_chat_agent_id": "cli_agent"}
+    bp.set_params(persist)
+    first = await _collect(bp.run([{"role": "user", "content": "one"}]))
+    assert _final_content(first) == "NEW"
+    assert "Starting a new CLI session." in _progress_text(first)
+    assert chat_store.get_cli_session("u1", "cli_agent", "echo") == "sess-fresh"
+
+    bp.set_params(persist)
+    second = await _collect(bp.run([{"role": "user", "content": "two"}]))
+    assert _final_content(second) == "RESUMED:sess-fresh"
+    assert "Resuming the stored CLI session." in _progress_text(second)
+    assert chat_store.get_cli_session("u1", "cli_agent", "echo") == "sess-fresh"
+
+
+async def test_expired_session_starts_new_and_stores_id(tmp_path, monkeypatch):
+    from swarm.core import chat_store
+
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    code = (
+        "import json,sys;"
+        "args=sys.argv[1:];"
+        "r=args[args.index('--resume')+1] if '--resume' in args else None;"
+        "sys.exit(2) if r=='dead' else print(json.dumps({'text':'NEW2','session_id':'sess-2'}))"
+    )
+    cfg = {
+        "cli_agents": {
+            "echo": {
+                "cmd": [PY, "-c", code, "{prompt}"],
+                "parse": "json:.text",
+                "resume_argv": ["--resume", "{session_id}"],
+            }
+        },
+        "cli_fusion": {"default_cli": "echo"},
+    }
+    chat_store.set_cli_session("u1", "cli_agent", "echo", "dead")
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"_chat_user_key": "u1", "_chat_agent_id": "cli_agent"})
+    chunks = await _collect(bp.run([{"role": "user", "content": "go"}]))
+    assert _final_content(chunks) == "NEW2"
+    assert "could not be resumed" in _progress_text(chunks)
+    assert chat_store.get_cli_session("u1", "cli_agent", "echo") == "sess-2"
+
+
+async def test_unknown_cli_does_not_claim_restored():
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_echo_config())
+    chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
+    progress = _progress_text(chunks)
+    assert "Starting a new session (this CLI has no resume flag)." in progress
+    assert "Resuming" not in progress

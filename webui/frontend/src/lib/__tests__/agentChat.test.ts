@@ -45,6 +45,7 @@ describe('fetchAgentThread', () => {
           conversation_id: 'agt-1-jeeves',
           messages: [
             { role: 'user', content: 'hi' },
+            { role: 'status', content: 'Starting a new CLI session.' },
             { role: 'assistant', content: 'hello' },
           ],
         }),
@@ -53,6 +54,7 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('jeeves')
     expect(thread.messages).toEqual([
       { role: 'user', content: 'hi' },
+      { role: 'status', content: 'Starting a new CLI session.' },
       { role: 'assistant', content: 'hello' },
     ])
     expect(thread.conversation_id).toBe('agt-1-jeeves')

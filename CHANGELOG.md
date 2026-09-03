@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-52 CLI session resume:** catalog CLIs own their sessions. Swarm stores each CLI session id on the REQ-14 chat JSON (`cli_sessions`) and injects that CLI’s resume flag on the next send (`--resume`, `codex exec resume`, `--session`). Expired/missing ids start a new session with an honest bubble-less status line (never a fake “restored”). Secret-shaped values are rejected. Antigravity is documented but not wired. Fixes #369.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 
 ### Changed

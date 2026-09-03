@@ -18,9 +18,54 @@ from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.cli_adapter import CliAdapter, CliResult
 from swarm.core.consensus import run_consensus
+from swarm.core import cli_catalog
 
 logger = logging.getLogger(__name__)
+
+
+def _cli_can_resume(adapter: CliAdapter) -> bool:
+    if adapter.config.resume_argv:
+        return True
+    return cli_catalog.has_session_resume(adapter.name)
+
+
+def _stored_session(params: dict[str, Any], adapter: CliAdapter) -> str | None:
+    if not support.resume_enabled(params) or not _cli_can_resume(adapter):
+        return None
+    return support.load_stored_cli_session(params, adapter.name)
+
+
+def _remember_session(
+    params: dict[str, Any],
+    adapter: CliAdapter,
+    result: CliResult | None,
+    *,
+    stored: str | None,
+    resumed: bool,
+) -> None:
+    if result is None or not result.ok:
+        return
+    new_id = result.session_id or (stored if resumed else None)
+    if new_id:
+        support.store_cli_session(params, adapter.name, new_id)
+    elif not resumed:
+        support.store_cli_session(params, adapter.name, None)
+
+
+def _session_meta(
+    name: str,
+    result: CliResult | None,
+    *,
+    session_state: str | None,
+) -> dict[str, Any]:
+    meta = support.backend_meta([name])
+    if result and result.session_id:
+        meta["cli_session_id"] = result.session_id
+    if session_state:
+        meta["cli_session"] = session_state
+    return meta
 
 
 class CliAgentBlueprint(BlueprintBase):
@@ -160,13 +205,39 @@ class CliAgentBlueprint(BlueprintBase):
             target = next((n for n in chain if registry.get(n).is_available()), None)
             if target is not None and (registry.get(target).config.parse or "text") == "text":
                 adapter = registry.get(target)
+                stored = _stored_session(params, adapter)
+                can_resume = _cli_can_resume(adapter)
                 yield support.progress_chunk(f"_Streaming CLI agent `{target}`…_")
+                yield support.progress_chunk(
+                    support.session_status_line(resumed=bool(stored), can_resume=can_resume)
+                )
                 result = None
-                async for chunk in adapter.stream_run(prompt, workdir=workdir):
+                had_delta = False
+                async for chunk in adapter.stream_run(
+                    prompt, workdir=workdir, session_id=stored
+                ):
                     if chunk.final:
                         result = chunk.result
                     elif chunk.delta:
-                        yield support.message_chunk(chunk.delta)  # incremental delta
+                        had_delta = True
+                        yield support.message_chunk(chunk.delta)
+                expired = bool(stored) and (result is None or not result.ok) and not had_delta
+                if expired:
+                    yield support.progress_chunk(
+                        support.session_status_line(
+                            resumed=False, can_resume=can_resume, expired=True
+                        )
+                    )
+                    result = None
+                    async for chunk in adapter.stream_run(prompt, workdir=workdir):
+                        if chunk.final:
+                            result = chunk.result
+                        elif chunk.delta:
+                            yield support.message_chunk(chunk.delta)
+                resumed = bool(stored) and not expired and result is not None and result.ok
+                _remember_session(
+                    params, adapter, result, stored=stored, resumed=resumed
+                )
                 if result is None or not result.ok:
                     err = (result.error if result else None) or "unknown error"
                     yield support.message_chunk(support.format_cli_error(adapter, err), final=True)
@@ -183,12 +254,34 @@ class CliAgentBlueprint(BlueprintBase):
             if not adapter.is_available():
                 yield support.progress_chunk(f"_Skipping `{name}` (not installed); failing over…_")
                 continue
+            stored = _stored_session(params, adapter)
+            can_resume = _cli_can_resume(adapter)
             yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
-            result = await adapter.run(prompt, workdir=workdir)
+            yield support.progress_chunk(
+                support.session_status_line(resumed=bool(stored), can_resume=can_resume)
+            )
+            result = await adapter.run(prompt, workdir=workdir, session_id=stored)
+            expired = bool(stored) and not result.ok
+            if expired:
+                yield support.progress_chunk(
+                    support.session_status_line(
+                        resumed=False, can_resume=can_resume, expired=True
+                    )
+                )
+                result = await adapter.run(prompt, workdir=workdir)
+            resumed = bool(stored) and not expired and result.ok
             if result.ok:
                 if result.parse_error:
                     logger.warning("CLI %s parse issue: %s", name, result.parse_error)
-                yield support.message_chunk(result.text, final=True, meta=support.backend_meta([name]))
+                _remember_session(
+                    params, adapter, result, stored=stored, resumed=resumed
+                )
+                state = "resumed" if resumed else ("expired_new" if expired else "new")
+                yield support.message_chunk(
+                    result.text,
+                    final=True,
+                    meta=_session_meta(name, result, session_state=state),
+                )
                 return
             last = (name, result.error or "unknown error")
             yield support.progress_chunk(f"_`{name}` failed: {last[1]} — failing over…_")
