@@ -119,8 +119,9 @@ def test_spa_chat_nav_and_routes_stay_on_chat_not_agents():
     """REQ-5d follow-up: Chat is /chat (composer). /agents is only an alias."""
     app = SPA_APP.read_text(encoding="utf-8")
     base = BASE.read_text(encoding="utf-8")
-    assert 'to="/chat"' in app
+    # 322 chrome: Chat is a Route path, not a leftover Home/Chat NavLink.
     assert 'path="/chat"' in app
+    assert "return '/chat'" in app
     assert 'href="/chat"' in base
     assert 'to="/agents"' not in app
     assert 'href="/agents"' not in base

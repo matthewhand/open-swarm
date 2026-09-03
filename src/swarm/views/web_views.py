@@ -299,8 +299,13 @@ def team_rosters_json(request):
         Path("src/swarm/static/team_rosters.json"),
     ]
     for path in candidates:
-        if path.is_file():
-            return FileResponse(open(path, "rb"), content_type="application/json")
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        return JsonResponse(payload, safe=False)
     return JsonResponse({"object": "list", "data": [_DEMO_TEAM_ROSTER]})
 
 
