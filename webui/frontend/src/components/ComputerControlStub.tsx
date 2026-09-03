@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Monitor } from 'lucide-react'
-import { Modal } from './DaisyUI'
 
 /**
  * REQ-27b Computer-control UI stub ONLY. Click says WIP. No driver, no E2B,
@@ -26,6 +25,35 @@ export const COMPUTER_CONTROL_WIP_COPY =
 
 export function ComputerControlStub() {
   const [open, setOpen] = useState(false)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open) {
+      if (!dialog.open) dialog.showModal()
+    } else if (dialog.open) {
+      dialog.close()
+    }
+  }, [open])
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const onCancel = (event: Event) => {
+      event.preventDefault()
+      setOpen(false)
+    }
+    const onNativeClose = () => setOpen(false)
+    dialog.addEventListener('cancel', onCancel)
+    dialog.addEventListener('close', onNativeClose)
+    return () => {
+      dialog.removeEventListener('cancel', onCancel)
+      dialog.removeEventListener('close', onNativeClose)
+    }
+  }, [])
+
   const close = () => setOpen(false)
 
   return (
@@ -45,24 +73,34 @@ export function ComputerControlStub() {
           </span>
         </button>
       </div>
-      <Modal
-        isOpen={open}
-        onClose={close}
-        title="Computer control"
-        size="sm"
+      <dialog
+        ref={dialogRef}
+        className={`modal ${open ? 'modal-open' : ''}`}
+        aria-labelledby={titleId}
+        aria-modal={open ? true : undefined}
       >
-        <div className="space-y-3">
-          <p className="text-lg font-bold tracking-wide">WIP</p>
-          <p className="text-sm text-base-content/80">
-            {COMPUTER_CONTROL_WIP_COPY}
-          </p>
+        <div className="modal-box max-w-sm">
+          <h3 id={titleId} className="font-bold text-lg">
+            Computer control
+          </h3>
+          <div className="mt-3 space-y-3">
+            <p className="text-lg font-bold tracking-wide">WIP</p>
+            <p className="text-sm text-base-content/80">
+              {COMPUTER_CONTROL_WIP_COPY}
+            </p>
+          </div>
+          <div className="modal-action">
+            <button type="button" className="btn btn-sm" onClick={close}>
+              Close
+            </button>
+          </div>
         </div>
-        <div className="modal-action">
-          <button type="button" className="btn btn-sm" onClick={close}>
-            Close
+        <form method="dialog" className="modal-backdrop" onSubmit={close}>
+          <button type="submit" aria-label="Close modal">
+            close
           </button>
-        </div>
-      </Modal>
+        </form>
+      </dialog>
     </>
   )
 }

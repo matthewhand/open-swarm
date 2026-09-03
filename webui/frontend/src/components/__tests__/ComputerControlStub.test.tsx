@@ -43,7 +43,7 @@ describe('ComputerControlStub (REQ-27b)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Computer control' }))
     expect(screen.getByRole('dialog', { hidden: true })).toHaveClass('modal-open')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }))
     expect(screen.getByRole('dialog', { hidden: true })).not.toHaveClass(
       'modal-open',
     )
