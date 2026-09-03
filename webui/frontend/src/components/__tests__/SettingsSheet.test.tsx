@@ -191,7 +191,11 @@ describe('SettingsSheet', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'API key env (optional)' }), {
       target: { value: 'OMB_API_KEY' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /^Add remote$/ }))
+    const submit = screen.getAllByRole('button', { name: /^Add remote$/ }).find(
+      (button) => button.getAttribute('type') === 'submit',
+    )
+    expect(submit).toBeTruthy()
+    fireEvent.click(submit!)
     expect(await screen.findByRole('button', { name: 'OpenMousBot' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Health' }))

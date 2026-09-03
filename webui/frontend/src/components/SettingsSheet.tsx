@@ -145,7 +145,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
                 }`}
                 aria-expanded={remotesOpen}
                 onClick={() => {
-                  setRemotesOpen((open) => !open)
+                  setRemotesOpen(true)
                   setSection(configuredRemotes[0] ? configuredRemoteSection(configuredRemotes[0].id) : 'remotes')
                 }}
               >

@@ -25,10 +25,25 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  const configured: Array<Record<string, unknown>> = []
   await page.route('**/v1/remotes**', async (route) => {
     const url = route.request().url()
     const method = route.request().method()
     if (method === 'POST' && url.includes('/operate')) {
+      const body = route.request().postDataJSON() as { op?: string }
+      if (body?.op === 'send') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            remote: 'omb',
+            op: 'send',
+            ok: true,
+            detail: 'started OpenMousBot turn via POST /api/bots/bot-1/messages',
+          }),
+        })
+        return
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -56,15 +71,16 @@ async function stubApis(page: import('@playwright/test').Page) {
       return
     }
     if (method === 'POST') {
+      configured.splice(0, configured.length, {
+        id: 'omb',
+        label: 'OpenMousBot',
+        title: 'OpenMousBot',
+        base_url: 'http://127.0.0.1:9',
+      })
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'omb',
-          label: 'OpenMousBot',
-          title: 'OpenMousBot',
-          base_url: 'http://127.0.0.1:9',
-        }),
+        body: JSON.stringify(configured[0]),
       })
       return
     }
@@ -78,11 +94,15 @@ async function stubApis(page: import('@playwright/test').Page) {
           { id: 'omb', label: 'OpenMousBot' },
           { id: 'rakazo', label: 'Rakazo' },
         ],
-        data: [],
+        data: configured,
       }),
     })
   })
   await page.route('**/health**', async (route) => {
+    if (route.request().url().includes('/v1/remotes/')) {
+      await route.fallback()
+      return
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -141,6 +161,44 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
+
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
+
+test('Settings Remotes add OpenMousBot then health, list bots, send', async ({ page }) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubApis(page)
+  await page.goto('/chat')
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Settings' })
+  await expect(dialog).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add remote' }).first().click()
+  await expect(dialog.getByRole('heading', { name: 'Add remote' })).toBeVisible()
+  await dialog.getByRole('combobox', { name: 'Kind' }).selectOption('omb')
+  await expect(dialog.getByRole('combobox', { name: 'Kind' })).toContainText('OpenMousBot')
+  await expect(dialog.getByRole('combobox', { name: 'Kind' })).not.toContainText('OMB')
+  await dialog.getByRole('textbox', { name: 'Base URL' }).fill('http://127.0.0.1:9')
+  await dialog.getByRole('textbox', { name: 'API key env (optional)' }).fill('OMB_API_KEY')
+  await dialog.locator('form').getByRole('button', { name: 'Add remote' }).click()
+
+  await expect(dialog.getByRole('button', { name: 'OpenMousBot' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(dialog.getByRole('heading', { name: 'OpenMousBot' })).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Health' }).click()
+  await expect(dialog.getByText('DOWN')).toBeVisible()
+  await expect(dialog.getByText(/not a crash/i)).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'List bots' }).click()
+  await expect(dialog.getByText('bot-1')).toBeVisible()
+
+  await dialog.getByRole('textbox', { name: 'Bot id' }).fill('bot-1')
+  await dialog.getByRole('textbox', { name: 'Message' }).fill('hello')
+  await dialog.getByRole('button', { name: /^Send$/ }).click()
+  await expect(dialog.getByText(/started OpenMousBot turn/i)).toBeVisible()
+  await expect(dialog.getByText(/\bOMB\b/)).toHaveCount(0)
 
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

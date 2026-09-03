@@ -702,7 +702,8 @@ def remotes_cmd(
         typer.echo("Remote kinds:")
         for kind in _remotes.kind_catalog():
             typer.echo(f"  {kind['id']:<8} {kind['label']}")
-        specs = _remotes.load_configured_remotes()
+        cfg = _remotes.load_raw_config(config)[0] if config else None
+        specs = _remotes.load_configured_remotes(cfg)
         if not specs:
             typer.echo("Configured remotes: (none — add with remotes set <kind> --base-url …)")
             return

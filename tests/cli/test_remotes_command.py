@@ -10,7 +10,16 @@ from tests.xdg_isolation import run_swarm_cli
 
 
 def test_remotes_list(tmp_path: Path):
-    proc = run_swarm_cli("remotes", "list", xdg_root=tmp_path / "xdg", timeout=30)
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    proc = run_swarm_cli(
+        "remotes",
+        "list",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     assert "hermes" in proc.stdout
     assert "omb" in proc.stdout
