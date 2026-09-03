@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
 import AgentAvatar from '../AgentAvatar'
 import AvatarThemePicker from '../AvatarThemePicker'
@@ -8,7 +8,9 @@ import BlobAvatar from '../BlobAvatar'
 describe('AgentAvatar themes and eye state', () => {
   afterEach(() => {
     localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
-    saveAvatarTheme('default')
+    act(() => {
+      saveAvatarTheme('default')
+    })
   })
 
   it('renders today’s os-agent-dot on Default and a blob SVG on Blobs', () => {
@@ -18,7 +20,9 @@ describe('AgentAvatar themes and eye state', () => {
     expect(dot).toHaveAttribute('data-avatar-theme', 'default')
     expect(document.querySelector('[data-avatar-theme="blobs"]')).not.toBeInTheDocument()
 
-    saveAvatarTheme('blobs')
+    act(() => {
+      saveAvatarTheme('blobs')
+    })
     rerender(<AgentAvatar agentId="codey" />)
     const blob = document.querySelector('[data-avatar-theme="blobs"]')
     expect(blob).toBeInTheDocument()

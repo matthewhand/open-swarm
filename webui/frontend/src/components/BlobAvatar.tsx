@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { blobSpecForAgent, wanderEyePose, type BlobEyePose, type BlobShape } from '../lib/blobAvatar'
+import { useMemo } from 'react'
+import { blobSpecForAgent, type BlobShape } from '../lib/blobAvatar'
 
 export type BlobEyeState = 'idle' | 'active'
 
@@ -73,26 +73,8 @@ export default function BlobAvatar({
   className = '',
 }: BlobAvatarProps) {
   const spec = useMemo(() => blobSpecForAgent(agentId), [agentId])
-  const [pose, setPose] = useState<BlobEyePose>(spec.rest)
   const eyeState: BlobEyeState = active ? 'active' : 'idle'
-
-  useEffect(() => {
-    setPose(spec.rest)
-    if (!active) return
-    const reduceMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduceMotion) return
-
-    let frame = 0
-    const started = performance.now()
-    const tick = (now: number) => {
-      setPose(wanderEyePose(spec, (now - started) / 1000))
-      frame = window.requestAnimationFrame(tick)
-    }
-    frame = window.requestAnimationFrame(tick)
-    return () => window.cancelAnimationFrame(frame)
-  }, [active, spec])
+  const duration = 8.5 + spec.wanderPhase[0] * 0.6
 
   return (
     <svg
@@ -109,8 +91,11 @@ export default function BlobAvatar({
       <g
         className="os-blob-eyes"
         style={{
-          transform: `translate(${pose.x}px, ${pose.y}px) rotate(${pose.angle}deg)`,
-          transformOrigin: '0 0',
+          ['--ex' as string]: `${spec.rest.x}px`,
+          ['--ey' as string]: `${spec.rest.y}px`,
+          ['--ea' as string]: `${spec.rest.angle}deg`,
+          ['--ew' as string]: `${spec.wanderPhase[1].toFixed(2)}s`,
+          ['--ed' as string]: `${duration.toFixed(2)}s`,
         }}
       >
         <rect x="-5.1" y="-4.1" width="2.7" height="7.4" rx="1.35" fill="#111111" />

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -522,7 +522,9 @@ describe('ChatPage Grok composer and per-agent threads', () => {
   })
 
   it('shows a Blobs header avatar when that theme is persisted', async () => {
-    saveAvatarTheme('blobs')
+    act(() => {
+      saveAvatarTheme('blobs')
+    })
     renderChat('/chat?blueprint=codey')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -531,7 +533,9 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(headerBlob).toBeInTheDocument()
     expect(headerBlob).toHaveAttribute('data-eye-state', 'active')
     localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
-    saveAvatarTheme('default')
+    act(() => {
+      saveAvatarTheme('default')
+    })
   })
 
   it('opens a unique websocket thread per agent', async () => {
