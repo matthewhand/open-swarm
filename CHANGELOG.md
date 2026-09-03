@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-54 mobile rail tuck:** Below Tailwind `lg`, picking a rail agent or conversation slides the pane away so chat + composer fill the width (header keeps the agent name). A left-edge finger swipe or the header list control restores it. First concealment shows a dismissible “Swipe from the left for the list” hint (`localStorage.swarm_swipe_hint_dismissed`, best-effort like hostname). Wide viewports keep the rail. Chat stays mounted.
 - **REQ-25 hover-edit on role agents:** Rail rows for the example roles (support, gate, skeptic) reveal a focusable edit icon on hover. Enter/click opens a DaisyUI `modal-end` Settings sheet scrolled to the Blueprint editor, which shows that agent's Python (`highlightPython` / `os-code-python`). Live `blueprint_support.py` / `tool_gate` / `skeptic` files are linked when `/v1/blueprints/<id>/source` lists them. Does not open the Teams drop-zone and does not rewrite role runtime.
 
 ### Changed
