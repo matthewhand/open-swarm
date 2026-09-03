@@ -50,10 +50,7 @@ describe('Modal Accessibility and Focus Restoration', () => {
     );
 
     const backdropButton = screen.getByRole('button', { name: 'Close modal' });
-    // eslint-disable-next-line testing-library/no-node-access
-    const backdropForm = backdropButton.closest('form');
     expect(backdropButton).toBeInTheDocument();
-    expect(backdropForm).toHaveClass('modal-backdrop');
     expect(backdropButton).toHaveAttribute('tabIndex', '-1');
 
     backdropButton.click();

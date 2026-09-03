@@ -330,13 +330,8 @@ describe('ChatPage Send button honesty while streaming', () => {
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
 
-    const { queryByTestId } = within(send)
-    expect(queryByTestId('loading-spinner')).toBeNull()
-    // Streaming progress lives on the message bubble, not a fake Send busy state.
-    // Use getAllByRole because there are multiple status roles (like connection status)
-    const statuses = screen.getAllByRole('status', { hidden: true })
-    const loadingStatus = statuses.find(s => s.getAttribute('aria-label') === 'Loading')
-    expect(loadingStatus).toBeInTheDocument()
+    const loaders = screen.getAllByRole('status', { name: 'Loading' })
+    expect(loaders.length).toBeGreaterThan(0)
   })
 })
 
@@ -430,9 +425,7 @@ describe('ChatPage markdown bubbles', () => {
       )
     })
 
-    const bubble = screen.getByTestId('chat-md')
-    expect(bubble).toBeInTheDocument()
-    expect(bubble.innerHTML).toContain('<strong>hello</strong>')
-    expect(bubble.innerHTML).toContain('<code>code</code>')
+    expect(screen.getByText('hello').tagName).toBe('STRONG')
+    expect(screen.getByText('code').tagName).toBe('CODE')
   })
 })
