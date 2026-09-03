@@ -3,10 +3,9 @@ from pathlib import Path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.http import FileResponse, HttpResponse
+from django.http import HttpResponse
 from django.urls import path, re_path
 from django.views.generic import RedirectView
-from django.views.static import serve
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -73,8 +72,10 @@ from swarm.views.remotes_api import (
     RemoteOperateView,
     RemotesListView,
 )
+from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
+    asgi_file_response,
     custom_login,
     index,
     profiles_page,
@@ -160,14 +161,17 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
-    # Multi-agent team rosters for the AGENTS sidepane (not LLM-alias /v1/teams/).
+    # Static roster file for the AGENTS sidepane (REQ-23). Composition CRUD is
+    # /v1/team-rosters/ below — not LLM-alias /v1/teams/.
     path("team_rosters.json", team_rosters_json, name="team-rosters-json"),
-    path("v1/team-rosters/", team_rosters_json, name="team-rosters-api"),
-    path("v1/team-rosters", team_rosters_json, name="team-rosters-api-no-slash"),
     # JSON Teams API (REST counterpart to the server-rendered /teams/ page)
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
     path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
+    # Composition rosters (REQ-20 / REQ-28). Not teams.json LLM aliases.
+    path("v1/team-rosters", TeamRostersAPIView.as_view(), name="team-rosters-api-no-slash"),
+    path("v1/team-rosters/", TeamRostersAPIView.as_view(), name="team-rosters-api"),
+    path("v1/team-rosters/<str:roster_id>/", TeamRosterDetailAPIView.as_view(), name="team-rosters-api-detail"),
     # Remote harnesses (Hermes / OpenMausBot / Rakazo) — config + health + operate
     path("v1/remotes", RemotesListView.as_view(), name="remotes-list-no-slash"),
     path("v1/remotes/", RemotesListView.as_view(), name="remotes-list"),
@@ -296,22 +300,25 @@ def _get_frontend_path():
 
 frontend_path = _get_frontend_path()
 if frontend_path and frontend_path.exists():
-    from django.views.static import serve
-    # re_path imported from django.urls at module top (Django 4+)
+    import mimetypes
 
-    # Serve static assets
-    urlpatterns += [
-        re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': str(frontend_path / 'assets')}),
-    ]
+    def spa_asset(request, path):
+        root = (frontend_path / "assets").resolve()
+        target = (root / path).resolve()
+        if not str(target).startswith(str(root)) or not target.is_file():
+            return HttpResponse("Not Found", status=404)
+        ctype, _ = mimetypes.guess_type(str(target))
+        return asgi_file_response(target, ctype or "application/octet-stream")
 
     # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
     # (the catch-all regex below has no capture group, so path must default)
     def spa_fallback(request, path=""):
         index_file = frontend_path / "index.html"
         if index_file.exists():
-            return FileResponse(open(index_file, 'rb'), content_type='text/html')
+            return asgi_file_response(index_file, "text/html")
         return HttpResponse("Not Found", status=404)
 
     urlpatterns += [
+        re_path(r'^assets/(?P<path>.*)$', spa_asset),
         re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/).*$', spa_fallback),
     ]

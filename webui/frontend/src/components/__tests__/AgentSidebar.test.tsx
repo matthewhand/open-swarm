@@ -7,7 +7,7 @@ import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
 
-function blueprint(id: string, name: string, description: string) {
+function blueprint(id: string, name: string, description: string, role?: string) {
   return {
     id,
     object: 'blueprint' as const,
@@ -18,6 +18,7 @@ function blueprint(id: string, name: string, description: string) {
     tags: [] as string[],
     installed: true,
     compiled: true,
+    ...(role ? { role } : {}),
   }
 }
 
@@ -26,6 +27,26 @@ const blueprints = [
   blueprint('stewie', 'Stewie', 'Helpful agent'),
   blueprint('gate', 'Gate', 'Role: gate'),
   blueprint('skeptic', 'Skeptic', 'Role: skeptic'),
+  blueprint('cos', 'Pat', 'Talks to any team.', 'chief_of_staff'),
+]
+
+const rosters = [
+  {
+    id: 'office',
+    object: 'team_roster' as const,
+    name: 'Office',
+    members: [
+      { id: 'research', kind: 'team', team_id: 'research', role: 'default', source: 'team:research' },
+    ],
+    wires: { handoff: true, as_tool: true },
+  },
+  {
+    id: 'research',
+    object: 'team_roster' as const,
+    name: 'Research',
+    members: [{ id: 'ada', kind: 'api', role: 'default', source: 'blueprint:ada' }],
+    wires: { handoff: true, as_tool: true },
+  },
 ]
 
 function mockDataTransfer() {
@@ -50,6 +71,44 @@ function dragTo(source: Element, target: Element) {
   fireEvent.dragEnd(source, { dataTransfer })
 }
 
+function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
+  return vi.fn().mockImplementation(async (input: RequestInfo) => {
+    const url = String(input)
+    if (url.includes('team_rosters') || url.includes('team-rosters')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: extraRosters }),
+      } as Response
+    }
+    if (url.includes('/v1/herdr-agents')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          data: [
+            {
+              id: 1,
+              object: 'herdr.agent',
+              kind: 'herdr',
+              name: 'w3:p1',
+              remote: '',
+              created_at: '2026-09-03T00:00:00Z',
+              updated_at: '2026-09-03T00:00:00Z',
+            },
+          ],
+        }),
+      } as Response
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ object: 'list', data: extraBlueprints }),
+    } as Response
+  })
+}
+
 function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -70,28 +129,7 @@ function storedHidden(): string[] {
 describe('AgentSidebar Grok rail', () => {
   beforeEach(() => {
     localStorage.clear()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input)
-        const data = url.includes('/v1/herdr-agents')
-          ? [{
-              id: 1,
-              object: 'herdr.agent' as const,
-              kind: 'herdr' as const,
-              name: 'w3:p1',
-              remote: '',
-              created_at: '2026-09-03T00:00:00Z',
-              updated_at: '2026-09-03T00:00:00Z',
-            }]
-          : blueprints
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ object: 'list', data }),
-        } as Response
-      }),
-    )
+    vi.stubGlobal('fetch', mockFetch())
   })
 
   afterEach(() => {
@@ -343,6 +381,24 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.keyDown(supportEdit, { key: 'Enter' })
     expect(opened).toEqual([{ section: 'blueprint', blueprintId: 'support' }])
     window.removeEventListener('swarm:open-settings', onOpen)
+  })
+
+  it('shows a distinct CoS badge and nested team rows with a Team badge', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const cos = await within(list).findByRole('link', { name: /Pat/ })
+    expect(cos).toHaveAttribute('data-role', 'chief_of_staff')
+    expect(cos).toHaveClass('os-agent-role-chief_of_staff')
+    expect(cos).toHaveClass('os-agent-row--cos')
+    expect(within(cos).getByText('CoS')).toHaveAttribute('data-role', 'chief_of_staff')
+
+    const office = within(list).getByRole('link', { name: /Office/ })
+    expect(office).toHaveAttribute('data-kind', 'team')
+    expect(within(office).getByText('Team')).toHaveAttribute('data-kind', 'team')
+
+    const research = within(list).getByRole('link', { name: /Research/ })
+    expect(research).toHaveAttribute('data-kind', 'team')
+    expect(research.closest('ul')).toHaveClass('os-agent-team-nest')
   })
 })
 

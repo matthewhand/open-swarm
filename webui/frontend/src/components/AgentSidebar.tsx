@@ -14,7 +14,10 @@ import { fetchBlueprints, fetchHerdrAgents, type Blueprint, type HerdrAgent } fr
 import {
   agentRole,
   exampleRoleAgents,
+  isChiefOfStaff,
+  roleBadgeLabel,
   roleCssClass,
+  roleFromAgent,
   showsBlueprintEdit,
 } from '../lib/agentRoles'
 import {
@@ -127,12 +130,54 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     retry: 1,
   })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
-  const agents = useMemo<SidebarAgent[]>(() => {
-    const blueprints = exampleRoleAgents(catalog)
-    const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
-    return [...blueprints, ...herdr]
-  }, [catalog, herdrQuery.data])
   const teams = teamsQuery.data ?? []
+  const agents = useMemo<SidebarAgent[]>(() => {
+    const fromBlueprints = exampleRoleAgents(catalog)
+    const seen = new Set(fromBlueprints.map((a) => a.id))
+    const fromRosters: SidebarAgent[] = []
+    for (const roster of teams) {
+      for (const member of roster.members) {
+        if (member.kind === 'team' || seen.has(member.id)) continue
+        if (!isChiefOfStaff(member.role) && member.id !== 'cos') continue
+        seen.add(member.id)
+        fromRosters.push({
+          id: member.id,
+          object: 'blueprint',
+          name: member.id === 'cos' ? 'Chief of Staff' : member.id,
+          description: 'Talks to any available team.',
+          abbreviation: 'CoS',
+          required_mcp_servers: [],
+          tags: [],
+          installed: true,
+          compiled: true,
+          role: 'chief_of_staff',
+        })
+      }
+    }
+    const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
+    const list = [...fromRosters, ...fromBlueprints, ...herdr]
+    return [...list].sort((a, b) => {
+      const ac = isChiefOfStaff(roleFromAgent(a)) ? 0 : 1
+      const bc = isChiefOfStaff(roleFromAgent(b)) ? 0 : 1
+      if (isSupportAgent(a) || isSupportAgent(b)) return 0
+      if (ac !== bc) return ac - bc
+      return 0
+    })
+  }, [catalog, herdrQuery.data, teams])
+  const rosterById = useMemo(() => new Map(teams.map((r) => [r.id, r])), [teams])
+  const childTeamIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const team of teams) {
+      for (const member of team.members) {
+        if (member.kind === 'team') ids.add(member.team_id || member.id)
+      }
+    }
+    return ids
+  }, [teams])
+  const rootTeams = useMemo(
+    () => teams.filter((team) => !childTeamIds.has(team.id)),
+    [teams, childTeamIds],
+  )
   const resolvedHiddenIds =
     hiddenIds ?? (blueprintsQuery.isPending ? [] : loadOrSeedHiddenAgentIds(agents))
 
@@ -152,6 +197,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const visibleTeams = useMemo(
     () => teams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
     [teams, resolvedHiddenIds],
+  )
+  const visibleRootTeams = useMemo(
+    () => rootTeams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
+    [rootTeams, resolvedHiddenIds],
   )
   const hiddenTeams = useMemo(
     () => teams.filter((team) => resolvedHiddenIds.includes(teamHideId(team.id))),
@@ -299,23 +348,26 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     const role = agentRole(agent)
     const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
-    const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+    const cos = isChiefOfStaff(role)
+    const badge = roleBadgeLabel(role)
+    const dataRole = role !== 'default' ? role : undefined
+    const className = `os-agent-row ${roleCssClass(role)} ${active ? 'os-agent-row--active' : ''} ${
       role !== 'default' ? `os-agent-row--${role}` : ''
-    } ${dragging ? 'os-agent-row--dragging' : ''}`
+    } ${cos ? 'os-agent-row--cos' : ''} ${dragging ? 'os-agent-row--dragging' : ''}`
     const body = (
       <>
         <span
           className="os-agent-dot mt-1.5"
           data-mark={String(agentMarkIndex(agent.id))}
-          data-role={role !== 'default' ? role : undefined}
+          data-role={dataRole}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            {role !== 'default' ? (
+            {badge ? (
               <span className={`os-agent-role-badge ${roleCssClass(role)}`} data-role={role}>
-                {role}
+                {badge}
               </span>
             ) : null}
           </span>
@@ -333,6 +385,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           href={sidebarHref(agent)}
           className={className}
           data-agent-id={agent.id}
+          data-role={dataRole}
           draggable={!hidden}
           onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
           onDragEnd={finishDrag}
@@ -360,6 +413,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           to={sidebarHref(agent)}
           className={className}
           data-agent-id={agent.id}
+          data-role={dataRole}
           aria-current={active ? 'page' : undefined}
           draggable={!hidden}
           onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
@@ -403,7 +457,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     )
   }
 
-  const renderTeamLink = (team: TeamRoster, hidden: boolean) => {
+  const renderTeamLink = (team: TeamRoster, hidden: boolean, nested = false) => {
     const name = team.name || team.id
     const hideId = teamHideId(team.id)
     const active = selectedTeamId === team.id
@@ -411,12 +465,13 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     return (
       <Link
         to={`/chat?team=${encodeURIComponent(team.id)}`}
-        className={`os-team-item os-agent-row ${active ? 'os-agent-row--active' : ''} ${
-          dragging ? 'os-agent-row--dragging' : ''
-        }`}
+        className={`os-team-item os-agent-row os-agent-row--team ${
+          active ? 'os-agent-row--active' : ''
+        } ${nested ? 'os-agent-row--nested' : ''} ${dragging ? 'os-agent-row--dragging' : ''}`}
         aria-current={active ? 'page' : undefined}
         aria-label={`${name} (team)`}
         data-agent-id={hideId}
+        data-kind="team"
         draggable={!hidden}
         onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
         onDragEnd={finishDrag}
@@ -432,7 +487,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
       >
         <span
-          className="os-team-mark mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
+          className="os-team-mark os-agent-team-icon mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
           aria-hidden="true"
         >
           <Users className="h-3.5 w-3.5" />
@@ -440,7 +495,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            <span className="badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55">
+            <span
+              className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
+              data-kind="team"
+            >
               Team
             </span>
           </span>
@@ -451,6 +509,40 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           ) : null}
         </span>
       </Link>
+    )
+  }
+
+  const renderTeamRow = (team: TeamRoster, nested = false, seen: string[] = []) => {
+    const hidden = resolvedHiddenIds.includes(teamHideId(team.id))
+    if (hidden && !nested) return null
+    const childSlots = team.members.filter((m) => m.kind === 'team')
+    return (
+      <li key={`team-${team.id}`}>
+        {hidden ? null : renderTeamLink(team, false, nested)}
+        {childSlots.length > 0 && !seen.includes(team.id) ? (
+          <ul className="os-agent-team-nest">
+            {childSlots.map((m) => {
+              const child = rosterById.get(m.team_id || m.id)
+              if (child) return renderTeamRow(child, true, seen.concat(team.id))
+              return (
+                <li key={`team-slot-${m.id}`}>
+                  <span className="os-agent-row os-agent-row--team os-agent-row--nested">
+                    <Users className="os-agent-team-icon mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold leading-5">
+                        {m.team_id || m.id}
+                      </span>
+                      <span className="os-agent-role-badge" data-kind="team">
+                        Team
+                      </span>
+                    </span>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
+      </li>
     )
   }
 
@@ -587,9 +679,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
               {supportAgents.map((agent) => (
                 <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
-              {visibleTeams.map((team) => (
-                <li key={teamHideId(team.id)}>{renderTeamLink(team, false)}</li>
-              ))}
+              {visibleRootTeams.map((team) => renderTeamRow(team))}
               {otherAgents.map((agent) => (
                 <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
