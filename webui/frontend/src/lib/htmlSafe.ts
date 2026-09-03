@@ -38,6 +38,7 @@ const ALLOWED_TAGS = new Set([
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
   A: new Set(['href', 'title']),
   CODE: new Set(['class']),
+  PRE: new Set(['class']),
   SPAN: new Set(['class']),
   TD: new Set(['align']),
   TH: new Set(['align']),

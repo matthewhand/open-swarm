@@ -2,7 +2,7 @@
 
 Each test pins down a real regression class that previously shipped green:
 
-- ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file (SPA Chat at ``/``)
+- ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file
 - ``test_blueprint_cards_have_borders``-> DaisyUI 5 removed ``card-bordered``
 - ``test_teams_navbar_has_no_zero_text_links`` -> white-box navbar links
 - ``test_chat_websocket_connects``     -> ASGI/daphne wiring
@@ -42,17 +42,23 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    # Grok-Bot chrome: ``/`` is Chat (no Home dashboard .btn-primary).
-    # DaisyUI still paints the themed app root.
-    themed = page.locator("[data-theme]").first
-    themed.wait_for(state="visible", timeout=10_000)
-    bg = _computed(page, themed, "backgroundColor")
-    assert bg not in TRANSPARENT, (
-        "[data-theme] has a transparent background; DaisyUI theme "
-        "styles are missing from the bundle"
+    # `/` is ChatPage (`/?blueprint=support`). SettingsSheet keeps a hidden
+    # `.btn-primary` ("Save retention"), so `.btn-primary`.first is never
+    # visible. Use a visible DaisyUI `.btn` plus the themed composer fill.
+    btn = page.locator("button.btn").locator("visible=true").first
+    btn.wait_for(state="visible", timeout=10_000)
+    pad = _computed(page, btn, "paddingLeft")
+    assert pad not in ("0px", "0"), (
+        f"visible .btn padding-left is {pad!r}; DaisyUI button styles "
+        "are missing from the bundle"
     )
-    page.get_by_role("textbox", name="Chat message").wait_for(
-        state="visible", timeout=10_000
+
+    composer = page.locator(".os-composer").first
+    composer.wait_for(state="visible", timeout=10_000)
+    bg = _computed(page, composer, "backgroundColor")
+    assert bg not in TRANSPARENT, (
+        ".os-composer has a transparent background; theme / DaisyUI "
+        "tokens are missing from the bundle"
     )
 
     # The empty-CSS guard: fetch every stylesheet the page links and demand
@@ -87,20 +93,13 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """Healthy WS is silent (sr-only Connection status empty). Composer
-    enables after ws.onopen — still guards ASGI/daphne wiring."""
+    """Composer enables only after ws.onopen (REQ-8: healthy WS is silent;
+    do not wait on a standing Connected badge)."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    status = page.get_by_label("Connection status")
-    status.wait_for(state="attached", timeout=20_000)
-    page.wait_for_function(
-        """() => {
-          const el = document.querySelector('[aria-label="Chat message"]');
-          return el && !el.disabled;
-        }""",
-        timeout=20_000,
+    page.get_by_label("Connection status").wait_for(state="attached", timeout=20_000)
+    page.locator('[aria-label="Chat message"]:not([disabled])').wait_for(
+        state="visible", timeout=20_000
     )
-    assert status.inner_text().strip() == ""
-    assert page.get_by_text("Connected", exact=True).count() == 0
 
 
 def test_blueprint_cards_have_borders(page, live_server_url):

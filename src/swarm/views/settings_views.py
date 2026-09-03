@@ -74,10 +74,19 @@ def settings_dashboard(request):
                 "env_max_age": "SWARM_CHAT_MAX_AGE_DAYS",
             }
 
+        herdr_agents = []
+        try:
+            from swarm.models import HerdrAgent
+
+            herdr_agents = list(HerdrAgent.objects.all().order_by("name"))
+        except Exception:
+            logger.exception("Error loading Herdr agent rows")
+
         context = {
             'page_title': 'Settings Dashboard',
             'settings_groups': safe_groups,
             'chat_stats': chat_stats,
+            'herdr_agents': herdr_agents,
             'stats': {
                 'total': total_settings,
                 'configured': configured_settings,

@@ -37,6 +37,15 @@ describe('buildChatWsFrame', () => {
     expect(buildChatWsFrame('hi', undefined)).toBe('{"message":"hi"}')
   })
 
+  it('includes team send-to-all / member params on the send path', () => {
+    expect(
+      JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'all' })),
+    ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'all' } })
+    expect(
+      JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'codey' })),
+    ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'codey' } })
+  })
+
   it('round-trips back to the original message via JSON.parse', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',
@@ -49,6 +58,15 @@ describe('parseChatWsMessage', () => {
     const raw =
       '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message foo"> hi there </div></div>'
     expect(parseChatWsMessage(raw)).toEqual({ kind: 'user_echo', text: 'hi there' })
+  })
+
+  it('parses a bubble-less status line', () => {
+    const raw =
+      '<div id="message-list" hx-swap-oob="beforeend"><div class="chat-status-line os-chat-status">Started a new grok session.</div></div>'
+    expect(parseChatWsMessage(raw)).toEqual({
+      kind: 'status',
+      text: 'Started a new grok session.',
+    })
   })
 
   it('parses an assistant-start append', () => {

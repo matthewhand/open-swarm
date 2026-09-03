@@ -10,21 +10,39 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
+import { Layers, Mic, Plus, Settings } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
-import { fetchBlueprints } from '../lib/api'
+import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
+import { ComputerControlStub } from '../components/ComputerControlStub'
+import { RemoteSelect } from '../components/RemoteSelect'
+import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
+  compactAgentThread,
   conversationIdForAgent,
   fetchAgentThread,
+  type ConversationSummary,
 } from '../lib/agentChat'
+import {
+  buildDisplayItems,
+  contextTextsForMeter,
+  summariesById,
+} from '../lib/chatCompact'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import {
+  ALL_MEMBERS_TARGET,
+  MANAGE_TEAMS_HREF,
+  MANAGE_TEAMS_VALUE,
+  fetchTeamRosters,
+  memberOptionLabel,
+  teamThreadId,
+} from '../lib/teamRosters'
 import {
   reconnectBackoffMs,
   shouldAutoReconnect,
@@ -39,11 +57,11 @@ import {
 import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
+import { exampleRoleAgents } from '../lib/agentRoles'
 import {
   agentLabel,
   defaultBlueprintId,
   SUPPORT_AGENT_ID,
-  supportFirstAgents,
 } from '../lib/supportAgent'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
@@ -54,17 +72,11 @@ type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
 }
-
-const OPERATOR_LINKS = [
-  { href: '/blueprint-library/', label: 'Blueprints', icon: Book },
-  { href: '/teams/launch/', label: 'Teams', icon: Users },
-  { href: '/settings/', label: 'Settings', icon: Settings },
-] as const
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
 export function chatLoginNext(searchParams: URLSearchParams): string {
@@ -85,23 +97,40 @@ export {
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
-  const selectedBlueprint = defaultBlueprintId(searchParams.get('blueprint'))
+  const teamFromUrl = searchParams.get('team') ?? ''
+  const selectedBlueprint = teamFromUrl
+    ? ''
+    : defaultBlueprintId(searchParams.get('blueprint'))
+  const threadKey = teamFromUrl ? teamThreadId(teamFromUrl) : selectedBlueprint
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  const [summariesByThread, setSummariesByThread] = useState<
+    Record<string, ConversationSummary[]>
+  >({})
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
+  const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
-    conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+    teamFromUrl
+      ? teamThreadId(teamFromUrl)
+      : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
   )
 
-  const messages = useMemo(
-    () => threads[selectedBlueprint] ?? [],
-    [threads, selectedBlueprint],
+  const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const summaries = useMemo(
+    () => summariesByThread[threadKey] ?? [],
+    [summariesByThread, threadKey],
   )
+  const displayItems = useMemo(
+    () => buildDisplayItems(messages, summaries),
+    [messages, summaries],
+  )
+  const summaryMap = useMemo(() => summariesById(summaries), [summaries])
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(conversationId)
@@ -120,31 +149,74 @@ const ChatPage = () => {
   const toastedOutageRef = useRef(false)
   const streamStartedAtRef = useRef<number | null>(null)
   const lastUserTextRef = useRef('')
-  /** Last hydrated agent; used to clear bubbles only when the user switches. */
+  /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
   const lastHydratedAgentRef = useRef<string | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
-  const blueprints = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: fetchTeamRosters,
+  })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
+  const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const cliAgents = cliQuery.data?.rail ?? []
+  const teams = teamsQuery.data ?? []
+  const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
-  const selectedAgentName = selectedAgent
-    ? agentLabel(selectedAgent)
-    : selectedBlueprint === SUPPORT_AGENT_ID
-      ? 'Support'
-      : selectedBlueprint
+  const selectedAgentName = teamFromUrl
+    ? selectedTeam?.name || teamFromUrl
+    : selectedCli
+      ? selectedCli.name
+      : selectedAgent
+        ? agentLabel(selectedAgent)
+        : selectedBlueprint === SUPPORT_AGENT_ID
+          ? 'Support'
+          : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
+    // REQ-28: a selected composition team uses ?team=; do not clobber it
+    // with the Support default (REQ-23 owns send-to-all).
+    if (searchParams.get('team')) return
     if (!searchParams.get('blueprint')) {
       setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })
     }
   }, [searchParams, setSearchParams])
 
+  useEffect(() => {
+    setMemberTarget(ALL_MEMBERS_TARGET)
+  }, [teamFromUrl])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
+  // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
   useEffect(() => {
+    if (teamFromUrl) {
+      const key = teamThreadId(teamFromUrl)
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+
     const agent = agentIdFromBlueprint(selectedBlueprint)
     const switched =
       lastHydratedAgentRef.current !== null &&
@@ -154,11 +226,16 @@ const ChatPage = () => {
     userKeyCounterRef.current = 0
     if (switched) {
       setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [selectedBlueprint]: [] }))
     }
     let cancelled = false
     ;(async () => {
       const thread = await fetchAgentThread(agent)
       if (cancelled) return
+      setSummariesByThread((prev) => ({
+        ...prev,
+        [selectedBlueprint]: thread.summaries,
+      }))
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
@@ -173,7 +250,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint])
+  }, [selectedBlueprint, teamFromUrl])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -182,7 +259,7 @@ const ChatPage = () => {
         return
       }
       setThreads((prev) => {
-        const current = prev[selectedBlueprint] ?? []
+        const current = prev[threadKey] ?? []
         let next = current
         switch (event.kind) {
           case 'user_echo':
@@ -211,11 +288,22 @@ const ChatPage = () => {
               m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
             )
             break
+          case 'status':
+            next = [
+              ...current,
+              {
+                key: `status-${current.length}-${Date.now()}`,
+                role: 'status',
+                text: event.text,
+                streaming: false,
+              },
+            ]
+            break
         }
-        return { ...prev, [selectedBlueprint]: next }
+        return { ...prev, [threadKey]: next }
       })
     },
-    [selectedBlueprint],
+    [threadKey],
   )
 
   useEffect(() => {
@@ -231,7 +319,9 @@ const ChatPage = () => {
 
     let ws: WebSocket
     try {
-      ws = new WebSocket(buildChatWsUrl(conversationId, selectedBlueprint || undefined))
+      ws = new WebSocket(
+        buildChatWsUrl(conversationId, teamFromUrl ? undefined : selectedBlueprint || undefined),
+      )
     } catch {
       setStatus('failed')
       const attempt = backoffAttemptRef.current
@@ -286,7 +376,7 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint])
+  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint, teamFromUrl])
 
   const pinnedToBottomRef = useRef(true)
   useEffect(() => {
@@ -359,9 +449,25 @@ const ChatPage = () => {
       const trimmed = text.trim()
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
       lastUserTextRef.current = trimmed
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      // Team compose adds params { team, target: "all" | memberId }.
+      if (teamFromUrl) {
+        ws.send(
+          buildChatWsFrame(trimmed, undefined, {
+            team: teamFromUrl,
+            target: memberTarget || ALL_MEMBERS_TARGET,
+          }),
+        )
+        return
+      }
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          selectedBlueprint || undefined,
+          selectedCli ? { cli: selectedCli.cli } : undefined,
+        ),
+      )
     },
-    [selectedBlueprint],
+    [selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -429,7 +535,36 @@ const ChatPage = () => {
     return () => window.clearInterval(timer)
   }, [streamingMessage])
 
-  const tokenCount = estimateTokensInContext(messages.map((message) => message.text))
+  const handleCompact = useCallback(async () => {
+    setPlusOpen(false)
+    if (messages.length === 0) {
+      addToast({
+        type: 'info',
+        title: 'Compact',
+        message: 'Nothing to compact yet.',
+      })
+      return
+    }
+    try {
+      const result = await compactAgentThread({
+        conversationId,
+        agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        })),
+      })
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Compact failed',
+        message: 'Could not compact this chat. Sign in and try again.',
+      })
+    }
+  }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
+
+  const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
   const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
   const streamElapsed =
     streamingMessage && streamStartedAtRef.current != null
@@ -450,8 +585,54 @@ const ChatPage = () => {
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
-        <div className="flex items-center gap-1">
-          <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <RemoteSelect
+            remotes={remotesQuery.data}
+            value={selectedRemoteId}
+            onChange={setSelectedRemoteId}
+            size="sm"
+            className="h-8 max-w-[10rem]"
+          />
+          {teamFromUrl ? (
+            <select
+              className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
+              value={memberTarget}
+              aria-label="Team members"
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === MANAGE_TEAMS_VALUE) {
+                  window.location.assign(MANAGE_TEAMS_HREF)
+                  return
+                }
+                setMemberTarget(value)
+              }}
+            >
+              <option value={ALL_MEMBERS_TARGET}>All members</option>
+              {(selectedTeam?.members ?? []).map((member) => (
+                <option key={member.id} value={member.id}>
+                  {memberOptionLabel(member)}
+                </option>
+              ))}
+              <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
+            </select>
+          ) : null}
+          <div
+            className="flex items-center gap-2"
+            role="toolbar"
+            aria-label="Chat tools"
+          >
+            <ComputerControlStub />
+            <ThemeToggle />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              aria-label="Open settings"
+              aria-haspopup="dialog"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))}
+            >
+              <Settings className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -476,8 +657,25 @@ const ChatPage = () => {
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
-          messages.map((message, idx) => {
-            const isLast = idx === messages.length - 1
+          displayItems.map((item, idx) => {
+            if (item.kind === 'summary') {
+              return (
+                <SummaryBlock
+                  key={`sum-${item.summary.id}`}
+                  summary={item.summary}
+                  byId={summaryMap}
+                />
+              )
+            }
+            const message = item.message
+            if (message.role === 'status') {
+              return (
+                <p key={message.key} className="os-chat-status" data-role="status">
+                  {message.text}
+                </p>
+              )
+            }
+            const isLast = idx === displayItems.length - 1
             const retryEnabled =
               SHOW_MESSAGE_ACTIONS &&
               isLast &&
@@ -536,25 +734,22 @@ const ChatPage = () => {
             {plusOpen && (
               <ul
                 role="menu"
-                aria-label="Operator pages"
+                aria-label="Chat actions"
                 className="os-plus-menu"
               >
-                {OPERATOR_LINKS.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <li key={item.href} role="none">
-                      <a
-                        role="menuitem"
-                        href={item.href}
-                        className="os-plus-menu__item"
-                        onClick={() => setPlusOpen(false)}
-                      >
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                        {item.label}
-                      </a>
-                    </li>
-                  )
-                })}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="os-plus-menu__item"
+                    onClick={() => {
+                      void handleCompact()
+                    }}
+                  >
+                    <Layers className="h-4 w-4" aria-hidden="true" />
+                    Compact
+                  </button>
+                </li>
               </ul>
             )}
           </div>
@@ -604,6 +799,32 @@ const ChatPage = () => {
           </span>
         ) : null}
       </footer>
+    </div>
+  )
+}
+
+function SummaryBlock({
+  summary,
+  byId,
+  depth = 0,
+}: {
+  summary: ConversationSummary
+  byId: Record<number, ConversationSummary>
+  depth?: number
+}) {
+  const parent =
+    summary.parent_summary_id != null ? byId[summary.parent_summary_id] : undefined
+  const replaced =
+    summary.replaced_count ?? summary.span.end - summary.span.start + 1
+  return (
+    <div
+      className={depth > 0 ? 'chat-summary chat-summary--nested' : 'chat-summary'}
+      data-testid="chat-summary"
+    >
+      <div className="chat-summary__label">Summary</div>
+      <div className="chat-summary__body whitespace-pre-wrap break-words">{summary.body}</div>
+      <div className="chat-summary__meta">Replaced {replaced} turns</div>
+      {parent ? <SummaryBlock summary={parent} byId={byId} depth={depth + 1} /> : null}
     </div>
   )
 }
