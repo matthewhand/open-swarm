@@ -65,7 +65,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [dropActive, setDropActive] = useState(false)
+  const [hideDropActive, setHideDropActive] = useState(false)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const hideDropDepth = useRef(0)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -81,6 +84,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const hiddenAgents = useMemo(
     () => agents.filter((agent) => hiddenIds.includes(agent.id)),
     [agents, hiddenIds],
+  )
+  const visiblePins = useMemo(
+    () => pins.filter((pin) => !hiddenIds.includes(pin.id)),
+    [pins, hiddenIds],
   )
 
   const closeMenu = useCallback(() => setMenu(null), [])
@@ -125,8 +132,27 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     })
   }
 
-  const hideAgent = (id: string) => {
+  const finishDrag = () => {
+    endAgentDrag()
+    setDraggingId(null)
+    setDropActive(false)
+    setHideDropActive(false)
+    hideDropDepth.current = 0
+  }
+
+  /**
+   * Hide wins: the id leaves the conversation list and the favourite pin grid.
+   * Role agents (support, gate, skeptic) are not exempt. Unhide restores the
+   * list row only — it does not re-pin.
+   */
+  const hideFromRail = (id: string) => {
+    if (!id) return
     setHiddenIds((current) => hideAgentId(id, current))
+    setPins((current) => unpinAgent(id, current))
+  }
+
+  const hideAgent = (id: string) => {
+    hideFromRail(id)
     closeMenu()
   }
 
@@ -150,30 +176,60 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
 
   const dropPin = (event: ReactDragEvent) => {
     event.preventDefault()
-    setDropActive(false)
     const payload = parseAgentDragPayload(event.dataTransfer)
-    endAgentDrag()
+    setDropActive(false)
+    finishDrag()
     if (!payload) return
     setPins((current) => pinAgent(payload, current))
+  }
+
+  const dropHide = (event: ReactDragEvent) => {
+    event.preventDefault()
+    const payload = parseAgentDragPayload(event.dataTransfer)
+    finishDrag()
+    if (!payload?.id) return
+    // Already hidden (or a drop that never left the source row) is a no-op.
+    if (hiddenIds.includes(payload.id)) return
+    hideFromRail(payload.id)
+  }
+
+  const dropOnSelf = (event: ReactDragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    finishDrag()
+  }
+
+  const beginRowDrag = (event: ReactDragEvent, agent: { id: string; name: string }) => {
+    writeAgentDragPayload(event.dataTransfer, agent)
+    try {
+      event.dataTransfer.effectAllowed = 'copyMove'
+    } catch {
+      /* jsdom DataTransfer may be a stub */
+    }
+    setDraggingId(agent.id)
   }
 
   const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
     const name = agentLabel(agent)
     const active = selectedId === agent.id
     const support = isSupportAgent(agent)
+    const dragging = draggingId === agent.id
     return (
       <Link
         to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
         className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
           support ? 'os-agent-row--support' : ''
-        }`}
+        } ${dragging ? 'os-agent-row--dragging' : ''}`}
+        data-agent-id={agent.id}
         aria-current={active ? 'page' : undefined}
         draggable={!hidden}
-        onDragStart={(event) => {
-          writeAgentDragPayload(event.dataTransfer, { id: agent.id, name })
-          event.dataTransfer.effectAllowed = 'copy'
+        onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
+        onDragEnd={finishDrag}
+        onDragOver={(event) => {
+          // Rows are not drop targets; dropping onto the source is a no-op.
+          event.dataTransfer.dropEffect = 'none'
         }}
-        onDragEnd={() => endAgentDrag()}
+        onDrop={dropOnSelf}
         onClick={onClose}
         onContextMenu={(event) => openMenu(event, agent, hidden)}
       >
@@ -254,13 +310,17 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           onDragLeave={() => setDropActive(false)}
           onDrop={dropPin}
         >
-          {pins.map((pin) => (
+          {visiblePins.map((pin) => (
             <Link
               key={pin.id}
               to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
-              className="os-fav-tile"
+              className={`os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`}
               title={pin.name}
               aria-label={pin.name}
+              data-agent-id={pin.id}
+              draggable
+              onDragStart={(event) => beginRowDrag(event, pin)}
+              onDragEnd={finishDrag}
               onClick={onClose}
               onContextMenu={(event) => {
                 event.preventDefault()
@@ -298,17 +358,44 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             </ul>
           )}
 
-          {hiddenAgents.length > 0 && (
-            <button
-              type="button"
-              className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/30 hover:text-base-content/80"
-              aria-haspopup="dialog"
-              aria-expanded={hiddenOpen}
-              onClick={() => setHiddenOpen(true)}
-            >
-              {hiddenAgents.length} hidden
-            </button>
-          )}
+          <div
+            className={`os-hide-drop os-drop-target ${hideDropActive ? 'os-hide-drop--active' : ''}`}
+            data-drag-over={hideDropActive ? 'true' : undefined}
+            role="region"
+            aria-label="Hidden"
+            onDragEnter={(event) => {
+              event.preventDefault()
+              hideDropDepth.current += 1
+              setHideDropActive(true)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setHideDropActive(true)
+            }}
+            onDragLeave={() => {
+              hideDropDepth.current -= 1
+              if (hideDropDepth.current <= 0) {
+                hideDropDepth.current = 0
+                setHideDropActive(false)
+              }
+            }}
+            onDrop={dropHide}
+          >
+            {hiddenAgents.length > 0 ? (
+              <button
+                type="button"
+                className="os-hide-drop__action"
+                aria-haspopup="dialog"
+                aria-expanded={hiddenOpen}
+                onClick={() => setHiddenOpen(true)}
+              >
+                {hiddenAgents.length} hidden
+              </button>
+            ) : (
+              <p className="os-hide-drop__hint">drop here to hide</p>
+            )}
+          </div>
         </nav>
 
         <div className="mt-auto border-t border-base-300/70 px-3 py-3">

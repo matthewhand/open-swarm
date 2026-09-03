@@ -242,6 +242,51 @@ html[data-theme="light"] #root {
 .os-agent-row--support {
   box-shadow: inset 2px 0 0 #3d8f8a;
 }
+.os-agent-row--dragging,
+.os-fav-tile--dragging {
+  opacity: 0.4;
+}
+
+.os-hide-drop,
+.os-drop-target {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+  border: 1px dashed color-mix(in srgb, var(--color-base-content) 22%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 3%, transparent);
+  color: color-mix(in srgb, var(--color-base-content) 48%, transparent);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.os-hide-drop--active,
+.os-hide-drop[data-drag-over],
+.os-drop-target[data-drag-over] {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-base-200));
+  color: color-mix(in srgb, var(--color-base-content) 78%, transparent);
+}
+.os-hide-drop__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+}
+.os-hide-drop__action {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}
+.os-hide-drop__action:hover {
+  color: var(--color-base-content);
+}
 
 .os-rail-hostname {
   margin-top: 0.35rem;

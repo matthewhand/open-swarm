@@ -103,7 +103,7 @@ export function writeAgentDragPayload(dataTransfer: DataTransfer, agent: PinnedA
   try {
     dataTransfer.setData(AGENT_DRAG_MIME, JSON.stringify(pin))
     dataTransfer.setData('text/plain', pin.id)
-    dataTransfer.effectAllowed = 'copy'
+    dataTransfer.effectAllowed = 'copyMove'
   } catch {
     /* some test DataTransfers only implement a subset */
   }
