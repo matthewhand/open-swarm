@@ -1,0 +1,8 @@
+{
+  "cli": "opencode",
+  "models": [
+    "opencode/big-pickle",
+    "opencode",
+    "opencode/pro"
+  ]
+}

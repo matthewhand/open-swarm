@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ selected|default:id }} — source{% endblock %}
+
+{% block content %}
+<div class="os-wrap">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1"><code>{{ id }}</code></h1>
+      <p class="text-muted mb-0 small">Blueprint source</p>
+    </div>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'blueprint_library' %}">Back to library</a>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-warning" role="alert">{{ error }}</div>
+  {% else %}
+    {% if files %}
+      <div class="d-flex flex-wrap gap-1 mb-3" role="tablist" aria-label="Source files">
+        {% for f in files %}
+          <a href="?file={{ f.name|urlencode }}"
+             class="btn btn-sm {% if f.name == selected %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+             {% if f.name == selected %}aria-current="page"{% endif %}>{{ f.name }}</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <pre class="os-source-pre mb-0" tabindex="0"><code class="language-{{ prism_lang|default:'python' }}">{{ content }}</code></pre>
+  {% endif %}
+</div>
+<script>
+  window.addEventListener('load', function () {
+    if (window.Prism) Prism.highlightAll();
+  });
+</script>
+<style>
+  .os-source-pre {
+    max-height: calc(100dvh - 12rem);
+    overflow: auto;
+    padding: 1rem 1.1rem;
+    margin: 0;
+    border: 1px solid var(--os-border, #2a2a2a);
+    border-radius: 0.5rem;
+    background: #111;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    white-space: pre;
+    tab-size: 4;
+  }
+  .os-source-pre code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+</style>
+{% endblock %}

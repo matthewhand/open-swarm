@@ -46,6 +46,7 @@ describe('fetchAgentThread', () => {
           conversation_id: 'agt-1-jeeves',
           messages: [
             { role: 'user', content: 'hi' },
+            { role: 'status', content: 'Started a new grok session.' },
             { role: 'assistant', content: 'hello' },
           ],
         }),
@@ -54,6 +55,7 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('jeeves')
     expect(thread.messages).toEqual([
       { role: 'user', content: 'hi' },
+      { role: 'status', content: 'Started a new grok session.' },
       { role: 'assistant', content: 'hello' },
     ])
     expect(thread.conversation_id).toBe('agt-1-jeeves')
@@ -87,6 +89,22 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('jeeves')
     expect(thread.summaries).toHaveLength(1)
     expect(thread.summaries[0].body).toBe('digest')
+  })
+
+  it('requests a specific conversation id for a scale-out session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        agent_id: 'codey',
+        conversation_id: 'sess-worker-2',
+        messages: [],
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const thread = await fetchAgentThread('codey', 'sess-worker-2')
+    expect(thread.conversation_id).toBe('sess-worker-2')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('conversation_id=sess-worker-2')
   })
 
   it('returns an empty thread when fetch fails', async () => {
