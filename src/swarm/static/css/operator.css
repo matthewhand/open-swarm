@@ -5,14 +5,14 @@
            so the login entry point matches the dark UI it gates instead of
            flashing a light page first. */
         :root {
-            --bg: #0f1219;
-            --card-bg: #1b1f29;
-            --field-bg: #0f1219;
-            --border: #2b3140;
-            --text: #e2e8f0;
-            --text-muted: #94a3b8;
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
+            --bg: #121212;
+            --card-bg: #1a1a1a;
+            --field-bg: #101010;
+            --border: #2a2a2a;
+            --text: #e8e8e8;
+            --text-muted: #8a8a8a;
+            --primary: #3d5a80;
+            --primary-hover: #334c6e;
             --error-bg: rgba(239, 68, 68, 0.10);
             --error-border: #5b2330;
             --error-text: #fca5a5;

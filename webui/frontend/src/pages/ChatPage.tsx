@@ -292,7 +292,7 @@ const ChatPage = () => {
         : 'Websocket not connected — sending is disabled'
 
   return (
-    <div className="container mx-auto flex h-[calc(100vh-13rem)] lg:h-[calc(100vh-9rem)] min-h-[28rem] flex-col gap-4 px-4 py-6">
+    <div className="mx-auto flex h-[calc(100vh-13rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-6.5rem)]">
       {/* Header: title + blueprint selector + connection status.
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
@@ -522,7 +522,9 @@ const ChatPage = () => {
                   </div>
                   <div
                     className={`chat-bubble ${
-                      message.role === 'user' ? 'chat-bubble-primary' : ''
+                      message.role === 'user'
+                        ? 'bg-neutral text-neutral-content'
+                        : 'bg-base-200 text-base-content'
                     }`}
                   >
                     <ChatBubbleBody

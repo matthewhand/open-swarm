@@ -1,14 +1,153 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: light --default, dark --prefersdark, cupcake;
+  themes: light --default, dark --prefersdark;
+}
+
+/*
+ * Open Swarm chrome — Grok/OMB-like dark metal, not DaisyUI cupcake / rainbow
+ * operator skin. Accents stay small (icons, focus, status dots). Category
+ * colours do not flood buttons or stat numbers.
+ */
+@plugin "daisyui/theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+
+  --color-base-100: #161616;
+  --color-base-200: #101010;
+  --color-base-300: #242424;
+  --color-base-content: #e6e6e6;
+  --color-primary: #4a6fa5;
+  --color-primary-content: #f4f6f8;
+  --color-secondary: #2a2a2a;
+  --color-secondary-content: #d4d4d4;
+  --color-accent: #3d5a73;
+  --color-accent-content: #e8eef2;
+  --color-neutral: #1c1c1c;
+  --color-neutral-content: #c8c8c8;
+  --color-info: #5b7c99;
+  --color-info-content: #eaf0f4;
+  --color-success: #3d6b4f;
+  --color-success-content: #e8f2ec;
+  --color-warning: #7a6840;
+  --color-warning-content: #f4efe4;
+  --color-error: #7a4040;
+  --color-error-content: #f4e8e8;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 0.85rem;
+}
+
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+
+  --color-base-100: #f4f4f5;
+  --color-base-200: #e8e8ea;
+  --color-base-300: #d4d4d8;
+  --color-base-content: #1a1a1a;
+  --color-primary: #3d5a80;
+  --color-primary-content: #f7f8fa;
+  --color-secondary: #e4e4e7;
+  --color-secondary-content: #27272a;
+  --color-accent: #4a6578;
+  --color-accent-content: #f7f8fa;
+  --color-neutral: #3f3f46;
+  --color-neutral-content: #f4f4f5;
+  --color-info: #4a6a82;
+  --color-info-content: #f4f7f9;
+  --color-success: #3d6b4f;
+  --color-success-content: #f3f8f5;
+  --color-warning: #7a6840;
+  --color-warning-content: #faf6ee;
+  --color-error: #7a4040;
+  --color-error-content: #faf3f3;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 0.85rem;
 }
 
 :root {
   --animation-btn: 0.25s;
   --animation-input: 0.2s;
   --btn-text-case: capitalize;
-  --btn-focus-scale: 0.95;
+  --btn-focus-scale: 0.98;
   --border-btn: 1px;
   --tab-border: 1px;
   --tab-radius: 0.5rem;
+  --os-chrome-sidebar: #0c0c0c;
+}
+
+[data-theme="dark"] {
+  --os-chrome-sidebar: #0c0c0c;
+}
+
+[data-theme="light"] {
+  --os-chrome-sidebar: #ececee;
+}
+
+/* Large dashboard action cards — chrome panels, not rainbow buttons */
+.os-action-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1.25rem;
+  min-height: 11.5rem;
+  padding: 1.5rem 1.6rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 10%, transparent);
+  background: color-mix(in srgb, var(--color-base-200) 88%, var(--color-base-100));
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+.os-action-card:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-base-300));
+  background: color-mix(in srgb, var(--color-base-200) 70%, var(--color-base-300));
+  transform: translateY(-2px);
+}
+.os-action-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.os-action-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
+  color: color-mix(in srgb, var(--color-base-content) 78%, var(--color-primary));
+}
+.os-action-card__title {
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.os-action-card__desc {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+
+/* Agent sidepane — near-black chrome list, small icon accents only */
+.os-agent-sidebar {
+  background: var(--os-chrome-sidebar);
+  border-right: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
+}
+.os-agent-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.15rem;
+  flex: 0 0 auto;
+  transform: rotate(45deg);
 }

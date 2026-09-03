@@ -2,23 +2,49 @@
 
 {% block content %}
 <div class="os-wrap">
-    <div class="se-head d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div class="se-head mb-3">
         <div>
-            <h1 class="mb-1"><span aria-hidden="true">💬</span> Welcome to Open Swarm</h1>
-            <div class="os-meta">Launch a team, chat live, or review recent session activity</div>
+            <h1 class="mb-1">Welcome to Open Swarm</h1>
+            <div class="os-meta">Launch a team, browse blueprints, or open operator settings</div>
         </div>
-        {% if blueprints %}
-            <a href="{% url 'teams_launch' %}" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Launch a Team</a>
-        {% endif %}
+    </div>
+
+    <h2 class="visually-hidden">Quick Actions</h2>
+    <div class="os-action-grid mb-4">
+        <a href="{% url 'teams_launch' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+            <span>
+                <span class="os-action-card__title">Launch Team</span>
+                <span class="os-action-card__desc">Stand up a blueprint team and expose it as an API model.</span>
+            </span>
+        </a>
+        <a href="{% url 'blueprint_library' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-book"></i></span>
+            <span>
+                <span class="os-action-card__title">Browse Blueprints</span>
+                <span class="os-action-card__desc">Open the library of multi-agent blueprints you can run.</span>
+            </span>
+        </a>
+        <a href="{% url 'teams_admin' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+            <span>
+                <span class="os-action-card__title">Manage Teams</span>
+                <span class="os-action-card__desc">Inspect the registry, aliases, and launched team admin.</span>
+            </span>
+        </a>
+        <a href="{% url 'settings_dashboard' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-gear"></i></span>
+            <span>
+                <span class="os-action-card__title">Settings</span>
+                <span class="os-action-card__desc">Profiles, credentials, and operator configuration.</span>
+            </span>
+        </a>
     </div>
 
     <div class="card mb-3">
         <div class="card-body d-flex flex-wrap gap-2">
-            <a href="/chat" class="btn btn-outline-primary"><i class="fas fa-comment-dots me-1"></i>Open Chat</a>
+            <a href="/chat" class="btn btn-outline-secondary"><i class="fas fa-comment-dots me-1"></i>Open Chat</a>
             <a href="{% url 'session-explorer' %}" class="btn btn-outline-secondary"><i class="fas fa-clock-rotate-left me-1"></i>Session Explorer</a>
-            {% if blueprints %}
-                <a href="{% url 'teams_launch' %}" class="btn btn-outline-secondary"><i class="fas fa-rocket me-1"></i>Team Launcher</a>
-            {% endif %}
         </div>
     </div>
 
