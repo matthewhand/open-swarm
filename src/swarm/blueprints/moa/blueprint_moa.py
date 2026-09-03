@@ -7,6 +7,8 @@ Legacy aliases: ``cli_fusion``, ``cli_ensemble`` (same blueprint class; read-onl
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 from typing import Any, ClassVar
 
 from swarm.core.blueprint_base import BlueprintBase
@@ -58,10 +60,28 @@ class MoABlueprint(BlueprintBase):
         if names:
             return names
         # Defaults: multi-seat labels for fake; single grok seat for live grok.
-        kind = (params.get("backend") or moa_cfg.get("backend") or "fake").lower()
+        kind = self._resolved_kind()
         if kind == "grok":
             return ["grok"]
         return ["analyst", "critic"]
+
+    def _resolved_kind(self, *, testing: bool | None = None) -> str:
+        """Operator UI defaults to grok when installed; CI stays fake."""
+        params = self._params
+        moa_cfg = (self._config or {}).get("moa") or {}
+        explicit = params.get("backend") or moa_cfg.get("backend")
+        if explicit:
+            return str(explicit).lower()
+        if testing is None:
+            testing = bool(
+                os.environ.get("PYTEST_CURRENT_TEST")
+                or os.environ.get("SWARM_TEST_MODE")
+            )
+        if testing:
+            return "fake"
+        if shutil.which("grok"):
+            return "grok"
+        return "fake"
 
     def _backend(self):
         """Resolve participant backend: fake (params/tests) | grok | acpx.
@@ -73,16 +93,24 @@ class MoABlueprint(BlueprintBase):
         timeout = float(
             params.get("timeout")
             or moa_cfg.get("default_timeout")
-            or 300
+            or 60
         )
         if params.get("fake_responses"):
             return FakeParticipantBackend(dict(params["fake_responses"]))
-        kind = (params.get("backend") or moa_cfg.get("backend") or "fake").lower()
+        kind = self._resolved_kind()
         if kind == "fake":
-            # Empty fake map → clear error from seats; tests should pass fake_responses.
             seats = self._participants()
+            if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SWARM_TEST_MODE"):
+                stubs = {
+                    n: f"(stub opinion from {n} — set params.fake_responses or backend=grok)"
+                    for n in seats
+                }
+                return FakeParticipantBackend(stubs)
             stubs = {
-                n: f"(stub opinion from {n} — set params.fake_responses or backend=grok)"
+                n: (
+                    f"{n}: MoA live consensus needs grok on PATH "
+                    "(or set moa.backend=grok in swarm_config)."
+                )
                 for n in seats
             }
             return FakeParticipantBackend(stubs)
@@ -154,7 +182,9 @@ class MoABlueprint(BlueprintBase):
                 action=self._params.get("action"),
             )
             det = result.determination
-            answer = det.answer if det else "No determination."
+            from swarm.core.model_text import sanitize_model_text
+
+            answer = sanitize_model_text(det.answer if det else "No determination.")
             ok_names = [o.name for o in result.ok_opinions]
             meta = {
                 "moa": True,

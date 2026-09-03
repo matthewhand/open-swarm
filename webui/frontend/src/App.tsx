@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
-import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom'
 import ChatPage from './pages/ChatPage'
+import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
-import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from './components/SettingsSheet'
+import SettingsSheet, {
+  OPEN_SETTINGS_EVENT,
+  type OpenSettingsDetail,
+  type SettingsSection,
+} from './components/SettingsSheet'
 import { RailChromeProvider, SwipeHint } from './components/RailChrome'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
@@ -42,16 +47,11 @@ export function chatPathWithSearch(search: string): string {
   return search.startsWith('?') ? `/chat${search}` : `/chat?${search}`
 }
 
-/** `/agents` is not a product route — send it to SPA Chat. */
-function RedirectAgentsToChat() {
-  const { search } = useLocation()
-  return <Navigate to={chatPathWithSearch(search)} replace />
-}
-
 /**
  * Product chrome is Grok-Bot: left rail + the selected agent's chat.
- * Operator Django pages stay reachable from the composer + menu.
- * Legacy `/agents` aliases `/chat` (REQ-5d) without restoring Home/Chat top nav.
+ * `/agents` is Agent Router (own chrome). `/` and `/chat` are the rail + composer.
+ * Composer + menu is Compact (REQ-37). Operator Django pages stay on
+ * Search / the settings gear.
  * Gear opens the REQ-19 DaisyUI settings sheet over chat.
  */
 function App() {
@@ -61,7 +61,7 @@ function App() {
   const [swipeHint, setSwipeHint] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsBlueprintId, setSettingsBlueprintId] = useState<string | null>(null)
+  const [settingsDetail, setSettingsDetail] = useState<OpenSettingsDetail | null>(null)
 
   const openRail = useCallback(() => setRailOpen(true), [])
   const closeRail = useCallback(() => {
@@ -108,8 +108,8 @@ function App() {
     }
     const onOpenSearch = () => setSearchOpen(true)
     const onOpenSettings = (event: Event) => {
-      const detail = (event as CustomEvent<OpenSettingsDetail>).detail
-      setSettingsBlueprintId(detail?.blueprintId ?? null)
+      const detail = (event as CustomEvent<OpenSettingsDetail>).detail ?? {}
+      setSettingsDetail(detail)
       setSettingsOpen(true)
     }
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
@@ -132,7 +132,11 @@ function App() {
         <SettingsSheet
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
-          blueprintId={settingsBlueprintId}
+          blueprintId={settingsDetail?.blueprintId}
+          teamId={settingsDetail?.teamId}
+          initialSection={settingsDetail?.section}
+          definitionKind={settingsDetail?.definitionKind}
+          definitionId={settingsDetail?.definitionId}
         />
         <RailChromeProvider value={{ narrow, railOpen, openRail, closeRail }}>
           <div
@@ -160,8 +164,8 @@ function App() {
                     <Route path="/" element={<ChatPage />} />
                     <Route path="/chat" element={<ChatPage />} />
                     <Route path="/chat/*" element={<ChatPage />} />
-                    <Route path="/agents" element={<RedirectAgentsToChat />} />
-                    <Route path="/agents/*" element={<RedirectAgentsToChat />} />
+                    <Route path="/agents" element={<AgentRouterPage />} />
+                    <Route path="/agents/*" element={<AgentRouterPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>

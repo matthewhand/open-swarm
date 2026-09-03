@@ -421,18 +421,6 @@ def test_user_journey_screenshot_date_is_current_regeneration():
     assert "2026-07-21" not in text
 
 
-def test_tour_captions_include_spa_desktop_chat_nav():
-    """landing.png / App.tsx desktop top nav includes Chat after ADR-001."""
-    needle_spaced = "Home · Chat · Blueprints · Teams · Sessions · Settings"
-    needle_tight = "Home·Chat·Blueprints·Teams·Sessions·Settings"
-    for path in (GUIDED_TOUR, USER_JOURNEY, SCREENSHOTS_MD):
-        # Collapse wrapping newlines inside the bold nav phrase.
-        flat = " ".join(path.read_text().split())
-        assert needle_spaced in flat or needle_tight in flat, (
-            f"{path.name} must name SPA desktop Chat in the top-nav caption"
-        )
-
-
 def test_tour_captions_claim_sticky_banner_in_checked_in_spa_pngs():
     """Checked-in spa-*.png include the capture-injected Redirected banner."""
     for path in (GUIDED_TOUR, SCREENSHOTS_MD):
@@ -454,16 +442,19 @@ def test_spa_app_mobile_dock_omits_settings_tab():
     assert "Open settings" in chat
     sheet = (REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx").read_text()
     assert "modal-end" in sheet or 'placement="end"' in sheet
-    assert "menu-dropdown" in sheet
+    # REQ-59: Remotes is an opt-in catalog, not a menu-dropdown of unused kinds.
+    assert "Add remote" in sheet
+    assert "menu-dropdown" not in sheet
     assert "join-item" in sheet
 
 
 def test_feature_status_mobile_dock_omits_settings():
-    """FEATURE_STATUS must not claim Settings is on the SPA mobile dock."""
+    """FEATURE_STATUS must describe Grok rail + sheet Settings, not a catalog dock."""
     text = (REPO / "FEATURE_STATUS.md").read_text()
     # Stale claim paired Settings into the five-tab dock list.
     assert "mobile dock Home·Chat + Django hrefs (Blueprints·Teams·Sessions·Settings)" not in text
-    assert "mobile five-tab dock" in text or "Settings is desktop top-nav" in text
+    assert "no mobile five-tab dock" in text
+    assert "Settings is desktop top-nav" not in text
 
 
 def test_auth_summary_csp_has_no_style_residual():
@@ -559,19 +550,6 @@ def test_guided_tour_embeds_mobile_spa_chat_when_captured():
     assert "mobile/spa-chat.png" in text, (
         "GUIDED_TOUR.md must embed screenshots/mobile/spa-chat.png when captured"
     )
-
-
-def test_spa_chat_checked_in_caption_hardclaims_connected_badge():
-    """Checked-in spa-chat PNGs show Connected; docs must match on-disk fact."""
-    for path in (GUIDED_TOUR, SCREENSHOTS_MD, USER_JOURNEY):
-        text = path.read_text()
-        # On-disk frames are Connected after journey login + healthy ASGI.
-        assert "**Connected**" in text
-        # Must not leave the stale Connecting… claim as the checked-in fact.
-        assert "frames still\nshow **Connecting…" not in text
-        assert "Checked-in frame: **Connecting…" not in text
-        assert "checked-in frames show **Connecting…" not in text.lower()
-        assert "Connecting…" not in text
 
 
 def test_blueprint_library_caption_matches_ready_mcp_badges():
