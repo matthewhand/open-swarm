@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
+from swarm.core.agent_roles import blueprint_role_fields
 from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
     ENABLE_GITHUB_MARKETPLACE,
@@ -180,7 +181,7 @@ class BlueprintsListView(APIView):
                     if required_mcp and required_mcp not in req_mcps:
                         continue
 
-                    data.append({
+                    item = {
                         "id": blueprint_id,
                         "object": "blueprint",
                         "name": name,
@@ -191,7 +192,9 @@ class BlueprintsListView(APIView):
                         "tags": meta.get("tags") or [],
                         "installed": None,
                         "compiled": None,
-                    })
+                    }
+                    item.update(blueprint_role_fields(meta))
+                    data.append(item)
             else:
                 logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
 

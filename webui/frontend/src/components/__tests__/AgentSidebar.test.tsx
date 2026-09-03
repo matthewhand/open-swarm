@@ -27,6 +27,19 @@ const blueprints = [
     tags: [],
     installed: true,
     compiled: true,
+    role: 'support' as const,
+  },
+  {
+    id: 'tool_gate',
+    object: 'blueprint' as const,
+    name: 'Tool Gate',
+    description: 'Classifies pending tool calls',
+    abbreviation: null,
+    required_mcp_servers: [],
+    tags: [],
+    installed: true,
+    compiled: true,
+    role: 'gate' as const,
   },
 ]
 
@@ -104,5 +117,20 @@ describe('AgentSidebar hide / unhide', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Hidden/i }))
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+  })
+
+  it('marks support and gate rows with role classes for the sidepane', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const support = await within(list).findByRole('link', { name: /Stewie/ })
+    const gate = within(list).getByRole('link', { name: /Tool Gate/ })
+    const codey = within(list).getByRole('link', { name: /Codey/ })
+    expect(support).toHaveAttribute('data-role', 'support')
+    expect(support.className).toMatch(/os-agent-role-support/)
+    expect(gate).toHaveAttribute('data-role', 'gate')
+    expect(gate.className).toMatch(/os-agent-role-gate/)
+    expect(codey).toHaveAttribute('data-role', 'default')
+    expect(within(support).getByText('support')).toBeInTheDocument()
+    expect(within(gate).getByText('gate')).toBeInTheDocument()
   })
 })

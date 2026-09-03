@@ -25,6 +25,17 @@ Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):
 
 Do not call `/v1/teams` aliases “MoA teams” or “persona teams.”
 
+## Agent role (support / gate / skeptic / default)
+
+First-class field on an agent spec (`AgentConfig.role`, team `AGENT_SPECS`, `/v1/blueprints/` `role` + `agents[]`). Visual CSS: `os-agent-role-<role>` and `data-role`. Wiring (openai-agents `as_tool` / handoff only — not extra Grok seats):
+
+* **default** — ordinary worker / coordinator
+* **support** — Support seat (REQ-7). Talk about gate/skeptic; this repo wires them.
+* **gate** (`tool_gate`) — classifies a pending tool call YES/NO (dangerous). Wired → elicit on dangerous. **Unwired → all approved, never prompt.**
+* **skeptic** — reviews whether the original prompt was accomplished; on NO, findings go back to the original agent (bounded retries, default 2). On YES, stop — do not nag.
+
+See [AGENT_ROLES.md](./AGENT_ROLES.md).
+
 ## CLI Fusion
 
 Wrapping installed agentic CLIs (`grok` / `claude` / `gemini` / …) behind the OpenAI API and composing them (`cli_agent`, `cli_fusion` panel+judge, `cli_orchestrator`, `cli_map`, …). Config: `cli_agents` (+ fusion blocks) in `swarm_config.json`. Docs: [CLI_FUSION.md](./CLI_FUSION.md). Legacy product phrasing; MoA is the preferred name for read-only consensus.

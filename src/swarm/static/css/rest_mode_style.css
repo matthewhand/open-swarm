@@ -548,6 +548,28 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
+/* REQ-9 role accents (Support should reuse these class names) */
+.os-agent-item[data-role="support"],
+.os-agent-role-support { box-shadow: inset 2px 0 0 #3d9b8f; }
+.os-agent-item[data-role="gate"],
+.os-agent-role-gate { box-shadow: inset 2px 0 0 #c9a227; }
+.os-agent-item[data-role="skeptic"],
+.os-agent-role-skeptic { box-shadow: inset 2px 0 0 #8a5a9b; }
+.os-agent-dot[data-role="support"] { background: #3d9b8f; }
+.os-agent-dot[data-role="gate"] { background: #c9a227; }
+.os-agent-dot[data-role="skeptic"] { background: #8a5a9b; }
+.os-agent-role-badge {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--os-muted);
+}
+.os-agent-role-badge[data-role="support"] { color: #3d9b8f; }
+.os-agent-role-badge[data-role="gate"] { color: #c9a227; }
+.os-agent-role-badge[data-role="skeptic"] { color: #8a5a9b; }
 .os-agent-hidden { margin-top: 0.65rem; padding-top: 0.5rem; border-top: 1px solid var(--os-border); }
 .os-agent-hidden__toggle {
   width: 100%;

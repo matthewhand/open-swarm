@@ -28,6 +28,13 @@ function agentLabel(agent: Blueprint): string {
   return agent.name || agent.id
 }
 
+const CANONICAL_ROLES = new Set(['default', 'support', 'gate', 'skeptic'])
+
+function agentRole(agent: Blueprint): string {
+  const role = (agent.role || 'default').toLowerCase()
+  return CANONICAL_ROLES.has(role) ? role : 'default'
+}
+
 export default function AgentSidebar({ open = false, onClose }: AgentSidebarProps) {
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
@@ -117,10 +124,12 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
   const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
     const name = agentLabel(agent)
     const active = selectedId === agent.id
+    const role = agentRole(agent)
     return (
       <Link
         to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+        data-role={role}
+        className={`os-agent-item os-agent-role-${role} flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
           active
             ? 'bg-base-300/70 text-base-content'
             : 'text-base-content/90 hover:bg-base-300/40'
@@ -132,10 +141,16 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
         <span
           className="os-agent-dot mt-1.5"
           data-mark={String(agentMarkIndex(agent.id))}
+          data-role={role}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+          {role !== 'default' ? (
+            <span className={`os-agent-role-badge os-agent-role-${role}`} data-role={role}>
+              {role}
+            </span>
+          ) : null}
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}

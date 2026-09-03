@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Agent roles + gate/skeptic wiring (REQ-9):** first-class `role` (`default` / `support` / `gate` / `skeptic`) on `AgentConfig`, team `AGENT_SPECS`, and `/v1/blueprints/` so the AGENTS sidepane can highlight seats (`os-agent-role-*`, `data-role`). A wired **gate** classifies pending tool calls YES/NO and elicits on dangerous calls; **unwired = all approved, never prompt**. A wired **skeptic** reviews the original prompt and, on failure, hands findings back via openai-agents as-tool (max 2 retries); on success it stops. Not extra Grok/OMB seats. See `docs/AGENT_ROLES.md`.
+
 ### Changed
 - **SPA + Django dark chrome (REQ-5 / REQ-5c):** DaisyUI cupcake/rainbow operator skin replaced with near-black Grok-like chrome. Home dashboard four quick actions are large cards. Django Blueprints / Teams / Sessions / Settings share the same nav + AGENTS sidepane (right-click Hide from sidebar, Hidden + Unhide, `localStorage.swarm_hidden_agents`). Settings purple gradient header removed. Primary actions on those pages are large cards, not tiny rainbow buttons.
 - **Mobile dock PNG honesty:** GUIDED_TOUR / SCREENSHOTS admit journey capture parks fixed bottom navs as `position:static` so full-page mobile PNGs show the tab bar after scrolled content (not a live viewport overlay) — locked by `tests/unit/test_screenshot_registry.py`

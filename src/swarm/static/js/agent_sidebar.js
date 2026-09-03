@@ -95,9 +95,17 @@
       var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
 
+      var role = (agent.role || "default").toLowerCase();
+      if (["support", "gate", "skeptic", "default"].indexOf(role) === -1) {
+        role = "default";
+      }
+      link.setAttribute("data-role", role);
+      link.className = "os-agent-item os-agent-role-" + role;
+
       var dot = document.createElement("span");
       dot.className = "os-agent-dot";
       dot.setAttribute("data-mark", markIndex(agent.id));
+      dot.setAttribute("data-role", role);
       dot.setAttribute("aria-hidden", "true");
 
       var text = document.createElement("span");
@@ -106,6 +114,13 @@
       title.className = "os-agent-item__name";
       title.textContent = name;
       text.appendChild(title);
+      if (role !== "default") {
+        var badge = document.createElement("span");
+        badge.className = "os-agent-role-badge os-agent-role-" + role;
+        badge.setAttribute("data-role", role);
+        badge.textContent = role;
+        text.appendChild(badge);
+      }
       if (agent.description) {
         var desc = document.createElement("span");
         desc.className = "os-agent-item__desc";
