@@ -42,11 +42,15 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    btn = page.locator(".btn-primary").first
+    # Grok chrome has no standing primary CTA. The closed settings sheet still
+    # mounts a hidden "Save retention" .btn-primary — do not match that.
+    # Open the sheet and assert the visible primary button is DaisyUI-styled.
+    page.get_by_role("button", name="Open settings").click()
+    btn = page.get_by_role("button", name="Save retention")
     btn.wait_for(state="visible", timeout=10_000)
     bg = _computed(page, btn, "backgroundColor")
     assert bg not in TRANSPARENT, (
-        ".btn-primary has a transparent background; DaisyUI component "
+        "visible .btn-primary has a transparent background; DaisyUI component "
         "styles are missing from the bundle"
     )
 
@@ -82,11 +86,22 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """The Connected badge only renders after ws.onopen fires, so this also
-    guards the ASGI/daphne websocket wiring."""
+    """Healthy Grok chrome keeps the WS badge silent (empty sr-only status).
+
+    A visible “Connected” label was removed in #322; wait until the
+    connection-status region is attached and no longer “Connecting…”.
+    Empty text means ws.onopen fired (ASGI/daphne wiring).
+    """
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    badge = page.get_by_text("Connected", exact=True)
-    badge.wait_for(state="visible", timeout=20_000)
+    status = page.get_by_label("Connection status")
+    status.wait_for(state="attached", timeout=10_000)
+    page.wait_for_function(
+        """() => {
+          const el = document.querySelector('[aria-label="Connection status"]');
+          return el && el.textContent.trim() === '';
+        }""",
+        timeout=20_000,
+    )
 
 
 def test_blueprint_cards_have_borders(page, live_server_url):
