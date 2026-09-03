@@ -428,4 +428,26 @@ describe('ChatPage markdown bubbles', () => {
     expect(screen.getByText('hello').tagName).toBe('STRONG')
     expect(screen.getByText('code').tagName).toBe('CODE')
   })
+
+  it('shows the default agent avatar in the header and on assistant bubbles', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const heading = screen.getByRole('heading', { name: /Chat/i })
+    expect(heading.querySelector('img[data-agent-avatar="default"]')).toBeTruthy()
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-avatar1" class="assistant-message">hi</div></div>',
+        }),
+      )
+    })
+
+    const log = screen.getByRole('log', { name: 'Conversation' })
+    expect(log.querySelector('.chat-image img[data-agent-avatar="default"]')).toBeTruthy()
+  })
 })

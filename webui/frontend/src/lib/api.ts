@@ -162,6 +162,8 @@ export interface Blueprint {
   tags: string[]
   installed: boolean | null
   compiled: boolean | null
+  /** Optional generated/custom face. Missing or blank uses the default avatar. */
+  avatar_path?: string | null
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */

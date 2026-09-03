@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Eye, EyeOff, Settings, Users, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
-  agentMarkIndex,
   hideAgentId,
   loadHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
+import AgentAvatar from './AgentAvatar'
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
@@ -129,11 +129,7 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
         onClick={onClose}
         onContextMenu={(event) => openMenu(event, agent, hidden)}
       >
-        <span
-          className="os-agent-dot mt-1.5"
-          data-mark={String(agentMarkIndex(agent.id))}
-          aria-hidden="true"
-        />
+        <AgentAvatar src={agent.avatar_path} size="sm" className="mt-0.5" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold leading-5">{name}</span>
           {agent.description ? (

@@ -4,7 +4,6 @@
  */
 (function agentSidebar() {
   var STORAGE_KEY = "swarm_hidden_agents";
-  var MARK_COUNT = 6;
 
   function loadHidden() {
     try {
@@ -31,14 +30,6 @@
       /* persistence is best-effort */
     }
     return unique;
-  }
-
-  function markIndex(id) {
-    var hash = 0;
-    for (var i = 0; i < id.length; i += 1) {
-      hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-    }
-    return String(hash % MARK_COUNT);
   }
 
   function agentLabel(agent) {
@@ -95,10 +86,19 @@
       var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
 
-      var dot = document.createElement("span");
-      dot.className = "os-agent-dot";
-      dot.setAttribute("data-mark", markIndex(agent.id));
-      dot.setAttribute("aria-hidden", "true");
+      var avatar = document.createElement("img");
+      avatar.className = "os-agent-avatar";
+      avatar.src =
+        agent.avatar_path && String(agent.avatar_path).trim()
+          ? agent.avatar_path
+          : "/static/img/default-agent-avatar.svg";
+      avatar.alt = "";
+      avatar.setAttribute("draggable", "false");
+      avatar.setAttribute("aria-hidden", "true");
+      avatar.setAttribute(
+        "data-agent-avatar",
+        agent.avatar_path && String(agent.avatar_path).trim() ? "custom" : "default"
+      );
 
       var text = document.createElement("span");
       text.className = "os-agent-item__text";
@@ -113,7 +113,7 @@
         text.appendChild(desc);
       }
 
-      link.appendChild(dot);
+      link.appendChild(avatar);
       link.appendChild(text);
       link.addEventListener("contextmenu", function (event) {
         event.preventDefault();

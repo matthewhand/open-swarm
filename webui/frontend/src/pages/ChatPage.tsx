@@ -9,7 +9,8 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { AlertCircle, Info, LogIn, RefreshCw, Send } from 'lucide-react'
+import AgentAvatar from '../components/AgentAvatar'
 import {
   Alert,
   Badge,
@@ -298,7 +299,7 @@ const ChatPage = () => {
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
-          <MessageSquare className="h-8 w-8" />
+          <AgentAvatar size="lg" />
           Chat
         </h1>
 
@@ -470,7 +471,7 @@ const ChatPage = () => {
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <MessageSquare className="h-10 w-10 opacity-20" aria-hidden="true" />
+              <AgentAvatar size="xl" />
               <div>
                 <p className="font-medium text-base-content/70">
                   {status === 'open'
@@ -518,6 +519,11 @@ const ChatPage = () => {
                   key={message.key}
                   className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
                 >
+                  {message.role === 'assistant' ? (
+                    <div className="chat-image">
+                      <AgentAvatar size="md" />
+                    </div>
+                  ) : null}
                   <div className="chat-header text-xs opacity-60">
                     {message.role === 'user' ? 'You' : 'Assistant'}
                   </div>

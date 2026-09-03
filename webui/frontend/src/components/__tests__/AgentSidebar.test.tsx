@@ -71,6 +71,7 @@ describe('AgentSidebar hide / unhide', () => {
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const codey = await within(list).findByRole('link', { name: /Codey/ })
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+    expect(list.querySelectorAll('img[data-agent-avatar="default"]').length).toBeGreaterThanOrEqual(2)
 
     fireEvent.contextMenu(codey)
     fireEvent.click(await screen.findByRole('menuitem', { name: /Hide from sidebar/i }))
