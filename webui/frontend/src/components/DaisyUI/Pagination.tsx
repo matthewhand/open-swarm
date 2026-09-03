@@ -323,7 +323,7 @@ export const useInfiniteScroll = <T,>(
         setItems(prev => [...prev, ...newItems]);
         setPage(prev => prev + 1);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error loading more items:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {

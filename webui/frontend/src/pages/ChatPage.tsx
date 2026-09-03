@@ -242,8 +242,9 @@ const ChatPage = () => {
     }
   }, [status, connectAttempt])
 
+  const isReceiving = messages.length > 0 && messages[messages.length - 1].streaming
   const canSend =
-    status === 'open' && input.trim().length > 0
+    status === 'open' && input.trim().length > 0 && !isReceiving
 
   /** Last user prompt, kept for the experimental Retry action. */
   const lastUserTextRef = useRef('')
@@ -598,6 +599,7 @@ const ChatBubbleBody = memo(
     }
     return (
       <div
+        data-testid="chat-md"
         className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
         dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
       />

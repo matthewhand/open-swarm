@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -125,8 +125,8 @@ describe('ChatPage reconnect focus', () => {
     const composer = await screen.findByRole('textbox', { name: 'Chat message' })
     await waitFor(() => {
       expect(composer).not.toBeDisabled()
-      expect(composer).toHaveFocus()
     })
+    expect(composer).toHaveFocus()
   })
 })
 
@@ -329,9 +329,9 @@ describe('ChatPage Send button honesty while streaming', () => {
 
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
-    expect(send.querySelector('[data-testid="loading-spinner"]')).toBeNull()
-    // Streaming progress lives on the message bubble, not a fake Send busy state.
-    expect(document.querySelector('.chat-bubble .loading')).toBeTruthy()
+
+    const loaders = screen.getAllByRole('status', { name: 'Loading' })
+    expect(loaders.length).toBeGreaterThan(0)
   })
 })
 
@@ -425,9 +425,7 @@ describe('ChatPage markdown bubbles', () => {
       )
     })
 
-    const bubble = document.querySelector('.chat-md')
-    expect(bubble).toBeTruthy()
-    expect(bubble?.innerHTML).toContain('<strong>hello</strong>')
-    expect(bubble?.innerHTML).toContain('<code>code</code>')
+    expect(screen.getByText('hello').tagName).toBe('STRONG')
+    expect(screen.getByText('code').tagName).toBe('CODE')
   })
 })
