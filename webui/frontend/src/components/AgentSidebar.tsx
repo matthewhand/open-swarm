@@ -34,6 +34,12 @@ import {
   supportFirstAgents,
 } from '../lib/supportAgent'
 import { openSearchPalette } from './SearchPalette'
+import { Modal } from './DaisyUI'
+import {
+  OPEN_HIDDEN_EVENT,
+  OPEN_PLUGINS_EVENT,
+  notifyOverlayClosed,
+} from '../lib/chromeOverlay'
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
@@ -85,6 +91,27 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
+  const closeHidden = useCallback(() => {
+    setHiddenOpen(false)
+    notifyOverlayClosed()
+  }, [])
+
+  const closePlugins = useCallback(() => {
+    setPluginsOpen(false)
+    notifyOverlayClosed()
+  }, [])
+
+  useEffect(() => {
+    const onHidden = () => setHiddenOpen(true)
+    const onPlugins = () => setPluginsOpen(true)
+    window.addEventListener(OPEN_HIDDEN_EVENT, onHidden)
+    window.addEventListener(OPEN_PLUGINS_EVENT, onPlugins)
+    return () => {
+      window.removeEventListener(OPEN_HIDDEN_EVENT, onHidden)
+      window.removeEventListener(OPEN_PLUGINS_EVENT, onPlugins)
+    }
+  }, [])
+
   const openPalette = useCallback(() => {
     onOpenSearch?.()
     openSearchPalette()
@@ -133,7 +160,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const unhideAgent = (id: string) => {
     setHiddenIds((current) => {
       const next = unhideAgentId(id, current)
-      if (next.length === 0) setHiddenOpen(false)
+      if (next.length === 0) {
+        setHiddenOpen(false)
+        notifyOverlayClosed()
+      }
       return next
     })
     closeMenu()
@@ -344,87 +374,46 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         </div>
       </aside>
 
-      {hiddenOpen && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-50 bg-black/45"
-            aria-label="Close hidden agents"
-            onClick={() => setHiddenOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="os-hidden-agents-title"
-            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 id="os-hidden-agents-title" className="text-sm font-semibold">
-                Hidden agents
-              </h2>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle"
-                aria-label="Close hidden agents"
-                onClick={() => setHiddenOpen(false)}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            {hiddenAgents.length === 0 ? (
-              <p className="text-sm text-base-content/60">No hidden agents.</p>
-            ) : (
-              <ul className="space-y-1">
-                {hiddenAgents.map((agent) => (
-                  <li key={agent.id} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      aria-label={`Unhide ${agentLabel(agent)}`}
-                      onClick={() => unhideAgent(agent.id)}
-                    >
-                      Unhide
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      )}
+      <Modal
+        isOpen={hiddenOpen}
+        onClose={closeHidden}
+        title="Hidden agents"
+        size="sm"
+      >
+        {hiddenAgents.length === 0 ? (
+          <p className="text-sm text-base-content/60">No hidden agents.</p>
+        ) : (
+          <ul className="max-h-[min(24rem,calc(100dvh-8rem))] space-y-1 overflow-y-auto">
+            {hiddenAgents.map((agent) => (
+              <li key={agent.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs"
+                  aria-label={`Unhide ${agentLabel(agent)}`}
+                  onClick={() => unhideAgent(agent.id)}
+                >
+                  Unhide
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="modal-action">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={closeHidden}>
+            Close
+          </button>
+        </div>
+      </Modal>
 
-      {pluginsOpen && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-50 bg-black/45"
-            aria-label="Close plugins"
-            onClick={() => setPluginsOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="os-plugins-title"
-            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 id="os-plugins-title" className="text-sm font-semibold">
-                Plugins
-              </h2>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle"
-                aria-label="Close plugins"
-                onClick={() => setPluginsOpen(false)}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            <p className="text-sm text-base-content/60">No plugins installed.</p>
-          </div>
-        </>
-      )}
+      <Modal isOpen={pluginsOpen} onClose={closePlugins} title="Plugins" size="sm">
+        <p className="text-sm text-base-content/60">No plugins installed.</p>
+        <div className="modal-action">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={closePlugins}>
+            Close
+          </button>
+        </div>
+      </Modal>
 
       {menu && (
         <div

@@ -15,6 +15,11 @@ import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { fetchBlueprints } from '../lib/api'
 import {
+  OVERLAY_CLOSED_EVENT,
+  openChromeOverlay,
+  type ChromeOverlay,
+} from '../lib/chromeOverlay'
+import {
   agentIdFromBlueprint,
   conversationIdForAgent,
   fetchAgentThread,
@@ -60,10 +65,10 @@ interface ChatMessage {
   streaming: boolean
 }
 
-const OPERATOR_LINKS = [
-  { href: '/blueprint-library/', label: 'Blueprints', icon: Book },
-  { href: '/teams/launch/', label: 'Teams', icon: Users },
-  { href: '/settings/', label: 'Settings', icon: Settings },
+const OPERATOR_OVERLAYS = [
+  { overlay: 'blueprints' as const satisfies ChromeOverlay, label: 'Blueprints', icon: Book },
+  { overlay: 'teams' as const satisfies ChromeOverlay, label: 'Teams', icon: Users },
+  { overlay: 'settings' as const satisfies ChromeOverlay, label: 'Settings', icon: Settings },
 ] as const
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
@@ -416,6 +421,14 @@ const ChatPage = () => {
     return () => window.removeEventListener('mousedown', onPointer)
   }, [plusOpen])
 
+  useEffect(() => {
+    const onOverlayClosed = () => {
+      window.setTimeout(() => composerRef.current?.focus(), 0)
+    }
+    window.addEventListener(OVERLAY_CLOSED_EVENT, onOverlayClosed)
+    return () => window.removeEventListener(OVERLAY_CLOSED_EVENT, onOverlayClosed)
+  }, [])
+
   const streamingMessage = messages.find((message) => message.streaming)
   useEffect(() => {
     if (!streamingMessage) {
@@ -539,19 +552,22 @@ const ChatPage = () => {
                 aria-label="Operator pages"
                 className="os-plus-menu"
               >
-                {OPERATOR_LINKS.map((item) => {
+                {OPERATOR_OVERLAYS.map((item) => {
                   const Icon = item.icon
                   return (
-                    <li key={item.href} role="none">
-                      <a
+                    <li key={item.overlay} role="none">
+                      <button
+                        type="button"
                         role="menuitem"
-                        href={item.href}
-                        className="os-plus-menu__item"
-                        onClick={() => setPlusOpen(false)}
+                        className="os-plus-menu__item w-full"
+                        onClick={() => {
+                          setPlusOpen(false)
+                          openChromeOverlay(item.overlay)
+                        }}
                       >
                         <Icon className="h-4 w-4" aria-hidden="true" />
                         {item.label}
-                      </a>
+                      </button>
                     </li>
                   )
                 })}

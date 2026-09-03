@@ -325,9 +325,15 @@ html[data-theme="light"] #root {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  border: 0;
   border-radius: 0.45rem;
   padding: 0.45rem 0.6rem;
+  background: transparent;
+  color: inherit;
   font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
 }
 .os-plus-menu__item:hover {
   background: color-mix(in srgb, var(--color-base-300) 55%, transparent);

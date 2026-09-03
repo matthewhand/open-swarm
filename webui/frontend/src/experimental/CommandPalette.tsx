@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { openChromeOverlay, type ChromeOverlay } from '../lib/chromeOverlay'
 import {
   Bot,
   Book,
@@ -27,6 +28,7 @@ interface PaletteItem {
   icon: React.ReactNode
   /** SPA route (react-router navigate) or full-page Django path. */
   to?: string
+  overlay?: ChromeOverlay
   action?: () => void
 }
 
@@ -66,12 +68,12 @@ export default function CommandPalette() {
     () => [
       { id: 'home', label: 'Home', hint: 'SPA dashboard', icon: <Bot className="h-4 w-4" />, to: '/' },
       { id: 'chat', label: 'Chat', hint: 'Live websocket chat', icon: <MessageSquare className="h-4 w-4" />, to: '/chat' },
-      { id: 'blueprints', label: 'Blueprints', hint: '/blueprint-library/', icon: <Book className="h-4 w-4" />, to: '/blueprint-library/' },
+      { id: 'blueprints', label: 'Blueprints', hint: 'Sheet over chat', icon: <Book className="h-4 w-4" />, overlay: 'blueprints' },
       { id: 'my-blueprints', label: 'My Blueprints', hint: '/blueprint-library/my-blueprints/', icon: <Book className="h-4 w-4" />, to: '/blueprint-library/my-blueprints/' },
       { id: 'launch', label: 'Launch a Team', hint: '/teams/launch/', icon: <PlusCircle className="h-4 w-4" />, to: '/teams/launch/' },
-      { id: 'teams', label: 'Manage Teams', hint: '/teams/', icon: <Users className="h-4 w-4" />, to: '/teams/' },
+      { id: 'teams', label: 'Manage Teams', hint: 'Sheet over chat', icon: <Users className="h-4 w-4" />, overlay: 'teams' },
       { id: 'sessions', label: 'Sessions', hint: 'Session explorer', icon: <History className="h-4 w-4" />, to: '/sessions/' },
-      { id: 'settings', label: 'Settings', hint: 'Settings dashboard', icon: <Settings className="h-4 w-4" />, to: '/settings/' },
+      { id: 'settings', label: 'Settings', hint: 'Sheet over chat', icon: <Settings className="h-4 w-4" />, overlay: 'settings' },
       {
         id: 'theme',
         label: 'Toggle light/dark theme',
@@ -120,6 +122,7 @@ export default function CommandPalette() {
       if (!item) return
       setOpen(false)
       if (item.action) item.action()
+      else if (item.overlay) openChromeOverlay(item.overlay)
       else if (item.to) {
         if (item.to.startsWith('/chat')) navigate(item.to)
         else window.location.assign(item.to)

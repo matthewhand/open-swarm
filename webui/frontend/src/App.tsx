@@ -4,6 +4,7 @@ import { PanelLeft } from 'lucide-react'
 import ChatPage from './pages/ChatPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
+import ChatOverlays from './components/overlays/ChatOverlays'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
@@ -46,7 +47,8 @@ function RedirectAgentsToChat() {
 
 /**
  * Product chrome is Grok-Bot: left rail + the selected agent's chat.
- * Operator Django pages stay reachable from the composer + menu.
+ * Manage/settings open as DaisyUI sheets over Chat (REQ-48) — they are not
+ * React routes. Django `/settings/` stays a power-user link.
  * Legacy `/agents` aliases `/chat` (REQ-5d) without restoring Home/Chat top nav.
  */
 function App() {
@@ -84,6 +86,7 @@ function App() {
       <ToastProvider>
         {SHOW_COMMAND_PALETTE && <CommandPalette />}
         <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <ChatOverlays />
         <div
           className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"
           data-theme={darkMode === 'dark' ? 'dark' : 'light'}

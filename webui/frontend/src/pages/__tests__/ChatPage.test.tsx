@@ -509,12 +509,10 @@ describe('ChatPage Grok composer and per-agent threads', () => {
       'Message …',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('menuitem', { name: 'Blueprints' })).toHaveAttribute(
-      'href',
-      '/blueprint-library/',
-    )
-    expect(screen.getByRole('menuitem', { name: 'Teams' })).toHaveAttribute('href', '/teams/launch/')
-    expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings/')
+    expect(screen.getByRole('menuitem', { name: 'Blueprints' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Teams' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Settings' })).not.toHaveAttribute('href')
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
   })
