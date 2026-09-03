@@ -151,6 +151,40 @@ test('right-click hide from sidebar persists across reload; unhide restores', as
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
+async function html5Drag(
+  source: import('@playwright/test').Locator,
+  target: import('@playwright/test').Locator,
+  phase: 'highlight' | 'drop' | 'full' = 'full',
+) {
+  await source.evaluate((el) => {
+    el.dispatchEvent(
+      new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }),
+    )
+  })
+  if (phase === 'highlight' || phase === 'full') {
+    await target.evaluate((el) => {
+      const dt = new DataTransfer()
+      el.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }))
+      el.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    })
+  }
+  if (phase === 'drop' || phase === 'full') {
+    await target.evaluate((el) => {
+      el.dispatchEvent(
+        new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }),
+      )
+    })
+    // Hide unmounts the source row; dragend is best-effort.
+    if ((await source.count()) > 0) {
+      await source.evaluate((el) => {
+        el.dispatchEvent(
+          new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }),
+        )
+      })
+    }
+  }
+}
+
 test('drag any rail row onto Hidden, including Support; Unhide restores; no Hide-all', async ({
   page,
 }) => {
@@ -163,18 +197,16 @@ test('drag any rail row onto Hidden, including Support; Unhide restores; no Hide
   await expect(page.getByRole('button', { name: /Hide all/i })).toHaveCount(0)
 
   const support = list.getByRole('link', { name: /Support/ })
-  await support.dispatchEvent('dragstart')
-  await zone.dispatchEvent('dragover')
+  await html5Drag(support, zone, 'highlight')
   await expect(zone).toHaveAttribute('data-drag-over', 'true')
-  await zone.dispatchEvent('drop')
+  await html5Drag(support, zone, 'drop')
   await expect(list.getByRole('link', { name: /Support/ })).toHaveCount(0)
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
     .toBe(JSON.stringify(['support']))
 
   const codey = list.getByRole('link', { name: /Codey/ })
-  await codey.dispatchEvent('dragstart')
-  await zone.dispatchEvent('drop')
+  await html5Drag(codey, zone)
   await expect(list.getByRole('link', { name: /Codey/ })).toHaveCount(0)
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
