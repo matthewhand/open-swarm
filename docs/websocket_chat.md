@@ -36,8 +36,11 @@ Notes:
   authenticate the websocket. Anonymous connects are accept-then-closed
   with close code **4401** (`WS_AUTH_REQUIRED_CODE`) and reason
   `authentication required` so the SPA can show a Sign-in CTA instead of
-  an opaque failure. `receive()` re-checks auth so a frame that races the
-  close cannot append to a transcript or invoke a blueprint/LLM.
+  an opaque failure — except **DEBUG + LAN/loopback**, which mints the
+  preview user so a phone on the LAN can chat without signing in
+  (`SWARM_ALLOW_ANONYMOUS=0` disables that). `receive()` re-checks auth so a
+  frame that races the close cannot append to a transcript or invoke a
+  blueprint/LLM.
 - `Origin` must match `ALLOWED_HOSTS` (AllowedHostsOriginValidator).
 - The consumer streams completions from `OPENAI_API_KEY` / `OPENAI_MODEL`
   (optionally `LITELLM_BASE_URL`/`OPENAI_BASE_URL`).
@@ -59,6 +62,14 @@ before `/chat`, then waits for the connection-status badge so a healthy regen
 of `spa-chat.png` shows **Connected**. The checked-in desktop/mobile frames
 (2026-08-19) show **Connected**; **Unavailable** appears for 4401 / unreachable
 — see [SCREENSHOTS.md](./SCREENSHOTS.md).
+
+### Per-agent persistence (REQ-14)
+
+Each agent thread is a JSON file under `$SWARM_CHAT_DIR` (default
+`$SWARM_USER_DATA_DIR/chats`): `active/<user>/<agent>.json`. The consumer
+mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
+SPA after reload or agent switch. Retention (counts, disk, trash,
+`SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
 
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).

@@ -1,0 +1,25 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "demo-team",
+      "object": "team_roster",
+      "name": "Demo Team",
+      "description": "Example multi-agent roster",
+      "members": [
+        {
+          "id": "codey",
+          "name": "Codey",
+          "kind": "agent",
+          "role": "coder"
+        },
+        {
+          "id": "stewie",
+          "name": "Stewie",
+          "kind": "agent",
+          "role": "ops"
+        }
+      ]
+    }
+  ]
+}

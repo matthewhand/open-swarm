@@ -4,15 +4,19 @@ import { Alert } from './Alert';
 import { LoadingButton } from './Loading';
 
 /**
- * Modal component using DaisyUI classes
+ * Modal component using DaisyUI classes.
  * Docs: https://daisyui.com/components/modal/
  */
+export type ModalPlacement = 'middle' | 'end' | 'start' | 'top' | 'bottom';
+
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
   title?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'sheet';
+  /** Horizontal/vertical dock. `end` is a right-docked sheet (`modal-end`). */
+  placement?: ModalPlacement;
   className?: string;
   'aria-label'?: string;
 }
@@ -23,6 +27,7 @@ export const Modal = ({
   children,
   title,
   size = 'md',
+  placement = 'middle',
   className = '',
   'aria-label': ariaLabel,
 }: ModalProps) => {
@@ -64,20 +69,18 @@ export const Modal = ({
     return () => dialog.removeEventListener('cancel', handleCancel);
   }, [onClose]);
 
-  // Handle backdrop clicks (clicking outside the modal-box)
+  // Handle backdrop clicks (outside `.modal-box`). The `<dialog class="modal">`
+  // is full-viewport, so the dialog rect itself is not a useful hit test —
+  // especially for `modal-end` sheets that leave a clickable gutter.
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+    const raw = e.target as Node;
+    const el = raw instanceof Element ? raw : raw.parentElement;
+    // Form `.modal-backdrop` (or its submit button / text node) has its own handler.
+    if (el?.closest('.modal-backdrop')) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
-
-    const rect = dialog.getBoundingClientRect();
-    const isInDialog = (
-      rect.top <= e.clientY &&
-      e.clientY <= rect.top + rect.height &&
-      rect.left <= e.clientX &&
-      e.clientX <= rect.left + rect.width
-    );
-
-    if (!isInDialog) {
+    const box = dialog.querySelector('.modal-box');
+    if (box && !box.contains(raw)) {
       onClose();
     }
   };
@@ -87,7 +90,10 @@ export const Modal = ({
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
+    sheet: 'h-full max-h-full w-full max-w-4xl rounded-none rounded-s-box',
   };
+
+  const placementClass = placement === 'middle' ? '' : `modal-${placement}`;
 
   // Keep FocusTrap mounted and toggle `active` so DaisyUI open/close
   // transitions are not interrupted by remounting the dialog tree.
@@ -102,7 +108,7 @@ export const Modal = ({
     >
       <dialog
         ref={dialogRef}
-        className={`modal ${isOpen ? 'modal-open' : ''}`}
+        className={`modal ${placementClass} ${isOpen ? 'modal-open' : ''}`.replace(/\s+/g, ' ').trim()}
         onClick={handleBackdropClick}
         aria-labelledby={title ? titleId : undefined}
         aria-label={!title ? (ariaLabel || 'Dialog') : undefined}
@@ -119,10 +125,22 @@ export const Modal = ({
             {children}
           </div>
         </div>
-        <form method="dialog" className="modal-backdrop" aria-hidden="true">
+        <form
+          method="dialog"
+          className="modal-backdrop"
+          aria-hidden="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+        >
           <button
             type="submit"
-            onClick={onClose}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             aria-label="Close modal"
             tabIndex={-1}
           >

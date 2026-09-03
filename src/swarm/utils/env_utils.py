@@ -46,11 +46,16 @@ def is_django_debug() -> bool:
 def get_django_allowed_hosts() -> list[str]:
     """Get allowed hosts for Django. Required in non-debug (prod) mode."""
     hosts = os.getenv('DJANGO_ALLOWED_HOSTS')
-    if hosts:
-        return [h.strip() for h in hosts.split(',') if h.strip()]
+    parsed = [h.strip() for h in (hosts or '').split(',') if h.strip()]
     debug = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
+    if parsed:
+        if debug and '*' not in parsed:
+            return ['*'] + parsed
+        return parsed
     if debug:
-        return ['localhost', '127.0.0.1']
+        # '*' so a LAN phone hitting http://10.x.x.x:8001/ is not DisallowedHost
+        # (HTTP + AllowedHostsOriginValidator for websockets).
+        return ['*', 'localhost', '127.0.0.1']
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
         "DJANGO_ALLOWED_HOSTS environment variable is required when DJANGO_DEBUG is not enabled (production), "

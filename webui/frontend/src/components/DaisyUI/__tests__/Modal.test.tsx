@@ -82,6 +82,33 @@ describe('Modal Accessibility and Focus Restoration', () => {
     expect(openDialog).toHaveAttribute('aria-modal', 'true');
   });
 
+  it('applies DaisyUI modal-end for a right-docked sheet', () => {
+    render(
+      <Modal isOpen={true} onClose={() => {}} placement="end" size="sheet" title="Sheet">
+        <p>Docked</p>
+      </Modal>
+    );
+    const dialog = screen.getByRole('dialog', { hidden: true });
+    expect(dialog).toHaveClass('modal');
+    expect(dialog).toHaveClass('modal-end');
+    expect(dialog).not.toHaveClass('drawer');
+    // eslint-disable-next-line testing-library/no-node-access
+    const box = dialog.querySelector('.modal-box');
+    expect(box).toHaveClass('max-w-4xl');
+  });
+
+  it('closes when the click lands outside modal-box (sheet gutter)', () => {
+    const onClose = vi.fn();
+    render(
+      <Modal isOpen={true} onClose={onClose} placement="end" size="sheet" title="Sheet">
+        <p>Docked</p>
+      </Modal>
+    );
+    const dialog = screen.getByRole('dialog', { hidden: true });
+    fireEvent.click(dialog);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes aria-label when title is omitted', () => {
     render(
       <Modal isOpen={true} onClose={() => {}} aria-label="Untitled dialog">

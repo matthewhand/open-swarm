@@ -94,6 +94,16 @@ class SettingsManager:
                 'icon': '🔌',
                 'settings': {}
             },
+            'remotes': {
+                'title': 'Remote Harnesses',
+                'description': (
+                    'Hermes, OpenMausBot, Rakazo, and nested open-swarm as Team members '
+                    '(handoff/as_tool). Persist base URL + auth. Not the /teams/ '
+                    'profile-alias registry.'
+                ),
+                'icon': '🛰️',
+                'settings': {}
+            },
             'database': {
                 'title': 'Database',
                 'description': 'Database connection and configuration',
@@ -116,6 +126,12 @@ class SettingsManager:
                 'title': 'UI Features',
                 'description': 'Web interface feature toggles',
                 'icon': '🎨',
+                'settings': {}
+            },
+            'chat_persistence': {
+                'title': 'Chat persistence',
+                'description': 'Per-agent JSON chat threads and Settings-only retention',
+                'icon': '💬',
                 'settings': {}
             }
         }
@@ -141,6 +157,9 @@ class SettingsManager:
         # MCP server settings
         self._collect_mcp_settings()
 
+        # Remote harnesses (Hermes / OMB / Rakazo / nested swarm)
+        self._collect_remotes_settings()
+
         # Database settings
         self._collect_database_settings()
 
@@ -152,6 +171,9 @@ class SettingsManager:
 
         # UI feature settings
         self._collect_ui_settings()
+
+        # Per-agent chat JSON store + retention
+        self._collect_chat_persistence_settings()
 
         return self.settings_groups
 
@@ -475,6 +497,60 @@ class SettingsManager:
 
         self.settings_groups['mcp_servers']['settings'] = mcp_settings
 
+    def _collect_remotes_settings(self):
+        """Collect Hermes / OMB / Rakazo / nested-swarm harness settings (secrets redacted)."""
+        try:
+            from swarm.core import remotes as remotes_core
+
+            remote_settings: dict[str, Any] = {}
+            placed = remotes_core.load_placed_members()
+            remote_settings["TEAM_MEMBERS"] = {
+                "value": placed,
+                "env_var": None,
+                "type": "list",
+                "description": (
+                    "Remotes placed in the handoff Team (see/talk via as_tool). "
+                    "Not /teams/ LLM-profile aliases (Profiles). "
+                    "PATCH /v1/agent-team/ or swarm-cli remotes place|unplace."
+                ),
+                "category": "remote",
+                "sensitive": False,
+            }
+            for spec in remotes_core.load_all_remotes().values():
+                pub = spec.public_dict()
+                remote_settings[spec.id.upper()] = {
+                    "value": {
+                        "base_url": pub["base_url"],
+                        "ui_url": pub["ui_url"],
+                        "api_key": "***SET***" if pub["api_key_set"] else "Not Set",
+                        "cookie": "***SET***" if pub["cookie_set"] else "Not Set",
+                        "host_label": pub["host_label"],
+                        "source": pub["source"],
+                    },
+                    "env_var": {
+                        "hermes": "HERMES_BASE_URL / HERMES_API_KEY",
+                        "omb": "OMB_BASE_URL / OMB_API_KEY",
+                        "rakazo": "RAKAZO_BASE_URL / RAKAZO_API_KEY / RAKAZO_SESSION_COOKIE",
+                        "swarm": "SWARM_REMOTE_BASE_URL / SWARM_REMOTE_API_KEY",
+                    }.get(spec.id),
+                    "type": "object",
+                    "description": spec.notes,
+                    "category": "remote",
+                    "sensitive": True,
+                }
+        except Exception as e:
+            remote_settings = {
+                "CONFIG_ERROR": {
+                    "value": f"Error loading remotes: {e}",
+                    "env_var": None,
+                    "type": "error",
+                    "description": "Remote harness configuration loading error",
+                    "category": "error",
+                    "sensitive": False,
+                }
+            }
+        self.settings_groups["remotes"]["settings"] = remote_settings
+
     def _collect_database_settings(self):
         """Collect database settings"""
         db_config = getattr(settings, 'DATABASES', {}).get('default', {})
@@ -600,6 +676,38 @@ class SettingsManager:
         }
 
         self.settings_groups['ui_features']['settings'] = ui_settings
+
+    def _collect_chat_persistence_settings(self):
+        """Collect per-agent chat JSON store + retention settings."""
+        from swarm.core import chat_store
+
+        chat_settings = {
+            'SWARM_CHAT_DIR': {
+                'value': str(chat_store.store_dir()),
+                'env_var': chat_store.ENV_CHAT_DIR,
+                'type': 'path',
+                'description': (
+                    'Directory for per-agent chat JSON files '
+                    '(active/<user>/<agent>.json and trash/). '
+                    'Unset uses $SWARM_USER_DATA_DIR/chats or the platformdirs data dir.'
+                ),
+                'category': 'storage',
+                'sensitive': False,
+            },
+            'SWARM_CHAT_MAX_AGE_DAYS': {
+                'value': str(chat_store.get_max_age_days()),
+                'env_var': chat_store.ENV_CHAT_MAX_AGE_DAYS,
+                'type': 'integer',
+                'description': (
+                    'Auto-move inactive agent chats to trash after this many days '
+                    f'(default {chat_store.DEFAULT_MAX_AGE_DAYS}). Set 0 to disable. '
+                    'Never hard-deletes; Empty trash on this page is manual.'
+                ),
+                'category': 'retention',
+                'sensitive': False,
+            },
+        }
+        self.settings_groups['chat_persistence']['settings'] = chat_settings
 
 
 # Global settings manager instance
