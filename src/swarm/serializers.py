@@ -2,7 +2,7 @@ import logging
 
 from rest_framework import serializers
 
-from swarm.models import ChatMessage
+from swarm.models import ChatMessage, HerdrAgent
 
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_debug')
@@ -108,4 +108,41 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             fields['conversation'].read_only = True
         return fields
+
+
+class HerdrAgentSerializer(serializers.ModelSerializer):
+    """Persisted Herdr member (kind=herdr). Empty remote = localhost."""
+
+    object = serializers.SerializerMethodField()
+    kind = serializers.SerializerMethodField()
+    remote = serializers.CharField(required=False, allow_blank=True, default="")
+
+    class Meta:
+        model = HerdrAgent
+        fields = ["id", "object", "kind", "name", "remote", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+        extra_kwargs = {
+            # Uniqueness is enforced in the view as 409 (same as /v1/teams/).
+            "name": {"validators": []},
+        }
+
+    def get_object(self, _obj):
+        return "herdr.agent"
+
+    def get_kind(self, _obj):
+        return "herdr"
+
+    def validate_name(self, value):
+        name = (value or "").strip()
+        if not name:
+            raise serializers.ValidationError("Name is required.")
+        if len(name) > 200:
+            raise serializers.ValidationError("Name is too long (max 200).")
+        return name
+
+    def validate_remote(self, value):
+        remote = (value or "").strip()
+        if "\n" in remote or "\r" in remote:
+            raise serializers.ValidationError("Remote must be a single-line herdr --remote target.")
+        return remote
 

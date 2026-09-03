@@ -37,6 +37,10 @@ Wrapping installed agentic CLIs (`grok` / `claude` / `gemini` / …) behind the 
 
 A stateful `/v1/responses` record (and related conversation/delegation data) owned by an operator or API-token principal. The Django **Session Explorer** at `/sessions/` is a read-only observability UI over those records — not a chat composer.
 
+## Herdr member (`kind=herdr`)
+
+A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
+
 ## Operator UI vs SPA Chat
 
 | Surface | Role (v1) |
