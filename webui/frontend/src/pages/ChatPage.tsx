@@ -97,10 +97,15 @@ const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
   const teamFromUrl = searchParams.get('team') ?? ''
+  const sessionFromUrl = searchParams.get('session') ?? ''
   const selectedBlueprint = teamFromUrl
     ? ''
     : defaultBlueprintId(searchParams.get('blueprint'))
-  const threadKey = teamFromUrl ? teamThreadId(teamFromUrl) : selectedBlueprint
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : sessionFromUrl
+      ? `${selectedBlueprint}::${sessionFromUrl}`
+      : selectedBlueprint
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [summariesByThread, setSummariesByThread] = useState<
@@ -116,7 +121,7 @@ const ChatPage = () => {
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
-      : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+      : sessionFromUrl || conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
   )
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
@@ -203,28 +208,29 @@ const ChatPage = () => {
     }
 
     const agent = agentIdFromBlueprint(selectedBlueprint)
+    const hydrateKey = sessionFromUrl ? `${agent}::${sessionFromUrl}` : agent
     const switched =
       lastHydratedAgentRef.current !== null &&
-      lastHydratedAgentRef.current !== agent
-    lastHydratedAgentRef.current = agent
-    setConversationId(conversationIdForAgent(agent))
+      lastHydratedAgentRef.current !== hydrateKey
+    lastHydratedAgentRef.current = hydrateKey
+    setConversationId(sessionFromUrl || conversationIdForAgent(agent))
     userKeyCounterRef.current = 0
     if (switched) {
-      setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
-      setSummariesByThread((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: [] }))
     }
     let cancelled = false
     ;(async () => {
-      const thread = await fetchAgentThread(agent)
+      const thread = await fetchAgentThread(agent, sessionFromUrl || undefined)
       if (cancelled) return
       setSummariesByThread((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.summaries,
+        [threadKey]: thread.summaries,
       }))
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.messages.map((message, index) => ({
+        [threadKey]: thread.messages.map((message, index) => ({
           key: `hist-${index}-${message.role}`,
           role: message.role,
           text: message.content,
@@ -235,7 +241,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, teamFromUrl])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, threadKey])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {

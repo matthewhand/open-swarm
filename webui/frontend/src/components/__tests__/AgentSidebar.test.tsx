@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useSearchParams } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
+import { saveAgentSessions, type AgentSession } from '../../lib/scaleOutSessions'
 
 function blueprint(id: string, name: string, description: string, role?: string) {
   return {
@@ -109,6 +110,11 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
   })
 }
 
+function SearchProbe() {
+  const [params] = useSearchParams()
+  return <span data-testid="os-test-search">{params.toString()}</span>
+}
+
 function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -117,6 +123,7 @@ function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <AgentSidebar open onClose={() => undefined} onOpenSearch={onOpenSearch} />
+        <SearchProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -381,6 +388,62 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.keyDown(supportEdit, { key: 'Enter' })
     expect(opened).toEqual([{ section: 'blueprint', blueprintId: 'support' }])
     window.removeEventListener('swarm:open-settings', onOpen)
+  })
+
+  it('keeps a scale-out agent as one stacked row and opens a session picker', async () => {
+    const running: AgentSession[] = [1, 2, 3, 4].map((n) => ({
+      id: `run-${n}`,
+      agentId: 'codey',
+      title: `Task ${n}`,
+      snippet: `work ${n}`,
+      status: 'running',
+      startedAt: n * 200,
+      updatedAt: n * 200,
+    }))
+    saveAgentSessions('codey', [
+      ...running,
+      {
+        id: 'fin-1',
+        agentId: 'codey',
+        title: 'Old job',
+        snippet: 'finished fixture',
+        status: 'finished',
+        startedAt: 50,
+        updatedAt: 50,
+      },
+    ])
+    renderSidebar('/chat?blueprint=codey')
+
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('button', { name: /Codey, 5 sessions/i })
+    const rows = list.querySelectorAll('[data-agent-id="codey"]')
+    expect(rows).toHaveLength(1)
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(codey).toHaveAttribute('data-scale-out', 'true')
+
+    const faces = within(codey).getAllByTestId('os-stacked-avatar')
+    expect(faces).toHaveLength(3)
+    expect(within(codey).getByTestId('os-stacked-remainder')).toHaveTextContent('+1')
+    const delays = faces.map((face) => face.style.animationDelay)
+    expect(new Set(delays).size).toBe(3)
+    for (const face of faces) {
+      expect(face).toHaveClass('os-stacked-avatar--pulse')
+    }
+
+    fireEvent.click(codey)
+    const dialog = await screen.findByRole('dialog', { name: 'Codey sessions' })
+    const options = within(dialog).getAllByRole('option')
+    expect(options).toHaveLength(5)
+    expect(within(dialog).getByText('finished fixture', { exact: false })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: /Filter Codey sessions/i }), {
+      target: { value: 'Task 2' },
+    })
+    expect(within(dialog).getAllByRole('option')).toHaveLength(1)
+    fireEvent.click(within(dialog).getByRole('option', { name: /Task 2/i }))
+    expect(screen.queryByRole('dialog', { name: 'Codey sessions' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('os-test-search').textContent).toContain('session=run-2')
+    expect(screen.getByTestId('os-test-search').textContent).toContain('blueprint=codey')
   })
 
   it('shows a distinct CoS badge and nested team rows with a Team badge', async () => {

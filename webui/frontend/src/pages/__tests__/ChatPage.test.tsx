@@ -567,6 +567,12 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(stewieUrl).not.toBe(codeyUrl)
   })
 
+  it('opens the session id from ?session= without leaving Chat mounted', async () => {
+    renderChat('/chat?blueprint=codey&session=sess-worker-2')
+    expect(MockWebSocket.instances[0]?.url).toContain('/ws/ai-demo/sess-worker-2/')
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+
   it('renders a bordered Summary block after Compact (nested parent stays inside)', async () => {
     const compactPayload = {
       summary: {
