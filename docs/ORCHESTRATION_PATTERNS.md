@@ -16,6 +16,12 @@ All diagrams are GitHub-rendered Mermaid. Backends shown (`gemini`, `claude`,
 > the architectural primitives you compose from — see
 > [Composing your own](#composing-your-own) and
 > [Consensus invocation: always vs gated](#consensus-invocation--always-vs-gated).
+>
+> **Direction (REQ-12):** the intended differentiator is openai-agents
+> **handoff / `as_tool`** into *other* harnesses — not extra concurrent
+> Grok/Rakazo/OMB seats. Concurrent `cli_fusion` panels below are a live
+> *pattern*, not a remotes product. Remotes are not landed; Grok-Bot chrome
+> is not shipping. See [VISION.md](./VISION.md).
 
 | Blueprint | Pattern | Status |
 |---|---|---|

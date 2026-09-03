@@ -1,189 +1,136 @@
 # Open Swarm — Vision
 
-> **One sentence:** Open Swarm turns the agentic CLIs you already have — `claude`,
-> `gemini`, `grok`, `codex`, `opencode`, and any future one — into a single
-> OpenAI-compatible endpoint, and lets you **orchestrate them as a team**:
-> consensus, routing, divide-and-conquer, sequential refinement, debate, and
-> planner-led delegation.
+> **One sentence:** Open Swarm is becoming a **harness for other agent
+> harnesses** — Hermes, OpenMausBot, Rakazo, and the agentic CLIs you already
+> run — composed with openai-agents **handoff / `as_tool`**, not by adding extra
+> concurrent Grok / Rakazo / OMB seats.
 
-This document is the front door. It states where we are going, then gives an
-**honest** account of what is built and what is not. For the mechanics of each
-orchestration pattern with sequence diagrams, see
-[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md). For per-feature
-evidence see [FEATURE_STATUS.md](../FEATURE_STATUS.md); for the nested checklist
-see [ROADMAP.md](../ROADMAP.md).
+This is the front door. It states the intended product, then an honest
+**live vs intended** table. Mechanics of today's in-process patterns:
+[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md). Workflow A vs B:
+[SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md). Vocabulary:
+[GLOSSARY.md](./GLOSSARY.md).
 
----
-
-## The vision
-
-The agent ecosystem fractured into excellent, mutually-incompatible **agentic
-CLIs**. Each vendor ships its own terminal tool with its own auth, its own tool
-calling, its own model access. They do not talk to each other, and none of them
-expose a standard API you can point an OpenAI client at.
-
-Open Swarm closes that gap on two axes:
-
-1. **Adapt** — wrap any agentic CLI as a first-class backend behind the
-   OpenAI-compatible REST API (`/v1/chat/completions`, `/v1/responses`,
-   `/v1/models`). Point Open WebUI, Cursor, the OpenAI SDK, or `curl` at one URL
-   and reach every CLI on the box. The CLI keeps its own auth and tools; Open
-   Swarm just gives it a standard door.
-
-2. **Orchestrate** — compose those CLIs into multi-agent *teams* using named
-   orchestration patterns, exposed as **blueprints** (each is a `model` id). The
-   patterns are deliberately the same primitives the field has converged on —
-   the ones Microsoft's Agent Framework calls sequential, concurrent, handoff,
-   group-chat, and Magentic-One — but realized over heterogeneous CLIs instead
-   of a single SDK's agents.
-
-The thesis: **you do not need one model to be best at everything.** You need a
-cheap fast model to triage, a strong model to arbitrate, and a way to make them
-deliberate. A `gemini` flash panelist, a `claude` judge, and a `grok` dissenter
-will, between them, beat any one of them alone on the questions that matter —
-and Open Swarm makes wiring that a one-line `model:` choice.
-
-### Why CLIs (not raw API keys)
-
-- **Auth you already have.** Each CLI carries its own login (OAuth, subscription,
-  or key). Open Swarm never sees or stores those credentials.
-- **Tools you already have.** `claude` and `gemini` ship real tool calling — they
-  read files, run commands, browse. Wrapping the CLI inherits that agentic
-  behaviour for free (proven below).
-- **No lock-in.** Add a CLI by adding a config block. Nothing in a blueprint
-  names a vendor; backends are chosen by name, by failover chain, or by
-  *inference profile* (desired traits, not a brand).
+A separate generic docs-vs-reality audit lives on
+[PR #297](https://github.com/matthewhand/open-swarm/pull/297) (review-only).
+This page is the **direction write**, not that audit.
 
 ---
 
-## What is built today (v0.5.4)
+## Thesis
 
-This is verified, shipped, and covered by a 1200+ test suite. Status marks:
-✅ working · 🟡 partial.
+The field now has several **agent harnesses** — Grok Bot (vendor), Hermes
+(Nous), OpenMausBot, Rakazo — each a roster of named bots, usually **poly-agent
+concurrent**: many seats run in parallel on a computer (shared or per-bot).
 
-| Capability | Status | Where |
-|---|---|---|
-| OpenAI-compatible API — `/v1/chat/completions` (+SSE), `/v1/models` | ✅ | `src/swarm/views/chat_views.py` |
-| **Stateful** `/v1/responses` — `store`, `previous_response_id` chaining, GET/DELETE | ✅ | `src/swarm/views/responses_views.py`, `swarm/core/responses_store.py` |
-| OpenAPI schema at `/api/schema/` (+ Swagger UI) | ✅ | `drf-spectacular` |
-| **`cli_agent`** — expose one CLI, with failover and self-consensus | ✅ | `blueprints/cli_agent/` |
-| **`cli_fusion`** — panel → judge → synthesize, bounded master-plan loop | ✅ | `blueprints/cli_fusion/` |
-| **`cli_orchestrator`** — cheap router, escalate to a panel only when high-stakes | ✅ | `blueprints/cli_orchestrator/` |
-| **`cli_map`** — decompose → distribute → reduce (divide-and-conquer) | ✅ | `blueprints/cli_map/` |
-| **`cli_pipeline`** — sequential refinement (draft → review → polish) | ✅ | `blueprints/cli_pipeline/` |
-| **`cli_roundtable`** — group-chat debate, moderated to a conclusion | ✅ | `blueprints/cli_roundtable/` |
-| **`cli_planner`** — Magentic-One-style task ledger, re-plans on stall | ✅ | `blueprints/cli_planner/` |
-| CLI autodiscovery + auth probe (`swarm-cli cli-agents --init/--check-auth`) | ✅ | `swarm/core/cli_adapter.py`, `cli_catalog.py` |
-| Per-panelist **git-worktree isolation** for write-mode CLIs | ✅ | `cli_fusion` |
-| **Inference profiles** — pick a backend by traits (intelligence/speed/cost), not brand | ✅ | `docs/examples/inference-profile-routing.md` |
-| **Skills** — Anthropic Agent-Skills `SKILL.md`, applied to any CLI via `skill=` | ✅ | `docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md` |
-| **Tool capabilities** — declare an abstract need, resolve to an MCP provider | 🟡 | `swarm/core/tool_capabilities.py` |
-| Web UI dashboard + live websocket chat | 🟡 | Django operator UI is canonical ([ADR-001](./ADR-001-primary-ui.md)); SPA mounts `/` + `/chat` only; leftover SPA operator pages deleted |
-| Opt-in cross-conversation **memory** (mem0) | 🟡 | wired, not yet validated against a live mem0 |
+Open Swarm used to compete in that shape: wrap CLIs, fan a prompt to a panel,
+judge, synthesize. That line still **runs** (CLI fusion / MoA). The product is
+turning: **stop being another concurrent-seat harness; become the layer that
+invokes the ones you already chose.**
 
-### Proof it actually works (captured live, this repo)
+Composition is the openai-agents primitives we already depend on:
 
-These are **real CLI transcripts**, not mocks. Re-runnable; raw output committed
-under [`docs/proofs/`](./proofs/).
+- **handoff** — control moves to another agent
+- **`as_tool()`** — a specialist (or, later, a remote harness) is called as a
+  tool, then returns
 
-- **Cross-CLI consensus** — one prompt fanned to `gemini` + `claude` + `grok`
-  concurrently, a `claude` judge synthesizing, with consensus / contradictions /
-  gaps / unique-insight analysis across the three models in **27 s**. See
-  [`docs/proofs/tri_cli_fusion_run.txt`](./proofs/tri_cli_fusion_run.txt).
-- **Routing / escalation** — a `gemini` router resolves low-stakes questions
-  directly with a stated reason, reserving the panel for contested ones. See
-  [`docs/proofs/orchestrator_escalation_run.txt`](./proofs/orchestrator_escalation_run.txt).
-- **Tool calling** — `gemini` and `claude` each *read a real file*
-  (`pyproject.toml`) via their own tools and returned the exact version string.
-  See [`docs/proofs/tool_calling_run.txt`](./proofs/tool_calling_run.txt).
-- **Sequential / group-chat / planner** — `cli_pipeline` (gemini draft → claude
-  review), `cli_roundtable` (gemini + grok debate, claude moderator concludes),
-  and `cli_planner` (claude plans a ledger, a worker executes, planner concludes
-  with a 12-point checklist). See the `pipeline_run`, `roundtable_run`, and
-  `planner_run` transcripts in [`docs/proofs/`](./proofs/).
-- **Full permutation matrix** — every installed CLI through every framework mode,
-  12/12 passing: `scripts/prove_cli_permutations.py`.
+That is **not** “spin another Grok / LiteLLM / OMB worker.” Roles are seats in
+a graph, not extra concurrent subscriptions.
 
----
+```
+intended (not all live)
 
-## What remains (honest)
-
-### Orchestration patterns — complete ✅
-
-The standard pattern set is now built end to end: concurrent (`cli_fusion`),
-handoff/escalation (`cli_orchestrator`), map-reduce (`cli_map`), sequential
-(`cli_pipeline`), group-chat (`cli_roundtable`), and Magentic-One
-(`cli_planner`). Each has a sequence diagram in
-[ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md), tests under
-`tests/blueprints/`, and a live cross-CLI transcript in
-[`docs/proofs/`](./proofs/). Remaining work here is depth, not coverage:
-richer streaming progress for the multi-round patterns, and per-stage usage
-accounting.
-
-### Other known gaps (unchanged from the roadmap)
-
-- **SPA vs Django** — [ADR-001](./ADR-001-primary-ui.md) keeps the SPA at `/` +
-  `/chat` only; Django trailing-slash UI is the supported operator surface.
-  Full React SPA parity / remounting Builder is **rejected** as a v1 goal.
-- **MCP server mode** (`ENABLE_MCP_SERVER`) — aspirational; the flag warns loudly.
-- **Memory** — mem0 wired and opt-in, not yet validated end-to-end against a live
-  mem0; `letta`/`langmem` are placeholders.
-- **Deprecation-shim sunset** — done (ROADMAP §2.1); use `swarm.core.*` /
-  `swarm.ux.ansi_box`.
-
----
-
-## How the pieces fit
-
-```mermaid
-flowchart LR
-    Client["OpenAI client - SDK, Open WebUI, curl"] -->|v1 chat completions| API[Open Swarm API]
-    API -->|model selects| BP{Blueprint}
-    BP -->|single| A[cli_agent]
-    BP -->|concurrent| F[cli_fusion]
-    BP -->|handoff| O[cli_orchestrator]
-    BP -->|map reduce| M[cli_map]
-    BP -->|sequential| P[cli_pipeline]
-    BP -->|group chat| R[cli_roundtable]
-    BP -->|planner| PL[cli_planner]
-    A --> REG[CLI adapter registry]
-    F --> REG
-    O --> REG
-    M --> REG
-    P --> REG
-    R --> REG
-    PL --> REG
-    REG --> g[gemini]
-    REG --> c[claude]
-    REG --> k[grok]
-    REG --> x[codex and others]
+  OpenAI client / Chat
+           │
+           ▼
+     Open Swarm coordinator
+           │  handoff / as_tool
+           ├──► Hermes
+           ├──► OpenMausBot
+           └──► Rakazo
 ```
 
-Every blueprint resolves backends through one **CLI adapter registry** built from
-the `cli_agents` config block. Adding a CLI never touches a blueprint.
+---
+
+## Differentiator
+
+| | **Open Swarm (direction)** | **Grok Bot / Rakazo / OpenMausBot** |
+|---|---|---|
+| Unit of work | A **tool call or handoff** into another harness | A **concurrent seat** (another bot on a computer) |
+| How many run at once | Coordinator invokes specialists; no extra poly-agent seats | Many bots in parallel (the product) |
+| What you bring | Harnesses and CLIs you already run | A roster inside that product |
+| openai-agents | Native: `handoff` / `as_tool` | Not the composition model |
+
+Existing **MoA / `cli_fusion` concurrent panels** stay as a *pattern you can
+pick* (workflow A). They are not the intended differentiator, and they are not
+a claim that remotes or Grok-Bot chrome exist.
 
 ---
 
-## Design principles
+## Live vs intended
 
-1. **OpenAI-compatible or it does not exist.** Every capability ships as a
-   `model` id reachable from a stock OpenAI client.
-2. **Blueprints name patterns, not vendors.** Backend selection is by name,
-   failover, or inference profile — never hardcoded.
-3. **Credentials stay with the CLI.** Open Swarm never reads or stores a CLI's
-   auth. Config holds command-lines, not secrets.
-4. **Honest status.** Partial is marked partial; planned is marked planned;
-   proofs are real transcripts you can re-run.
-5. **Graceful degradation.** A dead panelist must not sink a round; consensus
-   comes from survivors, and failures are surfaced, not swallowed.
+Short and dated. Do not treat “intended” as shipped.
+
+| Surface | Status | Honesty |
+|---|---|---|
+| **Running today** | OpenAI-compatible `/v1/chat/completions` + `/v1/responses`, blueprint discovery, `swarm-cli`, Django operator UI + SPA `/` + `/chat` ([ADR-001](./ADR-001-primary-ui.md)), CLI fusion / MoA, in-process persona / `as_tool` teams, `harness_fleet` **LAN health probes** | This is the live product. |
+| **Dark chrome** | REQ-5 / REQ-5d on `main` — near-black operator shell, large home cards, AGENTS sidepane on Django too | Colour/chrome only. **Not** a Grok-Bot UI. |
+| **Grok-Bot-like UI** | Intended look (roster, remotes, Bot chrome) | **Not live. Not shipping.** Do not demo or document it as current. |
+| **Support / gate / skeptic** | openai-agents roles via `as_tool` / handoff (Support talks about the roster; gate classifies dangerous tool calls; skeptic reviews then bounded retry) | **In flight** (open PRs; not on `main`). Until those land, there is no Support landing agent and no live gate/skeptic engine. |
+| **Remotes (REQ-11)** | First-class connection to Hermes / OpenMausBot / Rakazo (and similar) as handoff / `as_tool` backends | **Not landed.** Chat has no Remote selector. `harness_fleet` is TCP/HTTP inventory, not remotes. **Do not claim remotes work.** |
+
+---
+
+## What is running (so we do not erase it)
+
+Verified capabilities — still true, still not the new headline:
+
+- OpenAI-compatible API, OpenAPI at `/api/schema/`
+- Blueprints as `model` ids (`cli_agent`, `cli_fusion` / MoA, `cli_orchestrator`,
+  `cli_map`, pipeline / roundtable / planner, persona councils, …)
+- `swarm-cli cli-agents` autodiscovery; Skills (`SKILL.md`); inference profiles
+- Web: Django trailing-slash operator pages; SPA dashboard + websocket chat
+- `harness_fleet` — LLM-free probe of configured LAN endpoints (placeholders
+  for Rakazo / OpenMausBot ports are **UNKNOWN** until configured)
+
+Proof transcripts for *cross-CLI* fusion (not remotes) remain under
+[`docs/proofs/`](./proofs/).
+
+---
+
+## What we will not claim
+
+- Remotes work, or Chat can target Hermes / OpenMausBot / Rakazo.
+- Grok-Bot chrome is shipping (dark theme ≠ Bot product).
+- Support, gate, or skeptic are on `main`.
+- Extra concurrent Grok / Rakazo / OMB seats are the differentiator.
+- Neon / Oracle / Fly are part of this direction. They are ops; they are not
+  enabled or resumed here.
+
+---
+
+## Design principles (direction)
+
+1. **Handoff / `as_tool`, not another seat.** If a design adds a concurrent
+   poly-agent worker to look like Grok/OMB/Rakazo, it is the wrong axis.
+2. **Harnesses stay themselves.** Auth, tools, and computers stay with Hermes /
+   OMB / Rakazo / the CLI. Open Swarm invokes; it does not re-implement.
+3. **OpenAI-compatible or it does not exist.** A capability that cannot be a
+   `model` id or a tool on one is not shipped.
+4. **Honest status.** Partial is partial; in-flight is in-flight; remotes are
+   absent until REQ-11 lands.
+5. **Graceful degradation.** A missing remote or unwired gate must not pretend
+   to have run. (Today: unwired gate = all tools approved — once that code
+   exists. Until then, do not document the gate as live.)
 
 ---
 
 ## See also
 
-- [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) — sequence diagrams for every pattern
-- [CLI_FUSION.md](./CLI_FUSION.md) — the CLI-fusion blueprints in depth
-- [ADR-001](./ADR-001-primary-ui.md) — Django operator UI canonical; SPA `/` + `/chat` only
-- [AUTH.md](./AUTH.md) — Bearer vs session, WS 4401, Explorer bridge, workdir / blueprint trust
-- [ROADMAP.md](../ROADMAP.md) · [FEATURE_STATUS.md](../FEATURE_STATUS.md) — granular status
-- [docs/archive/](./archive/) — superseded architectures, kept for the record
+- [GLOSSARY.md](./GLOSSARY.md) — Blueprint, Team alias, Remote, Role
+- [SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md) — MoA vs persona / `as_tool`
+- [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) — today's patterns
+- [ADR-001](./ADR-001-primary-ui.md) — Django operator UI; SPA `/` + `/chat`
+- [CLI_FUSION.md](./CLI_FUSION.md) — wrapping *CLIs* (not remotes)
+- [ROADMAP.md](../ROADMAP.md) · [FEATURE_STATUS.md](../FEATURE_STATUS.md)
+- [PR #297](https://github.com/matthewhand/open-swarm/pull/297) — generic honesty audit (separate)

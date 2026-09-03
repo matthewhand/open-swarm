@@ -3,7 +3,9 @@
 > **Live status board** — per-feature evidence for what is shipped, partial, or
 > planned. Last updated: **2026-08-18**. Nested checklist:
 > [ROADMAP.md](./ROADMAP.md); release notes: [CHANGELOG.md](./CHANGELOG.md).
-> The original 2026-06-10 point-in-time audit is archived at
+> Product direction + live-vs-intended honesty: [docs/VISION.md](./docs/VISION.md)
+> (remotes and Grok-Bot chrome are **not** claimed here). The original 2026-06-10
+> point-in-time audit is archived at
 > [docs/archive/FEATURE_STATUS_2026-06-10.md](./docs/archive/FEATURE_STATUS_2026-06-10.md).
 
 Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded (exists, not wired) · 📋 planned (flags/docs only) · ❌ broken/fake/dead · 🗑 removed

@@ -11,7 +11,7 @@
 
 Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python). Derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm) (see [Attribution](#acknowledgements--attribution)).
 
-**Elevator pitch:** define a team of AI agents once — as a *blueprint* — and run it anywhere: as a local CLI command, a compiled standalone executable, or behind an OpenAI-compatible API that any OpenAI client, SDK, or chat UI can talk to. Web dashboard, live websocket chat, MCP tool integration, and opt-in agent memory included.
+**Elevator pitch:** define a team once — as a *blueprint* — and run it as a CLI, a compiled executable, or an OpenAI-compatible API. The **intended** product is a harness *for other harnesses* (Hermes, OpenMausBot, Rakazo) via openai-agents handoff / `as_tool`, not extra concurrent Grok/OMB seats. Remotes and Grok-Bot chrome are **not** live — see [Vision](docs/VISION.md).
 
 <div align="center">
 <img src="docs/screenshots/landing.png" alt="Open Swarm dashboard" width="85%"/>
@@ -25,7 +25,7 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 
 > **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 1100+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
-> 🧭 **Start with the [Vision](docs/VISION.md)** — where Open Swarm is going (one OpenAI-compatible endpoint that *adapts and orchestrates* your agentic CLIs), with an honest built-vs-remaining table and live cross-CLI proofs. Pattern mechanics with sequence diagrams: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
+> 🧭 **Start with the [Vision](docs/VISION.md)** — harness-of-harnesses direction, differentiator (handoff / `as_tool` vs poly-agent concurrent), and a short **live vs intended** table (Grok-Bot UI not live; Support/gate/skeptic in flight; remotes REQ-11 not landed). Pattern mechanics: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
 
 ---
 

@@ -25,6 +25,18 @@ Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):
 
 Do not call `/v1/teams` aliases “MoA teams” or “persona teams.”
 
+## Harness / Remote / Role (direction)
+
+Intended vocabulary for the harness-of-harnesses turn. See [VISION.md](./VISION.md).
+
+| Name | Meaning | Honesty |
+|------|---------|---------|
+| **Harness** | An agent runtime you already run (Hermes, OpenMausBot, Rakazo, or an agentic CLI). Open Swarm's intended job is to *compose* those. | Live today: wrap **CLIs** (`cli_agent` / fusion) and in-process openai-agents teams. |
+| **Remote** (REQ-11) | A first-class connection to another harness, invoked by handoff / `as_tool` — not another concurrent Grok/OMB/Rakazo seat. | **Not landed.** Chat has no Remote selector. `harness_fleet` is LAN health probes only. Do not claim remotes work. |
+| **Role** (`support` / `gate` / `skeptic`) | Seats in an openai-agents graph (`as_tool` / handoff). Support talks about the roster; gate classifies a pending tool call; skeptic reviews then bounded retry. | **In flight.** Not on `main`. Assigning a role is not an extra concurrent worker. |
+
+**Grok-Bot-like UI** (roster + remotes + Bot chrome) is intended, **not live**. REQ-5 dark chrome on `main` is colour/shell only.
+
 ## CLI Fusion
 
 Wrapping installed agentic CLIs (`grok` / `claude` / `gemini` / …) behind the OpenAI API and composing them (`cli_agent`, `cli_fusion` panel+judge, `cli_orchestrator`, `cli_map`, …). Config: `cli_agents` (+ fusion blocks) in `swarm_config.json`. Docs: [CLI_FUSION.md](./CLI_FUSION.md). Legacy product phrasing; MoA is the preferred name for read-only consensus.

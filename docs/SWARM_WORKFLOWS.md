@@ -3,6 +3,10 @@
 Open Swarm has **two primary multi-agent workflow styles**. They differ in
 *who may change the world* and *how specialization is expressed*.
 
+**Direction:** B (handoff / `as_tool`) is the axis for composing *other*
+harnesses later. That is not extra concurrent Grok/Rakazo/OMB seats. Remotes
+are not landed — [VISION.md](./VISION.md).
+
 | | **A. Orchestrated consensus (MoA)** | **B. Persona / agent-as-tool swarm** |
 |---|---|---|
 | **Primary name** | Mixture of Agents (MoA) | openai-agents team / persona swarm |

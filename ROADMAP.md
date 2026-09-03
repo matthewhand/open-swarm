@@ -7,6 +7,12 @@ blueprints (reusable multi-agent workflows), a Django REST API
 (OpenAI-compatible `/v1/chat/completions`), CLI launchers, MCP integration, and
 a web UI.
 
+**Current direction** (not all live): a harness for *other* harnesses (Hermes,
+OpenMausBot, Rakazo) via openai-agents handoff / `as_tool`, not extra concurrent
+Grok/Rakazo/OMB seats. Short honesty table: [docs/VISION.md](./docs/VISION.md).
+Remotes (REQ-11) are **not landed**. Grok-Bot chrome is **not shipping**.
+Support/gate/skeptic are **in flight**.
+
 This roadmap is the single source of truth for project status. It supersedes
 the older phase-based `TODO.md`. Per-feature evidence lives in the live
 [FEATURE_STATUS.md](./FEATURE_STATUS.md) board (re-verify a row before acting
@@ -26,7 +32,7 @@ if it looks wrong; the 2026-06-10 audit is in
 | `[x]` | Done and shipped |
 | `[ ]` | Not done / planned — partially-done parents stay unchecked, with checked sub-items showing progress |
 
-Last updated: 2026-06-19 (v0.5.1 on PyPI; CLI Agent Fusion + async + persona councils + recursion shipped).
+Last updated: 2026-09-03 (direction: harness-of-harnesses — see VISION.md; v0.5.1 on PyPI).
 
 ---
 
