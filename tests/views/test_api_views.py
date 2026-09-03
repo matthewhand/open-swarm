@@ -212,6 +212,40 @@ class TestBlueprintsListView:
         assert "description" in bp
         assert "required_mcp_servers" in bp
         assert "tags" in bp
+        # REQ-9: first-class role fields (unwired blueprints default-open)
+        assert bp["role"] == "default"
+        assert bp["gate_agent"] is None
+        assert bp["skeptic_agent"] is None
+        assert isinstance(bp["agents"], list)
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_exposes_support_and_gate_roles(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "support": {
+                "metadata": {
+                    "name": "Support",
+                    "description": "Onboard help",
+                    "role": "support",
+                    "required_mcp_servers": [],
+                    "tags": ["support"],
+                    "agents": [
+                        {"name": "Support", "role": "support"},
+                        {"name": "ToolGate", "role": "tool_gate"},
+                    ],
+                }
+            }
+        }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        row = response.json()["data"][0]
+        assert row["role"] == "support"
+        assert row["gate_agent"] == "ToolGate"
+        assert {a["name"]: a["role"] for a in row["agents"]} == {
+            "Support": "support",
+            "ToolGate": "gate",
+        }
 
     @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_search_filter(
