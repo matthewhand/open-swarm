@@ -212,6 +212,45 @@ class TestBlueprintsListView:
         assert "description" in bp
         assert "required_mcp_servers" in bp
         assert "tags" in bp
+        assert "role" in bp
+        assert bp["role"] == "default"
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_exposes_support_role(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "support": {
+                "metadata": {
+                    "name": "Support",
+                    "description": "Onboarding. First team.",
+                    "role": "support",
+                    "tags": ["support"],
+                }
+            }
+        }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["data"][0]["role"] == "support"
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_includes_chief_of_staff_role(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "cos": {
+                "metadata": {
+                    "name": "Chief of Staff",
+                    "description": "Talks to any team.",
+                    "role": "cos",
+                }
+            }
+        }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        bp = response.json()["data"][0]
+        assert bp["id"] == "cos"
+        assert bp["role"] == "chief_of_staff"
 
     @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_search_filter(

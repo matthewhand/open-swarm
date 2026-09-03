@@ -220,12 +220,22 @@ class DjangoChatBlueprint(Blueprint):
             )}]}
             return
 
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        from swarm.core.model_text import sanitize_model_text
+
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=60.0)
         try:
             resp = await client.chat.completions.create(
-                model=model_name, messages=messages, stream=False
+                model=model_name,
+                messages=messages,
+                stream=False,
+                max_tokens=1024,
             )
-            text = (resp.choices[0].message.content or "").strip()
+            text = sanitize_model_text(resp.choices[0].message.content)
+            if not text:
+                text = (
+                    "The model returned no usable text "
+                    "(empty or leaked special tokens). Try another LLM profile."
+                )
             yield {"messages": [{"role": "assistant", "content": text}]}
         except Exception as e:
             logger.error(f"DjangoChat LLM call failed: {e}", exc_info=True)
